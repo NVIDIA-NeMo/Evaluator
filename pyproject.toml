@@ -1,0 +1,169 @@
+
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[project]
+name = "nemo-evaluate"
+description = "NeMo Evaluate: Evaluation Utilities for LLM and VLM models"
+readme = "README.md"
+dynamic = ["version"]
+license = {file = "LICENSE"}
+requires-python = ">=3.10"
+authors = [{ name = "NVIDIA", email = "nemo-toolkit@nvidia.com" }]
+maintainers = [{ name = "NVIDIA", email = "nemo-toolkit@nvidia.com" }]
+# TODO
+keywords = []
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "nvidia-lm-eval",
+    "uvicorn",
+    "pytest-httpserver"
+]
+
+[tool.setuptools.dynamic]
+version = { attr = "megatron.hub.package_info.__version__" }
+
+[tool.uv]
+# Currently, TE must be built with no build-isolation b/c it requires torch
+no-build-isolation-package = ["transformer-engine", "transformer-engine-torch"]
+override-dependencies = [
+    "torch; sys_platform == 'never'",
+    "torchvision; sys_platform == 'never'",
+    "triton; sys_platform == 'never'",
+    "tiktoken>=0.9.0",                      # because nemo-toolkit and megatron-hub disagree on tiktoken, we need to pin it here
+]
+
+[tool.uv.sources]
+nemo-toolkit = { git = "https://github.com/NVIDIA/NeMo.git", rev = "5e63ca3c1631bb156187705f9c4cf643a67f9c05" }
+megatron-core = { git = "https://github.com/NVIDIA/Megatron-LM.git", rev = "c40f31f307221a8458c0775658d19da89303c26b" }
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project.optional-dependencies]
+deploy = [
+    "nemo-deploy",
+]
+
+recipes = [
+    "nemo-run",
+]
+
+[dependency-groups]
+docs = [
+    "myst-parser>=4.0.1",
+    "nvidia-sphinx-theme>=0.0.8",
+    "sphinx>=8.1.3",
+    "sphinx-autobuild>=2024.10.3",
+    "sphinx-autodoc2>=0.5.0",
+    "sphinx-copybutton>=0.5.2",
+]
+test = [
+    "coverage>=7.8.1",
+    "flake8>=7.2.0",
+    "pylint>=3.3.7",
+    "pytest>=8.3.5",
+    "pytest-mock>=3.14.0",
+    "pytest-runner>=6.0.1",
+]
+dev = [
+    "pre-commit>=3.6.0",
+    "ruff>=0.9.9",
+    "mypy>=1.8.0",
+]
+
+
+# TODO
+# [project.entry-points."nemo_run.cli"]
+# lm = "megatron.hub"
+
+# TODO
+[project.urls]
+Download = "https://github.com/NVIDIA-NeMo/Evaluate/releases"
+Homepage = "https://github.com/NVIDIA-NeMo/Evaluate"
+
+[tool.pytest.ini_options]
+# durations=0 will display all tests execution time, sorted in ascending order starting from from the slowest one.
+# -vv will also display tests with durration = 0.00s
+addopts = "--verbose --pyargs --durations=0 --strict-markers"  # always add these arguments to pytest
+testpaths = ["tests"]
+# directories to ignore when discovering tests
+norecursedirs = [
+    "src",
+    "external",
+    "examples",
+    "docs",
+    "scripts",
+    "tools",
+    "tutorials",
+    "*.egg",
+    ".*",
+    "_darcs",
+    "build",
+    "CVS",
+    "dist",
+    "venv",
+    "{arch}"
+]
+# markers to select tests, use `pytest --markers` to see all available markers, `pytest -m "<marker>"` to select tests
+markers = [
+    "unit: marks unit test, i.e. testing a single, well isolated functionality (deselect with '-m \"not unit\"')",
+    "integration: marks test checking the elements when integrated into subsystems (deselect with '-m \"not integration\"')",
+    "system: marks test working at the highest integration level (deselect with '-m \"not system\"')",
+    "acceptance: marks test checking whether the developed product/model passes the user defined acceptance criteria (deselect with '-m \"not acceptance\"')",
+    "docs: mark tests related to documentation (deselect with '-m \"not docs\"')",
+    "skipduringci: marks tests that are skipped ci as they are addressed by Jenkins jobs but should be run to test user setups",
+    "pleasefixme: marks tests that are broken and need fixing",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.coverage.run]
+concurrency = ["thread", "multiprocessing"]
+omit = [
+    "/tmp/*",
+    "/workspace/tests/*",
+    "/workspace/*.py",
+    "*_ray.py",
+]
+
+[tool.coverage.paths]
+source = [
+    ".",
+    "/workspace/",
+    # TODO
+    # "/home/runner/work/Evaluate/Evaluate",
+]
