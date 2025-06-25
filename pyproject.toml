@@ -48,7 +48,7 @@ dependencies = [
 ]
 
 [tool.setuptools.dynamic]
-version = { attr = "megatron.hub.package_info.__version__" }
+version = { attr = "nemo_evaluate.package_info.__version__" }
 
 [tool.uv]
 # Currently, TE must be built with no build-isolation b/c it requires torch
@@ -69,9 +69,9 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project.optional-dependencies]
-deploy = [
-    "nemo-deploy",
-]
+# deploy = [
+#     "nemo-deploy",
+# ]
 
 recipes = [
     "nemo-run",

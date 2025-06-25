@@ -17,8 +17,6 @@ import logging
 from pathlib import Path
 from typing import Optional, Union
 
-import torch
-
 from nemo_evaluate.utils.api import EvaluationConfig, EvaluationTarget, MisconfigurationError
 
 
@@ -81,6 +79,7 @@ def deploy(
         cuda_visible_devices (list): Comma-separated list of CUDA visible devices. Default: [0,1].
         legacy_ckpt (bool): Indicates whether the checkpoint is in legacy format. Default: False.
     """
+    import torch
     if serving_backend == "ray":
         if num_replicas is None:
             raise ValueError("num_replicas must be specified when using Ray backend")
