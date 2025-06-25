@@ -1,4 +1,4 @@
-# Contributing To Megatron-Hub
+# Contributing To NeMo-Evaluate
 
 ## Signing Your Work
 
