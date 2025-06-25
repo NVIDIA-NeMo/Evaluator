@@ -45,7 +45,6 @@ classifiers = [
 dependencies = [
     "nvidia-lm-eval",
     "uvicorn",
-    "pytest-httpserver"
 ]
 
 [tool.setuptools.dynamic]
@@ -94,6 +93,7 @@ test = [
     "pytest>=8.3.5",
     "pytest-mock>=3.14.0",
     "pytest-runner>=6.0.1",
+    "pytest-httpserver",
 ]
 dev = [
     "pre-commit>=3.6.0",
