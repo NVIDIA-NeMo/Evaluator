@@ -19,9 +19,9 @@ import subprocess
 
 import pytest
 
-from nemo_evaluate.api import evaluate
-from nemo_evaluate.utils.api import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
-from nemo_evaluate.utils.base import wait_for_fastapi_server
+from nemo_eval.api import evaluate
+from nemo_eval.utils.api import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
+from nemo_eval.utils.base import wait_for_fastapi_server
 
 
 logger = logging.getLogger(__name__)

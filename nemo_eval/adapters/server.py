@@ -69,7 +69,7 @@ import flask
 import requests
 import werkzeug.serving
 
-from nemo_evaluate.api import AdapterConfig
+from ..api import AdapterConfig
 import logging
 
 from .interceptors import (

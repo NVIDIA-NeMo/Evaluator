@@ -15,7 +15,7 @@
 import argparse
 import logging
 
-from nemo_evaluate.api import deploy
+from nemo_eval.api import deploy
 
 
 logger = logging.getLogger(__name__)

@@ -17,8 +17,8 @@ import json
 
 from flask import Request
 
-from nemo_evaluate.adapters.interceptors.system_message_interceptor import SystemMessageInterceptor
-from nemo_evaluate.adapters.interceptors.types import AdapterMetadata, AdapterRequest
+from nemo_eval.adapters.interceptors.system_message_interceptor import SystemMessageInterceptor
+from nemo_eval.adapters.interceptors.types import AdapterMetadata, AdapterRequest
 
 
 def test_new_system_injected():
