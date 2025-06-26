@@ -171,6 +171,7 @@ examples/*/wandb
 examples/*/data
 wandb
 dump.py
+results
 
 docs/sources/source/test_build/
 
@@ -182,3 +183,5 @@ examples/neural_graphs/*.yml
 nemo_experiments/
 
 slurm*.out
+
+uv.lock
