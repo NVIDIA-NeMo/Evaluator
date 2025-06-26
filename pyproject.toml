@@ -89,7 +89,11 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["nemo_eval"]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 
 [tool.setuptools.dynamic]
 version = {attr = "nemo_eval.__version__"}
@@ -177,7 +181,7 @@ ignore = [
     "E501",  # Line too long - handled by formatter
 ]
 [tool.ruff.lint.isort]
-known-first-party = ["nemo_eval"]
+known-first-party = ["src/nemo_eval"]
 known-third-party = ["examples", "scripts"]
 section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
 lines-after-imports = 2
@@ -201,4 +205,4 @@ concurrency = ["thread", "multiprocessing"]
 omit = ["/tmp/*"]
 
 [tool.coverage.paths]
-source = ["nemo_eval/", "/workspace/nemo_eval"]
+source = ["src/nemo_eval/", "/workspace/nemo_eval"]
