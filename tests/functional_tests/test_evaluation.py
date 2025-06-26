@@ -45,7 +45,7 @@ class TestEvaluation:
         port = 8886
 
         # Set environment variables
-        os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
         os.environ["HF_DATASETS_OFFLINE"] = "1"
         os.environ["HF_HOME"] = "/home/TestData/HF_HOME"
         os.environ["HF_DATASETS_CACHE"] = f"{os.environ['HF_HOME']}/datasets"
@@ -100,7 +100,7 @@ class TestEvaluation:
         port = 8887
 
         # Set environment variables
-        os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
         os.environ["HF_DATASETS_OFFLINE"] = "1"
         os.environ["HF_HOME"] = "/home/TestData/HF_HOME"
         os.environ["HF_DATASETS_CACHE"] = f"{os.environ['HF_HOME']}/datasets"
