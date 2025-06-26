@@ -14,10 +14,11 @@
 
 import importlib
 import logging
+import multiprocessing
 from pathlib import Path
 from typing import Optional, Union
 
-from .utils.api import EvaluationConfig, EvaluationTarget, MisconfigurationError, AdapterConfig
+from .utils.api import AdapterConfig, EvaluationConfig, EvaluationTarget, MisconfigurationError
 
 
 AnyPath = Union[Path, str]
@@ -80,6 +81,7 @@ def deploy(
         legacy_ckpt (bool): Indicates whether the checkpoint is in legacy format. Default: False.
     """
     import torch
+
     if serving_backend == "ray":
         if num_replicas is None:
             raise ValueError("num_replicas must be specified when using Ray backend")
