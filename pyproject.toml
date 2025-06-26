@@ -54,6 +54,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
     "Topic :: Utilities",
 ]
+#TODO Add nemo-export-deploy once public and remove the installation from Dockerfile.ci
 dependencies = [
     "nvidia-lm-eval",
     "uvicorn",
