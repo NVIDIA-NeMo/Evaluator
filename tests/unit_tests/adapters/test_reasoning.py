@@ -18,8 +18,8 @@ from typing import Any, Generator
 import pytest
 import requests
 
-from nemo_evaluate.adapters.server import create_server_process
-from nemo_evaluate.api import AdapterConfig
+from nemo_eval.adapters.server import create_server_process
+from nemo_eval.api import AdapterConfig
 
 
 @pytest.fixture

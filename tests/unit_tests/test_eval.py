@@ -15,8 +15,8 @@
 import pytest
 from pytest_httpserver import HTTPServer
 
-from nemo_evaluate.api import evaluate
-from nemo_evaluate.utils.api import ConfigParams, EvaluationConfig, EvaluationTarget
+from nemo_eval.api import evaluate
+from nemo_eval.utils.api import ConfigParams, EvaluationConfig, EvaluationTarget
 
 
 @pytest.fixture(scope="session")

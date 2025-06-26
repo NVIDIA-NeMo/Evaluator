@@ -17,7 +17,7 @@ import logging
 from pathlib import Path
 from typing import Optional, Union
 
-from nemo_evaluate.utils.api import EvaluationConfig, EvaluationTarget, MisconfigurationError, AdapterConfig
+from .utils.api import EvaluationConfig, EvaluationTarget, MisconfigurationError, AdapterConfig
 
 
 AnyPath = Union[Path, str]
@@ -84,7 +84,7 @@ def deploy(
         if num_replicas is None:
             raise ValueError("num_replicas must be specified when using Ray backend")
 
-        from nemo_evaluate.utils.ray_deploy import deploy_with_ray
+        from .utils.ray_deploy import deploy_with_ray
 
         deploy_with_ray(
             nemo_checkpoint=nemo_checkpoint,
@@ -202,7 +202,7 @@ def evaluate(
     """
     import yaml
 
-    from nemo_evaluate.utils.base import find_framework, wait_for_fastapi_server
+    from .utils.base import find_framework, wait_for_fastapi_server
 
     eval_type_components = eval_cfg.type.split(".")
     if len(eval_type_components) == 2:
