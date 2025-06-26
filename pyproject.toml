@@ -1,4 +1,3 @@
-
 # Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,16 +13,28 @@
 # limitations under the License.
 
 [project]
-name = "nemo-evaluate"
-description = "NeMo Evaluate: Evaluation Utilities for LLM and VLM models"
-readme = "README.md"
-dynamic = ["version"]
+name = "nemo-eval"
+dynamic = [
+    "version",
+    "readme",
+]
+description = "NeMo Eval: Evaluation Utilities for LLM and VLM models"
 license = {file = "LICENSE"}
 requires-python = ">=3.10"
 authors = [{ name = "NVIDIA", email = "nemo-toolkit@nvidia.com" }]
 maintainers = [{ name = "NVIDIA", email = "nemo-toolkit@nvidia.com" }]
-# TODO
-keywords = []
+keywords = [
+    "NLP",
+    "NeMo",
+    "deep",
+    "gpu",
+    "language",
+    "learning",
+    "machine",
+    "nvidia",
+    "pytorch",
+    "torch",
+]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
@@ -36,6 +47,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Recognition",
     "Topic :: Scientific/Engineering :: Mathematics",
     "Topic :: Scientific/Engineering",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -47,35 +59,10 @@ dependencies = [
     "uvicorn",
 ]
 
-[tool.setuptools.dynamic]
-version = { attr = "nemo_evaluate.package_info.__version__" }
-
-[tool.uv]
-# Currently, TE must be built with no build-isolation b/c it requires torch
-no-build-isolation-package = ["transformer-engine", "transformer-engine-torch"]
-override-dependencies = [
-    "torch; sys_platform == 'never'",
-    "torchvision; sys_platform == 'never'",
-    "triton; sys_platform == 'never'",
-    "tiktoken>=0.9.0",                      # because nemo-toolkit and megatron-hub disagree on tiktoken, we need to pin it here
-]
-
-[tool.uv.sources]
-nemo-toolkit = { git = "https://github.com/NVIDIA/NeMo.git", rev = "5e63ca3c1631bb156187705f9c4cf643a67f9c05" }
-megatron-core = { git = "https://github.com/NVIDIA/Megatron-LM.git", rev = "c40f31f307221a8458c0775658d19da89303c26b" }
 
 [build-system]
-requires = ["setuptools>=64", "wheel"]
+requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
-
-[project.optional-dependencies]
-# deploy = [
-#     "nemo-deploy",
-# ]
-
-recipes = [
-    "nemo-run",
-]
 
 [dependency-groups]
 docs = [
@@ -101,15 +88,16 @@ dev = [
     "mypy>=1.8.0",
 ]
 
+[tool.setuptools]
+packages = ["nemo_eval"]
 
-# TODO
-# [project.entry-points."nemo_run.cli"]
-# lm = "megatron.hub"
+[tool.setuptools.dynamic]
+version = {attr = "nemo_eval.__version__"}
+readme = {file = "README.md", content-type = "text/markdown"}
 
-# TODO
 [project.urls]
-Download = "https://github.com/NVIDIA-NeMo/Evaluate/releases"
-Homepage = "https://github.com/NVIDIA-NeMo/Evaluate"
+Download = "https://github.com/NVIDIA-NeMo/Eval/releases"
+Homepage = "https://github.com/NVIDIA-NeMo/Eval"
 
 [tool.pytest.ini_options]
 # durations=0 will display all tests execution time, sorted in ascending order starting from from the slowest one.
@@ -118,7 +106,7 @@ addopts = "--verbose --pyargs --durations=0 --strict-markers"  # always add thes
 testpaths = ["tests"]
 # directories to ignore when discovering tests
 norecursedirs = [
-    "src",
+    "nemo_eval",
     "external",
     "examples",
     "docs",
@@ -145,25 +133,72 @@ markers = [
     "pleasefixme: marks tests that are broken and need fixing",
 ]
 
-[tool.setuptools]
-package-dir = {"" = "src"}
+[tool.ruff]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+# Match black's line length
+line-length = 119
+target-version = "py310"
+
+# Exclude common directories that shouldn't be linted
+exclude = [
+    ".git",
+    ".github",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "*.egg",
+    "build",
+    "dist",
+    "docs/source/conf.py",
+    "setup.py",
+]
+
+# Files to completely ignore
+extend-exclude = [
+    "*.ipynb",
+]
+
+[tool.ruff.lint]
+# Configure imports sorting to match isort
+select = [
+    "F541",  # f-string without any placeholders
+    "F841",  # local variable assigned but never used
+    "F401",  # imported but unused
+    "E741",  # ambiguous variable name
+    "F821",  # undefined name
+    "E266",  # too many leading '#' for block comment
+    "I",     # isort
+    "D101",  # docstring
+    "D103",
+]
+
+# Additional rules can be added here
+ignore = [
+    "E501",  # Line too long - handled by formatter
+]
+[tool.ruff.lint.isort]
+known-first-party = ["nemo_eval"]
+known-third-party = ["examples", "scripts"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+lines-after-imports = 2
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore import violations in __init__ files
+"__init__.py" = ["F401", "F403"]
+# Ignore docstring requirements in test files
+"test_*.py" = ["D101", "D103"]
+"*_test.py" = ["D101", "D103"]
+"tests/*.py" = ["D101", "D103"]
+
+[tool.ruff.format]
+# Match black configuration
+quote-style = "double"
+skip-magic-trailing-comma = false
+line-ending = "auto"
 
 [tool.coverage.run]
 concurrency = ["thread", "multiprocessing"]
-omit = [
-    "/tmp/*",
-    "/workspace/tests/*",
-    "/workspace/*.py",
-    "*_ray.py",
-]
+omit = ["/tmp/*"]
 
 [tool.coverage.paths]
-source = [
-    ".",
-    "/workspace/",
-    # TODO
-    # "/home/runner/work/Evaluate/Evaluate",
-]
+source = ["nemo_eval/", "/workspace/nemo_eval"]

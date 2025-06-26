@@ -1,3 +1,20 @@
+# log and data files
+*.model
+*.pkl
+#*.ipynb
+output
+output_2048
+result
+*.pt
+tests/data/asr
+.DS_Store
+bert.pt.json
+work
+runs
+fastspeech_output
+.hydra
+.bash_history.local
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -53,13 +70,35 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
 
 # Sphinx documentation
 docs/_build
 docs/apidocs
 
+# PyBuilder
+target/
+
 # Jupyter Notebook
 .ipynb_checkpoints
+
+# Override Jupyter in Github Language states for more accurate estimate of repo code.
+# Reference: https://github.com/github/linguist/blob/master/docs/overrides.md#generated-code
+*.ipynb linguist-generated
 
 # IPython
 profile_default/
@@ -67,6 +106,19 @@ ipython_config.py
 
 # pyenv
 .python-version
+
+# pipenv
+#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
+#   However, in case of collaboration, if having platform-specific dependencies or dependencies
+#   having no cross-platform support, pipenv may install dependencies that don’t work, or not
+#   install all needed dependencies.
+#Pipfile.lock
+
+# celery beat schedule file
+celerybeat-schedule
+
+# SageMath parsed files
+*.sage.py
 
 # Environments
 .env
@@ -103,6 +155,9 @@ dmypy.json
 # Emacs backup files
 *~
 
+cifar-10-batches-py
+*.tar.gz
+
 # Test data.
 tests/.data
 tests/data
@@ -119,11 +174,11 @@ dump.py
 
 docs/sources/source/test_build/
 
+# Checkpoints, config files and temporary files created in tutorials.
+examples/neural_graphs/*.chkpt
+examples/neural_graphs/*.yml
 
 .hydra/
 nemo_experiments/
 
 slurm*.out
-
-# UV package manager
-.uv/
