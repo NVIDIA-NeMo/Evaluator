@@ -1,0 +1,8 @@
+comment: false
+coverage:
+  status:
+    project: false
+    patch: false
+
+fixes:
+  - "/workspace/::"
