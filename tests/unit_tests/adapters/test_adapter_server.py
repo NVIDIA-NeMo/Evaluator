@@ -42,7 +42,6 @@ def adapter_server(fake_openai_endpoint) -> Generator[AdapterConfig, Any, Any]:
 
 
 def test_adapter_server_post_request(adapter_server, capfd):
-
     url = f"http://localhost:{adapter_server.local_port}"
     data = {
         "prompt": "This is a test prompt",

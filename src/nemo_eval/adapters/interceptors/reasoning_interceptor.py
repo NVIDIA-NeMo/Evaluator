@@ -20,8 +20,6 @@ from typing import final
 
 import requests
 
-import logging
-
 from .types import AdapterResponse, ResponseInterceptor
 
 

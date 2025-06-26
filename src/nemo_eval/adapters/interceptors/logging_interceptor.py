@@ -13,12 +13,11 @@
 # limitations under the License.
 
 
+import logging
 import threading
 from typing import Optional, final
 
 import requests
-
-import logging
 
 from .types import AdapterRequest, AdapterResponse, RequestInterceptor, ResponseInterceptor
 
@@ -27,8 +26,8 @@ def _get_safe_headers(headers: dict[str, str]) -> dict[str, str]:
     """Create a copy of headers with authorization redacted."""
     safe_headers = dict(headers)
     for header in safe_headers:
-        if header.lower() == 'authorization':
-            safe_headers[header] = '[REDACTED]'
+        if header.lower() == "authorization":
+            safe_headers[header] = "[REDACTED]"
     return safe_headers
 
 
@@ -80,7 +79,7 @@ class RequestLoggingInterceptor(RequestInterceptor):
                     "method": ar.r.method,
                     "url": ar.r.url,
                     "headers": _get_safe_headers(ar.r.headers),
-                    "raw_data": ar.r.get_data().decode('utf-8', errors='ignore'),
+                    "raw_data": ar.r.get_data().decode("utf-8", errors="ignore"),
                 }
             }
             logging.warning("Invalid request JSON, logging a request raw data")
@@ -144,7 +143,7 @@ class ResponseLoggingInterceptor(ResponseInterceptor):
             log_data = {
                 "response": {
                     "status_code": ar.r.status_code,
-                    "raw_content": ar.r.content.decode('utf-8', errors='ignore'),
+                    "raw_content": ar.r.content.decode("utf-8", errors="ignore"),
                 }
             }
             logging.warning("Invalid response JSON, logging response raw data")

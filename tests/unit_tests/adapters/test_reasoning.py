@@ -62,7 +62,6 @@ def test_reasoning_responses(
     input_content,
     expected_content,
 ):
-
     url = f"http://localhost:{adapter_server.local_port}"
     # We parametrize the response of the openai fake server.
     response_data = {
