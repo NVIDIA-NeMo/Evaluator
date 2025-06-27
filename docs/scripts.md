@@ -18,31 +18,6 @@ python deploy.py &
 
 3. Run the evalution of your choice.
 
-
-### Evaluate `arc_challenge`
-
-Firstly, install the evaluation package:
-```{literalinclude} ../scripts/snippets/arc_challenge.py
-:language: bash
-:lines: 1
-:linenos:
-```
-
-Export the required variables:
-```{literalinclude} ../scripts/snippets/arc_challenge.py
-:language: bash
-:start-after: "## Export the required variables"
-:end-before: "## Run the evaluation"
-:linenos:
-```
-
-Run the evaluation:
-```{literalinclude} ../scripts/snippets/arc_challenge.py
-:language: python
-:start-after: "## Run the evaluation"
-:linenos:
-```
-
 ---
 
 ### Evaluate `bfcl`
