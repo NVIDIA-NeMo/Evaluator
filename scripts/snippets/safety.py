@@ -1,4 +1,4 @@
-# pip install nvidia-safety-harness==25.5
+# pip install nvidia-safety-harness==25.6
 
 ## Export the required variables
 ## Key with access to https://build.nvidia.com/ endpoints

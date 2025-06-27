@@ -1,6 +1,7 @@
-# pip install nvidia-lm-eval==25.5
+# pip install nvidia-lm-eval==25.6
 
 ## Run the evaluation
+
 from nemo_eval.api import evaluate
 from nemo_eval.utils.api import EvaluationConfig, EvaluationTarget
 

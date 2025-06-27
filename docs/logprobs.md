@@ -16,10 +16,8 @@ python deploy.py &
 
 The NeMo Framework docker image comes with `nvidia-lm-eval` pre-installed.
 If you are running this example in a different environment, install the evaluation package:
-```{literalinclude} ../scripts/snippets/arc_challenge.py
-:language: bash
-:lines: 1
-:linenos:
+```bash
+pip install nvidia-lm-eval==25.6
 ```
 
 Run the evaluation:

@@ -1,4 +1,4 @@
-# pip install nvidia-bfcl==25.5
+# pip install nvidia-bfcl==25.6
 
 ## Export the required variables
 # No environment variables are required

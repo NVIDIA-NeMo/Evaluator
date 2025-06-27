@@ -1,4 +1,4 @@
-# pip install nvidia-simple-evals==25.5
+# pip install nvidia-simple-evals==25.6
 
 ## Export the required variables
 ## Key with access to https://build.nvidia.com/ endpoints
