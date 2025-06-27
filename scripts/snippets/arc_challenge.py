@@ -1,7 +1,5 @@
 # pip install nvidia-lm-eval==25.5
 
-## Export the required variables
-# export HF_TOKEN=...
 ## Run the evaluation
 from nemo_eval.api import evaluate
 from nemo_eval.utils.api import EvaluationConfig, EvaluationTarget

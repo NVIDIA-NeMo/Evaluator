@@ -11,6 +11,7 @@ evaluation-doc.md
 :caption: Advanced
 
 evaluation-adapters.md
+logprobs.md
 scripts.md
 ```
 
