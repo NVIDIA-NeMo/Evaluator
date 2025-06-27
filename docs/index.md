@@ -4,13 +4,13 @@
 
 ```{toctree}
 :caption: Basic Usage
-evaluation_doc.md
+evaluation-doc.md
 ```
 
 ```{toctree}
 :caption: Advanced
 
-evaluation_adapters.md
+evaluation-adapters.md
 scripts.md
 ```
 
