@@ -14,7 +14,8 @@
 
 import logging
 import os
-import signal
+import shutil
+
 import subprocess
 
 import pytest
@@ -25,6 +26,16 @@ from nemo_eval.utils.base import wait_for_fastapi_server
 
 
 logger = logging.getLogger(__name__)
+
+
+@pytest.fixture(autouse=True)
+def cleanup_results():
+    """Clean up results directory after each test."""
+    yield
+    results_dir = "results"
+    if os.path.exists(results_dir):
+        logger.info(f"Cleaning up results directory: {results_dir}")
+        shutil.rmtree(results_dir)
 
 
 class TestEvaluation:
@@ -51,7 +62,7 @@ class TestEvaluation:
         os.environ["HF_DATASETS_CACHE"] = f"{os.environ['HF_HOME']}/datasets"
 
         # Run deployment
-        deploy_proc = subprocess.Popen(
+        subprocess.Popen(
             [
                 "python",
                 "tests/functional_tests/deploy_in_fw_script.py",
@@ -83,7 +94,8 @@ class TestEvaluation:
             logger.info("Evaluation completed.")
 
         finally:
-            deploy_proc.send_signal(signal.SIGINT)
+            # Kill the python processes used to kill the server
+            subprocess.run(["pkill", "-9", "python"], check=False)
 
     @pytest.mark.pleasefixme
     @pytest.mark.run_only_on("GPU")
@@ -106,7 +118,7 @@ class TestEvaluation:
         os.environ["HF_DATASETS_CACHE"] = f"{os.environ['HF_HOME']}/datasets"
 
         # Run deployment
-        deploy_proc = subprocess.Popen(
+        subprocess.Popen(
             [
                 "python",
                 "tests/functional_tests/deploy_in_fw_script.py",
@@ -142,4 +154,5 @@ class TestEvaluation:
             logger.info("Evaluation completed.")
 
         finally:
-            deploy_proc.send_signal(signal.SIGINT)
+            # Kill the python processes used to kill the server
+            subprocess.run(["pkill", "-9", "python"], check=False)
