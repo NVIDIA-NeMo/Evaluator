@@ -104,6 +104,10 @@ readme = {file = "README.md", content-type = "text/markdown"}
 Download = "https://github.com/NVIDIA-NeMo/Eval/releases"
 Homepage = "https://github.com/NVIDIA-NeMo/Eval"
 
+[tool.uv]
+# Currently, TE must be built with no build-isolation b/c it requires torch
+no-build-isolation-package = ["transformer-engine", "transformer-engine-torch"]
+
 [tool.pytest.ini_options]
 # durations=0 will display all tests execution time, sorted in ascending order starting from from the slowest one.
 # -vv will also display tests with durration = 0.00s
