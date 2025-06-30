@@ -1410,6 +1410,29 @@ test = [
 ]
 
 [[package]]
+name = "nemo-toolkit"
+version = "2.4.0rc0"
+source = { git = "https://github.com/NVIDIA/NeMo.git?rev=5e63ca3c1631bb156187705f9c4cf643a67f9c05#5e63ca3c1631bb156187705f9c4cf643a67f9c05" }
+dependencies = [
+    { name = "fsspec" },
+    { name = "huggingface-hub" },
+    { name = "numba" },
+    { name = "numpy" },
+    { name = "onnx" },
+    { name = "protobuf" },
+    { name = "python-dateutil" },
+    { name = "ruamel-yaml" },
+    { name = "scikit-learn" },
+    { name = "setuptools" },
+    { name = "tensorboard" },
+    { name = "text-unidecode" },
+    { name = "torch" },
+    { name = "tqdm" },
+    { name = "wget" },
+    { name = "wrapt" },
+]
+
+[[package]]
 name = "nltk"
 version = "3.9.1"
 source = { registry = "https://pypi.org/simple" }
