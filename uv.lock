@@ -1366,6 +1366,9 @@ docs = [
     { name = "sphinx-autodoc2" },
     { name = "sphinx-copybutton" },
 ]
+nemo-legacy = [
+    { name = "nemo-toolkit", extra = ["automodel", "common-only", "eval", "multimodal-only", "nlp-only"] },
+]
 test = [
     { name = "coverage" },
     { name = "flake8" },
