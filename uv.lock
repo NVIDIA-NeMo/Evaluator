@@ -1457,6 +1457,15 @@ wheels = [
 ]
 
 [[package]]
+name = "numba"
+version = "0.61.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "llvmlite" },
+    { name = "numpy" },
+]
+
+[[package]]
 name = "numexpr"
 version = "2.11.0"
 source = { registry = "https://pypi.org/simple" }
