@@ -30,4 +30,9 @@ source ${UV_PROJECT_ENVIRONMENT}/bin/activate
 # via urllib3.
 uv pip install --no-cache-dir --upgrade nemo_run
 
-uv pip install --no-cache-dir --upgrade --group nemo-legacy nemo-export-deploy[te,trtllm]@git+https://github.com/NVIDIA-NeMo/Export-Deploy.git@${EXPORT_DEPLOY_REF}
+uv pip install --no-cache-dir --upgrade nemo-export-deploy[te,trtllm]@git+https://github.com/NVIDIA-NeMo/Export-Deploy.git@${EXPORT_DEPLOY_REF}
+
+uv pip install --no-cache-dir --upgrade --force-reinstall --no-deps \
+    nemo_toolkit[automodel,common-only,nlp-only,multimodal-only]@git+https://github.com/NVIDIA/NeMo.git@259d684e73c45091f0b6144342133e6ceb7e824c
+
+uv pip install --no-cache-dir --upgrade wget datasets h5py ijson
