@@ -15,6 +15,7 @@
 import logging
 import os
 import shutil
+import signal
 import subprocess
 
 import pytest
@@ -117,7 +118,7 @@ class TestEvaluation:
         os.environ["HF_DATASETS_CACHE"] = f"{os.environ['HF_HOME']}/datasets"
 
         # Run deployment
-        subprocess.Popen(
+        deploy_process = subprocess.Popen(
             [
                 "python",
                 "tests/functional_tests/deploy_in_fw_script.py",
@@ -154,4 +155,9 @@ class TestEvaluation:
 
         finally:
             # Kill the python processes used to kill the server
-            subprocess.run(["pkill", "-9", "python"], check=False)
+            deploy_process.send_signal(signal.SIGTERM)
+            deploy_process.wait(timeout=30)
+            try:
+                os.killpg(deploy_process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
