@@ -235,13 +235,12 @@ jobs:
           rm -rf coverage-*
           ls -al
 
-      # Disabled for new repos initially
-      # - name: Upload coverage reports to Codecov
-      #   uses: codecov/codecov-action@v5
-      #   with:
-      #     token: ${{ secrets.CODECOV_TOKEN }}
-      #     verbose: true
-      #     flags: ${{ matrix.flag }}
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
+          flags: ${{ matrix.flag }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
