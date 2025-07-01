@@ -43,7 +43,7 @@ RUN --mount=type=secret,id=GH_TOKEN bash -ex -c '\
     PAT=$(cat /run/secrets/GH_TOKEN) && \
     echo -e "machine github.com\n  login token\n  password $PAT" > ~/.netrc && \
     chmod 600 ~/.netrc && \
-    bash /workspace/docker/common/install.sh &&
+    bash /workspace/docker/common/install.sh && \
     rm ~/.netrc'
 
 # Fix for triton 3.3 (part of NGC PyT25.05, presumably until 25.07)
