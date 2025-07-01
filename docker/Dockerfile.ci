@@ -39,7 +39,6 @@ COPY README.md /workspace/
 COPY uv.lock /workspace/
 COPY docker/common/install.sh /workspace/docker/common/install.sh
 COPY docker/common/install_conflicting_deps.sh /workspace/docker/common/install_conflicting_deps.sh
-ARG EXPORT_DEPLOY_REF=44ff3144b21744bfe2da36b0e544bd40f1c33cac
 RUN --mount=type=secret,id=GH_TOKEN bash -ex -c '\
     PAT=$(cat /run/secrets/GH_TOKEN) && \
     echo -e "machine github.com\n  login token\n  password $PAT" > ~/.netrc && \
