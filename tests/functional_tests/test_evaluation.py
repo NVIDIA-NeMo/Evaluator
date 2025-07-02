@@ -43,6 +43,10 @@ class TestEvaluation:
     Test evaluation with NVIDIA Evals Factory on nemo2 model deployed on PyTriton.
     """
 
+
+    def test_dummy_test(self):
+        return True
+
     @pytest.mark.pleasefixme
     @pytest.mark.run_only_on("GPU")
     def test_gsm8k_evaluation(self):
