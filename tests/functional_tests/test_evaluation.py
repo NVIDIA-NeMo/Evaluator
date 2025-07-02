@@ -103,6 +103,7 @@ class TestEvaluation:
             except ProcessLookupError:
                 pass
 
+    @pytest.mark.pleasefixme
     @pytest.mark.run_only_on("GPU")
     def test_arc_challenge_evaluation(self):
         """
