@@ -1,5 +1,14 @@
 # Adding on-demand evaluation packages
 
+- [Adding on-demand evaluation packages](#adding-on-demand-evaluation-packages)
+  - [Introduction](#introduction)
+  - [Enable BFCL](#enable-bfcl)
+  - [Enable garak](#enable-garak)
+  - [Enable BigCode](#enable-bigcode)
+  - [Enable simple-evals](#enable-simple-evals)
+  - [Enable safety-harness](#enable-safety-harness)
+
+
 ## Introduction
 The NeMo Framework docker image comes with `nvidia-lm-eval` pre-installed.
 However, you can add more evaluation frameworks by installing additional NVIDIA Eval Factory packages.
@@ -25,6 +34,8 @@ python deploy.py &
 4. Run the evalution of your choice.
 
 Below you can find examples for enabling and launching evaluations for different frameworks.
+Note that all example use only a subset of samples.
+To run the evaluation on the whole dataset, remove the `"limit_samples"` paramter.
 
 ## Enable BFCL
 

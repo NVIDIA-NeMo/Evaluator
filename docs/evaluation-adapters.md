@@ -1,5 +1,12 @@
 # Evaluation Adapters
 
+- [Evaluation Adapters](#evaluation-adapters)
+  - [Architecture](#architecture)
+  - [Adapter System: Request/Response Flow](#adapter-system-requestresponse-flow)
+  - [Configuration](#configuration)
+  - [Usage Example](#usage-example)
+
+
 Evaluation adapters provide a flexible mechanism for intercepting and modifying requests/responses between the evaluation harness and the model endpoint. This allows for custom processing, logging, and transformation of data during the evaluation process.
 
 ## Architecture
