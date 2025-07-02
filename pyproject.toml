@@ -18,7 +18,7 @@ dynamic = [
     "version",
     "readme",
 ]
-description = "NeMo project description"
+description = "NeMo Eval: Evaluation Utilities for LLM and VLM models"
 license = {file = "LICENSE"}
 requires-python = ">=3.10"
 authors = [{ name = "NVIDIA", email = "nemo-toolkit@nvidia.com" }]
@@ -54,13 +54,21 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
     "Topic :: Utilities",
 ]
-dependencies = []
+#TODO Add nemo-export-deploy once public and remove the installation from Dockerfile.ci
+dependencies = [
+    "nvidia-lm-eval",
+    "uvicorn",
+    "nemo-export-deploy",
+]
+
 
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [dependency-groups]
+build = ["setuptools", "torch==2.7.0", "pybind11", "Cython>=3.0.0"]
+
 docs = [
     "myst-parser>=4.0.1",
     "nvidia-sphinx-theme>=0.0.8",
@@ -76,6 +84,7 @@ test = [
     "pytest>=8.3.5",
     "pytest-mock>=3.14.0",
     "pytest-runner>=6.0.1",
+    "pytest-httpserver",
 ]
 dev = [
     "pre-commit>=3.6.0",
@@ -83,8 +92,24 @@ dev = [
     "mypy>=1.8.0",
 ]
 
+te = ["transformer-engine[pytorch]==2.2.0"]
+
+deploy = [
+    "nemo-toolkit[automodel,common-only,nlp-only,eval,multimodal-only]",
+    "nemo-export-deploy",
+]
+
+[tool.uv.sources]
+nemo-toolkit = { git = "https://github.com/NVIDIA/NeMo.git", rev = "5e63ca3c1631bb156187705f9c4cf643a67f9c05" }
+megatron-core = { git = "https://github.com/NVIDIA/Megatron-LM.git", rev = "c40f31f307221a8458c0775658d19da89303c26b" }
+nemo-export-deploy = { git = "https://github.com/NVIDIA-NeMo/Export-Deploy.git", rev = "144f90729359bc40780786df62c299bf91d5cfc2" }
+
 [tool.setuptools]
-packages = ["nemo_eval"]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 
 [tool.setuptools.dynamic]
 version = {attr = "nemo_eval.__version__"}
@@ -93,6 +118,10 @@ readme = {file = "README.md", content-type = "text/markdown"}
 [project.urls]
 Download = "https://github.com/NVIDIA-NeMo/Eval/releases"
 Homepage = "https://github.com/NVIDIA-NeMo/Eval"
+
+[tool.uv]
+# Currently, TE must be built with no build-isolation b/c it requires torch
+no-build-isolation-package = ["transformer-engine", "transformer-engine-torch"]
 
 [tool.pytest.ini_options]
 # durations=0 will display all tests execution time, sorted in ascending order starting from from the slowest one.
@@ -172,7 +201,7 @@ ignore = [
     "E501",  # Line too long - handled by formatter
 ]
 [tool.ruff.lint.isort]
-known-first-party = ["nemo_eval"]
+known-first-party = ["src/nemo_eval"]
 known-third-party = ["examples", "scripts"]
 section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
 lines-after-imports = 2
@@ -196,4 +225,4 @@ concurrency = ["thread", "multiprocessing"]
 omit = ["/tmp/*"]
 
 [tool.coverage.paths]
-source = ["nemo_eval/", "/workspace/nemo_eval"]
+source = ["src/nemo_eval/", "/workspace/nemo_eval"]
