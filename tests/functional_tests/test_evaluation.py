@@ -43,7 +43,6 @@ class TestEvaluation:
     Test evaluation with NVIDIA Evals Factory on nemo2 model deployed on PyTriton.
     """
 
-
     def test_dummy_test(self):
         return True
 
