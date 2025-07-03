@@ -114,7 +114,7 @@ In the example below, we use the `aegis_v2` task, which requires the [Llama 3.1 
 
 The model is available through NVIDIA NIM. You can either deploy it (see the [instructions](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/getting-started.html)) or try the preview version at [build.nvidia.com](https://build.nvidia.com/).
 
-If you use a gated endpoint (e.g. the preview NIM described above), please make sure to export your API key as the `JUDGE_API_KEY` variable:
+2. If you use a gated endpoint (e.g., the preview NIM described above), you must export your API key as the `JUDGE_API_KEY` variable:
 
 ```bash
 export JUDGE_API_KEY=...
