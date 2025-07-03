@@ -1,20 +1,28 @@
 # Evaluate LLMs Using Log-Probabilities
 
-This guide demonstrates how to evaluate a Large Language Model using log-probabilities to calculate perplexity. It provides a complete, practical example of running this evaluation on a NeMo checkpoint with the arc_challenge task.
+This guide demonstrates how to evaluate a Large Language Model using log-probabilities.
+It provides a complete, practical example of running this evaluation on a NeMo checkpoint with the arc_challenge task.
+
 ## Introduction
 
-While the most typical approach to LLM evaluation involves assessing the quality of a model's generated response to a question, an alternative method uses **perplexity**.
+While the most typical approach to LLM evaluation involves assessing the quality of a model's generated response to a question, an alternative method uses **log-probabilities**.
 
-Perplexity quantifies a model's "surprise" or uncertainty when processing a text sequence. It is derived directly from the **log-probabilities** that the model assigns to each token. A lower perplexity score indicates the model is more confident about the sequence.
+In this approach we quantify a model's "surprise" or uncertainty when processing a text sequence.
+This is done by calculating a sum of log-probabilities that the model assigns to each token.
+A higher sum indicates the model is more confident about the sequence.
 
 In this evaluation approach:
 * The LLM is given a single combined text containing both the question and a potential answer.
-* Next, the perplexity is calculated only for the tokens that belong to the answer.
+* Next, the sum of log-probabilities is calculated only for the tokens that belong to the answer.
 * This allows an assessment of how likely it is that the model would provide that answer for the given question.
 
-For multiple-choice scenarios, the answer with the lowest perplexity is treated as the one selected by the model.
+For multiple-choice scenarios, the answer with the highest sum is treated as the one selected by the model.
 
-This method is especially useful for evaluating base (pre-trained) models, as it eliminates the need for complex instruction-following and does not require the model to adhere to a specific output format.
+The sum of log-probabilities can be also use to calculate different metrics, e.g. **perplexity**.
+Alternatively, log-probabilities can be also analyzed to determine if the answer would be produced by the model with greedy sampling.
+This approach is used to calculate **accuracy**.
+
+Using log-probabilities is especially useful for evaluating base (pre-trained) models, as it eliminates the need for complex instruction-following and does not require the model to adhere to a specific output format.
 
 ## Evaluate a NeMo Checkpoint with arc_challenge
 
