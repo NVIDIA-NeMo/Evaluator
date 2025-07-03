@@ -26,8 +26,8 @@ eval_config = EvaluationConfig(
         "limit_samples": 10,
         "extra": {
             "judge": {
-                "model_id": "nvidia/llama-3.1-nemoguard-8b-content-safety",
-                "url": "https://integrate.api.nvidia.com/v1/chat/completions",
+                "model_id": "llama-nemotron-safety-guard-v2",
+                "url": "http://0.0.0.0:9000/v1/completions",
             }
         },
     },
