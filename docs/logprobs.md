@@ -1,7 +1,21 @@
 # Evaluate LLMs Using Log-Probabilities
 
 This guide demonstrates how to evaluate a Large Language Model using log-probabilities.
-It provides a complete, practical example of running this evaluation on a NeMo checkpoint with the arc_challenge task.
+It provides a complete, practical example of running this evaluation on a NeMo checkpoint with the `arc_challenge` task.
+
+The instructions provided in this example apply to all `nvidia-lm-eval` tasks utilizing log-probabilities:
+* `arc_challenge`
+* `arc_multilingual`
+* `bbh`
+* `commonsense_qa`
+* `hellaswag`
+* `hellaswag_multilingual`
+* `musr`
+* `openbookqa`
+* `piqa`
+* `social_iqa`
+* `truthfulqa`
+* `winogrande`
 
 ## Introduction
 
