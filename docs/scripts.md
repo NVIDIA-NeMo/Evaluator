@@ -81,7 +81,8 @@ pip install nvidia-simple-evals==25.6
 
 In the example below, we use the `AIME_2025` task, which follows the llm-as-a-judge approach for checking the output correctness.
 By default, [Llama 3.3 70B](https://build.nvidia.com/meta/llama-3_3-70b-instruct) NVIDIA NIM is used for judging.
-To run evaluation, set your [build.nvidia.com](https://build.nvidia.com/) API key as the `JUDGE_API_KEY` variable:
+
+2. To run evaluation, set your [build.nvidia.com](https://build.nvidia.com/) API key as the `JUDGE_API_KEY` variable:
 
 ```bash
 export JUDGE_API_KEY=...
