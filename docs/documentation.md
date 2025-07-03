@@ -1,5 +1,5 @@
-# Documentation Development
-
+#  Build and Test the Documentation
+This guide provides instructions for contributing to the NeMo-Eval documentation. It covers the essential steps for building the documentation locally, serving it with a live-reloading server for easier editing, and running tests embedded within Python docstrings to ensure all code examples are accurate.
 - [Documentation Development](#documentation-development)
   - [Build the Documentation](#build-the-documentation)
   - [Live Building](#live-building)
@@ -10,7 +10,7 @@
 
 The following sections describe how to set up and build the NeMo-Eval documentation.
 
-Switch to the documentation source folder and generate HTML output.
+Switch to the documentation source folder and generate the HTML output.
 
 ```sh
 cd docs/
@@ -18,9 +18,9 @@ uv run --group docs sphinx-build . _build/html
 ```
 
 * The resulting HTML files are generated in a `_build/html` folder that is created under the project `docs/` folder.
-* The generated python API docs are placed in `apidocs` under the `docs/` folder.
+* The generated Python API docs are placed in `apidocs` under the `docs/` folder.
 
-## Live Building
+## Serve the Documentation with Live Reload
 
 When writing documentation, it can be helpful to serve the documentation and have it update live while you edit.
 
