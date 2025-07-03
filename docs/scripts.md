@@ -1,4 +1,4 @@
-# Adding on-demand evaluation packages
+# Add On-Demand Evaluation Packages
 
 - [Adding on-demand evaluation packages](#adding-on-demand-evaluation-packages)
   - [Introduction](#introduction)
@@ -8,14 +8,14 @@
   - [Enable simple-evals](#enable-simple-evals)
   - [Enable safety-harness](#enable-safety-harness)
 
-
-## Introduction
-The NeMo Framework docker image comes with `nvidia-lm-eval` pre-installed.
+This guide explains how to extend the NeMo evaluation environment by adding optional NVIDIA Eval Factory packages. It walks through installation, setup, and execution steps for various frameworks such as BFCL, garak, BigCode, simple-evals, and safety-harness, each enabling specialized model assessments.
+## Add New Evaluation Frameworks
+The NeMo Framework Docker image comes with `nvidia-lm-eval` pre-installed.
 However, you can add more evaluation frameworks by installing additional NVIDIA Eval Factory packages.
 
-For every package you need to follow these steps:
+For each package, follow these steps:
 
-1. Install the required package
+1. Install the required package.
 
 2. Deploy your model:
 
@@ -35,7 +35,7 @@ python deploy.py &
 
 Below you can find examples for enabling and launching evaluations for different frameworks.
 Note that all example use only a subset of samples.
-To run the evaluation on the whole dataset, remove the `"limit_samples"` paramter.
+To run the evaluation on the whole dataset, remove the `"limit_samples"` parameter.
 
 ## Enable BFCL
 
@@ -44,7 +44,7 @@ First, install the [nvidia-bfcl](https://pypi.org/project/nvidia-bfcl/) package:
 pip install nvidia-bfcl==25.6
 ```
 
-Then you can run the evaluation:
+2. Run the evaluation:
 ```{literalinclude} ../scripts/snippets/bfcl.py
 :language: python
 :start-after: "## Run the evaluation"
@@ -53,12 +53,12 @@ Then you can run the evaluation:
 
 ## Enable garak
 
-First, install the [nvidia-eval-factory-garak](https://pypi.org/project/nvidia-eval-factory-garak/) package:
+1. Install the [nvidia-eval-factory-garak](https://pypi.org/project/nvidia-eval-factory-garak/) package:
 ```bash
 pip install nvidia-eval-factory-garak==25.6
 ```
 
-Then you can run the evaluation:
+2. Run the evaluation:
 ```{literalinclude} ../scripts/snippets/garak.py
 :language: python
 :start-after: "## Run the evaluation"
@@ -67,12 +67,12 @@ Then you can run the evaluation:
 
 ## Enable BigCode
 
-First, install the [nvidia-bigcode](https://pypi.org/project/nvidia-bigcode/) package:
+1. Install the [nvidia-bigcode](https://pypi.org/project/nvidia-bigcode/) package:
 ```bash
 pip install nvidia-bigcode==25.6
 ```
 
-Then you can run the evaluation:
+2. Run the evaluation:
 ```{literalinclude} ../scripts/snippets/bigcode.py
 :language: python
 :start-after: "## Run the evaluation"
@@ -81,22 +81,22 @@ Then you can run the evaluation:
 
 ## Enable simple-evals
 
-First, install the [nvidia-simple-evals](https://pypi.org/project/nvidia-simple-evals/) package:
+1. Install the [nvidia-simple-evals](https://pypi.org/project/nvidia-simple-evals/) package:
 ```bash
 pip install nvidia-simple-evals==25.6
 ```
 
-In the example below we use the `AIME_2025` task, which follows the llm-as-a-judge approach for checking the output correctness.
+In the example below, we use the `AIME_2025` task, which follows the llm-as-a-judge approach for checking the output correctness.
 By default, [Llama 3.3 70B](https://build.nvidia.com/meta/llama-3_3-70b-instruct) NVIDIA NIM is used for judging.
-In order to run evaluation, set your [build.nvidia.com](https://build.nvidia.com/) API key as the `JUDGE_API_KEY` variable:
+To run evaluation, set your [build.nvidia.com](https://build.nvidia.com/) API key as the `JUDGE_API_KEY` variable:
 
 ```bash
 export JUDGE_API_KEY=...
 ```
-For customizing the judge setting see the instructions for [NVIDIA Eval Factory package](https://pypi.org/project/nvidia-simple-evals/). 
+To customize the judge setting, see the instructions for [NVIDIA Eval Factory package](https://pypi.org/project/nvidia-simple-evals/). 
 
 
-Then you can run the evaluation:
+3. Run the evaluation:
 ```{literalinclude} ../scripts/snippets/simple_evals.py
 :language: python
 :start-after: "## Run the evaluation"
@@ -105,23 +105,23 @@ Then you can run the evaluation:
 
 ## Enable safety-harness
 
-First, install the [nvidia-safety-harness](https://pypi.org/project/nvidia-safety-harness/) package:
+1. Install the [nvidia-safety-harness](https://pypi.org/project/nvidia-safety-harness/) package:
 ```bash
 pip install nvidia-safety-harness==25.6
 ```
 
-In the example below we use the `aegis_v2` task, which requiress [Llama 3.1 NemoGuard 8B ContentSafety](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/getting-started.html) model for assesing the your model's responses.
+In the example below, we use the `aegis_v2` task, which requires the [Llama 3.1 NemoGuard 8B ContentSafety](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/getting-started.html) model to assess your model's responses.
 
-The model is available as NVIDIA NIM and you can either deploy it (see the [Instructions]((https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/getting-started.html))) or try the preview version at [build.nvidia.com](https://build.nvidia.com/).
+The model is available through NVIDIA NIM. You can either deploy it (see the [instructions](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/getting-started.html)) or try the preview version at [build.nvidia.com](https://build.nvidia.com/).
 
 If you use a gated endpoint (e.g. the preview NIM described above), please make sure to export your API key as the `JUDGE_API_KEY` variable:
 
 ```bash
 export JUDGE_API_KEY=...
 ```
-Also you must authenticate to the [Hugging Face Hub](https://huggingface.co/docs/huggingface_hub/quick-start#authentication) to access the dataset used for evaluation.
+3. To access the evaluation dataset, you must authenticate with the [Hugging Face Hub](https://huggingface.co/docs/huggingface_hub/quick-start#authentication).
 
-Then you can run the evaluation:
+4. Run the evaluation:
 ```{literalinclude} ../scripts/snippets/safety.py
 :language: python
 :start-after: "## Run the evaluation"

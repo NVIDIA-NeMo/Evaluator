@@ -1,4 +1,4 @@
-# Running evaluations
+# Run Evaluations
 
 To run evaluations, do the following:
 
