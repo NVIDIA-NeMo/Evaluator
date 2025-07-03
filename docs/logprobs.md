@@ -1,9 +1,5 @@
 # Evaluate LLMs Using Log-Probabilities
 
-- [Run the evaluation that uses log-probabilities](#run-the-evaluation-that-uses-log-probabilities)
-  - [Introduction](#introduction)
-  - [Evaluate NeMo 2 checkpoint with arc_challenge](#evaluate-nemo-2-checkpoint-with-arc_challenge)
-
 This guide demonstrates how to evaluate a Large Language Model using log-probabilities to calculate perplexity. It provides a complete, practical example of running this evaluation on a NeMo checkpoint with the arc_challenge task.
 ## Introduction
 

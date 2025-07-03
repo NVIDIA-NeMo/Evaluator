@@ -1,14 +1,7 @@
 # Add On-Demand Evaluation Packages
 
-- [Adding on-demand evaluation packages](#adding-on-demand-evaluation-packages)
-  - [Introduction](#introduction)
-  - [Enable BFCL](#enable-bfcl)
-  - [Enable garak](#enable-garak)
-  - [Enable BigCode](#enable-bigcode)
-  - [Enable simple-evals](#enable-simple-evals)
-  - [Enable safety-harness](#enable-safety-harness)
-
 This guide explains how to extend the NeMo evaluation environment by adding optional NVIDIA Eval Factory packages. It walks through installation, setup, and execution steps for various frameworks such as BFCL, garak, BigCode, simple-evals, and safety-harness, each enabling specialized model assessments.
+
 ## Add New Evaluation Frameworks
 The NeMo Framework Docker image comes with `nvidia-lm-eval` pre-installed.
 However, you can add more evaluation frameworks by installing additional NVIDIA Eval Factory packages.
