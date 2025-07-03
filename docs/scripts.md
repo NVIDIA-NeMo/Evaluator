@@ -125,7 +125,7 @@ export JUDGE_API_KEY=...
 :linenos:
 ```
 
-Make sure to modify the judge configuration in the provided snippet to match the Llama 3.1 NemoGuard 8B ContentSafety endoint of your choice:
+Make sure to modify the judge configuration in the provided snippet to match your Llama 3.1 NemoGuard 8B ContentSafety endoint:
 
 ```python
     params={
