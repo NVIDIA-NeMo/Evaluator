@@ -28,6 +28,47 @@ from nemo_eval.utils.base import wait_for_fastapi_server
 logger = logging.getLogger(__name__)
 
 
+@pytest.fixture(scope="session")
+def deployment_process():
+    """Fixture to create a Flask app with an OpenAI response.
+
+    Being a "proper" fake endpoint, it responds with a payload which can be
+    set via app.config.response.
+    """
+    # Create and run the fake endpoint server
+    nemo2_ckpt_path = "/home/TestData/nemo2_ckpt/llama3-1b-lingua"
+    max_batch_size = 4
+    legacy_ckpt = True
+    port = 8886
+    # Run deployment
+    deploy_proc = subprocess.Popen(
+        [
+            "python",
+            "tests/functional_tests/deploy_in_fw_script.py",
+            "--nemo2_ckpt_path",
+            nemo2_ckpt_path,
+            "--max_batch_size",
+            str(max_batch_size),
+            "--port",
+            str(port),
+        ]
+        + (["--legacy_ckpt"] if legacy_ckpt else [])
+    )
+
+    yield deploy_proc  # We only need the process reference for cleanup
+
+    deploy_proc.send_signal(signal.SIGINT)
+    try:
+        deploy_proc.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(deploy_proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    finally:
+        subprocess.run(["pkill", f"-{signal.SIGTERM}", "tritonserver"], check=False)
+
+
 @pytest.fixture(autouse=True)
 def cleanup_results():
     """Clean up results directory after each test."""
@@ -48,15 +89,13 @@ class TestEvaluation:
 
     @pytest.mark.pleasefixme
     @pytest.mark.run_only_on("GPU")
-    def test_gsm8k_evaluation(self):
+    def test_gsm8k_evaluation(self, deployment_process):
         """
         Test GSM8K evaluation benchmark.
         """
-        nemo2_ckpt_path = "/home/TestData/nemo2_ckpt/llama3-1b-lingua"
-        max_batch_size = 4
+
         eval_type = "gsm8k"
         limit = 1
-        legacy_ckpt = True
         port = 8886
 
         # Set environment variables
@@ -65,60 +104,32 @@ class TestEvaluation:
         os.environ["HF_HOME"] = "/home/TestData/HF_HOME"
         os.environ["HF_DATASETS_CACHE"] = f"{os.environ['HF_HOME']}/datasets"
 
-        # Run deployment
-        deploy_process = subprocess.Popen(
-            [
-                "python",
-                "tests/functional_tests/deploy_in_fw_script.py",
-                "--nemo2_ckpt_path",
-                nemo2_ckpt_path,
-                "--max_batch_size",
-                str(max_batch_size),
-                "--port",
-                str(port),
-            ]
-            + (["--legacy_ckpt"] if legacy_ckpt else []),
-        )
+        # Wait for server readiness
+        logger.info("Waiting for server readiness...")
+        server_ready = wait_for_fastapi_server(base_url=f"http://0.0.0.0:{port}", max_retries=600)
+        assert server_ready, "Server is not ready. Please look at the deploy process log for the error"
 
-        try:
-            # Wait for server readiness
-            logger.info("Waiting for server readiness...")
-            server_ready = wait_for_fastapi_server(base_url=f"http://0.0.0.0:{port}", max_retries=600)
-            assert server_ready, "Server is not ready. Please look at the deploy process log for the error"
-
-            # Run evaluation
-            logger.info("Starting evaluation...")
-            api_endpoint = ApiEndpoint(url=f"http://0.0.0.0:{port}/v1/completions/")
-            eval_target = EvaluationTarget(api_endpoint=api_endpoint)
-            eval_params = {
-                "limit_samples": limit,
-            }
-            eval_config = EvaluationConfig(type=eval_type, params=ConfigParams(**eval_params))
-            evaluate(target_cfg=eval_target, eval_cfg=eval_config)
-            logger.info("Evaluation completed.")
-
-        finally:
-            # Kill the python processes used to kill the server
-            deploy_process.send_signal(signal.SIGTERM)
-            deploy_process.wait(timeout=30)
-            try:
-                os.killpg(deploy_process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+        # Run evaluation
+        logger.info("Starting evaluation...")
+        api_endpoint = ApiEndpoint(url=f"http://0.0.0.0:{port}/v1/completions/")
+        eval_target = EvaluationTarget(api_endpoint=api_endpoint)
+        eval_params = {
+            "limit_samples": limit,
+        }
+        eval_config = EvaluationConfig(type=eval_type, params=ConfigParams(**eval_params))
+        evaluate(target_cfg=eval_target, eval_cfg=eval_config)
+        logger.info("Evaluation completed.")
 
     @pytest.mark.pleasefixme
     @pytest.mark.run_only_on("GPU")
-    def test_arc_challenge_evaluation(self):
+    def test_arc_challenge_evaluation(self, deployment_process):
         """
         Test ARC Challenge evaluation benchmark.
         """
-        nemo2_ckpt_path = "/home/TestData/nemo2_ckpt/llama3-1b-lingua"
         tokenizer_path = "/home/TestData/nemo2_ckpt/llama3-1b-lingua/context/lingua"
-        max_batch_size = 4
         eval_type = "arc_challenge"
         limit = 1
-        legacy_ckpt = True
-        port = 8887
+        port = 8886
 
         # Set environment variables
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -126,47 +137,22 @@ class TestEvaluation:
         os.environ["HF_HOME"] = "/home/TestData/HF_HOME"
         os.environ["HF_DATASETS_CACHE"] = f"{os.environ['HF_HOME']}/datasets"
 
-        # Run deployment
-        deploy_process = subprocess.Popen(
-            [
-                "python",
-                "tests/functional_tests/deploy_in_fw_script.py",
-                "--nemo2_ckpt_path",
-                nemo2_ckpt_path,
-                "--max_batch_size",
-                str(max_batch_size),
-                "--port",
-                str(port),
-            ]
-            + (["--legacy_ckpt"] if legacy_ckpt else []),
-        )
+        # Wait for server readiness
+        logger.info("Waiting for server readiness...")
+        server_ready = wait_for_fastapi_server(base_url=f"http://0.0.0.0:{port}", max_retries=600)
+        assert server_ready, "Server is not ready. Please look at the deploy process log for the error"
 
-        try:
-            # Wait for server readiness
-            logger.info("Waiting for server readiness...")
-            server_ready = wait_for_fastapi_server(base_url=f"http://0.0.0.0:{port}", max_retries=600)
-            assert server_ready, "Server is not ready. Please look at the deploy process log for the error"
-
-            # Run evaluation
-            logger.info("Starting evaluation...")
-            api_endpoint = ApiEndpoint(url=f"http://0.0.0.0:{port}/v1/completions/")
-            eval_target = EvaluationTarget(api_endpoint=api_endpoint)
-            eval_params = {
-                "limit_samples": limit,
-                "extra": {
-                    "tokenizer_backend": "huggingface",
-                    "tokenizer": tokenizer_path,
-                },
-            }
-            eval_config = EvaluationConfig(type=eval_type, params=ConfigParams(**eval_params))
-            evaluate(target_cfg=eval_target, eval_cfg=eval_config)
-            logger.info("Evaluation completed.")
-
-        finally:
-            # Kill the python processes used to kill the server
-            deploy_process.send_signal(signal.SIGTERM)
-            deploy_process.wait(timeout=30)
-            try:
-                os.killpg(deploy_process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+        # Run evaluation
+        logger.info("Starting evaluation...")
+        api_endpoint = ApiEndpoint(url=f"http://0.0.0.0:{port}/v1/completions/")
+        eval_target = EvaluationTarget(api_endpoint=api_endpoint)
+        eval_params = {
+            "limit_samples": limit,
+            "extra": {
+                "tokenizer_backend": "huggingface",
+                "tokenizer": tokenizer_path,
+            },
+        }
+        eval_config = EvaluationConfig(type=eval_type, params=ConfigParams(**eval_params))
+        evaluate(target_cfg=eval_target, eval_cfg=eval_config)
+        logger.info("Evaluation completed.")
