@@ -45,7 +45,7 @@ def deploy(
     enable_flash_decode: bool = True,
     enable_cuda_graphs: bool = True,
     # Ray deployment specific args
-    num_replicas: Optional[int] = None,
+    num_replicas: int = 1,
     num_cpus_per_replica: Optional[int] = None,
     include_dashboard: bool = True,
     cuda_visible_devices: str = "",
