@@ -28,7 +28,7 @@ from nemo_eval.utils.base import wait_for_fastapi_server
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def deployment_process():
     """Fixture to create a Flask app with an OpenAI response.
 
