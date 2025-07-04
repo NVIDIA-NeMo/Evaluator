@@ -204,7 +204,7 @@ def evaluate(
     """
     import yaml
 
-    from .utils.base import find_framework, wait_for_fastapi_server
+    from .utils.base import check_endpoint, find_framework
 
     eval_type_components = eval_cfg.type.split(".")
     if len(eval_type_components) == 2:
@@ -231,8 +231,7 @@ def evaluate(
             f"as it is required to run {eval_cfg.type} evaluation"
         )
 
-    base_url, _ = target_cfg.api_endpoint.url.split("/v1")
-    server_ready = wait_for_fastapi_server(base_url=base_url, model_name=target_cfg.api_endpoint.model_id)
+    server_ready = check_endpoint(target_cfg.api_endpoint.url, "completions", target_cfg.api_endpoint.model_id)
     if not server_ready:
         raise RuntimeError("Server not ready for evaluation")
 
