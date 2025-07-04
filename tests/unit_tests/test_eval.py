@@ -19,9 +19,9 @@ from nemo_eval.api import evaluate
 from nemo_eval.utils.api import ConfigParams, EvaluationConfig, EvaluationTarget
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def httpserver_listen_address():
-    return ("127.0.0.1", 8000)
+    return ("127.0.0.1", 1234)
 
 
 @pytest.mark.parametrize(
@@ -73,7 +73,7 @@ def test_evaluation(httpserver: HTTPServer, task: str):
         },
     )
     target_config = EvaluationTarget(
-        api_endpoint={"url": "http://localhost:8000/v1/completions/", "type": "completions"}
+        api_endpoint={"url": "http://localhost:1234/v1/completions/", "type": "completions"}
     )
     eval_config = EvaluationConfig(
         type=task,
