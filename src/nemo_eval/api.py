@@ -48,7 +48,6 @@ def deploy(
     num_replicas: int = 1,
     num_cpus_per_replica: Optional[int] = None,
     include_dashboard: bool = True,
-    cuda_visible_devices: str = "",
     legacy_ckpt: bool = False,
 ):
     """
@@ -77,7 +76,6 @@ def deploy(
         num_replicas (int): Number of model replicas for Ray deployment. Default: 1. Only applicable for Ray backend.
         num_cpus_per_replica (int): Number of CPUs per replica for Ray deployment. Default: 8
         include_dashboard (bool): Whether to include Ray dashboard. Default: True.
-        cuda_visible_devices (list): Comma-separated list of CUDA visible devices. Default: [0,1].
         legacy_ckpt (bool): Indicates whether the checkpoint is in legacy format. Default: False.
     """
     import torch
@@ -105,7 +103,6 @@ def deploy(
             enable_flash_decode=enable_flash_decode,
             legacy_ckpt=legacy_ckpt,
             include_dashboard=include_dashboard,
-            cuda_visible_devices=cuda_visible_devices,
         )
     else:  # pytriton backend
         import os

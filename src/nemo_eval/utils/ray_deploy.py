@@ -54,7 +54,6 @@ def deploy_with_ray(
     enable_flash_decode: bool = True,
     legacy_ckpt: bool = False,
     include_dashboard: bool = True,
-    cuda_visible_devices: str = "",
 ) -> None:
     """
     Deploy the model using Ray Serve.
@@ -76,7 +75,6 @@ def deploy_with_ray(
         enable_flash_decode: Whether to enable flash decode
         legacy_ckpt: Whether using legacy checkpoint format
         include_dashboard: Whether to include Ray dashboard
-        cuda_visible_devices: CUDA visible devices string
     """
     # Calculate total GPUs
     total_gpus = num_gpus * num_nodes
@@ -107,11 +105,6 @@ def deploy_with_ray(
         num_cpus=get_available_cpus(),
         num_gpus=total_gpus,
         include_dashboard=include_dashboard,
-        runtime_env={
-            "env_vars": {
-                "CUDA_VISIBLE_DEVICES": cuda_visible_devices,
-            }
-        },
     )
 
     # Set up signal handlers
