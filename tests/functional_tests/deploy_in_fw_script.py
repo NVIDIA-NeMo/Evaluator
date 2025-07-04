@@ -29,6 +29,9 @@ def get_args():
     parser.add_argument("--max_batch_size", type=int, help="Max BS for the model")
     parser.add_argument("--legacy_ckpt", action="store_true", help="Whether the nemo checkpoint is in legacy format")
     parser.add_argument("--port", type=int, help="Port")
+    parser.add_argument(
+        "--serving_backend", type=str, help="Inference backend", default="pytriton", choices=["pytriton", "ray"]
+    )
     return parser.parse_args()
 
 
@@ -40,6 +43,7 @@ if __name__ == "__main__":
             max_batch_size=args.max_batch_size,
             server_port=args.port,
             legacy_ckpt=args.legacy_ckpt,
+            serving_backend=args.serving_backend,
         )
     except Exception as e:
         logger.error(f"Deploy process encountered an error: {e}")
