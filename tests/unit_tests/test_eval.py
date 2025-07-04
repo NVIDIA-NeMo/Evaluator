@@ -19,7 +19,7 @@ from nemo_eval.api import evaluate
 from nemo_eval.utils.api import ConfigParams, EvaluationConfig, EvaluationTarget
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def httpserver_listen_address():
     return ("127.0.0.1", 1234)
 
