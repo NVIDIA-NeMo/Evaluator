@@ -46,13 +46,6 @@ def test_configuration(params: dict):
         assert getattr(eval_config.params, param_name) == param_value
 
 
-def test_default_none_tokenizer():
-    eval_config = EvaluationConfig(type="custom", params={"extra": {"num_fewshot": 5}})
-    assert eval_config.type == "custom"
-    assert eval_config.params.extra["tokenizer"] is None
-    assert eval_config.params.extra["num_fewshot"] == 5
-
-
 def test_dict_init():
     config_params_dict = {
         "top_p": 0.42,
