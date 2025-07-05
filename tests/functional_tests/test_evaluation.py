@@ -87,7 +87,6 @@ class TestEvaluation:
     def test_dummy_test(self):
         return True
 
-    @pytest.mark.pleasefixme
     @pytest.mark.run_only_on("GPU")
     def test_gsm8k_evaluation(self, deployment_process):
         """
@@ -120,7 +119,6 @@ class TestEvaluation:
         evaluate(target_cfg=eval_target, eval_cfg=eval_config)
         logger.info("Evaluation completed.")
 
-    @pytest.mark.pleasefixme
     @pytest.mark.run_only_on("GPU")
     def test_arc_challenge_evaluation(self, deployment_process):
         """
