@@ -68,6 +68,7 @@ task = "simple-evals.mmlu"
 ```
 
 For more information on enablind additional evaluation harnesses, see ["Add On-Demand Evaluation Packages"](scripts.md) section.
+To evaluate your model on a task without pre-defined config, see ["Run Evaluation Using Task Without Pre-Defined Config"](custom-task.md)
 
 ## Run Evaluations without NeMo-Run
 

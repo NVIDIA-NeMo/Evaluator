@@ -12,6 +12,7 @@ evaluation-doc.md
 
 evaluation-adapters.md
 logprobs.md
+custom-task.md
 scripts.md
 ```
 
