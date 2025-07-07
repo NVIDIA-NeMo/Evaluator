@@ -56,13 +56,17 @@ pip install nvidia-lm-eval==25.6
 ```
 
 ```bash
-python deploy.py &
+python deploy.py
 ```
 The server will return the log-probabilities of tokens if it receives a `logprob=<int>` parameter in the request.
 When combined with `echo=true`, the model will include the input in its response, along with the corresponding log-probabilities.
 
 This process occurs behind the scenes when running an evaluation on `arc_challenge`.
-2. To return your input text with the corresponding log-probability for each token, use the following code
+
+2. To evaluate your model on `arc_challenge` benchmark, use the following code.
+
+Make sure to open a new terminal within the same container to execute it.
+
 
 ```{literalinclude} ../scripts/snippets/arc_challenge.py
 :language: python
@@ -70,7 +74,7 @@ This process occurs behind the scenes when running an evaluation on `arc_challen
 :linenos:
 ```
 
-Note that you must provide a path to the tokenizer:
+Note in the example above you must provide a path to the tokenizer:
 ```
         "extra": {
             "tokenizer": "/checkpoints/llama-3_2-1b-instruct_v2.0/context/nemo_tokenizer",
