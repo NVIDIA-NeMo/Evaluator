@@ -20,8 +20,10 @@ For each package, follow these steps:
 
 Run the deployment in the background:
 ```bash
-python deploy.py &
+python deploy.py
 ```
+
+Make sure to open two separate terminals within the same container for executing the deployment and evaluation.
 
 3. (Optional) Export the required environment variables. 
 
