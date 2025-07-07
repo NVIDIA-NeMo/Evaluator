@@ -48,6 +48,7 @@ pip install nvidia-lm-eval==25.6
 1. Deploy your model:
 ```{literalinclude} ../scripts/snippets/deploy.py
 :language: python
+:start-after: "## Deploy"
 :linenos:
 ```
 

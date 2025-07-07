@@ -14,6 +14,7 @@ For each package, follow these steps:
 
 ```{literalinclude} ../scripts/snippets/deploy.py
 :language: python
+:start-after: "## Deploy"
 :linenos:
 ```
 
