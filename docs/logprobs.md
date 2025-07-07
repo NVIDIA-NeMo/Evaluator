@@ -17,6 +17,9 @@ The instructions provided in this example apply to all `nvidia-lm-eval` tasks ut
 * `truthfulqa`
 * `winogrande`
 
+Please note that all benchmarks that use log-probabilities require a "completions" endpoint.
+Please refer to ["Evaluate NeMo 2.0 Checkpoints"](evaluation-doc.md#introduction) for more information on different endpoint types.
+
 ## Introduction
 
 While the most typical approach to LLM evaluation involves assessing the quality of a model's generated response to a question, an alternative method uses **log-probabilities**.
