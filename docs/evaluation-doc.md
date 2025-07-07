@@ -1,6 +1,12 @@
 # Evaluate NeMo 2.0 Checkpoints
 
-This guide provides detailed instructions on evaluating NeMo 2.0 checkpoints using the [NVIDIA Evals Factory](https://pypi.org/project/nvidia-lm-eval/) within the NeMo Framework. Supported benchmarks include:
+This guide provides detailed instructions on evaluating NeMo 2.0 checkpoints using the [NVIDIA Evals Factory](https://pypi.org/project/nvidia-lm-eval/) within the NeMo Framework.
+
+In this section we will focus on benchmarks that use **generation**.
+In such approach the model is presented with a question it needs to answer, an instruction it should follow, or a text that it should continue.
+Then the model's answer is evaluated for its correctness.
+
+Supported benchmarks include:
 
 - GPQA
 - GSM8K
@@ -11,13 +17,16 @@ This guide provides detailed instructions on evaluating NeMo 2.0 checkpoints usi
 - MMLU-Redux
 - Wikilingua
 
+An alternative approach to LLM evaluation utilizes **log-probabilities**.
+To learn more please refer to ["Evaluate LLMs Using Log-Probabilities"](logprobs.md)
+
 ## Introduction
 
 The evaluation process employs a server-client approach, comprising two main phases. In Phase 1, the NeMo 2.0 checkpoint is deployed in-framework on a PyTriton server by exposing OpenAI API (OAI) compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed, enabling evaluation on both completion and chat benchmarks. Phase 2 involves running the evaluation on the model using the OAI endpoint and port.
 
 Some of the benchmarks (e.g. GPQA) use a gated dataset. To use them, you must authenticate to the [Hugging Face Hub](https://huggingface.co/docs/huggingface_hub/quick-start#authentication) before launching the evaluation.
 
-The NVIDIA Evals Factory provides several evaluation harnesses with different sets of evaluation benchmarks. The [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo) includes nvidia-lm-eval pre-installed, along with predefined configurations for evaluating the completions endpoint.
+The NVIDIA Evals Factory provides several evaluation harnesses with different sets of evaluation benchmarks. The [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo) includes `nvidia-lm-eval` pre-installed, along with predefined configurations for evaluating the completions endpoint:
 
 - `gsm8k`
 - `mgsm`
@@ -57,6 +66,8 @@ If multiple harnesses define a task with the same name, you must use the `<harne
 task = "lm-evaluation-harness.mmlu"
 task = "simple-evals.mmlu"
 ```
+
+For more information on enablind additional evaluation harnesses, see ["Add On-Demand Evaluation Packages"](scripts.md) section.
 
 ## Run Evaluations without NeMo-Run
 
