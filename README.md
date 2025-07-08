@@ -107,7 +107,7 @@ print(results)
 
 
 #### 2. Evaluation Layer
-- **NVIDIA Evals Factory**: Standardized benchmark evaluation with NVIDIA Evals Factory that provides state-of-the-art evaluation harnesses as modular evaluation packages compatible for installation within in the NeMo Framework container
+- **NVIDIA Evals Factory**: Standardized benchmark evaluation with NVIDIA Evals Factory that provides state-of-the-art evaluation harnesses like lm-evaluation-harness, simple-evals, BigCode, BFCL, safety-harness, garak as modular evaluation packages compatible for installation within in the NeMo Framework container. lm-evaluation-harness is installed inside the NeMo Framework container while the others can be installed on-demand. More details in the [docs](https://github.com/NVIDIA-NeMo/Eval/tree/main/docs).
 - **Adapter System**: Flexible request/response processing pipeline with **Interceptors** that provide modular processing
 
 ```
