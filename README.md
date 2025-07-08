@@ -9,7 +9,7 @@
 ## 🚀 Features
 
 - **Multi-Backend Deployment**: Support for both PyTriton and Ray Serve deployment backends
-- **Comprehensive Evaluation**: Integration with NVIDIA Eval Factory for standardized benchmark evaluation
+- **Comprehensive Evaluation**: Integration with NVIDIA Evals Factory for standardized benchmark evaluation
 - **Adapter System**: Flexible adapter architecture for customizing request/response processing
 - **Production Ready**: Optimized for high-performance inference with CUDA graphs and flash decoding
 - **Multi-GPU Support**: Distributed inference across multiple GPUs and nodes
@@ -107,17 +107,12 @@ print(results)
 
 
 #### 2. Evaluation Layer
-- **NVIDIA Eval Factory**: Standardized benchmark evaluation with NVIDIA Evals Factory that provides  state-of-the-art evaluation harnesses as modular evaluation packages compatible for installation within in the NeMo Framework container
-- **Adapter System**: Request/response processing pipeline
-- **Interceptor Chain**: Modular processing components
-
-#### 3. Adapter System
-
-The adapter system provides a flexible pipeline for processing requests and responses:
+- **NVIDIA Evals Factory**: Standardized benchmark evaluation with NVIDIA Evals Factory that provides state-of-the-art evaluation harnesses as modular evaluation packages compatible for installation within in the NeMo Framework container
+- **Adapter System**: Flexible request/response processing pipeline with **Interceptors** that provide modular processing
 
 ```
 ┌───────────────────────┐
-│  NVIDIA Eval Factory  │
+│  NVIDIA Evals Factory  │
 └───▲──────┬────────────┘
     │      │
     │      │
@@ -145,13 +140,12 @@ The adapter system provides a flexible pipeline for processing requests and resp
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Available Interceptors
-
-- **SystemMessageInterceptor**: Customize system prompts
-- **RequestLoggingInterceptor**: Log incoming requests
-- **ResponseLoggingInterceptor**: Log outgoing responses
-- **ResponseReasoningInterceptor**: Process reasoning outputs
-- **EndpointInterceptor**: Route requests to the actual model
+- **Available Interceptors**: Modular components for request/response processing
+  - **SystemMessageInterceptor**: Customize system prompts
+  - **RequestLoggingInterceptor**: Log incoming requests
+  - **ResponseLoggingInterceptor**: Log outgoing responses
+  - **ResponseReasoningInterceptor**: Process reasoning outputs
+  - **EndpointInterceptor**: Route requests to the actual model
 
 ## 📖 Usage Examples
 
