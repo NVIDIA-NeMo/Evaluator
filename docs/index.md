@@ -13,7 +13,7 @@ evaluation-doc.md
 evaluation-adapters.md
 logprobs.md
 custom-task.md
-scripts.md
+optional-eval-package.md
 ```
 
 ```{toctree}
