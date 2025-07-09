@@ -1,0 +1,28 @@
+# {py:mod}`nemo_eval.adapters`
+
+```{py:module} nemo_eval.adapters
+```
+
+```{autodoc2-docstring} nemo_eval.adapters
+:parser: docs.autodoc2_docstrings_parser
+:allowtitles:
+```
+
+## Subpackages
+
+```{toctree}
+:titlesonly:
+:maxdepth: 3
+
+nemo_eval.adapters.interceptors
+```
+
+## Submodules
+
+```{toctree}
+:titlesonly:
+:maxdepth: 1
+
+nemo_eval.adapters.server
+nemo_eval.adapters.utils
+```

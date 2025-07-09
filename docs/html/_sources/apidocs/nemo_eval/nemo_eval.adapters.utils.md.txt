@@ -1,0 +1,60 @@
+# {py:mod}`nemo_eval.adapters.utils`
+
+```{py:module} nemo_eval.adapters.utils
+```
+
+```{autodoc2-docstring} nemo_eval.adapters.utils
+:parser: docs.autodoc2_docstrings_parser
+:allowtitles:
+```
+
+## Module Contents
+
+### Functions
+
+````{list-table}
+:class: autosummary longtable
+:align: left
+
+* - {py:obj}`find_free_port <nemo_eval.adapters.utils.find_free_port>`
+  - ```{autodoc2-docstring} nemo_eval.adapters.utils.find_free_port
+    :parser: docs.autodoc2_docstrings_parser
+    :summary:
+    ```
+* - {py:obj}`is_port_open <nemo_eval.adapters.utils.is_port_open>`
+  - ```{autodoc2-docstring} nemo_eval.adapters.utils.is_port_open
+    :parser: docs.autodoc2_docstrings_parser
+    :summary:
+    ```
+* - {py:obj}`wait_for_server <nemo_eval.adapters.utils.wait_for_server>`
+  - ```{autodoc2-docstring} nemo_eval.adapters.utils.wait_for_server
+    :parser: docs.autodoc2_docstrings_parser
+    :summary:
+    ```
+````
+
+### API
+
+````{py:function} find_free_port() -> int
+:canonical: nemo_eval.adapters.utils.find_free_port
+
+```{autodoc2-docstring} nemo_eval.adapters.utils.find_free_port
+:parser: docs.autodoc2_docstrings_parser
+```
+````
+
+````{py:function} is_port_open(host, port, timeout=0.5) -> bool
+:canonical: nemo_eval.adapters.utils.is_port_open
+
+```{autodoc2-docstring} nemo_eval.adapters.utils.is_port_open
+:parser: docs.autodoc2_docstrings_parser
+```
+````
+
+````{py:function} wait_for_server(host, port, max_wait=5, interval=0.2) -> bool
+:canonical: nemo_eval.adapters.utils.wait_for_server
+
+```{autodoc2-docstring} nemo_eval.adapters.utils.wait_for_server
+:parser: docs.autodoc2_docstrings_parser
+```
+````

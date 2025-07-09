@@ -1,0 +1,61 @@
+# {py:mod}`nemo_eval.adapters.interceptors.endpoint_interceptor`
+
+```{py:module} nemo_eval.adapters.interceptors.endpoint_interceptor
+```
+
+```{autodoc2-docstring} nemo_eval.adapters.interceptors.endpoint_interceptor
+:parser: docs.autodoc2_docstrings_parser
+:allowtitles:
+```
+
+## Module Contents
+
+### Classes
+
+````{list-table}
+:class: autosummary longtable
+:align: left
+
+* - {py:obj}`EndpointInterceptor <nemo_eval.adapters.interceptors.endpoint_interceptor.EndpointInterceptor>`
+  - ```{autodoc2-docstring} nemo_eval.adapters.interceptors.endpoint_interceptor.EndpointInterceptor
+    :parser: docs.autodoc2_docstrings_parser
+    :summary:
+    ```
+````
+
+### API
+
+`````{py:class} EndpointInterceptor(api_url: str)
+:canonical: nemo_eval.adapters.interceptors.endpoint_interceptor.EndpointInterceptor
+
+Bases: {py:obj}`nemo_eval.adapters.interceptors.types.RequestInterceptor`
+
+```{autodoc2-docstring} nemo_eval.adapters.interceptors.endpoint_interceptor.EndpointInterceptor
+:parser: docs.autodoc2_docstrings_parser
+```
+
+```{rubric} Initialization
+```
+
+```{autodoc2-docstring} nemo_eval.adapters.interceptors.endpoint_interceptor.EndpointInterceptor.__init__
+:parser: docs.autodoc2_docstrings_parser
+```
+
+````{py:attribute} api_url
+:canonical: nemo_eval.adapters.interceptors.endpoint_interceptor.EndpointInterceptor.api_url
+:type: str
+:value: >
+   None
+
+```{autodoc2-docstring} nemo_eval.adapters.interceptors.endpoint_interceptor.EndpointInterceptor.api_url
+:parser: docs.autodoc2_docstrings_parser
+```
+
+````
+
+````{py:method} intercept_request(ar: nemo_eval.adapters.interceptors.types.AdapterRequest) -> nemo_eval.adapters.interceptors.types.AdapterResponse
+:canonical: nemo_eval.adapters.interceptors.endpoint_interceptor.EndpointInterceptor.intercept_request
+
+````
+
+`````

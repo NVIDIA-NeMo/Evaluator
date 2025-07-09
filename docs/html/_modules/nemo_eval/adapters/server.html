@@ -1,0 +1,806 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>nemo_eval.adapters.server &#8212; NeMo Eval</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/nemo_eval/adapters/server';</script>
+    <script>
+        DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.1.0';
+        DOCUMENTATION_OPTIONS.show_version_warning_banner =
+            false;
+        </script>
+    <link rel="icon" href="../../../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+
+
+    <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js" ></script>
+    
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-2"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-2"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-2"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-2">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-3"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-3"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-3"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-3">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Basic Usage</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../evaluation-doc.html">Evaluate NeMo 2.0 Checkpoints</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../evaluation-adapters.html">Evaluation Adapters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../logprobs.html">Run the evaluation that uses log-probabilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../scripts.html">Adding on-demand evaluation packages</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../documentation.html">Documentation Development</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../apidocs/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../apidocs/nemo_eval/nemo_eval.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../apidocs/nemo_eval/nemo_eval.utils.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.utils</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../apidocs/nemo_eval/nemo_eval.utils.ray_deploy.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.utils.ray_deploy</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../apidocs/nemo_eval/nemo_eval.utils.api.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.utils.api</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../apidocs/nemo_eval/nemo_eval.utils.base.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.utils.base</span></code></a></li>
+</ul>
+</details></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../apidocs/nemo_eval/nemo_eval.adapters.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.adapters</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../apidocs/nemo_eval/nemo_eval.adapters.interceptors.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.adapters.interceptors</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../apidocs/nemo_eval/nemo_eval.adapters.server.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.adapters.server</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../apidocs/nemo_eval/nemo_eval.adapters.utils.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.adapters.utils</span></code></a></li>
+</ul>
+</details></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../apidocs/nemo_eval/nemo_eval.api.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.api</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../apidocs/nemo_eval/nemo_eval.package_info.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.package_info</span></code></a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">nemo_eval.adapters.server</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for nemo_eval.adapters.server</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);</span>
+<span class="c1"># you may not use this file except in compliance with the License.</span>
+<span class="c1"># You may obtain a copy of the License at</span>
+<span class="c1">#</span>
+<span class="c1">#     http://www.apache.org/licenses/LICENSE-2.0</span>
+<span class="c1">#</span>
+<span class="c1"># Unless required by applicable law or agreed to in writing, software</span>
+<span class="c1"># distributed under the License is distributed on an &quot;AS IS&quot; BASIS,</span>
+<span class="c1"># WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.</span>
+<span class="c1"># See the License for the specific language governing permissions and</span>
+<span class="c1"># limitations under the License.</span>
+
+<span class="sd">&quot;&quot;&quot;Main server holding entry-point to all the interceptors.</span>
+
+<span class="sd">The arch is as follows:</span>
+
+
+<span class="sd">         ┌───────────────────────┐</span>
+<span class="sd">         │                       │</span>
+<span class="sd">         │ NVIDIA Eval Factory   │</span>
+<span class="sd">         │                       │</span>
+<span class="sd">         └───▲──────┬────────────┘</span>
+<span class="sd">             │      │</span>
+<span class="sd">     returns │      │</span>
+<span class="sd">             │      │ calls</span>
+<span class="sd">             │      │</span>
+<span class="sd">             │      │</span>
+<span class="sd">         ┌───┼──────┼──────────────────────────────────────────────────┐</span>
+<span class="sd">         │   │      ▼                                                  │</span>
+<span class="sd">         │ AdapterServer (@ localhost:&lt;free port&gt;)                     │</span>
+<span class="sd">         │                                                             │</span>
+<span class="sd">         │   ▲      │       chain of RequestInterceptors:              │</span>
+<span class="sd">         │   │      │       flask.Request                              │</span>
+<span class="sd">         │   │      │       is passed on the way up                    │</span>
+<span class="sd">         │   │      │                                                  │   ┌──────────────────────┐</span>
+<span class="sd">         │   │ ┌────▼───────────────────────────────────────────────┐  │   │                      │</span>
+<span class="sd">         │   │ │intcptr_1─────►intcptr_2───►...───►intcptr_N────────┼──┼───►                      │</span>
+<span class="sd">         │   │ │                     │                              │  │   │                      │</span>
+<span class="sd">         │   │ └─────────────────────┼──────────────────────────────┘  │   │                      │</span>
+<span class="sd">         │   │                       │(e.g. for caching interceptors,  │   │  upstream endpoint   │</span>
+<span class="sd">         │   │                       │ this &quot;shortcut&quot; will happen)    │   │   with actual model  │</span>
+<span class="sd">         │   │                       │                                 │   │                      │</span>
+<span class="sd">         │   │                       └─────────────┐                   │   │                      │</span>
+<span class="sd">         │   │                                     │                   │   │                      │</span>
+<span class="sd">         │ ┌─┼─────────────────────────────────────▼────┐              │   │                      │</span>
+<span class="sd">         │ │intcptr&#39;_M◄──intcptr&#39;_2◄──...◄───intcptr&#39;_1 ◄──────────────┼───┤                      │</span>
+<span class="sd">         │ └────────────────────────────────────────────┘              │   └──────────────────────┘</span>
+<span class="sd">         │                                                             │</span>
+<span class="sd">         │              Chain of ResponseInterceptors:                 │</span>
+<span class="sd">         │              requests.Response is passed on the way down    │</span>
+<span class="sd">         │                                                             │</span>
+<span class="sd">         │                                                             │</span>
+<span class="sd">         └─────────────────────────────────────────────────────────────┘</span>
+
+<span class="sd">In other words, interceptors are pieces of independent logic which should be</span>
+<span class="sd">relatively easy to add separately.</span>
+
+
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">_original_logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">multiprocessing</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">flask</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">requests</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">werkzeug.serving</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..api</span><span class="w"> </span><span class="kn">import</span> <span class="n">AdapterConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.interceptors</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AdapterMetadata</span><span class="p">,</span>
+    <span class="n">AdapterRequest</span><span class="p">,</span>
+    <span class="n">AdapterResponse</span><span class="p">,</span>
+    <span class="n">EndpointInterceptor</span><span class="p">,</span>
+    <span class="n">RequestInterceptor</span><span class="p">,</span>
+    <span class="n">RequestLoggingInterceptor</span><span class="p">,</span>
+    <span class="n">ResponseInterceptor</span><span class="p">,</span>
+    <span class="n">ResponseLoggingInterceptor</span><span class="p">,</span>
+    <span class="n">ResponseReasoningInterceptor</span><span class="p">,</span>
+    <span class="n">SystemMessageInterceptor</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_free_port</span><span class="p">,</span> <span class="n">wait_for_server</span>
+
+
+<div class="viewcode-block" id="create_server_process">
+<a class="viewcode-back" href="../../../apidocs/nemo_eval/nemo_eval.adapters.server.html#nemo_eval.adapters.server.create_server_process">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_server_process</span><span class="p">(</span>
+    <span class="n">adapter_config</span><span class="p">:</span> <span class="n">AdapterConfig</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">multiprocessing</span><span class="o">.</span><span class="n">Process</span><span class="p">,</span> <span class="n">AdapterConfig</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create and start a server process, returning the process and the config.</span>
+
+<span class="sd">    This makes sure that the factory function is not needing any complex serialization for</span>
+<span class="sd">    multiprocessing.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        api_url: The API URL the adapter will call</span>
+<span class="sd">        adapter_config: Configuration for the adapter server</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Tuple of (process, adapter_config) where process is the running server process,</span>
+<span class="sd">        and adapter_config is the configuration with port filled in.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">adapter_config</span><span class="o">.</span><span class="n">local_port</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">adapter_config</span><span class="o">.</span><span class="n">local_port</span> <span class="k">if</span> <span class="n">adapter_config</span><span class="o">.</span><span class="n">local_port</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">find_free_port</span><span class="p">()</span>
+    <span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_server_factory</span><span class="p">(</span>
+        <span class="n">adapter_config</span><span class="p">:</span> <span class="n">AdapterConfig</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">server</span> <span class="o">=</span> <span class="n">_AdapterServer</span><span class="p">(</span><span class="n">adapter_config</span><span class="o">=</span><span class="n">adapter_config</span><span class="p">)</span>
+        <span class="n">server</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+
+    <span class="n">p</span> <span class="o">=</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">Process</span><span class="p">(</span>
+        <span class="n">target</span><span class="o">=</span><span class="n">create_server_factory</span><span class="p">,</span>
+        <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">adapter_config</span><span class="p">,),</span>
+        <span class="n">kwargs</span><span class="o">=</span><span class="p">{},</span>
+    <span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">wait_for_server</span><span class="p">(</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span> <span class="n">adapter_config</span><span class="o">.</span><span class="n">local_port</span><span class="p">):</span>
+        <span class="n">p</span><span class="o">.</span><span class="n">terminate</span><span class="p">()</span>
+        <span class="k">raise</span> <span class="ne">ConnectionError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not wait till adapter server is up on localhost:</span><span class="si">{</span><span class="n">adapter_config</span><span class="o">.</span><span class="n">local_port</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">adapter_config</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="_AdapterServer">
+<a class="viewcode-back" href="../../../apidocs/nemo_eval/nemo_eval.adapters.server.html#nemo_eval.adapters.server._AdapterServer">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">_AdapterServer</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Main server which serves on a local port and holds chain of interceptors&quot;&quot;&quot;</span>
+
+    <span class="n">adapter_host</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">adapter_port</span><span class="p">:</span> <span class="nb">int</span>
+
+    <span class="n">request_interceptors</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">RequestInterceptor</span><span class="p">]</span>
+    <span class="n">response_interceptors</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ResponseInterceptor</span><span class="p">]</span>
+
+    <span class="n">app</span><span class="p">:</span> <span class="n">flask</span><span class="o">.</span><span class="n">Flask</span>
+
+    <span class="n">api_url</span><span class="p">:</span> <span class="nb">str</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">adapter_config</span><span class="p">:</span> <span class="n">AdapterConfig</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initializes the app, creates server and adds interceptors</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            adapter_config: should be obtained from the evaluation script, see `api.py`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">request_interceptors</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">response_interceptors</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">app</span> <span class="o">=</span> <span class="n">flask</span><span class="o">.</span><span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">,</span> <span class="n">defaults</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;path&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">},</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;POST&quot;</span><span class="p">])(</span><span class="bp">self</span><span class="o">.</span><span class="n">_handler</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">&quot;/&lt;path:path&gt;&quot;</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;POST&quot;</span><span class="p">])(</span><span class="bp">self</span><span class="o">.</span><span class="n">_handler</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">adapter_host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;localhost&quot;</span>
+        <span class="k">assert</span> <span class="n">adapter_config</span><span class="o">.</span><span class="n">local_port</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">adapter_port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">adapter_config</span><span class="o">.</span><span class="n">local_port</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">adapter_config</span> <span class="o">=</span> <span class="n">adapter_config</span>
+
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Using the following adapter config: </span><span class="si">{</span><span class="n">adapter_config</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_build_interceptor_chains</span><span class="p">(</span>
+            <span class="n">use_reasoning</span><span class="o">=</span><span class="n">adapter_config</span><span class="o">.</span><span class="n">use_reasoning</span><span class="p">,</span>
+            <span class="n">end_reasoning_token</span><span class="o">=</span><span class="n">adapter_config</span><span class="o">.</span><span class="n">end_reasoning_token</span><span class="p">,</span>
+            <span class="n">custom_system_prompt</span><span class="o">=</span><span class="n">adapter_config</span><span class="o">.</span><span class="n">custom_system_prompt</span><span class="p">,</span>
+            <span class="n">max_logged_requests</span><span class="o">=</span><span class="n">adapter_config</span><span class="o">.</span><span class="n">max_logged_requests</span><span class="p">,</span>
+            <span class="n">max_logged_responses</span><span class="o">=</span><span class="n">adapter_config</span><span class="o">.</span><span class="n">max_logged_responses</span><span class="p">,</span>
+        <span class="p">)</span>
+
+<div class="viewcode-block" id="_AdapterServer._build_interceptor_chains">
+<a class="viewcode-back" href="../../../apidocs/nemo_eval/nemo_eval.adapters.server.html#nemo_eval.adapters.server._AdapterServer._build_interceptor_chains">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_interceptor_chains</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">use_reasoning</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+        <span class="n">end_reasoning_token</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">custom_system_prompt</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+        <span class="n">max_logged_requests</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+        <span class="n">max_logged_responses</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+    <span class="p">):</span>
+        <span class="k">if</span> <span class="n">custom_system_prompt</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">request_interceptors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SystemMessageInterceptor</span><span class="p">(</span><span class="n">new_system_message</span><span class="o">=</span><span class="n">custom_system_prompt</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">request_interceptors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">RequestLoggingInterceptor</span><span class="p">(</span><span class="n">max_requests</span><span class="o">=</span><span class="n">max_logged_requests</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">request_interceptors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">EndpointInterceptor</span><span class="p">(</span><span class="n">api_url</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">adapter_config</span><span class="o">.</span><span class="n">api_url</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">response_interceptors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ResponseLoggingInterceptor</span><span class="p">(</span><span class="n">max_responses</span><span class="o">=</span><span class="n">max_logged_responses</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">use_reasoning</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">response_interceptors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ResponseReasoningInterceptor</span><span class="p">(</span><span class="n">end_reasoning_token</span><span class="o">=</span><span class="n">end_reasoning_token</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="_AdapterServer.run">
+<a class="viewcode-back" href="../../../apidocs/nemo_eval/nemo_eval.adapters.server.html#nemo_eval.adapters.server._AdapterServer.run">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Start the Flask server.&quot;&quot;&quot;</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Starting the evaluation adapter server at </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">adapter_host</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">adapter_port</span><span class="si">}</span><span class="s2">...&quot;</span><span class="p">)</span>
+        <span class="c1"># Below setting prevents from littering with</span>
+        <span class="c1"># messges like `&lt;...&gt; INFO 127.0.0.1 - - [27/May/2025 05:58:11] &quot;POST / HTTP/1.1&quot; 200 -`</span>
+        <span class="n">_original_logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;werkzeug&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">ERROR</span><span class="p">)</span>
+        <span class="n">werkzeug</span><span class="o">.</span><span class="n">serving</span><span class="o">.</span><span class="n">run_simple</span><span class="p">(</span>
+            <span class="n">hostname</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">adapter_host</span><span class="p">,</span>
+            <span class="n">port</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">adapter_port</span><span class="p">,</span>
+            <span class="n">application</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="p">,</span>
+            <span class="n">threaded</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Evaluation adapter server started&quot;</span><span class="p">)</span></div>
+
+
+    <span class="c1"># The headers we don&#39;t want to let out</span>
+    <span class="n">_EXCLUDED_HEADERS</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="s2">&quot;content-encoding&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;content-length&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;transfer-encoding&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;connection&quot;</span><span class="p">,</span>
+    <span class="p">]</span>
+
+<div class="viewcode-block" id="_AdapterServer._process_response_headers">
+<a class="viewcode-back" href="../../../apidocs/nemo_eval/nemo_eval.adapters.server.html#nemo_eval.adapters.server._AdapterServer._process_response_headers">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_process_response_headers</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">response</span><span class="p">:</span> <span class="n">requests</span><span class="o">.</span><span class="n">Response</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Process response headers, removing excluded ones.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_EXCLUDED_HEADERS</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="_AdapterServer._handler">
+<a class="viewcode-back" href="../../../apidocs/nemo_eval/nemo_eval.adapters.server.html#nemo_eval.adapters.server._AdapterServer._handler">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_handler</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">flask</span><span class="o">.</span><span class="n">Response</span><span class="p">:</span>
+        <span class="n">adapter_request</span> <span class="o">=</span> <span class="n">AdapterRequest</span><span class="p">(</span>
+            <span class="n">r</span><span class="o">=</span><span class="n">flask</span><span class="o">.</span><span class="n">request</span><span class="p">,</span>
+            <span class="n">meta</span><span class="o">=</span><span class="n">AdapterMetadata</span><span class="p">(),</span>
+        <span class="p">)</span>
+        <span class="n">adapter_response</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">interceptor</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">request_interceptors</span><span class="p">:</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="n">interceptor</span><span class="o">.</span><span class="n">intercept_request</span><span class="p">(</span><span class="n">adapter_request</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">AdapterResponse</span><span class="p">):</span>
+                <span class="n">adapter_response</span> <span class="o">=</span> <span class="n">output</span>
+                <span class="k">break</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">AdapterRequest</span><span class="p">):</span>
+                <span class="n">adapter_request</span> <span class="o">=</span> <span class="n">output</span>
+
+        <span class="k">assert</span> <span class="n">adapter_response</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;There should be a response to process&quot;</span>
+
+        <span class="k">for</span> <span class="n">interceptor</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">response_interceptors</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">adapter_response</span> <span class="o">=</span> <span class="n">interceptor</span><span class="o">.</span><span class="n">intercept_response</span><span class="p">(</span><span class="n">adapter_response</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_log_response_interceptor_error</span><span class="p">(</span><span class="n">interceptor</span><span class="p">,</span> <span class="n">adapter_response</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+                <span class="k">raise</span>
+
+        <span class="k">return</span> <span class="n">flask</span><span class="o">.</span><span class="n">Response</span><span class="p">(</span>
+            <span class="n">response</span><span class="o">=</span><span class="n">adapter_response</span><span class="o">.</span><span class="n">r</span><span class="o">.</span><span class="n">content</span><span class="p">,</span>
+            <span class="n">status</span><span class="o">=</span><span class="n">adapter_response</span><span class="o">.</span><span class="n">r</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span>
+            <span class="n">headers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_process_response_headers</span><span class="p">(</span><span class="n">adapter_response</span><span class="o">.</span><span class="n">r</span><span class="p">),</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="_AdapterServer._log_response_interceptor_error">
+<a class="viewcode-back" href="../../../apidocs/nemo_eval/nemo_eval.adapters.server.html#nemo_eval.adapters.server._AdapterServer._log_response_interceptor_error">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_log_response_interceptor_error</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">interceptor</span><span class="p">:</span> <span class="n">ResponseInterceptor</span><span class="p">,</span>
+        <span class="n">adapter_response</span><span class="p">:</span> <span class="n">AdapterResponse</span><span class="p">,</span>
+        <span class="n">error</span><span class="p">:</span> <span class="ne">Exception</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">error_message</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;❌ Error in Response Interceptor ❌</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;Interceptor: </span><span class="si">{</span><span class="n">interceptor</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;Adapter Response Status Code: </span><span class="si">{</span><span class="n">adapter_response</span><span class="o">.</span><span class="n">r</span><span class="o">.</span><span class="n">status_code</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;Adapter Response Status Text: </span><span class="si">{</span><span class="n">adapter_response</span><span class="o">.</span><span class="n">r</span><span class="o">.</span><span class="n">reason</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;Adapter Response Content: </span><span class="si">{</span><span class="n">adapter_response</span><span class="o">.</span><span class="n">r</span><span class="o">.</span><span class="n">content</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">errors</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;Error Details: </span><span class="si">{</span><span class="nb">repr</span><span class="p">(</span><span class="n">error</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">error_message</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+<div class="bd-sidebar-secondary"></div>
+
+
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025, NVIDIA Corporation.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+<div class="extra_footer">
+  
+  
+    <script type="text/javascript">if (typeof _satellite !== "undefined") {_satellite.pageBottom();}</script>
+    
+  
+</div></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>
