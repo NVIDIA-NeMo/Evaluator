@@ -210,7 +210,18 @@ jobs:
 
   Coverage:
     runs-on: ubuntu-latest
-    needs: [Nemo_CICD_Test]
+    needs: [pre-flight, Nemo_CICD_Test]
+    if: |
+      needs.pre-flight.outputs.test_to_run != '[]'
+      && needs.pre-flight.outputs.components_to_run != '[]'
+      && (
+        success()
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
     strategy:
       matrix:
         flag: [unit-test, e2e]
@@ -222,6 +233,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: coverage-${{ matrix.flag }}-*
+
+      - name: List coverage files
+        run: find . -type f -name "*.xml" -o -name "*.lcov"
 
       - name: Get total coverage of current branch
         shell: bash -x -e -u -o pipefail {0}
