@@ -1,6 +1,6 @@
 # Evaluate NeMo 2.0 Checkpoints
 
-This guide provides detailed instructions on evaluating NeMo 2.0 checkpoints using the [NVIDIA Evals Factory](https://pypi.org/project/nvidia-lm-eval/) within the NeMo Framework.
+This guide provides detailed instructions on evaluating NeMo 2.0 checkpoints using the [NVIDIA Eval Factory](https://pypi.org/project/nvidia-lm-eval/) within the NeMo Framework.
 
 In this section we will focus on benchmarks that use **generation**.
 In such approach the model is presented with a question it needs to answer, an instruction it should follow, or a text that it should continue.
@@ -26,7 +26,7 @@ The evaluation process employs a server-client approach, comprising two main pha
 
 Some of the benchmarks (e.g. GPQA) use a gated dataset. To use them, you must authenticate to the [Hugging Face Hub](https://huggingface.co/docs/huggingface_hub/quick-start#authentication) before launching the evaluation.
 
-The NVIDIA Evals Factory provides several evaluation harnesses with different sets of evaluation benchmarks. The [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo) includes `nvidia-lm-eval` pre-installed, along with predefined configurations for evaluating the completions endpoint:
+The NVIDIA Eval Factory provides several evaluation harnesses with different sets of evaluation benchmarks. The [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo) includes `nvidia-lm-eval` pre-installed, along with predefined configurations for evaluating the completions endpoint:
 
 - `gsm8k`
 - `mgsm`
