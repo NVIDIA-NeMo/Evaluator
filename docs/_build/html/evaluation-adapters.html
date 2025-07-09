@@ -1,0 +1,747 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Evaluation Adapters &#8212; NeMo Eval</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="_static/documentation_options.js?v=01f34227"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'evaluation-adapters';</script>
+    <script>
+        DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.1.0';
+        DOCUMENTATION_OPTIONS.show_version_warning_banner =
+            false;
+        </script>
+    <link rel="icon" href="_static/favicon.png"/>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Evaluate LLMs Using Log-Probabilities" href="logprobs.html" />
+    <link rel="prev" title="Evaluate NeMo 2.0 Checkpoints" href="evaluation-doc.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+
+
+    <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js" ></script>
+    
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-2"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-2"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-2"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-2">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-3"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-3"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-3"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-3">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Basic Usage</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="evaluation-doc.html">Evaluate NeMo 2.0 Checkpoints</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Evaluation Adapters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="logprobs.html">Evaluate LLMs Using Log-Probabilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="custom-task.html">Run Evaluation Using Task Without Pre-Defined Config</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scripts.html">Add On-Demand Evaluation Packages</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="documentation.html">Build and Test the Documentation</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="apidocs/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="apidocs/nemo_eval/nemo_eval.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="apidocs/nemo_eval/nemo_eval.utils.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.utils</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l4"><a class="reference internal" href="apidocs/nemo_eval/nemo_eval.utils.ray_deploy.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.utils.ray_deploy</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="apidocs/nemo_eval/nemo_eval.utils.api.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.utils.api</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="apidocs/nemo_eval/nemo_eval.utils.base.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.utils.base</span></code></a></li>
+</ul>
+</details></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="apidocs/nemo_eval/nemo_eval.adapters.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.adapters</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l4"><a class="reference internal" href="apidocs/nemo_eval/nemo_eval.adapters.interceptors.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.adapters.interceptors</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="apidocs/nemo_eval/nemo_eval.adapters.server.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.adapters.server</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="apidocs/nemo_eval/nemo_eval.adapters.utils.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.adapters.utils</span></code></a></li>
+</ul>
+</details></li>
+<li class="toctree-l3"><a class="reference internal" href="apidocs/nemo_eval/nemo_eval.api.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.api</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="apidocs/nemo_eval/nemo_eval.package_info.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.package_info</span></code></a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Evaluation Adapters</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="evaluation-adapters">
+<h1>Evaluation Adapters<a class="headerlink" href="#evaluation-adapters" title="Link to this heading">#</a></h1>
+<p>Evaluation adapters provide a flexible mechanism for intercepting and modifying requests/responses between the evaluation harness and the model endpoint. This allows for custom processing, logging, and transformation of data during the evaluation process.</p>
+<section id="architecture">
+<h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading">#</a></h2>
+<p>The adapter system uses a chain of interceptors that process requests and responses in sequence. Here’s the high-level architecture:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>         ┌───────────────────────┐
+         │                       │
+         │ NVIDIA Eval Factory   │
+         │                       │
+         └───▲──────┬────────────┘
+             │      │
+     returns │      │
+             │      │ calls
+             │      │
+             │      │
+         ┌───┼──────┼──────────────────────────────────────────────────┐
+         │   │      ▼                                                  │
+         │ AdapterServer (@ localhost:&lt;free port&gt;)                     │
+         │                                                             │
+         │   ▲      │       chain of RequestInterceptors:              │
+         │   │      │       flask.Request                              │
+         │   │      │       is passed on the way up                    │
+         │   │      │                                                  │   ┌──────────────────────┐
+         │   │ ┌────▼───────────────────────────────────────────────┐  │   │                      │
+         │   │ │intcptr_1─────►intcptr_2───►...───►intcptr_N────────┼──┼───►                      │
+         │   │ │                                                    │  │   │                      │
+         │   │ └────────────────────────────────────────────────────┘  │   │                      │
+         │   │                                                         │   │  upstream endpoint   │
+         │   │                                                         │   │   with actual model  │
+         │   │                                                         │   │                      │
+         │   │                                                         │   │                      │
+         │   │                                                         │   │                      │
+         │ ┌─┼──────────────────────────────────────────┐              │   │                      │
+         │ │intcptr&#39;_M◄──intcptr&#39;_2◄──...◄───intcptr&#39;_1 ◄──────────────┼───┤                      │
+         │ └────────────────────────────────────────────┘              │   └──────────────────────┘
+         │                                                             │
+         │              Chain of ResponseInterceptors:                 │
+         │              requests.Response is passed on the way down    │
+         │                                                             │
+         │                                                             │
+         └─────────────────────────────────────────────────────────────┘
+</pre></div>
+</div>
+</section>
+<section id="adapter-system-request-response-flow">
+<h2>Adapter System: Request/Response Flow<a class="headerlink" href="#adapter-system-request-response-flow" title="Link to this heading">#</a></h2>
+<p>The <strong>AdapterServer</strong> acts as a local reverse proxy, mediating communication between the <strong>NVIDIA Eval Factory</strong> (client) and the <strong>upstream model endpoint</strong>. It employs a pipeline of interceptors to enable pre-processing of outgoing requests and post-processing of incoming responses. This architecture allows for modular insertion of custom logic without modifying the core client or model service.</p>
+<p>Here’s a detailed breakdown of the interaction flow:</p>
+<ol class="arabic simple">
+<li><p><strong>Client Request Initiation</strong>:</p>
+<ul class="simple">
+<li><p>The <strong>NVIDIA Eval Factory</strong> (client) initiates an evaluation sequence by dispatching a request destined for a model.</p></li>
+</ul>
+</li>
+<li><p><strong>Request Routing to AdapterServer</strong>:</p>
+<ul class="simple">
+<li><p>The Eval Factory directs its request not to the target model endpoint directly, but to the locally running <strong>AdapterServer</strong>. This server listens on a designated port (e.g., <code class="docutils literal notranslate"><span class="pre">localhost:&lt;port&gt;</span></code>) and functions as the primary interface for the interception pipeline.</p></li>
+</ul>
+</li>
+<li><p><strong>Inbound Request Reception</strong>:</p>
+<ul class="simple">
+<li><p>The <strong>AdapterServer</strong> receives the inbound HTTP request from the Eval Factory.</p></li>
+</ul>
+</li>
+<li><p><strong>Request Interceptor Chain Processing</strong>:</p>
+<ul class="simple">
+<li><p>Upon receipt, the request (instantiated as a <code class="docutils literal notranslate"><span class="pre">flask.Request</span></code> object) is injected into a configurable <strong>chain of RequestInterceptors</strong> (<code class="docutils literal notranslate"><span class="pre">intcptr_1</span></code> → <code class="docutils literal notranslate"><span class="pre">intcptr_2</span></code> → … → <code class="docutils literal notranslate"><span class="pre">intcptr_N</span></code>).</p></li>
+<li><p>Each interceptor sequentially processes the <code class="docutils literal notranslate"><span class="pre">flask.Request</span></code> object. This design enables developers to implement diverse functionalities such as header manipulation, payload transformation, request validation, authentication/authorization handshakes, or detailed logging before the request is forwarded to the subsequent interceptor or the upstream service.</p></li>
+</ul>
+</li>
+<li><p><strong>Dispatch to Upstream Model Endpoint</strong>:</p>
+<ul class="simple">
+<li><p>Once the <code class="docutils literal notranslate"><span class="pre">flask.Request</span></code> has successfully traversed the entire request interceptor chain (i.e., after processing by <code class="docutils literal notranslate"><span class="pre">intcptr_N</span></code>), the <strong>AdapterServer</strong> dispatches the (potentially mutated) request to the designated <strong>upstream endpoint</strong> hosting the target AI model.</p></li>
+</ul>
+</li>
+<li><p><strong>Model Inference and Response Generation</strong>:</p>
+<ul class="simple">
+<li><p>The <strong>upstream model endpoint</strong> executes its inference logic based on the received request and generates a corresponding HTTP response.</p></li>
+</ul>
+</li>
+<li><p><strong>Response Routing to AdapterServer</strong>:</p>
+<ul class="simple">
+<li><p>The model’s HTTP response is routed back to the <strong>AdapterServer</strong>.</p></li>
+</ul>
+</li>
+<li><p><strong>Response Interceptor Chain Processing</strong>:</p>
+<ul class="simple">
+<li><p>The incoming response (typically a <code class="docutils literal notranslate"><span class="pre">requests.Response</span></code> object) is then passed through a <strong>Chain of ResponseInterceptors</strong>. The flow is: upstream response → <code class="docutils literal notranslate"><span class="pre">intcptr'_1</span></code> → <code class="docutils literal notranslate"><span class="pre">intcptr'_2</span></code> → … → <code class="docutils literal notranslate"><span class="pre">intcptr'_M</span></code>.</p></li>
+<li><p>This chain processes the <code class="docutils literal notranslate"><span class="pre">requests.Response</span></code> sequentially. Each interceptor can inspect, modify, or augment the response, facilitating tasks such as data extraction from the payload, reformatting output, implementing caching strategies, or custom logging before it’s relayed to the client.</p></li>
+</ul>
+</li>
+<li><p><strong>Finalized Response</strong>:</p>
+<ul class="simple">
+<li><p>After traversal through the entire response interceptor chain (i.e., after processing by <code class="docutils literal notranslate"><span class="pre">intcptr'_M</span></code>), the <code class="docutils literal notranslate"><span class="pre">requests.Response</span></code> object represents the final, processed data to be returned to the client.</p></li>
+</ul>
+</li>
+<li><p><strong>Response Transmission to Client</strong>:</p>
+<ul class="simple">
+<li><p>The <strong>AdapterServer</strong> transmits this final <code class="docutils literal notranslate"><span class="pre">requests.Response</span></code> back to the initial caller, the NVIDIA Eval Factory.</p></li>
+</ul>
+</li>
+<li><p><strong>Client Consumes Processed Response</strong>:</p>
+<ul class="simple">
+<li><p>The <strong>NVIDIA Eval Factory</strong> receives the processed response. This data can then be consumed for metric computation, results aggregation, or further analysis within the evaluation framework.</p></li>
+</ul>
+</li>
+</ol>
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
+<p>The adapter system is configured using the <code class="docutils literal notranslate"><span class="pre">AdapterConfig</span></code> class with the following options:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">api_url</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">str</span></code></p></td>
+<td><p></p></td>
+<td><p>URL of the api endpoint (same as <code class="docutils literal notranslate"><span class="pre">target_config.api_endpoint.url</span></code>) that will be proxied</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">local_port</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Optional[int]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Local port to use for the adapter server. If <code class="docutils literal notranslate"><span class="pre">None</span></code>, a free port will be chosen automatically</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">use_reasoning</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bool</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
+<td><p>Whether to use the clean-reasoning-tokens adapter</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">end_reasoning_token</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">str</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;&lt;/think&gt;&quot;</span></code></p></td>
+<td><p>Token that signifies the end of reasoning output</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">custom_system_prompt</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Optional[str]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>A custom system prompt to replace the original one (if not None), <strong>only for chat endpoints</strong></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">max_logged_responses</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Optional[int]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">5</span></code></p></td>
+<td><p>Maximum number of responses to log. Set to 0 to disable. If None, all will be logged</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">max_logged_requests</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Optional[int]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">5</span></code></p></td>
+<td><p>Maximum number of requests to log. Set to 0 to disable. If None, all will be logged</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="usage-example">
+<h2>Usage Example<a class="headerlink" href="#usage-example" title="Link to this heading">#</a></h2>
+<p>To enable the adapter server, pass the  <code class="docutils literal notranslate"><span class="pre">AdapterConfig</span></code> class to the <code class="docutils literal notranslate"><span class="pre">evaluate</span></code>  method of the <code class="docutils literal notranslate"><span class="pre">nemo/collections/llm/api.py</span></code>.
+Taking an example from <code class="docutils literal notranslate"><span class="pre">tutorials/llm/evaluation/mmlu.ipynb</span></code>, you can modify it as follows:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">target_config</span> <span class="o">=</span> <span class="n">EvaluationTarget</span><span class="p">(</span><span class="n">api_endpoint</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;url&quot;</span><span class="p">:</span> <span class="n">completions_url</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;completions&quot;</span><span class="p">})</span>
+<span class="n">eval_config</span> <span class="o">=</span> <span class="n">EvaluationConfig</span><span class="p">(</span>
+    <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;mmlu&quot;</span><span class="p">,</span>
+    <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;limit_samples&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span>
+    <span class="n">output_dir</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">WORKSPACE</span><span class="si">}</span><span class="s2">/mmlu&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">adapter_config</span> <span class="o">=</span> <span class="n">AdapterConfig</span><span class="p">(</span>
+    <span class="n">api_url</span><span class="o">=</span><span class="n">target_config</span><span class="o">.</span><span class="n">api_endpoint</span><span class="o">.</span><span class="n">url</span><span class="p">,</span>
+    <span class="n">local_port</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">max_logged_requests</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">max_logged_responses</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">api</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span>
+    <span class="n">target_cfg</span><span class="o">=</span><span class="n">target_config</span><span class="p">,</span>
+    <span class="n">eval_cfg</span><span class="o">=</span><span class="n">eval_config</span><span class="p">,</span>
+    <span class="n">adapter_cfg</span><span class="o">=</span><span class="n">adapter_config</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="evaluation-doc.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Evaluate NeMo 2.0 Checkpoints</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="logprobs.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Evaluate LLMs Using Log-Probabilities</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture">Architecture</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#adapter-system-request-response-flow">Adapter System: Request/Response Flow</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#usage-example">Usage Example</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025, NVIDIA Corporation.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+<div class="extra_footer">
+  
+  
+    <script type="text/javascript">if (typeof _satellite !== "undefined") {_satellite.pageBottom();}</script>
+    
+  
+</div></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>

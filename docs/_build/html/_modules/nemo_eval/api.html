@@ -1,0 +1,790 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>nemo_eval.api &#8212; NeMo Eval</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/nemo_eval/api';</script>
+    <script>
+        DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.1.0';
+        DOCUMENTATION_OPTIONS.show_version_warning_banner =
+            false;
+        </script>
+    <link rel="icon" href="../../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+
+
+    <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js" ></script>
+    
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-2"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-2"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-2"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-2">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-3"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-3"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-3"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-3">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Basic Usage</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../evaluation-doc.html">Evaluate NeMo 2.0 Checkpoints</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../evaluation-adapters.html">Evaluation Adapters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../logprobs.html">Run the evaluation that uses log-probabilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../scripts.html">Adding on-demand evaluation packages</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../documentation.html">Documentation Development</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../apidocs/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../apidocs/nemo_eval/nemo_eval.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../apidocs/nemo_eval/nemo_eval.utils.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.utils</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../apidocs/nemo_eval/nemo_eval.utils.ray_deploy.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.utils.ray_deploy</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../apidocs/nemo_eval/nemo_eval.utils.api.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.utils.api</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../apidocs/nemo_eval/nemo_eval.utils.base.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.utils.base</span></code></a></li>
+</ul>
+</details></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../apidocs/nemo_eval/nemo_eval.adapters.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.adapters</span></code></a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../apidocs/nemo_eval/nemo_eval.adapters.interceptors.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.adapters.interceptors</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../apidocs/nemo_eval/nemo_eval.adapters.server.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.adapters.server</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../apidocs/nemo_eval/nemo_eval.adapters.utils.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.adapters.utils</span></code></a></li>
+</ul>
+</details></li>
+<li class="toctree-l3"><a class="reference internal" href="../../apidocs/nemo_eval/nemo_eval.api.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.api</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../apidocs/nemo_eval/nemo_eval.package_info.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_eval.package_info</span></code></a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">nemo_eval.api</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for nemo_eval.api</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);</span>
+<span class="c1"># you may not use this file except in compliance with the License.</span>
+<span class="c1"># You may obtain a copy of the License at</span>
+<span class="c1">#</span>
+<span class="c1">#     http://www.apache.org/licenses/LICENSE-2.0</span>
+<span class="c1">#</span>
+<span class="c1"># Unless required by applicable law or agreed to in writing, software</span>
+<span class="c1"># distributed under the License is distributed on an &quot;AS IS&quot; BASIS,</span>
+<span class="c1"># WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.</span>
+<span class="c1"># See the License for the specific language governing permissions and</span>
+<span class="c1"># limitations under the License.</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">importlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">multiprocessing</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.utils.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">AdapterConfig</span><span class="p">,</span> <span class="n">EvaluationConfig</span><span class="p">,</span> <span class="n">EvaluationTarget</span><span class="p">,</span> <span class="n">MisconfigurationError</span>
+
+
+<span class="n">AnyPath</span> <span class="o">=</span> <span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="deploy">
+<a class="viewcode-back" href="../../apidocs/nemo_eval/nemo_eval.api.html#nemo_eval.api.deploy">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">deploy</span><span class="p">(</span>
+    <span class="n">nemo_checkpoint</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">AnyPath</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">serving_backend</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;pytriton&quot;</span><span class="p">,</span>
+    <span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;megatron_model&quot;</span><span class="p">,</span>
+    <span class="n">server_port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8000</span><span class="p">,</span>
+    <span class="n">server_address</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;0.0.0.0&quot;</span><span class="p">,</span>
+    <span class="n">fastapi_http_address</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;0.0.0.0&quot;</span><span class="p">,</span>
+    <span class="n">fastapi_port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8080</span><span class="p">,</span>
+    <span class="n">num_gpus</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">num_nodes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">tensor_parallelism_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">pipeline_parallelism_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">context_parallel_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">expert_model_parallel_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">max_input_len</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4096</span><span class="p">,</span>
+    <span class="n">max_batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span>
+    <span class="n">enable_flash_decode</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">enable_cuda_graphs</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="c1"># Ray deployment specific args</span>
+    <span class="n">num_replicas</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">num_cpus_per_replica</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">include_dashboard</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">cuda_visible_devices</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
+    <span class="n">legacy_ckpt</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Deploys nemo model on either PyTriton server or Ray Serve.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        nemo_checkpoint (Path): Path for nemo checkpoint.</span>
+<span class="sd">        serving_backend (str): Backend to use for serving (&quot;pytriton&quot; or &quot;ray&quot;). Default: &quot;pytriton&quot;.</span>
+<span class="sd">        model_name (str): Name for the model that gets deployed on PyTriton or Ray.</span>
+<span class="sd">        server_port (int): HTTP port for the PyTriton or Ray server. Default: 8000.</span>
+<span class="sd">        server_address (str): HTTP address for the PyTriton or Ray server. Default: &quot;0.0.0.0&quot;.</span>
+<span class="sd">        fastapi_http_address (str): HTTP address for FastAPI interface/server. Default: &quot;0.0.0.0&quot;.</span>
+<span class="sd">        fastapi_port (int): Port for FastAPI interface/server. Default: 8080.</span>
+<span class="sd">        num_gpus (int): Number of GPUs per node. Default: 1.</span>
+<span class="sd">        num_nodes (int): Number of nodes. Default: 1.</span>
+<span class="sd">        tensor_parallelism_size (int): Tensor parallelism size. Default: 1.</span>
+<span class="sd">        pipeline_parallelism_size (int): Pipeline parallelism size. Default: 1.</span>
+<span class="sd">        context_parallel_size (int): Context parallelism size. Default: 1.</span>
+<span class="sd">        expert_model_parallel_size (int): Expert parallelism size. Default: 1.</span>
+<span class="sd">        max_input_len (int): Max input length of the model. Default: 4096.</span>
+<span class="sd">        max_batch_size (int): Max batch size of the model. Default: 8.</span>
+<span class="sd">        enable_flash_decode (bool): If True runs inferencewith flash decode enabled. Default: True.</span>
+<span class="sd">        enable_cuda_graphs (bool): Whether to enable CUDA graphs for inference. Default: True.</span>
+<span class="sd">        legacy_ckpt (bool): Indicates whether the checkpoint is in the legacy format. Default: False.</span>
+<span class="sd">        ##### Ray deployment specific args #####</span>
+<span class="sd">        num_replicas (int): Number of model replicas for Ray deployment. Default: 1. Only applicable for Ray backend.</span>
+<span class="sd">        num_cpus_per_replica (int): Number of CPUs per replica for Ray deployment. Default: 8</span>
+<span class="sd">        include_dashboard (bool): Whether to include Ray dashboard. Default: True.</span>
+<span class="sd">        cuda_visible_devices (list): Comma-separated list of CUDA visible devices. Default: [0,1].</span>
+<span class="sd">        legacy_ckpt (bool): Indicates whether the checkpoint is in legacy format. Default: False.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+    <span class="k">if</span> <span class="n">serving_backend</span> <span class="o">==</span> <span class="s2">&quot;ray&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">num_replicas</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;num_replicas must be specified when using Ray backend&quot;</span><span class="p">)</span>
+
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.utils.ray_deploy</span><span class="w"> </span><span class="kn">import</span> <span class="n">deploy_with_ray</span>
+
+        <span class="n">deploy_with_ray</span><span class="p">(</span>
+            <span class="n">nemo_checkpoint</span><span class="o">=</span><span class="n">nemo_checkpoint</span><span class="p">,</span>
+            <span class="n">num_gpus</span><span class="o">=</span><span class="n">num_gpus</span><span class="p">,</span>
+            <span class="n">num_nodes</span><span class="o">=</span><span class="n">num_nodes</span><span class="p">,</span>
+            <span class="n">tensor_model_parallel_size</span><span class="o">=</span><span class="n">tensor_parallelism_size</span><span class="p">,</span>
+            <span class="n">pipeline_model_parallel_size</span><span class="o">=</span><span class="n">pipeline_parallelism_size</span><span class="p">,</span>
+            <span class="n">context_parallel_size</span><span class="o">=</span><span class="n">context_parallel_size</span><span class="p">,</span>
+            <span class="n">expert_model_parallel_size</span><span class="o">=</span><span class="n">expert_model_parallel_size</span><span class="p">,</span>
+            <span class="n">num_replicas</span><span class="o">=</span><span class="n">num_replicas</span><span class="p">,</span>
+            <span class="n">num_cpus_per_replica</span><span class="o">=</span><span class="n">num_cpus_per_replica</span><span class="p">,</span>
+            <span class="n">host</span><span class="o">=</span><span class="n">server_address</span><span class="p">,</span>
+            <span class="n">port</span><span class="o">=</span><span class="n">server_port</span><span class="p">,</span>
+            <span class="n">model_id</span><span class="o">=</span><span class="n">model_name</span><span class="p">,</span>
+            <span class="n">enable_cuda_graphs</span><span class="o">=</span><span class="n">enable_cuda_graphs</span><span class="p">,</span>
+            <span class="n">enable_flash_decode</span><span class="o">=</span><span class="n">enable_flash_decode</span><span class="p">,</span>
+            <span class="n">legacy_ckpt</span><span class="o">=</span><span class="n">legacy_ckpt</span><span class="p">,</span>
+            <span class="n">include_dashboard</span><span class="o">=</span><span class="n">include_dashboard</span><span class="p">,</span>
+            <span class="n">cuda_visible_devices</span><span class="o">=</span><span class="n">cuda_visible_devices</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>  <span class="c1"># pytriton backend</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+
+        <span class="kn">import</span><span class="w"> </span><span class="nn">uvicorn</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">nemo_deploy</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeployPyTriton</span>
+
+        <span class="k">if</span> <span class="n">server_port</span> <span class="o">==</span> <span class="n">fastapi_port</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;FastAPI port and Triton server port cannot use the same port. Please change them&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Store triton ip, port relevant for FastAPI as env vars</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;TRITON_HTTP_ADDRESS&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">server_address</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;TRITON_PORT&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">server_port</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">nemo_deploy.nlp.megatronllm_deployable</span><span class="w"> </span><span class="kn">import</span> <span class="n">MegatronLLMDeployableNemo2</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Unable to import MegatronLLMDeployable, due to: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2"> cannot run &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;evaluation with in-framework deployment&quot;</span>
+            <span class="p">)</span>
+
+        <span class="n">triton_deployable</span> <span class="o">=</span> <span class="n">MegatronLLMDeployableNemo2</span><span class="p">(</span>
+            <span class="n">nemo_checkpoint_filepath</span><span class="o">=</span><span class="n">nemo_checkpoint</span><span class="p">,</span>
+            <span class="n">num_devices</span><span class="o">=</span><span class="n">num_gpus</span><span class="p">,</span>
+            <span class="n">num_nodes</span><span class="o">=</span><span class="n">num_nodes</span><span class="p">,</span>
+            <span class="n">tensor_model_parallel_size</span><span class="o">=</span><span class="n">tensor_parallelism_size</span><span class="p">,</span>
+            <span class="n">pipeline_model_parallel_size</span><span class="o">=</span><span class="n">pipeline_parallelism_size</span><span class="p">,</span>
+            <span class="n">context_parallel_size</span><span class="o">=</span><span class="n">context_parallel_size</span><span class="p">,</span>
+            <span class="n">expert_model_parallel_size</span><span class="o">=</span><span class="n">expert_model_parallel_size</span><span class="p">,</span>
+            <span class="n">inference_max_seq_length</span><span class="o">=</span><span class="n">max_input_len</span><span class="p">,</span>
+            <span class="n">enable_flash_decode</span><span class="o">=</span><span class="n">enable_flash_decode</span><span class="p">,</span>
+            <span class="n">enable_cuda_graphs</span><span class="o">=</span><span class="n">enable_cuda_graphs</span><span class="p">,</span>
+            <span class="n">max_batch_size</span><span class="o">=</span><span class="n">max_batch_size</span><span class="p">,</span>
+            <span class="n">legacy_ckpt</span><span class="o">=</span><span class="n">legacy_ckpt</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">is_initialized</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">get_rank</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">nm</span> <span class="o">=</span> <span class="n">DeployPyTriton</span><span class="p">(</span>
+                        <span class="n">model</span><span class="o">=</span><span class="n">triton_deployable</span><span class="p">,</span>
+                        <span class="n">triton_model_name</span><span class="o">=</span><span class="n">model_name</span><span class="p">,</span>
+                        <span class="n">max_batch_size</span><span class="o">=</span><span class="n">max_batch_size</span><span class="p">,</span>
+                        <span class="n">http_port</span><span class="o">=</span><span class="n">server_port</span><span class="p">,</span>
+                        <span class="n">address</span><span class="o">=</span><span class="n">server_address</span><span class="p">,</span>
+                    <span class="p">)</span>
+
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Triton deploy function will be called.&quot;</span><span class="p">)</span>
+                    <span class="n">nm</span><span class="o">.</span><span class="n">deploy</span><span class="p">()</span>
+                    <span class="n">nm</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Error message has occurred during deploy function. Error message: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">error</span><span class="p">))</span>
+                    <span class="k">return</span>
+
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="c1"># start fastapi server which acts as a proxy to Pytriton server. Applies to PyTriton backend only.</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;REST service will be started.&quot;</span><span class="p">)</span>
+                        <span class="n">uvicorn</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+                            <span class="s2">&quot;nemo_deploy.service.fastapi_interface_to_pytriton:app&quot;</span><span class="p">,</span>
+                            <span class="n">host</span><span class="o">=</span><span class="n">fastapi_http_address</span><span class="p">,</span>
+                            <span class="n">port</span><span class="o">=</span><span class="n">fastapi_port</span><span class="p">,</span>
+                            <span class="n">reload</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                        <span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+                            <span class="s2">&quot;Error message has occurred during REST service start. Error message: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">error</span><span class="p">)</span>
+                        <span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Model serving on Triton will be started.&quot;</span><span class="p">)</span>
+                    <span class="n">nm</span><span class="o">.</span><span class="n">serve</span><span class="p">()</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Error message has occurred during deploy function. Error message: &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">error</span><span class="p">))</span>
+                    <span class="k">return</span>
+
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Model serving will be stopped.&quot;</span><span class="p">)</span>
+                <span class="n">nm</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
+            <span class="k">elif</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">get_rank</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">triton_deployable</span><span class="o">.</span><span class="n">generate_other_ranks</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="evaluate">
+<a class="viewcode-back" href="../../apidocs/nemo_eval/nemo_eval.api.html#nemo_eval.api.evaluate">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">evaluate</span><span class="p">(</span>
+    <span class="n">target_cfg</span><span class="p">:</span> <span class="n">EvaluationTarget</span><span class="p">,</span>
+    <span class="n">eval_cfg</span><span class="p">:</span> <span class="n">EvaluationConfig</span> <span class="o">=</span> <span class="n">EvaluationConfig</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="s2">&quot;gsm8k&quot;</span><span class="p">),</span>
+    <span class="n">adapter_cfg</span><span class="p">:</span> <span class="n">AdapterConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Evaluates nemo model deployed on PyTriton server using nvidia-lm-eval</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        target_cfg (EvaluationTarget): target of the evaluation. Providing model_id and</span>
+<span class="sd">            url in EvaluationTarget.api_endpoint is required to run evaluations.</span>
+<span class="sd">        eval_cfg (EvaluationConfig): configuration for evaluations. Default type (task): gsm8k.</span>
+<span class="sd">        adapter_cfg (AdapterConfig): configuration for adapters, the object between becnhmark and endpoint.</span>
+<span class="sd">            Default: None.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">yaml</span>
+
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.utils.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_framework</span><span class="p">,</span> <span class="n">wait_for_fastapi_server</span>
+
+    <span class="n">eval_type_components</span> <span class="o">=</span> <span class="n">eval_cfg</span><span class="o">.</span><span class="n">type</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">eval_type_components</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">framework_name</span><span class="p">,</span> <span class="n">task_name</span> <span class="o">=</span> <span class="n">eval_type_components</span>
+        <span class="c1"># evaluation package expect framework name to be hyphenated</span>
+        <span class="n">framework_name</span> <span class="o">=</span> <span class="n">framework_name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">,</span> <span class="s2">&quot;-&quot;</span><span class="p">)</span>
+        <span class="n">eval_cfg</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">framework_name</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">task_name</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">eval_type_components</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">framework_name</span><span class="p">,</span> <span class="n">task_name</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">eval_type_components</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">MisconfigurationError</span><span class="p">(</span>
+            <span class="s2">&quot;eval_type must follow &#39;framework_name.task_name&#39;. No additional dots are allowed.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">framework_name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">framework_module_name</span> <span class="o">=</span> <span class="n">find_framework</span><span class="p">(</span><span class="n">task_name</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">framework_module_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;core_evals.</span><span class="si">{</span><span class="n">framework_name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;_&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">evaluate</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="s2">&quot;.evaluate&quot;</span><span class="p">,</span> <span class="n">package</span><span class="o">=</span><span class="n">framework_module_name</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Please ensure that </span><span class="si">{</span><span class="n">framework_module_name</span><span class="si">}</span><span class="s2"> is installed in your env &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;as it is required to run </span><span class="si">{</span><span class="n">eval_cfg</span><span class="o">.</span><span class="n">type</span><span class="si">}</span><span class="s2"> evaluation&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">base_url</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">target_cfg</span><span class="o">.</span><span class="n">api_endpoint</span><span class="o">.</span><span class="n">url</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/v1&quot;</span><span class="p">)</span>
+    <span class="n">server_ready</span> <span class="o">=</span> <span class="n">wait_for_fastapi_server</span><span class="p">(</span><span class="n">base_url</span><span class="o">=</span><span class="n">base_url</span><span class="p">,</span> <span class="n">model_name</span><span class="o">=</span><span class="n">target_cfg</span><span class="o">.</span><span class="n">api_endpoint</span><span class="o">.</span><span class="n">model_id</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">server_ready</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Server not ready for evaluation&quot;</span><span class="p">)</span>
+
+    <span class="c1"># NOTE(agronskiy): START of the adapter hook</span>
+    <span class="n">p</span><span class="p">:</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">Process</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">adapter_cfg</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">nemo.collections.llm.evaluation.adapters.server</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_server_process</span>
+
+        <span class="n">p</span><span class="p">,</span> <span class="n">adapter_cfg</span> <span class="o">=</span> <span class="n">create_server_process</span><span class="p">(</span><span class="n">adapter_cfg</span><span class="p">)</span>
+        <span class="c1"># This will be unhooked below</span>
+        <span class="n">target_cfg</span><span class="o">.</span><span class="n">api_endpoint</span><span class="o">.</span><span class="n">url</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;http://localhost:</span><span class="si">{</span><span class="n">adapter_cfg</span><span class="o">.</span><span class="n">local_port</span><span class="si">}</span><span class="s2">&quot;</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="n">evaluate</span><span class="o">.</span><span class="n">evaluate_accuracy</span><span class="p">(</span>
+            <span class="n">target_cfg</span><span class="o">=</span><span class="n">target_cfg</span><span class="p">,</span>
+            <span class="n">eval_cfg</span><span class="o">=</span><span class="n">eval_cfg</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">results_dict</span> <span class="o">=</span> <span class="n">results</span><span class="o">.</span><span class="n">model_dump</span><span class="p">()</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">adapter_cfg</span> <span class="ow">and</span> <span class="n">p</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">p</span><span class="o">.</span><span class="n">is_alive</span><span class="p">():</span>
+            <span class="c1"># TODO(agronskiy): if the url is logged in results_dict, get it back to the adapter.api_url</span>
+            <span class="n">target_cfg</span><span class="o">.</span><span class="n">api_endpoint</span><span class="o">.</span><span class="n">url</span> <span class="o">=</span> <span class="n">adapter_cfg</span><span class="o">.</span><span class="n">api_url</span>
+            <span class="n">p</span><span class="o">.</span><span class="n">terminate</span><span class="p">()</span>
+    <span class="c1"># NOTE(agronskiy): END of the adapter hook</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;========== RESULTS ==========&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">yaml</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">results_dict</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">results_dict</span></div>
+
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+<div class="bd-sidebar-secondary"></div>
+
+
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025, NVIDIA Corporation.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+<div class="extra_footer">
+  
+  
+    <script type="text/javascript">if (typeof _satellite !== "undefined") {_satellite.pageBottom();}</script>
+    
+  
+</div></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>
