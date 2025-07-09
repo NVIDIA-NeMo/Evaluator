@@ -92,3 +92,6 @@ html_theme_options = {
     },
 }
 html_extra_path = ["project.json", "versions1.json"]
+# GitHub Pages specific configuration
+html_use_relative_urls = False
+html_baseurl = "https://laughing-disco-qr672n2.pages.github.io/html/"
