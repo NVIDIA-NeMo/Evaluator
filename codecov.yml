@@ -10,5 +10,3 @@ coverage:
         #if_ci_failed: error     # If CI fails, Codecov flags this as an error.
         if_not_found: success   # If no coverage data is found for the patch, mark it as successful.
 
-fixes:
-  - "/workspace/::"
