@@ -112,10 +112,6 @@ jobs:
             PIP_ARGS=(--no-build-isolation)
           fi
 
-          if [[ $EXTRA == *"trtllm"* ]]; then
-            apt-get install -y libopenmpi-dev
-          fi
-
           pip install ${PIP_ARGS[@]} .$EXTRA
 
           echo -e "machine github.com\n  login token\n  password ${{ secrets.PAT }}" > ~/.netrc
