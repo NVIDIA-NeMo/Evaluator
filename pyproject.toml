@@ -96,11 +96,6 @@ nemo-legacy = [
 megatron-hub-pre = ["megatron-hub"]
 
 [tool.uv.sources]
-xformers = [{ index = "pytorch-cu128" }]
-vllm = [
-    { index = "pytorch-cu128", marker = "python_version < '3.9' and platform_machine == 'x86_64'" },
-    { index = "pypi", marker = "platform_machine == 'aarch64'" },
-]
 # Remove this
 megatron-hub = { git = "https://github.com/NVIDIA-NeMo/Megatron-Hub.git", rev = "cc2a60c3be11549f070fe1d7b6324a3dae51c6e0" }
 nemo-toolkit = { git = "https://github.com/NVIDIA/NeMo.git", rev = "5e63ca3c1631bb156187705f9c4cf643a67f9c05" }
@@ -119,7 +114,6 @@ default-groups = ["linting", "build", "test"]
 #  --link-mode=copy (slower but more reliable; supresses warning)
 #  --link-mode=symlink (fastest option when uv cache and venv on different file-system; caveat: venv is brittle since it depends on the environment/container)
 link-mode = "copy"
-conflicts = [[{ extra = "trtllm" }, { extra = "vllm" }]]
 override-dependencies = [
     "urllib3>1.27.0",
     "tiktoken>=0.9.0", # because nemo-toolkit and megatron-hub disagree on tiktoken, we need to pin it here,
