@@ -34,7 +34,7 @@ jobs:
     outputs:
       is_ci_workload: "true" # ${{ steps.is_ci_workload.outputs.main }}
       force_run_all: ${{ steps.force_run_all.outputs.main }}
-      docs_only: ${{ steps.docs_only.outputs.main == 'true' }}
+      docs_only: "false" # ${{ steps.docs_only.outputs.main == 'true' }}
     env:
       TESTS_TO_RUN: ${{ inputs.test_to_run }}
       EVENT_NAME: ${{ github.event_name }}
@@ -96,8 +96,8 @@ jobs:
     needs: [pre-flight]
     environment: test
     if: |
-      needs.pre-flight.outputs.is_ci_workload == 'false'
-      || needs.pre-flight.outputs.docs_only == 'false'
+      !(needs.pre-flight.outputs.is_ci_workload == 'true'
+      || needs.pre-flight.outputs.docs_only == 'true')
     steps:
       - name: Running CI tests
         run: |
