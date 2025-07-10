@@ -300,11 +300,11 @@ Eval/
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on development setup, testing, and code style guidelines
+We welcome contributions! Please see our [Contributing Guide](https://github.com/NVIDIA-NeMo/Eval/blob/main/CONTRIBUTING.md) for details on development setup, testing, and code style guidelines
 
 ## 📄 License
 
-This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0. See the [LICENSE](https://github.com/NVIDIA-NeMo/Eval/blob/main/LICENSE) file for details.
 
 ## 📞 Support
 
