@@ -69,8 +69,6 @@ classifiers = [
 dependencies = ["nvidia-lm-eval", "uvicorn", "nemo-export-deploy"]
 
 [project.optional-dependencies]
-vllm = ["vllm==0.9.1", "pandas", "timm"]
-trtllm = ["tensorrt-llm~=0.20.0"]
 te = ["transformer-engine[pytorch]==2.2.0"]
 
 [project.urls]
