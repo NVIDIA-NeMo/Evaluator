@@ -146,14 +146,13 @@ concurrency = ["thread", "multiprocessing"]
 omit = [
     "/tmp/*",
     "/workspace/tests/*",
-    "/workspace/nemo_export_deploy_common/*",
     "/workspace/*.py",
     "*_ray.py",
     "*package_info.py",
 ]
 
 [tool.coverage.paths]
-source = [".", "/workspace", "/home/runner/work/Export-Deploy/Export-Deploy"]
+source = [".", "/workspace", "/home/runner/work/Eval/Eval"]
 
 [tool.ruff]
 line-length = 120
