@@ -32,9 +32,9 @@ jobs:
   pre-flight:
     runs-on: ubuntu-latest
     outputs:
-      is_ci_workload: "false" # ${{ steps.is_ci_workload.outputs.main }}
-      force_run_all: "false" # ${{ steps.force_run_all.outputs.main }}
-      docs_only: "true" # ${{ steps.docs_only.outputs.main == 'true' }}
+      is_ci_workload: ${{ steps.is_ci_workload.outputs.main }}
+      force_run_all: ${{ steps.force_run_all.outputs.main }}
+      docs_only: ${{ steps.docs_only.outputs.main == 'true' }}
     env:
       TESTS_TO_RUN: ${{ inputs.test_to_run }}
       EVENT_NAME: ${{ github.event_name }}
