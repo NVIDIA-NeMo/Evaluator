@@ -20,7 +20,6 @@ from typing import Optional, Union
 
 from .utils.api import AdapterConfig, EvaluationConfig, EvaluationTarget, MisconfigurationError
 
-
 AnyPath = Union[Path, str]
 
 logger = logging.getLogger(__name__)
@@ -215,9 +214,7 @@ def evaluate(
     elif len(eval_type_components) == 1:
         framework_name, task_name = None, eval_type_components[0]
     else:
-        raise MisconfigurationError(
-            "eval_type must follow 'framework_name.task_name'. No additional dots are allowed."
-        )
+        raise MisconfigurationError("eval_type must follow 'framework_name.task_name'. No additional dots are allowed.")
 
     if framework_name is None:
         framework_module_name = find_framework(task_name)

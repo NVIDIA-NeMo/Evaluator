@@ -46,9 +46,7 @@ class SystemMessageInterceptor(RequestInterceptor):
             }
         )
 
-        new_request = Request.from_values(
-            path=ar.r.path, headers=dict(ar.r.headers), data=new_data, method=ar.r.method
-        )
+        new_request = Request.from_values(path=ar.r.path, headers=dict(ar.r.headers), data=new_data, method=ar.r.method)
         return AdapterRequest(
             r=new_request,
             meta=ar.meta,

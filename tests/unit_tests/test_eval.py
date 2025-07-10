@@ -85,9 +85,7 @@ def test_dict_init():
 
 @pytest.mark.parametrize("task", ["gsm8k", "lm-evaluation-harness.gsm8k", "lm_evaluation_harness.gsm8k"])
 def test_evaluation(httpserver: HTTPServer, task: str):
-    httpserver.expect_request("/v1/triton_health").respond_with_json(
-        {"status": "Triton server is reachable and ready"}
-    )
+    httpserver.expect_request("/v1/triton_health").respond_with_json({"status": "Triton server is reachable and ready"})
     httpserver.expect_request("/v1/completions/", method="POST").respond_with_json(
         {
             "id": "cmpl-123456",

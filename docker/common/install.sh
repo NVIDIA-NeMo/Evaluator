@@ -1,9 +1,81 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 #!/bin/bash
 set -xeuo pipefail # Exit immediately if a command exits with a non-zero status
 
-main() {
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+    --base-image)
+        BASE_IMAGE="$2"
+        shift 2
+        ;;
+    --inference-framework)
+        INFERENCE_FRAMEWORK="$2"
+        shift 2
+        ;;
+    *)
+        echo "Unknown option: $1"
+        echo "Usage: $0 --base-image {pytorch|cuda}"
+        exit 1
+        ;;
+    esac
+done
 
-    UV_ARGS=(
+# Validate base image argument
+if [[ -z "${BASE_IMAGE:-}" || -z "${INFERENCE_FRAMEWORK:-}" ]]; then
+    echo "Error: --base-image and --inference-framework arguments are required"
+    echo "Usage: $0 --base-image {pytorch|cuda} --inference-framework {trtllm|vllm|inframework}"
+    exit 1
+fi
+
+if [[ "$BASE_IMAGE" != "pytorch" && "$BASE_IMAGE" != "cuda" ]]; then
+    echo "Error: --base-image must be either 'pytorch' or 'cuda'"
+    echo "Usage: $0 --base-image {pytorch|cuda}"
+    exit 1
+fi
+
+if [[ "$INFERENCE_FRAMEWORK" != "trtllm" && "$INFERENCE_FRAMEWORK" != "vllm" && "$INFERENCE_FRAMEWORK" != "inframework" ]]; then
+    echo "Error: --inference-framework must be either 'trtllm' or 'vllm' or 'inframework'"
+    echo "Usage: $0 --inference-framework {trtllm|vllm|inframework}"
+    exit 1
+fi
+
+main() {
+    if [[ -n "${PAT:-}" ]]; then
+        echo -e "machine github.com\n  login token\n  password $PAT" >~/.netrc
+        chmod 600 ~/.netrc
+    fi
+
+    # Install dependencies
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y curl git libopenmpi-dev libpython3.12 python3-pip python3-venv
+
+    # Install uv
+    UV_VERSION="0.7.2"
+    curl -LsSf https://astral.sh/uv/${UV_VERSION}/install.sh | sh
+    export PATH="$HOME/.local/bin:$PATH"
+    export UV_PROJECT_ENVIRONMENT=/opt/venv
+    export PATH="$UV_PROJECT_ENVIRONMENT/bin:$PATH"
+    export UV_LINK_MODE=copy
+    export CXXFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
+
+    UV_ARGS=()
+    if [[ "$BASE_IMAGE" == "pytorch" ]]; then
+        UV_ARGS=(
             "--no-install-package" "torch"
             "--no-install-package" "torchvision"
             "--no-install-package" "triton"
@@ -20,15 +92,21 @@ main() {
             "--no-install-package" "nvidia-cusparselt-cu12"
             "--no-install-package" "nvidia-nccl-cu12"
         )
+    fi
+
+    if [[ "$INFERENCE_FRAMEWORK" != "inframework" ]]; then
+        UV_ARGS+=("--extra" "$INFERENCE_FRAMEWORK")
+    fi
 
     # Create virtual environment and install dependencies
-    uv venv ${UV_PROJECT_ENVIRONMENT} --system-site-packages
+    uv venv ${UV_PROJECT_ENVIRONMENT} $([[ "$BASE_IMAGE" == "pytorch" ]] && echo "--system-site-packages")
 
     # Install dependencies
     uv sync --locked --only-group build ${UV_ARGS[@]}
-    uv sync --locked --only-group te ${UV_ARGS[@]}
     uv sync \
         --link-mode copy \
+        --locked \
+        --extra te \
         --all-groups ${UV_ARGS[@]}
 
     # Run install overrides
@@ -37,16 +115,6 @@ main() {
     # Install the package
     uv pip install --no-deps -e .
 
-    # Write environment variables to a file for later sourcing
-    cat >/opt/venv/env.sh <<'EOF'
-#!/bin/bash
-export UV_PROJECT_ENVIRONMENT=/opt/venv
-export PATH="/opt/venv/bin:$PATH"
-export UV_LINK_MODE=copy
-export PATH="/root/.local/bin:$PATH"
-EOF
-
-    chmod +x /opt/venv/env.sh
 }
 
 # Call the main function

@@ -19,7 +19,6 @@ import time
 
 import requests
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -121,9 +120,7 @@ def list_available_evaluations() -> dict[str, list[str]]:
     try:
         import core_evals
     except ImportError:
-        raise ImportError(
-            "Please ensure that core_evals is installed in your env as it is required to run evaluations"
-        )
+        raise ImportError("Please ensure that core_evals is installed in your env as it is required to run evaluations")
     discovered_modules = {
         name: importlib.import_module(".input", package=name) for finder, name, ispkg in _iter_namespace(core_evals)
     }
