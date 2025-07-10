@@ -5,8 +5,10 @@ coverage:
     patch:
       default:
         #target: 80%             # Minimum coverage required for new or changed lines in the PR.
-        #threshold: 0%           # No leeway — any drop below target is a fail.
+        #threshold: 0%           # No leeway - any drop below target is a fail.
         #base: auto              # Uses the default base branch (typically `main`) for comparison.
         #if_ci_failed: error     # If CI fails, Codecov flags this as an error.
         if_not_found: success   # If no coverage data is found for the patch, mark it as successful.
 
+fixes:
+  - "/workspace/::"
