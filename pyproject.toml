@@ -69,6 +69,7 @@ classifiers = [
 dependencies = [
     "nvidia-lm-eval",
     "uvicorn",
+    "flask",
     # "nemo-export-deploy"
 ]
 

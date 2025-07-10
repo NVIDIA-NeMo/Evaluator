@@ -3126,6 +3126,7 @@ wheels = [
 name = "nemo-eval"
 source = { editable = "." }
 dependencies = [
+    { name = "flask" },
     { name = "nvidia-lm-eval" },
     { name = "uvicorn" },
 ]
@@ -3173,6 +3174,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
+    { name = "flask" },
     { name = "nvidia-lm-eval" },
     { name = "transformer-engine", extras = ["pytorch"], marker = "extra == 'te'", specifier = "==2.2.0" },
     { name = "uvicorn" },

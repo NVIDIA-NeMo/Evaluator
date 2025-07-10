@@ -67,7 +67,7 @@ jobs:
           ref: v0.39.0
           path: FW-CI-templates
 
-      - name: Check imports for nemo_deploy
+      - name: Check imports for nemo_eval
         uses: ./FW-CI-templates/.github/actions/check-imports
         with:
           package-name: nemo_eval
@@ -121,7 +121,7 @@ jobs:
           ref: v0.39.0
           path: FW-CI-templates
 
-      - name: Check imports for nemo_deploy
+      - name: Check imports for nemo_eval
         uses: ./FW-CI-templates/.github/actions/check-imports
         with:
           package-name: nemo_eval
@@ -171,7 +171,7 @@ jobs:
           ref: v0.39.0
           path: FW-CI-templates
 
-      - name: Check imports for nemo_deploy
+      - name: Check imports for nemo_eval
         uses: ./FW-CI-templates/.github/actions/check-imports
         with:
           package-name: nemo_eval
@@ -223,7 +223,7 @@ jobs:
           ref: v0.39.0
           path: FW-CI-templates
 
-      - name: Check imports for nemo_deploy
+      - name: Check imports for nemo_eval
         uses: ./FW-CI-templates/.github/actions/check-imports
         with:
           package-name: nemo_eval
