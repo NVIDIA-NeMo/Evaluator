@@ -2,3 +2,11 @@
 docker/ @nvidia-nemo/automation
 pyproject.toml @nvidia-nemo/automation
 uv.lock @nvidia-nemo/automation
+
+docs @nvidia-nemo/eval_maintainers
+src/ @nvidia-nemo/eval_maintainers
+tests/ @nvidia-nemo/eval_maintainers
+tutorials @nvidia-nemo/eval_maintainers
+README.md @nvidia-nemo/eval_maintainers
+CONTRIBUTING.md @nvidia-nemo/eval_maintainers
+LICENSE @nvidia-nemo/eval_maintainers
