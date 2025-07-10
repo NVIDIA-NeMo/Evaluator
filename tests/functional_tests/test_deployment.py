@@ -50,6 +50,7 @@ def chat_request():
         "temperature": 0.5,
     }
 
+
 # Broken in NVIDIA/CUDA, needs flash-attn
 @pytest.mark.pleasefixme
 @pytest.mark.parametrize("serving_backend", ["pytriton", "ray"])
@@ -80,13 +81,13 @@ def test_deployment(serving_backend, completions_request, logprobs_request, chat
                 "--source=/workspace/",
                 "tests/functional_tests/deploy_in_fw_script.py",
                 "--nemo2_ckpt_path",
-                /home/TestData/nemo2_ckpt/llama3-1b-lingua,
+                nemo2_ckpt_path,
                 "--max_batch_size",
-                str(4),
+                str(max_batch_size),
                 "--port",
-                str(8886),
+                str(port),
                 "--serving_backend",
-                pytriton,
+                serving_backend,
             ]
             + (["--legacy_ckpt"] if legacy_ckpt else [])
         )
