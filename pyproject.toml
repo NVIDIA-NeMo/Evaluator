@@ -66,7 +66,11 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
     "Topic :: Utilities",
 ]
-dependencies = ["nvidia-lm-eval", "uvicorn", "nemo-export-deploy"]
+dependencies = [
+    "nvidia-lm-eval",
+    "uvicorn",
+    # "nemo-export-deploy"
+]
 
 [project.optional-dependencies]
 te = ["transformer-engine[pytorch]==2.2.0"]
@@ -92,6 +96,7 @@ nemo-legacy = [
     "nemo-toolkit[automodel,common-only,nlp-only,eval,multimodal-only]",
 ]
 megatron-hub-pre = ["megatron-hub"]
+nemo-export-deploy-pre = ["nemo-export-deploy"]
 
 [tool.uv.sources]
 # Remove this
