@@ -12,3 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 CUDA_VISIBLE_DEVICES="" coverage run --data-file=/workspace/.coverage --source=/workspace/src/nemo_eval/ -m pytest tests/unit_tests -m "not pleasefixme" --cpu --with_downloads
+coverage combine
