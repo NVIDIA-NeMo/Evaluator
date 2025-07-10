@@ -73,7 +73,10 @@ def test_deployment(serving_backend, completions_request, logprobs_request, chat
     try:
         deploy_proc = subprocess.Popen(
             [
-                "python",
+                "coverage",
+                "run",
+                "--data-file=/workspace/.coverage",
+                "--source=/workspace/",
                 "tests/functional_tests/deploy_in_fw_script.py",
                 "--nemo2_ckpt_path",
                 nemo2_ckpt_path,
