@@ -1,5 +1,80 @@
 # Contributing To NeMo Eval
 
+Thanks for your interest in contributing to NeMo Eval!
+
+## 🛠️ Setting Up Your Environment
+
+### Local workstation
+
+NeMo Eval uses [uv](https://docs.astral.sh/uv/) for package management.
+
+You can configure uv with the following commands:
+
+```bash
+uv sync --only-group build  # Installs build dependencies required by TransformerEngine
+uv sync
+```
+
+On a machine with CUDA, you can additionally sync TransformerEngine:
+
+```bash
+uv sync --extra te
+```
+
+### Alternative: Development Container
+
+For containerized development, use our Dockerfile for building your own container:
+
+```bash
+docker build \
+    -f docker/Dockerfile.ci \
+    -t nemo-eval \
+    --build-arg INFERENCE_FRAMEWORK=inframework \
+    .
+```
+
+Start your container:
+
+```bash
+docker run --rm -it -w /workdir -v $(pwd):/workdir \
+  --entrypoint bash \
+  --gpus all \
+  nemo-eval
+```
+
+## 📦 Dependencies management
+
+We use [uv](https://docs.astral.sh/uv/) for managing dependencies. For reproducible builds, our project tracks the generated `uv.lock` file in the repository.  
+On a weekly basis, the CI attemps an update of the lock file to test against upstream dependencies.
+
+New required dependencies can be added by `uv add $DEPENDENCY`.
+
+New optional dependencies can be added by `uv add --optional --extra $EXTRA $DEPENDENCY`.
+
+`EXTRA` refers to the subgroup of extra-dependencies to which you're adding the new dependency.
+Example: For adding a TE specific dependency, run `uv add --optional --extra te $DEPENDENCY`.
+
+Alternatively, the `pyproject.toml` file can also be modified directly.
+
+Adding a new dependency will update UV's lock-file. Please check this into your branch:
+
+```bash
+git add uv.lock pyproject.toml
+git commit -m "build: Adding dependencies"
+git push
+```
+
+### 🧹 Linting and Formatting
+
+We use [ruff](https://docs.astral.sh/ruff/) for linting and formatting. CI does not auto-fix linting and formatting issues, but most issues can be fixed by running the following command:
+
+```bash
+uv run ruff check --fix .
+uv run ruff format .
+```
+
+Note: If `ruff` is missing, please follow the [installation](#local-workstation) guide.
+
 ### 📝 Documentation
 
 **Important**: All new key features (ex: enabling a new inference optimized library, enabling a new deployment option) must include documentation update (either a new doc or updating an existing one). This document update should:
@@ -14,7 +89,7 @@ This ensures that all significant changes are well-thought-out and properly docu
 1. **User Adoption**: Helps users understand how to effectively use the library's features in their projects
 2. **Developer Extensibility**: Enables developers to understand the internal architecture and implementation details, making it easier to modify, extend, or adapt the code for their specific use cases
 
-Quality documentation is essential for both the usability of NeMo Export-Deploy and its ability to be customized by the community.
+Quality documentation is essential for both the usability of NeMo Eval and its ability to be customized by the community.
 
 ### Local development
 
