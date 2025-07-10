@@ -60,7 +60,7 @@ jobs:
           pip install --upgrade pip
           pip install .
 
-          echo "machine github.com\n  login token\n  password ${{ secrets.PAT }}" > ~/.netrc
+          echo -e "machine github.com\n  login token\n  password ${{ secrets.PAT }}" > ~/.netrc
           chmod 600 ~/.netrc 
           pip install nemo-export-deploy@git+https://github.com/NVIDIA-NeMo/Export-Deploy.git@main
 
@@ -118,7 +118,7 @@ jobs:
 
           pip install ${PIP_ARGS[@]} .$EXTRA
 
-          echo "machine github.com\n  login token\n  password ${{ secrets.PAT }}" > ~/.netrc
+          echo -e "machine github.com\n  login token\n  password ${{ secrets.PAT }}" > ~/.netrc
           chmod 600 ~/.netrc 
           pip install nemo-export-deploy@git+https://github.com/NVIDIA-NeMo/Export-Deploy.git@main
 
