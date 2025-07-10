@@ -134,14 +134,14 @@ runs:
     - name: Checkout repository
       uses: actions/checkout@v2
       with:
-        path: Export-Deploy
+        path: Eval
 
     - name: Build container
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.PAT }}
       run: |
-        docker build -f docker/Dockerfile.ci --build-arg INFERENCE_FRAMEWORK=${{ inputs.inference-framework }} --secret id=GH_TOKEN -t export-deploy .
+        docker build -f docker/Dockerfile.ci --build-arg INFERENCE_FRAMEWORK=${{ inputs.inference-framework }} --secret id=GH_TOKEN -t eval .
 
     - name: Start container
       shell: bash
@@ -166,9 +166,9 @@ runs:
           --env HF_HOME=/home/TestData/HF_HOME \
           --env RUN_ID=${{ github.run_id }} \
           --workdir /workspace \
-          --volume $(pwd)/Export-Deploy:/workspace \
+          --volume $(pwd)/Eval:/workspace \
           --volume $MNT_PATH/TestData:/home/TestData \
-          export-deploy \
+          eval \
           bash -c "sleep $(( ${{ inputs.timeout }} * 60 + 60 ))"
         RUN_TEST_EOF
         )
