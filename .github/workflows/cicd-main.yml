@@ -33,9 +33,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       is_ci_workload: ${{ steps.is_ci_workload.outputs.main }}
-      no_fail_fast: ${{ steps.no_fail_fast.outputs.main }}
       force_run_all: ${{ steps.force_run_all.outputs.main }}
-      docs_only: ${{ steps.docs_only.outputs.main == 'true' }}
+      docs_only: "true" # ${{ steps.docs_only.outputs.main == 'true' }}
     env:
       TESTS_TO_RUN: ${{ inputs.test_to_run }}
       EVENT_NAME: ${{ github.event_name }}
@@ -79,20 +78,6 @@ jobs:
 
           echo "main=$is_ci_workload" | tee -a "$GITHUB_OUTPUT"
 
-      - name: Check if no-fail-fast is set
-        shell: bash
-        id: no_fail_fast
-        env:
-          HAS_FAIL_FAST_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'no-fail-fast') }}
-        run: |
-          if [[ "$HAS_FAIL_FAST_LABEL" == "true" || "$EVENT_NAME" == "schedule" ]]; then
-            no_fail_fast=true
-          else
-            no_fail_fast=false
-          fi
-
-          echo "main=$no_fail_fast" | tee -a "$GITHUB_OUTPUT"
-
       - name: Check if force-run-all is set
         shell: bash
         id: force_run_all
@@ -110,6 +95,16 @@ jobs:
   cicd-wait-in-queue:
     runs-on: ubuntu-latest
     environment: test
+    if: |
+      needs.pre-flight.outputs.is_ci_workload == 'false'
+      && (
+        success() 
+        || (
+          needs.pre-flight.outputs.docs_only == 'false' 
+          || needs.pre-flight.outputs.force_run_all == 'true'
+        )
+      )
+      && !cancelled()
     steps:
       - name: Running CI tests
         run: |
@@ -130,6 +125,16 @@ jobs:
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
     environment: nemo-ci
+    if: |
+      needs.pre-flight.outputs.is_ci_workload == 'false'
+      && (
+        success() 
+        || (
+          needs.pre-flight.outputs.docs_only == 'false' 
+          || needs.pre-flight.outputs.force_run_all == 'true'
+        )
+      )
+      && !cancelled()
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -159,6 +164,16 @@ jobs:
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.is_optional && 'PLEASEFIXME_' || '' }}${{ matrix.script }}
     environment: nemo-ci
+    if: |
+      needs.pre-flight.outputs.is_ci_workload == 'false'
+      && (
+        success() 
+        || (
+          needs.pre-flight.outputs.docs_only == 'false' 
+          || needs.pre-flight.outputs.force_run_all == 'true'
+        )
+      )
+      && !cancelled()
     steps:
       - name: Checkout
         uses: actions/checkout@v4
