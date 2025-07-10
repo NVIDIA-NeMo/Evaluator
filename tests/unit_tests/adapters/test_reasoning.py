@@ -14,7 +14,8 @@
 
 
 from typing import Any, Generator
-
+import os
+import signal
 import pytest
 import requests
 
@@ -36,7 +37,9 @@ def adapter_server(fake_openai_endpoint) -> Generator[AdapterConfig, Any, Any]:
 
     yield adapter_config
 
-    p.terminate()
+    os.kill(p.pid, signal.SIGTERM)  # Or signal.SIGINT
+    p.join()
+    p.close()
 
 
 @pytest.mark.parametrize(

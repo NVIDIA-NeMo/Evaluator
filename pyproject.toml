@@ -228,6 +228,8 @@ omit = [
     "*/tests/*",
     "/workspace/tests/*",
 ]
+parallel = true
+sigterm = true
 
 [tool.coverage.paths]
 source = [".", "/workspace", "src/nemo_eval/", "/workspace/nemo_eval"]
