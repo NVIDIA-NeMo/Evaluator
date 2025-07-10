@@ -13,9 +13,10 @@
 # limitations under the License.
 
 
-from typing import Any, Generator
 import os
 import signal
+from typing import Any, Generator
+
 import pytest
 import requests
 
