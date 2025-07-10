@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 def check_health(health_url: str, max_retries: int = 600, retry_interval: int = 2) -> bool:
     """
-    Check the health of the FastAPI server.
+    Check the health of the PyTriton (via FAstAPI) and Ray server.
     """
     for _ in range(max_retries):
         try:
@@ -43,7 +43,7 @@ def check_endpoint(
     endpoint_url: str, endpoint_type: str, model_name: str, max_retries: int = 600, retry_interval: int = 2
 ) -> bool:
     """
-    Check the health of the FastAPI server.
+    Check if the endpoint is responsive and ready to accept requests.
     """
     payload = {"model": model_name, "max_tokens": 1}
     if endpoint_type == "completions":
