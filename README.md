@@ -1,8 +1,8 @@
 # NeMo Eval
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](pyproject.toml)
-[![NVIDIA](https://img.shields.io/badge/NVIDIA-NeMo-red.svg)](https://github.com/NVIDIA/NeMo)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/NVIDIA-NeMo/Eval/blob/main/LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://github.com/NVIDIA-NeMo/Eval/blob/main/pyproject.toml)
+[![NVIDIA](https://img.shields.io/badge/NVIDIA-NeMo-red.svg)](https://github.com/NVIDIA-NeMo/)
 
 **NeMo Eval** is a comprehensive evaluation framework for Large Language Models (LLMs) built on top of the NeMo Framework. It provides seamless deployment and evaluation capabilities for NeMo checkpoints using NVIDIA Eval Factory. NVIDIA Eval Factory contains state-of-the-art evaluation harnesses as modular evaluation packages that are installed in the NeMo Framework container as building blocks for evaluation.
 
@@ -17,16 +17,16 @@
 
 ## 📋 Table of Contents
 
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Support Matrix](#support-matrix)
-- [Architecture](#architecture)
-- [Usage Examples](#usage-examples)
-- [Project Structure](#project-structure)
-- [Contributing](#contributing)
-- [License](#license)
-- [Support](#support)
-- [Related Projects](#related-projects)
+- [Installation](#-installation)
+- [Quick Start](#-quick-start)
+- [Support Matrix](#-support-matrix)
+- [Architecture](#-architecture)
+- [Usage Examples](#-usage-examples)
+- [Project Structure](#-project-structure)
+- [Contributing](#-contributing)
+- [License](#-license)
+- [Support](#-support)
+- [Related Projects](#-related-projects)
 
 ## 🔧 Installation
 
@@ -126,12 +126,14 @@ print(results)
 ### Core Components
 
 #### 1. Deployment Layer
+
 - **PyTriton Backend**: High-performance inference using NVIDIA Triton Inference Server and OpenAI API compatibility via FastAPI Interface with model parallelism across single and multi node. Does not support multi instance evaluation.
 - **Ray Backend**: Single node model parallel multi instance evaluation using Ray Serve with OpenAI API compatibility. Multi node support coming soon.
 
-
 #### 2. Evaluation Layer
+
 - **NVIDIA Eval Factory**: Standardized benchmark evaluation with eval packages from NVIDIA Eval Factory that are installed in the NeMo Framework container. lm-evaluation-harness is installed inside the NeMo Framework container by default while the rest from the [support matrix](#-support-matrix) can be installed on-demand. More details in the [docs](https://github.com/NVIDIA-NeMo/Eval/tree/main/docs).
+
 - **Adapter System**: Flexible request/response processing pipeline with **Interceptors** that provide modular processing
 
 ```
@@ -193,6 +195,7 @@ deploy(
     max_batch_size=4
 )
 ```
+
 ### Basic Evaluation
 
 ```Python
@@ -216,7 +219,7 @@ results = evaluate(target_cfg=target, eval_cfg=config)
 
 ### Using Adapters
 
-The example below shows how to configure an Adapter that allows to provide a custom system prompt. Requests/responses are processed through interceptors. Interceptors are automatically selected based on the `AdapterConfig` parameters you provide. 
+The example below shows how to configure an Adapter that allows to provide a custom system prompt. Requests/responses are processed through interceptors. Interceptors are automatically selected based on the `AdapterConfig` parameters you provide.
 
 ```python
 from nemo_eval.utils.api import AdapterConfig
@@ -270,8 +273,6 @@ deploy(
 )
 ```
 
-
-
 ## 📁 Project Structure
 
 ```
@@ -299,7 +300,7 @@ Eval/
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on development setup, testing, and code style guidelines.
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on development setup, testing, and code style guidelines
 
 ## 📄 License
 
