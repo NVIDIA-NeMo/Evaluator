@@ -22,7 +22,6 @@ from flask import Flask, jsonify, request
 
 from nemo_eval.adapters.utils import wait_for_server
 
-
 DEFAULT_FAKE_RESPONSE = {
     "object": "chat.completion",
     "choices": [
