@@ -1,0 +1,262 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This workflow verifies that the basic install works across all supported platforms.
+# For basic install, all imports need to either be successful or appropriately guarded.
+
+name: Installation Test
+
+on:
+  push:
+    branches:
+      - main
+      - "pull-request/[0-9]+"
+env:
+  UV_PROJECT_ENVIRONMENT: "./venv"
+
+jobs:
+  pip-test-no-cuda:
+    runs-on: ${{ matrix.arch }}
+    name: Pip - Python${{ matrix.python-version }} - ${{ matrix.arch == 'ubuntu-latest' && 'AMD64/Linux' || (matrix.arch == 'ubuntu-24.04-arm' && 'ARM64/Linux' || 'ARM64/Darwin') }} - No CUDA
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ["ubuntu-latest", "macos-latest"] # After setting the repo to public: "ubuntu-24.04-arm"]
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Python ${{ matrix.python-version }}
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          if [[ $ARCH == 'ubuntu-latest' ]]; then
+            sudo add-apt-repository ppa:deadsnakes/ppa -y
+            sudo apt-get update
+            sudo apt-get install -y python3 python${{ matrix.python-version }} python${{ matrix.python-version }}-venv
+          elif [[ $ARCH == 'macos-latest' ]]; then
+            brew install python@${{ matrix.python-version }}
+          fi
+
+          python${{ matrix.python-version }} -m venv ./venv
+          . ./venv/bin/activate
+          pip install --upgrade pip
+
+      - name: Install project
+        run: |
+          . ./venv/bin/activate
+          pip install --upgrade pip
+          pip install .
+
+      - name: Checkout check-imports
+        uses: actions/checkout@v4
+        with:
+          repository: NVIDIA-NeMo/FW-CI-templates
+          ref: v0.39.0
+          path: FW-CI-templates
+
+      - name: Check imports for nemo_deploy
+        uses: ./FW-CI-templates/.github/actions/check-imports
+        with:
+          package-name: nemo_deploy
+          python-binary: ./venv/bin/python
+
+      - name: Check imports for nemo_export
+        uses: ./FW-CI-templates/.github/actions/check-imports
+        with:
+          package-name: nemo_export
+          python-binary: ./venv/bin/python
+
+  pip-test-cuda:
+    runs-on: linux-amd64-cpu16
+    name: Pip - Python${{ matrix.python-version }}${{ matrix.extra-groups != '' && format('[{0}]', matrix.extra-groups) || '' }} - AMD64/Linux - NGC CUDA
+    container:
+      image: nvcr.io/nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04
+    environment: nemo-ci
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+        extra-groups: ["", "te"]
+    env:
+      EXTRA: ${{ matrix.extra-groups != '' && format('[{0}]', matrix.extra-groups) || '' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install nemo-eval${{ matrix.extra-groups != '' && format('[{0}]', matrix.extra-groups) || '' }}
+        shell: bash -x -e -u -o pipefail {0}
+        run: |
+          apt-get update
+          apt-get install -y python3 python3.12 python3.12-venv python3.12-dev
+          python3 -m venv ./venv
+
+          . ./venv/bin/activate
+
+          pip install --upgrade pip
+
+          PIP_ARGS=()
+
+          if [[ $EXTRA == *"te"* ]]; then
+            pip install torch setuptools pybind11 wheel_stub
+            PIP_ARGS=(--no-build-isolation)
+          fi
+
+          if [[ $EXTRA == *"trtllm"* ]]; then
+            apt-get install -y libopenmpi-dev
+          fi
+
+          pip install ${PIP_ARGS[@]} .$EXTRA
+
+      - name: Checkout check-imports
+        uses: actions/checkout@v4
+        with:
+          repository: NVIDIA-NeMo/FW-CI-templates
+          ref: v0.39.0
+          path: FW-CI-templates
+
+      - name: Check imports for nemo_deploy
+        uses: ./FW-CI-templates/.github/actions/check-imports
+        with:
+          package-name: nemo_deploy
+          python-binary: ./venv/bin/python
+
+      - name: Check imports for nemo_export
+        uses: ./FW-CI-templates/.github/actions/check-imports
+        with:
+          package-name: nemo_export
+          python-binary: ./venv/bin/python
+
+  uv-test-cuda:
+    runs-on: linux-amd64-cpu16
+    name: UV - AMD64/Linux - NGC ${{ contains(matrix.image, 'cuda') && 'CUDA' || 'PyTorch' }}
+    container:
+      image: ${{ matrix.image }}
+    environment: nemo-ci
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["nvcr.io/nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04", "nvcr.io/nvidia/pytorch:25.05-py3"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install project
+        env:
+          PAT: ${{ secrets.PAT }}
+          BASE_IMAGE: ${{ contains(matrix.image, 'cuda') && 'cuda' || 'pytorch' }}
+        shell: bash
+        run: |
+          echo -e "machine github.com\n  login token\n  password ${{ secrets.PAT }}" > ~/.netrc
+          chmod 600 ~/.netrc 
+
+          export PATH="$HOME/.local/bin:$PATH"
+          export UV_PROJECT_ENVIRONMENT=/opt/venv
+          export PATH="$UV_PROJECT_ENVIRONMENT/bin:$PATH"
+          export UV_LINK_MODE=copy
+          export CXXFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
+
+          bash docker/common/install.sh \
+            --base-image $BASE_IMAGE \
+            --inference-framework inframework
+
+          uv run python -m ensurepip --upgrade
+          ln -sf /opt/venv/bin/pip3 /opt/venv/bin/pip
+          uv pip install --no-deps -e .
+
+      - name: Checkout check-imports
+        uses: actions/checkout@v4
+        with:
+          repository: NVIDIA-NeMo/FW-CI-templates
+          ref: v0.39.0
+          path: FW-CI-templates
+
+      - name: Check imports for nemo_deploy
+        uses: ./FW-CI-templates/.github/actions/check-imports
+        with:
+          package-name: nemo_deploy
+          python-binary: /opt/venv/bin/python
+
+      - name: Check imports for nemo_export
+        uses: ./FW-CI-templates/.github/actions/check-imports
+        with:
+          package-name: nemo_export
+          python-binary: /opt/venv/bin/python
+
+  uv-test-no-cuda:
+    runs-on: ${{ matrix.arch }}
+    name: UV - Python ${{ matrix.python-version }} - ${{ matrix.arch == 'ubuntu-latest' && 'AMD64/Linux' || 'ARM64/Darwin' }} - No CUDA
+    environment: nemo-ci
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ["ubuntu-latest", "macos-latest"]
+        python-version: ["3.12"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up UV
+        uses: astral-sh/setup-uv@v1
+        with:
+          version: 0.7.2
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies with UV
+        env:
+          PAT: ${{ secrets.PAT }}
+        shell: bash
+        run: |
+          echo -e "machine github.com\n  login token\n  password ${{ secrets.PAT }}" > ~/.netrc
+          chmod 600 ~/.netrc 
+
+          export PATH="${UV_PROJECT_ENVIRONMENT}/bin/:$PATH"
+
+          uv venv ${UV_PROJECT_ENVIRONMENT} --system-site-packages
+
+          uv sync --link-mode copy --locked --all-groups
+
+          uv pip install --no-deps -e .
+
+      - name: Checkout check-imports
+        uses: actions/checkout@v4
+        with:
+          repository: NVIDIA-NeMo/FW-CI-templates
+          ref: v0.39.0
+          path: FW-CI-templates
+
+      - name: Check imports for nemo_deploy
+        uses: ./FW-CI-templates/.github/actions/check-imports
+        with:
+          package-name: nemo_deploy
+          python-binary: ./venv/bin/python
+
+      - name: Check imports for nemo_export
+        uses: ./FW-CI-templates/.github/actions/check-imports
+        with:
+          package-name: nemo_export
+          python-binary: ./venv/bin/python
+
+  install-test-summary:
+    needs: [pip-test-no-cuda, uv-test-cuda, pip-test-cuda, uv-test-no-cuda]
+    runs-on: ubuntu-latest
+    name: Install test summary
+    steps:
+      - name: Result
+        run: echo Install check successful
