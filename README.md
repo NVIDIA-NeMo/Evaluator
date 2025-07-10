@@ -19,13 +19,14 @@
 
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Support Matrix](#support-matrix)
 - [Architecture](#architecture)
 - [Usage Examples](#usage-examples)
-- [API Reference](#api-reference)
-- [Configuration](#configuration)
-- [Testing](#testing)
+- [Project Structure](#project-structure)
 - [Contributing](#contributing)
 - [License](#license)
+- [Support](#support)
+- [Related Projects](#related-projects)
 
 ## 🔧 Installation
 
