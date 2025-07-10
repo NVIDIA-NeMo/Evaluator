@@ -1,3 +1,7 @@
-```{include} ../README.md
-:relative-docs: docs/
+# NeMo-Eval Documentation
+
+```{toctree}
+:maxdepth: 2
+
+apidocs/index
 ```
