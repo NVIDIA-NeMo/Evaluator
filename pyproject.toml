@@ -227,7 +227,7 @@ omit = [
     "tests/*",
     "*/tests/*",
     "/workspace/tests/*",
-    "/usr/local/lib/python3.12/",
+    "/usr/local/lib/python3.12/*",
     "*_ray.py",
     "ray_*.py",
 ]
