@@ -225,4 +225,4 @@ concurrency = ["thread", "multiprocessing"]
 omit = ["/tmp/*"]
 
 [tool.coverage.paths]
-source = ["src/nemo_eval/", "/workspace/nemo_eval"]
+source = [".", "/workspace", "src/nemo_eval/", "/workspace/nemo_eval"]
