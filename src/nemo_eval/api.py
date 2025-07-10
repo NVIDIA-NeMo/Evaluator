@@ -79,7 +79,7 @@ def deploy(
     """
     import torch
 
-    if serving_backend == "ray":
+    if serving_backend == "ray":  # pragma: no cover
         if num_replicas is None:
             raise ValueError("num_replicas must be specified when using Ray backend")
 
