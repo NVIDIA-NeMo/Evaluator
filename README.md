@@ -4,17 +4,16 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](pyproject.toml)
 [![NVIDIA](https://img.shields.io/badge/NVIDIA-NeMo-red.svg)](https://github.com/NVIDIA/NeMo)
 
-**NeMo Eval** is a comprehensive evaluation framework for Large Language Models (LLMs) built on top of the NeMo Framework. It provides seamless deployment and evaluation capabilities for NeMo checkpoints using NVIDIA's evaluation infrastructure.
+**NeMo Eval** is a comprehensive evaluation framework for Large Language Models (LLMs) built on top of the NeMo Framework. It provides seamless deployment and evaluation capabilities for NeMo checkpoints using NVIDIA Eval Factory. NVIDIA Eval Factory contains state-of-the-art evaluation harnesses as modular evaluation packages that are installed in the NeMo Framework container as building blocks for evaluation.
 
 ## 🚀 Features
 
 - **Multi-Backend Deployment**: Support for both PyTriton and Ray Serve deployment backends
-- **Comprehensive Evaluation**: Integration with NVIDIA Evals Factory for standardized benchmark evaluation
-- **Adapter System**: Flexible adapter architecture for customizing request/response processing
+- **Comprehensive Evaluation**: Integration with NVIDIA Eval Factory for standardized benchmark evaluation
+- **Adapter System**: Flexible adapter architecture using a chain of interceptors for customizing request/response processing
 - **Production Ready**: Optimized for high-performance inference with CUDA graphs and flash decoding
 - **Multi-GPU Support**: Distributed inference across multiple GPUs and nodes
 - **OpenAI-Compatible API**: RESTful endpoints compatible with OpenAI API standards
-- **Extensible Architecture**: Plugin-based interceptor system for custom functionality
 
 ## 📋 Table of Contents
 
@@ -33,7 +32,7 @@
 ### Prerequisites
 
 - Python 3.10 or higher
-- CUDA-compatible GPU(s)
+- CUDA-compatible GPU(s)  (tested on RTX A6000, A100, H100)
 - NeMo Framework container (recommended)
 
 ### Using pip
@@ -42,12 +41,30 @@
 pip install nemo-eval
 ```
 
+### Using uv
+
+```bash
+# Install uv if you haven't already
+pip install uv
+
+# Install nemo-eval
+uv pip install nemo-eval
+```
+
 ### From Source
 
 ```bash
 git clone https://github.com/NVIDIA-NeMo/Eval.git
 cd Eval
 pip install -e .
+```
+
+### From Source with uv
+
+```bash
+git clone https://github.com/NVIDIA-NeMo/Eval.git
+cd Eval
+uv sync
 ```
 
 ### Using Docker
@@ -97,22 +114,28 @@ results = evaluate(target_cfg=target, eval_cfg=config)
 print(results)
 ```
 
+## 📊 Support Matrix
+
+| Checkpoint Type | Inference Backend | Deployment Server | Evaluation Harnesses Supported |
+|----------------|-------------------|-------------|--------------------------|
+|         NeMo 2.0        |    Megatron Core inference engine               |     PyTriton (single and multi node model parallelism), Ray (single node model parallelism with multi instance evals)        |          lm-evaluation-harness, simple-evals, BigCode, BFCL, safety-harness, garak                |
+
 ## 🏗️ Architecture
 
 ### Core Components
 
 #### 1. Deployment Layer
-- **PyTriton Backend**: High-performance inference using NVIDIA Triton Inference Server and OpenAI API compatibility with FastAPI Interface
-- **Ray Backend**: Multi instance or data parallel evaluation using Ray Serve with OpenAI API compatibility
+- **PyTriton Backend**: High-performance inference using NVIDIA Triton Inference Server and OpenAI API compatibility via FastAPI Interface with model parallelism across single and multi node. Does not support multi instance evaluation.
+- **Ray Backend**: Single node model parallel multi instance evaluation using Ray Serve with OpenAI API compatibility. Multi node support coming soon.
 
 
 #### 2. Evaluation Layer
-- **NVIDIA Evals Factory**: Standardized benchmark evaluation with NVIDIA Evals Factory that provides state-of-the-art evaluation harnesses like lm-evaluation-harness, simple-evals, BigCode, BFCL, safety-harness, garak as modular evaluation packages compatible for installation within in the NeMo Framework container. lm-evaluation-harness is installed inside the NeMo Framework container while the others can be installed on-demand. More details in the [docs](https://github.com/NVIDIA-NeMo/Eval/tree/main/docs).
+- **NVIDIA Eval Factory**: Standardized benchmark evaluation with eval packages from NVIDIA Eval Factory that are installed in the NeMo Framework container. lm-evaluation-harness is installed inside the NeMo Framework container by default while the rest from the [support matrix](#-support-matrix) can be installed on-demand. More details in the [docs](https://github.com/NVIDIA-NeMo/Eval/tree/main/docs).
 - **Adapter System**: Flexible request/response processing pipeline with **Interceptors** that provide modular processing
 
 ```
 ┌───────────────────────┐
-│  NVIDIA Evals Factory  │
+│  NVIDIA Eval Factory  │
 └───▲──────┬────────────┘
     │      │
     │      │
@@ -192,6 +215,8 @@ results = evaluate(target_cfg=target, eval_cfg=config)
 
 ### Using Adapters
 
+The example below shows how to configure an Adapter that allows to provide a custom system prompt. Requests/responses are processed through interceptors. Interceptors are automatically selected based on the `AdapterConfig` parameters you provide. 
+
 ```python
 from nemo_eval.utils.api import AdapterConfig
 
@@ -244,36 +269,7 @@ deploy(
 )
 ```
 
-## 🧪 Testing
 
-### Running Tests
-
-```bash
-# Run all tests
-pytest tests
-
-# Run unit tests only
-pytest tests/unit_tests/
-
-# Run functional tests only
-pytest tests/functional_tests/
-
-# Run with coverage
-pytest --cov=nemo_eval tests
-```
-
-### Test Scripts
-
-```bash
-# Unit tests on CPU
-bash tests/unit_tests/L0_Unit_Tests_CPU.sh
-
-# Unit tests on GPU
-bash tests/unit_tests/L0_Unit_Tests_GPU.sh
-
-# Functional tests on GPU
-bash tests/functional_tests/L2_Functional_Tests_GPU.sh
-```
 
 ## 📁 Project Structure
 
@@ -302,37 +298,7 @@ Eval/
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
-### Development Setup
-
-1. Fork the repository
-2. Create a feature branch
-3. Install development dependencies:
-   ```bash
-   pip install -e ".[dev,test]"
-   ```
-4. Run pre-commit hooks:
-   ```bash
-   pre-commit install
-   ```
-5. Make your changes and add tests
-6. Submit a pull request
-
-### Code Style
-
-We use:
-- **Black** for code formatting
-- **Ruff** for linting
-- **MyPy** for type checking
-- **Pre-commit** for automated checks
-
-### Testing Guidelines
-
-- Write unit tests for new functionality
-- Ensure all tests pass before submitting
-- Add integration tests for complex features
-- Follow existing test patterns
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on development setup, testing, and code style guidelines.
 
 ## 📄 License
 
