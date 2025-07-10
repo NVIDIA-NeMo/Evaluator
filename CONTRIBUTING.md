@@ -1,21 +1,49 @@
 # Contributing To NeMo Eval
 
+### 📝 Documentation
+
+**Important**: All new key features (ex: enabling a new inference optimized library, enabling a new deployment option) must include documentation update (either a new doc or updating an existing one). This document update should:
+
+- Explain the motivation and purpose of the feature
+- Outline the technical approach and architecture
+- Provide clear usage examples and instructions for users
+- Document internal implementation details where appropriate
+
+This ensures that all significant changes are well-thought-out and properly documented for future reference. Comprehensive documentation serves two critical purposes:
+
+1. **User Adoption**: Helps users understand how to effectively use the library's features in their projects
+2. **Developer Extensibility**: Enables developers to understand the internal architecture and implementation details, making it easier to modify, extend, or adapt the code for their specific use cases
+
+Quality documentation is essential for both the usability of NeMo Export-Deploy and its ability to be customized by the community.
+
+### Local development
+
+Make sure to have [uv](https://docs.astral.sh/uv/) installed. You can build and inspect the documentation locally with the following commands:
+
+```bash
+cd docs/
+uv run --only-group docs sphinx-autobuild . _build/html
+```
+
 ## Signing Your Work
 
-* We require that all contributors "sign-off" on their commits. This certifies that the contribution is your original work, or you have rights to submit it under the same license, or a compatible license.
+- We require that all contributors "sign-off" on their commits. This certifies that the contribution is your original work, or you have rights to submit it under the same license, or a compatible license.
 
-  * Any contribution which contains commits that are not Signed-Off will not be accepted.
+  - Any contribution which contains commits that are not Signed-Off will not be accepted.
 
-* To sign off on a commit you simply use the `--signoff` (or `-s`) option when committing your changes:
+- To sign off on a commit you simply use the `--signoff` (or `-s`) option when committing your changes:
+
   ```bash
-  $ git commit -s -m "Add cool feature."
+  git commit -s -m "Add cool feature."
   ```
+
   This will append the following to your commit message:
+
   ```
   Signed-off-by: Your Name <your@email.com>
   ```
 
-* Full text of the DCO:
+- Full text of the DCO:
 
   ```
   Developer Certificate of Origin

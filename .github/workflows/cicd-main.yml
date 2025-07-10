@@ -223,6 +223,9 @@ jobs:
         with:
           pattern: coverage-${{ matrix.flag }}-*
 
+      - name: List coverage files
+        run: find . -type f -name "*.xml" -o -name "*.lcov"
+
       - name: Get total coverage of current branch
         shell: bash -x -e -u -o pipefail {0}
         if: always()

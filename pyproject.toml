@@ -222,7 +222,12 @@ line-ending = "auto"
 
 [tool.coverage.run]
 concurrency = ["thread", "multiprocessing"]
-omit = ["/tmp/*"]
+omit = [
+    "/tmp/*",
+    "tests/*",
+    "*/tests/*",
+    "/workspace/tests/*",
+]
 
 [tool.coverage.paths]
-source = ["src/nemo_eval/", "/workspace/nemo_eval"]
+source = [".", "/workspace", "src/nemo_eval/", "/workspace/nemo_eval"]
