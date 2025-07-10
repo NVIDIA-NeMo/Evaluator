@@ -6,7 +6,7 @@ Thanks for your interest in contributing to NeMo Eval!
 
 ### Local workstation
 
-NeMo Export-Deploy uses [uv](https://docs.astral.sh/uv/) for package management.
+NeMo Eval uses [uv](https://docs.astral.sh/uv/) for package management.
 
 You can configure uv with the following commands:
 
@@ -89,7 +89,7 @@ This ensures that all significant changes are well-thought-out and properly docu
 1. **User Adoption**: Helps users understand how to effectively use the library's features in their projects
 2. **Developer Extensibility**: Enables developers to understand the internal architecture and implementation details, making it easier to modify, extend, or adapt the code for their specific use cases
 
-Quality documentation is essential for both the usability of NeMo Export-Deploy and its ability to be customized by the community.
+Quality documentation is essential for both the usability of NeMo Eval and its ability to be customized by the community.
 
 ### Local development
 
