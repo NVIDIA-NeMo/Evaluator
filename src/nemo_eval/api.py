@@ -228,7 +228,9 @@ def evaluate(
             f"as it is required to run {eval_cfg.type} evaluation"
         )
 
-    server_ready = check_endpoint(target_cfg.api_endpoint.url, "completions", target_cfg.api_endpoint.model_id)
+    server_ready = check_endpoint(
+        target_cfg.api_endpoint.url, target_cfg.api_endpoint.type, target_cfg.api_endpoint.model_id
+    )
     if not server_ready:
         raise RuntimeError("Server not ready for evaluation")
 
