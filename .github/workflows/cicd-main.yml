@@ -97,14 +97,7 @@ jobs:
     environment: test
     if: |
       needs.pre-flight.outputs.is_ci_workload == 'false'
-      && (
-        success() 
-        || (
-          needs.pre-flight.outputs.docs_only == 'false' 
-          || needs.pre-flight.outputs.force_run_all == 'true'
-        )
-      )
-      && !cancelled()
+      || needs.pre-flight.outputs.docs_only == 'false'
     steps:
       - name: Running CI tests
         run: |
@@ -126,13 +119,10 @@ jobs:
     name: ${{ matrix.script }}
     environment: nemo-ci
     if: |
-      needs.pre-flight.outputs.is_ci_workload == 'false'
-      && (
+      (
         success() 
-        || (
-          needs.pre-flight.outputs.docs_only == 'false' 
-          || needs.pre-flight.outputs.force_run_all == 'true'
-        )
+        || needs.pre-flight.outputs.is_ci_workload == 'true'
+        || needs.pre-flight.outputs.force_run_all == 'true'
       )
       && !cancelled()
     steps:
@@ -165,13 +155,10 @@ jobs:
     name: ${{ matrix.is_optional && 'PLEASEFIXME_' || '' }}${{ matrix.script }}
     environment: nemo-ci
     if: |
-      needs.pre-flight.outputs.is_ci_workload == 'false'
-      && (
+      (
         success() 
-        || (
-          needs.pre-flight.outputs.docs_only == 'false' 
-          || needs.pre-flight.outputs.force_run_all == 'true'
-        )
+        || needs.pre-flight.outputs.is_ci_workload == 'true'
+        || needs.pre-flight.outputs.force_run_all == 'true'
       )
       && !cancelled()
     steps:
@@ -192,9 +179,15 @@ jobs:
 
   Nemo_CICD_Test:
     needs:
+      - pre-flight
       - cicd-unit-tests
       - cicd-e2e-tests
-    if: always()
+    if: |
+      (
+        needs.pre-flight.outputs.docs_only == 'true'
+        || success()
+      )
+      && !cancelled()
     runs-on: ubuntu-latest
     permissions: write-all
     steps:
