@@ -17,6 +17,8 @@ from sphinx.ext.napoleon.docstring import GoogleDocstring
 
 
 class NapoleonParser(MystParser):
+    """Parses both Google and NumPy style docstrings."""
+
     def parse(self, input_string: str, document: nodes.document) -> None:
         # Get the Sphinx configuration
         config = document.settings.env.config
