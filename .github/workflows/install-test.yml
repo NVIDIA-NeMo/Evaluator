@@ -70,13 +70,7 @@ jobs:
       - name: Check imports for nemo_deploy
         uses: ./FW-CI-templates/.github/actions/check-imports
         with:
-          package-name: nemo_deploy
-          python-binary: ./venv/bin/python
-
-      - name: Check imports for nemo_export
-        uses: ./FW-CI-templates/.github/actions/check-imports
-        with:
-          package-name: nemo_export
+          package-name: nemo_eval
           python-binary: ./venv/bin/python
 
   pip-test-cuda:
@@ -130,13 +124,7 @@ jobs:
       - name: Check imports for nemo_deploy
         uses: ./FW-CI-templates/.github/actions/check-imports
         with:
-          package-name: nemo_deploy
-          python-binary: ./venv/bin/python
-
-      - name: Check imports for nemo_export
-        uses: ./FW-CI-templates/.github/actions/check-imports
-        with:
-          package-name: nemo_export
+          package-name: nemo_eval
           python-binary: ./venv/bin/python
 
   uv-test-cuda:
@@ -186,13 +174,7 @@ jobs:
       - name: Check imports for nemo_deploy
         uses: ./FW-CI-templates/.github/actions/check-imports
         with:
-          package-name: nemo_deploy
-          python-binary: /opt/venv/bin/python
-
-      - name: Check imports for nemo_export
-        uses: ./FW-CI-templates/.github/actions/check-imports
-        with:
-          package-name: nemo_export
+          package-name: nemo_eval
           python-binary: /opt/venv/bin/python
 
   uv-test-no-cuda:
@@ -244,13 +226,7 @@ jobs:
       - name: Check imports for nemo_deploy
         uses: ./FW-CI-templates/.github/actions/check-imports
         with:
-          package-name: nemo_deploy
-          python-binary: ./venv/bin/python
-
-      - name: Check imports for nemo_export
-        uses: ./FW-CI-templates/.github/actions/check-imports
-        with:
-          package-name: nemo_export
+          package-name: nemo_eval
           python-binary: ./venv/bin/python
 
   install-test-summary:
