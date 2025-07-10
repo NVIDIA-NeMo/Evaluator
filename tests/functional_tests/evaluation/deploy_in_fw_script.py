@@ -17,7 +17,6 @@ import logging
 
 from nemo_eval.api import deploy
 
-
 logger = logging.getLogger(__name__)
 
 

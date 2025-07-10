@@ -103,9 +103,7 @@ def create_server_process(
         and adapter_config is the configuration with port filled in.
     """
 
-    adapter_config.local_port = (
-        adapter_config.local_port if adapter_config.local_port is not None else find_free_port()
-    )
+    adapter_config.local_port = adapter_config.local_port if adapter_config.local_port is not None else find_free_port()
 
     @staticmethod
     def create_server_factory(
