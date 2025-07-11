@@ -43,7 +43,7 @@ Make sure to open a new terminal within the same container to execute it.
 ```
 
 Please note that `lambada_openai` uses log-probabilities for evaluation.
-To learn more about this approach please see ["Evaluate LLMs Using Log-Probabilities"](logprobs.md)
+To learn more about this approach, please see ["Evaluate LLMs Using Log-Probabilities"](logprobs.md).
 
 This example uses only 10 samples.
 To evaluate the full dataset, remove the `"limit_samples"` parameter.
