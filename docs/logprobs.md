@@ -35,7 +35,7 @@ In this evaluation approach:
 
 For multiple-choice scenarios, the answer with the highest sum is treated as the one selected by the model.
 
-The sum of log-probabilities can be also use to calculate different metrics, e.g. **perplexity**.
+The sum of log-probabilities can be also use to calculate different metrics, e.g., **perplexity**.
 Alternatively, log-probabilities can be also analyzed to determine if the answer would be produced by the model with greedy sampling.
 This approach is used to calculate **accuracy**.
 
