@@ -4,7 +4,7 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://github.com/NVIDIA-NeMo/Eval/blob/main/pyproject.toml)
 [![NVIDIA](https://img.shields.io/badge/NVIDIA-NeMo-red.svg)](https://github.com/NVIDIA-NeMo/)
 
-**NeMo Eval** is a comprehensive evaluation framework for Large Language Models (LLMs) built on top of the NeMo Framework. It provides seamless deployment and evaluation capabilities for NeMo checkpoints using NVIDIA Eval Factory. NVIDIA Eval Factory contains state-of-the-art evaluation harnesses as modular evaluation packages that are installed in the NeMo Framework container as building blocks for evaluation.
+**NeMo Eval** is a comprehensive evaluation module under Nemo Framework for Large Language Models (LLMs). It provides seamless deployment and evaluation capabilities for models trained using Nemo Framework via state-of-the-art evaluation harnesses.
 
 ## 🚀 Features
 
