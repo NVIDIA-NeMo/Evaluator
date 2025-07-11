@@ -32,7 +32,7 @@ pip install nvidia-lm-eval==25.6
 python deploy.py
 ```
 
-2. Configure and run the evaluation
+2. Configure and run the evaluation:
 
 Make sure to open a new terminal within the same container to execute it.
 
