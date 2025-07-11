@@ -52,7 +52,7 @@ def chat_request():
 
 
 # Broken in NVIDIA/CUDA, needs flash-attn
-# @pytest.mark.pleasefixme
+@pytest.mark.pleasefixme
 @pytest.mark.parametrize("serving_backend", ["pytriton", "ray"])
 def test_deployment(serving_backend, completions_request, logprobs_request, chat_request):
     """Fixture to create a Flask app with an OpenAI response.
