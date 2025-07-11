@@ -91,7 +91,7 @@ def test_deployment(serving_backend, completions_request, logprobs_request, chat
             ]
             + (["--legacy_ckpt"] if legacy_ckpt else [])
         )
-        assert check_health(health_url, max_retries=100)
+        assert check_health(health_url, max_retries=30, retry_interval=60)
         # Test completions
         assert check_endpoint(f"http://0.0.0.0:{port}/v1/completions", "completions", "megatron_model", max_retries=10)
         # TODO: not supported with ray yet
