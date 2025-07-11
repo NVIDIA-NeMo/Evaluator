@@ -7,8 +7,7 @@ However, you can choose to evaluate your model on a task that was not included i
 To do so, you must specify your tasks as `"<harness name>.<task name>"`, where the task name originates from the underlying evaluation harness. For example, NVIDIA LM-Eval is a wrapper around the LM-Evaluation-Harness.
 In case of `nvidia-lm-eval`, it is a wrapper for [`lm-evaluation-harness`](https://github.com/EleutherAI/lm-evaluation-harness/).
 
-Please note that when launching a custom tasks the default settings might not be optimal and you must manually provide the recommended configuration (e.g. few-shot settings).
-Also, you need to determine which endpoint type should be used with the task.
+Please note that when launching custom tasks, the default settings may not be optimal. You must manually provide the recommended configuration (e.g., few-shot settings). Additionally, you need to determine which endpoint type is appropriate for the task. 
 Please refer to ["Evaluate NeMo 2.0 Checkpoints"](evaluation-doc.md#introduction) for more information on different endpoint types.
 
 
