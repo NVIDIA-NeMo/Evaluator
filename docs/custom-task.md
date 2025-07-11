@@ -4,7 +4,7 @@
 
 NVIDIA Eval Factory packages provide a unified interface and a set of pre-defined task configurations for launching evaluations.
 However, you can choose to evaluate your model on a task that was not included in this set.
-To do so, you must specify your tasks as `"<harness name>.<task name>"` where the task name comes from the underlying evaluation harness.
+To do so, you must specify your tasks as `"<harness name>.<task name>"`, where the task name originates from the underlying evaluation harness. For example, NVIDIA LM-Eval is a wrapper around the LM-Evaluation-Harness.
 In case of `nvidia-lm-eval`, it is a wrapper for [`lm-evaluation-harness`](https://github.com/EleutherAI/lm-evaluation-harness/).
 
 Please note that when launching a custom tasks the default settings might not be optimal and you must manually provide the recommended configuration (e.g. few-shot settings).
