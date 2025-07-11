@@ -1,4 +1,4 @@
-# Evaluate NeMo 2.0 Checkpoints
+# Evaluate checkpoints trained by Nemo Framework
 
 This guide provides detailed instructions on evaluating NeMo 2.0 checkpoints using the [NVIDIA Eval Factory](https://pypi.org/project/nvidia-lm-eval/) within the NeMo Framework.
 
