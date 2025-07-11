@@ -34,7 +34,7 @@ python deploy.py
 
 2. Configure and run the evaluation:
 
-Make sure to open a new terminal within the same container to execute it.
+Be sure to launch a new terminal inside the same container before running the command.
 
 ```{literalinclude} ../scripts/snippets/lambada.py
 :language: python
