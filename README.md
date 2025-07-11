@@ -9,6 +9,7 @@
 ## 🚀 Features
 
 - **Multi-Backend Deployment**: Support for both PyTriton and Ray Serve deployment backends
+- **Comprehensive evaluation**: State-of-the-art evaluation harnesses including reasoning benchmarks, code generation, safety testing
 - **Adapter System**: Flexible adapter architecture using a chain of interceptors for customizing request/response processing
 - **Production Ready**: Optimized for high-performance inference with CUDA graphs and flash decoding
 - **Multi-GPU Support**: Distributed inference across multiple GPUs and nodes
