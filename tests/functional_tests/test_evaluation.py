@@ -81,6 +81,8 @@ def cleanup_results():
         shutil.rmtree(results_dir)
 
 
+# Broken in NVIDIA/CUDA, needs flash-attn
+@pytest.mark.pleasefixme
 class TestEvaluation:
     """
     Test evaluation with NVIDIA Evals Factory on nemo2 model deployed on PyTriton.
