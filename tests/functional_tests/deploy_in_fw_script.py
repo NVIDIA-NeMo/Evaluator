@@ -43,6 +43,7 @@ if __name__ == "__main__":
             server_port=args.port,
             legacy_ckpt=args.legacy_ckpt,
             serving_backend=args.serving_backend,
+            enable_flash_decode=False,
         )
     except Exception as e:
         logger.error(f"Deploy process encountered an error: {e}")
