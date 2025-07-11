@@ -63,7 +63,7 @@ When combined with `echo=true`, the model will include the input in its response
 
 This process occurs behind the scenes when running an evaluation on `arc_challenge`.
 
-2. To evaluate your model on `arc_challenge` benchmark, use the following code.
+2. To evaluate your model on `arc_challenge` benchmark, use the following code:
 
 Make sure to open a new terminal within the same container to execute it.
 
