@@ -29,9 +29,75 @@ permissions:
   contents: read
 
 jobs:
+  pre-flight:
+    runs-on: ubuntu-latest
+    outputs:
+      is_ci_workload: ${{ steps.is_ci_workload.outputs.main }}
+      force_run_all: ${{ steps.force_run_all.outputs.main }}
+      docs_only: ${{ steps.docs_only.outputs.main == 'true' }}
+    env:
+      TESTS_TO_RUN: ${{ inputs.test_to_run }}
+      EVENT_NAME: ${{ github.event_name }}
+      HAS_LABEL: ${{ github.event.label.name == 'Run CICD' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get changed files
+        id: changed-files
+        uses: step-security/changed-files@v45.0.1
+        with:
+          files_yaml: |
+            doc:
+              - '**.md'
+              - docs/**
+            src:
+              - '!**.md'
+              - '!docs/**'
+
+      - name: Check if docs only
+        shell: bash
+        id: docs_only
+        env:
+          DOCS_ONLY: ${{ steps.changed-files.outputs.doc_any_changed == 'true' && steps.changed-files.outputs.src_any_changed == 'false' }}
+        run: |
+          echo "main=$DOCS_ONLY" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Check if this is a CI workload
+        shell: bash
+        id: is_ci_workload
+        run: |
+          branch_name=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+
+          if [[ "$branch_name" =~ ^bump-ci-container || "$EVENT_NAME" == "schedule" ]]; then
+            is_ci_workload=true
+          else
+            is_ci_workload=false
+          fi
+
+          echo "main=$is_ci_workload" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Check if force-run-all is set
+        shell: bash
+        id: force_run_all
+        env:
+          HAS_FORCE_RUN_ALL_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'force-run-all') }}
+        run: |
+          if [[ "$HAS_FORCE_RUN_ALL_LABEL" == "true" || "$EVENT_NAME" == "schedule" ]]; then
+            force_run_all=true
+          else
+            force_run_all=false
+          fi
+
+          echo "main=$force_run_all" | tee -a "$GITHUB_OUTPUT"
+
   cicd-wait-in-queue:
     runs-on: ubuntu-latest
+    needs: [pre-flight]
     environment: test
+    if: |
+      !(needs.pre-flight.outputs.is_ci_workload == 'true'
+      || needs.pre-flight.outputs.docs_only == 'true')
     steps:
       - name: Running CI tests
         run: |
@@ -48,10 +114,17 @@ jobs:
           - script: L0_Unit_Tests_CPU
             runner: linux-amd64-cpu16
             cpu-only: true
-    needs: [cicd-wait-in-queue]
+    needs: [pre-flight, cicd-wait-in-queue]
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
     environment: nemo-ci
+    if: |
+      (
+        success() 
+        || needs.pre-flight.outputs.is_ci_workload == 'true'
+        || needs.pre-flight.outputs.force_run_all == 'true'
+      )
+      && !cancelled()
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -77,10 +150,17 @@ jobs:
           - script: L2_Functional_Tests_GPU
             runner: linux-amd64-gpu-rtxa6000-latest-2-nemo
             timeout: 30
-    needs: [cicd-unit-tests]
+    needs: [pre-flight, cicd-unit-tests]
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.is_optional && 'PLEASEFIXME_' || '' }}${{ matrix.script }}
     environment: nemo-ci
+    if: |
+      (
+        success() 
+        || needs.pre-flight.outputs.is_ci_workload == 'true'
+        || needs.pre-flight.outputs.force_run_all == 'true'
+      )
+      && !cancelled()
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -99,9 +179,15 @@ jobs:
 
   Nemo_CICD_Test:
     needs:
+      - pre-flight
       - cicd-unit-tests
       - cicd-e2e-tests
-    if: always()
+    if: |
+      (
+        needs.pre-flight.outputs.docs_only == 'true'
+        || success()
+      )
+      && !cancelled()
     runs-on: ubuntu-latest
     permissions: write-all
     steps:

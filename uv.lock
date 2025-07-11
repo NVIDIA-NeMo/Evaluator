@@ -3139,7 +3139,7 @@ wheels = [
 name = "nemo-eval"
 source = { editable = "." }
 dependencies = [
-    { name = "nemo-export-deploy" },
+    { name = "flask" },
     { name = "nvidia-lm-eval" },
     { name = "uvicorn" },
 ]
@@ -3171,6 +3171,9 @@ linting = [
 megatron-hub-pre = [
     { name = "megatron-hub" },
 ]
+nemo-export-deploy-pre = [
+    { name = "nemo-export-deploy" },
+]
 nemo-legacy = [
     { name = "nemo-toolkit", extra = ["automodel", "common-only", "eval", "multimodal-only", "nlp-only"] },
 ]
@@ -3184,7 +3187,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "nemo-export-deploy", git = "https://github.com/NVIDIA-NeMo/Export-Deploy.git?rev=b2c0f1912cb69ed9e843e5a6299c1ea53b6d5aee" },
+    { name = "flask" },
     { name = "nvidia-lm-eval" },
     { name = "transformer-engine", extras = ["pytorch"], marker = "extra == 'te'", specifier = "==2.2.0" },
     { name = "uvicorn" },
@@ -3208,6 +3211,7 @@ docs = [
 ]
 linting = [{ name = "ruff", specifier = "~=0.9.0" }]
 megatron-hub-pre = [{ name = "megatron-hub", git = "https://github.com/NVIDIA-NeMo/Megatron-Hub.git?rev=cc2a60c3be11549f070fe1d7b6324a3dae51c6e0" }]
+nemo-export-deploy-pre = [{ name = "nemo-export-deploy", git = "https://github.com/NVIDIA-NeMo/Export-Deploy.git?rev=b2c0f1912cb69ed9e843e5a6299c1ea53b6d5aee" }]
 nemo-legacy = [{ name = "nemo-toolkit", extras = ["automodel", "common-only", "nlp-only", "eval", "multimodal-only"], git = "https://github.com/NVIDIA/NeMo.git?rev=5e63ca3c1631bb156187705f9c4cf643a67f9c05" }]
 test = [
     { name = "click" },
