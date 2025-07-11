@@ -1,4 +1,4 @@
-# Run Evaluation Using Task Without Pre-Defined Config
+# Run Evaluation Using a Task Without a Pre-Defined Config
 
 ## Introduction
 
