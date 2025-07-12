@@ -82,7 +82,7 @@ def cleanup_results():
 
 
 # Broken in NVIDIA/CUDA, needs flash-attn
-# @pytest.mark.pleasefixme
+@pytest.mark.pleasefixme
 class TestEvaluation:
     """
     Test evaluation with NVIDIA Evals Factory on nemo2 model deployed on PyTriton.
