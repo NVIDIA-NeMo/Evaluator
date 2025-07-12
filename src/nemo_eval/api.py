@@ -29,10 +29,10 @@ def deploy(
     nemo_checkpoint: Optional[AnyPath] = None,
     serving_backend: str = "pytriton",
     model_name: str = "megatron_model",
-    server_port: int = 8000,
+    server_port: int = 8080,
     server_address: str = "0.0.0.0",
-    fastapi_http_address: str = "0.0.0.0",
-    fastapi_port: int = 8080,
+    triton_address: str = "0.0.0.0",
+    triton_port: int = 8000,
     num_gpus: int = 1,
     num_nodes: int = 1,
     tensor_parallelism_size: int = 1,
@@ -44,10 +44,9 @@ def deploy(
     enable_flash_decode: bool = True,
     enable_cuda_graphs: bool = True,
     # Ray deployment specific args
-    num_replicas: Optional[int] = None,
+    num_replicas: int = 1,
     num_cpus_per_replica: Optional[int] = None,
     include_dashboard: bool = True,
-    cuda_visible_devices: str = "",
     legacy_ckpt: bool = False,
 ):
     """
@@ -57,10 +56,10 @@ def deploy(
         nemo_checkpoint (Path): Path for nemo checkpoint.
         serving_backend (str): Backend to use for serving ("pytriton" or "ray"). Default: "pytriton".
         model_name (str): Name for the model that gets deployed on PyTriton or Ray.
-        server_port (int): HTTP port for the PyTriton or Ray server. Default: 8000.
-        server_address (str): HTTP address for the PyTriton or Ray server. Default: "0.0.0.0".
-        fastapi_http_address (str): HTTP address for FastAPI interface/server. Default: "0.0.0.0".
-        fastapi_port (int): Port for FastAPI interface/server. Default: 8080.
+        server_port (int): HTTP port for the FastAPI or Ray server. Default: 8080.
+        server_address (str): HTTP address for the FastAPI or Ray server. Default: "0.0.0.0".
+        triton_address (str): HTTP address for Triton server. Default: "0.0.0.0".
+        triton_port (int): Port for Triton server. Default: 8000.
         num_gpus (int): Number of GPUs per node. Default: 1.
         num_nodes (int): Number of nodes. Default: 1.
         tensor_parallelism_size (int): Tensor parallelism size. Default: 1.
@@ -76,12 +75,11 @@ def deploy(
         num_replicas (int): Number of model replicas for Ray deployment. Default: 1. Only applicable for Ray backend.
         num_cpus_per_replica (int): Number of CPUs per replica for Ray deployment. Default: 8
         include_dashboard (bool): Whether to include Ray dashboard. Default: True.
-        cuda_visible_devices (list): Comma-separated list of CUDA visible devices. Default: [0,1].
         legacy_ckpt (bool): Indicates whether the checkpoint is in legacy format. Default: False.
     """
     import torch
 
-    if serving_backend == "ray":
+    if serving_backend == "ray":  # pragma: no cover
         if num_replicas is None:
             raise ValueError("num_replicas must be specified when using Ray backend")
 
@@ -104,7 +102,6 @@ def deploy(
             enable_flash_decode=enable_flash_decode,
             legacy_ckpt=legacy_ckpt,
             include_dashboard=include_dashboard,
-            cuda_visible_devices=cuda_visible_devices,
         )
     else:  # pytriton backend
         import os
@@ -112,12 +109,15 @@ def deploy(
         import uvicorn
         from nemo_deploy import DeployPyTriton
 
-        if server_port == fastapi_port:
-            raise ValueError("FastAPI port and Triton server port cannot use the same port. Please change them")
+        if triton_port == server_port:
+            raise ValueError(
+                "FastAPI port and Triton server port cannot use the same port,"
+                " but were both set to {triton_port}. Please change them"
+            )
 
         # Store triton ip, port relevant for FastAPI as env vars
-        os.environ["TRITON_HTTP_ADDRESS"] = server_address
-        os.environ["TRITON_PORT"] = str(server_port)
+        os.environ["TRITON_HTTP_ADDRESS"] = triton_address
+        os.environ["TRITON_PORT"] = str(triton_port)
 
         try:
             from nemo_deploy.nlp.megatronllm_deployable import MegatronLLMDeployableNemo2
@@ -149,8 +149,8 @@ def deploy(
                         model=triton_deployable,
                         triton_model_name=model_name,
                         max_batch_size=max_batch_size,
-                        http_port=server_port,
-                        address=server_address,
+                        http_port=triton_port,
+                        address=triton_address,
                     )
 
                     logger.info("Triton deploy function will be called.")
@@ -166,8 +166,8 @@ def deploy(
                         logger.info("REST service will be started.")
                         uvicorn.run(
                             "nemo_deploy.service.fastapi_interface_to_pytriton:app",
-                            host=fastapi_http_address,
-                            port=fastapi_port,
+                            host=server_address,
+                            port=server_port,
                             reload=True,
                         )
                     except Exception as error:
@@ -203,7 +203,7 @@ def evaluate(
     """
     import yaml
 
-    from .utils.base import find_framework, wait_for_fastapi_server
+    from .utils.base import check_endpoint, find_framework
 
     eval_type_components = eval_cfg.type.split(".")
     if len(eval_type_components) == 2:
@@ -228,8 +228,9 @@ def evaluate(
             f"as it is required to run {eval_cfg.type} evaluation"
         )
 
-    base_url, _ = target_cfg.api_endpoint.url.split("/v1")
-    server_ready = wait_for_fastapi_server(base_url=base_url, model_name=target_cfg.api_endpoint.model_id)
+    server_ready = check_endpoint(
+        target_cfg.api_endpoint.url, target_cfg.api_endpoint.type, target_cfg.api_endpoint.model_id
+    )
     if not server_ready:
         raise RuntimeError("Server not ready for evaluation")
 

@@ -28,6 +28,9 @@ def get_args():
     parser.add_argument("--max_batch_size", type=int, help="Max BS for the model")
     parser.add_argument("--legacy_ckpt", action="store_true", help="Whether the nemo checkpoint is in legacy format")
     parser.add_argument("--port", type=int, help="Port")
+    parser.add_argument(
+        "--serving_backend", type=str, help="Inference backend", default="pytriton", choices=["pytriton", "ray"]
+    )
     return parser.parse_args()
 
 
@@ -37,8 +40,11 @@ if __name__ == "__main__":
         deploy(
             nemo_checkpoint=args.nemo2_ckpt_path,
             max_batch_size=args.max_batch_size,
-            fastapi_port=args.port,
+            server_port=args.port,
             legacy_ckpt=args.legacy_ckpt,
+            serving_backend=args.serving_backend,
+            enable_flash_decode=False,
+            enable_cuda_graphs=False,
         )
     except Exception as e:
         logger.error(f"Deploy process encountered an error: {e}")

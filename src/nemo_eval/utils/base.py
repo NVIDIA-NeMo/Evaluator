@@ -15,15 +15,62 @@
 import importlib
 import logging
 import pkgutil
+import time
+
+import requests
 
 logger = logging.getLogger(__name__)
+
+
+def check_health(health_url: str, max_retries: int = 600, retry_interval: int = 2) -> bool:
+    """
+    Check the health of the PyTriton (via FAstAPI) and Ray server.
+    """
+    for _ in range(max_retries):
+        try:
+            response = requests.get(health_url)
+            if response.status_code == 200:
+                return True
+            logger.info(f"Server replied with status code: {response.status_code}")
+            time.sleep(retry_interval)
+        except requests.exceptions.RequestException:
+            logger.info("Server is not ready")
+            time.sleep(retry_interval)
+    return False
+
+
+def check_endpoint(
+    endpoint_url: str, endpoint_type: str, model_name: str, max_retries: int = 600, retry_interval: int = 2
+) -> bool:
+    """
+    Check if the endpoint is responsive and ready to accept requests.
+    """
+    payload = {"model": model_name, "max_tokens": 1}
+    if endpoint_type == "completions":
+        payload["prompt"] = "hello"
+    elif endpoint_type == "chat":
+        payload["messages"] = [{"role": "user", "content": "hello"}]
+    else:
+        raise ValueError(f"Invalid endpoint type: {endpoint_type}")
+
+    for _ in range(max_retries):
+        try:
+            response = requests.post(endpoint_url, json=payload)
+            if response.status_code == 200:
+                return True
+            logger.info(f"Server replied with status code: {response.status_code}")
+            time.sleep(retry_interval)
+        except requests.exceptions.RequestException:
+            logger.info("Server is not ready")
+            time.sleep(retry_interval)
+    return False
 
 
 def wait_for_fastapi_server(
     base_url: str = "http://0.0.0.0:8080",
     model_name: str = "megatron_model",
     max_retries: int = 600,
-    retry_interval: int = 2,
+    retry_interval: int = 10,
 ):
     """
     Wait for FastAPI server and model to be ready.
@@ -38,41 +85,18 @@ def wait_for_fastapi_server(
         bool: True if both the server and model are ready within the retries, False otherwise.
     """
 
-    import time
-
-    import requests
-
     completions_url = f"{base_url}/v1/completions/"
     health_url = f"{base_url}/v1/triton_health"
 
-    for _ in range(max_retries):
-        logger.info("Checking server and model readiness...")
-
-        try:
-            # Check server readiness using HTTP health endpoint
-            response = requests.get(health_url)
-            if response.status_code != 200:
-                logger.info(f"Server is not ready. HTTP status code: {response.status_code}")
-                time.sleep(retry_interval)
-                continue
-            logger.info("Server is ready.")
-
-            # Check model readiness
-            response = requests.post(completions_url, json={"model": model_name, "prompt": "hello", "max_tokens": 1})
-            if response.status_code != 200:
-                logger.info(f"Model is not ready. HTTP status code: {response.status_code}")
-                time.sleep(retry_interval)
-                continue
-            logger.info(f"Model '{model_name}' is ready.")
-            return True
-        except requests.exceptions.RequestException:
-            logger.info(f"Pytriton server not ready yet. Retrying in {retry_interval} seconds...")
-
-        # Wait before retrying
-        time.sleep(retry_interval)
-
-    logger.error(f"Server or model '{model_name}' not ready after {max_retries} attempts.")
-    return False
+    logger.info("Checking server and model readiness...")
+    if not check_health(health_url, max_retries, retry_interval):
+        logger.info("Server is not ready.")
+        return False
+    if not check_endpoint(completions_url, "completions", model_name, max_retries, retry_interval):
+        logger.info("Model is not ready.")
+        return False
+    logger.info("Server and model are ready.")
+    return True
 
 
 def _iter_namespace(ns_pkg):
