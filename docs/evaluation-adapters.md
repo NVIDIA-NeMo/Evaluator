@@ -2,6 +2,37 @@
 
 Evaluation adapters provide a flexible mechanism for intercepting and modifying requests/responses between the evaluation harness and the model endpoint. This allows for custom processing, logging, and transformation of data during the evaluation process.
 
+## Usage Example
+
+To enable the adapters, pass the  `AdapterConfig` class to the `evaluate`  method of the `src/nemo_eval/api.py`.
+The example below configures the adapter for reasoning:
+
+```python
+from nemo_eval.api import evaluate
+from nemo_eval.utils.api import EvaluationConfig, ApiEndpoint, EvaluationTarget, AdapterConfig
+target_config = EvaluationTarget(api_endpoint={"url": completions_url, "type": "completions"})
+eval_config = EvaluationConfig(
+    type="mmlu",
+    params={"limit_samples": 1},
+    output_dir=f"{WORKSPACE}/mmlu",
+)
+# Configure adapter for reasoning
+adapter_config = AdapterConfig(
+    api_url=target_config.api_endpoint.url,
+    use_reasoning=True,
+    end_reasoning_token="</think>",
+    custom_system_prompt="You are a helpful assistant that thinks step by step.",
+    max_logged_requests=5,
+    max_logged_responses=5
+)
+
+results = evaluate(
+    target_cfg=target_config,
+    eval_cfg=eval_config,
+    adapter_cfg=adapter_config,
+)
+```
+
 ## Architecture
 
 The adapter system uses a chain of interceptors that process requests and responses in sequence. Here's the high-level architecture:
@@ -98,31 +129,4 @@ The adapter system is configured using the `AdapterConfig` class with the follow
 | `custom_system_prompt` | `Optional[str]` | `None` | A custom system prompt to replace the original one (if not None), **only for chat endpoints** |
 | `max_logged_responses` | `Optional[int]` | `5` | Maximum number of responses to log. Set to 0 to disable. If None, all will be logged |
 | `max_logged_requests` | `Optional[int]` | `5` | Maximum number of requests to log. Set to 0 to disable. If None, all will be logged |
-
-
-## Usage Example
-
-To enable the adapter server, pass the  `AdapterConfig` class to the `evaluate`  method of the `nemo/collections/llm/api.py`.
-Taking an example from `tutorials/llm/evaluation/mmlu.ipynb`, you can modify it as follows:
-
-```python
-target_config = EvaluationTarget(api_endpoint={"url": completions_url, "type": "completions"})
-eval_config = EvaluationConfig(
-    type="mmlu",
-    params={"limit_samples": 1},
-    output_dir=f"{WORKSPACE}/mmlu",
-)
-adapter_config = AdapterConfig(
-    api_url=target_config.api_endpoint.url,
-    local_port=None,
-    max_logged_requests=1,
-    max_logged_responses=1,
-)
-
-results = api.evaluate(
-    target_cfg=target_config,
-    eval_cfg=eval_config,
-    adapter_cfg=adapter_config,
-)
-```
 

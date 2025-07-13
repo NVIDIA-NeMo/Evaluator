@@ -1,8 +1,11 @@
-# Evaluate checkpoints trained by Nemo Framework
+# Evaluate checkpoints trained by NeMo Framework
 
-This guide provides detailed instructions on evaluating NeMo 2.0 checkpoints using the [NVIDIA Eval Factory](https://pypi.org/project/nvidia-lm-eval/) within the NeMo Framework.
+This guide provides detailed instructions on evaluating checkpoints trained by NeMo Framework via the megatron-core backend. This section in particular focuses on using [nvidia-lm-eval](https://pypi.org/project/nvidia-lm-eval/) for evaluation, which is a wrapper around [
+lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness/tree/main).
 
-In this section we will focus on benchmarks that use **generation**.
+For evaluation with other eval harnesses like `simple-evals`, `BFCL`, `garak`, `BigCode`, `safety-harness` please refer to ["Add On-Demand Evaluation Packages"](optional-eval-package.md)
+
+In this section we will focus on benchmarks in `lm-evaluation-harness` that use **generation**.
 In such approach the model is presented with a question it needs to answer, an instruction it should follow, or a text that it should continue.
 Then the model's answer is evaluated for its correctness.
 
@@ -22,9 +25,14 @@ To learn more please refer to ["Evaluate LLMs Using Log-Probabilities"](logprobs
 
 ## Introduction
 
-The evaluation process employs a server-client approach, comprising two main phases. In Phase 1, the NeMo 2.0 checkpoint is deployed in-framework on a PyTriton server by exposing OpenAI API (OAI) compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed, enabling evaluation on both completion and chat benchmarks. Phase 2 involves running the evaluation on the model using the OAI endpoint and port.
+The evaluation process employs a server-client approach, comprising two main phases. 
+- **Phase 1: Model Deployment**
+    - NeMo checkpoint is deployed in-framework on a PyTriton server by exposing OpenAI API (OAI) compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed, enabling evaluation on both completion and chat benchmarks.
 
-Some of the benchmarks (e.g. GPQA) use a gated dataset. To use them, you must authenticate to the [Hugging Face Hub](https://huggingface.co/docs/huggingface_hub/quick-start#authentication) before launching the evaluation.
+- **Phase 2: Model Evaluation**
+    - Involves running the evaluation on the model using the OAI endpoint and port.
+
+> **Note:** Some of the benchmarks (e.g. GPQA) use a gated dataset. To use them, you must authenticate to the [Hugging Face Hub](https://huggingface.co/docs/huggingface_hub/quick-start#authentication) before launching the evaluation.
 
 The NVIDIA Eval Factory provides several evaluation harnesses with different sets of evaluation benchmarks. The [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo) includes `nvidia-lm-eval` pre-installed, along with predefined configurations for evaluating the completions endpoint:
 
