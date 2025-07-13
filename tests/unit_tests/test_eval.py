@@ -83,43 +83,6 @@ def test_dict_init():
     assert eval_config_from_dict.params.max_retries == 3
 
 
-def test_dict_init():
-    config_params_dict = {
-        "top_p": 0.42,
-        "temperature": 0.13,
-        "limit_samples": 143,
-        "max_new_tokens": 7,
-        "max_retries": 3,
-        "parallelism": 33,
-        "task": "my_task",
-        "request_timeout": 300,
-        "extra": {"extra_param_name": "extra_param_value", "int_param": 123, "float_param": 1.23, "bool_param": True},
-    }
-    config_params = ConfigParams(**config_params_dict)
-    eval_config_from_cls = EvaluationConfig(
-        output_dir="my_path", supported_endpoint_types=["vlm"], type="eval_type", params=config_params
-    )
-    eval_config_from_dict = EvaluationConfig(
-        output_dir="my_path", supported_endpoint_types=["vlm"], type="eval_type", params=config_params_dict
-    )
-    assert eval_config_from_cls.model_dump() == eval_config_from_dict.model_dump()
-    assert eval_config_from_dict.output_dir == "my_path"
-    assert eval_config_from_dict.supported_endpoint_types == ["vlm"]
-    assert eval_config_from_dict.type == "eval_type"
-    assert eval_config_from_dict.params.limit_samples == 143
-    assert eval_config_from_dict.params.parallelism == 33
-    assert eval_config_from_dict.params.extra["extra_param_name"] == "extra_param_value"
-    assert eval_config_from_dict.params.extra["int_param"] == 123
-    assert eval_config_from_dict.params.extra["float_param"] == 1.23
-    assert eval_config_from_dict.params.extra["bool_param"] == True
-    assert eval_config_from_dict.params.top_p == 0.42
-    assert eval_config_from_dict.params.temperature == 0.13
-    assert eval_config_from_dict.params.request_timeout == 300
-    assert eval_config_from_dict.params.task == "my_task"
-    assert eval_config_from_dict.params.max_new_tokens == 7
-    assert eval_config_from_dict.params.max_retries == 3
-
-
 @pytest.mark.parametrize("task", ["gsm8k", "lm-evaluation-harness.gsm8k", "lm_evaluation_harness.gsm8k"])
 def test_evaluation(httpserver: HTTPServer, task: str):
     httpserver.expect_request("/v1/triton_health").respond_with_json({"status": "Triton server is reachable and ready"})
