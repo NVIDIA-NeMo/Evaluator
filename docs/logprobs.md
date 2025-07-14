@@ -44,11 +44,13 @@ Using log-probabilities is especially useful for evaluating base (pre-trained) m
 ## Evaluate a NeMo Checkpoint with arc_challenge
 
 In this example, we will use the `arc_challenge` task from `nvidia-lm-eval`. The `nvidia-lm-eval` package comes pre-installed with the NeMo Framework Docker image. If you are using a different environment, install the evaluation package:
+
 ```bash
 pip install nvidia-lm-eval==25.6
 ```
 
 1. Deploy your model:
+
 ```{literalinclude} ../scripts/snippets/deploy.py
 :language: python
 :start-after: "## Deploy"
@@ -75,6 +77,7 @@ Make sure to open a new terminal within the same container to execute it.
 ```
 
 Note in the example above you must provide a path to the tokenizer:
+
 ```
         "extra": {
             "tokenizer": "/checkpoints/llama-3_2-1b-instruct_v2.0/context/nemo_tokenizer",
