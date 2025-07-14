@@ -75,7 +75,7 @@ task = "lm-evaluation-harness.mmlu"
 task = "simple-evals.mmlu"
 ```
 
-For more information on enablind additional evaluation harnesses, see ["Add On-Demand Evaluation Packages"](optional-eval-package.md) section.
+For more information on enabling additional evaluation harnesses, see ["Add On-Demand Evaluation Packages"](optional-eval-package.md) section.
 To evaluate your model on a task without pre-defined config, see ["Run Evaluation Using Task Without Pre-Defined Config"](custom-task.md)
 
 ## Run Evaluations without NeMo-Run
