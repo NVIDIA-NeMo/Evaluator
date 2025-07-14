@@ -78,7 +78,7 @@ task = "simple-evals.mmlu"
 For more information on enabling additional evaluation harnesses, see ["Add On-Demand Evaluation Packages"](optional-eval-package.md) section.
 To evaluate your model on a task without pre-defined config, see ["Run Evaluation Using Task Without Pre-Defined Config"](custom-task.md)
 
-## Run Evaluations without NeMo-Run
+## Evaluate Models Locally on Your Workstation
 
 This section outlines the steps to deploy and evaluate a NeMo 2.0 model directly using Python commands, without using NeMo-Run. This method is quick and easy, making it ideal for evaluation on a local workstation with GPUs, as it facilitates easier debugging. However, for running evaluations on clusters, it is recommended to use NeMo-Run for its ease of use.
 
