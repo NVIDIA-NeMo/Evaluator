@@ -1,6 +1,6 @@
 # Add On-Demand Evaluation Packages
 
-This guide explains how to extend the NeMo evaluation environment by adding optional NVIDIA Eval Factory packages. It walks through installation, setup, and execution steps for various frameworks such as BFCL, garak, BigCode, simple-evals, and safety-harness, each enabling specialized model assessments.
+This guide explains how to extend the NeMo evaluation environment by adding optional NVIDIA Eval Factory packages. It walks through installation, setup, and execution steps for various packages such as BFCL, garak, BigCode, simple-evals, and safety-harness, each enabling specialized model assessments.
 
 ## Add New Evaluation Frameworks
 The NeMo Framework Docker image comes with [nvidia-lm-eval](https://pypi.org/project/nvidia-lm-eval/) pre-installed.
