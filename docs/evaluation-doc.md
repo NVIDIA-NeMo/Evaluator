@@ -95,7 +95,7 @@ if __name__ == "__main__":
         num_gpus=1,)
 ```
 
-The entrypoint for evaluation is the `evaluate` method defined in `nemo_eval/api.py`. To run evaluations on the deployed model, use the following command. Make sure to open a new terminal within the same container to execute it. For longer evaluations, it is advisable to run both the deploy and evaluate commands in tmux sessions to prevent the processes from being terminated unexpectedly and aborting the runs.
+The entry point for evaluation is the `evaluate` method defined in `nemo_eval/api.py`. To run evaluations on the deployed model, use the following command. Make sure to open a new terminal within the same container to execute it. For longer evaluations, it is advisable to run both the deploy and evaluate commands in tmux sessions to prevent the processes from being terminated unexpectedly and aborting the runs.
 
 ```python
 from nemo_eval.api import evaluate
