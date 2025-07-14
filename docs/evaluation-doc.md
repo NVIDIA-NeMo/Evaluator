@@ -114,7 +114,7 @@ if __name__ == "__main__":
 
 ## Run Evaluations with NeMo-Run
 
-This section explains how to run evaluations with NeMo-Run. For detailed information about [NeMo-Run](https://github.com/NVIDIA/NeMo-Run), please refer to its documentation. Below is a concise guide focused on using NeMo-Run to perform evaluations in NeMo 2.0.
+This section explains how to run evaluations with NeMo-Run. For detailed information about [NeMo-Run](https://github.com/NVIDIA/NeMo-Run), please refer to its documentation. Below is a concise guide focused on using NeMo-Run to perform evaluations in NeMo.
 
 ## Launch Evaluations with NeMo-Run
 
