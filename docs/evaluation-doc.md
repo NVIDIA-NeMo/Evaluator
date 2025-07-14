@@ -116,13 +116,11 @@ if __name__ == "__main__":
 
 This section explains how to run evaluations with NeMo-Run. For detailed information about [NeMo-Run](https://github.com/NVIDIA/NeMo-Run), please refer to its documentation. Below is a concise guide focused on using NeMo-Run to perform evaluations in NeMo.
 
-## Launch Evaluations with NeMo-Run
-
 The [evaluation_with_nemo_run.py](https://github.com/NVIDIA-NeMo/Eval/blob/main/scripts/evaluation_with_nemo_run.py) script serves as a reference for launching evaluations with NeMo-Run. This script demonstrates how to use NeMo-Run with both local executors (your local workstation) and Slurm-based executors like clusters. In this setup, the deploy and evaluate processes are launched as two separate jobs with NeMo-Run. The evaluate method waits until the PyTriton server is accessible and the model is deployed before starting the evaluations.
 
 > **Note:** Please make sure to update HF_TOKEN in the NeMo-Run script's [local_executor env_vars](https://github.com/NVIDIA/NeMo/blob/main/scripts/llm/evaluation.py#L210) with your HF_TOKEN if using local executor or in the [slurm_executor's env_vars](https://github.com/NVIDIA-NeMo/Eval/blob/main/scripts/evaluation_with_nemo_run.py#L284-L294) if using slurm_executor.
 
-## Run Locally with NeMo-Run
+### Run Locally with NeMo-Run
 
 To run evaluations on your local workstation, use the following command:
 
@@ -132,7 +130,7 @@ python scripts/evaluation_with_nemo_run.py --nemo_checkpoint '/workspace/llama3_
 
 > **Note:** When running locally with NeMo-Run, you will need to manually terminate the deploy process once evaluations are complete.
 
-## Run on Slurm-based Clusters
+### Run on Slurm-based Clusters
 
 To run evaluations on Slurm-based clusters, add the `--slurm` flag to your command and specify any custom parameters such as user, host, remote_job_dir, account, mounts, etc. Refer to the evaluation.py script for further details. Below is an example command:
 
