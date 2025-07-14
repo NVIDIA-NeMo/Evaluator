@@ -30,27 +30,6 @@ from nemo_eval.utils.api import ApiEndpoint, ConfigParams, EvaluationConfig, Eva
 
 ENDPOINT_TYPES = {"chat": "chat/completions/", "completions": "completions/"}
 
-COMPLETIONS_TASKS = (
-    "gsm8k",
-    "mgsm",
-    "mmlu",
-    "mmlu_pro",
-    "mmlu_redux",
-)
-
-CHAT_TASKS = (
-    "gpqa_diamond_cot",
-    "gsm8k_cot_instruct",
-    "ifeval",
-    "mgsm_cot",
-    "mmlu_instruct",
-    "mmlu_pro_instruct",
-    "mmlu_redux_instruct",
-    "wikilingua",
-)
-
-EVAL_TASKS = COMPLETIONS_TASKS + CHAT_TASKS
-
 
 def get_parser():
     parser = argparse.ArgumentParser(description="NeMo2.0 Evaluation")
@@ -89,7 +68,8 @@ def get_parser():
         "--endpoint_type",
         type=str,
         default="completions",
-        help="Whether to use completions or chat endpoint",
+        help="Whether to use completions or chat endpoint. Refer to the docs for details on tasks that are completions"
+        "v/s chat.",
         choices=list(ENDPOINT_TYPES),
     )
     parser.add_argument(
@@ -119,9 +99,8 @@ def get_parser():
     parser.add_argument(
         "--eval_task",
         type=str,
-        default="lm-evaluation-harness.mmlu",
-        help="Evaluation benchmark to run.",
-        choices=EVAL_TASKS,
+        default="mmlu",
+        help="Evaluation benchmark to run. Refer to the docs for more details on the tasks/benchmarks.",
     )
     parser.add_argument(
         "--limit", type=float, default=None, help="Limit evaluation to `limit` samples. Default: use all samples."
