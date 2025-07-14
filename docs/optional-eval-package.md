@@ -63,9 +63,9 @@ pip install nvidia-eval-factory-garak==25.6
 
 ## Enable BigCode
 
-1. Install the [nvidia-bigcode](https://pypi.org/project/nvidia-bigcode/) package:
+1. Install the [nvidia-bigcode-eval](https://pypi.org/project/nvidia-bigcode-eval/) package:
 ```bash
-pip install nvidia-bigcode==25.6
+pip install nvidia-bigcode-eval==25.6
 ```
 
 2. Run the evaluation:
