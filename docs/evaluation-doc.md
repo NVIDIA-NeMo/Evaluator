@@ -34,7 +34,7 @@ The evaluation process employs a server-client approach, comprising two main pha
 
 > **Note:** Some of the benchmarks (e.g. GPQA) use a gated dataset. To use them, you must authenticate to the [Hugging Face Hub](https://huggingface.co/docs/huggingface_hub/quick-start#authentication) before launching the evaluation.
 
-The [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo) includes `nvidia-lm-eval` pre-installed, along with predefined configurations for evaluating the completions endpoint:
+The [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo) includes [`nvidia-lm-eval`](https://pypi.org/project/nvidia-lm-eval/) pre-installed, along with predefined configurations for evaluating the completions endpoint:
 
 - `gsm8k`
 - `mgsm`
