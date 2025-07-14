@@ -141,7 +141,7 @@ def get_parser():
     parser.add_argument(
         '--container_image',
         type=str,
-        default="nvcr.io/nvidia/nemo:dev",
+        default="nvcr.io/nvidia/nemo:25.07",
         help="Container image for the run, only used in case of slurm runs."
         "Can be a path as well in case of .sqsh file.",
     )
