@@ -30,7 +30,7 @@ Make sure to open two separate terminals within the same container for executing
 
 4. Run the evalution of your choice.
 
-Below you can find examples for enabling and launching evaluations for different frameworks.
+Below you can find examples for enabling and launching evaluations for different packages.
 Note that all example use only a subset of samples.
 To run the evaluation on the whole dataset, remove the `"limit_samples"` parameter.
 
