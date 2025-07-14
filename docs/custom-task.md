@@ -16,11 +16,13 @@ Please refer to ["Evaluate NeMo 2.0 Checkpoints"](evaluation-doc.md#introduction
 In this example, we will use the `lambada_openai` task from `nvidia-lm-eval`.
 The `nvidia-lm-eval` package comes pre-installed with the NeMo Framework Docker image.
 If you are using a different environment, install the evaluation package:
+
 ```bash
 pip install nvidia-lm-eval==25.6
 ```
 
 1. Deploy your model:
+
 ```{literalinclude} ../scripts/snippets/deploy.py
 :language: python
 :start-after: "## Deploy"
