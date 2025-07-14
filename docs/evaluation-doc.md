@@ -85,7 +85,7 @@ This section outlines the steps to deploy and evaluate a NeMo 2.0 model directly
 The entry point for deployment is the `deploy` method defined in `nemo/collections/llm/api.py`. Below is an example command for deployment. It uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to NeMo 2.0 format. To evaluate a checkpoint saved during [pretraining](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#pretraining) or [fine-tuning](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#fine-tuning) using the NeMo Framework, provide the path to the saved checkpoint using the `nemo_checkpoint` argument in the `deploy` command below.
 
 ```python
-from nemo.collections.llm import deploy
+from nemo_eval.api import deploy
 
 if __name__ == "__main__":
     deploy(
@@ -95,11 +95,11 @@ if __name__ == "__main__":
         num_gpus=1,)
 ```
 
-The entrypoint for evaluation is the `evaluate` method defined in `nemo/collections/llm/api.py`. To run evaluations on the deployed model, use the following command. Make sure to open a new terminal within the same container to execute it. For longer evaluations, it is advisable to run both the deploy and evaluate commands in tmux sessions to prevent the processes from being terminated unexpectedly and aborting the runs.
+The entrypoint for evaluation is the `evaluate` method defined in `nemo_eval/api.py`. To run evaluations on the deployed model, use the following command. Make sure to open a new terminal within the same container to execute it. For longer evaluations, it is advisable to run both the deploy and evaluate commands in tmux sessions to prevent the processes from being terminated unexpectedly and aborting the runs.
 
 ```python
-from nemo.collections.llm import evaluate
-from nemo.collections.llm.evaluation.api import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
+from nemo_eval.api import evaluate
+from nemo_eval.utils.api import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
 
 api_endpoint = ApiEndpoint()
 eval_target = EvaluationTarget(api_endpoint=api_endpoint)
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     evaluate(target_cfg=eval_target, eval_cfg=eval_config)
 ```
 
-> **Note:** Please refer to `deploy` and `evaluate` method in `nemo/collections/llm/api.py` to review all available argument options, as the provided commands are only examples and do not include all arguments or their default values. For more detailed information on the arguments used in the ApiEndpoint and ConfigParams classes for evaluation, see the source code at [nemo/collections/llm/evaluation/api.py](https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/evaluation/api.py).
+> **Note:** Please refer to `deploy` and `evaluate` method in `nemo_eval/api.py` to review all available argument options, as the provided commands are only examples and do not include all arguments or their default values. For more detailed information on the arguments used in the ApiEndpoint and ConfigParams classes for evaluation, see the source code at [nemo_eval/utils/api.py](https://github.com/NVIDIA-NeMo/Eval/blob/main/src/nemo_eval/utils/api.py).
 
 ## Run Evaluations with NeMo-Run
 
@@ -118,16 +118,16 @@ This section explains how to run evaluations with NeMo-Run. For detailed informa
 
 ## Launch Evaluations with NeMo-Run
 
-The [evaluation.py](https://github.com/NVIDIA/NeMo/blob/main/scripts/llm/evaluation.py) script serves as a reference for launching evaluations with NeMo-Run. This script demonstrates how to use NeMo-Run with both local executors (your local workstation) and Slurm-based executors like clusters. In this setup, the deploy and evaluate processes are launched as two separate jobs with NeMo-Run. The evaluate method waits until the PyTriton server is accessible and the model is deployed before starting the evaluations.
+The [evaluation_with_nemo_run.py](https://github.com/NVIDIA-NeMo/Eval/blob/main/scripts/evaluation_with_nemo_run.py) script serves as a reference for launching evaluations with NeMo-Run. This script demonstrates how to use NeMo-Run with both local executors (your local workstation) and Slurm-based executors like clusters. In this setup, the deploy and evaluate processes are launched as two separate jobs with NeMo-Run. The evaluate method waits until the PyTriton server is accessible and the model is deployed before starting the evaluations.
 
-> **Note:** Please make sure to update HF_TOKEN in the NeMo-Run script's [local_executor env_vars](https://github.com/NVIDIA/NeMo/blob/main/scripts/llm/evaluation.py#L210) with your HF_TOKEN if using local executor or in the [slurm_executor's env_vars](https://github.com/NVIDIA/NeMo/blob/main/scripts/llm/evaluation.py#L177) if using slurm_executor.
+> **Note:** Please make sure to update HF_TOKEN in the NeMo-Run script's [local_executor env_vars](https://github.com/NVIDIA/NeMo/blob/main/scripts/llm/evaluation.py#L210) with your HF_TOKEN if using local executor or in the [slurm_executor's env_vars](https://github.com/NVIDIA-NeMo/Eval/blob/main/scripts/evaluation_with_nemo_run.py#L284-L294) if using slurm_executor.
 
 ## Run Locally with NeMo-Run
 
 To run evaluations on your local workstation, use the following command:
 
 ```bash
-python scripts/llm/evaluation.py --nemo_checkpoint '/workspace/llama3_8b_nemo2/' --eval_task 'gsm8k' --devices 2
+python scripts/evaluation_with_nemo_run.py --nemo_checkpoint '/workspace/llama3_8b_nemo2/' --eval_task 'gsm8k' --devices 2
 ```
 
 > **Note:** When running locally with NeMo-Run, you will need to manually terminate the deploy process once evaluations are complete.
@@ -137,7 +137,7 @@ python scripts/llm/evaluation.py --nemo_checkpoint '/workspace/llama3_8b_nemo2/'
 To run evaluations on Slurm-based clusters, add the `--slurm` flag to your command and specify any custom parameters such as user, host, remote_job_dir, account, mounts, etc. Refer to the evaluation.py script for further details. Below is an example command:
 
 ```bash
-python scripts/llm/evaluation.py --nemo_checkpoint='/workspace/llama3_8b_nemo2' --slurm --nodes 1
---devices 8 --container_image "nvcr.io/nvidia/nemo:25.04" --tensor_parallelism_size 8
+python scripts/evaluation_with_nemo_run.py --nemo_checkpoint='/workspace/llama3_8b_nemo2' --slurm --nodes 1
+--devices 8 --container_image "nvcr.io/nvidia/nemo:25.07" --tensor_parallelism_size 8
 ```
 By following these commands, you can successfully run evaluations using NeMo-Run on both local and Slurm-based environments.
