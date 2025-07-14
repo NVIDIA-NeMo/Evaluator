@@ -46,24 +46,12 @@ def get_parser():
         help="Serving backend to be used",
         choices=["pytriton", "ray"],
     )
-    parser.add_argument(
-        "--server_port", type=int, default=8080, help="Port for FastAPI or Ray server"
-    )
-    parser.add_argument(
-        "--server_address", type=str, default="0.0.0.0", help="IP address for FastAPI or Ray server"
-    )
-    parser.add_argument(
-        "--triton_address", type=str, default="0.0.0.0", help="IP address for Triton server"
-    )
-    parser.add_argument(
-        "--triton_port", type=int, default=8000, help="Port for Triton server"
-    )
-    parser.add_argument(
-        "--num_replicas", type=int, default=1, help="Num of replicas for Ray server"
-    )
-    parser.add_argument(
-        "--num_cpus_per_replica", type=int, default=1, help="Num of CPUs per replica for Ray server"
-    )
+    parser.add_argument("--server_port", type=int, default=8080, help="Port for FastAPI or Ray server")
+    parser.add_argument("--server_address", type=str, default="0.0.0.0", help="IP address for FastAPI or Ray server")
+    parser.add_argument("--triton_address", type=str, default="0.0.0.0", help="IP address for Triton server")
+    parser.add_argument("--triton_port", type=int, default=8000, help="Port for Triton server")
+    parser.add_argument("--num_replicas", type=int, default=1, help="Num of replicas for Ray server")
+    parser.add_argument("--num_cpus_per_replica", type=int, default=1, help="Num of CPUs per replica for Ray server")
     parser.add_argument(
         "--endpoint_type",
         type=str,
@@ -136,10 +124,10 @@ def get_parser():
         help="Run on slurm using run.SlurmExecutor",
         default=False,
     )
-    parser.add_argument('--nodes', type=int, default=1, help="Num nodes for the executor")
-    parser.add_argument('--devices', type=int, default=8, help="Num devices per node for the executor")
+    parser.add_argument("--nodes", type=int, default=1, help="Num nodes for the executor")
+    parser.add_argument("--devices", type=int, default=8, help="Num devices per node for the executor")
     parser.add_argument(
-        '--container_image',
+        "--container_image",
         type=str,
         default="nvcr.io/nvidia/nemo:25.07",
         help="Container image for the run, only used in case of slurm runs."
