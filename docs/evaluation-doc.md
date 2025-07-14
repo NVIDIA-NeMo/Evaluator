@@ -3,8 +3,6 @@
 This guide provides detailed instructions on evaluating checkpoints trained by NeMo Framework via the megatron-core backend. This section in particular focuses on using [nvidia-lm-eval](https://pypi.org/project/nvidia-lm-eval/) for evaluation, which is a wrapper around [
 lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness/tree/main).
 
-For evaluation with other eval harnesses like `simple-evals`, `BFCL`, `garak`, `BigCode`, `safety-harness` please refer to ["Add On-Demand Evaluation Packages"](optional-eval-package.md)
-
 In this section we will focus on benchmarks in `lm-evaluation-harness` that use **generation**.
 In such approach the model is presented with a question it needs to answer, an instruction it should follow, or a text that it should continue.
 Then the model's answer is evaluated for its correctness.
@@ -34,7 +32,7 @@ The evaluation process employs a server-client approach, comprising two main pha
 
 > **Note:** Some of the benchmarks (e.g. GPQA) use a gated dataset. To use them, you must authenticate to the [Hugging Face Hub](https://huggingface.co/docs/huggingface_hub/quick-start#authentication) before launching the evaluation.
 
-The [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo) includes [`nvidia-lm-eval`](https://pypi.org/project/nvidia-lm-eval/) pre-installed, along with predefined configurations for evaluating the completions endpoint:
+The [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo) includes [`nvidia-lm-eval`](https://pypi.org/project/nvidia-lm-eval/) pre-installed. `nvidia-lm-eval` contains predefined configurations of the below benchmarks for evaluating the completions endpoint:
 
 - `gsm8k`
 - `mgsm`
@@ -42,7 +40,7 @@ The [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/contai
 - `mmlu_pro`
 - `mmlu_redux`
 
-It also provides the following configurations for evaluating the chat endpoint:
+It also provides predefined configurations of the below benchmarks for evaluating the chat endpoint:
 
 - `gpqa_diamond_cot`
 - `gsm8k_cot_instruct`
@@ -62,20 +60,20 @@ task = "lm-evaluation-harness.mmlu"
 task = "lm_evaluation_harness.mmlu"
 ```
 
-To enable other evaluation harnesses, you need to install them. For example:
+To enable additional evaluation harnesses like  `simple-evals`, `BFCL`, `garak`, `BigCode`, `safety-harness`, you need to install them. For example:
 
 ```bash
 pip install nvidia-simple-evals
 ```
 
-If multiple harnesses define a task with the same name, you must use the `<harness>.<task>` format to avoid ambiguity. For example:
+For more information on enabling additional evaluation harnesses, see ["Add On-Demand Evaluation Packages"](optional-eval-package.md) section.
+If multiple harnesses are installed in your environment and they define a task with the same name, you must use the `<harness>.<task>` format to avoid ambiguity. For example:
 
 ```python
 task = "lm-evaluation-harness.mmlu"
 task = "simple-evals.mmlu"
 ```
 
-For more information on enabling additional evaluation harnesses, see ["Add On-Demand Evaluation Packages"](optional-eval-package.md) section.
 To evaluate your model on a task without pre-defined config, see ["Run Evaluation Using Task Without Pre-Defined Config"](custom-task.md)
 
 ## Evaluate Models Locally on Your Workstation
@@ -118,7 +116,7 @@ This section explains how to run evaluations with NeMo-Run. For detailed informa
 
 The [evaluation_with_nemo_run.py](https://github.com/NVIDIA-NeMo/Eval/blob/main/scripts/evaluation_with_nemo_run.py) script serves as a reference for launching evaluations with NeMo-Run. This script demonstrates how to use NeMo-Run with both local executors (your local workstation) and Slurm-based executors like clusters. In this setup, the deploy and evaluate processes are launched as two separate jobs with NeMo-Run. The evaluate method waits until the PyTriton server is accessible and the model is deployed before starting the evaluations.
 
-> **Note:** Please make sure to update HF_TOKEN in the NeMo-Run script's [local_executor env_vars](https://github.com/NVIDIA-NeMo/Eval/blob/main/scripts/evaluation_with_nemo_run.py#L229-L233) with your HF_TOKEN if using local executor or in the [slurm_executor's env_vars](https://github.com/NVIDIA-NeMo/Eval/blob/main/scripts/evaluation_with_nemo_run.py#L284-L294) if using slurm_executor.
+> **Note:** Please make sure to update HF_TOKEN in the NeMo-Run script's [local_executor env_vars](https://github.com/NVIDIA-NeMo/Eval/blob/main/scripts/evaluation_with_nemo_run.py#L197) with your HF_TOKEN if using local executor or in the [slurm_executor's env_vars](https://github.com/NVIDIA-NeMo/Eval/blob/main/scripts/evaluation_with_nemo_run.py#L164) if using slurm_executor.
 
 ### Run Locally with NeMo-Run
 
