@@ -82,7 +82,7 @@ To evaluate your model on a task without pre-defined config, see ["Run Evaluatio
 
 This section outlines the steps to deploy and evaluate a checkpoint trained by Nemo Framework directly using Python commands. This method is quick and easy, making it ideal for evaluation on a local workstation with GPUs, as it facilitates easier debugging. However, for running evaluations on clusters, it is recommended to use NeMo-Run for its ease of use (see next section).
 
-The entry point for deployment is the `deploy` method defined in `nemo/collections/llm/api.py`. Below is an example command for deployment. It uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to NeMo 2.0 format. To evaluate a checkpoint saved during [pretraining](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#pretraining) or [fine-tuning](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#fine-tuning) using the NeMo Framework, provide the path to the saved checkpoint using the `nemo_checkpoint` argument in the `deploy` command below.
+The entry point for deployment is the `deploy` method defined in `nemo/collections/llm/api.py`. Below is an example command for deployment. It uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to NeMo format. To evaluate a checkpoint saved during [pretraining](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#pretraining) or [fine-tuning](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#fine-tuning), provide the path to the saved checkpoint using the `nemo_checkpoint` argument in the `deploy` command below.
 
 ```python
 from nemo_eval.api import deploy
