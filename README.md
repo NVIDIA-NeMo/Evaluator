@@ -1,8 +1,14 @@
+<div align="center">
+
 # NeMo Eval
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/NVIDIA-NeMo/Eval/blob/main/LICENSE)
+[![codecov](https://codecov.io/github/NVIDIA-NeMo/Eval/graph/badge.svg?token=4NMKZVOW2Z)](https://codecov.io/github/NVIDIA-NeMo/Eval)
+[![CICD NeMo](https://github.com/NVIDIA-NeMo/Eval/actions/workflows/cicd-main.yml/badge.svg)](https://github.com/NVIDIA-NeMo/Eval/actions/workflows/cicd-main.yml)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://github.com/NVIDIA-NeMo/Eval/blob/main/pyproject.toml)
 [![NVIDIA](https://img.shields.io/badge/NVIDIA-NeMo-red.svg)](https://github.com/NVIDIA-NeMo/)
+
+[Documentation](https://nemo-framework-documentation.gitlab-master-pages.nvidia.com/eval-build/) | [Examples](#-usage-examples) | [Contributing](https://github.com/NVIDIA-NeMo/Eval/blob/main/CONTRIBUTING.md)
+</div>
 
 ## Overview
 
