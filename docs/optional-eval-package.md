@@ -2,6 +2,32 @@
 
 This guide explains how to extend the NeMo evaluation environment by adding optional NVIDIA Eval Factory packages. It walks through installation, setup, and execution steps for various packages such as BFCL, garak, BigCode, simple-evals, and safety-harness, each enabling specialized model assessments.
 
+
+┌──────────────────────┐
+│                      │
+│lm-evaluation-harness ◄─────────┐
+│                      │         │      ┌─────────────────────┐
+└──────────────────────┘         │      │                     │
+                                 │      │ NVIDIA Eval Factory │
+┌──────────────────────┐         │      │ =================== │
+│                      ◄─────────┼──────┼                     ◄───┐      ┌────────────────────┐
+│     simple-evals     │    packaging   │ unified interface   │ model    │                    │
+│                      │    of eval     │ for LLM evaluation  │ querying │     NeMo Eval      │
+└──────────────────────┘    harnesses   │                     │   └──────┼ ================== │
+                                 │      └─────────────────────┘          │                    │
+  .                              │                                       │   LLM evaluation   │
+  .                   ◄──────────┼                                ┌──────┼ with server-client │
+  .                              │      ┌────────────────────┐  model    │      approach      │
+                                 │      │                    │  serving  │                    │
+                                 │      │ NeMo Export-Deploy │    │      └────────────────────┘
+┌──────────────────────┐         │      │ ================== │    │
+|                      │         │      │                    │    │
+│        garak         ◄─────────┘      │  model deployment  ◄────┘
+│                      │                │  for NeMo and HF   │
+└──────────────────────┘                │                    │
+                                        └────────────────────┘
+
+
 ## Add New Evaluation Frameworks
 The NeMo Framework Docker image comes with [nvidia-lm-eval](https://pypi.org/project/nvidia-lm-eval/) pre-installed.
 However, you can add more evaluation methods by installing additional NVIDIA Eval Factory packages.
