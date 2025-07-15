@@ -33,6 +33,8 @@
 
 ### Using pip
 
+For quick exploration of NeMo Eval, we recommend installing our pip package:
+
 ```bash
 pip install nemo-eval
 ```
