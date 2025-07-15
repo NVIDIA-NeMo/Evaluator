@@ -96,12 +96,12 @@ test = ["pytest", "pytest-mock", "coverage", "click", "pytest-httpserver"]
 nemo-legacy = [
     "nemo-toolkit[automodel,common-only,nlp-only,eval,multimodal-only]",
 ]
-megatron-hub-pre = ["megatron-hub"]
+megatron-bridge-pre = ["megatron-bridge"]
 nemo-export-deploy-pre = ["nemo-export-deploy"]
 
 [tool.uv.sources]
 # Remove this
-megatron-hub = { git = "https://github.com/NVIDIA-NeMo/Megatron-Hub.git", rev = "cc2a60c3be11549f070fe1d7b6324a3dae51c6e0" }
+megatron-bridge = { git = "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git", rev = "cc2a60c3be11549f070fe1d7b6324a3dae51c6e0" }
 nemo-toolkit = { git = "https://github.com/NVIDIA/NeMo.git", rev = "5e63ca3c1631bb156187705f9c4cf643a67f9c05" }
 megatron-core = { git = "https://github.com/NVIDIA/Megatron-LM.git", rev = "7b296e0553ec19723d77a2310cb9808ab373eb2a" }
 nemo-export-deploy = { git = "https://github.com/NVIDIA-NeMo/Export-Deploy.git", rev = "b2c0f1912cb69ed9e843e5a6299c1ea53b6d5aee" }
@@ -120,7 +120,7 @@ default-groups = ["linting", "build", "test"]
 link-mode = "copy"
 override-dependencies = [
     "urllib3>1.27.0",
-    "tiktoken>=0.9.0", # because nemo-toolkit and megatron-hub disagree on tiktoken, we need to pin it here,
+    "tiktoken>=0.9.0", # because nemo-toolkit and megatron-bridge disagree on tiktoken, we need to pin it here,
 ]
 prerelease = "allow"
 
