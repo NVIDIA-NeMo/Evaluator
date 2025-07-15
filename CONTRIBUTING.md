@@ -64,6 +64,56 @@ git commit -m "build: Adding dependencies"
 git push
 ```
 
+## Development Setup
+
+1. Fork or clone the repository
+2. Create a feature branch
+3. Install development dependencies [using uv](#local-workstation) or [using pip](https://github.com/NVIDIA-NeMo/Eval/blob/main/README.md#using-pip) if outside of [docker](#alternative-development-container)
+4. Run pre-commit hooks:
+   ```bash
+   pre-commit install
+   ```
+5. Make your changes and add tests
+6. Submit a pull request
+
+### Testing
+
+#### Running Tests
+
+```bash
+# Run all tests
+pytest tests
+
+# Run unit tests only
+pytest tests/unit_tests/
+
+# Run functional tests only
+pytest tests/functional_tests/
+
+# Run with coverage
+pytest --cov=nemo_eval tests
+```
+
+#### Test Scripts
+
+```bash
+# Unit tests on CPU
+bash tests/unit_tests/L0_Unit_Tests_CPU.sh
+
+# Unit tests on GPU
+bash tests/unit_tests/L0_Unit_Tests_GPU.sh
+
+# Functional tests on GPU
+bash tests/functional_tests/L2_Functional_Tests_GPU.sh
+```
+
+#### Testing Guidelines
+
+- Write unit tests and functional tests for new functionality
+- Ensure all tests pass before submitting
+- Add integration tests for complex features
+- Follow existing test patterns
+
 ### 🧹 Linting and Formatting
 
 We use [ruff](https://docs.astral.sh/ruff/) for linting and formatting. CI does not auto-fix linting and formatting issues, but most issues can be fixed by running the following command:
@@ -157,63 +207,5 @@ uv run --only-group docs sphinx-autobuild . _build/html
       this project or the open source license(s) involved.
   ```
 
-## Development Setup
 
-1. Fork the repository
-2. Create a feature branch
-3. Install development dependencies:
-   ```bash
-   pip install -e ".[dev,test]"
-   ```
-4. Run pre-commit hooks:
-   ```bash
-   pre-commit install
-   ```
-5. Make your changes and add tests
-6. Submit a pull request
 
-## Testing
-
-### Running Tests
-
-```bash
-# Run all tests
-pytest tests
-
-# Run unit tests only
-pytest tests/unit_tests/
-
-# Run functional tests only
-pytest tests/functional_tests/
-
-# Run with coverage
-pytest --cov=nemo_eval tests
-```
-
-### Test Scripts
-
-```bash
-# Unit tests on CPU
-bash tests/unit_tests/L0_Unit_Tests_CPU.sh
-
-# Unit tests on GPU
-bash tests/unit_tests/L0_Unit_Tests_GPU.sh
-
-# Functional tests on GPU
-bash tests/functional_tests/L2_Functional_Tests_GPU.sh
-```
-
-### Testing Guidelines
-
-- Write unit tests for new functionality
-- Ensure all tests pass before submitting
-- Add integration tests for complex features
-- Follow existing test patterns
-
-## Code Style
-
-We use:
-- **Black** for code formatting
-- **Ruff** for linting
-- **MyPy** for type checking
-- **Pre-commit** for automated checks
