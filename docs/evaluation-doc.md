@@ -41,7 +41,7 @@ The evaluation process employs a server-client approach, comprising two main pha
 - **Phase 1: Model Deployment**
     - Deployment via PyTriton: NeMo FW checkpoint is deployed in-framework on a PyTriton server by exposing OpenAI API (OAI) compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed, enabling evaluation on both completion and chat benchmarks.
     - Deployment via Ray: NeMo FW checkpoint can also be deployed in-framework on a Ray server. Ray serve provides support for multi instance evaluation along with OpenAI API (OAI) compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed. For more details on evaluations with Ray serve refer
-    to ["Multi instance evaluations with Ray"](evaluation-with-ray.md).
+    to ["Multi instance evaluations with Ray Serve"](evaluation-with-ray.md).
 
 - **Phase 2: Model Evaluation**
     - Involves running the evaluation on the model using the OAI endpoint and port.

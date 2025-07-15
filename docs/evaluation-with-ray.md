@@ -1,8 +1,12 @@
 # Multi-instance evaluations with Ray Serve
 
-This guide explains how to deploy and evaluate NeMo FW models (trained via megatron-core backend) using Ray Serve for multi-instance evaluations. Deployment with Ray Serve provides support for multiple replicas of your model across available GPUs, enabling higher throughput and better resource utilization during evaluation. This approach is particularly beneficial for evaluation scenarios where you need to process large datasets efficiently or want to accelerate evaluation.
+This guide explains how to deploy and evaluate NeMo FW models (trained via megatron-core backend) using Ray Serve for multi-instance evaluations.
 
-> **Note:** Multi-instance evaluation with Ray is currently supported only on single-node deployments. Support for multi-node deployments will be added in upcoming releases.
+## Introduction
+
+Deployment with Ray Serve provides support for multiple replicas of your model across available GPUs, enabling higher throughput and better resource utilization during evaluation. This approach is particularly beneficial for evaluation scenarios where you need to process large datasets efficiently and would like to accelerate evaluation.
+
+> **Note:** Multi-instance evaluation with Ray is currently supported only on single-node with model parallelism. Support for multi-node will be added in upcoming releases.
 
 ### Key Benefits of Ray Deployment
 
@@ -10,7 +14,6 @@ This guide explains how to deploy and evaluate NeMo FW models (trained via megat
 - **Automatic Load Balancing**: Ray automatically distributes requests across available replicas
 - **Scalable Architecture**: Easily scale up or down based on your hardware resources
 - **Resource Optimization**: Better utilization of available GPUs
-- **Built-in Monitoring**: Access to Ray dashboard for monitoring deployment status
 
 ## Deployment Configuration for Ray
 
@@ -32,7 +35,7 @@ if __name__ == "__main__":
     )
 ```
 
-> **Note:** Adjust the `num_replicas` based on the number of instances/replicas needed. Ensure that total `num_gpus` is equal to the `num_replicas` times model parallelism configuration (i.e tensor_parallelism_size * pipeline_parallelism_size * context_parallel_size).
+> **Note:** Adjust `num_replicas` based on the number of instances/replicas needed. Ensure that total `num_gpus` is equal to the `num_replicas` times model parallelism configuration (i.e tensor_parallelism_size * pipeline_parallelism_size * context_parallel_size).
 
 
 ## Evaluation Configuration for Ray

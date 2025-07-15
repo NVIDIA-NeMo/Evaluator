@@ -10,6 +10,7 @@ evaluation-doc.md
 ```{toctree}
 :caption: Advanced
 
+evaluation-with-ray.md
 evaluation-adapters.md
 logprobs.md
 custom-task.md
