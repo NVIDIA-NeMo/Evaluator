@@ -2,6 +2,8 @@
 
 This guide explains how to extend the NeMo evaluation environment by adding optional NVIDIA Eval Factory packages. It walks through installation, setup, and execution steps for various packages such as BFCL, garak, BigCode, simple-evals, and safety-harness, each enabling specialized model assessments.
 
+The following diagram illustrates the architecture of the Eval ecosystem, showing how different evaluation harnesses integrate with NeMo Eval components:
+
 ```
 ┌──────────────────────┐
 │                      │

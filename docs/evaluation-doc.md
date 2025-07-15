@@ -39,7 +39,9 @@ This will return a dictionary with eval packages as keys, and list of available 
 
 The evaluation process employs a server-client approach, comprising two main phases. 
 - **Phase 1: Model Deployment**
-    - NeMo checkpoint is deployed in-framework on a PyTriton server by exposing OpenAI API (OAI) compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed, enabling evaluation on both completion and chat benchmarks.
+    - Deployment via PyTriton: NeMo FW checkpoint is deployed in-framework on a PyTriton server by exposing OpenAI API (OAI) compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed, enabling evaluation on both completion and chat benchmarks.
+    - Deployment via Ray: NeMo FW checkpoint can also be deployed in-framework on a Ray server. Ray serve provides support for multi instance evaluation along with OpenAI API (OAI) compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed. For more details on evaluations with Ray serve refer
+    to ["Multi instance evaluations with Ray"](evaluation-with-ray.md).
 
 - **Phase 2: Model Evaluation**
     - Involves running the evaluation on the model using the OAI endpoint and port.
@@ -104,6 +106,7 @@ if __name__ == "__main__":
         nemo_checkpoint='/workspace/llama3_8b_nemo2',
         max_input_len=4096,
         max_batch_size=4,
+        fastapi_port=8080,
         num_gpus=1,)
 ```
 
@@ -113,7 +116,11 @@ The entry point for evaluation is the `evaluate` method defined in `nemo_eval/ap
 from nemo_eval.api import evaluate
 from nemo_eval.utils.api import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
 
-api_endpoint = ApiEndpoint()
+# Configure the evaluation target
+api_endpoint = ApiEndpoint(
+    url="http://0.0.0.0:8080/v1/completions/",
+    type="completions"
+)
 eval_target = EvaluationTarget(api_endpoint=api_endpoint)
 eval_params = ConfigParams(top_p=1, temperature=1, limit_samples=2, parallelism=1)
 eval_config = EvaluationConfig(type='mmlu', params=eval_params)
@@ -121,6 +128,8 @@ eval_config = EvaluationConfig(type='mmlu', params=eval_params)
 if __name__ == "__main__":
     evaluate(target_cfg=eval_target, eval_cfg=eval_config)
 ```
+
+> **Note:** For evaluating the chat endpoint, replace `/v1/completions/` with `/v1/chat/completions/` in the `url` and update the `type` as `chat` in `ApiEndpoint`. Also update `type` in `EvaluationConfig` to be a chat benchmark. Available chat benchmarks are listed in the [Introduction](#introduction) section above.
 
 > **Note:** Please refer to `deploy` and `evaluate` method in `nemo_eval/api.py` to review all available argument options, as the provided commands are only examples and do not include all arguments or their default values. For more detailed information on the arguments used in the ApiEndpoint and ConfigParams classes for evaluation, see the source code at [nemo_eval/utils/api.py](https://github.com/NVIDIA-NeMo/Eval/blob/main/src/nemo_eval/utils/api.py).
 
