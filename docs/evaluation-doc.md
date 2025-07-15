@@ -7,19 +7,33 @@ In this section we will focus on benchmarks in `lm-evaluation-harness` that use 
 In such approach the model is presented with a question it needs to answer, an instruction it should follow, or a text that it should continue.
 Then the model's answer is evaluated for its correctness.
 
-Supported benchmarks include:
-
-- GPQA
-- GSM8K
-- IFEval
-- MGSM
-- MMLU
-- MMLU-Pro
-- MMLU-Redux
-- Wikilingua
-
 An alternative approach to LLM evaluation utilizes **log-probabilities**.
 To learn more please refer to ["Evaluate LLMs Using Log-Probabilities"](logprobs.md)
+
+Use `list_available_evaluations` function to list the evaluation configs available in your evironment:
+
+```python
+from nemo_eval.utils.base import list_available_evaluations
+
+list_available_evaluations()
+```
+
+This will return a dictionary with eval packages as keys, and list of available configs as values:
+
+```
+{'core_evals.lm_evaluation_harness': ['mmlu',
+  'mmlu_instruct',
+  'mmlu_cot_0_shot_chat',
+  'ifeval',
+  'mmlu_pro',
+  'mmlu_pro_instruct',
+  'mmlu_redux',
+  ...
+  'bbq',
+  'arc_multilingual',
+  'hellaswag_multilingual',
+  'mmlu_prox']}
+```
 
 ## Introduction
 
@@ -32,7 +46,7 @@ The evaluation process employs a server-client approach, comprising two main pha
 
 > **Note:** Some of the benchmarks (e.g. GPQA) use a gated dataset. To use them, you must authenticate to the [Hugging Face Hub](https://huggingface.co/docs/huggingface_hub/quick-start#authentication) before launching the evaluation.
 
-The [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo) includes [`nvidia-lm-eval`](https://pypi.org/project/nvidia-lm-eval/) pre-installed. `nvidia-lm-eval` contains predefined configurations of the below benchmarks for evaluating the completions endpoint:
+The [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo) includes [`nvidia-lm-eval`](https://pypi.org/project/nvidia-lm-eval/) pre-installed. `nvidia-lm-eval` contains predefined configurations for evaluating the completions endpoint, e.g.:
 
 - `gsm8k`
 - `mgsm`
@@ -40,7 +54,7 @@ The [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/contai
 - `mmlu_pro`
 - `mmlu_redux`
 
-It also provides predefined configurations of the below benchmarks for evaluating the chat endpoint:
+It also provides predefined configurations for evaluating the chat endpoint, e.g.:
 
 - `gpqa_diamond_cot`
 - `gsm8k_cot_instruct`
