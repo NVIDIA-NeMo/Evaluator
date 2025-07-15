@@ -42,40 +42,19 @@
 pip install nemo-eval
 ```
 
-### Using uv
-
-```bash
-# Install uv if you haven't already
-pip install uv
-
-# Install nemo-eval
-uv pip install nemo-eval
-```
-
-### From Source
-
-```bash
-git clone https://github.com/NVIDIA-NeMo/Eval.git
-cd Eval
-pip install -e .
-```
-
-### From Source with uv
-
-```bash
-git clone https://github.com/NVIDIA-NeMo/Eval.git
-cd Eval
-uv sync
-```
-
 ### Using Docker
 
-The recommended approach is to use the NeMo Framework container:
+Best experience and highest performance is guaranteed by the [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags). Please fetch the most recent $TAG and run the following command to start a container:
 
 ```bash
-docker pull nvcr.io/nvidia/nemo:25.07
-docker run --gpus all -it --rm -v $(pwd):/workspace nvcr.io/nvidia/nemo:25.07
+docker run --rm -it -w /workdir -v $(pwd):/workdir \
+  --entrypoint bash \
+  --gpus all \
+  nvcr.io/nvidia/nemo:${TAG}
 ```
+### uv
+
+For installing Eval with uv, please refer to our [Contribution guide](https://github.com/NVIDIA-NeMo/Eval/blob/main/CONTRIBUTING.md)
 
 ## 🚀 Quick Start
 
@@ -135,43 +114,12 @@ print(results)
 - **NVIDIA Eval Factory**: Standardized benchmark evaluation with eval packages from NVIDIA Eval Factory that are installed in the NeMo Framework container. lm-evaluation-harness is installed inside the NeMo Framework container by default while the rest from the [support matrix](#-support-matrix) can be installed on-demand. More details in the [docs](https://github.com/NVIDIA-NeMo/Eval/tree/main/docs).
 
 - **Adapter System**: Flexible request/response processing pipeline with **Interceptors** that provide modular processing
-
-```
-┌───────────────────────┐
-│  NVIDIA Eval Factory  │
-└───▲──────┬────────────┘
-    │      │
-    │      │
-┌───┼──────┼──────────────────────────────────────────────────┐
-│   │      ▼                                                  │
-│ AdapterServer (@ localhost:<free port>)                     │
-│                                                             │
-│   ▲      │       chain of RequestInterceptors:              │
-│   │      │       flask.Request                              │
-│   │      │       is passed on the way up                    │
-│   │      │                                                  │
-│   │ ┌────▼───────────────────────────────────────────────┐  │
-│   │ │intcptr_1─────►intcptr_2───►...───►intcptr_N────────┼──┼───►  │
-│   │ └─────────────────────┼──────────────────────────────┘  │   │
-│   │                       │                                 │   │
-│   │                       └─────────────┐                   │   │
-│   │                                     │                   │   │
-│ ┌─┼─────────────────────────────────────▼────┐              │   │
-│ │intcptr'_M◄──intcptr'_2◄──...◄───intcptr'_1 ◄──────────────┼───┤  │
-│ └────────────────────────────────────────────┘              │   │
-│                                                             │   │
-│              Chain of ResponseInterceptors:                 │   │
-│              requests.Response is passed on the way down    │   │
-│                                                             │   │
-└─────────────────────────────────────────────────────────────┘
-```
-
-- **Available Interceptors**: Modular components for request/response processing
-  - **SystemMessageInterceptor**: Customize system prompts
-  - **RequestLoggingInterceptor**: Log incoming requests
-  - **ResponseLoggingInterceptor**: Log outgoing responses
-  - **ResponseReasoningInterceptor**: Process reasoning outputs
-  - **EndpointInterceptor**: Route requests to the actual model
+    - **Available Interceptors**: Modular components for request/response processing
+        - **SystemMessageInterceptor**: Customize system prompts
+        - **RequestLoggingInterceptor**: Log incoming requests
+        - **ResponseLoggingInterceptor**: Log outgoing responses
+        - **ResponseReasoningInterceptor**: Process reasoning outputs
+        - **EndpointInterceptor**: Route requests to the actual model
 
 ## 📖 Usage Examples
 
