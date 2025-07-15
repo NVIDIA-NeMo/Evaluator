@@ -4,6 +4,8 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://github.com/NVIDIA-NeMo/Eval/blob/main/pyproject.toml)
 [![NVIDIA](https://img.shields.io/badge/NVIDIA-NeMo-red.svg)](https://github.com/NVIDIA-NeMo/)
 
+## Overview
+
 **NeMo Eval** is a comprehensive evaluation module under Nemo Framework for Large Language Models (LLMs). It provides seamless deployment and evaluation capabilities for models trained using Nemo Framework via state-of-the-art evaluation harnesses.
 
 ## 🚀 Features
@@ -14,19 +16,6 @@
 - **Production Ready**: Optimized for high-performance inference with CUDA graphs and flash decoding
 - **Multi-GPU & Multi-Node Support**: Distributed inference across multiple devices and nodes
 - **OpenAI-Compatible API**: RESTful endpoints compatible with OpenAI API standards
-
-## 📋 Table of Contents
-
-- [Installation](#-installation)
-- [Quick Start](#-quick-start)
-- [Support Matrix](#-support-matrix)
-- [Architecture](#-architecture)
-- [Usage Examples](#-usage-examples)
-- [Project Structure](#-project-structure)
-- [Contributing](#-contributing)
-- [License](#-license)
-- [Support](#-support)
-- [Related Projects](#-related-projects)
 
 ## 🔧 Installation
 
@@ -126,11 +115,7 @@ print(results)
 ### Basic Deployment with PyTriton as the serving backend
 
 ```python
-import logging
 from nemo_eval.api import deploy
-
-# Set up logging
-logging.getLogger().setLevel(logging.INFO)
 
 # Deploy model
 deploy(
