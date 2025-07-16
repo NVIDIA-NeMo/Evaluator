@@ -15,7 +15,7 @@ Deployment with Ray Serve provides support for multiple replicas of your model a
 - **Scalable Architecture**: Easily scale up or down based on your hardware resources.
 - **Resource Optimization**: Better utilization of available GPUs.
 
-## Deployment Configuration for Ray
+## Deploy Models Using Ray Serve
 
 To deploy your model using Ray, use the `deploy` function with `serving_backend="ray"`:
 
