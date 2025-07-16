@@ -66,6 +66,6 @@ eval_config = EvaluationConfig(type='mmlu', params=eval_params)
 if __name__ == "__main__":
     evaluate(target_cfg=eval_target, eval_cfg=eval_config)
 ```
-> **Note:** For evaluating the chat endpoint, replace `/v1/completions/` with `/v1/chat/completions/` in the `url` and update the `type` in `ApiEndpoint` as `chat`. Also update `type` in `EvaluationConfig` to be a chat benchmark. Available chat benchmarks are listed in the ["Evaluate checkpoints trained by NeMo Framework"](evaluation-doc.md#introduction) page.
+> **Note:** To evaluate the chat endpoint, update the url by replacing `/v1/completions/` with `/v1/chat/completions/`. Additionally, set the `type` field to chat in both `ApiEndpoint` and `EvaluationConfig` to indicate a chat benchmark. A list of available chat benchmarks can be found in the  ["Evaluate checkpoints trained by NeMo Framework"](evaluation-doc.md#introduction) page.
 
 > **Tip:** Speed up with multiple replicas is not observed if `parallelism=1` in the `EvaluationConfig`. Please increase the `parallelism` to a higher value like 4 or 8 to see performance benefit from using multiple replicas with Ray.
