@@ -31,7 +31,7 @@ if __name__ == "__main__":
         tensor_parallelism_size=2,     # Tensor parallelism per replica
         pipeline_parallelism_size=1,   # Pipeline parallelism per replica
         context_parallel_size=1,       # Context parallelism per replica
-        server_port=8000,              # Ray server port
+        server_port=8080,              # Ray server port
     )
 ```
 
@@ -48,7 +48,7 @@ from nemo_eval.utils.api import EvaluationConfig, ApiEndpoint, EvaluationTarget,
 
 # Configure the evaluation target
 api_endpoint = ApiEndpoint(
-    url="http://0.0.0.0:8000/v1/completions/",
+    url="http://0.0.0.0:8080/v1/completions/",
     type="completions"
 )
 eval_target = EvaluationTarget(api_endpoint=api_endpoint)

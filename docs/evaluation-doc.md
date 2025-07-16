@@ -106,7 +106,7 @@ if __name__ == "__main__":
         nemo_checkpoint='/workspace/llama3_8b_nemo2',
         max_input_len=4096,
         max_batch_size=4,
-        fastapi_port=8080,
+        server_port=8080,
         num_gpus=1,)
 ```
 
