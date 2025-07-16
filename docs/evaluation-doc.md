@@ -1,4 +1,4 @@
-# Evaluate checkpoints trained by NeMo Framework
+# Evaluate Checkpoints Trained by NeMo Framework
 
 This guide provides detailed instructions on evaluating checkpoints trained by NeMo Framework via the megatron-core backend. This section in particular focuses on using [nvidia-lm-eval](https://pypi.org/project/nvidia-lm-eval/) for evaluation, which is a wrapper around [
 lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness/tree/main).
