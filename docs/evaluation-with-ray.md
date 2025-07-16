@@ -68,4 +68,4 @@ if __name__ == "__main__":
 ```
 > **Note:** To evaluate the chat endpoint, update the url by replacing `/v1/completions/` with `/v1/chat/completions/`. Additionally, set the `type` field to chat in both `ApiEndpoint` and `EvaluationConfig` to indicate a chat benchmark. A list of available chat benchmarks can be found in the  ["Evaluate checkpoints trained by NeMo Framework"](evaluation-doc.md#introduction) page.
 
-> **Tip:** Speed up with multiple replicas is not observed if `parallelism=1` in the `EvaluationConfig`. Please increase the `parallelism` to a higher value like 4 or 8 to see performance benefit from using multiple replicas with Ray.
+> **Tip:** To get a performance boost from multiple replicas in Ray, increase the parallelism value in your `EvaluationConfig`. You won't see any speed improvement if  `parallelism=1`. Try setting it to a higher value, such as 4 or 8.
