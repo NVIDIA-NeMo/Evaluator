@@ -38,7 +38,7 @@ if __name__ == "__main__":
 > **Note:** Adjust `num_replicas` based on the number of instances/replicas needed. Ensure that total `num_gpus` is equal to the `num_replicas` times model parallelism configuration (i.e `tensor_parallelism_size * pipeline_parallelism_size * context_parallel_size`).
 
 
-## Evaluation Configuration for Ray
+## Run Evaluations on Ray-Deployed Models
 
 Once your model is deployed with Ray, you can run evaluations using the same evaluation API as with PyTriton deployment:
 
