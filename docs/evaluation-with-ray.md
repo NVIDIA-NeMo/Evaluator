@@ -10,10 +10,10 @@ Deployment with Ray Serve provides support for multiple replicas of your model a
 
 ### Key Benefits of Ray Deployment
 
-- **Multiple Model Replicas**: Deploy multiple instances of your model to handle concurrent requests
-- **Automatic Load Balancing**: Ray automatically distributes requests across available replicas
-- **Scalable Architecture**: Easily scale up or down based on your hardware resources
-- **Resource Optimization**: Better utilization of available GPUs
+- **Multiple Model Replicas**: Deploy multiple instances of your model to handle concurrent requests.
+- **Automatic Load Balancing**: Ray automatically distributes requests across available replicas.
+- **Scalable Architecture**: Easily scale up or down based on your hardware resources.
+- **Resource Optimization**: Better utilization of available GPUs.
 
 ## Deployment Configuration for Ray
 
