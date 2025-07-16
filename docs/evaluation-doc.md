@@ -8,7 +8,7 @@ In such approach the model is presented with a question it needs to answer, an i
 Then the model's answer is evaluated for its correctness.
 
 An alternative approach to LLM evaluation utilizes **log-probabilities**.
-To learn more please refer to ["Evaluate LLMs Using Log-Probabilities"](logprobs.md)
+To learn more please refer to ["Evaluate LLMs Using Log-Probabilities"](logprobs.md).
 
 Use `list_available_evaluations` function to list the evaluation configs available in your evironment:
 
