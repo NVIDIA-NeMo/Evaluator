@@ -3,7 +3,7 @@
 This guide provides step-by-step instructions for evaluating checkpoints trained using the NeMo Framework with the Megatron-Core backend.  This section specifically covers evaluation with [nvidia-lm-eval](https://pypi.org/project/nvidia-lm-eval/), a wrapper around the [
 lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness/tree/main) tool.
 
-In this section we will focus on benchmarks in `lm-evaluation-harness` that use **generation**.
+Here, we focus on benchmarks in the `lm-evaluation-harness` that rely on text generation.
 In such approach the model is presented with a question it needs to answer, an instruction it should follow, or a text that it should continue.
 Then the model's answer is evaluated for its correctness.
 
