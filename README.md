@@ -64,8 +64,7 @@ from nemo_eval.api import deploy
 deploy(
     nemo_checkpoint="/path/to/your/checkpoint",
     serving_backend="pytriton",  # or "ray"
-    server_port=8000,
-    fastapi_port=8080,
+    server_port=8080,
     num_gpus=1,
     max_input_len=4096,
     max_batch_size=8
@@ -129,8 +128,7 @@ from nemo_eval.api import deploy
 deploy(
     nemo_checkpoint="/path/to/checkpoint",
     serving_backend="pytriton",
-    server_port=8000,
-    fastapi_port=8080,
+    server_port=8080,
     num_gpus=1,
     max_input_len=8192,
     max_batch_size=4
@@ -208,7 +206,7 @@ deploy(
     num_gpus=2,
     num_replicas=2,
     num_cpus_per_replica=8,
-    server_port=8000,
+    server_port=8080,
     include_dashboard=True,
     cuda_visible_devices="0,1"
 )
@@ -251,7 +249,7 @@ This project is licensed under the Apache License 2.0. See the [LICENSE](https:/
 
 - **Issues**: [GitHub Issues](https://github.com/NVIDIA-NeMo/Eval/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/NVIDIA-NeMo/Eval/discussions)
-- **Documentation**: [NeMo Documentation](https://github.com/NVIDIA-NeMo/Eval/tree/main/docs)
+- **Documentation**: [NeMo Documentation](https://nemo-framework-documentation.gitlab-master-pages.nvidia.com/eval-build/)
 
 ## 🔗 Related Projects
 
