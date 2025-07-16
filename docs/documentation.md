@@ -1,6 +1,6 @@
 #  Build and Test the Documentation
 
-This guide provides instructions for contributing to the NeMo-Eval documentation. It covers the essential steps for building the documentation locally, serving it with a live-reloading server for easier editing, and running tests embedded within Python docstrings to ensure all code examples are accurate.
+This guide provides instructions for contributing to the NeMo Eval documentation. It covers the essential steps for building the documentation locally, serving it with a live-reloading server for easier editing, and running tests embedded within Python docstrings to ensure all code examples are accurate.
 
 ## Build the Documentation
 
