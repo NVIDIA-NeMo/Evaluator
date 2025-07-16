@@ -4,7 +4,7 @@ This guide provides instructions for contributing to the NeMo Eval documentation
 
 ## Build the Documentation
 
-The following sections describe how to set up and build the NeMo-Eval documentation.
+The following sections describe how to set up and build the NeMo Eval documentation.
 
 Switch to the documentation source folder and generate the HTML output.
 
