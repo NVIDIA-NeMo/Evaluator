@@ -1,6 +1,6 @@
 # Use Ray Serve for Multi-Instance Evaluations
 
-This guide explains how to deploy and evaluate NeMo FW models (trained via megatron-core backend) using Ray Serve for multi-instance evaluations.
+This guide explains how to deploy and evaluate NeMo Framework models, trained with the Megatron-Core backend, using Ray Serve to enable multi-instance evaluation across available GPUs.
 
 ## Introduction
 

@@ -4,8 +4,7 @@ This guide provides step-by-step instructions for evaluating checkpoints trained
 lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness/tree/main) tool.
 
 Here, we focus on benchmarks in the `lm-evaluation-harness` that rely on text generation.
-In such approach the model is presented with a question it needs to answer, an instruction it should follow, or a text that it should continue.
-Then the model's answer is evaluated for its correctness.
+In this approach, the model is given a prompt such as a question to answer, an instruction to follow, or a text to continue, and its response is then evaluated for correctness.
 
 An alternative approach to LLM evaluation utilizes **log-probabilities**.
 To learn more please refer to ["Evaluate LLMs Using Log-Probabilities"](logprobs.md).
