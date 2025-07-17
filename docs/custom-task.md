@@ -8,7 +8,7 @@ To do so, you must specify your tasks as `"<harness name>.<task name>"`, where t
 In case of `nvidia-lm-eval`, it is a wrapper for [`lm-evaluation-harness`](https://github.com/EleutherAI/lm-evaluation-harness/).
 
 Please note that when launching custom tasks, the default settings may not be optimal. You must manually provide the recommended configuration (e.g., few-shot settings). Additionally, you need to determine which endpoint type is appropriate for the task. 
-Please refer to ["Evaluate NeMo 2.0 Checkpoints"](evaluation-doc.md#introduction) for more information on different endpoint types.
+Please refer to ["Deploy and Evaluate NeMo Checkpoints"](evaluation-doc.md#deploy-and-evaluate-nemo-checkpoints) for more information on different endpoint types.
 
 
 ## Evaluate a NeMo Checkpoint with lambada_openai

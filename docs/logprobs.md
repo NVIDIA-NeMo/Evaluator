@@ -18,7 +18,7 @@ The instructions provided in this example apply to all `nvidia-lm-eval` tasks ut
 * `winogrande`
 
 Please note that all benchmarks that use log-probabilities require a "completions" endpoint.
-Please refer to ["Evaluate NeMo 2.0 Checkpoints"](evaluation-doc.md#introduction) for more information on different endpoint types.
+Please refer to ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md#evaluate-checkpoints-trained-by-nemo-framework) for more information on different endpoint types.
 
 ## Introduction
 
