@@ -15,5 +15,14 @@
 #!/bin/bash
 set -xeuo pipefail # Exit immediately if a command exits with a non-zero status
 
-CUDA_VISIBLE_DEVICES="0,1" coverage run --data-file=/workspace/.coverage --source=/workspace/src/nemo_eval/ -m pytest tests/unit_tests -m "not pleasefixme" --with_downloads
+export CUDA_VISIBLE_DEVICES="0,1"
+
+coverage run \
+    --data-file=/workspace/.coverage \
+    --source=/workspace/src/nemo_eval/ \
+    -m pytest \
+    -o log_cli=true \
+    -o log_cli_level=INFO \
+    -m "not pleasefixme" \
+    tests/unit_tests
 coverage combine
