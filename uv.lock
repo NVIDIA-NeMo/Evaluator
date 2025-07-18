@@ -392,8 +392,8 @@ name = "bitsandbytes"
 version = "0.45.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "numpy" },
-    { name = "torch" },
+    { name = "numpy", marker = "(platform_machine != 'aarch64' and sys_platform != 'darwin') or sys_platform == 'linux' or sys_platform == 'win32'" },
+    { name = "torch", marker = "(platform_machine != 'aarch64' and sys_platform != 'darwin') or sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/07/b7/cb5ce4d1a382cf53c19ef06c5fc29e85f5e129b4da6527dd207d90a5b8ad/bitsandbytes-0.45.5-py3-none-manylinux_2_24_x86_64.whl", hash = "sha256:a5453f30cc6aab6ccaac364e6bf51a7808d3da5f71763dffeb6d9694c59136e4", size = 76059261, upload-time = "2025-04-07T13:32:52.573Z" },
@@ -1054,7 +1054,7 @@ name = "decord"
 version = "0.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "numpy" },
+    { name = "numpy", marker = "(platform_machine != 'aarch64' and sys_platform != 'darwin') or sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/11/79/936af42edf90a7bd4e41a6cac89c913d4b47fa48a26b042d5129a9242ee3/decord-0.6.0-py3-none-manylinux2010_x86_64.whl", hash = "sha256:51997f20be8958e23b7c4061ba45d0efcd86bffd5fe81c695d0befee0d442976", size = 13602299, upload-time = "2021-06-14T21:30:55.486Z" },
@@ -2937,7 +2937,7 @@ wheels = [
 [[package]]
 name = "megatron-bridge"
 version = "0.2.0rc0"
-source = { git = "https://github.com/NVIDIA-NeMo/Megatron-Hub.git?rev=9e8c78c64f0396cf921c9d10d0f87517fa51566d#9e8c78c64f0396cf921c9d10d0f87517fa51566d" }
+source = { git = "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git?rev=9e8c78c64f0396cf921c9d10d0f87517fa51566d#9e8c78c64f0396cf921c9d10d0f87517fa51566d" }
 dependencies = [
     { name = "accelerate" },
     { name = "datasets" },
@@ -3340,7 +3340,7 @@ docs = [
     { name = "sphinx-copybutton" },
 ]
 linting = [{ name = "ruff", specifier = "~=0.9.0" }]
-megatron-bridge-pre = [{ name = "megatron-bridge", git = "https://github.com/NVIDIA-NeMo/Megatron-Hub.git?rev=9e8c78c64f0396cf921c9d10d0f87517fa51566d" }]
+megatron-bridge-pre = [{ name = "megatron-bridge", git = "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git?rev=9e8c78c64f0396cf921c9d10d0f87517fa51566d" }]
 nemo-export-deploy-pre = [{ name = "nemo-export-deploy", git = "https://github.com/NVIDIA-NeMo/Export-Deploy.git?rev=0d0968fb5a599cc1b8192d289cedac56b8ddb2bb" }]
 nemo-legacy = [{ name = "nemo-toolkit", extras = ["automodel", "common-only", "nlp-only", "eval", "multimodal-only"], git = "https://github.com/NVIDIA/NeMo.git?rev=5e63ca3c1631bb156187705f9c4cf643a67f9c05" }]
 test = [
