@@ -3,7 +3,27 @@
 ```
 
 ```{toctree}
-:maxdepth: 2
+:caption: Basic Usage
+:hidden:
 
-apidocs/index
+evaluation-doc.md
+```
+
+```{toctree}
+:caption: Advanced
+:hidden:
+
+evaluation-with-ray.md
+evaluation-adapters.md
+logprobs.md
+custom-task.md
+optional-eval-package.md
+```
+
+```{toctree}
+:caption: Development
+:hidden:
+
+documentation.md
+apidocs/index.rst
 ```
