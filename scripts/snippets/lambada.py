@@ -42,3 +42,6 @@ eval_config = EvaluationConfig(
 
 
 results = evaluate(target_cfg=target_config, eval_cfg=eval_config)
+
+
+print(results)
