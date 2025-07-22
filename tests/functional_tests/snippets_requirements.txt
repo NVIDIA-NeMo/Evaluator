@@ -1,0 +1,7 @@
+# pinning versions as there are breaking changes coming it the following packages
+nvidia-bfcl<=25.7
+nvidia-bigcode-eval<=25.7
+nvidia-eval-factory-garak<=25.7
+nvidia-safety-harness<=25.7
+nvidia-simple-evals<=25.7
+replicate<2
