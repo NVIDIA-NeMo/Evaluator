@@ -92,6 +92,10 @@ main() {
             "--no-install-package" "nvidia-cusparselt-cu12"
             "--no-install-package" "nvidia-nccl-cu12"
         )
+    else
+        UV_ARGS=(
+            "--no-install-package" "nvidia-cudnn-cu12"
+        )
     fi
 
     if [[ "$INFERENCE_FRAMEWORK" != "inframework" ]]; then

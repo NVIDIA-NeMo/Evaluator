@@ -70,11 +70,14 @@ dependencies = [
     "nvidia-lm-eval",
     "uvicorn",
     "flask",
-    # "nemo-export-deploy"
+    "megatron-core>=0.13.0a0,<0.14.0",
+    "nvidia-modelopt[torch,onnx]>=0.31.0a0,<0.32.0; sys_platform != 'darwin'",
+    "nvidia-resiliency-ext>=0.3.0a0,<0.4.0; sys_platform != 'darwin'",
+    # "nemo-export-deploy
 ]
 
 [project.optional-dependencies]
-te = ["transformer-engine[pytorch]==2.2.0"]
+te = ["transformer-engine[pytorch]==2.5.0"]
 
 [project.urls]
 Download = "https://github.com/NVIDIA-NeMo/Eval/releases"
@@ -101,10 +104,9 @@ nemo-export-deploy-pre = ["nemo-export-deploy"]
 
 [tool.uv.sources]
 # Remove this
-megatron-bridge = { git = "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git", rev = "958fb9b7da4eb1506142a122965fa5424cfdc8a2" }
+megatron-bridge = { git = "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git", rev = "9e8c78c64f0396cf921c9d10d0f87517fa51566d" }
 nemo-toolkit = { git = "https://github.com/NVIDIA/NeMo.git", rev = "5e63ca3c1631bb156187705f9c4cf643a67f9c05" }
-megatron-core = { git = "https://github.com/NVIDIA/Megatron-LM.git", rev = "7b296e0553ec19723d77a2310cb9808ab373eb2a" }
-nemo-export-deploy = { git = "https://github.com/NVIDIA-NeMo/Export-Deploy.git", rev = "b2c0f1912cb69ed9e843e5a6299c1ea53b6d5aee" }
+nemo-export-deploy = { git = "https://github.com/NVIDIA-NeMo/Export-Deploy.git", rev = "0d0968fb5a599cc1b8192d289cedac56b8ddb2bb" }
 
 [tool.uv]
 # Currently, TE must be built with no build-isolation b/c it requires torch
@@ -120,7 +122,8 @@ default-groups = ["linting", "build", "test"]
 link-mode = "copy"
 override-dependencies = [
     "urllib3>1.27.0",
-    "tiktoken>=0.9.0", # because nemo-toolkit and megatron-bridge disagree on tiktoken, we need to pin it here,
+    "tiktoken>=0.9.0",  # because nemo-toolkit and megatron-bridge disagree on tiktoken, we need to pin it here,
+    "protobuf>=4.25.1",
 ]
 prerelease = "allow"
 

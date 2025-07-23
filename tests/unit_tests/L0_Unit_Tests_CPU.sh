@@ -11,5 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-CUDA_VISIBLE_DEVICES="" coverage run --data-file=/workspace/.coverage --source=/workspace/src/nemo_eval/ -m pytest tests/unit_tests -m "not pleasefixme" --cpu --with_downloads
+export CUDA_VISIBLE_DEVICES=""
+
+coverage run \
+    --data-file=/workspace/.coverage \
+    --source=/workspace/src/nemo_eval/ \
+    -m pytest \
+    -o log_cli=true \
+    -o log_cli_level=INFO \
+    -m "not pleasefixme" \
+    tests/unit_tests
 coverage combine
