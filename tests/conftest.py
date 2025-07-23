@@ -26,11 +26,6 @@ def pytest_addoption(parser):
     parser.addoption(
         "--cpu", action="store_true", help="pass that argument to use CPU during testing (DEFAULT: False = GPU)"
     )
-    parser.addoption(
-        "--with_downloads",
-        action="store_true",
-        help="pass this argument to active tests which download models from the cloud.",
-    )
 
 
 @pytest.fixture
@@ -48,16 +43,6 @@ def run_only_on_device_fixture(request, device):
     if request.node.get_closest_marker("run_only_on"):
         if request.node.get_closest_marker("run_only_on").args[0] != device:
             pytest.skip("skipped on this device: {}".format(device))
-
-
-@pytest.fixture(autouse=True)
-def downloads_weights(request, device):
-    """Fixture to validate if the with_downloads flag is passed if necessary"""
-    if request.node.get_closest_marker("with_downloads"):
-        if not request.config.getoption("--with_downloads"):
-            pytest.skip(
-                "To run this test, pass --with_downloads option. It will download (and cache) models from cloud."
-            )
 
 
 @pytest.fixture(autouse=True)
@@ -84,8 +69,4 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers",
         "run_only_on(device): runs the test only on a given device [CPU | GPU]",
-    )
-    config.addinivalue_line(
-        "markers",
-        "with_downloads: runs the test using data present in tests/.data",
     )
