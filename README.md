@@ -1,7 +1,6 @@
 <div align="center">
 
 # NeMo Eval
-# #TODO remove this line added to have a change for the PR)
 
 [![codecov](https://codecov.io/github/NVIDIA-NeMo/Eval/graph/badge.svg?token=4NMKZVOW2Z)](https://codecov.io/github/NVIDIA-NeMo/Eval)
 [![CICD NeMo](https://github.com/NVIDIA-NeMo/Eval/actions/workflows/cicd-main.yml/badge.svg)](https://github.com/NVIDIA-NeMo/Eval/actions/workflows/cicd-main.yml)
