@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://github.com/NVIDIA-NeMo/Eval/blob/main/pyproject.toml)
 [![NVIDIA](https://img.shields.io/badge/NVIDIA-NeMo-red.svg)](https://github.com/NVIDIA-NeMo/)
 
-[Documentation](https://nemo-framework-documentation.gitlab-master-pages.nvidia.com/eval-build/) | [Examples](#-usage-examples) | [Contributing](https://github.com/NVIDIA-NeMo/Eval/blob/main/CONTRIBUTING.md)
+[Documentation](https://docs.nvidia.com/nemo/eval/latest/index.html) | [Examples](https://github.com/NVIDIA-NeMo/Eval?tab=readme-ov-file#-usage-examples) | [Contributing](https://github.com/NVIDIA-NeMo/Eval/blob/main/CONTRIBUTING.md)
 </div>
 
 ## Overview
@@ -49,6 +49,7 @@ docker run --rm -it -w /workdir -v $(pwd):/workdir \
   --gpus all \
   nvcr.io/nvidia/nemo:${TAG}
 ```
+
 ### Use uv
 
 To install NeMo Eval with uv, please refer to our [Contribution guide](https://github.com/NVIDIA-NeMo/Eval/blob/main/CONTRIBUTING.md).
@@ -110,12 +111,12 @@ print(results)
 - **NVIDIA Eval Factory**: Provides standardized benchmark evaluations using packages from NVIDIA Eval Factory; bundled in the NeMo Framework container. The `lm-evaluation-harness` is pre-installed by default, while additional tools listed in the [support matrix](#-support-matrix) can be added as needed. For more information, see the [docs](https://github.com/NVIDIA-NeMo/Eval/tree/main/docs).
 
 - **Adapter System**: Flexible request/response processing pipeline with **Interceptors** that provide modular processing
-    - **Available Interceptors**: Modular components for request/response processing
-        - **SystemMessageInterceptor**: Customize system prompts
-        - **RequestLoggingInterceptor**: Log incoming requests
-        - **ResponseLoggingInterceptor**: Log outgoing responses
-        - **ResponseReasoningInterceptor**: Process reasoning outputs
-        - **EndpointInterceptor**: Route requests to the actual model
+  - **Available Interceptors**: Modular components for request/response processing
+    - **SystemMessageInterceptor**: Customize system prompts
+    - **RequestLoggingInterceptor**: Log incoming requests
+    - **ResponseLoggingInterceptor**: Log outgoing responses
+    - **ResponseReasoningInterceptor**: Process reasoning outputs
+    - **EndpointInterceptor**: Route requests to the actual model
 
 ## 📖 Usage Examples
 
