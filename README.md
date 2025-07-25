@@ -14,7 +14,7 @@
 
 NeMo Framework is NVIDIA's GPU accelerated, end-to-end training framework for large language models (LLMs), multi-modal models and speech models. It enables seamless scaling of training (both pretraining and post-training) workloads from single GPU to thousand-node clusters for both 🤗Hugging Face/PyTorch and Megatron models. It includes a suite of libraries and recipe collections to help users train models from end to end. The **Eval library ("NeMo Eval")** is a comprehensive evaluation module under NeMo Framework for Large Language Models (LLMs). It provides seamless deployment and evaluation capabilities for models trained using NeMo Framework via state-of-the-art evaluation harnesses.
 
-![image](./NeMo_Repo_Overview.png)
+![image](./NeMo_Repo_Overview_Eval.png)
 
 ## 🚀 Features
 
