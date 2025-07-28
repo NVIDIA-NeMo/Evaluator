@@ -55,7 +55,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.TARGET_BRANCH }}
+          ref: ko3n1g/ci/dependabot-3 # ${{ env.TARGET_BRANCH }}
 
       - name: Build container
         env:
