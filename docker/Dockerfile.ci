@@ -19,6 +19,7 @@ ARG INFERENCE_FRAMEWORK
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 ENV UV_LINK_MODE=copy
+ENV HOME=/root
 ENV PATH="$HOME/.local/bin:$PATH"
 RUN --mount=type=secret,id=GH_TOKEN bash -ex <<"EOF"
     export PAT=$(cat /run/secrets/GH_TOKEN)
