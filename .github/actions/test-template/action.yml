@@ -77,6 +77,46 @@ runs:
       run: |
         az acr login --name nemoci
 
+    - name: Configure local file cache
+      shell: bash
+      if: ${{ inputs.has-azure-credentials == 'true' && inputs.is_unit_test == 'false' }}
+      env:
+        MNT_PATH: ${{ steps.azure-fileshare.outputs.MNT_PATH }}
+      run: |
+        set -x -e -u -o pipefail
+
+        sudo mkdir -p /var/cache/fscache
+        sudo chown root:root /var/cache/fscache
+        sudo chmod 700 /var/cache/fscache
+
+        sudo apt update
+        sudo apt install -y cachefilesd
+
+        # Fix the config file to have only one uncommented RUN=yes
+        sudo tee /etc/default/cachefilesd > /dev/null << EOF
+        # Defaults for cachefilesd initscript
+        RUN=yes
+        DAEMON_OPTS=""
+        EOF
+
+        # Enable and start the service
+        sudo systemctl enable cachefilesd
+        sudo systemctl start cachefilesd
+
+        # Check status
+        sudo systemctl status cachefilesd
+
+        # Enable cachefilesd
+        sudo sed -i 's/RUN=no/RUN=yes/' /etc/default/cachefilesd
+        cat /etc/default/cachefilesd
+        echo "RUN=yes" | sudo tee /etc/default/cachefilesd
+
+        # Restart the service
+        sudo systemctl restart cachefilesd
+
+        # Check status again
+        sudo systemctl status cachefilesd
+
     - name: Azure Fileshare
       if: ${{ inputs.has-azure-credentials == 'true' && inputs.is_unit_test == 'false' }}
       shell: bash
@@ -145,8 +185,15 @@ runs:
 
     - name: Start container
       shell: bash
+      env:
+        MNT_PATH: ${{ steps.azure-fileshare.outputs.MNT_PATH }}
+        MOUNT_FS: ${{ inputs.has-azure-credentials == 'true' && inputs.is_unit_test == 'false' }}
       run: |
-        MNT_PATH=${{ steps.azure-fileshare.outputs.mnt_path }}
+        if [[ "$MOUNT_FS" == "true" ]]; then
+          VOLUME_ARGS="--volume $MNT_PATH/TestData:/home/TestData"
+        else
+          VOLUME_ARGS=""
+        fi
 
         ARG=("")
         if [[ "${{ inputs.cpu-only }}" == "false" ]]; then
@@ -167,7 +214,7 @@ runs:
           --env RUN_ID=${{ github.run_id }} \
           --workdir /workspace \
           --volume $(pwd)/Eval:/workspace \
-          --volume $MNT_PATH/TestData:/home/TestData \
+          $VOLUME_ARGS \
           eval \
           bash -c "sleep $(( ${{ inputs.timeout }} * 60 + 60 ))"
         RUN_TEST_EOF
