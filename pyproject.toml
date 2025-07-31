@@ -73,7 +73,8 @@ dependencies = [
     "megatron-core>=0.13.0a0,<0.14.0",
     "nvidia-modelopt[torch,onnx]>=0.31.0a0,<0.32.0; sys_platform != 'darwin'",
     "nvidia-resiliency-ext>=0.3.0a0,<0.4.0; sys_platform != 'darwin'",
-    # "nemo-export-deploy
+    "nemo-export-deploy>=0.1.0a0,<0.2.0",
+    "pandas>2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -96,17 +97,15 @@ docs = [
 ]
 linting = ["ruff~=0.9.0"]
 test = ["pytest", "pytest-mock", "coverage", "click", "pytest-httpserver"]
-nemo-legacy = [
-    "nemo-toolkit[automodel,common-only,nlp-only,eval,multimodal-only]",
+nemo-toolkit = [
+    "nemo-toolkit[automodel,common-only,nlp-only,eval,multimodal-only]~=2.4.0",
 ]
-megatron-bridge-pre = ["megatron-bridge"]
-nemo-export-deploy-pre = ["nemo-export-deploy"]
+nemo-run = ["nemo-run"]
 
-[tool.uv.sources]
-# Remove this
-megatron-bridge = { git = "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git", rev = "9e8c78c64f0396cf921c9d10d0f87517fa51566d" }
-nemo-toolkit = { git = "https://github.com/NVIDIA/NeMo.git", rev = "5e63ca3c1631bb156187705f9c4cf643a67f9c05" }
-nemo-export-deploy = { git = "https://github.com/NVIDIA-NeMo/Export-Deploy.git", rev = "0d0968fb5a599cc1b8192d289cedac56b8ddb2bb" }
+# # uv.sources allows us to override dependencies with VCS commits. 
+# # Lets use this only for debugging purposes, but not for production (main).
+# [tool.uv.sources]
+# nemo-toolkit = { git = "https://github.com/NVIDIA/NeMo.git", rev = "5e63ca3c1631bb156187705f9c4cf643a67f9c05" }
 
 [tool.uv]
 # Currently, TE must be built with no build-isolation b/c it requires torch
@@ -114,7 +113,7 @@ no-build-isolation-package = ["transformer-engine", "transformer-engine-torch"]
 # Always apply the build group since dependencies like TE/mcore/nemo-run require build dependencies
 # and this lets us assume they are implicitly installed with a simply `uv sync`. Ideally, we'd
 # avoid including these in the default dependency set, but for now it's required.
-default-groups = ["linting", "build", "test"]
+default-groups = ["linting", "build", "test", "nemo-run"]
 # Users may use different link-modes depending on their scenario:
 #  --link-mode=hardlink (default on linux; may get warnings about switching to --link-mode copy if uv cache and venv on different file-systems)
 #  --link-mode=copy (slower but more reliable; supresses warning)
@@ -124,6 +123,7 @@ override-dependencies = [
     "urllib3>1.27.0",
     "tiktoken>=0.9.0",  # because nemo-toolkit and megatron-bridge disagree on tiktoken, we need to pin it here,
     "protobuf>=4.25.1",
+    "pandas>2.0.0",
 ]
 prerelease = "allow"
 
