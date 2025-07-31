@@ -19,11 +19,9 @@ ARG INFERENCE_FRAMEWORK
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 ENV UV_LINK_MODE=copy
+ENV HOME=/root
 ENV PATH="$HOME/.local/bin:$PATH"
-RUN --mount=type=secret,id=GH_TOKEN bash -ex <<"EOF"
-    export PAT=$(cat /run/secrets/GH_TOKEN)
-    bash docker/common/install.sh --base-image cuda --inference-framework $INFERENCE_FRAMEWORK
-EOF
+RUN bash docker/common/install.sh --base-image cuda --inference-framework $INFERENCE_FRAMEWORK
 
 # Fix for triton 3.3 (part of NGC PyT25.05, presumably until 25.07)
 COPY external/patches/triton-lang_triton_6570_lazy_init.patch /workspace/external/patches/triton-lang_triton_6570_lazy_init.patch
