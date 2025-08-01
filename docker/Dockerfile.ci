@@ -21,7 +21,6 @@ ENV PATH="/opt/venv/bin:$PATH"
 ENV UV_LINK_MODE=copy
 ENV HOME=/root
 ENV PATH="$HOME/.local/bin:$PATH"
-ENV HELLO="WORLD"
 RUN --mount=type=cache,target=/root/.cache/uv \ 
     bash docker/common/install.sh --base-image cuda --inference-framework $INFERENCE_FRAMEWORK
 
