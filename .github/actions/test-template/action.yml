@@ -88,18 +88,13 @@ runs:
         sudo apt update
         sudo apt install -y cachefilesd
 
-        sudo mkdir -p /var/cache/fscache
-        sudo chown root:root /var/cache/fscache
-        sudo chmod 700 /var/cache/fscache
+        # Enable cachefilesd in config file
+        sudo sed -i 's/^#RUN=yes/RUN=yes/' /etc/default/cachefilesd
+        sudo cat /etc/default/cachefilesd
 
-        # Enable cachefilesd
-        echo "RUN=yes" | sudo tee /etc/default/cachefilesd
-
-        # Enable and start the service
+        # Enable and restart the service
         sudo systemctl enable cachefilesd
-        sudo systemctl start cachefilesd
-
-        # Check status
+        sudo systemctl restart cachefilesd
         sudo systemctl status cachefilesd
 
     - name: Azure Fileshare
