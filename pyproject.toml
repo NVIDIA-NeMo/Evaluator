@@ -70,10 +70,9 @@ dependencies = [
     "nvidia-lm-eval",
     "uvicorn",
     "flask",
-    "megatron-core>=0.13.0a0,<0.14.0",
     "nvidia-modelopt[torch,onnx]>=0.31.0a0,<0.32.0; sys_platform != 'darwin'",
     "nvidia-resiliency-ext>=0.3.0a0,<0.4.0; sys_platform != 'darwin'",
-    "nemo-export-deploy>=0.1.0a0,<0.2.0",
+    "nemo-export-deploy>=0.2.0a0,<0.3.0",
     "pandas>2.0.0",
 ]
 
@@ -102,7 +101,7 @@ nemo-toolkit = [
 ]
 nemo-run = ["nemo-run"]
 
-# # uv.sources allows us to override dependencies with VCS commits. 
+# # uv.sources allows us to override dependencies with VCS commits.
 # # Lets use this only for debugging purposes, but not for production (main).
 # [tool.uv.sources]
 # nemo-toolkit = { git = "https://github.com/NVIDIA/NeMo.git", rev = "5e63ca3c1631bb156187705f9c4cf643a67f9c05" }

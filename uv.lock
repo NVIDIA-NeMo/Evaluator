@@ -1249,7 +1249,7 @@ name = "decord"
 version = "0.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "numpy" },
+    { name = "numpy", marker = "(platform_machine != 'aarch64' and sys_platform != 'darwin') or sys_platform == 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/11/79/936af42edf90a7bd4e41a6cac89c913d4b47fa48a26b042d5129a9242ee3/decord-0.6.0-py3-none-manylinux2010_x86_64.whl", hash = "sha256:51997f20be8958e23b7c4061ba45d0efcd86bffd5fe81c695d0befee0d442976", size = 13602299, upload-time = "2021-06-14T21:30:55.486Z" },
@@ -3487,7 +3487,6 @@ name = "nemo-eval"
 source = { editable = "." }
 dependencies = [
     { name = "flask" },
-    { name = "megatron-core" },
     { name = "nemo-export-deploy" },
     { name = "nvidia-lm-eval" },
     { name = "nvidia-modelopt", extra = ["onnx", "torch"], marker = "sys_platform != 'darwin'" },
@@ -3537,8 +3536,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "flask" },
-    { name = "megatron-core", specifier = ">=0.13.0a0,<0.14.0" },
-    { name = "nemo-export-deploy", specifier = ">=0.1.0a0,<0.2.0" },
+    { name = "nemo-export-deploy", specifier = ">=0.2.0a0,<0.3.0" },
     { name = "nvidia-lm-eval" },
     { name = "nvidia-modelopt", extras = ["onnx", "torch"], marker = "sys_platform != 'darwin'", specifier = ">=0.31.0a0,<0.32.0" },
     { name = "nvidia-resiliency-ext", marker = "sys_platform != 'darwin'", specifier = ">=0.3.0a0,<0.4.0" },
@@ -3576,7 +3574,7 @@ test = [
 
 [[package]]
 name = "nemo-export-deploy"
-version = "0.1.0"
+version = "0.2.0rc0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "accelerate" },
@@ -3612,9 +3610,9 @@ dependencies = [
     { name = "zarr", version = "2.18.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "zarr", version = "2.18.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1e/26/3b5672089e2d7f1ec9c2bdc447c6aa1040cabda61578766d4ae4c6409c55/nemo_export_deploy-0.1.0.tar.gz", hash = "sha256:d82247af9083641c7fdf0bc0065c012f0039056ba15f19ccf81a125d25283a8b", size = 127373, upload-time = "2025-07-30T15:56:32.064Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2d/ec/73d71c680abc7288c1d96e98accb6b3eabe71196a8905969b627cead82af/nemo_export_deploy-0.2.0rc0.tar.gz", hash = "sha256:4902851f16080b3c69f5c0dda16edbc12a77192b8da84acc5804a47e6b3fd7ed", size = 123022, upload-time = "2025-08-03T16:48:27.213Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9d/3b/45bc05a065f58fc3047833f52bc34ffa82d0c2c442c03ccbc5899cf9c73d/nemo_export_deploy-0.1.0-py3-none-any.whl", hash = "sha256:2be997b7a598b98756a2cd254aae03482f3bb306e91b752f6372541f9bfd8780", size = 163206, upload-time = "2025-07-30T15:56:29.971Z" },
+    { url = "https://files.pythonhosted.org/packages/9e/a1/bd83df72b5a13a3cf0763dba64166677c1d28744a7c2eee8da9255e3e7c5/nemo_export_deploy-0.2.0rc0-py3-none-any.whl", hash = "sha256:ccad7c131acfbb5b39d463a11c8590d5d0cff7c15dcd67f8dd030c414f5e450c", size = 156222, upload-time = "2025-08-03T16:48:25.939Z" },
 ]
 
 [[package]]
@@ -4462,8 +4460,8 @@ name = "onnxsim"
 version = "0.4.36"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "onnx" },
-    { name = "rich" },
+    { name = "onnx", marker = "python_full_version < '3.12'" },
+    { name = "rich", marker = "python_full_version < '3.12'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ce/9e/f34238413ebeda9a3a8802feeaa5013934455466b9ab390b48ad9c7e184f/onnxsim-0.4.36.tar.gz", hash = "sha256:6e0ee9d6d4a83042bdef7319fbe58352d9fda5f253386be2b267c7c27f0638ee", size = 20993703, upload-time = "2024-03-04T08:25:00.086Z" }
 wheels = [
