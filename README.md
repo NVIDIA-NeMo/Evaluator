@@ -18,7 +18,7 @@ NeMo Framework is NVIDIA's GPU accelerated, end-to-end training framework for la
 
 ## 🚀 Features
 
-- **Multi-Backend Deployment**: Support for both PyTriton and Ray Serve deployment backends.
+- **Multi-Backend Deployment**: Support for PyTriton and multi-instance evaluations via Ray Serve deployment backend.
 - **Comprehensive Evaluation**: State-of-the-art evaluation harnesses including reasoning benchmarks, code generation, safety testing.
 - **Adapter System**: Flexible adapter architecture using a chain of interceptors for customizing request/response processing.
 - **Production Ready**: Optimized for high-performance inference with CUDA graphs and flash decoding.
@@ -97,7 +97,7 @@ print(results)
 
 | Checkpoint Type | Inference Backend | Deployment Server | Evaluation Harnesses Supported |
 |----------------|-------------------|-------------|--------------------------|
-|         NeMo FW checkpoint via Megatron Core backend         |    Megatron Core in-framework inference engine               |     PyTriton (single and multi node model parallelism), Ray (single node model parallelism with multi instance evals)        |          lm-evaluation-harness, simple-evals, BigCode, BFCL, safety-harness, garak                |
+|         NeMo FW checkpoint via Megatron Core backend         |    [Megatron Core in-framework inference engine](https://github.com/NVIDIA/Megatron-LM/tree/main/megatron/core/inference)               |     PyTriton (single and multi node model parallelism), Ray (single node model parallelism with multi instance evals)        |          lm-evaluation-harness, simple-evals, BigCode, BFCL, safety-harness, garak                |
 
 ## 🏗️ Architecture
 
