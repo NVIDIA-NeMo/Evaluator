@@ -109,10 +109,10 @@ jobs:
       matrix:
         include:
           - script: L0_Unit_Tests_GPU
-            runner: linux-amd64-gpu-rtxa6000-latest-2-nemo
+            runner: self-hosted-nemo
             timeout: 30
           - script: L0_Unit_Tests_CPU
-            runner: linux-amd64-cpu16
+            runner: self-hosted-nemo
             cpu-only: true
     needs: [pre-flight, cicd-wait-in-queue]
     runs-on: ${{ matrix.runner }}
@@ -148,7 +148,7 @@ jobs:
       matrix:
         include:
           - script: L2_Functional_Tests_GPU
-            runner: linux-amd64-gpu-rtxa6000-latest-2-nemo
+            runner: self-hosted-nemo
             timeout: 30
     needs: [pre-flight, cicd-unit-tests]
     runs-on: ${{ matrix.runner }}
