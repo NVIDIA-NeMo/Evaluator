@@ -11,19 +11,20 @@
 </div>
 
 ## Overview
+The NeMo Framework is NVIDIA’s GPU-accelerated, end-to-end training platform for large language models (LLMs), multimodal models, and speech models. It enables seamless scaling of both pretraining and post-training workloads, from a single GPU to clusters with thousands of nodes, supporting Hugging Face/PyTorch and Megatron models. NeMo includes a suite of libraries and curated training recipes to help users build models from start to finish.
 
-NeMo Framework is NVIDIA's GPU accelerated, end-to-end training framework for large language models (LLMs), multi-modal models and speech models. It enables seamless scaling of training (both pretraining and post-training) workloads from single GPU to thousand-node clusters for both 🤗Hugging Face/PyTorch and Megatron models. It includes a suite of libraries and recipe collections to help users train models from end to end. The **Eval library ("NeMo Eval")** is a comprehensive evaluation module under NeMo Framework for Large Language Models (LLMs). It provides seamless deployment and evaluation capabilities for models trained using NeMo Framework via state-of-the-art evaluation harnesses.
+The Eval library ("NeMo Eval") is a comprehensive evaluation module within the NeMo Framework for LLMs. It offers streamlined deployment and advanced evaluation capabilities for models trained using NeMo, leveraging state-of-the-art evaluation harnesses.
 
 ![image](./NeMo_Repo_Overview_Eval.png)
 
 ## 🚀 Features
 
-- **Multi-Backend Deployment**: Support for both PyTriton and Ray Serve deployment backends.
-- **Comprehensive Evaluation**: State-of-the-art evaluation harnesses including reasoning benchmarks, code generation, safety testing.
-- **Adapter System**: Flexible adapter architecture using a chain of interceptors for customizing request/response processing.
-- **Production Ready**: Optimized for high-performance inference with CUDA graphs and flash decoding.
-- **Multi-GPU and Multi-Node Support**: Distributed inference across multiple devices and nodes.
-- **OpenAI-Compatible API**: RESTful endpoints compatible with OpenAI API standards.
+- **Multi-Backend Deployment**: Supports PyTriton and multi-instance evaluations using the Ray Serve deployment backend
+- **Comprehensive Evaluation**: Includes state-of-the-art evaluation harnesses for academic benchmarks, reasoning benchmarks, code generation, and safety testing
+- **Adapter System**: Features a flexible architecture with chained interceptors for customizable request and response processing
+- **Production-Ready**: Supports high-performance inference with CUDA graphs and flash decoding
+- **Multi-GPU and Multi-Node Support**: Enables distributed inference across multiple GPUs and compute nodes
+- **OpenAI-Compatible API**: Provides RESTful endpoints aligned with OpenAI API specifications
 
 ## 🔧 Install NeMo Eval
 
@@ -97,22 +98,20 @@ print(results)
 
 | Checkpoint Type | Inference Backend | Deployment Server | Evaluation Harnesses Supported |
 |----------------|-------------------|-------------|--------------------------|
-|         NeMo FW checkpoint via Megatron Core backend         |    Megatron Core in-framework inference engine               |     PyTriton (single and multi node model parallelism), Ray (single node model parallelism with multi instance evals)        |          lm-evaluation-harness, simple-evals, BigCode, BFCL, safety-harness, garak                |
+|         NeMo FW checkpoint via Megatron Core backend         |    [Megatron Core in-framework inference engine](https://github.com/NVIDIA/Megatron-LM/tree/main/megatron/core/inference)               |     PyTriton (single and multi node model parallelism), Ray (single node model parallelism with multi instance evals)        |          lm-evaluation-harness, simple-evals, BigCode, BFCL, safety-harness, garak                |
 
 ## 🏗️ Architecture
-
 ### Core Components
-
 #### 1. Deployment Layer
 
-- **PyTriton Backend**: Delivers high-performance inference via NVIDIA Triton Inference Server, with OpenAI API compatibility through a FastAPI interface. Supports model parallelism across both single- and multi-node setups. Note: Multi-instance evaluation is not supported.
+- **PyTriton Backend**: Provides high-performance inference through the NVIDIA Triton Inference Server, with OpenAI API compatibility via a FastAPI interface. Supports model parallelism across single-node and multi-node configurations. Note: Multi-instance evaluation is not supported.
 - **Ray Backend**: Enables multi-instance evaluation with model parallelism on a single node using Ray Serve, while maintaining OpenAI API compatibility. Multi-node support is coming soon.
 
 #### 2. Evaluation Layer
 
-- **NVIDIA Eval Factory**: Provides standardized benchmark evaluations using packages from NVIDIA Eval Factory; bundled in the NeMo Framework container. The `lm-evaluation-harness` is pre-installed by default, while additional tools listed in the [support matrix](#-support-matrix) can be added as needed. For more information, see the [docs](https://github.com/NVIDIA-NeMo/Eval/tree/main/docs).
+- **NVIDIA Eval Factory**: Provides standardized benchmark evaluations using packages from NVIDIA Eval Factory, bundled in the NeMo Framework container. The `lm-evaluation-harness` is pre-installed by default, and additional tools listed in the [support matrix](#-support-matrix) can be added as needed. For more information, see the [documentation](https://github.com/NVIDIA-NeMo/Eval/tree/main/docs).
 
-- **Adapter System**: Flexible request/response processing pipeline with **Interceptors** that provide modular processing
+- **Adapter System**: Flexible request/response processing pipeline with **Interceptors** that provide modular processing:
   - **Available Interceptors**: Modular components for request/response processing
     - **SystemMessageInterceptor**: Customize system prompts
     - **RequestLoggingInterceptor**: Log incoming requests
