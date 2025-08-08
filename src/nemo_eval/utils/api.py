@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 class ApiEndpoint(BaseModel):
     """
     Represents evaluation Standard API target.api_endpoint object
+    
     """
 
     url: str = Field(description="Url of the model", default="http://0.0.0.0:8080/v1/completions/")
