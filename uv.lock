@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.13' and sys_platform == 'win32'",
@@ -1249,7 +1249,7 @@ name = "decord"
 version = "0.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "numpy" },
+    { name = "numpy", marker = "(platform_machine != 'aarch64' and sys_platform != 'darwin') or sys_platform == 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/11/79/936af42edf90a7bd4e41a6cac89c913d4b47fa48a26b042d5129a9242ee3/decord-0.6.0-py3-none-manylinux2010_x86_64.whl", hash = "sha256:51997f20be8958e23b7c4061ba45d0efcd86bffd5fe81c695d0befee0d442976", size = 13602299, upload-time = "2021-06-14T21:30:55.486Z" },
@@ -3539,7 +3539,7 @@ requires-dist = [
     { name = "flask" },
     { name = "megatron-core", specifier = ">=0.13.0a0,<0.14.0" },
     { name = "nemo-export-deploy", specifier = ">=0.1.0a0,<0.2.0" },
-    { name = "nvidia-lm-eval" },
+    { name = "nvidia-lm-eval", specifier = "==25.6.1" },
     { name = "nvidia-modelopt", extras = ["onnx", "torch"], marker = "sys_platform != 'darwin'", specifier = ">=0.31.0a0,<0.32.0" },
     { name = "nvidia-resiliency-ext", marker = "sys_platform != 'darwin'", specifier = ">=0.3.0a0,<0.4.0" },
     { name = "pandas", specifier = ">2.0.0" },
@@ -4462,8 +4462,8 @@ name = "onnxsim"
 version = "0.4.36"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "onnx" },
-    { name = "rich" },
+    { name = "onnx", marker = "python_full_version < '3.12'" },
+    { name = "rich", marker = "python_full_version < '3.12'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ce/9e/f34238413ebeda9a3a8802feeaa5013934455466b9ab390b48ad9c7e184f/onnxsim-0.4.36.tar.gz", hash = "sha256:6e0ee9d6d4a83042bdef7319fbe58352d9fda5f253386be2b267c7c27f0638ee", size = 20993703, upload-time = "2024-03-04T08:25:00.086Z" }
 wheels = [
@@ -5704,6 +5704,7 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/bf/42/c562e9151aa90ed1d70aac381ea22a929d6b3a2ce4e1d6e2e135d34fd9c6/pyzmq-27.0.1-cp312-abi3-win32.whl", hash = "sha256:57bb92abdb48467b89c2d21da1ab01a07d0745e536d62afd2e30d5acbd0092eb", size = 558177, upload-time = "2025-08-03T05:03:43.979Z" },
     { url = "https://files.pythonhosted.org/packages/40/96/5c50a7d2d2b05b19994bf7336b97db254299353dd9b49b565bb71b485f03/pyzmq-27.0.1-cp312-abi3-win_amd64.whl", hash = "sha256:ff3f8757570e45da7a5bedaa140489846510014f7a9d5ee9301c61f3f1b8a686", size = 618923, upload-time = "2025-08-03T05:03:45.438Z" },
     { url = "https://files.pythonhosted.org/packages/13/33/1ec89c8f21c89d21a2eaff7def3676e21d8248d2675705e72554fb5a6f3f/pyzmq-27.0.1-cp312-abi3-win_arm64.whl", hash = "sha256:df2c55c958d3766bdb3e9d858b911288acec09a9aab15883f384fc7180df5bed", size = 552358, upload-time = "2025-08-03T05:03:46.887Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/a0/f26e276211ec8090a4d11e4ec70eb8a8b15781e591c1d44ce62f372963a0/pyzmq-27.0.1-cp313-cp313-android_24_arm64_v8a.whl", hash = "sha256:497bd8af534ae55dc4ef67eebd1c149ff2a0b0f1e146db73c8b5a53d83c1a5f5", size = 1122287, upload-time = "2025-08-03T05:03:48.838Z" },
     { url = "https://files.pythonhosted.org/packages/9c/d8/af4b507e4f7eeea478cc8ee873995a6fd55582bfb99140593ed460e1db3c/pyzmq-27.0.1-cp313-cp313-android_24_x86_64.whl", hash = "sha256:a066ea6ad6218b4c233906adf0ae67830f451ed238419c0db609310dd781fbe7", size = 1155756, upload-time = "2025-08-03T05:03:50.907Z" },
     { url = "https://files.pythonhosted.org/packages/f2/e4/3a87854c64b26fcf63a9d1b6f4382bd727d4797c772ceb334a97b7489be9/pyzmq-27.0.1-cp313-cp313t-manylinux2014_i686.manylinux_2_17_i686.whl", hash = "sha256:313a7b374e3dc64848644ca348a51004b41726f768b02e17e689f1322366a4d9", size = 897283, upload-time = "2025-08-03T05:03:54.167Z" },
     { url = "https://files.pythonhosted.org/packages/17/3e/4296c6b0ad2d07be11ae1395dccf9cae48a0a655cf9be1c3733ad2b591d1/pyzmq-27.0.1-cp313-cp313t-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:119ce8590409702394f959c159d048002cbed2f3c0645ec9d6a88087fc70f0f1", size = 660565, upload-time = "2025-08-03T05:03:56.152Z" },
