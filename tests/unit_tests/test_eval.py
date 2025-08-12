@@ -15,8 +15,8 @@
 import pytest
 from pytest_httpserver import HTTPServer
 
-from nemo_eval.api import evaluate
-from nemo_eval.utils.api import ConfigParams, EvaluationConfig, EvaluationTarget
+from nvidia_eval_commons.core.evaluate import evaluate
+from nvidia_eval_commons.api.api_dataclasses import ConfigParams, EvaluationConfig, EvaluationTarget
 
 
 @pytest.fixture(scope="session")
@@ -83,7 +83,7 @@ def test_dict_init():
     assert eval_config_from_dict.params.max_retries == 3
 
 
-@pytest.mark.parametrize("task", ["gsm8k", "lm-evaluation-harness.gsm8k", "lm_evaluation_harness.gsm8k"])
+@pytest.mark.parametrize("task", ["gsm8k", "lm-evaluation-harness.gsm8k"])
 def test_evaluation(httpserver: HTTPServer, task: str):
     httpserver.expect_request("/v1/triton_health").respond_with_json({"status": "Triton server is reachable and ready"})
     httpserver.expect_request("/v1/completions/", method="POST").respond_with_json(
@@ -101,17 +101,16 @@ def test_evaluation(httpserver: HTTPServer, task: str):
         },
     )
     target_config = EvaluationTarget(
-        api_endpoint={"url": "http://localhost:1234/v1/completions/", "type": "completions"}
+        api_endpoint={"url": "http://localhost:1234/v1/completions/", "type": "completions", "model_id": "some_model"}
     )
     eval_config = EvaluationConfig(
         type=task,
         params=ConfigParams(limit_samples=1, parallelism=1),
+        output_dir="/tmp"
     )
 
     results = evaluate(target_cfg=target_config, eval_cfg=eval_config)
     assert (
-        results["tasks"]["gsm8k"]["metrics"]["exact_match__strict-match"]["scores"]["exact_match__strict-match"][
-            "value"
-        ]
+        results.tasks["gsm8k"].metrics["exact_match__strict-match"].scores["exact_match__strict-match"].value
         == 1.0
     )

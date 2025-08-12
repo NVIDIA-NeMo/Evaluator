@@ -16,7 +16,7 @@
 
 ## Run the evaluation
 from nemo_eval.api import evaluate
-from nemo_eval.utils.api import EvaluationConfig, EvaluationTarget
+from nvidia_eval_commons.api.api_dataclasses import EvaluationConfig, EvaluationTarget
 
 model_name = "megatron_model"
 completions_url = "http://0.0.0.0:8080/v1/completions/"
