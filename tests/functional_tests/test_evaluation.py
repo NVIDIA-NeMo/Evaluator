@@ -19,9 +19,9 @@ import signal
 import subprocess
 
 import pytest
+from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
+from nvidia_eval_commons.core.evaluate import evaluate
 
-from nemo_eval.api import evaluate
-from nemo_eval.utils.api import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
 from nemo_eval.utils.base import wait_for_fastapi_server
 
 logger = logging.getLogger(__name__)
