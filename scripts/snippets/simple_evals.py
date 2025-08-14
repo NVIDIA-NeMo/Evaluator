@@ -18,8 +18,9 @@
 ## Key with access to https://build.nvidia.com/ endpoints
 # export JUDGE_API_KEY=...
 ## Run the evaluation
-from nemo_eval.api import evaluate
 from nvidia_eval_commons.api.api_dataclasses import EvaluationConfig, EvaluationTarget
+
+from nemo_eval.api import evaluate
 
 model_name = "megatron_model"
 chat_url = "http://0.0.0.0:8080/v1/chat/completions/"

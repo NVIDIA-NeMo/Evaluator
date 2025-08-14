@@ -13,10 +13,9 @@
 # limitations under the License.
 
 import pytest
-from pytest_httpserver import HTTPServer
-
-from nvidia_eval_commons.core.evaluate import evaluate
 from nvidia_eval_commons.api.api_dataclasses import ConfigParams, EvaluationConfig, EvaluationTarget
+from nvidia_eval_commons.core.evaluate import evaluate
+from pytest_httpserver import HTTPServer
 
 
 @pytest.fixture(scope="session")
@@ -103,14 +102,7 @@ def test_evaluation(httpserver: HTTPServer, task: str):
     target_config = EvaluationTarget(
         api_endpoint={"url": "http://localhost:1234/v1/completions/", "type": "completions", "model_id": "some_model"}
     )
-    eval_config = EvaluationConfig(
-        type=task,
-        params=ConfigParams(limit_samples=1, parallelism=1),
-        output_dir="/tmp"
-    )
+    eval_config = EvaluationConfig(type=task, params=ConfigParams(limit_samples=1, parallelism=1), output_dir="/tmp")
 
     results = evaluate(target_cfg=target_config, eval_cfg=eval_config)
-    assert (
-        results.tasks["gsm8k"].metrics["exact_match__strict-match"].scores["exact_match__strict-match"].value
-        == 1.0
-    )
+    assert results.tasks["gsm8k"].metrics["exact_match__strict-match"].scores["exact_match__strict-match"].value == 1.0
