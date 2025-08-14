@@ -86,7 +86,7 @@ Homepage = "https://github.com/NVIDIA-NeMo/Eval"
 
 [dependency-groups]
 # This is a default group so that we install these even with bare `uv sync`
-build = ["setuptools", "torch", "pybind11", "Cython>=3.0.0"]
+build = ["setuptools", "torch==2.7.0", "pybind11", "Cython>=3.0.0"]
 docs = [
     "sphinx",
     "sphinx-autobuild",    # For live doc serving while editing docs
