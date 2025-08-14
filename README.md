@@ -11,6 +11,7 @@
 </div>
 
 ## Overview
+
 The NeMo Framework is NVIDIA’s GPU-accelerated, end-to-end training platform for large language models (LLMs), multimodal models, and speech models. It enables seamless scaling of both pretraining and post-training workloads, from a single GPU to clusters with thousands of nodes, supporting Hugging Face/PyTorch and Megatron models. NeMo includes a suite of libraries and curated training recipes to help users build models from start to finish.
 
 The Eval library ("NeMo Eval") is a comprehensive evaluation module within the NeMo Framework for LLMs. It offers streamlined deployment and advanced evaluation capabilities for models trained using NeMo, leveraging state-of-the-art evaluation harnesses.
@@ -33,6 +34,13 @@ The Eval library ("NeMo Eval") is a comprehensive evaluation module within the N
 - Python 3.10 or higher
 - CUDA-compatible GPU(s) (tested on RTX A6000, A100, H100)
 - NeMo Framework container (recommended)
+
+#### Recommended Requirements
+
+- Python 3.12
+- PyTorch 2.7
+- CUDA 12.9
+- Ubuntu 24.04
 
 ### Use pip
 
@@ -101,7 +109,9 @@ print(results)
 |         NeMo FW checkpoint via Megatron Core backend         |    [Megatron Core in-framework inference engine](https://github.com/NVIDIA/Megatron-LM/tree/main/megatron/core/inference)               |     PyTriton (single and multi node model parallelism), Ray (single node model parallelism with multi instance evals)        |          lm-evaluation-harness, simple-evals, BigCode, BFCL, safety-harness, garak                |
 
 ## 🏗️ Architecture
+
 ### Core Components
+
 #### 1. Deployment Layer
 
 - **PyTriton Backend**: Provides high-performance inference through the NVIDIA Triton Inference Server, with OpenAI API compatibility via a FastAPI interface. Supports model parallelism across single-node and multi-node configurations. Note: Multi-instance evaluation is not supported.
