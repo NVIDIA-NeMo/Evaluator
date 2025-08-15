@@ -12,38 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pip install nvidia-safety-harness==25.6
+# pip install nvidia-safety-harness==25.7.1
 
 ## Export the required variables
 ## Key with access to https://build.nvidia.com/ endpoints
 # export JUDGE_API_KEY=...
 # export HF_TOKEN=...
 ## Run the evaluation
-from nemo_eval.api import evaluate
-from nemo_eval.utils.api import EvaluationConfig, EvaluationTarget
+from nvidia_eval_commons.api.api_dataclasses import (
+    ApiEndpoint,
+    ConfigParams,
+    EndpointType,
+    EvaluationConfig,
+    EvaluationTarget,
+)
+from nvidia_eval_commons.core.evaluate import evaluate
 
 model_name = "megatron_model"
 chat_url = "http://0.0.0.0:8080/v1/chat/completions/"
 
 
-target_config = EvaluationTarget(
-    api_endpoint={
-        "url": chat_url,
-        "type": "chat",
-    }
-)
+target_config = EvaluationTarget(api_endpoint=ApiEndpoint(url=chat_url, type=EndpointType.CHAT, model_id=model_name))
 eval_config = EvaluationConfig(
     type="aegis_v2",
     output_dir="/results/",
-    params={
-        "limit_samples": 10,
-        "extra": {
+    params=ConfigParams(
+        limit_samples=10,
+        extra={
             "judge": {
                 "model_id": "llama-nemotron-safety-guard-v2",
                 "url": "http://0.0.0.0:9000/v1/completions",
             }
         },
-    },
+    ),
 )
 
 

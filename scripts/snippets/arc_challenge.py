@@ -12,34 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pip install nvidia-lm-eval==25.6
+# pip install nvidia-lm-eval==25.7.1
 
 ## Run the evaluation
-from nemo_eval.api import evaluate
-from nemo_eval.utils.api import EvaluationConfig, EvaluationTarget
+from nvidia_eval_commons.api.api_dataclasses import (
+    ApiEndpoint,
+    ConfigParams,
+    EndpointType,
+    EvaluationConfig,
+    EvaluationTarget,
+)
+from nvidia_eval_commons.core.evaluate import evaluate
 
 model_name = "megatron_model"
 completions_url = "http://0.0.0.0:8080/v1/completions/"
 
 
 target_config = EvaluationTarget(
-    api_endpoint={
-        "url": completions_url,
-        "type": "completions",
-    }
+    api_endpoint=ApiEndpoint(url=completions_url, type=EndpointType.COMPLETIONS, model_id=model_name)
 )
 eval_config = EvaluationConfig(
     type="arc_challenge",
     output_dir="/results/",
-    params={
-        "limit_samples": 10,
-        "extra": {
+    params=ConfigParams(
+        limit_samples=10,
+        extra={
             "tokenizer": "/checkpoints/llama-3_2-1b-instruct_v2.0/context/nemo_tokenizer",
             "tokenizer_backend": "huggingface",
         },
-    },
+    ),
 )
-
 
 results = evaluate(target_cfg=target_config, eval_cfg=eval_config)
 

@@ -67,7 +67,7 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "nvidia-lm-eval==25.6.1",
+    "nvidia-lm-eval==25.7.1",
     "uvicorn",
     "flask",
     "megatron-core>=0.13.0a0,<0.14.0",
@@ -75,6 +75,7 @@ dependencies = [
     "nvidia-resiliency-ext>=0.3.0a0,<0.4.0; sys_platform != 'darwin'",
     "nemo-export-deploy>=0.1.0a0,<0.2.0",
     "pandas>2.0.0",
+    "nvidia-eval-commons~=1.0.0",
 ]
 
 [project.optional-dependencies]
