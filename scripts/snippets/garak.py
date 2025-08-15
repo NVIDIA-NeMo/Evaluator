@@ -12,29 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pip install nvidia-eval-factory-garak==25.6
+# pip install nvidia-eval-factory-garak==25.7.1
 
 ## Export the required variables
 # No environment variables are required
 ## Run the evaluation
-from nvidia_eval_commons.api.api_dataclasses import EvaluationConfig, EvaluationTarget
-
-from nemo_eval.api import evaluate
+from nvidia_eval_commons.api.api_dataclasses import (
+    ApiEndpoint,
+    ConfigParams,
+    EndpointType,
+    EvaluationConfig,
+    EvaluationTarget,
+)
+from nvidia_eval_commons.core.evaluate import evaluate
 
 model_name = "megatron_model"
 chat_url = "http://0.0.0.0:8080/v1/chat/completions/"
 
-
-target_config = EvaluationTarget(
-    api_endpoint={
-        "url": chat_url,
-        "type": "chat",
-    }
-)
+target_config = EvaluationTarget(api_endpoint=ApiEndpoint(url=chat_url, type=EndpointType.CHAT, model_id=model_name))
 eval_config = EvaluationConfig(
     type="garak",
     output_dir="/results/",
-    params={"extra": {"probes": "ansiescape.AnsiEscaped"}},
+    params=ConfigParams(limit_samples=10, extra={"probes": "ansiescape.AnsiEscaped"}),
 )
 
 
