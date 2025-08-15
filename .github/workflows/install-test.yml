@@ -27,6 +27,9 @@ env:
   UV_PROJECT_ENVIRONMENT: "./venv"
 
 jobs:
+  pre-flight:
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@v0.53.0
+
   pip-test-no-cuda:
     runs-on: ${{ matrix.arch }}
     name: Pip - Python${{ matrix.python-version }} - ${{ matrix.arch == 'ubuntu-latest' && 'AMD64/Linux' || (matrix.arch == 'ubuntu-24.04-arm' && 'ARM64/Linux' || 'ARM64/Darwin') }} - No CUDA
