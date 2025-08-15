@@ -12,13 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import importlib
 import logging
-import multiprocessing
 from pathlib import Path
 from typing import Optional, Union
-
-from .utils.api import AdapterConfig, EvaluationConfig, EvaluationTarget, MisconfigurationError
 
 AnyPath = Union[Path, str]
 
@@ -184,79 +180,3 @@ def deploy(
                 nm.stop()
             elif torch.distributed.get_rank() > 0:
                 triton_deployable.generate_other_ranks()
-
-
-def evaluate(
-    target_cfg: EvaluationTarget,
-    eval_cfg: EvaluationConfig = EvaluationConfig(type="gsm8k"),
-    adapter_cfg: AdapterConfig | None = None,
-) -> dict:
-    """
-    Evaluates nemo model deployed on PyTriton server using nvidia-lm-eval
-
-    Args:
-        target_cfg (EvaluationTarget): target of the evaluation. Providing model_id and
-            url in EvaluationTarget.api_endpoint is required to run evaluations.
-        eval_cfg (EvaluationConfig): configuration for evaluations. Default type (task): gsm8k.
-        adapter_cfg (AdapterConfig): configuration for adapters, the object between becnhmark and endpoint.
-            Default: None.
-    """
-    import yaml
-
-    from .utils.base import check_endpoint, find_framework
-
-    eval_type_components = eval_cfg.type.split(".")
-    if len(eval_type_components) == 2:
-        framework_name, task_name = eval_type_components
-        # evaluation package expect framework name to be hyphenated
-        framework_name = framework_name.replace("_", "-")
-        eval_cfg.type = f"{framework_name}.{task_name}"
-    elif len(eval_type_components) == 1:
-        framework_name, task_name = None, eval_type_components[0]
-    else:
-        raise MisconfigurationError("eval_type must follow 'framework_name.task_name'. No additional dots are allowed.")
-
-    if framework_name is None:
-        framework_module_name = find_framework(task_name)
-    else:
-        framework_module_name = f"core_evals.{framework_name.replace('-', '_')}"
-    try:
-        evaluate = importlib.import_module(".evaluate", package=framework_module_name)
-    except ImportError:
-        raise ImportError(
-            f"Please ensure that {framework_module_name} is installed in your env "
-            f"as it is required to run {eval_cfg.type} evaluation"
-        )
-
-    server_ready = check_endpoint(
-        target_cfg.api_endpoint.url, target_cfg.api_endpoint.type, target_cfg.api_endpoint.model_id
-    )
-    if not server_ready:
-        raise RuntimeError("Server not ready for evaluation")
-
-    # NOTE(agronskiy): START of the adapter hook
-    p: multiprocessing.Process | None = None
-    if adapter_cfg:
-        from nemo.collections.llm.evaluation.adapters.server import create_server_process
-
-        p, adapter_cfg = create_server_process(adapter_cfg)
-        # This will be unhooked below
-        target_cfg.api_endpoint.url = f"http://localhost:{adapter_cfg.local_port}"
-
-    try:
-        results = evaluate.evaluate_accuracy(
-            target_cfg=target_cfg,
-            eval_cfg=eval_cfg,
-        )
-        results_dict = results.model_dump()
-    finally:
-        if adapter_cfg and p is not None and p.is_alive():
-            # TODO(agronskiy): if the url is logged in results_dict, get it back to the adapter.api_url
-            target_cfg.api_endpoint.url = adapter_cfg.api_url
-            p.terminate()
-    # NOTE(agronskiy): END of the adapter hook
-
-    logger.info("========== RESULTS ==========")
-    logger.info(yaml.dump(results_dict))
-
-    return results_dict

@@ -22,9 +22,10 @@ import argparse
 from typing import Optional
 
 import nemo_run as run
+from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
+from nvidia_eval_commons.core.evaluate import evaluate
 
-from nemo_eval.api import deploy, evaluate
-from nemo_eval.utils.api import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
+from nemo_eval.api import deploy
 
 ENDPOINT_TYPES = {"chat": "chat/completions/", "completions": "completions/"}
 
