@@ -148,7 +148,9 @@ class TestEvaluation:
 
         # Run evaluation
         logger.info("Starting evaluation...")
-        api_endpoint = ApiEndpoint(url=f"http://0.0.0.0:{port}/v1/completions/")
+        api_endpoint = ApiEndpoint(
+            url=f"http://0.0.0.0:{port}/v1/completions/", type="completions", model_id="megatron_model"
+        )
         eval_target = EvaluationTarget(api_endpoint=api_endpoint)
         eval_params = {
             "limit_samples": limit,
