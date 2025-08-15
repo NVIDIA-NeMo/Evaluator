@@ -41,6 +41,7 @@ jobs:
       python-package: nemo_eval
       python-version: "3.10"
       packaging: uv
+      has-src-dir: true
       no-publish: ${{ !(github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/r')) }}
     secrets:
       TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
