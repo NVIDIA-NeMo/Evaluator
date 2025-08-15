@@ -38,7 +38,7 @@ jobs:
     uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_build_test_publish_wheel.yml@v0.38.0
     with:
       dry-run: true
-      python-package: nemo_export_deploy_common
+      python-package: nemo_eval
       python-version: "3.10"
       packaging: uv
       no-publish: ${{ !(github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/r')) }}
