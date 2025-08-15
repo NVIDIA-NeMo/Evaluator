@@ -17,6 +17,7 @@ import os
 import shutil
 import signal
 import subprocess
+import tempfile
 
 import pytest
 from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
@@ -114,12 +115,13 @@ class TestEvaluation:
 
         # Run evaluation
         logger.info("Starting evaluation...")
-        api_endpoint = ApiEndpoint(url=f"http://0.0.0.0:{port}/v1/completions/")
+        api_endpoint = ApiEndpoint(
+            url=f"http://0.0.0.0:{port}/v1/completions/", type="completions", model_id="megatron_model"
+        )
         eval_target = EvaluationTarget(api_endpoint=api_endpoint)
-        eval_params = {
-            "limit_samples": limit,
-        }
-        eval_config = EvaluationConfig(type=eval_type, params=ConfigParams(**eval_params))
+        eval_params = {"limit_samples": limit, "request_timeout": 360}
+        temp_dir = tempfile.TemporaryDirectory()
+        eval_config = EvaluationConfig(type=eval_type, params=ConfigParams(**eval_params), output_dir=temp_dir.name)
         evaluate(target_cfg=eval_target, eval_cfg=eval_config)
         logger.info("Evaluation completed.")
 
@@ -155,6 +157,7 @@ class TestEvaluation:
                 "tokenizer": tokenizer_path,
             },
         }
-        eval_config = EvaluationConfig(type=eval_type, params=ConfigParams(**eval_params))
+        temp_dir = tempfile.TemporaryDirectory()
+        eval_config = EvaluationConfig(type=eval_type, params=ConfigParams(**eval_params), output_dir=temp_dir.name)
         evaluate(target_cfg=eval_target, eval_cfg=eval_config)
         logger.info("Evaluation completed.")
