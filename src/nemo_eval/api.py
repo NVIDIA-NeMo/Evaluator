@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 def deploy(
     nemo_checkpoint: Optional[AnyPath] = None,
+    hf_model_id_path: Optional[AnyPath] = None,
     serving_backend: str = "pytriton",
     model_name: str = "megatron_model",
     server_port: int = 8080,
@@ -37,19 +38,23 @@ def deploy(
     expert_model_parallel_size: int = 1,
     max_input_len: int = 4096,
     max_batch_size: int = 8,
+    # Specific to nemo checkpoint
     enable_flash_decode: bool = True,
     enable_cuda_graphs: bool = True,
+    legacy_ckpt: bool = False,
+    # Specific to huggingface checkpoint
+    use_vllm_backend: bool = True,
     # Ray deployment specific args
     num_replicas: int = 1,
-    num_cpus_per_replica: Optional[int] = None,
+    num_cpus: Optional[int] = None,
     include_dashboard: bool = True,
-    legacy_ckpt: bool = False,
 ):
     """
     Deploys nemo model on either PyTriton server or Ray Serve.
 
     Args:
         nemo_checkpoint (Path): Path for nemo checkpoint.
+        hf_model_id_path (Path): Huggingface model id or local path to the model. Supported only for Ray backend.
         serving_backend (str): Backend to use for serving ("pytriton" or "ray"). Default: "pytriton".
         model_name (str): Name for the model that gets deployed on PyTriton or Ray.
         server_port (int): HTTP port for the FastAPI or Ray server. Default: 8080.
@@ -64,41 +69,64 @@ def deploy(
         expert_model_parallel_size (int): Expert parallelism size. Default: 1.
         max_input_len (int): Max input length of the model. Default: 4096.
         max_batch_size (int): Max batch size of the model. Default: 8.
-        enable_flash_decode (bool): If True runs inferencewith flash decode enabled. Default: True.
-        enable_cuda_graphs (bool): Whether to enable CUDA graphs for inference. Default: True.
-        legacy_ckpt (bool): Indicates whether the checkpoint is in the legacy format. Default: False.
+        ##### Specific to nemo checkpoint #####
+        enable_flash_decode (bool): If True runs inferencewith flash decode enabled. Default: True. Applicable only for
+        nemo checkpoint.
+        enable_cuda_graphs (bool): Whether to enable CUDA graphs for inference. Default: True. Applicable only for
+        nemo checkpoint.
+        legacy_ckpt (bool): Indicates whether the checkpoint is in the legacy format. Default: False. Applicable only
+        for nemo checkpoint.
+        ##### Specific to huggingface checkpoint #####
+        use_vllm_backend (bool): Whether to use VLLM backend. Default: True. Applicable only for huggingface
+        checkpoint.
         ##### Ray deployment specific args #####
         num_replicas (int): Number of model replicas for Ray deployment. Default: 1. Only applicable for Ray backend.
-        num_cpus_per_replica (int): Number of CPUs per replica for Ray deployment. Default: 8
+        num_cpus (int): Number of CPUs to allocate for the Ray cluster. If None, will use all available CPUs.
+        Default: None.
         include_dashboard (bool): Whether to include Ray dashboard. Default: True.
-        legacy_ckpt (bool): Indicates whether the checkpoint is in legacy format. Default: False.
     """
     import torch
 
     if serving_backend == "ray":  # pragma: no cover
-        if num_replicas is None:
-            raise ValueError("num_replicas must be specified when using Ray backend")
-
-        from .utils.ray_deploy import deploy_with_ray
-
-        deploy_with_ray(
-            nemo_checkpoint=nemo_checkpoint,
+        from nemo_deploy.deploy_ray import DeployRay
+        # Initialize Ray deployment
+        ray_deployer = DeployRay(
+            num_cpus=num_cpus,
             num_gpus=num_gpus,
-            num_nodes=num_nodes,
-            tensor_model_parallel_size=tensor_parallelism_size,
-            pipeline_model_parallel_size=pipeline_parallelism_size,
-            context_parallel_size=context_parallel_size,
-            expert_model_parallel_size=expert_model_parallel_size,
-            num_replicas=num_replicas,
-            num_cpus_per_replica=num_cpus_per_replica,
+            include_dashboard=include_dashboard,
             host=server_address,
             port=server_port,
-            model_id=model_name,
-            enable_cuda_graphs=enable_cuda_graphs,
-            enable_flash_decode=enable_flash_decode,
-            legacy_ckpt=legacy_ckpt,
-            include_dashboard=include_dashboard,
         )
+        if nemo_checkpoint is not None:
+            # Deploy nemo checkpoint in-framework(via mcore inference engine) with Ray backend
+            ray_deployer.deploy_inframework_model(
+                nemo_checkpoint=nemo_checkpoint,
+                num_gpus=num_gpus,
+                tensor_model_parallel_size=tensor_parallelism_size,
+                pipeline_model_parallel_size=pipeline_parallelism_size,
+                expert_model_parallel_size=expert_model_parallel_size,
+                context_parallel_size=context_parallel_size,
+                model_id=model_name,
+                num_cpus_per_replica=num_cpus,
+                num_replicas=num_replicas,
+                enable_cuda_graphs=enable_cuda_graphs,
+                enable_flash_decode=enable_flash_decode,
+                legacy_ckpt=legacy_ckpt,
+                max_batch_size=max_batch_size,
+            )
+        elif hf_model_id_path is not None:
+            # Deploy huggingface checkpoint directly or via vllm backend on Ray
+            ray_deployer.deploy_huggingface_model(
+                hf_model_id_path=hf_model_id_path,
+                device_map="cuda",
+                model_id=model_name,
+                num_replicas=num_replicas,
+                num_cpus_per_replica=num_cpus,
+                num_gpus_per_replica=num_gpus,
+                max_ongoing_requests=max_batch_size,
+                use_vllm_backend=use_vllm_backend,
+            )
+
     else:  # pytriton backend
         import os
 
