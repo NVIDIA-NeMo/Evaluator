@@ -47,7 +47,8 @@ The Eval library ("NeMo Eval") is a comprehensive evaluation module within the N
 For quick exploration of NeMo Eval, we recommend installing our pip package:
 
 ```bash
-pip install nemo-eval
+pip install torch==2.7.0 setuptools pybind11 wheel_stub  # Required for TE
+pip install --no-build-isolation nemo-eval
 ```
 
 ### Use Docker

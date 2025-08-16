@@ -30,61 +30,6 @@ jobs:
   pre-flight:
     uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@v0.53.0
 
-  pip-test-no-cuda:
-    runs-on: ${{ matrix.arch }}
-    name: Pip - Python${{ matrix.python-version }} - ${{ matrix.arch == 'ubuntu-latest' && 'AMD64/Linux' || (matrix.arch == 'ubuntu-24.04-arm' && 'ARM64/Linux' || 'ARM64/Darwin') }} - No CUDA
-    needs: [pre-flight]
-    if: |
-      !(needs.pre-flight.outputs.docs_only == 'true'
-      || needs.pre-flight.outputs.is_deployment_workflow == 'true')
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: ["ubuntu-latest", "macos-latest"] # After setting the repo to public: "ubuntu-24.04-arm"]
-        python-version: ["3.10", "3.11", "3.12"]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Python ${{ matrix.python-version }}
-        env:
-          ARCH: ${{ matrix.arch }}
-        run: |
-          if [[ $ARCH == 'ubuntu-latest' ]]; then
-            sudo add-apt-repository ppa:deadsnakes/ppa -y
-            sudo apt-get update
-            sudo apt-get install -y python3 python${{ matrix.python-version }} python${{ matrix.python-version }}-venv
-          elif [[ $ARCH == 'macos-latest' ]]; then
-            brew install python@${{ matrix.python-version }}
-          fi
-
-          python${{ matrix.python-version }} -m venv ./venv
-          . ./venv/bin/activate
-          pip install --pre --no-cache-dir --upgrade pip
-
-      - name: Install project
-        run: |
-          . ./venv/bin/activate
-          pip install --pre --no-cache-dir --upgrade pip
-          pip install --pre --no-cache-dir .
-
-          echo -e "machine github.com\n  login token\n  password ${{ secrets.PAT }}" > ~/.netrc
-          chmod 600 ~/.netrc 
-          pip install --pre --no-cache-dir nemo-export-deploy@git+https://github.com/NVIDIA-NeMo/Export-Deploy.git@main
-
-      - name: Checkout check-imports
-        uses: actions/checkout@v4
-        with:
-          repository: NVIDIA-NeMo/FW-CI-templates
-          ref: v0.39.0
-          path: FW-CI-templates
-
-      - name: Check imports for nemo_eval
-        uses: ./FW-CI-templates/.github/actions/check-imports
-        with:
-          package-name: nemo_eval
-          python-binary: ./venv/bin/python
-
   pip-test-cuda:
     runs-on: linux-amd64-cpu16
     name: Pip - Python${{ matrix.python-version }}${{ matrix.extra-groups != '' && format('[{0}]', matrix.extra-groups) || '' }} - AMD64/Linux - NGC CUDA
@@ -197,64 +142,8 @@ jobs:
           package-name: nemo_eval
           python-binary: /opt/venv/bin/python
 
-  uv-test-no-cuda:
-    runs-on: ${{ matrix.arch }}
-    name: UV - Python ${{ matrix.python-version }} - ${{ matrix.arch == 'ubuntu-latest' && 'AMD64/Linux' || 'ARM64/Darwin' }} - No CUDA
-    environment: nemo-ci
-    needs: [pre-flight]
-    if: |
-      !(needs.pre-flight.outputs.docs_only == 'true'
-      || needs.pre-flight.outputs.is_deployment_workflow == 'true')
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: ["ubuntu-latest", "macos-latest"]
-        python-version: ["3.12"]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up UV
-        uses: astral-sh/setup-uv@v1
-        with:
-          version: 0.7.2
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install dependencies with UV
-        env:
-          PAT: ${{ secrets.PAT }}
-        shell: bash
-        run: |
-          echo -e "machine github.com\n  login token\n  password ${{ secrets.PAT }}" > ~/.netrc
-          chmod 600 ~/.netrc 
-
-          export PATH="${UV_PROJECT_ENVIRONMENT}/bin/:$PATH"
-
-          uv venv ${UV_PROJECT_ENVIRONMENT} --system-site-packages
-
-          uv sync --link-mode copy --locked --all-groups
-
-          uv pip install --pre --no-cache-dir --no-deps -e .
-
-      - name: Checkout check-imports
-        uses: actions/checkout@v4
-        with:
-          repository: NVIDIA-NeMo/FW-CI-templates
-          ref: v0.39.0
-          path: FW-CI-templates
-
-      - name: Check imports for nemo_eval
-        uses: ./FW-CI-templates/.github/actions/check-imports
-        with:
-          package-name: nemo_eval
-          python-binary: ./venv/bin/python
-
   install-test-summary:
-    needs: [pre-flight, pip-test-no-cuda, uv-test-cuda, pip-test-cuda, uv-test-no-cuda]
+    needs: [pre-flight, uv-test-cuda, pip-test-cuda]
     runs-on: ubuntu-latest
     name: Install test summary
     if: |

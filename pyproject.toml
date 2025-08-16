@@ -75,10 +75,8 @@ dependencies = [
     "nvidia-modelopt[torch]>=0.33.0a0,<0.34.0; sys_platform != 'darwin'",
     "nvidia-resiliency-ext>=0.4.0a0,<0.5.0; sys_platform != 'darwin'",
     "nemo-export-deploy>=0.2.0a0,<0.3.0",
+    "transformer-engine[pytorch]>=2.6.0a0,<2.8.0; sys_platform != 'darwin'",
 ]
-
-[project.optional-dependencies]
-te = ["transformer-engine[pytorch]>=2.6.0a0,<2.8.0; sys_platform != 'darwin'"]
 
 [project.urls]
 Download = "https://github.com/NVIDIA-NeMo/Eval/releases"
