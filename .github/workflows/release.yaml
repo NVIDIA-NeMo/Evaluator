@@ -53,6 +53,7 @@ jobs:
       create-gh-release: ${{ inputs.create-gh-release || true }}
       packaging: uv
       app-id: ${{ vars.BOT_ID }}
+      has-src-dir: true
     secrets:
       TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
       TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
