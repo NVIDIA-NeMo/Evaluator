@@ -20,9 +20,9 @@ import subprocess
 import tempfile
 
 import pytest
-
 from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
 from nvidia_eval_commons.core.evaluate import evaluate
+
 from nemo_eval.utils.base import check_endpoint
 
 logger = logging.getLogger(__name__)
@@ -133,4 +133,3 @@ class TestEvaluation:
         assert server_ready, "Server is not ready. Please look at the deploy process log for the error"
         evaluate(target_cfg=eval_target, eval_cfg=eval_config)
         logger.info("Evaluation completed.")
-

@@ -89,6 +89,7 @@ def deploy(
 
     if serving_backend == "ray":  # pragma: no cover
         from nemo_deploy.deploy_ray import DeployRay
+
         # Initialize Ray deployment
         ray_deployer = DeployRay(
             num_cpus=num_cpus,
