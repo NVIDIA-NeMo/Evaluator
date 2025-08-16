@@ -86,8 +86,8 @@ deploy(
 ### 2. Evaluate the Model
 
 ```python
-from nemo_eval.api import evaluate
-from nemo_eval.utils.api import EvaluationTarget, EvaluationConfig, ApiEndpoint
+from nvidia_eval_commons.core.evaluate import evaluate
+from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, EvaluationConfig, EvaluationTarget
 
 # Configure evaluation
 api_endpoint = ApiEndpoint(
@@ -95,7 +95,7 @@ api_endpoint = ApiEndpoint(
     model_id="megatron_model"
 )
 target = EvaluationTarget(api_endpoint=api_endpoint)
-config = EvaluationConfig(type="gsm8k")
+config = EvaluationConfig(type="gsm8k", output_dir="results")
 
 # Run evaluation
 results = evaluate(target_cfg=target, eval_cfg=config)
@@ -150,16 +150,18 @@ deploy(
 ### Basic Evaluation
 
 ```Python
-from nemo_eval.api import evaluate
-from nemo_eval.utils.api import EvaluationTarget, EvaluationConfig, ApiEndpoint, ConfigParams  
+from nvidia_eval_commons.core.evaluate import evaluate
+from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
 # Configure Endpoint
 api_endpoint = ApiEndpoint(
     url="http://0.0.0.0:8080/v1/completions/",
+    model_id="megatron_model"
 )
 # Evaluation target configuration
 target = EvaluationTarget(api_endpoint=api_endpoint)
 # Configure EvaluationConfig with type, number of samples to evaluate on, etc.
 config = EvaluationConfig(type="gsm8k",
+            output_dir="results",
             params=ConfigParams(
                     limit_samples=10
                 ))

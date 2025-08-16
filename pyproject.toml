@@ -67,7 +67,8 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "nvidia-lm-eval==25.6.1",
+    "nvidia-lm-eval==25.7.1",
+    "nvidia-eval-commons~=1.0.0",
     "uvicorn",
     "flask",
     "megatron-core>=0.14.0a0,<0.15.0",
