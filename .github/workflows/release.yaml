@@ -46,6 +46,10 @@ jobs:
       version-bump-branch: ${{ inputs.version-bump-branch }}
       create-gh-release: ${{ inputs.create-gh-release }}
       packaging: uv
+      skip-test-wheel: true
+      custom-container: nvcr.io/nvidia/pytorch:25.05-py3
+      no-build-isolation: true
+      runner: linux-amd64-cpu16
     secrets:
       TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
       TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
