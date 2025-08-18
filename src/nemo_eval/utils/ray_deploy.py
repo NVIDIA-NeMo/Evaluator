@@ -101,9 +101,7 @@ def deploy_with_ray(
 
     # Initialize Ray deployment
     ray_deployer = DeployRay(
-        num_cpus=get_available_cpus(),
-        num_gpus=total_gpus,
-        include_dashboard=include_dashboard,
+        num_cpus=get_available_cpus(), num_gpus=total_gpus, include_dashboard=include_dashboard, host=host, port=port
     )
 
     # Set up signal handlers
@@ -115,28 +113,20 @@ def deploy_with_ray(
 
     try:
         # Start Ray Serve
-        ray_deployer.start(host=host, port=port)
-
-        # Create the Multi-Rank Megatron model deployment
-        app = MegatronRayDeployable.options(
-            num_replicas=num_replicas,
-            ray_actor_options={"num_cpus": num_cpus_per_replica},
-        ).bind(
-            nemo_checkpoint_filepath=nemo_checkpoint,
+        ray_deployer.deploy_inframework_model(
+            nemo_checkpoint=nemo_checkpoint,
             num_gpus=gpus_per_replica,
-            num_nodes=num_nodes,
             tensor_model_parallel_size=tensor_model_parallel_size,
             pipeline_model_parallel_size=pipeline_model_parallel_size,
             expert_model_parallel_size=expert_model_parallel_size,
             context_parallel_size=context_parallel_size,
             model_id=model_id,
+            num_cpus_per_replica=num_cpus_per_replica,
+            num_replicas=num_replicas,
             enable_cuda_graphs=enable_cuda_graphs,
             enable_flash_decode=enable_flash_decode,
             legacy_ckpt=legacy_ckpt,
         )
-
-        # Deploy the model
-        ray_deployer.run(app, model_id)
 
         logger.info(f"Megatron model deployed successfully at {host}:{port}")
         logger.info("Press Ctrl+C to stop the deployment")
