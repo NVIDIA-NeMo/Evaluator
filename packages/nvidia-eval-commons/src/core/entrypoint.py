@@ -1,0 +1,157 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import argparse
+import logging
+import os
+import pkgutil
+import sys
+
+import structlog
+import yaml
+from nvidia_eval_commons.adapters.adapter_config import AdapterConfig
+from nvidia_eval_commons.api.api_dataclasses import EvaluationConfig, EvaluationTarget
+from nvidia_eval_commons.core.evaluate import evaluate
+from nvidia_eval_commons.core.input import (
+    _get_framework_evaluations,
+    load_run_config,
+    parse_cli_args,
+    validate_configuration,
+)
+
+from .utils import deep_update
+
+logging.basicConfig(level=logging.INFO)
+structlog.configure(
+    wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
+)
+
+
+def get_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--debug", action="store_true", help="Debug the core_evals script"
+    )
+    subparsers = parser.add_subparsers(help="Functions")
+    parser_ls = subparsers.add_parser("ls", help="List available evaluation types")
+    parser_ls.set_defaults(command="ls")
+
+    parser_run = subparsers.add_parser("run_eval", help="Run the evaluation")
+    parser_run.add_argument("--eval_type", type=str, help="Run config.: task name")
+    parser_run.add_argument("--model_id", type=str, help="Run config.: model name")
+    parser_run.add_argument(
+        "--model_type",
+        type=str,
+        help="Run config.: endpoint type",
+        choices=["chat", "completions", "vlm", "embedding"],
+    )
+    parser_run.add_argument("--model_url", type=str, help="Run config.: model URI")
+    parser_run.add_argument(
+        "--output_dir", type=str, help="Run config.: results output dir."
+    )
+    parser_run.add_argument(
+        "--api_key_name",
+        type=str,
+        help="Run config.: API key env variable name (optional)",
+        default=None,
+    )
+    parser_run.add_argument(
+        "--run_config",
+        type=str,
+        help="Load the run configuration from the YAML file (optional and overridden by the cli arguments)",
+        default=None,
+    )
+    parser_run.add_argument(
+        "--overrides",
+        type=str,
+        help="Comma-separated dot-style parameters to override config values (overriding values from run_config and CLI args)",
+        default=None,
+    )
+    parser_run.add_argument(
+        "--dry_run",
+        action="store_true",
+        help="Shows rendered config and command instead of running",
+        default=False,
+    )
+    parser_run.set_defaults(command="run_eval")
+
+    args = parser.parse_args()
+
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+        structlog.configure(
+            wrapper_class=structlog.make_filtering_bound_logger(logging.DEBUG)
+        )
+
+    if "command" not in args:
+        parser.print_help()
+        sys.exit(0)
+    return args
+
+
+def show_available_tasks() -> None:
+    try:
+        import core_evals
+
+        core_evals_pkg = list(pkgutil.iter_modules(core_evals.__path__))
+    except ImportError:
+        core_evals_pkg = []
+
+    if not core_evals_pkg:
+        print("NO evaluation packages are installed.")
+
+    for pkg in core_evals_pkg:
+        framework_eval_mapping, *_ = _get_framework_evaluations(
+            os.path.join(pkg.module_finder.path, pkg.name, "framework.yml")
+        )
+        for ind_pkg in framework_eval_mapping.keys():
+            print(f"{ind_pkg}: ")
+            for task in framework_eval_mapping[ind_pkg].keys():
+                print(f"  * {task}")
+
+
+def run(args) -> None:
+    run_config = load_run_config(args.run_config) if args.run_config else {}
+    # CLI args take precedence over YAML run config
+    run_config = deep_update(run_config, parse_cli_args(args), skip_nones=True)
+    if args.dry_run:
+        evaluation = validate_configuration(run_config)
+        print("Rendered config:\n")
+        config = evaluation.model_dump()
+        print(yaml.dump(config, sort_keys=False, default_flow_style=False, indent=2))
+        print("\nRendered command:\n")
+        cmd = evaluation.render_command()
+        print(cmd)
+        exit(0)
+
+    adapter_config = AdapterConfig.get_validated_config(run_config)
+    eval_cfg = EvaluationConfig(**run_config["config"])
+    target_cfg = EvaluationTarget(**run_config["target"])
+    target_cfg.api_endpoint.adapter_config = adapter_config
+
+    evaluate(eval_cfg=eval_cfg, target_cfg=target_cfg)
+
+
+def run_eval() -> None:
+    args = get_args()
+
+    if args.command == "ls":
+        show_available_tasks()
+    elif args.command == "run_eval":
+        run(args)
+
+
+if __name__ == "__main__":
+    run_eval()

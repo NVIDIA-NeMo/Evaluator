@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "nvidia-eval-commons"
+description = "Common utilities for NVIDIA evaluation frameworks"
+dynamic = ["version"]
+dependencies = [
+    "flask",
+    "jinja2",
+    "psutil",
+    "pydantic",
+    "pydantic-core>=2.17",
+    "requests",
+    "structlog",
+    "typing-extensions>=4.0.0",
+    "psutil",
+    "pyyaml",
+    "werkzeug",
+    "yq",
+]
+requires-python = ">=3.9"
+readme = "README.md"
+license = {file = "LICENSE"}
+
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-subtests",
+]
+
+docs = [
+    "sphinx",
+    "sphinx-autobuild",  # For live doc serving while editing docs
+    "sphinx-autodoc2",  # For documenting Python API
+    "sphinx-copybutton",  # Adds a copy button for code blocks
+    "myst_parser",  # For our markdown docs
+    "nvidia-sphinx-theme",  # Our NVIDIA theme
+]
+
+all = [
+    "nvidia_eval_commons[test,docs]"
+]
+
+[project.scripts]
+nvidia_eval_commons_example = "nvidia_eval_commons.cli.example:main"
+nvidia-eval-commons-example = "nvidia_eval_commons.cli.example:main"
+eval-factory = "nvidia_eval_commons.core.entrypoint:run_eval"
+
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["nvidia_eval_commons*"]
+
+
+[tool.setuptools.package-data]
+nvidia_eval_commons = ["resources/**/*"]
