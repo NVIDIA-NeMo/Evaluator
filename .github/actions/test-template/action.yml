@@ -61,7 +61,9 @@ runs:
       if: ${{ inputs.has-azure-credentials == 'true' }}
       shell: bash
       run: |
+        echo ::group::Install Azure CLI
         curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+        echo ::endgroup::
 
     - name: Azure Login
       if: ${{ inputs.has-azure-credentials == 'true' }}
@@ -75,61 +77,83 @@ runs:
       if: ${{ inputs.has-azure-credentials == 'true' }}
       shell: bash
       run: |
+        echo ::group::Azure ACR Login
         az acr login --name nemoci
+        echo ::endgroup::
 
-    - name: Azure Fileshare
-      if: ${{ inputs.has-azure-credentials == 'true' && inputs.is_unit_test == 'false' }}
-      shell: bash
-      id: azure-fileshare
-      run: |
-        sudo apt update
-        sudo apt install -y cifs-utils
+    # - name: Configure local file cache
+    #   shell: bash
+    #   if: ${{ inputs.has-azure-credentials == 'true' && inputs.is_unit_test == 'false' }}
+    #   env:
+    #     MNT_PATH: ${{ steps.azure-fileshare.outputs.MNT_PATH }}
+    #   run: |
+    #     set -x -e -u -o pipefail
 
-        RESOURCE_GROUP_NAME="azure-gpu-vm-runner_group"
-        STORAGE_ACCOUNT_NAME="nemocistorageaccount2"
-        FILE_SHARE_NAME="fileshare"
+    #     sudo apt update
+    #     sudo apt install -y cachefilesd
 
-        MNT_ROOT="/media"
-        MNT_PATH="$MNT_ROOT/$STORAGE_ACCOUNT_NAME/$FILE_SHARE_NAME"
+    #     # Enable cachefilesd in config file
+    #     sudo sed -i 's/^#RUN=yes/RUN=yes/' /etc/default/cachefilesd
+    #     sudo cat /etc/default/cachefilesd
 
-        echo "MNT_PATH=$MNT_PATH" | tee -a "$GITHUB_OUTPUT"
+    #     # Enable and restart the service
+    #     sudo systemctl enable cachefilesd
+    #     sudo systemctl restart cachefilesd
+    #     sudo systemctl status cachefilesd
 
-        sudo mkdir -p $MNT_PATH
+    # - name: Azure Fileshare
+    #   if: ${{ inputs.has-azure-credentials == 'true' && inputs.is_unit_test == 'false' }}
+    #   shell: bash
+    #   id: azure-fileshare
+    #   run: |
+    #     sudo apt update
+    #     sudo apt install -y cifs-utils
 
-        # Create a folder to store the credentials for this storage account and
-        # any other that you might set up.
-        CREDENTIAL_ROOT="/etc/smbcredentials"
-        sudo mkdir -p "/etc/smbcredentials"
+    #     RESOURCE_GROUP_NAME="azure-gpu-vm-runner_group"
+    #     STORAGE_ACCOUNT_NAME="nemocistorageaccount2"
+    #     FILE_SHARE_NAME="fileshare"
 
-        # Get the storage account key for the indicated storage account.
-        # You must be logged in with az login and your user identity must have
-        # permissions to list the storage account keys for this command to work.
-        STORAGE_ACCOUNT_KEY=$(az storage account keys list \
-            --resource-group $RESOURCE_GROUP_NAME \
-            --account-name $STORAGE_ACCOUNT_NAME \
-            --query "[0].value" --output tsv | tr -d '"')
+    #     MNT_ROOT="/media"
+    #     MNT_PATH="$MNT_ROOT/$STORAGE_ACCOUNT_NAME/$FILE_SHARE_NAME"
 
-        # Create the credential file for this individual storage account
-        SMB_CREDENTIAL_FILE="$CREDENTIAL_ROOT/$STORAGE_ACCOUNT_NAME.cred"
-        if [ ! -f $SMB_CREDENTIAL_FILE ]; then
-            echo "username=$STORAGE_ACCOUNT_NAME" | sudo tee $SMB_CREDENTIAL_FILE > /dev/null
-            echo "password=$STORAGE_ACCOUNT_KEY" | sudo tee -a $SMB_CREDENTIAL_FILE > /dev/null
-        else
-            echo "The credential file $SMB_CREDENTIAL_FILE already exists, and was not modified."
-        fi
+    #     echo "MNT_PATH=$MNT_PATH" | tee -a "$GITHUB_OUTPUT"
 
-        # Change permissions on the credential file so only root can read or modify the password file.
-        sudo chmod 600 $SMB_CREDENTIAL_FILE
+    #     sudo mkdir -p $MNT_PATH
 
-        # This command assumes you have logged in with az login
-        HTTP_ENDPOINT=$(az storage account show --resource-group $RESOURCE_GROUP_NAME --name $STORAGE_ACCOUNT_NAME --query "primaryEndpoints.file" --output tsv | tr -d '"')
-        SMB_PATH=$(echo $HTTP_ENDPOINT | cut -c7-${#HTTP_ENDPOINT})$FILE_SHARE_NAME
+    #     # Create a folder to store the credentials for this storage account and
+    #     # any other that you might set up.
+    #     CREDENTIAL_ROOT="/etc/smbcredentials"
+    #     sudo mkdir -p "/etc/smbcredentials"
 
-        STORAGE_ACCOUNT_KEY=$(az storage account keys list --resource-group $RESOURCE_GROUP_NAME --account-name $STORAGE_ACCOUNT_NAME --query "[0].value" --output tsv | tr -d '"')
+    #     # Get the storage account key for the indicated storage account.
+    #     # You must be logged in with az login and your user identity must have
+    #     # permissions to list the storage account keys for this command to work.
+    #     STORAGE_ACCOUNT_KEY=$(az storage account keys list \
+    #         --resource-group $RESOURCE_GROUP_NAME \
+    #         --account-name $STORAGE_ACCOUNT_NAME \
+    #         --query "[0].value" --output tsv | tr -d '"')
 
-        sudo mount -t cifs $SMB_PATH $MNT_PATH -o credentials=$SMB_CREDENTIAL_FILE,serverino,nosharesock,actimeo=30,mfsymlinks
+    #     # Create the credential file for this individual storage account
+    #     SMB_CREDENTIAL_FILE="$CREDENTIAL_ROOT/$STORAGE_ACCOUNT_NAME.cred"
+    #     if [ ! -f $SMB_CREDENTIAL_FILE ]; then
+    #         echo "username=$STORAGE_ACCOUNT_NAME" | sudo tee $SMB_CREDENTIAL_FILE > /dev/null
+    #         echo "password=$STORAGE_ACCOUNT_KEY" | sudo tee -a $SMB_CREDENTIAL_FILE > /dev/null
+    #     else
+    #         echo "The credential file $SMB_CREDENTIAL_FILE already exists, and was not modified."
+    #     fi
 
-        ls -al $MNT_PATH/TestData
+    #     # Change permissions on the credential file so only root can read or modify the password file.
+    #     sudo chmod 600 $SMB_CREDENTIAL_FILE
+
+    #     # This command assumes you have logged in with az login
+    #     HTTP_ENDPOINT=$(az storage account show --resource-group $RESOURCE_GROUP_NAME --name $STORAGE_ACCOUNT_NAME --query "primaryEndpoints.file" --output tsv | tr -d '"')
+    #     SMB_PATH=$(echo $HTTP_ENDPOINT | cut -c7-${#HTTP_ENDPOINT})$FILE_SHARE_NAME
+
+    #     STORAGE_ACCOUNT_KEY=$(az storage account keys list --resource-group $RESOURCE_GROUP_NAME --account-name $STORAGE_ACCOUNT_NAME --query "[0].value" --output tsv | tr -d '"')
+
+    #     sudo mount -t cifs $SMB_PATH $MNT_PATH -o credentials=$SMB_CREDENTIAL_FILE,serverino,nosharesock,actimeo=30,mfsymlinks,fsc,cache=strict
+
+    #     ls -al $MNT_PATH/TestData
 
     - name: Checkout repository
       uses: actions/checkout@v2
@@ -141,12 +165,22 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.PAT }}
       run: |
+        echo ::group::Build test container
         docker build -f docker/Dockerfile.ci --build-arg INFERENCE_FRAMEWORK=${{ inputs.inference-framework }} --secret id=GH_TOKEN -t eval .
+        echo ::endgroup::
 
     - name: Start container
       shell: bash
+      env:
+        MNT_PATH: ${{ steps.azure-fileshare.outputs.MNT_PATH }}
+        MOUNT_FS: ${{ inputs.has-azure-credentials == 'true' && inputs.is_unit_test == 'false' }}
       run: |
-        MNT_PATH=${{ steps.azure-fileshare.outputs.mnt_path }}
+        echo ::group::Start test container
+        if [[ "$MOUNT_FS" == "true" ]]; then
+          VOLUME_ARGS="--volume /mnt/datadrive/TestData:/home/TestData"
+        else
+          VOLUME_ARGS=""
+        fi
 
         ARG=("")
         if [[ "${{ inputs.cpu-only }}" == "false" ]]; then
@@ -167,7 +201,7 @@ runs:
           --env RUN_ID=${{ github.run_id }} \
           --workdir /workspace \
           --volume $(pwd)/Eval:/workspace \
-          --volume $MNT_PATH/TestData:/home/TestData \
+          $VOLUME_ARGS \
           eval \
           bash -c "sleep $(( ${{ inputs.timeout }} * 60 + 60 ))"
         RUN_TEST_EOF
@@ -175,11 +209,13 @@ runs:
 
         echo "$cmd" | tee "retry_job.sh"
         bash retry_job.sh
+        echo ::endgroup::
 
     - name: Create run-script
       id: create
       shell: bash
       run: |
+        echo ::group::Create run-script
         COVERAGE_PREFIX=$([[ "${{ inputs.is_unit_test }}" == "true" ]] && echo "unit-test" || echo "e2e")
         echo "coverage-prefix=$COVERAGE_PREFIX" | tee -a "$GITHUB_OUTPUT"
 
@@ -196,6 +232,7 @@ runs:
 
         echo "timeout_in_seconds=$(( ${{ inputs.timeout }} * 60 ))" | tee -a "$GITHUB_OUTPUT"
         echo "$cmd" | tee "job.sh"
+        echo ::endgroup::
 
     - name: Run main script
       uses: nick-fields/retry@v3
@@ -212,6 +249,7 @@ runs:
       id: check
       shell: bash
       run: |
+        echo ::group::Check result
         docker exec nemo_container_${{ github.run_id }} /opt/venv/bin/coverage combine || true
         docker exec nemo_container_${{ github.run_id }} /opt/venv/bin/coverage xml
         docker cp nemo_container_${{ github.run_id }}:/workspace/.coverage .coverage
@@ -234,11 +272,14 @@ runs:
         fi
 
         exit $EXIT_CODE
+        echo ::endgroup::
 
     - name: Test coverage
       shell: bash -x -e -u -o pipefail {0}
       run: |
+        echo ::group::Test coverage
         docker exec -t nemo_container_${{ github.run_id }} /opt/venv/bin/coverage report -i
+        echo ::endgroup::
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4

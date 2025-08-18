@@ -32,7 +32,7 @@ name = "nemo-eval"
 dynamic = ["version", "readme"]
 description = "NeMo Eval: Evaluation Utilities for LLM and VLM models"
 license = { file = "LICENSE" }
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 authors = [{ name = "NVIDIA", email = "nemo-toolkit@nvidia.com" }]
 maintainers = [{ name = "NVIDIA", email = "nemo-toolkit@nvidia.com" }]
 keywords = [
@@ -67,14 +67,17 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "nvidia-lm-eval",
+    "nvidia-lm-eval==25.7.1",
+    "nvidia-eval-commons~=1.0.0",
     "uvicorn",
     "flask",
-    # "nemo-export-deploy"
+    "megatron-core>=0.14.0a0,<0.15.0",
+    "nvidia-modelopt[torch]>=0.33.0a0,<0.34.0; sys_platform != 'darwin'",
+    "nvidia-resiliency-ext>=0.4.0a0,<0.5.0; sys_platform != 'darwin'",
+    "nemo-export-deploy>=0.2.0a0,<0.3.0,>=0.2.0rc2",
+    "megatron-bridge>=0.1.0a0,<0.2.0",
+    "transformer-engine[pytorch]>=2.6.0a0,<2.7.0; sys_platform != 'darwin'",
 ]
-
-[project.optional-dependencies]
-te = ["transformer-engine[pytorch]==2.2.0"]
 
 [project.urls]
 Download = "https://github.com/NVIDIA-NeMo/Eval/releases"
@@ -82,7 +85,7 @@ Homepage = "https://github.com/NVIDIA-NeMo/Eval"
 
 [dependency-groups]
 # This is a default group so that we install these even with bare `uv sync`
-build = ["setuptools", "torch", "pybind11", "Cython>=3.0.0"]
+build = ["setuptools", "torch==2.7.0", "pybind11", "Cython>=3.0.0"]
 docs = [
     "sphinx",
     "sphinx-autobuild",    # For live doc serving while editing docs
@@ -93,18 +96,16 @@ docs = [
 ]
 linting = ["ruff~=0.9.0"]
 test = ["pytest", "pytest-mock", "coverage", "click", "pytest-httpserver"]
-nemo-legacy = [
-    "nemo-toolkit[automodel,common-only,nlp-only,eval,multimodal-only]",
+nemo-toolkit = [
+    "nemo-toolkit[automodel,common-only,nlp-only,eval,multimodal-only]>=2.5.0a0,<2.6.0",
 ]
-megatron-bridge-pre = ["megatron-bridge"]
-nemo-export-deploy-pre = ["nemo-export-deploy"]
+nemo-run = ["nemo-run"]
 
+# uv.sources allows us to override dependencies with VCS commits. 
+# Lets use this only for debugging purposes, but not for production (main).
 [tool.uv.sources]
-# Remove this
-megatron-bridge = { git = "https://github.com/NVIDIA-NeMo/Megatron-Bridge.git", rev = "958fb9b7da4eb1506142a122965fa5424cfdc8a2" }
-nemo-toolkit = { git = "https://github.com/NVIDIA/NeMo.git", rev = "5e63ca3c1631bb156187705f9c4cf643a67f9c05" }
-megatron-core = { git = "https://github.com/NVIDIA/Megatron-LM.git", rev = "7b296e0553ec19723d77a2310cb9808ab373eb2a" }
-nemo-export-deploy = { git = "https://github.com/NVIDIA-NeMo/Export-Deploy.git", rev = "b2c0f1912cb69ed9e843e5a6299c1ea53b6d5aee" }
+# transformer-engine = { git = "https://github.com/NVIDIA/TransformerEngine.git", rev = "5f1142e8c12172510d34709df3629be6f88dc993" } # on release_v2.6.0
+# nemo-export-deploy = { git = "https://github.com/NVIDIA-NeMo/Export-Deploy.git", rev = "aa5a7d52e03ecf9d9e6345adfc3708dd87666a60" }
 
 [tool.uv]
 # Currently, TE must be built with no build-isolation b/c it requires torch
@@ -112,7 +113,7 @@ no-build-isolation-package = ["transformer-engine", "transformer-engine-torch"]
 # Always apply the build group since dependencies like TE/mcore/nemo-run require build dependencies
 # and this lets us assume they are implicitly installed with a simply `uv sync`. Ideally, we'd
 # avoid including these in the default dependency set, but for now it's required.
-default-groups = ["linting", "build", "test"]
+default-groups = ["linting", "build", "test", "nemo-run"]
 # Users may use different link-modes depending on their scenario:
 #  --link-mode=hardlink (default on linux; may get warnings about switching to --link-mode copy if uv cache and venv on different file-systems)
 #  --link-mode=copy (slower but more reliable; supresses warning)
@@ -120,7 +121,8 @@ default-groups = ["linting", "build", "test"]
 link-mode = "copy"
 override-dependencies = [
     "urllib3>1.27.0",
-    "tiktoken>=0.9.0", # because nemo-toolkit and megatron-bridge disagree on tiktoken, we need to pin it here,
+    "tiktoken>=0.9.0",         # because nemo-toolkit and megatron-bridge disagree on tiktoken, we need to pin it here,]
+    "megatron-core<0.14.0rc4", # Issue with "The provided qkv memory layout is not supported" starting with 0.14.0rc4
 ]
 prerelease = "allow"
 

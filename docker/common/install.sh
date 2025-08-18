@@ -62,7 +62,7 @@ main() {
     # Install dependencies
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
-    apt-get install -y curl git libopenmpi-dev libpython3.12 python3-pip python3-venv
+    apt-get install -y curl git libopenmpi-dev libpython3.12 python3-pip python3-venv cmake
 
     # Install uv
     UV_VERSION="0.7.2"
@@ -92,6 +92,10 @@ main() {
             "--no-install-package" "nvidia-cusparselt-cu12"
             "--no-install-package" "nvidia-nccl-cu12"
         )
+    else
+        UV_ARGS=(
+            "--no-install-package" "nvidia-cudnn-cu12"
+        )
     fi
 
     if [[ "$INFERENCE_FRAMEWORK" != "inframework" ]]; then
@@ -106,7 +110,6 @@ main() {
     uv sync \
         --link-mode copy \
         --locked \
-        --extra te \
         --all-groups ${UV_ARGS[@]}
 
     # Run install overrides

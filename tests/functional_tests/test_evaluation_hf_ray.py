@@ -23,7 +23,7 @@ import pytest
 from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
 from nvidia_eval_commons.core.evaluate import evaluate
 
-from nemo_eval.utils.base import wait_for_fastapi_server
+from nemo_eval.utils.base import check_endpoint
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +36,8 @@ def deployment_process():
     set via app.config.response.
     """
     # Create and run the fake endpoint server
-    nemo2_ckpt_path = "/home/TestData/nemo2_ckpt/llama3-1b-lingua"
+    hf_model_id = "meta-llama/Llama-3.2-1B"
     max_batch_size = 4
-    legacy_ckpt = True
     port = 8886
     # Run deployment
     deploy_proc = subprocess.Popen(
@@ -47,15 +46,14 @@ def deployment_process():
             "run",
             "--data-file=/workspace/.coverage",
             "--source=/workspace/",
-            "tests/functional_tests/deploy_in_fw_script.py",
-            "--nemo2_ckpt_path",
-            nemo2_ckpt_path,
+            "tests/functional_tests/deploy_hf_ray.py",
+            "--hf_model_id_path",
+            hf_model_id,
             "--max_batch_size",
             str(max_batch_size),
             "--port",
             str(port),
         ]
-        + (["--legacy_ckpt"] if legacy_ckpt else [])
     )
 
     yield deploy_proc  # We only need the process reference for cleanup
@@ -108,58 +106,30 @@ class TestEvaluation:
         os.environ["HF_HOME"] = "/home/TestData/HF_HOME"
         os.environ["HF_DATASETS_CACHE"] = f"{os.environ['HF_HOME']}/datasets"
 
-        # Wait for server readiness
-        logger.info("Waiting for server readiness...")
-        server_ready = wait_for_fastapi_server(base_url=f"http://0.0.0.0:{port}", max_retries=600)
-        assert server_ready, "Server is not ready. Please look at the deploy process log for the error"
-
         # Run evaluation
         logger.info("Starting evaluation...")
         api_endpoint = ApiEndpoint(
-            url=f"http://0.0.0.0:{port}/v1/completions/", type="completions", model_id="megatron_model"
-        )
-        eval_target = EvaluationTarget(api_endpoint=api_endpoint)
-        eval_params = {"limit_samples": limit, "request_timeout": 360}
-        temp_dir = tempfile.TemporaryDirectory()
-        eval_config = EvaluationConfig(type=eval_type, params=ConfigParams(**eval_params), output_dir=temp_dir.name)
-        evaluate(target_cfg=eval_target, eval_cfg=eval_config)
-        logger.info("Evaluation completed.")
-
-    @pytest.mark.run_only_on("GPU")
-    def test_arc_challenge_evaluation(self, deployment_process):
-        """
-        Test ARC Challenge evaluation benchmark.
-        """
-        tokenizer_path = "/home/TestData/nemo2_ckpt/llama3-1b-lingua/context/lingua"
-        eval_type = "arc_challenge"
-        limit = 1
-        port = 8886
-
-        # Set environment variables
-        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-        os.environ["HF_DATASETS_OFFLINE"] = "1"
-        os.environ["HF_HOME"] = "/home/TestData/HF_HOME"
-        os.environ["HF_DATASETS_CACHE"] = f"{os.environ['HF_HOME']}/datasets"
-
-        # Wait for server readiness
-        logger.info("Waiting for server readiness...")
-        server_ready = wait_for_fastapi_server(base_url=f"http://0.0.0.0:{port}", max_retries=600)
-        assert server_ready, "Server is not ready. Please look at the deploy process log for the error"
-
-        # Run evaluation
-        logger.info("Starting evaluation...")
-        api_endpoint = ApiEndpoint(
-            url=f"http://0.0.0.0:{port}/v1/completions/", type="completions", model_id="megatron_model"
+            url=f"http://0.0.0.0:{port}/v1/completions/",
+            type="completions",
+            model_id="hf_model",
         )
         eval_target = EvaluationTarget(api_endpoint=api_endpoint)
         eval_params = {
             "limit_samples": limit,
-            "extra": {
-                "tokenizer_backend": "huggingface",
-                "tokenizer": tokenizer_path,
-            },
         }
         temp_dir = tempfile.TemporaryDirectory()
         eval_config = EvaluationConfig(type=eval_type, params=ConfigParams(**eval_params), output_dir=temp_dir.name)
+        # Wait for server readiness
+        logger.info("Waiting for server readiness...")
+        print("eval_target.api_endpoint.url", eval_target.api_endpoint.url)
+        print("eval_target.api_endpoint.type", eval_target.api_endpoint.type)
+        print("eval_target.api_endpoint.model_id", eval_target.api_endpoint.model_id)
+        server_ready = check_endpoint(
+            endpoint_url=eval_target.api_endpoint.url,
+            endpoint_type=eval_target.api_endpoint.type,
+            model_name=eval_target.api_endpoint.model_id,
+            max_retries=600,
+        )
+        assert server_ready, "Server is not ready. Please look at the deploy process log for the error"
         evaluate(target_cfg=eval_target, eval_cfg=eval_config)
         logger.info("Evaluation completed.")

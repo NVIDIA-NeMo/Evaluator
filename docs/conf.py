@@ -75,6 +75,13 @@ autodoc2_docstring_parser_regexes = [
 
 html_theme = "nvidia_sphinx_theme"
 html_theme_options = {
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/NVIDIA-NeMo/Eval",
+            "icon": "fa-brands fa-github",
+        }
+    ],
     "switcher": {
         "json_url": "../versions1.json",
         "version_match": release,

@@ -12,25 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pip install nvidia-bigcode-eval==25.6
+# pip install nvidia-bigcode-eval==25.7.1
 
 ## Export the required variables
 # No environment variables are required
 ## Run the evaluation
-from nemo_eval.api import evaluate
-from nemo_eval.utils.api import EvaluationConfig, EvaluationTarget
+from nvidia_eval_commons.api.api_dataclasses import (
+    ApiEndpoint,
+    ConfigParams,
+    EndpointType,
+    EvaluationConfig,
+    EvaluationTarget,
+)
+from nvidia_eval_commons.core.evaluate import evaluate
 
 model_name = "megatron_model"
 chat_url = "http://0.0.0.0:8080/v1/chat/completions/"
 
 
-target_config = EvaluationTarget(
-    api_endpoint={
-        "url": chat_url,
-        "type": "chat",
-    }
-)
-eval_config = EvaluationConfig(type="mbpp", output_dir="/results/", params={"limit_samples": 10})
+target_config = EvaluationTarget(api_endpoint=ApiEndpoint(url=chat_url, type=EndpointType.CHAT, model_id=model_name))
+eval_config = EvaluationConfig(type="mbpp", output_dir="/results/", params=ConfigParams(limit_samples=10))
 
 
 results = evaluate(target_cfg=target_config, eval_cfg=eval_config)
