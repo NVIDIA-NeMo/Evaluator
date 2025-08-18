@@ -20,10 +20,9 @@ import subprocess
 import tempfile
 
 import pytest
+from nemo_eval.utils.base import wait_for_fastapi_server
 from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
 from nvidia_eval_commons.core.evaluate import evaluate
-
-from nemo_eval.utils.base import wait_for_fastapi_server
 
 logger = logging.getLogger(__name__)
 

@@ -17,7 +17,6 @@ import signal
 import subprocess
 
 import pytest
-
 from nemo_eval.utils.base import check_endpoint, check_health
 
 
