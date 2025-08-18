@@ -19,7 +19,6 @@ import sys
 from typing import Optional
 
 from nemo_deploy.deploy_ray import DeployRay
-from nemo_deploy.nlp.megatronllm_deployable_ray import MegatronRayDeployable
 
 logger = logging.getLogger(__name__)
 
