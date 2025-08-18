@@ -75,6 +75,7 @@ dependencies = [
     "nvidia-modelopt[torch]>=0.33.0a0,<0.34.0; sys_platform != 'darwin'",
     "nvidia-resiliency-ext>=0.4.0a0,<0.5.0; sys_platform != 'darwin'",
     "nemo-export-deploy>=0.2.0a0,<0.3.0",
+    "megatron-bridge>=0.1.0a0,<0.2.0",
     "transformer-engine[pytorch]>=2.6.0a0,<2.8.0; sys_platform != 'darwin'",
 ]
 
@@ -104,7 +105,7 @@ nemo-run = ["nemo-run"]
 # Lets use this only for debugging purposes, but not for production (main).
 [tool.uv.sources]
 # transformer-engine = { git = "https://github.com/NVIDIA/TransformerEngine.git", rev = "5f1142e8c12172510d34709df3629be6f88dc993" } # on release_v2.6.0
-nemo-export-deploy = { git = "https://github.com/NVIDIA-NeMo/Export-Deploy.git", rev = "aa5a7d52e03ecf9d9e6345adfc3708dd87666a60" }
+# nemo-export-deploy = { git = "https://github.com/NVIDIA-NeMo/Export-Deploy.git", rev = "aa5a7d52e03ecf9d9e6345adfc3708dd87666a60" }
 
 [tool.uv]
 # Currently, TE must be built with no build-isolation b/c it requires torch
