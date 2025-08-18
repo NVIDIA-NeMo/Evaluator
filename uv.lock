@@ -15,8 +15,8 @@ prerelease-mode = "allow"
 
 [manifest]
 overrides = [
+    { name = "megatron-core", specifier = "<0.14.0rc4" },
     { name = "tiktoken", specifier = ">=0.9.0" },
-    { name = "transformer-engine", extras = ["pytorch"], marker = "sys_platform != 'darwin'", specifier = ">=2.5.0a0,<2.6.0" },
     { name = "urllib3", specifier = ">1.27.0" },
 ]
 
@@ -2279,7 +2279,7 @@ wheels = [
 
 [[package]]
 name = "jsonschema"
-version = "4.25.0"
+version = "4.25.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
@@ -2287,9 +2287,9 @@ dependencies = [
     { name = "referencing" },
     { name = "rpds-py" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d5/00/a297a868e9d0784450faa7365c2172a7d6110c763e30ba861867c32ae6a9/jsonschema-4.25.0.tar.gz", hash = "sha256:e63acf5c11762c0e6672ffb61482bdf57f0876684d8d249c0fe2d730d48bc55f", size = 356830, upload-time = "2025-07-18T15:39:45.11Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/74/69/f7185de793a29082a9f3c7728268ffb31cb5095131a9c139a74078e27336/jsonschema-4.25.1.tar.gz", hash = "sha256:e4a9655ce0da0c0b67a085847e00a3a51449e1157f4f75e9fb5aa545e122eb85", size = 357342, upload-time = "2025-08-18T17:03:50.038Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fe/54/c86cd8e011fe98803d7e382fd67c0df5ceab8d2b7ad8c5a81524f791551c/jsonschema-4.25.0-py3-none-any.whl", hash = "sha256:24c2e8da302de79c8b9382fee3e76b355e44d2a4364bb207159ce10b517bd716", size = 89184, upload-time = "2025-07-18T15:39:42.956Z" },
+    { url = "https://files.pythonhosted.org/packages/bf/9c/8c95d856233c1f82500c2450b8c68576b4cf1c871db3afac5c34ff84e6fd/jsonschema-4.25.1-py3-none-any.whl", hash = "sha256:3fba0169e345c7175110351d456342c364814cfcf3b964ba4587f22915230a63", size = 90040, upload-time = "2025-08-18T17:03:48.373Z" },
 ]
 
 [[package]]
@@ -2834,19 +2834,19 @@ wheels = [
 
 [[package]]
 name = "megatron-core"
-version = "0.14.0rc6"
+version = "0.14.0rc3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
     { name = "packaging" },
     { name = "torch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/aa/b1/589ca7a18129322612871801a1ef5297b0cd6081c41efda5a4e4846e19c6/megatron_core-0.14.0rc6.tar.gz", hash = "sha256:cdd71b1df32ddf7710e82cc6dc8956749e366963842f642b3eae73ba3b7ec82c", size = 746687, upload-time = "2025-08-18T04:13:17.915Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b4/35/ae9bf915c4c6bead2b9d608320f80822a0b749ae338767a0112e0b8bc9c1/megatron_core-0.14.0rc3.tar.gz", hash = "sha256:8614a7345893079d6f04b2a881904722a90b1959ff858e58071e2b525f5ffe99", size = 755245, upload-time = "2025-07-28T04:14:22.454Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7f/c7/877804d168d92800ed58ca63ac00cdfead0d989f797e2da241643822842f/megatron_core-0.14.0rc6-cp310-cp310-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:ea81098f51b9fa1e512630f34deb7b72596e6e7611cd9c8fab1a597e212b0879", size = 2041030, upload-time = "2025-08-18T04:13:11.612Z" },
-    { url = "https://files.pythonhosted.org/packages/4b/e7/854b7f0afbb9124d54d5f0325e4829dc8129e58a7fda880f925928a3500e/megatron_core-0.14.0rc6-cp310-cp310-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:8b90635c874483b5d2814bbacba6c9b2117c8126e13fd95f73a8f1c109d809b2", size = 2065845, upload-time = "2025-08-18T04:13:13.451Z" },
-    { url = "https://files.pythonhosted.org/packages/8f/e3/829f87232086b9c06cbb7bec89f631d252d15ae70f0e37ab4a2ed12db192/megatron_core-0.14.0rc6-cp311-cp311-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:14d37a8ca4e07306f6fc9ae743a073f756e647141a8e65dd518e1c476447d839", size = 2051206, upload-time = "2025-08-18T04:13:15.094Z" },
-    { url = "https://files.pythonhosted.org/packages/22/c8/09924565d8f6005ab5fb624387ee2b4f6ba679f5118c0372bcdb79d7036a/megatron_core-0.14.0rc6-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:267454c97fc29d11058c8272212438773f8fd5d17eefd716c4dd42aa1718d8d5", size = 2078079, upload-time = "2025-08-18T04:13:16.774Z" },
+    { url = "https://files.pythonhosted.org/packages/31/bd/2871269fd0dff50775d102003e02aec9ae784f1747f6248b5289d780e426/megatron_core-0.14.0rc3-cp310-cp310-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:7af06dce555d2da25baba2b30fd5b10cdcf7d60248693edfeb4e4f989adb978f", size = 2018048, upload-time = "2025-07-28T04:14:16.332Z" },
+    { url = "https://files.pythonhosted.org/packages/66/b2/64c4d7b21f8110e6e39c41ab9714b332c2969f0b46bb6db50551ec936c4f/megatron_core-0.14.0rc3-cp310-cp310-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:f6dd3c5484c04082fbd665ecad6f1bf4d72538adbeb44e33eee38c99b96a6dad", size = 2042854, upload-time = "2025-07-28T04:14:18.166Z" },
+    { url = "https://files.pythonhosted.org/packages/8b/83/b12fa316d35b5b13a310ca092d9a10933a49246038bbb7581c58f490fd5b/megatron_core-0.14.0rc3-cp311-cp311-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:b4725f5a6a3dacaaacf1322109f47985d0379073a5935ad1a5b5a280f47d265f", size = 2028191, upload-time = "2025-07-28T04:14:19.68Z" },
+    { url = "https://files.pythonhosted.org/packages/d6/b2/77d8b43497e277d0ed608ea8490bae1290ebb7b73d49bb6997a679279224/megatron_core-0.14.0rc3-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:2d8fa373d0e8d513468dc3c06821626a25fb9a2a41b620e90fae30d1847d7172", size = 2055074, upload-time = "2025-07-28T04:14:21.304Z" },
 ]
 
 [[package]]
@@ -3154,7 +3154,7 @@ requires-dist = [
     { name = "nvidia-lm-eval", specifier = "==25.7.1" },
     { name = "nvidia-modelopt", extras = ["torch"], marker = "sys_platform != 'darwin'", specifier = ">=0.33.0a0,<0.34.0" },
     { name = "nvidia-resiliency-ext", marker = "sys_platform != 'darwin'", specifier = ">=0.4.0a0,<0.5.0" },
-    { name = "transformer-engine", extras = ["pytorch"], marker = "sys_platform != 'darwin'", specifier = ">=2.5.0a0,<2.6.0" },
+    { name = "transformer-engine", extras = ["pytorch"], marker = "sys_platform != 'darwin'", specifier = ">=2.6.0a0,<2.7.0" },
     { name = "uvicorn" },
 ]
 
@@ -3982,6 +3982,38 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/6a/4d/2c253a36070fb43f340ff1d2c450df6a9ef50b938adcd105693fee43c4ee/onnx-1.18.0-cp312-cp312-win32.whl", hash = "sha256:ee159b41a3ae58d9c7341cf432fc74b96aaf50bd7bb1160029f657b40dc69715", size = 15734892, upload-time = "2025-05-12T22:02:35.527Z" },
     { url = "https://files.pythonhosted.org/packages/e8/92/048ba8fafe6b2b9a268ec2fb80def7e66c0b32ab2cae74de886981f05a27/onnx-1.18.0-cp312-cp312-win_amd64.whl", hash = "sha256:102c04edc76b16e9dfeda5a64c1fccd7d3d2913b1544750c01d38f1ac3c04e05", size = 15850336, upload-time = "2025-05-12T22:02:38.545Z" },
     { url = "https://files.pythonhosted.org/packages/a1/66/bbc4ffedd44165dcc407a51ea4c592802a5391ce3dc94aa5045350f64635/onnx-1.18.0-cp312-cp312-win_arm64.whl", hash = "sha256:911b37d724a5d97396f3c2ef9ea25361c55cbc9aa18d75b12a52b620b67145af", size = 15823802, upload-time = "2025-05-12T22:02:42.037Z" },
+]
+
+[[package]]
+name = "onnx-ir"
+version = "0.1.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ml-dtypes" },
+    { name = "numpy" },
+    { name = "onnx" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/52/77/1a2b62172d1b2852e8a5bf2a31f628bf40440e5229781d3bc4c44eac13a7/onnx_ir-0.1.6.tar.gz", hash = "sha256:2ad6b7561703ae777af2a1a3fe5e8292a9283b9820ef75bd4c5eed3d586a5e10", size = 106478, upload-time = "2025-08-11T23:55:45.044Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8b/e2/a59a5840472e2d5ce657cc7df4fac2986807ecfb5043d3e4b347c46f9671/onnx_ir-0.1.6-py3-none-any.whl", hash = "sha256:ad2e99caf8dcce6f2c1262dbdaf5f51ae23a530bcedb17a273d743685ebc45cf", size = 122758, upload-time = "2025-08-11T23:55:43.6Z" },
+]
+
+[[package]]
+name = "onnxscript"
+version = "0.3.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ml-dtypes" },
+    { name = "numpy" },
+    { name = "onnx" },
+    { name = "onnx-ir" },
+    { name = "packaging" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/62/24/7583317b1ee93d06a7e9c482a0e264af76dd63de0d24f67dbf47467d4bf0/onnxscript-0.3.1.tar.gz", hash = "sha256:8f18d2e7119743187579e21bc7d031b5666b56b7e31fcba9a14491f088ead68e", size = 571946, upload-time = "2025-06-26T19:44:17.849Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6e/7b/08b48677f4c15beac66c97e84db90fc9fb15cbd297cc1c66564d2c54561d/onnxscript-0.3.1-py3-none-any.whl", hash = "sha256:8ca3069d13487332fa7e93ae544e361e6cf133f6a381a2237e17698c3346d541", size = 661045, upload-time = "2025-06-26T19:44:20.413Z" },
 ]
 
 [[package]]
@@ -6450,13 +6482,13 @@ wheels = [
 
 [[package]]
 name = "transformer-engine"
-version = "2.5.0"
+version = "2.6.0.post1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "transformer-engine-cu12" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/13/e7/b1af90c00f6c63abfada141f25c2ef7ed620d01aa62d8c3a8f74644b2396/transformer_engine-2.5.0-py3-none-any.whl", hash = "sha256:a78a2ad01b1f97bccd740f701287fa43cf6ba37ba5a9b2d8c401d35ecdd0898e", size = 535575, upload-time = "2025-07-15T20:48:28.119Z" },
+    { url = "https://files.pythonhosted.org/packages/9b/59/09ab90314c16a6ac44deab14c734bee292fa62b58dd9d538de8c9b34a974/transformer_engine-2.6.0.post1-py3-none-any.whl", hash = "sha256:deb1ed2a937fbcce7e825e38461e360ca3057147996a8269dc8b868a21672486", size = 568125, upload-time = "2025-08-11T06:29:48.971Z" },
 ]
 
 [package.optional-dependencies]
@@ -6466,7 +6498,7 @@ pytorch = [
 
 [[package]]
 name = "transformer-engine-cu12"
-version = "2.5.0"
+version = "2.6.0.post1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "importlib-metadata" },
@@ -6474,19 +6506,21 @@ dependencies = [
     { name = "pydantic" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/17/ca/c2594e92fa63366947b2e34f21e7b2c29f5aa7c8ed3648356623af6fc580/transformer_engine_cu12-2.5.0-py3-none-manylinux_2_28_aarch64.whl", hash = "sha256:06676d92ee87e207c91d27a1947a880c4da502667f7b5dacabc1413dc5c5a795", size = 274123550, upload-time = "2025-07-15T21:15:27.622Z" },
-    { url = "https://files.pythonhosted.org/packages/74/84/ee88068473ff38a7d304c7861ff61290eadf1139dfd2fda56804b34724d3/transformer_engine_cu12-2.5.0-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:d4a63985115bbc399b44a70ef7a8e028cbd53aee6f2a621c11f7c12bd4632095", size = 274534430, upload-time = "2025-07-15T21:16:23.638Z" },
+    { url = "https://files.pythonhosted.org/packages/4a/df/0452fd0d62921c8d6ca2fd575f2ff330df577675ab290fd551cedd0856dd/transformer_engine_cu12-2.6.0.post1-py3-none-manylinux_2_28_aarch64.whl", hash = "sha256:d6f936a8e6e552002e329bf6076b599d88af7b212e9541139a6ed0a50ca5674a", size = 161229253, upload-time = "2025-08-11T06:36:31.742Z" },
+    { url = "https://files.pythonhosted.org/packages/06/a3/083982615f6b28b30cf4d70939a67c2f6e6fd28e73fd8e96012dbebd59f3/transformer_engine_cu12-2.6.0.post1-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:197df838f70a4b862ba4e5056850888f74ee4a180a32c68c1e4e6eb7e611e42f", size = 277344566, upload-time = "2025-08-11T06:29:23.042Z" },
 ]
 
 [[package]]
 name = "transformer-engine-torch"
-version = "2.5.0"
+version = "2.6.0.post1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "einops" },
+    { name = "onnx" },
+    { name = "onnxscript" },
     { name = "torch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a1/1d/73ec467d20d96e0bb12c3047d0567d41955ab2e18ce3c26cb53451773605/transformer_engine_torch-2.5.0.tar.gz", hash = "sha256:f56e65287a1f082ac5f44b8edd3c024131f51414f44ecffcdd1372e2781cb113", size = 159599, upload-time = "2025-07-17T15:37:07.939Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/dd/b4/fc88697b5ea8086db9f11e9b0f546a10da59db8a011e6486b6dacb2b4644/transformer_engine_torch-2.6.0.post1.tar.gz", hash = "sha256:bbd86914afce057f566b33ae5e73351b001c0a276053d1c8fe65c9fc1b40b44a", size = 169413, upload-time = "2025-08-11T06:37:30.214Z" }
 
 [[package]]
 name = "transformers"
@@ -6641,7 +6675,7 @@ datetime = [
 
 [[package]]
 name = "typer"
-version = "0.16.0"
+version = "0.16.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -6649,9 +6683,9 @@ dependencies = [
     { name = "shellingham" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c5/8c/7d682431efca5fd290017663ea4588bf6f2c6aad085c7f108c5dbc316e70/typer-0.16.0.tar.gz", hash = "sha256:af377ffaee1dbe37ae9440cb4e8f11686ea5ce4e9bae01b84ae7c63b87f1dd3b", size = 102625, upload-time = "2025-05-26T14:30:31.824Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/43/78/d90f616bf5f88f8710ad067c1f8705bf7618059836ca084e5bb2a0855d75/typer-0.16.1.tar.gz", hash = "sha256:d358c65a464a7a90f338e3bb7ff0c74ac081449e53884b12ba658cbd72990614", size = 102836, upload-time = "2025-08-18T19:18:22.898Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/76/42/3efaf858001d2c2913de7f354563e3a3a2f0decae3efe98427125a8f441e/typer-0.16.0-py3-none-any.whl", hash = "sha256:1f79bed11d4d02d4310e3c1b7ba594183bcedb0ac73b27a9e5f28f6fb5b98855", size = 46317, upload-time = "2025-05-26T14:30:30.523Z" },
+    { url = "https://files.pythonhosted.org/packages/2d/76/06dbe78f39b2203d2a47d5facc5df5102d0561e2807396471b5f7c5a30a1/typer-0.16.1-py3-none-any.whl", hash = "sha256:90ee01cb02d9b8395ae21ee3368421faf21fa138cb2a541ed369c08cec5237c9", size = 46397, upload-time = "2025-08-18T19:18:21.663Z" },
 ]
 
 [[package]]
