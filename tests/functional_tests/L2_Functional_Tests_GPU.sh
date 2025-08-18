@@ -25,4 +25,4 @@ coverage run \
     -v -s -x \
     -m "not pleasefixme" \
     --tb=short tests/functional_tests
-coverage combine
+coverage combine -q

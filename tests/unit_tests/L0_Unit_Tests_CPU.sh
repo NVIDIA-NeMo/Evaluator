@@ -21,4 +21,4 @@ coverage run \
     -o log_cli_level=INFO \
     -m "not pleasefixme" \
     tests/unit_tests
-coverage combine
+coverage combine -q
