@@ -47,7 +47,7 @@ def check_endpoint(
     """
     payload = {"model": model_name, "max_tokens": 1}
     if endpoint_type == "completions":
-        payload["prompt"] = "hello"
+        payload["prompt"] = '"hello"'
     elif endpoint_type == "chat":
         payload["messages"] = [{"role": "user", "content": "hello"}]
     else:
