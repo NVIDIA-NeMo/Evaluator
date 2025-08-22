@@ -1,30 +1,21 @@
-```{include} ../README.md
-:relative-docs: docs/
-:relative-images:
-```
+(template-home)=
 
-```{toctree}
-:caption: Basic Usage
-:hidden:
+# {{ product_name }} Documentation
 
-evaluation-doc.md
-```
+Welcome to the {{ product_name_short }} documentation.
 
-```{toctree}
-:caption: Advanced
-:hidden:
+## Introduction to {{ product_name_short }}
 
-evaluation-with-ray.md
-evaluation-adapters.md
-logprobs.md
-custom-task.md
-optional-eval-package.md
-```
+Learn about the {{ product_name_short }}, how it works at a high level, and its key features.
 
-```{toctree}
-:caption: Development
-:hidden:
+## Featureset Workflows
 
-documentation.md
-apidocs/index.rst
-```
+
+
+## Tutorial Highlights
+
+
+
+## Install & Deploy Guides
+
+
