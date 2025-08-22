@@ -82,14 +82,6 @@ eval_config = EvaluationConfig(type="lm-evaluation-harness.mmlu_str_high_school_
 eval_config = EvaluationConfig(type="lm_evaluation_harness.mmlu_str_high_school_european_history")
 ```
 
-In order to specify multiple tasks, separate the tasks with a comma as shown below:
-
-```python
-eval_config = EvaluationConfig(type="mmlu,gsm8k")
-eval_config = EvaluationConfig(type="lm-evaluation-harness.mmlu,lm-evaluation-harness.gsm8k")
-eval_config = EvaluationConfig(type="lm_evaluation_harness.gsm8k,mmlu")
-```
-
 To enable additional evaluation harnesses, like  `simple-evals`, `BFCL`, `garak`, `BigCode`, or `safety-harness`, you need to install them. For example:
 
 ```bash
