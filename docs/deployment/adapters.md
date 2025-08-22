@@ -1,3 +1,5 @@
+(adapters)=
+
 # Evaluation Adapters
 
 Evaluation adapters provide a flexible mechanism for intercepting and modifying requests/responses between the evaluation harness and the model endpoint. This allows for custom processing, logging, and transformation of data during the evaluation process.
@@ -75,9 +77,45 @@ The adapter system uses a chain of interceptors that process requests and respon
          │                                                             │
          └─────────────────────────────────────────────────────────────┘
 ```
+
 ## Adapter System: Request/Response Flow
 
 The **AdapterServer** acts as a local reverse proxy, mediating communication between the **NVIDIA Eval Factory** (client) and the **upstream model endpoint**. It employs a pipeline of interceptors to enable pre-processing of outgoing requests and post-processing of incoming responses. This architecture allows for modular insertion of custom logic without modifying the core client or model service.
+
+```{mermaid}
+sequenceDiagram
+    participant Client as NVIDIA Eval Factory<br/>(Client)
+    participant AS as AdapterServer<br/>(Local Reverse Proxy)
+    participant RI as Request Interceptors<br/>(Chain: intcptr_1 → intcptr_N)
+    participant Model as Upstream Model<br/>Endpoint
+    participant RespI as Response Interceptors<br/>(Chain: intcptr'_1 → intcptr'_M)
+
+    Note over Client, RespI: Evaluation Request Processing Flow
+
+    Client->>AS: 1-2. Initiate evaluation request<br/>(routes to localhost:<port>)
+    
+    AS->>AS: 3. Receive inbound HTTP request
+    
+    AS->>RI: 4. Inject flask.Request into<br/>request interceptor chain
+    
+    Note over RI: Sequential processing:<br/>• Header manipulation<br/>• Payload transformation<br/>• Request validation<br/>• Authentication/authorization<br/>• Logging
+    
+    RI->>AS: Processed request<br/>(potentially mutated)
+    
+    AS->>Model: 5. Dispatch request to<br/>upstream endpoint
+    
+    Model->>Model: 6. Execute inference logic<br/>and generate response
+    
+    Model->>AS: 7. Return HTTP response
+    
+    AS->>RespI: 8. Pass requests.Response to<br/>response interceptor chain
+    
+    Note over RespI: Sequential processing:<br/>• Data extraction<br/>• Output reformatting<br/>• Caching strategies<br/>• Custom logging
+    
+    RespI->>AS: 9. Finalized processed<br/>requests.Response
+    
+    AS->>Client: 10-11. Transmit final response<br/>for metric computation & analysis
+```
 
 Here's a detailed breakdown of the interaction flow:
 
