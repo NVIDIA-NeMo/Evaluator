@@ -3116,7 +3116,7 @@ nemo-toolkit = [{ name = "nemo-toolkit", extras = ["automodel", "common-only", "
 test = [
     { name = "click" },
     { name = "coverage" },
-    { name = "nemo-export-deploy", specifier = ">=0.3.0a0,<0.4.0" },
+    { name = "nemo-export-deploy", specifier = ">=0.2.0a0,>=0.2.0rc2,<0.3.0" },
     { name = "pytest" },
     { name = "pytest-httpserver" },
     { name = "pytest-mock" },
@@ -3124,7 +3124,7 @@ test = [
 
 [[package]]
 name = "nemo-export-deploy"
-version = "0.3.0rc0"
+version = "0.2.0rc2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "accelerate" },
@@ -3162,9 +3162,9 @@ dependencies = [
     { name = "zarr", version = "2.18.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "zarr", version = "2.18.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ec/dd/c9d43ca2f63b20edf629c7ec8932e412d4b4714f2c7d6e1a616784abfaa5/nemo_export_deploy-0.3.0rc0.tar.gz", hash = "sha256:b12f1a63f47aa4931b31a9bd5396ffbcdbdc95d5d9a27d5bccaec74d9655f359", size = 127595, upload-time = "2025-08-25T06:58:57.974Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/04/f8/6a9b0c9029c2d4f9f360ac399d049361c957d96aeaca139836b448d019e4/nemo_export_deploy-0.2.0rc2.tar.gz", hash = "sha256:26ffeaf61ee9d12e69e8c2f010af7592be2afd85f7f273e5d1a586a3fefd4944", size = 126872, upload-time = "2025-08-18T06:32:30.905Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/57/ef/932086d56de56f9f8654d45c65bec28b6790be927306f99b995f92bf8464/nemo_export_deploy-0.3.0rc0-py3-none-any.whl", hash = "sha256:50f8991564fdf4157167cfb113233808e4720415d5d93dfe8da97de9f502887d", size = 160650, upload-time = "2025-08-25T06:58:56.492Z" },
+    { url = "https://files.pythonhosted.org/packages/a6/11/0f71e653c4295041967e3dae10410771ef4e70a7b8e7c5b082aeb9ba2434/nemo_export_deploy-0.2.0rc2-py3-none-any.whl", hash = "sha256:c7dc7518292dbc268e8f0225a248929365e357161be3f81340eca9ef842fc59c", size = 159880, upload-time = "2025-08-18T06:32:29.671Z" },
 ]
 
 [[package]]
@@ -3547,7 +3547,7 @@ name = "nvidia-cudnn-cu12"
 version = "9.5.1.17"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12" },
+    { name = "nvidia-cublas-cu12", marker = "sys_platform == 'linux'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2a/78/4535c9c7f859a64781e43c969a3a7e84c54634e319a996d43ef32ce46f83/nvidia_cudnn_cu12-9.5.1.17-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:30ac3869f6db17d170e0e556dd6cc5eee02647abc31ca856634d5a40f82c15b2", size = 570988386, upload-time = "2024-10-25T19:54:26.39Z" },
@@ -3574,7 +3574,7 @@ name = "nvidia-cufft-cu12"
 version = "11.3.0.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12" },
+    { name = "nvidia-nvjitlink-cu12", marker = "sys_platform == 'linux'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8f/16/73727675941ab8e6ffd86ca3a4b7b47065edcca7a997920b831f8147c99d/nvidia_cufft_cu12-11.3.0.4-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:ccba62eb9cef5559abd5e0d54ceed2d9934030f51163df018532142a8ec533e5", size = 200221632, upload-time = "2024-11-20T17:41:32.357Z" },
@@ -3603,9 +3603,9 @@ name = "nvidia-cusolver-cu12"
 version = "11.7.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12" },
-    { name = "nvidia-cusparse-cu12" },
-    { name = "nvidia-nvjitlink-cu12" },
+    { name = "nvidia-cublas-cu12", marker = "sys_platform == 'linux'" },
+    { name = "nvidia-cusparse-cu12", marker = "sys_platform == 'linux'" },
+    { name = "nvidia-nvjitlink-cu12", marker = "sys_platform == 'linux'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f0/6e/c2cf12c9ff8b872e92b4a5740701e51ff17689c4d726fca91875b07f655d/nvidia_cusolver_cu12-11.7.1.2-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:e9e49843a7707e42022babb9bcfa33c29857a93b88020c4e4434656a655b698c", size = 158229790, upload-time = "2024-11-20T17:43:43.211Z" },
@@ -3617,7 +3617,7 @@ name = "nvidia-cusparse-cu12"
 version = "12.5.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12" },
+    { name = "nvidia-nvjitlink-cu12", marker = "sys_platform == 'linux'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/06/1e/b8b7c2f4099a37b96af5c9bb158632ea9e5d9d27d7391d7eb8fc45236674/nvidia_cusparse_cu12-12.5.4.2-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:7556d9eca156e18184b94947ade0fba5bb47d69cec46bf8660fd2c71a4b48b73", size = 216561367, upload-time = "2024-11-20T17:44:54.824Z" },
@@ -6504,7 +6504,7 @@ name = "triton"
 version = "3.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "setuptools" },
+    { name = "setuptools", marker = "sys_platform == 'linux'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/76/04/d54d3a6d077c646624dc9461b0059e23fd5d30e0dbe67471e3654aec81f9/triton-3.3.0-cp310-cp310-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:fad99beafc860501d7fcc1fb7045d9496cbe2c882b1674640304949165a916e7", size = 156441993, upload-time = "2025-04-09T20:27:25.107Z" },

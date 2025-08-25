@@ -95,7 +95,7 @@ test = [
     "coverage",
     "click",
     "pytest-httpserver",
-    "nemo-export-deploy>=0.3.0a0,<0.4.0",
+    "nemo-export-deploy>=0.2.0a0,<0.3.0,>=0.2.0rc2",
 ]
 nemo-toolkit = [
     "nemo-toolkit[automodel,common-only,nlp-only,eval,multimodal-only]>=2.5.0a0,<2.6.0",
