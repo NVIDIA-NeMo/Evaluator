@@ -71,12 +71,6 @@ dependencies = [
     "nvidia-eval-commons~=1.0.0",
     "uvicorn",
     "flask",
-    "megatron-core>=0.14.0a0,<0.15.0",
-    "nvidia-modelopt[torch]>=0.33.0a0,<0.34.0; sys_platform != 'darwin'",
-    "nvidia-resiliency-ext>=0.4.0a0,<0.5.0; sys_platform != 'darwin'",
-    "nemo-export-deploy>=0.2.0a0,<0.3.0,>=0.2.0rc2",
-    "megatron-bridge>=0.1.0a0,<0.2.0",
-    "transformer-engine[pytorch]>=2.6.0a0,<2.7.0; sys_platform != 'darwin'",
 ]
 
 [project.urls]
@@ -95,7 +89,14 @@ docs = [
     "nvidia-sphinx-theme", # Our NVIDIA theme
 ]
 linting = ["ruff~=0.9.0"]
-test = ["pytest", "pytest-mock", "coverage", "click", "pytest-httpserver"]
+test = [
+    "pytest",
+    "pytest-mock",
+    "coverage",
+    "click",
+    "pytest-httpserver",
+    "nemo-export-deploy>=0.2.0a0,<0.3.0,>=0.2.0rc2",
+]
 nemo-toolkit = [
     "nemo-toolkit[automodel,common-only,nlp-only,eval,multimodal-only]>=2.5.0a0,<2.6.0",
 ]
@@ -118,12 +119,11 @@ default-groups = ["linting", "build", "test", "nemo-run"]
 #  --link-mode=hardlink (default on linux; may get warnings about switching to --link-mode copy if uv cache and venv on different file-systems)
 #  --link-mode=copy (slower but more reliable; supresses warning)
 #  --link-mode=symlink (fastest option when uv cache and venv on different file-system; caveat: venv is brittle since it depends on the environment/container)
-link-mode = "copy"
 override-dependencies = [
     "urllib3>1.27.0",
-    "tiktoken>=0.9.0",         # because nemo-toolkit and megatron-bridge disagree on tiktoken, we need to pin it here,]
-    "megatron-core<0.14.0rc4", # Issue with "The provided qkv memory layout is not supported" starting with 0.14.0rc4
+    "tiktoken>=0.9.0", # because nemo-toolkit and megatron-bridge disagree on tiktoken, we need to pin it here,
 ]
+link-mode = "copy"
 prerelease = "allow"
 
 [[tool.uv.index]]
