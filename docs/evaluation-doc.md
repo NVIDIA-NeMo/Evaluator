@@ -66,12 +66,20 @@ It also provides predefined configurations for evaluating the chat endpoint, suc
 - `wikilingua`
 
 
-When specifying the task, you can either use the task name from the list above or prepend it with the harness name. For example:
+When specifying the task in the `EvaluationConfig` (detailed code examples in [Evaluate Models Locally on Your Workstation](#evaluate-models-locally-on-your-workstation) section), you can either use the task name from the list above or prepend it with the harness name. For example:
 
 ```python
-task = "mmlu"
-task = "lm-evaluation-harness.mmlu"
-task = "lm_evaluation_harness.mmlu"
+eval_config = EvaluationConfig(type="mmlu")
+eval_config = EvaluationConfig(type="lm-evaluation-harness.mmlu")
+eval_config = EvaluationConfig(type="lm_evaluation_harness.mmlu")
+```
+
+Subtask of a benchmark (for ex `mmlu_str_high_school_european_history` under `mmlu`), can also be specified similar to above:
+
+```python
+eval_config = EvaluationConfig(type="mmlu_str_high_school_european_history")
+eval_config = EvaluationConfig(type="lm-evaluation-harness.mmlu_str_high_school_european_history")
+eval_config = EvaluationConfig(type="lm_evaluation_harness.mmlu_str_high_school_european_history")
 ```
 
 To enable additional evaluation harnesses, like  `simple-evals`, `BFCL`, `garak`, `BigCode`, or `safety-harness`, you need to install them. For example:
@@ -84,8 +92,8 @@ For more information on enabling additional evaluation harnesses, see ["Add On-D
 If multiple harnesses are installed in your environment and they define a task with the same name, you must use the `<harness>.<task>` format to avoid ambiguity. For example:
 
 ```python
-task = "lm-evaluation-harness.mmlu"
-task = "simple-evals.mmlu"
+eval_config = EvaluationConfig(type="lm-evaluation-harness.mmlu")
+eval_config = EvaluationConfig(type="simple-evals.mmlu")
 ```
 
 To evaluate your model on a task without a pre-defined config, see ["Run Evaluation Using Task Without Pre-Defined Config"](custom-task.md).
@@ -94,7 +102,7 @@ To evaluate your model on a task without a pre-defined config, see ["Run Evaluat
 
 This section outlines the steps to deploy and evaluate a checkpoint trained by Nemo Framework directly using Python commands. This method is quick and easy, making it ideal for evaluation on a local workstation with GPUs, as it facilitates easier debugging. However, for running evaluations on clusters, it is recommended to use NeMo Run for its ease of use (see next section).
 
-The entry point for deployment is the `deploy` method defined in `nemo/collections/llm/api.py`. Below is an example command for deployment. It uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to NeMo format. To evaluate a checkpoint saved during [pretraining](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#pretraining) or [fine-tuning](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#fine-tuning), provide the path to the saved checkpoint using the `nemo_checkpoint` argument in the `deploy` command below.
+The entry point for deployment is the `deploy` method defined in `nemo_eval/api.py`. Below is an example command for deployment. It uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to NeMo format. To evaluate a checkpoint saved during [pretraining](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#pretraining) or [fine-tuning](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#fine-tuning), provide the path to the saved checkpoint using the `nemo_checkpoint` argument in the `deploy` command below.
 
 ```python
 from nemo_eval.api import deploy
@@ -130,6 +138,8 @@ if __name__ == "__main__":
 > **Note:** To evaluate the chat endpoint, update the url by replacing `/v1/completions/` with `/v1/chat/completions/`. Additionally, set the `type` field to `"chat"` in both `ApiEndpoint` and `EvaluationConfig` to indicate a chat benchmark. A list of available chat benchmarks can be found in the [Deploy and Evaluate NeMo Checkpoints](#deploy-and-evaluate-nemo-checkpoints) section above.
 
 > **Note:** Please refer to `deploy` and `evaluate` method in `nemo_eval/api.py` to review all available argument options, as the provided commands are only examples and do not include all arguments or their default values. For more detailed information on the arguments used in the ApiEndpoint and ConfigParams classes for evaluation, see the source code at [nemo_eval/utils/api.py](https://github.com/NVIDIA-NeMo/Eval/blob/main/src/nemo_eval/utils/api.py).
+
+> **Tip:** If you encounter TimeoutError on the eval client side, please increase the `request_timeout` parameter in `ConfigParams` class to a larger value like `1000` or `1200` seconds (the default is 300).
 
 ## Run Evaluations with NeMo Run
 
