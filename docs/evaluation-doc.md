@@ -9,29 +9,30 @@ In this approach, the model is given a prompt such as a question to answer, an i
 An alternative approach to LLM evaluation utilizes **log-probabilities**.
 To learn more please refer to ["Evaluate LLMs Using Log-Probabilities"](logprobs.md).
 
-Use the `list_available_evaluations` function to list the evaluation configs available in your evironment:
+Use the `show_available_tasks` function to list the evaluation configs available in your evironment:
 
 ```python
-from nemo_eval.utils.base import list_available_evaluations
+from nvidia_eval_commons.core.entrypoint import show_available_tasks
 
-list_available_evaluations()
+show_available_tasks()
 ```
 
-This will return a dictionary with eval packages as keys, and list of available configs as values:
+This will print a list of eval harnesses and configs available in each of them:
 
 ```
-{'core_evals.lm_evaluation_harness': ['mmlu',
-  'mmlu_instruct',
-  'mmlu_cot_0_shot_chat',
-  'ifeval',
-  'mmlu_pro',
-  'mmlu_pro_instruct',
-  'mmlu_redux',
+lm-evaluation-harness: 
+  * mmlu
+  * mmlu_instruct
+  * mmlu_cot_0_shot_chat
+  * ifeval
+  * mmlu_pro
+  * mmlu_pro_instruct
+  * mmlu_redux
   ...
-  'bbq',
-  'arc_multilingual',
-  'hellaswag_multilingual',
-  'mmlu_prox']}
+  * bbq
+  * arc_multilingual
+  * hellaswag_multilingual
+  * mmlu_prox
 ```
 
 ## Deploy and Evaluate NeMo Checkpoints
