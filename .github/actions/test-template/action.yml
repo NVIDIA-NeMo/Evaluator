@@ -61,7 +61,9 @@ runs:
       if: ${{ inputs.has-azure-credentials == 'true' }}
       shell: bash
       run: |
+        echo ::group::Install Azure CLI
         curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+        echo ::endgroup::
 
     - name: Azure Login
       if: ${{ inputs.has-azure-credentials == 'true' }}
@@ -75,7 +77,9 @@ runs:
       if: ${{ inputs.has-azure-credentials == 'true' }}
       shell: bash
       run: |
+        echo ::group::Azure ACR Login
         az acr login --name nemoci
+        echo ::endgroup::
 
     # - name: Configure local file cache
     #   shell: bash
@@ -161,7 +165,9 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.PAT }}
       run: |
+        echo ::group::Build test container
         docker build -f docker/Dockerfile.ci --build-arg INFERENCE_FRAMEWORK=${{ inputs.inference-framework }} --secret id=GH_TOKEN -t eval .
+        echo ::endgroup::
 
     - name: Start container
       shell: bash
@@ -169,6 +175,7 @@ runs:
         MNT_PATH: ${{ steps.azure-fileshare.outputs.MNT_PATH }}
         MOUNT_FS: ${{ inputs.has-azure-credentials == 'true' && inputs.is_unit_test == 'false' }}
       run: |
+        echo ::group::Start test container
         if [[ "$MOUNT_FS" == "true" ]]; then
           VOLUME_ARGS="--volume /mnt/datadrive/TestData:/home/TestData"
         else
@@ -202,11 +209,13 @@ runs:
 
         echo "$cmd" | tee "retry_job.sh"
         bash retry_job.sh
+        echo ::endgroup::
 
     - name: Create run-script
       id: create
       shell: bash
       run: |
+        echo ::group::Create run-script
         COVERAGE_PREFIX=$([[ "${{ inputs.is_unit_test }}" == "true" ]] && echo "unit-test" || echo "e2e")
         echo "coverage-prefix=$COVERAGE_PREFIX" | tee -a "$GITHUB_OUTPUT"
 
@@ -223,6 +232,7 @@ runs:
 
         echo "timeout_in_seconds=$(( ${{ inputs.timeout }} * 60 ))" | tee -a "$GITHUB_OUTPUT"
         echo "$cmd" | tee "job.sh"
+        echo ::endgroup::
 
     - name: Run main script
       uses: nick-fields/retry@v3
@@ -239,6 +249,7 @@ runs:
       id: check
       shell: bash
       run: |
+        echo ::group::Check result
         docker exec nemo_container_${{ github.run_id }} /opt/venv/bin/coverage combine || true
         docker exec nemo_container_${{ github.run_id }} /opt/venv/bin/coverage xml
         docker cp nemo_container_${{ github.run_id }}:/workspace/.coverage .coverage
@@ -261,11 +272,14 @@ runs:
         fi
 
         exit $EXIT_CODE
+        echo ::endgroup::
 
     - name: Test coverage
       shell: bash -x -e -u -o pipefail {0}
       run: |
+        echo ::group::Test coverage
         docker exec -t nemo_container_${{ github.run_id }} /opt/venv/bin/coverage report -i
+        echo ::endgroup::
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4

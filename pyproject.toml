@@ -32,7 +32,7 @@ name = "nemo-eval"
 dynamic = ["version", "readme"]
 description = "NeMo Eval: Evaluation Utilities for LLM and VLM models"
 license = { file = "LICENSE" }
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 authors = [{ name = "NVIDIA", email = "nemo-toolkit@nvidia.com" }]
 maintainers = [{ name = "NVIDIA", email = "nemo-toolkit@nvidia.com" }]
 keywords = [
@@ -68,18 +68,10 @@ classifiers = [
 ]
 dependencies = [
     "nvidia-lm-eval==25.7.1",
+    "nvidia-eval-commons~=1.0.0",
     "uvicorn",
     "flask",
-    "megatron-core>=0.13.0a0,<0.14.0",
-    "nvidia-modelopt[torch,onnx]>=0.31.0a0,<0.32.0; sys_platform != 'darwin'",
-    "nvidia-resiliency-ext>=0.3.0a0,<0.4.0; sys_platform != 'darwin'",
-    "nemo-export-deploy>=0.1.0a0,<0.2.0",
-    "pandas>2.0.0",
-    "nvidia-eval-commons~=1.0.0",
 ]
-
-[project.optional-dependencies]
-te = ["transformer-engine[pytorch]==2.5.0"]
 
 [project.urls]
 Download = "https://github.com/NVIDIA-NeMo/Eval/releases"
@@ -97,16 +89,24 @@ docs = [
     "nvidia-sphinx-theme", # Our NVIDIA theme
 ]
 linting = ["ruff~=0.9.0"]
-test = ["pytest", "pytest-mock", "coverage", "click", "pytest-httpserver"]
+test = [
+    "pytest",
+    "pytest-mock",
+    "coverage",
+    "click",
+    "pytest-httpserver",
+    "nemo-export-deploy>=0.2.0a0,<0.3.0,>=0.2.0rc2",
+]
 nemo-toolkit = [
-    "nemo-toolkit[automodel,common-only,nlp-only,eval,multimodal-only]~=2.4.0",
+    "nemo-toolkit[automodel,common-only,nlp-only,eval,multimodal-only]>=2.5.0a0,<2.6.0",
 ]
 nemo-run = ["nemo-run"]
 
-# # uv.sources allows us to override dependencies with VCS commits. 
-# # Lets use this only for debugging purposes, but not for production (main).
-# [tool.uv.sources]
-# nemo-toolkit = { git = "https://github.com/NVIDIA/NeMo.git", rev = "5e63ca3c1631bb156187705f9c4cf643a67f9c05" }
+# uv.sources allows us to override dependencies with VCS commits. 
+# Lets use this only for debugging purposes, but not for production (main).
+[tool.uv.sources]
+# transformer-engine = { git = "https://github.com/NVIDIA/TransformerEngine.git", rev = "5f1142e8c12172510d34709df3629be6f88dc993" } # on release_v2.6.0
+# nemo-export-deploy = { git = "https://github.com/NVIDIA-NeMo/Export-Deploy.git", rev = "aa5a7d52e03ecf9d9e6345adfc3708dd87666a60" }
 
 [tool.uv]
 # Currently, TE must be built with no build-isolation b/c it requires torch
@@ -119,13 +119,11 @@ default-groups = ["linting", "build", "test", "nemo-run"]
 #  --link-mode=hardlink (default on linux; may get warnings about switching to --link-mode copy if uv cache and venv on different file-systems)
 #  --link-mode=copy (slower but more reliable; supresses warning)
 #  --link-mode=symlink (fastest option when uv cache and venv on different file-system; caveat: venv is brittle since it depends on the environment/container)
-link-mode = "copy"
 override-dependencies = [
     "urllib3>1.27.0",
-    "tiktoken>=0.9.0",  # because nemo-toolkit and megatron-bridge disagree on tiktoken, we need to pin it here,
-    "protobuf>=4.25.1",
-    "pandas>2.0.0",
+    "tiktoken>=0.9.0", # because nemo-toolkit and megatron-bridge disagree on tiktoken, we need to pin it here,
 ]
+link-mode = "copy"
 prerelease = "allow"
 
 [[tool.uv.index]]
