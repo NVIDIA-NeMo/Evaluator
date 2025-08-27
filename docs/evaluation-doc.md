@@ -118,19 +118,26 @@ if __name__ == "__main__":
 The entry point for evaluation is the `evaluate` method defined in `nemo_eval/api.py`. To run evaluations on the deployed model, use the following command. Make sure to open a new terminal within the same container to execute it. For longer evaluations, it is advisable to run both the deploy and evaluate commands in tmux sessions to prevent the processes from being terminated unexpectedly and aborting the runs.
 
 ```python
-from nemo_eval.api import evaluate
-from nemo_eval.utils.api import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
+from nemo_eval.base import check_endpoint
+from nvidia_eval_commons.core.evaluate import evaluate
+from nvidia_eval_commons.api.api_dataclasses import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
 
 # Configure the evaluation target
 api_endpoint = ApiEndpoint(
     url="http://0.0.0.0:8080/v1/completions/",
-    type="completions"
+    type="completions",
+    model_id="megatron_model",
 )
 eval_target = EvaluationTarget(api_endpoint=api_endpoint)
-eval_params = ConfigParams(top_p=1, temperature=1, limit_samples=2, parallelism=1)
+eval_params = ConfigParams(top_p=0, temperature=0, limit_samples=2, parallelism=1)
 eval_config = EvaluationConfig(type='mmlu', params=eval_params)
 
 if __name__ == "__main__":
+    check_endpoint(
+            endpoint_url=eval_target.api_endpoint.url,
+            endpoint_type=eval_target.api_endpoint.type,
+            model_name=eval_target.api_endpoint.model_id,
+        )
     evaluate(target_cfg=eval_target, eval_cfg=eval_config)
 ```
 
