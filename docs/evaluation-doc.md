@@ -40,7 +40,7 @@ lm-evaluation-harness:
 The evaluation process employs a server-client approach, comprising two main phases. 
 - **Phase 1: Model Deployment**
     - Deployment via PyTriton: The NeMo Framework checkpoint is deployed in-framework on a PyTriton server by exposing OpenAI API (OAI) compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed, enabling evaluation on both completion and chat benchmarks.
-      - Deployment via Ray: The NeMo Framework checkpoint can also be deployed in-framework on a Ray server. Ray Serve provides support for multi-instance evaluations, along with OpenAI API (OAI) compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed. For more details on evaluations with Ray Serve, refer to ["Use Ray Serve for Multi-Instance Evaluations"](evaluation-with-ray.md).
+    - Deployment via Ray: The NeMo Framework checkpoint can also be deployed in-framework on a Ray server. Ray Serve provides support for multi-instance evaluations, along with OpenAI API (OAI) compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed. For more details on evaluations with Ray Serve, refer to ["Use Ray Serve for Multi-Instance Evaluations"](evaluation-with-ray.md).
 
 - **Phase 2: Model Evaluation**
     - Evaluation via OAI Endpoints: Once the model is deployed, evaluation is performed by sending benchmark requests to the exposed OAI-compatible endpoints using their respective port. This allows assessment across a range of tasks and harnesses.
@@ -72,7 +72,6 @@ When specifying the task in the `EvaluationConfig` (detailed code examples in [E
 ```python
 eval_config = EvaluationConfig(type="mmlu")
 eval_config = EvaluationConfig(type="lm-evaluation-harness.mmlu")
-eval_config = EvaluationConfig(type="lm_evaluation_harness.mmlu")
 ```
 
 Subtask of a benchmark (for ex `mmlu_str_high_school_european_history` under `mmlu`), can also be specified similar to above:
@@ -80,7 +79,6 @@ Subtask of a benchmark (for ex `mmlu_str_high_school_european_history` under `mm
 ```python
 eval_config = EvaluationConfig(type="mmlu_str_high_school_european_history")
 eval_config = EvaluationConfig(type="lm-evaluation-harness.mmlu_str_high_school_european_history")
-eval_config = EvaluationConfig(type="lm_evaluation_harness.mmlu_str_high_school_european_history")
 ```
 
 To enable additional evaluation harnesses, like  `simple-evals`, `BFCL`, `garak`, `BigCode`, or `safety-harness`, you need to install them. For example:
