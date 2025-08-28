@@ -55,7 +55,7 @@ class FakeProgressTrackingServer:
         self.thread.daemon = True
         self.thread.start()
         # Give the server time to start
-        time.sleep(0.1)
+        time.sleep(0.5)
 
     def stop(self):
         """Stop the server."""
