@@ -18,7 +18,7 @@ The `nvidia-lm-eval` package comes pre-installed with the NeMo Framework Docker 
 If you are using a different environment, install the evaluation package:
 
 ```bash
-pip install nvidia-lm-eval==25.6
+pip install nvidia-lm-eval
 ```
 
 1. Deploy your model:

@@ -67,7 +67,7 @@ To run the evaluation on the whole dataset, remove the `"limit_samples"` paramet
 First, install the [nvidia-bfcl](https://pypi.org/project/nvidia-bfcl/) package:
 
 ```bash
-pip install nvidia-bfcl==25.6
+pip install nvidia-bfcl
 ```
 
 2. Run the evaluation:
@@ -83,7 +83,7 @@ pip install nvidia-bfcl==25.6
 1. Install the [nvidia-eval-factory-garak](https://pypi.org/project/nvidia-eval-factory-garak/) package:
 
 ```bash
-pip install nvidia-eval-factory-garak==25.6
+pip install nvidia-eval-factory-garak
 ```
 
 2. Run the evaluation:
@@ -99,7 +99,7 @@ pip install nvidia-eval-factory-garak==25.6
 1. Install the [nvidia-bigcode-eval](https://pypi.org/project/nvidia-bigcode-eval/) package:
 
 ```bash
-pip install nvidia-bigcode-eval==25.6
+pip install nvidia-bigcode-eval
 ```
 
 2. Run the evaluation:
@@ -115,7 +115,7 @@ pip install nvidia-bigcode-eval==25.6
 1. Install the [nvidia-simple-evals](https://pypi.org/project/nvidia-simple-evals/) package:
 
 ```bash
-pip install nvidia-simple-evals==25.6
+pip install nvidia-simple-evals
 ```
 
 In the example below, we use the `AIME_2025` task, which follows the llm-as-a-judge approach for checking the output correctness.
@@ -142,7 +142,7 @@ To customize the judge setting, see the instructions for [NVIDIA Eval Factory pa
 1. Install the [nvidia-safety-harness](https://pypi.org/project/nvidia-safety-harness/) package:
 
 ```bash
-pip install nvidia-safety-harness==25.6
+pip install nvidia-safety-harness
 ```
 
 2. Deploy the judge model
