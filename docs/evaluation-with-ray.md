@@ -50,6 +50,7 @@ from nemo_eval.utils.api import EvaluationConfig, ApiEndpoint, EvaluationTarget,
 api_endpoint = ApiEndpoint(
     url="http://0.0.0.0:8080/v1/completions/",
     type="completions"
+    model_id="megatron_model",
 )
 eval_target = EvaluationTarget(api_endpoint=api_endpoint)
 
