@@ -62,7 +62,7 @@ eval-factory = "nemo_evaluator.core.entrypoint:run_eval"
 version = {file = "VERSION"}
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["packages/nemo-evaluator/src"]
 include = ["nemo_evaluator*"]
 
 
