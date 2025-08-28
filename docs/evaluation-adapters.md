@@ -9,7 +9,7 @@ The example below configures the adapter for a reasoning model:
 
 ```python
 from nvidia_eval_commons.core.evaluate import evaluate
-from nvidia_eval_commons.api.api_dataclasses import EvaluationConfig, ApiEndpoint, EvaluationTarget, AdapterConfig
+from nvidia_eval_commons.api.api_dataclasses import EvaluationConfig, EvaluationTarget, AdapterConfig
 adapter_config = AdapterConfig(
         interceptors=[
             # strip reasoning tokens from the response
@@ -34,10 +34,17 @@ adapter_config = AdapterConfig(
         ]
     )
 
-target_config = EvaluationTarget(api_endpoint={"url": chat_url, "type": "chat", "adapter_config": adapter_config})
+target_config = EvaluationTarget(
+    api_endpoint={
+        "url": chat_url,
+        "model_id": "megatron_model",
+        "type": "chat",
+        "adapter_config": adapter_config
+    }
+)
 eval_config = EvaluationConfig(
     type="mmlu_instruct",
-    params={"limit_samples": 1},
+    params={"limit_samples": 1, "temperature": 0.6, "top_p": 0.95},
     output_dir=f"{WORKSPACE}/mmlu",
 )
 
