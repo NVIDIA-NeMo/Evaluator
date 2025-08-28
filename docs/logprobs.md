@@ -60,6 +60,18 @@ pip install nvidia-lm-eval
 ```bash
 python deploy.py
 ```
+
+You can verify if the server is ready for accepting requests with the following function:
+```python
+from nemo_eval.utils.base import check_endpoint
+
+check_endpoint(
+    endpoint_url="http://0.0.0.0:8080/v1/completions/",
+    endpoint_type="completions",
+    model_name="megatron_model",
+)
+```
+
 The server will return the log-probabilities of tokens if it receives a `logprob=<int>` parameter in the request.
 When combined with `echo=true`, the model will include the input in its response, along with the corresponding log-probabilities.
 

@@ -52,6 +52,16 @@ Run the deployment in the background:
 python deploy.py
 ```
 
+Wait for the server to get started and ready for accepting requests:
+```python
+from nemo_eval.utils.base import check_endpoint
+check_endpoint(
+    endpoint_url="http://0.0.0.0:8080/v1/completions/",
+    endpoint_type="completions",
+    model_name="megatron_model",
+)
+```
+
 Make sure to open two separate terminals within the same container for executing the deployment and evaluation.
 
 3. (Optional) Export the required environment variables. 

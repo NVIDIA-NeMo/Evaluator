@@ -33,6 +33,18 @@ pip install nvidia-lm-eval
 python deploy.py
 ```
 
+You can verify if the server is ready for accepting requests with the following function:
+```python
+from nemo_eval.utils.base import check_endpoint
+
+check_endpoint(
+    endpoint_url="http://0.0.0.0:8080/v1/completions/",
+    endpoint_type="completions",
+    model_name="megatron_model",
+)
+```
+
+
 2. Configure and run the evaluation:
 
 Be sure to launch a new terminal inside the same container before running the command.

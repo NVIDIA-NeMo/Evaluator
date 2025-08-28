@@ -118,7 +118,7 @@ if __name__ == "__main__":
 The entry point for evaluation is the `evaluate` method defined in `nemo_eval/api.py`. To run evaluations on the deployed model, use the following command. Make sure to open a new terminal within the same container to execute it. For longer evaluations, it is advisable to run both the deploy and evaluate commands in tmux sessions to prevent the processes from being terminated unexpectedly and aborting the runs.
 
 ```python
-from nemo_eval.base import check_endpoint
+from nemo_eval.utils.base import check_endpoint
 from nvidia_eval_commons.core.evaluate import evaluate
 from nvidia_eval_commons.api.api_dataclasses import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
 
