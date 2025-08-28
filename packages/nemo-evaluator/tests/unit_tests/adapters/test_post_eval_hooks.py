@@ -149,7 +149,7 @@ def test_post_eval_hook_discovery():
 
     # Test discovery from modules
     registry.discover_components(
-        modules=["tests.nemo_evaluator.adapters.test_post_eval_hooks"]
+        modules=["tests.unit_tests.adapters.test_post_eval_hooks"]
     )
 
     post_eval_hooks = registry.get_post_eval_hooks()

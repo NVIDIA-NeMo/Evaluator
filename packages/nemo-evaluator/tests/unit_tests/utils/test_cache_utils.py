@@ -27,7 +27,7 @@ from nemo_evaluator.adapters.server import (
 )
 from nemo_evaluator.core.resources import get_token_usage_from_cache_db
 
-from tests.nemo_evaluator.adapters.testing_utils import (
+from tests.unit_tests.adapters.testing_utils import (
     DEFAULT_FAKE_RESPONSE,
     create_fake_endpoint_process,
 )

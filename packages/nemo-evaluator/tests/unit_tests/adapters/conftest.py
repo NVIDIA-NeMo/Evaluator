@@ -17,7 +17,7 @@ from typing import Any, Generator
 
 import pytest
 
-from tests.nemo_evaluator.adapters.testing_utils import (
+from tests.unit_tests.adapters.testing_utils import (
     create_fake_endpoint_process,
 )
 
