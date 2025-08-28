@@ -47,9 +47,9 @@ def check_endpoint(
     """
     payload = {"model": model_name, "max_tokens": 1}
     if endpoint_type == "completions":
-        payload["prompt"] = "hello"
+        payload["prompt"] = "hello, my name is"
     elif endpoint_type == "chat":
-        payload["messages"] = [{"role": "user", "content": "hello"}]
+        payload["messages"] = [{"role": "user", "content": "hello, what is your name?"}]
     else:
         raise ValueError(f"Invalid endpoint type: {endpoint_type}")
 
