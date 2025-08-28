@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import pytest
-from nvidia_eval_commons.api.api_dataclasses import ConfigParams, EvaluationConfig, EvaluationTarget
-from nvidia_eval_commons.core.evaluate import evaluate
+from nemo_evaluator.api.api_dataclasses import ConfigParams, EvaluationConfig, EvaluationTarget
+from nemo_evaluator.core.evaluate import evaluate
 from pytest_httpserver import HTTPServer
 
 

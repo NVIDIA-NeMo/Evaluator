@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 
 [project]
-name = "nvidia-eval-commons"
+name = "nemo-evaluator"
 description = "Common utilities for NVIDIA evaluation frameworks"
 dynamic = ["version"]
 dependencies = [
@@ -49,13 +49,13 @@ docs = [
 ]
 
 all = [
-    "nvidia_eval_commons[test,docs]"
+    "nemo_evaluator[test,docs]"
 ]
 
 [project.scripts]
-nvidia_eval_commons_example = "nvidia_eval_commons.cli.example:main"
-nvidia-eval-commons-example = "nvidia_eval_commons.cli.example:main"
-eval-factory = "nvidia_eval_commons.core.entrypoint:run_eval"
+nemo_evaluator_example = "nemo_evaluator.cli.example:main"
+nemo-evaluator-example = "nemo_evaluator.cli.example:main"
+eval-factory = "nemo_evaluator.core.entrypoint:run_eval"
 
 
 [tool.setuptools.dynamic]
@@ -63,8 +63,8 @@ version = {file = "VERSION"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["nvidia_eval_commons*"]
+include = ["nemo_evaluator*"]
 
 
 [tool.setuptools.package-data]
-nvidia_eval_commons = ["resources/**/*"]
+nemo_evaluator = ["resources/**/*"]
