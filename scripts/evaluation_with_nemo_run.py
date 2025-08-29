@@ -26,6 +26,7 @@ from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, ConfigParams, E
 from nvidia_eval_commons.core.evaluate import evaluate
 
 from nemo_eval.api import deploy
+from nemo_eval.utils.base import check_endpoint
 
 ENDPOINT_TYPES = {"chat": "chat/completions/", "completions": "completions/"}
 
@@ -203,6 +204,17 @@ def local_executor_torchrun() -> run.LocalExecutor:
     return executor
 
 
+def wait_and_evaluate(target_cfg, eval_cfg):
+    server_ready = check_endpoint(
+        endpoint_url=target_cfg.api_endpoint.url,
+        endpoint_type=target_cfg.api_endpoint.type,
+        model_name=target_cfg.api_endpoint.model_id,
+    )
+    if not server_ready:
+        raise RuntimeError("Server is not ready to accept requests. Check the deployment logs for errors.")
+    return evaluate(target_cfg=target_cfg, eval_cfg=eval_cfg)
+
+
 def main():
     args = get_parser().parse_args()
     if args.tag and not args.tag.startswith("-"):
@@ -218,7 +230,7 @@ def main():
         triton_address=args.triton_address,
         triton_port=args.triton_port,
         num_replicas=args.num_replicas,
-        num_cpus_per_replica=args.num_cpus_per_replica,
+        num_cpus=args.num_cpus_per_replica,
         max_input_len=args.max_input_len,
         tensor_parallelism_size=args.tensor_parallelism_size,
         pipeline_parallelism_size=args.pipeline_parallelism_size,
@@ -241,7 +253,7 @@ def main():
     )
     eval_config = run.Config(EvaluationConfig, type=args.eval_task, params=eval_params)
 
-    eval_fn = run.Partial(evaluate, target_cfg=eval_target, eval_cfg=eval_config)
+    eval_fn = run.Partial(wait_and_evaluate, target_cfg=eval_target, eval_cfg=eval_config)
 
     executor: run.Executor
     executor_eval: run.Executor
