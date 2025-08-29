@@ -285,11 +285,11 @@ def main():
                 [deploy_fn, eval_fn],
                 executor=[executor, executor_eval],
                 name=exp_name,
-                tail_logs=True if isinstance(executor, run.LocalExecutor) else False,
+                tail_logs=False,
             )
         else:
-            exp.add(deploy_fn, executor=executor, name=f"{exp_name}_deploy")
-            exp.add(eval_fn, executor=executor, name=f"{exp_name}_evaluate")
+            exp.add(deploy_fn, executor=executor, name=f"{exp_name}_deploy", tail_logs=True)
+            exp.add(eval_fn, executor=executor, name=f"{exp_name}_evaluate", tail_logs=True)
 
         if args.dryrun:
             exp.dryrun()
