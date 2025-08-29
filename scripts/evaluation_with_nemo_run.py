@@ -243,6 +243,7 @@ def main():
         ApiEndpoint,
         url=f"http://{args.server_address}:{args.server_port}/v1/{ENDPOINT_TYPES[args.endpoint_type]}",
         type=args.endpoint_type,
+        model_id="megatron_model",
     )
     eval_target = run.Config(EvaluationTarget, api_endpoint=api_endpoint)
     eval_params = run.Config(
@@ -251,7 +252,7 @@ def main():
         parallelism=args.parallel_requests,
         request_timeout=args.request_timeout,
     )
-    eval_config = run.Config(EvaluationConfig, type=args.eval_task, params=eval_params)
+    eval_config = run.Config(EvaluationConfig, type=args.eval_task, params=eval_params, output_dir="/results/")
 
     eval_fn = run.Partial(wait_and_evaluate, target_cfg=eval_target, eval_cfg=eval_config)
 
