@@ -33,7 +33,9 @@ target_config = EvaluationTarget(api_endpoint=ApiEndpoint(url=chat_url, type=End
 eval_config = EvaluationConfig(
     type="garak",
     output_dir="/results/",
-    params=ConfigParams(limit_samples=10, extra={"probes": "ansiescape.AnsiEscaped"}),
+    params=ConfigParams(
+        limit_samples=10, temperature=0, top_p=0, parallelism=1, extra={"probes": "ansiescape.AnsiEscaped"}
+    ),
 )
 
 

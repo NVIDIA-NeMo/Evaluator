@@ -33,7 +33,11 @@ chat_url = "http://0.0.0.0:8080/v1/chat/completions/"
 
 target_config = EvaluationTarget(api_endpoint=ApiEndpoint(url=chat_url, type=EndpointType.CHAT, model_id=model_name))
 
-eval_config = EvaluationConfig(type="AIME_2025", output_dir="/results/", params=ConfigParams(limit_samples=10))
+eval_config = EvaluationConfig(
+    type="AIME_2025",
+    output_dir="/results/",
+    params=ConfigParams(limit_samples=10, temperature=0, top_p=0, parallelism=1),
+)
 results = evaluate(target_cfg=target_config, eval_cfg=eval_config)
 
 

@@ -38,6 +38,9 @@ eval_config = EvaluationConfig(
     output_dir="/results/",
     params=ConfigParams(
         limit_samples=10,
+        temperature=0,
+        top_p=0,
+        parallelism=1,
         extra={
             "judge": {
                 "model_id": "llama-nemotron-safety-guard-v2",
