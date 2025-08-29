@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pip install nvidia-simple-evals==25.7.1
+# pip install nvidia-simple-evals
 
 ## Export the required variables
 ## Key with access to https://build.nvidia.com/ endpoints

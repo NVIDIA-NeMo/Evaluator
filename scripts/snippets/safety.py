@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pip install nvidia-safety-harness==25.7.1
+# pip install nvidia-safety-harness
 
 ## Export the required variables
-## Key with access to https://build.nvidia.com/ endpoints
-# export JUDGE_API_KEY=...
 # export HF_TOKEN=...
 ## Run the evaluation
 from nvidia_eval_commons.api.api_dataclasses import (

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pip install nvidia-eval-factory-garak==25.7.1
+# pip install nvidia-eval-factory-garak
 
 ## Export the required variables
 # No environment variables are required

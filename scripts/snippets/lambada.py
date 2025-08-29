@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pip install nvidia-lm-eval==25.7.1
+# pip install nvidia-lm-eval
 
 ## Run the evaluation
 from nvidia_eval_commons.api.api_dataclasses import (
