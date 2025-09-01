@@ -22,10 +22,10 @@ import argparse
 from typing import Optional
 
 import nemo_run as run
+from helpers import wait_and_evaluate
 from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
 
 from nemo_eval.api import deploy
-from scripts.helpers import wait_and_evaluate
 
 ENDPOINT_TYPES = {"chat": "chat/completions/", "completions": "completions/"}
 
@@ -167,6 +167,8 @@ def slurm_executor(
     if custom_env_vars:
         env_vars |= custom_env_vars
 
+    packager = run.Config(run.GitArchivePackager, subpath="scripts")
+
     executor = run.SlurmExecutor(
         account=account,
         partition=partition,
@@ -179,7 +181,7 @@ def slurm_executor(
         ntasks_per_node=devices,
         exclusive=True,
         # archives and uses the local code. Use packager=run.Packager() to use the code code mounted on clusters
-        packager=run.GitArchivePackager(),
+        packager=packager,
     )
 
     executor.container_image = container_image
