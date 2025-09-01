@@ -23,10 +23,9 @@ from typing import Optional
 
 import nemo_run as run
 from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
-from nvidia_eval_commons.core.evaluate import evaluate
 
 from nemo_eval.api import deploy
-from nemo_eval.utils.base import check_endpoint
+from scripts.helpers import wait_and_evaluate
 
 ENDPOINT_TYPES = {"chat": "chat/completions/", "completions": "completions/"}
 
@@ -202,17 +201,6 @@ def local_executor_torchrun() -> run.LocalExecutor:
     executor = run.LocalExecutor(env_vars=env_vars)
 
     return executor
-
-
-def wait_and_evaluate(target_cfg, eval_cfg):
-    server_ready = check_endpoint(
-        endpoint_url=target_cfg.api_endpoint.url,
-        endpoint_type=target_cfg.api_endpoint.type,
-        model_name=target_cfg.api_endpoint.model_id,
-    )
-    if not server_ready:
-        raise RuntimeError("Server is not ready to accept requests. Check the deployment logs for errors.")
-    return evaluate(target_cfg=target_cfg, eval_cfg=eval_cfg)
 
 
 def main():
