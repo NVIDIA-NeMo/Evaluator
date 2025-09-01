@@ -161,7 +161,8 @@ The [evaluation_with_nemo_run.py](https://github.com/NVIDIA-NeMo/Eval/blob/main/
 To run evaluations on your local workstation, use the following command:
 
 ```bash
-python scripts/evaluation_with_nemo_run.py --nemo_checkpoint '/workspace/llama3_8b_nemo2/' --eval_task 'gsm8k' --devices 2
+cd scripts
+python evaluation_with_nemo_run.py --nemo_checkpoint '/workspace/llama3_8b_nemo2/' --eval_task 'gsm8k' --devices 2
 ```
 
 > **Note:** When running locally with NeMo Run, you will need to manually terminate the deploy process once evaluations are complete.
@@ -171,7 +172,8 @@ python scripts/evaluation_with_nemo_run.py --nemo_checkpoint '/workspace/llama3_
 To run evaluations on Slurm-based clusters, add the `--slurm` flag to your command and specify any custom parameters such as user, host, remote_job_dir, account, mounts, etc. Refer to the evaluation.py script for further details. Below is an example command:
 
 ```bash
-python scripts/evaluation_with_nemo_run.py --nemo_checkpoint='/workspace/llama3_8b_nemo2' --slurm --nodes 1
+cd scripts
+python evaluation_with_nemo_run.py --nemo_checkpoint='/workspace/llama3_8b_nemo2' --slurm --nodes 1
 --devices 8 --container_image "nvcr.io/nvidia/nemo:25.07" --tensor_parallelism_size 8
 ```
 By following these commands, you can successfully run evaluations using NeMo Run on both local and Slurm-based environments.
