@@ -192,7 +192,7 @@ adapter_config = AdapterConfig(
 
 target = EvaluationTarget(
     api_endpoint={
-        "url": chat_url,
+        "url": "http://0.0.0.0:8080/v1/chat/completions/",
         "model_id": "megatron_model",
         "type": "chat",
         "adapter_config": adapter_config
