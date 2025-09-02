@@ -182,19 +182,27 @@ from nemo_eval.utils.api import AdapterConfig
 
 # Configure adapter for reasoning
 adapter_config = AdapterConfig(
-    api_url="http://0.0.0.0:8080/v1/completions/",
-    use_reasoning=True,
-    end_reasoning_token="</think>",
-    custom_system_prompt="You are a helpful assistant that thinks step by step.",
-    max_logged_requests=5,
-    max_logged_responses=5
+    interceptors=[
+        dict(name="reasoning", config={"end_reasoning_token": "</think>"}),
+        dict(name="system_message", config={"system_message": "Detailed thinking on"}),
+        dict(name="request_logging", config={"max_requests": 5}),
+        dict(name="response_logging", config={"max_responses": 5}),
+    ]
+)
+
+target = EvaluationTarget(
+    api_endpoint={
+        "url": chat_url,
+        "model_id": "megatron_model",
+        "type": "chat",
+        "adapter_config": adapter_config
+    }
 )
 
 # Run evaluation with adapter
 results = evaluate(
     target_cfg=target,
     eval_cfg=config,
-    adapter_cfg=adapter_config
 )
 ```
 
