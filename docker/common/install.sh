@@ -105,15 +105,14 @@ main() {
     # Create virtual environment and install dependencies
     uv venv ${UV_PROJECT_ENVIRONMENT} $([[ "$BASE_IMAGE" == "pytorch" ]] && echo "--system-site-packages")
 
+    cd packages/nemo-evaluator
+
     # Install dependencies
     uv sync --locked --only-group build ${UV_ARGS[@]}
     uv sync \
         --link-mode copy \
         --locked \
         --all-groups ${UV_ARGS[@]}
-
-    # Run install overrides
-    bash docker/common/install_conflicting_deps.sh
 
     # Install the package
     uv pip install --no-deps -e .
