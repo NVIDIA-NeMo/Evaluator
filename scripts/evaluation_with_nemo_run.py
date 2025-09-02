@@ -50,7 +50,7 @@ def get_parser():
     parser.add_argument("--triton_address", type=str, default="0.0.0.0", help="IP address for Triton server")
     parser.add_argument("--triton_port", type=int, default=8000, help="Port for Triton server")
     parser.add_argument("--num_replicas", type=int, default=1, help="Num of replicas for Ray server")
-    parser.add_argument("--num_cpus_per_replica", type=int, default=1, help="Num of CPUs per replica for Ray server")
+    parser.add_argument("--num_cpus_per_replica", type=int, default=None, help="Num of CPUs per replica for Ray server")
     parser.add_argument(
         "--endpoint_type",
         type=str,
