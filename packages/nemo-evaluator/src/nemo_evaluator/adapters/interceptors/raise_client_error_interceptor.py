@@ -16,13 +16,14 @@
 from typing import List, Optional, final
 
 import requests
+from pydantic import BaseModel, Field
+
 from nemo_evaluator.adapters.decorators import register_for_adapter
 from nemo_evaluator.adapters.types import (
     AdapterGlobalContext,
     AdapterResponse,
     ResponseInterceptor,
 )
-from pydantic import BaseModel, Field
 
 
 @register_for_adapter(

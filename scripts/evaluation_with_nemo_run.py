@@ -23,7 +23,12 @@ from typing import Optional
 
 import nemo_run as run
 from nemo_eval.api import deploy
-from nemo_evaluator.api.api_dataclasses import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
+from nemo_evaluator.api.api_dataclasses import (
+    ApiEndpoint,
+    ConfigParams,
+    EvaluationConfig,
+    EvaluationTarget,
+)
 from nemo_evaluator.core.evaluate import evaluate
 
 ENDPOINT_TYPES = {"chat": "chat/completions/", "completions": "completions/"}
@@ -44,12 +49,33 @@ def get_parser():
         help="Serving backend to be used",
         choices=["pytriton", "ray"],
     )
-    parser.add_argument("--server_port", type=int, default=8080, help="Port for FastAPI or Ray server")
-    parser.add_argument("--server_address", type=str, default="0.0.0.0", help="IP address for FastAPI or Ray server")
-    parser.add_argument("--triton_address", type=str, default="0.0.0.0", help="IP address for Triton server")
-    parser.add_argument("--triton_port", type=int, default=8000, help="Port for Triton server")
-    parser.add_argument("--num_replicas", type=int, default=1, help="Num of replicas for Ray server")
-    parser.add_argument("--num_cpus_per_replica", type=int, default=1, help="Num of CPUs per replica for Ray server")
+    parser.add_argument(
+        "--server_port", type=int, default=8080, help="Port for FastAPI or Ray server"
+    )
+    parser.add_argument(
+        "--server_address",
+        type=str,
+        default="0.0.0.0",
+        help="IP address for FastAPI or Ray server",
+    )
+    parser.add_argument(
+        "--triton_address",
+        type=str,
+        default="0.0.0.0",
+        help="IP address for Triton server",
+    )
+    parser.add_argument(
+        "--triton_port", type=int, default=8000, help="Port for Triton server"
+    )
+    parser.add_argument(
+        "--num_replicas", type=int, default=1, help="Num of replicas for Ray server"
+    )
+    parser.add_argument(
+        "--num_cpus_per_replica",
+        type=int,
+        default=1,
+        help="Num of CPUs per replica for Ray server",
+    )
     parser.add_argument(
         "--endpoint_type",
         type=str,
@@ -89,7 +115,10 @@ def get_parser():
         help="Evaluation benchmark to run. Refer to the docs for more details on the tasks/benchmarks.",
     )
     parser.add_argument(
-        "--limit", type=float, default=None, help="Limit evaluation to `limit` samples. Default: use all samples."
+        "--limit",
+        type=float,
+        default=None,
+        help="Limit evaluation to `limit` samples. Default: use all samples.",
     )
     parser.add_argument(
         "--parallel_requests",
@@ -122,8 +151,12 @@ def get_parser():
         help="Run on slurm using run.SlurmExecutor",
         default=False,
     )
-    parser.add_argument("--nodes", type=int, default=1, help="Num nodes for the executor")
-    parser.add_argument("--devices", type=int, default=8, help="Num devices per node for the executor")
+    parser.add_argument(
+        "--nodes", type=int, default=1, help="Num nodes for the executor"
+    )
+    parser.add_argument(
+        "--devices", type=int, default=8, help="Num devices per node for the executor"
+    )
     parser.add_argument(
         "--container_image",
         type=str,
@@ -148,7 +181,9 @@ def slurm_executor(
     custom_env_vars: Optional[dict[str, str]] = None,
     retries: int = 0,
 ) -> run.SlurmExecutor:
-    if not (user and host and remote_job_dir and account and partition and nodes and devices):
+    if not (
+        user and host and remote_job_dir and account and partition and nodes and devices
+    ):
         raise RuntimeError(
             "Please set user, host, remote_job_dir, account, partition, nodes and devices args for using this ",
             "function.",
@@ -259,7 +294,10 @@ def main():
         )
         executor.srun_args = ["--mpi=pmix", "--overlap"]
         executor_eval = executor.clone()
-        executor_eval.srun_args = ["--ntasks-per-node=1", "--nodes=1"]  ## so that eval is laucnhed only on main node
+        executor_eval.srun_args = [
+            "--ntasks-per-node=1",
+            "--nodes=1",
+        ]  ## so that eval is laucnhed only on main node
         # or node with index 0
     else:
         executor = local_executor_torchrun()

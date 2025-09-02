@@ -29,7 +29,9 @@ completions_url = "http://0.0.0.0:8080/v1/completions/"
 
 
 target_config = EvaluationTarget(
-    api_endpoint=ApiEndpoint(url=completions_url, type=EndpointType.COMPLETIONS, model_id=model_name)
+    api_endpoint=ApiEndpoint(
+        url=completions_url, type=EndpointType.COMPLETIONS, model_id=model_name
+    )
 )
 eval_config = EvaluationConfig(
     type="arc_challenge",

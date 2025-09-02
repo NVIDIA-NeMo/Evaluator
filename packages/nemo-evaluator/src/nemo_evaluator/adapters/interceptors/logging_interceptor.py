@@ -18,6 +18,8 @@
 from typing import Optional, final
 
 import structlog
+from pydantic import BaseModel, Field
+
 from nemo_evaluator.adapters.decorators import register_for_adapter
 from nemo_evaluator.adapters.types import (
     AdapterGlobalContext,
@@ -26,7 +28,6 @@ from nemo_evaluator.adapters.types import (
     RequestInterceptor,
     ResponseInterceptor,
 )
-from pydantic import BaseModel, Field
 
 logger = structlog.get_logger(__name__)
 

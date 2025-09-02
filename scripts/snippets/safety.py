@@ -32,7 +32,9 @@ model_name = "megatron_model"
 chat_url = "http://0.0.0.0:8080/v1/chat/completions/"
 
 
-target_config = EvaluationTarget(api_endpoint=ApiEndpoint(url=chat_url, type=EndpointType.CHAT, model_id=model_name))
+target_config = EvaluationTarget(
+    api_endpoint=ApiEndpoint(url=chat_url, type=EndpointType.CHAT, model_id=model_name)
+)
 eval_config = EvaluationConfig(
     type="aegis_v2",
     output_dir="/results/",

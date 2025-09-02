@@ -19,6 +19,8 @@ import threading
 from typing import Optional, final
 
 import requests
+from pydantic import BaseModel, Field
+
 from nemo_evaluator.adapters.decorators import register_for_adapter
 from nemo_evaluator.adapters.types import (
     AdapterGlobalContext,
@@ -26,7 +28,6 @@ from nemo_evaluator.adapters.types import (
     PostEvalHook,
     ResponseInterceptor,
 )
-from pydantic import BaseModel, Field
 
 
 @register_for_adapter(

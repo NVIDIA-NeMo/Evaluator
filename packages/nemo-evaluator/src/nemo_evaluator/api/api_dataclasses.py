@@ -17,8 +17,9 @@ from enum import Enum
 from typing import Any, Dict, Optional
 
 import jinja2
-from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from pydantic import BaseModel, ConfigDict, Field
+
+from nemo_evaluator.adapters.adapter_config import AdapterConfig
 
 # NOTE: For ApiEndpoint, EvaluationTarget, ConfigParams, and EvaluationConfig all fields
 #       are Optional and default=None, because depending on the command run (run_eval or

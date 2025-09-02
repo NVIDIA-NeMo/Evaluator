@@ -21,6 +21,7 @@ import sys
 
 import structlog
 import yaml
+
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.api.api_dataclasses import EvaluationConfig, EvaluationTarget
 from nemo_evaluator.core.evaluate import evaluate

@@ -535,9 +535,7 @@ def test_evaluate_function_url_replacement():
 
     # Mock all the necessary components
     with (
-        patch(
-            "nemo_evaluator.core.evaluate.validate_configuration"
-        ) as mock_validate,
+        patch("nemo_evaluator.core.evaluate.validate_configuration") as mock_validate,
         patch("nemo_evaluator.core.evaluate.prepare_output_directory"),
         patch("nemo_evaluator.core.evaluate.AdapterServerProcess"),
         patch("nemo_evaluator.core.evaluate.run_command") as mock_run_command,
@@ -545,9 +543,7 @@ def test_evaluate_function_url_replacement():
         patch("nemo_evaluator.core.evaluate.monitor_memory_usage") as mock_monitor,
         patch("builtins.open", create=True),
         patch("os.path.join") as mock_join,
-        patch(
-            "nemo_evaluator.core.evaluate.yaml.dump", side_effect=mock_yaml_dump
-        ),
+        patch("nemo_evaluator.core.evaluate.yaml.dump", side_effect=mock_yaml_dump),
         patch("nemo_evaluator.core.evaluate.logger"),
     ):
         # Mock the evaluation object with a command template that uses the URL

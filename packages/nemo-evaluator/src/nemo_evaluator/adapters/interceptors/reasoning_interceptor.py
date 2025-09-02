@@ -20,13 +20,14 @@ import re
 from typing import final
 
 import structlog
+from pydantic import BaseModel, Field
+
 from nemo_evaluator.adapters.decorators import register_for_adapter
 from nemo_evaluator.adapters.types import (
     AdapterGlobalContext,
     AdapterResponse,
     ResponseInterceptor,
 )
-from pydantic import BaseModel, Field
 
 logger = structlog.get_logger(__name__)
 
