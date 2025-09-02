@@ -98,6 +98,7 @@ jobs:
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           PAT: ${{ secrets.PAT }}
+          inference-framework: inframework
 
   # cicd-e2e-tests:
   #   strategy:
