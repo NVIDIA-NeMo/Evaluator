@@ -52,6 +52,10 @@ jobs:
       version-bump-branch: ${{ inputs.version-bump-branch || github.ref_name }}
       create-gh-release: ${{ inputs.create-gh-release || true }}
       packaging: uv
+      skip-test-wheel: true
+      custom-container: nvcr.io/nvidia/pytorch:25.05-py3
+      no-build-isolation: true
+      runner: linux-amd64-cpu16
       app-id: ${{ vars.BOT_ID }}
       has-src-dir: true
     secrets:
