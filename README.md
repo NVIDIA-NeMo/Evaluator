@@ -93,6 +93,7 @@ from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, EvaluationConfi
 # Configure evaluation
 api_endpoint = ApiEndpoint(
     url="http://0.0.0.0:8080/v1/completions/",
+    type="completions",
     model_id="megatron_model"
 )
 target = EvaluationTarget(api_endpoint=api_endpoint)
@@ -156,6 +157,7 @@ from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, ConfigParams, E
 # Configure Endpoint
 api_endpoint = ApiEndpoint(
     url="http://0.0.0.0:8080/v1/completions/",
+    type="completions",
     model_id="megatron_model"
 )
 # Evaluation target configuration
