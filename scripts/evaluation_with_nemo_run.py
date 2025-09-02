@@ -227,6 +227,7 @@ def main():
         max_batch_size=args.batch_size,
         num_gpus=args.devices,
         num_nodes=args.nodes,
+        include_dashboard=False,
     )
 
     api_endpoint = run.Config(
