@@ -44,7 +44,7 @@ jobs:
       has-src-dir: true
       no-publish: ${{ !(github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/r')) }}
       no-build-isolation: true
-      root-dir: packages/nemo_evaluator
+      root-dir: packages/nemo-evaluator
     secrets:
       TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
       TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
