@@ -7,31 +7,32 @@ Here, we focus on benchmarks in the `lm-evaluation-harness` that rely on text ge
 In this approach, the model is given a prompt such as a question to answer, an instruction to follow, or a text to continue, and its response is then evaluated for correctness.
 
 An alternative approach to LLM evaluation utilizes **log-probabilities**.
-To learn more please refer to ["Evaluate LLMs Using Log-Probabilities"](logprobs.md).
+To learn more, please refer to ["Evaluate LLMs Using Log-Probabilities"](logprobs.md).
 
-Use the `list_available_evaluations` function to list the evaluation configs available in your evironment:
+Use the `show_available_tasks` function to list the evaluation configs available in your environment:
 
 ```python
-from nemo_eval.utils.base import list_available_evaluations
+from nvidia_eval_commons.core.entrypoint import show_available_tasks
 
-list_available_evaluations()
+show_available_tasks()
 ```
 
-This will return a dictionary with eval packages as keys, and list of available configs as values:
+This will print a list of eval harnesses and configs available in each of them:
 
 ```
-{'core_evals.lm_evaluation_harness': ['mmlu',
-  'mmlu_instruct',
-  'mmlu_cot_0_shot_chat',
-  'ifeval',
-  'mmlu_pro',
-  'mmlu_pro_instruct',
-  'mmlu_redux',
+lm-evaluation-harness: 
+  * mmlu
+  * mmlu_instruct
+  * mmlu_cot_0_shot_chat
+  * ifeval
+  * mmlu_pro
+  * mmlu_pro_instruct
+  * mmlu_redux
   ...
-  'bbq',
-  'arc_multilingual',
-  'hellaswag_multilingual',
-  'mmlu_prox']}
+  * bbq
+  * arc_multilingual
+  * hellaswag_multilingual
+  * mmlu_prox
 ```
 
 ## Deploy and Evaluate NeMo Checkpoints
@@ -39,7 +40,7 @@ This will return a dictionary with eval packages as keys, and list of available 
 The evaluation process employs a server-client approach, comprising two main phases. 
 - **Phase 1: Model Deployment**
     - Deployment via PyTriton: The NeMo Framework checkpoint is deployed in-framework on a PyTriton server by exposing OpenAI API (OAI) compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed, enabling evaluation on both completion and chat benchmarks.
-      - Deployment via Ray: The NeMo Framework checkpoint can also be deployed in-framework on a Ray server. Ray Serve provides support for multi-instance evaluations, along with OpenAI API (OAI) compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed. For more details on evaluations with Ray Serve, refer to ["Use Ray Serve for Multi-Instance Evaluations"](evaluation-with-ray.md).
+    - Deployment via Ray: The NeMo Framework checkpoint can also be deployed in-framework on a Ray server. Ray Serve provides support for multi-instance evaluations, along with OpenAI API (OAI) compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed. For more details on evaluations with Ray Serve, refer to ["Use Ray Serve for Multi-Instance Evaluations"](evaluation-with-ray.md).
 
 - **Phase 2: Model Evaluation**
     - Evaluation via OAI Endpoints: Once the model is deployed, evaluation is performed by sending benchmark requests to the exposed OAI-compatible endpoints using their respective port. This allows assessment across a range of tasks and harnesses.
@@ -65,13 +66,11 @@ It also provides predefined configurations for evaluating the chat endpoint, suc
 - `mmlu_redux_instruct`
 - `wikilingua`
 
-
-When specifying the task in the `EvaluationConfig` (detailed code examples in [Evaluate Models Locally on Your Workstation](#evaluate-models-locally-on-your-workstation) section), you can either use the task name from the list above or prepend it with the harness name. For example:
+When defining a task in EvaluationConfig (see detailed examples in the [Evaluate Models Locally on Your Workstation](#evaluate-models-locally-on-your-workstation) section), you can use either the task name from the list above or prefix it with the harness name. For example:
 
 ```python
 eval_config = EvaluationConfig(type="mmlu")
 eval_config = EvaluationConfig(type="lm-evaluation-harness.mmlu")
-eval_config = EvaluationConfig(type="lm_evaluation_harness.mmlu")
 ```
 
 Subtask of a benchmark (for ex `mmlu_str_high_school_european_history` under `mmlu`), can also be specified similar to above:
@@ -79,7 +78,6 @@ Subtask of a benchmark (for ex `mmlu_str_high_school_european_history` under `mm
 ```python
 eval_config = EvaluationConfig(type="mmlu_str_high_school_european_history")
 eval_config = EvaluationConfig(type="lm-evaluation-harness.mmlu_str_high_school_european_history")
-eval_config = EvaluationConfig(type="lm_evaluation_harness.mmlu_str_high_school_european_history")
 ```
 
 To enable additional evaluation harnesses, like  `simple-evals`, `BFCL`, `garak`, `BigCode`, or `safety-harness`, you need to install them. For example:
@@ -116,30 +114,38 @@ if __name__ == "__main__":
         num_gpus=1,)
 ```
 
-The entry point for evaluation is the `evaluate` method defined in `nemo_eval/api.py`. To run evaluations on the deployed model, use the following command. Make sure to open a new terminal within the same container to execute it. For longer evaluations, it is advisable to run both the deploy and evaluate commands in tmux sessions to prevent the processes from being terminated unexpectedly and aborting the runs.
+The entry point for evaluation is the `evaluate` method defined in `nvidia_eval_commons/core/evaluate.py`. To run evaluations on the deployed model, use the following command. Make sure to open a new terminal within the same container to execute it. For longer evaluations, it is advisable to run both the deploy and evaluate commands in tmux sessions to prevent the processes from being terminated unexpectedly and aborting the runs.
+It is recommended to use [`check_endpoint`](https://github.com/NVIDIA-NeMo/Eval/blob/main/src/nemo_eval/utils/base.py) function to verify that the endpoint is responsive and ready to accept requests before starting the evaluation.
 
 ```python
-from nemo_eval.api import evaluate
-from nemo_eval.utils.api import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
+from nemo_eval.utils.base import check_endpoint
+from nvidia_eval_commons.core.evaluate import evaluate
+from nvidia_eval_commons.api.api_dataclasses import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
 
 # Configure the evaluation target
 api_endpoint = ApiEndpoint(
     url="http://0.0.0.0:8080/v1/completions/",
-    type="completions"
+    type="completions",
+    model_id="megatron_model",
 )
 eval_target = EvaluationTarget(api_endpoint=api_endpoint)
-eval_params = ConfigParams(top_p=1, temperature=1, limit_samples=2, parallelism=1)
+eval_params = ConfigParams(top_p=0, temperature=0, limit_samples=2, parallelism=1)
 eval_config = EvaluationConfig(type='mmlu', params=eval_params)
 
 if __name__ == "__main__":
+    check_endpoint(
+            endpoint_url=eval_target.api_endpoint.url,
+            endpoint_type=eval_target.api_endpoint.type,
+            model_name=eval_target.api_endpoint.model_id,
+        )
     evaluate(target_cfg=eval_target, eval_cfg=eval_config)
 ```
 
 > **Note:** To evaluate the chat endpoint, update the url by replacing `/v1/completions/` with `/v1/chat/completions/`. Additionally, set the `type` field to `"chat"` in both `ApiEndpoint` and `EvaluationConfig` to indicate a chat benchmark. A list of available chat benchmarks can be found in the [Deploy and Evaluate NeMo Checkpoints](#deploy-and-evaluate-nemo-checkpoints) section above.
 
-> **Note:** Please refer to `deploy` and `evaluate` method in `nemo_eval/api.py` to review all available argument options, as the provided commands are only examples and do not include all arguments or their default values. For more detailed information on the arguments used in the ApiEndpoint and ConfigParams classes for evaluation, see the source code at [nemo_eval/utils/api.py](https://github.com/NVIDIA-NeMo/Eval/blob/main/src/nemo_eval/utils/api.py).
+> **Note:** Please refer to `deploy` function in `nemo_eval/api.py` and `evaluate` function in `nvidia_eval_commons/core/evaluate.py` to review all available argument options, as the provided commands are only examples and do not include all arguments or their default values. For more detailed information on the arguments used in the ApiEndpoint and ConfigParams classes for evaluation, see `nvidia_eval_commons/api/api_dataclasses.py`.
 
-> **Tip:** If you encounter TimeoutError on the eval client side, please increase the `request_timeout` parameter in `ConfigParams` class to a larger value like `1000` or `1200` seconds (the default is 300).
+> **Tip:** If you encounter a TimeoutError on the eval client side, please increase the `request_timeout` parameter in `ConfigParams` class to a larger value like `1000` or `1200` seconds (the default is 300).
 
 ## Run Evaluations with NeMo Run
 
@@ -154,7 +160,8 @@ The [evaluation_with_nemo_run.py](https://github.com/NVIDIA-NeMo/Eval/blob/main/
 To run evaluations on your local workstation, use the following command:
 
 ```bash
-python scripts/evaluation_with_nemo_run.py --nemo_checkpoint '/workspace/llama3_8b_nemo2/' --eval_task 'gsm8k' --devices 2
+cd scripts
+python evaluation_with_nemo_run.py --nemo_checkpoint '/workspace/llama3_8b_nemo2/' --eval_task 'gsm8k' --devices 2
 ```
 
 > **Note:** When running locally with NeMo Run, you will need to manually terminate the deploy process once evaluations are complete.
@@ -164,7 +171,8 @@ python scripts/evaluation_with_nemo_run.py --nemo_checkpoint '/workspace/llama3_
 To run evaluations on Slurm-based clusters, add the `--slurm` flag to your command and specify any custom parameters such as user, host, remote_job_dir, account, mounts, etc. Refer to the evaluation.py script for further details. Below is an example command:
 
 ```bash
-python scripts/evaluation_with_nemo_run.py --nemo_checkpoint='/workspace/llama3_8b_nemo2' --slurm --nodes 1
+cd scripts
+python evaluation_with_nemo_run.py --nemo_checkpoint='/workspace/llama3_8b_nemo2' --slurm --nodes 1
 --devices 8 --container_image "nvcr.io/nvidia/nemo:25.07" --tensor_parallelism_size 8
 ```
 By following these commands, you can successfully run evaluations using NeMo Run on both local and Slurm-based environments.

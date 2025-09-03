@@ -22,8 +22,8 @@ import argparse
 from typing import Optional
 
 import nemo_run as run
+from helpers import wait_and_evaluate
 from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
-from nvidia_eval_commons.core.evaluate import evaluate
 
 from nemo_eval.api import deploy
 
@@ -50,7 +50,7 @@ def get_parser():
     parser.add_argument("--triton_address", type=str, default="0.0.0.0", help="IP address for Triton server")
     parser.add_argument("--triton_port", type=int, default=8000, help="Port for Triton server")
     parser.add_argument("--num_replicas", type=int, default=1, help="Num of replicas for Ray server")
-    parser.add_argument("--num_cpus_per_replica", type=int, default=1, help="Num of CPUs per replica for Ray server")
+    parser.add_argument("--num_cpus_per_replica", type=int, default=None, help="Num of CPUs per replica for Ray server")
     parser.add_argument(
         "--endpoint_type",
         type=str,
@@ -167,6 +167,8 @@ def slurm_executor(
     if custom_env_vars:
         env_vars |= custom_env_vars
 
+    packager = run.Config(run.GitArchivePackager, subpath="scripts")
+
     executor = run.SlurmExecutor(
         account=account,
         partition=partition,
@@ -179,7 +181,7 @@ def slurm_executor(
         ntasks_per_node=devices,
         exclusive=True,
         # archives and uses the local code. Use packager=run.Packager() to use the code code mounted on clusters
-        packager=run.GitArchivePackager(),
+        packager=packager,
     )
 
     executor.container_image = container_image
@@ -218,19 +220,21 @@ def main():
         triton_address=args.triton_address,
         triton_port=args.triton_port,
         num_replicas=args.num_replicas,
-        num_cpus_per_replica=args.num_cpus_per_replica,
+        num_cpus=args.num_cpus_per_replica,
         max_input_len=args.max_input_len,
         tensor_parallelism_size=args.tensor_parallelism_size,
         pipeline_parallelism_size=args.pipeline_parallelism_size,
         max_batch_size=args.batch_size,
         num_gpus=args.devices,
         num_nodes=args.nodes,
+        include_dashboard=False,
     )
 
     api_endpoint = run.Config(
         ApiEndpoint,
         url=f"http://{args.server_address}:{args.server_port}/v1/{ENDPOINT_TYPES[args.endpoint_type]}",
         type=args.endpoint_type,
+        model_id="megatron_model",
     )
     eval_target = run.Config(EvaluationTarget, api_endpoint=api_endpoint)
     eval_params = run.Config(
@@ -239,9 +243,9 @@ def main():
         parallelism=args.parallel_requests,
         request_timeout=args.request_timeout,
     )
-    eval_config = run.Config(EvaluationConfig, type=args.eval_task, params=eval_params)
+    eval_config = run.Config(EvaluationConfig, type=args.eval_task, params=eval_params, output_dir="/results/")
 
-    eval_fn = run.Partial(evaluate, target_cfg=eval_target, eval_cfg=eval_config)
+    eval_fn = run.Partial(wait_and_evaluate, target_cfg=eval_target, eval_cfg=eval_config)
 
     executor: run.Executor
     executor_eval: run.Executor
@@ -272,11 +276,11 @@ def main():
                 [deploy_fn, eval_fn],
                 executor=[executor, executor_eval],
                 name=exp_name,
-                tail_logs=True if isinstance(executor, run.LocalExecutor) else False,
+                tail_logs=False,
             )
         else:
-            exp.add(deploy_fn, executor=executor, name=f"{exp_name}_deploy")
-            exp.add(eval_fn, executor=executor, name=f"{exp_name}_evaluate")
+            exp.add(deploy_fn, executor=executor, name=f"{exp_name}_deploy", tail_logs=True)
+            exp.add(eval_fn, executor=executor, name=f"{exp_name}_evaluate", tail_logs=True)
 
         if args.dryrun:
             exp.dryrun()

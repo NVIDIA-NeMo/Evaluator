@@ -23,7 +23,7 @@ import pytest
 from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
 from nvidia_eval_commons.core.evaluate import evaluate
 
-from nemo_eval.utils.base import wait_for_fastapi_server
+from nemo_eval.utils.base import check_endpoint
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +110,12 @@ class TestEvaluation:
 
         # Wait for server readiness
         logger.info("Waiting for server readiness...")
-        server_ready = wait_for_fastapi_server(base_url=f"http://0.0.0.0:{port}", max_retries=600)
+        server_ready = check_endpoint(
+            endpoint_url=f"http://0.0.0.0:{port}/v1/completions/",
+            endpoint_type="completions",
+            model_name="megatron_model",
+            max_retries=600,
+        )
         assert server_ready, "Server is not ready. Please look at the deploy process log for the error"
 
         # Run evaluation
@@ -143,7 +148,12 @@ class TestEvaluation:
 
         # Wait for server readiness
         logger.info("Waiting for server readiness...")
-        server_ready = wait_for_fastapi_server(base_url=f"http://0.0.0.0:{port}", max_retries=600)
+        server_ready = check_endpoint(
+            endpoint_url=f"http://0.0.0.0:{port}/v1/completions/",
+            endpoint_type="completions",
+            model_name="megatron_model",
+            max_retries=600,
+        )
         assert server_ready, "Server is not ready. Please look at the deploy process log for the error"
 
         # Run evaluation
