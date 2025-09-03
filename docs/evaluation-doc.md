@@ -9,7 +9,7 @@ In this approach, the model is given a prompt such as a question to answer, an i
 An alternative approach to LLM evaluation utilizes **log-probabilities**.
 To learn more, please refer to ["Evaluate LLMs Using Log-Probabilities"](logprobs.md).
 
-Use the `show_available_tasks` function to list the evaluation configs available in your evironment:
+Use the `show_available_tasks` function to list the evaluation configs available in your environment:
 
 ```python
 from nvidia_eval_commons.core.entrypoint import show_available_tasks
