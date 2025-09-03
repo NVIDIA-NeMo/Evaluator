@@ -70,7 +70,7 @@ main() {
     apt-get update
     apt-get install -y software-properties-common
     add-apt-repository ppa:deadsnakes/ppa -y
-    apt-get install -y python$PYTHON_VERSION-dev python$PYTHON_VERSION-venv
+    apt-get install -y python$PYTHON_VERSION-dev python$PYTHON_VERSION-venv python3-pip
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python$PYTHON_VERSION 1
 
     cd packages/$PACKAGE
