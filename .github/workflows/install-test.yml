@@ -30,7 +30,7 @@ jobs:
   pre-flight:
     uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@v0.53.0
 
-  pip-test-cuda:
+  pip-test:
     runs-on: ubuntu-latest
     name: Pip - Python${{ matrix.python-version }} - ${{ matrix.package }} - AMD64/Linux - Ubuntu Latest
     needs: [pre-flight]
@@ -66,62 +66,8 @@ jobs:
           package-name: nemo_evaluator
           python-binary: ./venv/bin/python
 
-  uv-test-cuda:
-    runs-on: linux-amd64-cpu16
-    name: UV - AMD64/Linux - NGC ${{ contains(matrix.image, 'cuda') && 'CUDA' || 'PyTorch' }}
-    needs: [pre-flight]
-    if: |
-      !(needs.pre-flight.outputs.docs_only == 'true'
-      || needs.pre-flight.outputs.is_deployment_workflow == 'true')
-    container:
-      image: ${{ matrix.image }}
-    environment: nemo-ci
-    strategy:
-      fail-fast: false
-      matrix:
-        image: ["nvcr.io/nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04", "nvcr.io/nvidia/pytorch:25.05-py3"]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install project
-        env:
-          PAT: ${{ secrets.PAT }}
-          BASE_IMAGE: ${{ contains(matrix.image, 'cuda') && 'cuda' || 'pytorch' }}
-        shell: bash
-        run: |
-          echo -e "machine github.com\n  login token\n  password ${{ secrets.PAT }}" > ~/.netrc
-          chmod 600 ~/.netrc 
-
-          export PATH="$HOME/.local/bin:$PATH"
-          export UV_PROJECT_ENVIRONMENT=/opt/venv
-          export PATH="$UV_PROJECT_ENVIRONMENT/bin:$PATH"
-          export UV_LINK_MODE=copy
-          export CXXFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
-
-          bash docker/common/install.sh \
-            --base-image $BASE_IMAGE \
-            --inference-framework inframework
-
-          uv run python -m ensurepip --upgrade
-          ln -sf /opt/venv/bin/pip3 /opt/venv/bin/pip
-          uv pip install --pre --no-cache-dir --no-deps -e .
-
-      - name: Checkout check-imports
-        uses: actions/checkout@v4
-        with:
-          repository: NVIDIA-NeMo/FW-CI-templates
-          ref: v0.39.0
-          path: FW-CI-templates
-
-      - name: Check imports for nemo_eval
-        uses: ./FW-CI-templates/.github/actions/check-imports
-        with:
-          package-name: nemo_eval
-          python-binary: /opt/venv/bin/python
-
   install-test-summary:
-    needs: [pre-flight, uv-test-cuda, pip-test-cuda]
+    needs: [pre-flight, pip-test]
     runs-on: ubuntu-latest
     name: Install test summary
     if: |
