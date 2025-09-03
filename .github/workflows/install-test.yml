@@ -51,7 +51,7 @@ jobs:
 
       - name: Install ${{ matrix.package }}
         shell: bash -x -e -u -o pipefail {0}
-        run: bash docker/common/install.sh --package ${{ matrix.package }} --python-version "$${{ matrix.python-version }}"
+        run: bash docker/common/install.sh --package ${{ matrix.package }} --python-version "${{ matrix.python-version }}"
 
       - name: Checkout check-imports
         uses: actions/checkout@v4
