@@ -74,7 +74,7 @@ jobs:
   cicd-unit-tests:
     needs: [pre-flight, cicd-wait-in-queue]
     runs-on: ubuntu-latest
-    name: Unit_Tests
+    name: unit-tests
     environment: nemo-ci
     if: |
       (
@@ -100,46 +100,39 @@ jobs:
           PAT: ${{ secrets.PAT }}
           package: nemo-evaluator
 
-  # cicd-e2e-tests:
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       include:
-  #         - script: L2_Functional_Tests_GPU
-  #           runner: self-hosted-nemo
-  #           timeout: 30
-  #   needs: [pre-flight, cicd-unit-tests]
-  #   runs-on: ${{ matrix.runner }}
-  #   name: ${{ matrix.is_optional && 'PLEASEFIXME_' || '' }}${{ matrix.script }}
-  #   environment: nemo-ci
-  #   if: |
-  #     (
-  #       success()
-  #       || needs.pre-flight.outputs.is_ci_workload == 'true'
-  #       || needs.pre-flight.outputs.force_run_all == 'true'
-  #     )
-  #     && !cancelled()
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
-  #     - name: main
-  #       uses: ./.github/actions/test-template
-  #       with:
-  #         script: ${{ matrix.script }}
-  #         timeout: ${{ matrix.timeout || 10 }}
-  #         cpu-only: ${{ matrix.cpu-only || false }}
-  #         has-azure-credentials: "true"
-  #         azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
-  #         azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-  #         azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-  #         PAT: ${{ secrets.PAT }}
-  #         inference-framework: "inframework"
+  cicd-e2e-tests:
+    needs: [pre-flight, cicd-unit-tests]
+    runs-on: ubuntu-latest
+    name: functional-tests
+    environment: nemo-ci
+    if: |
+      (
+        success()
+        || needs.pre-flight.outputs.is_ci_workload == 'true'
+        || needs.pre-flight.outputs.force_run_all == 'true'
+      )
+      && !cancelled()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: main
+        uses: ./.github/actions/test-template
+        with:
+          script: Launch_Functional_Tests
+          timeout: ${{ matrix.timeout || 10 }}
+          cpu-only: ${{ matrix.cpu-only || false }}
+          has-azure-credentials: "true"
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          PAT: ${{ secrets.PAT }}
+          package: nemo-evaluator
 
   Nemo_CICD_Test:
     needs:
       - pre-flight
       - cicd-unit-tests
-      # - cicd-e2e-tests
+      - cicd-e2e-tests
     if: |
       (
         needs.pre-flight.outputs.docs_only == 'true'
