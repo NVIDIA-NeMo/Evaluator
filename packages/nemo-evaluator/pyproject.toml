@@ -2,6 +2,16 @@
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["nemo_evaluator", "nemo_evaluator.*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "nemo_evaluator.package_info.__version__" }
+
 
 [project]
 name = "nemo-evaluator"
@@ -51,11 +61,12 @@ nemo_evaluator_example = "nemo_evaluator.cli.example:main"
 nemo-evaluator-example = "nemo_evaluator.cli.example:main"
 eval-factory = "nemo_evaluator.core.entrypoint:run_eval"
 
-
-[tool.setuptools.packages.find]
-where = ["src"]
-include = ["nemo_evaluator*"]
-
-
-[tool.setuptools.package-data]
-nemo_evaluator = ["resources/**/*"]
+[tool.coverage.run]
+concurrency = ["thread", "multiprocessing"]
+omit = [
+    "/tmp/*",
+    "/workspace/packages/nemo-evaluator/tests/*",
+    "/workspace/packages/nemo-evaluator/*.py",
+    "*_ray.py",
+    "*package_info.py",
+]

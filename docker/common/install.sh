@@ -18,12 +18,8 @@ set -xeuo pipefail # Exit immediately if a command exits with a non-zero status
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-    --base-image)
-        BASE_IMAGE="$2"
-        shift 2
-        ;;
-    --inference-framework)
-        INFERENCE_FRAMEWORK="$2"
+    --package)
+        PACKAGE="$2"
         shift 2
         ;;
     *)
@@ -34,24 +30,18 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Validate base image argument
-if [[ -z "${BASE_IMAGE:-}" || -z "${INFERENCE_FRAMEWORK:-}" ]]; then
-    echo "Error: --base-image and --inference-framework arguments are required"
-    echo "Usage: $0 --base-image {pytorch|cuda} --inference-framework {trtllm|vllm|inframework}"
+if [[ -z "${PACKAGE:-}" ]]; then
+    echo "Error: --package argument is required"
+    echo "Usage: $0 --package {nemo-evaluator}"
     exit 1
 fi
 
-if [[ "$BASE_IMAGE" != "pytorch" && "$BASE_IMAGE" != "cuda" ]]; then
-    echo "Error: --base-image must be either 'pytorch' or 'cuda'"
-    echo "Usage: $0 --base-image {pytorch|cuda}"
+if [[ "$PACKAGE" != "nemo-evaluator" ]]; then
+    echo "Error: --package must be either 'nemo-evaluator'"
+    echo "Usage: $0 --package {nemo-evaluator}"
     exit 1
 fi
 
-if [[ "$INFERENCE_FRAMEWORK" != "trtllm" && "$INFERENCE_FRAMEWORK" != "vllm" && "$INFERENCE_FRAMEWORK" != "inframework" ]]; then
-    echo "Error: --inference-framework must be either 'trtllm' or 'vllm' or 'inframework'"
-    echo "Usage: $0 --inference-framework {trtllm|vllm|inframework}"
-    exit 1
-fi
 
 main() {
     if [[ -n "${PAT:-}" ]]; then
@@ -62,7 +52,15 @@ main() {
     # Install dependencies
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
-    apt-get install -y curl git libopenmpi-dev libpython3.12 python3-pip python3-venv cmake
+    apt-get install -y curl
+
+    # Install Python
+    export PYTHON_VERSION=3.12
+    apt-get update
+    apt-get install -y software-properties-common
+    add-apt-repository ppa:deadsnakes/ppa -y
+    apt-get install -y python$PYTHON_VERSION-dev python$PYTHON_VERSION-venv
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python$PYTHON_VERSION 1
 
     # Install uv
     UV_VERSION="0.7.2"
@@ -73,39 +71,10 @@ main() {
     export UV_LINK_MODE=copy
     export CXXFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
 
-    UV_ARGS=()
-    if [[ "$BASE_IMAGE" == "pytorch" ]]; then
-        UV_ARGS=(
-            "--no-install-package" "torch"
-            "--no-install-package" "torchvision"
-            "--no-install-package" "triton"
-            "--no-install-package" "nvidia-cublas-cu12"
-            "--no-install-package" "nvidia-cuda-cupti-cu12"
-            "--no-install-package" "nvidia-cuda-nvrtc-cu12"
-            "--no-install-package" "nvidia-cuda-runtime-cu12"
-            "--no-install-package" "nvidia-cudnn-cu12"
-            "--no-install-package" "nvidia-cufft-cu12"
-            "--no-install-package" "nvidia-cufile-cu12"
-            "--no-install-package" "nvidia-curand-cu12"
-            "--no-install-package" "nvidia-cusolver-cu12"
-            "--no-install-package" "nvidia-cusparse-cu12"
-            "--no-install-package" "nvidia-cusparselt-cu12"
-            "--no-install-package" "nvidia-nccl-cu12"
-        )
-    else
-        UV_ARGS=(
-            "--no-install-package" "nvidia-cudnn-cu12"
-        )
-    fi
-
-    if [[ "$INFERENCE_FRAMEWORK" != "inframework" ]]; then
-        UV_ARGS+=("--extra" "$INFERENCE_FRAMEWORK")
-    fi
-
     # Create virtual environment and install dependencies
     uv venv ${UV_PROJECT_ENVIRONMENT} $([[ "$BASE_IMAGE" == "pytorch" ]] && echo "--system-site-packages")
 
-    cd packages/nemo-evaluator
+    cd packages/$PACKAGE
 
     # Install dependencies
     uv sync --locked --only-group build ${UV_ARGS[@]}

@@ -50,8 +50,8 @@ inputs:
   PAT:
     description: "GitHub Personal Access Token"
     required: true
-  inference-framework:
-    description: "Inference Framework"
+  package:
+    description: "Package to test"
     required: true
 
 runs:
@@ -166,7 +166,7 @@ runs:
         GH_TOKEN: ${{ inputs.PAT }}
       run: |
         echo ::group::Build test container
-        docker build -f docker/Dockerfile.ci --build-arg INFERENCE_FRAMEWORK=${{ inputs.inference-framework }} --secret id=GH_TOKEN -t eval .
+        docker build -f docker/Dockerfile.ci --package ${{ inputs.package }} -t eval .
         echo ::endgroup::
 
     - name: Start container
@@ -224,7 +224,7 @@ runs:
 
         docker exec -t nemo_container_${{ github.run_id }} bash -c '
           set -e
-          bash packages/nemo-evaluator/tests/${{ inputs.is_unit_test == 'true' && 'unit_tests' || 'functional_tests' }}/${{ inputs.script }}.sh
+          bash packages/${{ inputs.package }}/tests/${{ inputs.is_unit_test == 'true' && 'unit_tests' || 'functional_tests' }}/${{ inputs.script }}.sh
         '
 
         RUN_TEST_EOF
