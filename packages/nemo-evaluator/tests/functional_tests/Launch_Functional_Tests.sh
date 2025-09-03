@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,15 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+export CUDA_VISIBLE_DEVICES=""
+cd /workspace/packages/nemo-evaluator/
 
-FROM ubuntu:24.04
-WORKDIR /workspace
-COPY . .
-ARG PACKAGE
-ARG PYTHON_VERSION=3.12
-ENV UV_PROJECT_ENVIRONMENT=/opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-ENV UV_LINK_MODE=copy
-ENV HOME=/root
-ENV PATH="$HOME/.local/bin:$PATH"
-RUN bash docker/common/install.sh --package $PACKAGE --python-version "$PYTHON_VERSION" --use-uv $USE_UV
+coverage run \
+    --data-file=.coverage \
+    --source=src/ \
+    -m pytest \
+    -o log_cli=true \
+    -o log_cli_level=INFO \
+    -m "not pleasefixme" \
+    tests/functional_tests
+coverage combine -q

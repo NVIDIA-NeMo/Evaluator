@@ -22,6 +22,8 @@ from typing import Any, final
 
 import requests
 import requests.structures
+from pydantic import BaseModel, Field
+
 from nemo_evaluator.adapters.caching.diskcaching import Cache
 from nemo_evaluator.adapters.decorators import register_for_adapter
 from nemo_evaluator.adapters.types import (
@@ -31,7 +33,6 @@ from nemo_evaluator.adapters.types import (
     RequestToResponseInterceptor,
     ResponseInterceptor,
 )
-from pydantic import BaseModel, Field
 
 
 @register_for_adapter(

@@ -16,6 +16,8 @@
 from typing import final
 
 import requests
+from pydantic import BaseModel
+
 from nemo_evaluator.adapters.decorators import register_for_adapter
 from nemo_evaluator.adapters.types import (
     AdapterGlobalContext,
@@ -23,7 +25,6 @@ from nemo_evaluator.adapters.types import (
     AdapterResponse,
     RequestToResponseInterceptor,
 )
-from pydantic import BaseModel
 
 
 @register_for_adapter(

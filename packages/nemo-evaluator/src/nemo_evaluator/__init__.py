@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from nemo_evaluator.api.api_dataclasses import (
     ApiEndpoint,
     ConfigParams,
@@ -28,6 +27,15 @@ from nemo_evaluator.api.api_dataclasses import (
     TaskResult,
 )
 from nemo_evaluator.api.run import register_framework, run_eval
+from nemo_evaluator.package_info import (
+    __contact_emails__,
+    __contact_names__,
+    __download_url__,
+    __homepage__,
+    __package_name__,
+    __repository_url__,
+    __version__,
+)
 
 __all__ = [
     "ApiEndpoint",
@@ -44,6 +52,13 @@ __all__ = [
     "TaskResult",
     "register_framework",
     "run_eval",
+    "__version__",
+    "__package_name__",
+    "__contact_names__",
+    "__contact_emails__",
+    "__homepage__",
+    "__repository_url__",
+    "__download_url__",
 ]
 
 import logging

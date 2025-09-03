@@ -21,13 +21,14 @@ from pathlib import Path
 from typing import Any, List
 
 from jinja2 import Environment, StrictUndefined, select_autoescape
+from pydantic import BaseModel, Field
+
 from nemo_evaluator.adapters.caching.diskcaching import Cache
 from nemo_evaluator.adapters.decorators import register_for_adapter
 from nemo_evaluator.adapters.reports.templates.simple_template import (
     SIMPLE_TEMPLATE,
 )
 from nemo_evaluator.adapters.types import AdapterGlobalContext, PostEvalHook
-from pydantic import BaseModel, Field
 
 
 class ReportType(str, Enum):

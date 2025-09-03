@@ -19,13 +19,14 @@ import json
 from typing import final
 
 from flask import Request
+from pydantic import BaseModel, Field
+
 from nemo_evaluator.adapters.decorators import register_for_adapter
 from nemo_evaluator.adapters.types import (
     AdapterGlobalContext,
     AdapterRequest,
     RequestInterceptor,
 )
-from pydantic import BaseModel, Field
 
 
 @register_for_adapter(

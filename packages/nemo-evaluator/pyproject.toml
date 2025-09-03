@@ -2,6 +2,16 @@
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["nemo_evaluator", "nemo_evaluator.*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "nemo_evaluator.package_info.__version__" }
+
 
 [project]
 name = "nemo-evaluator"
@@ -23,7 +33,7 @@ dependencies = [
 ]
 requires-python = ">=3.9"
 readme = "README.md"
-license = {file = "LICENSE"}
+license = { text = "Apache 2.0" }
 
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -32,25 +42,18 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
-[project.optional-dependencies]
-test = [
-    "pytest",
-    "pytest-cov",
-    "pytest-subtests",
-    "pytest-httpserver",
-]
+[dependency-groups]
+# This is a default group so that we install these even with bare `uv sync`
+build = []
+test = ["pytest", "pytest-cov", "pytest-subtests", "pytest-httpserver"]
 
 docs = [
     "sphinx",
-    "sphinx-autobuild",  # For live doc serving while editing docs
-    "sphinx-autodoc2",  # For documenting Python API
-    "sphinx-copybutton",  # Adds a copy button for code blocks
-    "myst_parser",  # For our markdown docs
-    "nvidia-sphinx-theme",  # Our NVIDIA theme
-]
-
-all = [
-    "nemo_evaluator[test,docs]"
+    "sphinx-autobuild",    # For live doc serving while editing docs
+    "sphinx-autodoc2",     # For documenting Python API
+    "sphinx-copybutton",   # Adds a copy button for code blocks
+    "myst_parser",         # For our markdown docs
+    "nvidia-sphinx-theme", # Our NVIDIA theme
 ]
 
 [project.scripts]
@@ -58,14 +61,19 @@ nemo_evaluator_example = "nemo_evaluator.cli.example:main"
 nemo-evaluator-example = "nemo_evaluator.cli.example:main"
 eval-factory = "nemo_evaluator.core.entrypoint:run_eval"
 
+[tool.coverage.run]
+concurrency = ["thread", "multiprocessing"]
+omit = [
+    "/tmp/*",
+    "/workspace/packages/nemo-evaluator/tests/*",
+    "/workspace/packages/nemo-evaluator/*.py",
+    "*_ray.py",
+    "*package_info.py",
+]
 
-[tool.setuptools.dynamic]
-version = {file = "VERSION"}
-
-[tool.setuptools.packages.find]
-where = ["packages/nemo-evaluator/src"]
-include = ["nemo_evaluator*"]
-
-
-[tool.setuptools.package-data]
-nemo_evaluator = ["resources/**/*"]
+[tool.coverage.paths]
+source = [
+    ".",
+    "/workspace/packages/nemo-evaluator/",
+    "/home/runner/work/Eval/Eval/packages/nemo-evaluator/",
+]

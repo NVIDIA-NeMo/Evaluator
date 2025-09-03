@@ -23,13 +23,14 @@ from pathlib import Path
 from typing import Any, Optional, Type
 
 import structlog
+from pydantic import BaseModel
+
 from nemo_evaluator.adapters.types import (
     PostEvalHook,
     RequestInterceptor,
     RequestToResponseInterceptor,
     ResponseInterceptor,
 )
-from pydantic import BaseModel
 
 logger = structlog.get_logger(__name__)
 

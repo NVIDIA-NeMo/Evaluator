@@ -19,6 +19,7 @@ from typing import Optional
 
 import structlog
 import yaml
+
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.api.api_dataclasses import (
     Evaluation,
