@@ -61,9 +61,9 @@ def test_deployment(serving_backend, completions_request, logprobs_request, chat
     set via app.config.response.
     """
     # Create and run the fake endpoint server
-    nemo2_ckpt_path = "/home/TestData/nemo2_ckpt/llama3-1b-lingua"
+    nemo2_ckpt_path = "/home/TestData/nemo2_ckpt/llama-3_2-1b-instruct_v2.0"
     max_batch_size = 4
-    legacy_ckpt = True
+    legacy_ckpt = False
     port = 8886
     if serving_backend == "pytriton":
         health_url = f"http://0.0.0.0:{port}/v1/triton_health"
@@ -94,6 +94,7 @@ def test_deployment(serving_backend, completions_request, logprobs_request, chat
         assert check_health(health_url, max_retries=30, retry_interval=60)
         # Test completions
         assert check_endpoint(f"http://0.0.0.0:{port}/v1/completions", "completions", "megatron_model", max_retries=10)
+        assert check_endpoint(f"http://0.0.0.0:{port}/v1/chat/completions", "chat", "megatron_model", max_retries=10)
         # TODO: not supported with ray yet
         # response = requests.post(f"http://0.0.0.0:{port}/v1/completions", json=logprobs_request)
         # assert response.status_code == 200
