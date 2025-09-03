@@ -146,7 +146,7 @@ if __name__ == "__main__":
 
 > **Note:** Please refer to `deploy` function in `nemo_eval/api.py` and `evaluate` function in `nvidia_eval_commons/core/evaluate.py` to review all available argument options, as the provided commands are only examples and do not include all arguments or their default values. For more detailed information on the arguments used in the ApiEndpoint and ConfigParams classes for evaluation, see `nvidia_eval_commons/api/api_dataclasses.py`.
 
-> **Tip:** If you encounter TimeoutError on the eval client side, please increase the `request_timeout` parameter in `ConfigParams` class to a larger value like `1000` or `1200` seconds (the default is 300).
+> **Tip:** If you encounter a TimeoutError on the eval client side, please increase the `request_timeout` parameter in `ConfigParams` class to a larger value like `1000` or `1200` seconds (the default is 300).
 
 ## Run Evaluations with NeMo Run
 
