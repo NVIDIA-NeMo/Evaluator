@@ -120,7 +120,7 @@ jobs:
         with:
           script: Launch_Functional_Tests
           timeout: ${{ matrix.timeout || 10 }}
-          cpu-only: ${{ matrix.cpu-only || false }}
+          cpu-only: true
           has-azure-credentials: "true"
           azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
