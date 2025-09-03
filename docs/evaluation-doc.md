@@ -66,8 +66,7 @@ It also provides predefined configurations for evaluating the chat endpoint, suc
 - `mmlu_redux_instruct`
 - `wikilingua`
 
-
-When specifying the task in the `EvaluationConfig` (detailed code examples in [Evaluate Models Locally on Your Workstation](#evaluate-models-locally-on-your-workstation) section), you can either use the task name from the list above or prepend it with the harness name. For example:
+When defining a task in EvaluationConfig (see detailed examples in the [Evaluate Models Locally on Your Workstation](#evaluate-models-locally-on-your-workstation) section), you can use either the task name from the list above or prefix it with the harness name. For example:
 
 ```python
 eval_config = EvaluationConfig(type="mmlu")

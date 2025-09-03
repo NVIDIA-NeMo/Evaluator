@@ -6,7 +6,7 @@ This guide explains how to deploy and evaluate NeMo Framework models, trained wi
 
 Deployment with Ray Serve provides support for multiple replicas of your model across available GPUs, enabling higher throughput and better resource utilization during evaluation. This approach is particularly beneficial for evaluation scenarios where you need to process large datasets efficiently and would like to accelerate evaluation.
 
-> **Note:** Multi-instance evaluation with Ray is currently supported only on single-node with model parallelism. Support for multi-node will be added in upcoming releases. Also the current support for Ray is limited to generation benchmarks and support for logprob benchmarks will be added in upcoming releases. For more details on generation benchmarks v/s logprob bechmarks refer to ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md) section.
+> **Note:** Multi-instance evaluation with Ray is currently supported only on single-node with model parallelism. Support for multi-node will be added in upcoming releases. Also the current support for Ray is limited to generation benchmarks and support for logprob benchmarks will be added in upcoming releases. For more details on generation benchmarks v/s logprob bechmarks, refer to the ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md) section.
 
 ### Key Benefits of Ray Deployment
 
