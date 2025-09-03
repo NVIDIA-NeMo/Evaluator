@@ -64,7 +64,7 @@ jobs:
         uses: ./FW-CI-templates/.github/actions/check-imports
         with:
           package-name: nemo_evaluator
-          python-binary: ./venv/bin/python
+          python-binary: /opt/venv/bin/python
 
   install-test-summary:
     needs: [pre-flight, pip-test]
