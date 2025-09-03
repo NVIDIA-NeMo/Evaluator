@@ -7,7 +7,7 @@ Here, we focus on benchmarks in the `lm-evaluation-harness` that rely on text ge
 In this approach, the model is given a prompt such as a question to answer, an instruction to follow, or a text to continue, and its response is then evaluated for correctness.
 
 An alternative approach to LLM evaluation utilizes **log-probabilities**.
-To learn more please refer to ["Evaluate LLMs Using Log-Probabilities"](logprobs.md).
+To learn more, please refer to ["Evaluate LLMs Using Log-Probabilities"](logprobs.md).
 
 Use the `show_available_tasks` function to list the evaluation configs available in your evironment:
 
