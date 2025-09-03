@@ -107,13 +107,26 @@ Troubleshooting <evaluation/troubleshooting>
 :::
 
 :::{toctree}
-:caption: Deployment
+:caption: Model Deployment
 :hidden:
 
 About Model Deployment <deployment/index>
 PyTriton Backend <deployment/pytriton>
 Ray Serve Deployment <deployment/ray-serve>
 Evaluation Adapters <deployment/adapters>
+:::
+
+:::{toctree}
+:caption: Troubleshooting
+:hidden:
+
+About Troubleshooting <troubleshooting/index>
+Installation Issues <troubleshooting/installation-issues>
+Authentication <troubleshooting/authentication>
+Deployment Issues <troubleshooting/deployment-issues>
+Configuration <troubleshooting/configuration-issues>
+Performance <troubleshooting/performance-issues>
+Debugging & Best Practices <troubleshooting/debugging-guide>
 :::
 
 :::{toctree}

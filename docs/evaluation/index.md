@@ -31,25 +31,25 @@ Step-by-step guides for different evaluation scenarios: text generation, log-pro
 :::
 
 :::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Configuration Parameters
-:link: parameters
+:link: eval-parameters
 :link-type: ref
 Comprehensive reference for evaluation configuration parameters, optimization patterns, and framework-specific settings.
 :::
 
 :::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Custom Task Configuration
-:link: custom-tasks
+:link: eval-custom-tasks
 :link-type: ref
 Learn how to configure evaluations for tasks without pre-defined configurations using custom benchmark definitions.
 :::
 
 :::{grid-item-card} {octicon}`list-unordered;1.5em;sd-mr-1` Benchmark Catalog
-:link: benchmarks
+:link: eval-benchmarks
 :link-type: ref
 Explore available evaluation harnesses, benchmarks, and their specific use cases and requirements.
 :::
 
 :::{grid-item-card} {octicon}`alert;1.5em;sd-mr-1` Troubleshooting
-:link: troubleshooting
+:link: eval-troubleshooting
 :link-type: ref
 Resolve common evaluation issues, debug configuration problems, and optimize evaluation performance.
 :::

@@ -404,3 +404,9 @@ python -c "from huggingface_hub import whoami; print(whoami())"
 - **Custom Datasets**: Learn about [custom task configuration](../custom-tasks.md)
 - **Performance Tuning**: See [configuration parameters](../parameters.md) for optimization
 - **Alternative Methods**: Compare with [text generation evaluation](../text-generation/index.md)
+
+:::{toctree}
+:hidden:
+
+LM Harness <lm-harness>
+:::

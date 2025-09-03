@@ -1,4 +1,4 @@
-(logprobs)=
+(eval-run-logprobs)=
 
 # Evaluate LLMs Using Log-Probabilities
 

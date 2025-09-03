@@ -1,4 +1,4 @@
-(text-generation-evaluation)=
+(eval-run-text)=
 
 # Text Generation Evaluation
 

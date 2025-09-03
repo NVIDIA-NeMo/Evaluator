@@ -1,4 +1,4 @@
-(run-evaluations)=
+(eval-run)=
 
 # Run Evaluations
 
@@ -8,7 +8,7 @@ Step-by-step guides for different evaluation scenarios and methodologies in NeMo
 
 This section provides practical guides for running different types of evaluations, each optimized for specific use cases and model capabilities. Choose the evaluation type that best matches your assessment needs.
 
-## Evaluation Scenarios
+## Evaluation Flows
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
@@ -18,63 +18,42 @@ This section provides practical guides for running different types of evaluation
 :link-type: ref
 Evaluate models through natural language generation for academic benchmarks, reasoning tasks, and general knowledge assessment.
 
-**Use Cases**: MMLU, GSM8K, instruction following, mathematical reasoning  
-**Endpoint**: Completions or Chat  
-**Method**: Generated response quality assessment
 :::
 
 :::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` Log-Probability
 :link: log-probability/index
-:link-type: doc
+:link-type: ref
 Assess model confidence and uncertainty using log-probabilities for multiple-choice scenarios without text generation.
 
-**Use Cases**: ARC Challenge, HellaSwag, TruthfulQA, perplexity tasks  
-**Endpoint**: Completions only  
-**Method**: Token probability analysis
 :::
 
 :::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Code Generation
+:link:
 :link-type: ref
-:class-card: sd-text-muted
 Evaluate programming capabilities through code generation, completion, and algorithmic problem solving.
 
-**Use Cases**: HumanEval, MBPP, CodeContests, programming interviews  
-**Endpoint**: Chat (instruction-tuned)  
-**Method**: Code execution and correctness validation  
-**Status**: Documentation coming soon
 :::
 
 :::{grid-item-card} {octicon}`shield;1.5em;sd-mr-1` Safety & Security
+:link:
 :link-type: ref
-:class-card: sd-text-muted
 Test AI safety, alignment, and security vulnerabilities using specialized safety harnesses and probing techniques.
 
-**Use Cases**: Harmful content detection, jailbreak resistance, bias assessment  
-**Endpoint**: Chat (instruction-tuned)  
-**Method**: Safety classifier and vulnerability scanning  
-**Status**: Documentation coming soon
 :::
 
 :::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Function Calling
+:link:
 :link-type: ref
-:class-card: sd-text-muted
 Assess tool use capabilities, API calling accuracy, and structured output generation for agent-like behaviors.
 
-**Use Cases**: BFCL benchmarks, tool use scenarios, API integration  
-**Endpoint**: Chat (instruction-tuned)  
-**Method**: Function call correctness and execution validation  
-**Status**: Documentation coming soon
 :::
 
 :::{grid-item-card} {octicon}`package;1.5em;sd-mr-1` Specialized Domains
+:link:
 :link-type: ref
-:class-card: sd-text-muted
+
 Domain-specific evaluations for specialized use cases including multilingual, multimodal, and enterprise scenarios.
 
-**Use Cases**: Multilingual benchmarks, domain adaptation, custom metrics  
-**Endpoint**: Varies by domain  
-**Method**: Domain-specific assessment criteria  
-**Status**: Documentation coming soon
 :::
 
 ::::
@@ -187,3 +166,12 @@ ConfigParams(
 - **Configuration**: Review [Parameters Guide](../parameters.md) for optimization options
 - **Troubleshooting**: See [Evaluation Troubleshooting](../troubleshooting.md) for common issues
 - **Custom Tasks**: Learn [Custom Task Configuration](../custom-tasks.md) for specialized evaluations
+
+
+:::{toctree}
+:hidden:
+
+Log Probability <log-probability/index>
+Text Generation <text-gen>
+Log Probs <log-probs>
+:::

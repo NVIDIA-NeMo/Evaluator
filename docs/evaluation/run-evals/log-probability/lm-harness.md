@@ -1,4 +1,4 @@
-(log-probability-lm-harness)=
+(eval-run-log-lm-harness)=
 
 # LM Harness Log-Probability Tasks
 

@@ -1,4 +1,4 @@
-(benchmarks)=
+(eval-benchmarks)=
 
 # Benchmark Catalog
 

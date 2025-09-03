@@ -1,53 +1,14 @@
 # About NeMo Eval
 
-## What is NeMo Eval?
+The Eval library (NeMo Eval) is a comprehensive evaluation module within the NeMo Framework for LLMs. It offers streamlined deployment and advanced evaluation capabilities for models trained using NeMo, leveraging state-of-the-art evaluation harnesses.
 
-NeMo Eval is NVIDIA's comprehensive evaluation framework for Large Language Models (LLMs), designed to streamline the deployment and evaluation of AI models trained with the NeMo Framework. It bridges the gap between model training and real-world performance assessment through production-ready deployment capabilities and state-of-the-art evaluation harnesses.
+![image](../../NeMo_Repo_Overview_Eval.png)
 
-## Mission & Purpose
+## What is NeMo Framework?
 
-Our mission is to democratize LLM evaluation by providing researchers, developers, and organizations with:
+[NeMo Framework](https://github.com/NVIDIA-NeMo/) is NVIDIA’s GPU-accelerated, end-to-end training platform for large language models (LLMs), multimodal models, and speech models. It enables seamless scaling of both pretraining and post-training workloads, from a single GPU to clusters with thousands of nodes, supporting Hugging Face/PyTorch and Megatron models. NeMo includes a suite of libraries and curated training recipes to help users build models from start to finish.
 
-- **Simplified Deployment**: Deploy models effortlessly across different serving backends
-- **Comprehensive Benchmarking**: Access to cutting-edge evaluation harnesses for academic, reasoning, coding, and safety assessments
-- **Production Readiness**: High-performance inference optimizations for real-world deployment scenarios
-- **Open Standards**: OpenAI-compatible APIs for seamless integration with existing workflows
-
-## Key Capabilities
-
-### 🚀 **Multi-Backend Deployment**
-
-- **PyTriton Backend**: High-performance inference through NVIDIA Triton Inference Server with multi-node model parallelism support
-- **Ray Serve Backend**: Multi-instance evaluation capabilities with single-node model parallelism and horizontal scaling
-
-### 📊 **Evaluation Ecosystem**
-
-Integration with leading evaluation frameworks:
-
-- **lm-evaluation-harness**: Academic benchmarks and reasoning tasks
-- **simple-evals**: Streamlined evaluation workflows
-- **BigCode**: Code generation and programming assessment
-- **BFCL**: Berkeley Function Calling Leaderboard
-- **safety-harness**: AI safety and alignment testing
-- **garak**: LLM vulnerability scanning
-
-### 🔧 **Production Features**
-
-- CUDA graphs and flash decoding for optimized inference
-- Multi-GPU and multi-node distributed computing
-- OpenAI-compatible REST API endpoints
-- Flexible adapter system with interceptor pipelines
-- Real-time health monitoring and endpoint validation
-
-## Technology Stack
-
-- **Core Framework**: Built on PyTorch and Megatron-Core
-- **Inference Backends**: NVIDIA Triton, Ray Serve, vLLM
-- **API Layer**: FastAPI with OpenAI compatibility
-- **Evaluation**: NVIDIA Eval Factory integration
-- **Deployment**: Docker containers and distributed computing support
-
-## Who Should Use NeMo Eval?
+## Target Users
 
 ### 🎓 **Researchers**
 

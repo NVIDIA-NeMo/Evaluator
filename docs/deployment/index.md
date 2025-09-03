@@ -33,23 +33,6 @@ Flexible request/response interceptors for custom processing, logging, and trans
 
 ::::
 
-## Key Features
-
-### Performance Optimizations
-- CUDA graphs and flash decoding for optimized inference
-- Multi-GPU and multi-node distributed computing
-- Automatic load balancing across replicas
-
-### API Compatibility
-- OpenAI-compatible REST API endpoints
-- Support for both completions (`/v1/completions`) and chat (`/v1/chat/completions`) endpoints
-- Flexible adapter system with interceptor pipelines
-
-### Monitoring & Validation
-- Real-time health monitoring
-- Endpoint validation and status checking
-- Comprehensive logging and debugging support
-
 ## Choosing a Deployment Backend
 
 | Use Case | Recommended Backend | Key Benefits |
@@ -57,5 +40,3 @@ Flexible request/response interceptors for custom processing, logging, and trans
 | Production deployment | PyTriton | High performance, multi-node support |
 | Accelerated evaluation | Ray Serve | Multi-instance, horizontal scaling |
 | Custom processing | Adapters | Request/response transformation |
-
-
