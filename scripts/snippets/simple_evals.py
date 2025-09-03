@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pip install nvidia-simple-evals==25.7.1
+# pip install nvidia-simple-evals
 
 ## Export the required variables
 ## Key with access to https://build.nvidia.com/ endpoints
@@ -33,7 +33,11 @@ chat_url = "http://0.0.0.0:8080/v1/chat/completions/"
 
 target_config = EvaluationTarget(api_endpoint=ApiEndpoint(url=chat_url, type=EndpointType.CHAT, model_id=model_name))
 
-eval_config = EvaluationConfig(type="AIME_2025", output_dir="/results/", params=ConfigParams(limit_samples=10))
+eval_config = EvaluationConfig(
+    type="AIME_2025",
+    output_dir="/results/",
+    params=ConfigParams(limit_samples=10, temperature=0, top_p=0, parallelism=1),
+)
 results = evaluate(target_cfg=target_config, eval_cfg=eval_config)
 
 

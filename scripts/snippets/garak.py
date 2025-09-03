@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pip install nvidia-eval-factory-garak==25.7.1
+# pip install nvidia-eval-factory-garak
 
 ## Export the required variables
 # No environment variables are required
@@ -33,7 +33,9 @@ target_config = EvaluationTarget(api_endpoint=ApiEndpoint(url=chat_url, type=End
 eval_config = EvaluationConfig(
     type="garak",
     output_dir="/results/",
-    params=ConfigParams(limit_samples=10, extra={"probes": "ansiescape.AnsiEscaped"}),
+    params=ConfigParams(
+        limit_samples=10, temperature=0, top_p=0, parallelism=1, extra={"probes": "ansiescape.AnsiEscaped"}
+    ),
 )
 
 

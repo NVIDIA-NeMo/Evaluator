@@ -4,26 +4,48 @@ Evaluation adapters provide a flexible mechanism for intercepting and modifying 
 
 ## Usage Example
 
-To enable the adapters, pass the  `AdapterConfig` class to the `evaluate`  method of the `src/nemo_eval/api.py`.
-The example below configures the adapter for reasoning:
+To enable the adapters, set the `adapter_config` field for the `ApiEndpoint` class.
+The example below configures the adapter for a reasoning model:
 
 ```python
-from nemo_eval.api import evaluate
-from nemo_eval.utils.api import EvaluationConfig, ApiEndpoint, EvaluationTarget, AdapterConfig
-target_config = EvaluationTarget(api_endpoint={"url": completions_url, "type": "completions"})
-eval_config = EvaluationConfig(
-    type="mmlu",
-    params={"limit_samples": 1},
-    output_dir=f"{WORKSPACE}/mmlu",
-)
-# Configure adapter for reasoning
+from nvidia_eval_commons.core.evaluate import evaluate
+from nvidia_eval_commons.api.api_dataclasses import EvaluationConfig, EvaluationTarget, AdapterConfig
 adapter_config = AdapterConfig(
-    api_url=target_config.api_endpoint.url,
-    use_reasoning=True,
-    end_reasoning_token="</think>",
-    custom_system_prompt="You are a helpful assistant that thinks step by step.",
-    max_logged_requests=5,
-    max_logged_responses=5
+        interceptors=[
+            # strip reasoning tokens from the response
+            dict(
+                name="reasoning",
+                config={"end_reasoning_token": "</think>"},
+            ),
+            # set custom system prompt to enable reasoning
+            dict(
+                name="system_message",
+                config={"system_message": "Detailed thinking on"}
+            ),
+            # log 5 request-response pair for verifying if model behaves as expected
+            dict(
+                name="request_logging",
+                config={"max_requests": 5}
+            ),
+            dict(
+                name="response_logging",
+                config={"max_responses": 5}
+            ),
+        ]
+    )
+
+target_config = EvaluationTarget(
+    api_endpoint={
+        "url": chat_url,
+        "model_id": "megatron_model",
+        "type": "chat",
+        "adapter_config": adapter_config
+    }
+)
+eval_config = EvaluationConfig(
+    type="mmlu_instruct",
+    params={"limit_samples": 1, "temperature": 0.6, "top_p": 0.95},
+    output_dir=f"{WORKSPACE}/mmlu",
 )
 
 results = evaluate(
@@ -118,15 +140,14 @@ Here's a detailed breakdown of the interaction flow:
 
 ## Configuration
 
-The adapter system is configured using the `AdapterConfig` class with the following options:
+The adapter system is configured using the `AdapterConfig` and the following interceptors:
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `api_url` | `str` |  | URL of the api endpoint (same as `target_config.api_endpoint.url`) that will be proxied |
-| `local_port` | `Optional[int]` | `None` | Local port to use for the adapter server. If `None`, a free port will be chosen automatically |
-| `use_reasoning` | `bool` | `False` | Whether to use the clean-reasoning-tokens adapter |
-| `end_reasoning_token` | `str` | `"</think>"` | Token that signifies the end of reasoning output |
-| `custom_system_prompt` | `Optional[str]` | `None` | A custom system prompt to replace the original one (if not None), **only for chat endpoints** |
-| `max_logged_responses` | `Optional[int]` | `5` | Maximum number of responses to log. Set to 0 to disable. If None, all will be logged |
-| `max_logged_requests` | `Optional[int]` | `5` | Maximum number of requests to log. Set to 0 to disable. If None, all will be logged |
-
+| Name | Description |
+|------|-------------|
+| request_logging | Logs incoming requests to files for debugging and analysis. |
+| response_logging | Logs outgoing responses to files. |
+| caching | Caches requests and responses to improve performance and reduce API calls. |
+| system_message | Modifies the system message in requests. |
+| payload_modifier | Modifies request parameters by adding, removing or replacing |
+| reasoning | Handles reasoning tokens in responses and tracks reasoning metrics. |
+| progress_tracking | Tracks evaluation progress by counting the number of samples sent to the server |

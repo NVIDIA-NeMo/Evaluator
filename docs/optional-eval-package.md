@@ -52,6 +52,16 @@ Run the deployment in the background:
 python deploy.py
 ```
 
+Wait for the server to get started and ready for accepting requests:
+```python
+from nemo_eval.utils.base import check_endpoint
+check_endpoint(
+    endpoint_url="http://0.0.0.0:8080/v1/completions/",
+    endpoint_type="completions",
+    model_name="megatron_model",
+)
+```
+
 Make sure to open two separate terminals within the same container for executing the deployment and evaluation.
 
 3. (Optional) Export the required environment variables. 
@@ -64,10 +74,10 @@ To run the evaluation on the whole dataset, remove the `"limit_samples"` paramet
 
 ## Enable BFCL
 
-First, install the [nvidia-bfcl](https://pypi.org/project/nvidia-bfcl/) package:
+1. Install the [nvidia-bfcl](https://pypi.org/project/nvidia-bfcl/) package:
 
 ```bash
-pip install nvidia-bfcl==25.6
+pip install nvidia-bfcl
 ```
 
 2. Run the evaluation:
@@ -83,7 +93,7 @@ pip install nvidia-bfcl==25.6
 1. Install the [nvidia-eval-factory-garak](https://pypi.org/project/nvidia-eval-factory-garak/) package:
 
 ```bash
-pip install nvidia-eval-factory-garak==25.6
+pip install nvidia-eval-factory-garak
 ```
 
 2. Run the evaluation:
@@ -99,7 +109,7 @@ pip install nvidia-eval-factory-garak==25.6
 1. Install the [nvidia-bigcode-eval](https://pypi.org/project/nvidia-bigcode-eval/) package:
 
 ```bash
-pip install nvidia-bigcode-eval==25.6
+pip install nvidia-bigcode-eval
 ```
 
 2. Run the evaluation:
@@ -115,7 +125,7 @@ pip install nvidia-bigcode-eval==25.6
 1. Install the [nvidia-simple-evals](https://pypi.org/project/nvidia-simple-evals/) package:
 
 ```bash
-pip install nvidia-simple-evals==25.6
+pip install nvidia-simple-evals
 ```
 
 In the example below, we use the `AIME_2025` task, which follows the llm-as-a-judge approach for checking the output correctness.
@@ -142,7 +152,7 @@ To customize the judge setting, see the instructions for [NVIDIA Eval Factory pa
 1. Install the [nvidia-safety-harness](https://pypi.org/project/nvidia-safety-harness/) package:
 
 ```bash
-pip install nvidia-safety-harness==25.6
+pip install nvidia-safety-harness
 ```
 
 2. Deploy the judge model
