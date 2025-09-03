@@ -97,7 +97,8 @@ main() {
         # Install the package
         uv pip install --no-deps -e .
     else
-        pip install -e .
+        python -m venv /opt/venv
+        /opt/venv/bin/pip install -e .
     fi
 
 
