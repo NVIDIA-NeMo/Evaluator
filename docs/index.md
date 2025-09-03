@@ -4,7 +4,7 @@
 
 Welcome to the {{ product_name_short }} documentation.
 
-## Getting Started
+## Introduction to {{ product_name_short }}
 
 New to {{ product_name_short }}? Start here to get up and running with your first model deployment and evaluation.
 
@@ -12,20 +12,32 @@ New to {{ product_name_short }}? Start here to get up and running with your firs
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`info;1.5em;sd-mr-1` About {{ product_name_short }}
-:link: about/index
+:link: get-started-overview
 :link-type: ref
 Learn what {{ product_name_short }} is, its key capabilities, and who should use it for LLM evaluation.
 :::
 
+:::{grid-item-card} {octicon}`info;1.5em;sd-mr-1` Key Features
+:link: about-key-features
+:link-type: ref
+<!-- TBD -->
+:::
+
+:::{grid-item-card} {octicon}`info;1.5em;sd-mr-1` Concepts
+:link: about-concepts
+:link-type: ref
+<!-- TBD -->
+:::
+
 :::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Get Started
-:link: get-started/index
+:link: get-started-overview
 :link-type: ref
 Install {{ product_name_short }} and run your first model evaluation in just a few minutes.
 :::
 
 ::::
 
-## Core Workflows
+## Evaluation Workflows
 
 Explore the main capabilities of {{ product_name_short }} for model deployment and evaluation.
 
@@ -52,31 +64,38 @@ Contribute to {{ product_name_short }}, extend functionality, and access API doc
 
 ::::
 
-```{toctree}
+:::{toctree}
+:hidden:
+Home <self>
+:::
+
+:::{toctree}
 :caption: About
 :hidden:
 
-About NeMo Evaluator <about/index>
+Overview <about/index>
+Key Features <about/key-features>
 Concepts <about/concepts/index>
-```
+Release Notes <about/release-notes/index>
+:::
 
-```{toctree}
+:::{toctree}
 :caption: Get Started
 :hidden:
 
 About Getting Started <get-started/index>
 Install Eval <get-started/install>
 Quickstart <get-started/quickstart>
-```
+:::
 
-```{toctree}
+:::{toctree}
 :caption: Tutorials
 :hidden:
 
 About Tutorials <tutorials/index>
-```
+:::
 
-```{toctree}
+:::{toctree}
 :caption: Evaluation
 :hidden:
 
@@ -85,9 +104,9 @@ Run Evals <evaluation/run-evals/index>
 Custom Task Configuration <evaluation/custom-tasks>
 Benchmark Catalog <evaluation/benchmarks>
 Troubleshooting <evaluation/troubleshooting>
-```
+:::
 
-```{toctree}
+:::{toctree}
 :caption: Deployment
 :hidden:
 
@@ -95,13 +114,13 @@ About Model Deployment <deployment/index>
 PyTriton Backend <deployment/pytriton>
 Ray Serve Deployment <deployment/ray-serve>
 Evaluation Adapters <deployment/adapters>
-```
+:::
 
-```{toctree}
+:::{toctree}
 :caption: References
 :hidden:
 
 References <references/index>
 Eval Parameters <evaluation/parameters>
 API Documentation <apidocs/index.rst>
-```
+:::

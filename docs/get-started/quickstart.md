@@ -1,3 +1,4 @@
+(gs-quickstart)=
 # Quick Start
 
 ## 1. Deploy a Model

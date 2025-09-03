@@ -2,11 +2,16 @@
 
 # Get Started
 
-Welcome to NeMo Eval! This section will help you quickly get up and running with deploying and evaluating Large Language Models.
+## Before You Start
 
-## Overview
+Before you begin, make sure you have:
 
-NeMo Eval is NVIDIA's comprehensive evaluation framework for Large Language Models (LLMs), designed to streamline the deployment and evaluation of AI models trained with the NeMo Framework. Follow these guides to get started with your first evaluation.
+- **NVIDIA GPU**: CUDA-compatible GPU for model inference
+- **Python Environment**: Python 3.8+ with virtual environment support
+- **NeMo Framework**: Access to NeMo-trained checkpoints or compatible models
+- **Sufficient Resources**: Adequate GPU memory for your target models
+
+---
 
 ## Quick Start Path
 
@@ -14,13 +19,13 @@ NeMo Eval is NVIDIA's comprehensive evaluation framework for Large Language Mode
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`download;1.5em;sd-mr-1` Installation
-:link: install
+:link: gs-install
 :link-type: ref
 Install NeMo Eval and set up your evaluation environment with all necessary dependencies.
 :::
 
 :::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Quick Start
-:link: quickstart
+:link: gs-quickstart
 :link-type: ref
 Deploy your first model and run a simple evaluation in just a few minutes.
 :::
@@ -35,15 +40,6 @@ By the end of this section, you'll be able to:
 2. **Deploy a model** using either PyTriton or Ray Serve backends
 3. **Run your first evaluation** on a standard benchmark
 4. **Understand the results** and next steps for advanced usage
-
-## Prerequisites
-
-Before you begin, make sure you have:
-
-- **NVIDIA GPU**: CUDA-compatible GPU for model inference
-- **Python Environment**: Python 3.8+ with virtual environment support
-- **NeMo Framework**: Access to NeMo-trained checkpoints or compatible models
-- **Sufficient Resources**: Adequate GPU memory for your target models
 
 ## Typical Workflow
 

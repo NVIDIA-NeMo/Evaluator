@@ -1,6 +1,9 @@
+(gs-install)=
 # Install Eval
 
-## Prerequisites
+## Before You Start
+
+### Prerequisites
 
 - Python 3.10 or higher
 - CUDA-compatible GPU(s) (tested on RTX A6000, A100, H100)
@@ -19,6 +22,10 @@
 
 ### Use pip
 
+::::{tab-set}
+
+:::{tab-item} Pip
+
 For quick exploration of NeMo Eval, we recommend installing our pip package:
 
 ```bash
@@ -26,7 +33,9 @@ pip install torch==2.7.0 setuptools pybind11 wheel_stub  # Required for TE
 pip install --no-build-isolation nemo-eval
 ```
 
-### Use Docker
+:::
+
+:::{tab-item} Docker
 
 For optimal performance and user experience, use the latest version of the [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags). Please fetch the most recent $TAG and run the following command to start a container:
 
@@ -37,9 +46,15 @@ docker run --rm -it -w /workdir -v $(pwd):/workdir \
   nvcr.io/nvidia/nemo:${TAG}
 ```
 
-### Use uv
+:::
 
-To install NeMo Eval with uv, please refer to our [Contribution guide](https://github.com/NVIDIA-NeMo/Eval/blob/main/CONTRIBUTING.md).
+:::{tab-item} UV
+
+To install NeMo Eval with `uv`,  refer to our [Contribution guide](https://github.com/NVIDIA-NeMo/Eval/blob/main/CONTRIBUTING.md).
+
+:::
+
+::::
 
 ---
 

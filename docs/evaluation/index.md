@@ -8,9 +8,20 @@ Comprehensive guide to LLM evaluation concepts, methodologies, and configuration
 
 Model evaluation in NeMo Eval encompasses various approaches to assess LLM performance across different dimensions: accuracy, reasoning, safety, coding ability, and domain expertise. This section provides conceptual guidance and reference materials for configuring and understanding evaluations.
 
+## Before You Start
+
+Before configuring evaluations, ensure you have:
+
+- **Deployed Model**: A model deployed via [PyTriton](../deployment/pytriton.md) or [Ray Serve](../deployment/ray-serve.md)
+- **Evaluation Framework**: Required evaluation packages installed (see [Benchmarks](benchmarks.md))
+- **Authentication**: Hugging Face token for gated datasets (when required)
+- **Tokenizer Access**: Model tokenizer for log-probability evaluations
+
+---
+
 ## Evaluation Methodologies
 
-::::{grid} 1 2 2 3
+::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`play;1.5em;sd-mr-1` Run Evaluations
@@ -71,12 +82,3 @@ Different benchmarks use various metrics:
 - **Pass@k**: Percentage of problems solved in k attempts (coding tasks)
 - **BLEU/ROUGE**: Text similarity scores
 - **Safety Scores**: Alignment and safety assessment metrics
-
-## Prerequisites
-
-Before configuring evaluations, ensure you have:
-
-- **Deployed Model**: A model deployed via [PyTriton](../deployment/pytriton.md) or [Ray Serve](../deployment/ray-serve.md)
-- **Evaluation Framework**: Required evaluation packages installed (see [Benchmarks](benchmarks.md))
-- **Authentication**: Hugging Face token for gated datasets (when required)
-- **Tokenizer Access**: Model tokenizer for log-probability evaluations
