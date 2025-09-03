@@ -98,3 +98,5 @@ html_theme_options = {
     },
 }
 html_extra_path = ["project.json", "versions1.json"]
+autodoc_typehints = "signature"
+python_use_unqualified_type_names = False
