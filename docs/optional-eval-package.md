@@ -74,7 +74,7 @@ To run the evaluation on the whole dataset, remove the `"limit_samples"` paramet
 
 ## Enable BFCL
 
-First, install the [nvidia-bfcl](https://pypi.org/project/nvidia-bfcl/) package:
+1. Install the [nvidia-bfcl](https://pypi.org/project/nvidia-bfcl/) package:
 
 ```bash
 pip install nvidia-bfcl
