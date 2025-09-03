@@ -73,7 +73,7 @@ jobs:
 
   cicd-unit-tests:
     needs: [pre-flight, cicd-wait-in-queue]
-    runs-on: linux-amd64-cpu16
+    runs-on: ubuntu-latest
     name: Unit_Tests
     environment: nemo-ci
     if: |
