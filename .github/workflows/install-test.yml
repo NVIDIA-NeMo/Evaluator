@@ -31,49 +31,27 @@ jobs:
     uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@v0.53.0
 
   pip-test-cuda:
-    runs-on: linux-amd64-cpu16
-    name: Pip - Python${{ matrix.python-version }}${{ matrix.extra-groups != '' && format('[{0}]', matrix.extra-groups) || '' }} - AMD64/Linux - NGC CUDA
+    runs-on: ubuntu-latest
+    name: Pip - Python${{ matrix.python-version }} - ${{ matrix.package }} - AMD64/Linux - Ubuntu Latest
     needs: [pre-flight]
     if: |
       !(needs.pre-flight.outputs.docs_only == 'true'
       || needs.pre-flight.outputs.is_deployment_workflow == 'true')
     container:
-      image: nvcr.io/nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04
+      image: ubuntu:24.04
     environment: nemo-ci
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12"]
-        extra-groups: [""]
-    env:
-      EXTRA: ${{ matrix.extra-groups != '' && format('[{0}]', matrix.extra-groups) || '' }}
+        python-version: ["3.10", "3.11", "3.12"]
+        package: ["nemo-evaluator"]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install nemo-eval${{ matrix.extra-groups != '' && format('[{0}]', matrix.extra-groups) || '' }}
+      - name: Install ${{ matrix.package }}
         shell: bash -x -e -u -o pipefail {0}
-        run: |
-          apt-get update
-          apt-get install -y python3 python3.12 python3.12-venv python3.12-dev git
-          python3 -m venv ./venv
-
-          . ./venv/bin/activate
-
-          pip install --pre --no-cache-dir --upgrade pip
-
-          PIP_ARGS=()
-
-          if [[ $EXTRA == *"te"* ]]; then
-            pip install --pre --no-cache-dir torch setuptools pybind11 wheel_stub
-            PIP_ARGS=(--no-build-isolation)
-          fi
-
-          pip install --pre --no-cache-dir ${PIP_ARGS[@]} .$EXTRA
-
-          echo -e "machine github.com\n  login token\n  password ${{ secrets.PAT }}" > ~/.netrc
-          chmod 600 ~/.netrc 
-          pip install --pre --no-cache-dir nemo-export-deploy@git+https://github.com/NVIDIA-NeMo/Export-Deploy.git@main
+        run: bash docker/common/install.sh --package ${{ matrix.package }} --python-version "$${{ matrix.python-version }}"
 
       - name: Checkout check-imports
         uses: actions/checkout@v4
@@ -82,10 +60,10 @@ jobs:
           ref: v0.39.0
           path: FW-CI-templates
 
-      - name: Check imports for nemo_eval
+      - name: Check imports for nemo_evaluator
         uses: ./FW-CI-templates/.github/actions/check-imports
         with:
-          package-name: nemo_eval
+          package-name: nemo_evaluator
           python-binary: ./venv/bin/python
 
   uv-test-cuda:
