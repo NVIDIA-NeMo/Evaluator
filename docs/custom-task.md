@@ -18,7 +18,7 @@ The `nvidia-lm-eval` package comes pre-installed with the NeMo Framework Docker 
 If you are using a different environment, install the evaluation package:
 
 ```bash
-pip install nvidia-lm-eval==25.6
+pip install nvidia-lm-eval
 ```
 
 1. Deploy your model:
@@ -32,6 +32,18 @@ pip install nvidia-lm-eval==25.6
 ```bash
 python deploy.py
 ```
+
+You can verify if the server is ready for accepting requests with the following function:
+```python
+from nemo_eval.utils.base import check_endpoint
+
+check_endpoint(
+    endpoint_url="http://0.0.0.0:8080/v1/completions/",
+    endpoint_type="completions",
+    model_name="megatron_model",
+)
+```
+
 
 2. Configure and run the evaluation:
 
