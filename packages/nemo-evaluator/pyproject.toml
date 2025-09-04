@@ -70,6 +70,8 @@ omit = [
     "*_ray.py",
     "*package_info.py",
 ]
+parallel = true
+sigterm = true
 
 [tool.coverage.paths]
 source = [
