@@ -199,7 +199,6 @@ runs:
           --env HYDRA_FULL_ERROR=1 \
           --env HF_HOME=/home/TestData/HF_HOME \
           --env RUN_ID=${{ github.run_id }} \
-          --workdir /workspace/packages/${{ inputs.package }} \
           --volume $(pwd)/Eval:/workspace \
           $VOLUME_ARGS \
           eval \
@@ -224,7 +223,7 @@ runs:
 
         docker exec -t nemo_container_${{ github.run_id }} bash -c '
           set -e
-          bash tests/${{ inputs.is_unit_test == 'true' && 'unit_tests' || 'functional_tests' }}/${{ inputs.script }}.sh
+          bash /workspace/packages/${{ inputs.package }}/tests/${{ inputs.is_unit_test == 'true' && 'unit_tests' || 'functional_tests' }}/${{ inputs.script }}.sh
         '
 
         RUN_TEST_EOF
