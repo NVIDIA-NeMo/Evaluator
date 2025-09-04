@@ -1,0 +1,13 @@
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+# NOTE(dfridman): If deployment is used, `target` parameters will be automatically populated.
+target:
+  api_endpoint:
+    url: ???
+    model_id: ???
+    api_key_name: "<YOUR_API_KEY_NAME>" # NOTE: the name of the env var
+
+evaluation: []

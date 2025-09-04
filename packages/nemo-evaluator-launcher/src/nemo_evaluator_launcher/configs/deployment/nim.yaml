@@ -1,0 +1,17 @@
+type: nim
+image: ??? # e.g., nvcr.io/nim/meta/llama-3.1-8b-instruct:1.8.6
+served_model_name: ???
+port: 8000
+
+# NIM containers use default entrypoint - no custom command needed
+# Configuration is done via environment variables in lepton_config
+
+endpoints:
+  chat: /v1/chat/completions
+  completions: /v1/completions
+  health: /health
+# Note: Environment variables should be configured in lepton_config.envs
+# Auto-derived environment variables from deployment config:
+# - SERVED_MODEL_NAME (from served_model_name)
+# - NIM_MODEL_NAME (from served_model_name for NIM)
+# - MODEL_PORT (from port)
