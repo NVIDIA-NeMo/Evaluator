@@ -29,6 +29,15 @@ from nemo_evaluator.api.api_dataclasses import (
     TaskResult,
 )
 from nemo_evaluator.api.run import run_eval
+from nemo_evaluator.package_info import (
+    __contact_emails__,
+    __contact_names__,
+    __download_url__,
+    __homepage__,
+    __package_name__,
+    __repository_url__,
+    __version__,
+)
 
 __all__ = [
     "ApiEndpoint",
@@ -46,6 +55,13 @@ __all__ = [
     "run_eval",
     "evaluate",
     "show_available_tasks",
+    "__version__",
+    "__package_name__",
+    "__contact_names__",
+    "__contact_emails__",
+    "__homepage__",
+    "__repository_url__",
+    "__download_url__",
 ]
 
 # Import logging to ensure centralized logging is configured
