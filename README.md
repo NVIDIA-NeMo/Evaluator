@@ -87,8 +87,8 @@ deploy(
 ### 2. Evaluate the Model
 
 ```python
-from nvidia_eval_commons.core.evaluate import evaluate
-from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, EvaluationConfig, EvaluationTarget
+from nemo_evaluator.core.evaluate import evaluate
+from nemo_evaluator.api.api_dataclasses import ApiEndpoint, EvaluationConfig, EvaluationTarget
 
 # Configure evaluation
 api_endpoint = ApiEndpoint(
@@ -152,8 +152,8 @@ deploy(
 ### Basic Evaluation
 
 ```Python
-from nvidia_eval_commons.core.evaluate import evaluate
-from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
+from nemo_evaluator.core.evaluate import evaluate
+from nemo_evaluator.api.api_dataclasses import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
 # Configure Endpoint
 api_endpoint = ApiEndpoint(
     url="http://0.0.0.0:8080/v1/completions/",

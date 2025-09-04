@@ -17,24 +17,30 @@
 ## Export the required variables
 # No environment variables are required
 ## Run the evaluation
-from nvidia_eval_commons.api.api_dataclasses import (
+from nemo_evaluator.api.api_dataclasses import (
     ApiEndpoint,
     ConfigParams,
     EndpointType,
     EvaluationConfig,
     EvaluationTarget,
 )
-from nvidia_eval_commons.core.evaluate import evaluate
+from nemo_evaluator.core.evaluate import evaluate
 
 model_name = "megatron_model"
 chat_url = "http://0.0.0.0:8080/v1/chat/completions/"
 
-target_config = EvaluationTarget(api_endpoint=ApiEndpoint(url=chat_url, type=EndpointType.CHAT, model_id=model_name))
+target_config = EvaluationTarget(
+    api_endpoint=ApiEndpoint(url=chat_url, type=EndpointType.CHAT, model_id=model_name)
+)
 eval_config = EvaluationConfig(
     type="garak",
     output_dir="/results/",
     params=ConfigParams(
-        limit_samples=10, temperature=0, top_p=0, parallelism=1, extra={"probes": "ansiescape.AnsiEscaped"}
+        limit_samples=10,
+        temperature=0,
+        top_p=0,
+        parallelism=1,
+        extra={"probes": "ansiescape.AnsiEscaped"},
     ),
 )
 

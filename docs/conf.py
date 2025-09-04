@@ -59,7 +59,7 @@ myst_heading_anchors = 5  # Generates anchor links for headings up to level 5
 sys.path.insert(0, os.path.abspath(".."))
 
 autodoc2_packages = [
-    "../src/nemo_eval",  # Path to your package relative to conf.py
+    "../packages/nemo-evaluator/src/nemo_evaluator",  # Path to your package relative to conf.py
 ]
 autodoc2_render_plugin = "myst"  # Use MyST for rendering docstrings
 autodoc2_output_dir = "apidocs"  # Output directory for autodoc2 (relative to docs/)
@@ -98,6 +98,12 @@ html_theme_options = {
     },
 }
 html_extra_path = ["project.json", "versions1.json"]
+
+# -- Warning suppression and cross-reference handling ----------------------
+nitpicky = False
+suppress_warnings = [
+    "ref.python",  # Suppress ambiguous cross-reference warnings
+]
 
 # Github links are now getting rate limited from the Github Actions
 linkcheck_ignore = [

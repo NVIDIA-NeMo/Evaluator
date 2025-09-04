@@ -15,21 +15,23 @@
 # pip install nvidia-lm-eval
 
 ## Run the evaluation
-from nvidia_eval_commons.api.api_dataclasses import (
+from nemo_evaluator.api.api_dataclasses import (
     ApiEndpoint,
     ConfigParams,
     EndpointType,
     EvaluationConfig,
     EvaluationTarget,
 )
-from nvidia_eval_commons.core.evaluate import evaluate
+from nemo_evaluator.core.evaluate import evaluate
 
 model_name = "megatron_model"
 completions_url = "http://0.0.0.0:8080/v1/completions/"
 
 
 target_config = EvaluationTarget(
-    api_endpoint=ApiEndpoint(url=completions_url, type=EndpointType.COMPLETIONS, model_id=model_name)
+    api_endpoint=ApiEndpoint(
+        url=completions_url, type=EndpointType.COMPLETIONS, model_id=model_name
+    )
 )
 eval_config = EvaluationConfig(
     type="arc_challenge",

@@ -50,8 +50,8 @@ inputs:
   PAT:
     description: "GitHub Personal Access Token"
     required: true
-  inference-framework:
-    description: "Inference Framework"
+  package:
+    description: "Package to test"
     required: true
 
 runs:
@@ -166,7 +166,7 @@ runs:
         GH_TOKEN: ${{ inputs.PAT }}
       run: |
         echo ::group::Build test container
-        docker build -f docker/Dockerfile.ci --build-arg INFERENCE_FRAMEWORK=${{ inputs.inference-framework }} --secret id=GH_TOKEN -t eval .
+        docker build -f docker/Dockerfile.ci --build-arg PACKAGE=${{ inputs.package }} -t eval .
         echo ::endgroup::
 
     - name: Start container
@@ -199,7 +199,7 @@ runs:
           --env HYDRA_FULL_ERROR=1 \
           --env HF_HOME=/home/TestData/HF_HOME \
           --env RUN_ID=${{ github.run_id }} \
-          --workdir /workspace \
+          --workdir /workspace/packages/${{ inputs.package }} \
           --volume $(pwd)/Eval:/workspace \
           $VOLUME_ARGS \
           eval \
@@ -252,8 +252,8 @@ runs:
         echo ::group::Check result
         docker exec nemo_container_${{ github.run_id }} /opt/venv/bin/coverage combine || true
         docker exec nemo_container_${{ github.run_id }} /opt/venv/bin/coverage xml
-        docker cp nemo_container_${{ github.run_id }}:/workspace/.coverage .coverage
-        docker cp nemo_container_${{ github.run_id }}:/workspace/coverage.xml coverage.xml
+        docker cp nemo_container_${{ github.run_id }}:/workspace/packages/${{ inputs.package }}/.coverage .coverage
+        docker cp nemo_container_${{ github.run_id }}:/workspace/packages/${{ inputs.package }}/coverage.xml coverage.xml
 
         coverage_report=coverage-${{ steps.create.outputs.coverage-prefix }}-${{ github.run_id }}-$(uuidgen)
         echo "coverage_report=$coverage_report" >> "$GITHUB_OUTPUT"

@@ -1,0 +1,49 @@
+framework:
+  name: {{framework_name}}
+  # modify pkg_name if different from the expected framework name
+  pkg_name: {{framework_name}}
+  # full_name: COMPLETE: human readable name of the package
+  # description: COMPLETE: human readable description of the package
+  # url: COMPLETE: URL of the original repo
+  # source: COMPLETE: URL of the EF fork of the repo
+{% raw %}
+defaults:
+  # COMPLETE: provide a jinja-templated command which runs your eval once the package is installed, eg. for simple-evals:
+  # command: >-
+  #   {% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}} && {% endif %}
+  #   simple_evals --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}}
+  #   --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}}
+  #   --max_tokens {{config.params.max_new_tokens}} --out_dir {{config.output_dir}} --cache_dir {{config.output_dir}}/cache
+  #   --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}}
+  #   {% if config.params.extra.n_samples is defined %} --num_repeats {{config.params.extra.n_samples}}{% endif %}
+  #   {% if config.params.limit_samples is not none %} --first_n {{config.params.limit_samples}}{% endif %}
+  #   {% if config.params.extra.add_system_prompt  %} --add_system_prompt {% endif %}
+  #   {% if config.params.extra.downsampling_ratio is not none %} --downsampling_ratio {{config.params.extra.downsampling_ratio}}{% endif %}
+  #   {% if config.params.extra.args is defined %} {{ config.params.extra.args }} {% endif %}
+  config:
+    # COMPLETE: Provide default params for the package, eg for simple evals:
+    # params:
+    #   limit_samples: null
+    #   max_new_tokens: 4096
+    #   temperature: 0
+    #   top_p: 0.00001
+    #   parallelism: 10
+    #   max_retries: 5
+    #   request_timeout: 60
+    #   extra:
+    #     downsampling_ratio: null
+    #     add_system_prompt: false
+  target:
+    api_endpoint: {}
+evaluations:
+# COMPLETE: list of supported evaluations within the package, with the params that need to be passed to jinja-formatted command to run those
+# - name: AIME_2025
+#   description: AIME 2025 questions, math
+#   defaults:
+#     config:
+#       type: AIME_2025
+#       supported_endpoint_types:
+#       - chat
+#       params:
+#         task: AIME_2025
+{% endraw %}
