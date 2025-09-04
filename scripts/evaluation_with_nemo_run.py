@@ -23,7 +23,6 @@ from typing import Optional
 
 import nemo_run as run
 from helpers import wait_and_evaluate
-
 from nemo_eval.api import deploy
 from nemo_evaluator.api.api_dataclasses import (
     ApiEndpoint,
@@ -31,7 +30,6 @@ from nemo_evaluator.api.api_dataclasses import (
     EvaluationConfig,
     EvaluationTarget,
 )
-from nemo_evaluator.core.evaluate import evaluate
 
 ENDPOINT_TYPES = {"chat": "chat/completions/", "completions": "completions/"}
 
@@ -279,9 +277,16 @@ def main():
         parallelism=args.parallel_requests,
         request_timeout=args.request_timeout,
     )
-    eval_config = run.Config(EvaluationConfig, type=args.eval_task, params=eval_params, output_dir="/results/")
+    eval_config = run.Config(
+        EvaluationConfig,
+        type=args.eval_task,
+        params=eval_params,
+        output_dir="/results/",
+    )
 
-    eval_fn = run.Partial(wait_and_evaluate, target_cfg=eval_target, eval_cfg=eval_config)
+    eval_fn = run.Partial(
+        wait_and_evaluate, target_cfg=eval_target, eval_cfg=eval_config
+    )
 
     executor: run.Executor
     executor_eval: run.Executor
@@ -318,8 +323,12 @@ def main():
                 tail_logs=False,
             )
         else:
-            exp.add(deploy_fn, executor=executor, name=f"{exp_name}_deploy", tail_logs=True)
-            exp.add(eval_fn, executor=executor, name=f"{exp_name}_evaluate", tail_logs=True)
+            exp.add(
+                deploy_fn, executor=executor, name=f"{exp_name}_deploy", tail_logs=True
+            )
+            exp.add(
+                eval_fn, executor=executor, name=f"{exp_name}_evaluate", tail_logs=True
+            )
 
         if args.dryrun:
             exp.dryrun()
