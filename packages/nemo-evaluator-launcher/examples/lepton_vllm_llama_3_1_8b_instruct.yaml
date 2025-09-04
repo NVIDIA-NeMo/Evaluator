@@ -1,0 +1,121 @@
+# Run this config with `nv-eval run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruct`.
+
+# This example shows how to use Lepton as an execution platform with vLLM.
+# Execution flow:
+# 1. Deploy the specified vLLM model to a Lepton endpoint
+# 2. Wait for the endpoint to be ready
+# 3. Run evaluation tasks as parallel Lepton jobs that connect to the deployed vLLM model
+# 4. Clean up the endpoint when done (on failure) or remind you to clean up (on success)
+
+# Prerequisites:
+# 1. Install leptonai: pip install leptonai
+# 2. Configure your Lepton credentials: lep login
+# 3. Have HuggingFace token configured for model access
+
+defaults:
+  - execution: lepton/default
+  - deployment: vllm
+  - _self_
+
+# =============================================================================
+# EXECUTION CONFIGURATION
+# =============================================================================
+execution:
+  output_dir: lepton_vllm_llama_3_1_8b_results
+
+  # Environment variables passed to evaluation containers
+  env_var_names:
+    - HF_TOKEN
+
+  # Optional: Override evaluation task execution settings
+  # evaluation_tasks:
+  #   resource_shape: "gpu.small"  # Override default CPU with GPU for tasks
+  #   timeout: 7200  # Override default 3600s timeout to 2 hours
+
+  # Optional: Override platform settings for evaluation tasks
+  # lepton_platform:
+  #   tasks:
+  #     # Additional environment variables for evaluation tasks
+  #     env_vars:
+  #       HF_TOKEN:
+  #         value_from:
+  #           secret_name_ref: "HUGGING_FACE_HUB_TOKEN_read"
+
+# =============================================================================
+# DEPLOYMENT CONFIGURATION (vLLM-specific)
+# =============================================================================
+deployment:
+  # vLLM model configuration
+  checkpoint_path: meta-llama/Llama-3.1-8B-Instruct # HuggingFace model ID
+  served_model_name: llama-3.1-8b-instruct
+
+  # vLLM-specific performance settings
+  tensor_parallel_size: 1 # Adjust based on GPU memory
+  pipeline_parallel_size: 1
+  data_parallel_size: 1
+  extra_args: "--gpu-memory-utilization 0.95 --trust-remote-code"
+
+  # Lepton-specific deployment settings
+  lepton_config:
+    endpoint_name: vllm-llama-3-1-8b-eval # Base name for Lepton endpoint
+    resource_shape: gpu.1xh200
+    min_replicas: 1
+    max_replicas: 3
+
+    # Auto-scaling settings
+    auto_scaler:
+      scale_down:
+        no_traffic_timeout: 3600
+        scale_from_zero: false
+      target_gpu_utilization_percentage: 0
+      target_throughput:
+        qpm: 2.5
+        paths: []
+        methods: []
+
+    # Environment variables for vLLM container
+    envs:
+      # Secret references (recommended for sensitive data)
+      HF_TOKEN:
+        value_from:
+          secret_name_ref: "HUGGING_FACE_HUB_TOKEN_read"
+
+      # Additional deployment-derived environment variables are auto-populated:
+      # - SERVED_MODEL_NAME: llama-3.1-8b-instruct (from deployment.served_model_name)
+      # - MODEL_PATH: meta-llama/Llama-3.1-8B-Instruct (from deployment.checkpoint_path)
+      # - TENSOR_PARALLEL_SIZE: 1 (from deployment.tensor_parallel_size)
+      # - MODEL_PORT: 8000 (from deployment.port)
+
+    # Storage mounts for model caching
+    mounts:
+      enabled: true
+      cache_path: "/EU-Model-Builder-SAs/user_homes/<user-name>/llama-3.1-8b-instruct"
+      mount_path: "/opt/nim/.cache"
+
+# =============================================================================
+# EVALUATION CONFIGURATION
+# =============================================================================
+evaluation:
+  overrides: # Global overrides for all tasks
+    config.params.request_timeout: 3600
+    target.api_endpoint.adapter_config.use_reasoning: false
+    target.api_endpoint.adapter_config.use_system_prompt: true
+    target.api_endpoint.adapter_config.custom_system_prompt: >-
+      "Think step by step."
+  tasks:
+    - name: ifeval # Use default configuration
+    - name: gpqa_diamond
+      overrides: # Task-specific overrides
+        config.params.temperature: 0.6
+        config.params.top_p: 0.95
+        config.params.max_new_tokens: 8192
+        config.params.parallelism: 32
+    - name: mbpp
+      overrides:
+        config.params.temperature: 0.2
+        config.params.top_p: 0.95
+        config.params.max_new_tokens: 2048
+        config.params.extra.n_samples: 5 # Sample 5 predictions per prompt
+        config.params.parallelism: 32
+        target.api_endpoint.adapter_config.custom_system_prompt: >-
+          "You must only provide the code implementation"

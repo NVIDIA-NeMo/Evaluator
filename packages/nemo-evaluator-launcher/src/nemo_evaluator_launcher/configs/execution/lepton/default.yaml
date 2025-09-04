@@ -1,0 +1,77 @@
+# =============================================================================
+# LEPTON EXECUTION CONFIGURATION - Default Environment
+# Following the same pattern as SLURM internal configs
+# =============================================================================
+
+type: lepton
+output_dir: ???
+
+# Environment variables passed to evaluation containers
+env_var_names: []
+
+# Evaluation task settings for Lepton batch execution
+evaluation_tasks:
+  # Resource requirements for evaluation tasks
+  resource_shape: "cpu.small"  # Can be overridden to gpu.small, gpu.1xh200, etc
+
+  # Timeout for individual evaluation tasks (in seconds)
+  timeout: 3600  # 1 hour per evaluation task
+
+  # Whether to use shared storage for results
+  use_shared_storage: true
+
+# Lepton platform infrastructure settings for this environment
+lepton_platform:
+  # Deployment configuration (for model endpoints)
+  deployment:
+    # Node group for endpoint deployments
+    node_group: "nv-int-multiteam-nebius-h200-01-mjgbgffo"
+
+    # Endpoint readiness timeout (in seconds)
+    endpoint_readiness_timeout: 1200  # 20 minutes
+
+    # Platform defaults that get merged into all deployments
+    platform_defaults:
+      # Health checks
+      health:
+        readiness: {}
+        liveness: {}
+
+      # Logging
+      log:
+        enable_collection: true
+
+      # Monitoring and routing
+      metrics: {}
+      routing_policy: {}
+
+      # Queue configuration for resource prioritization
+      queue_config:
+        priority_class: "mid-4000"
+
+      # Security and infrastructure
+      enable_rdma: false
+      user_security_context: {}
+
+      # NGC registry access
+      image_pull_secrets:
+        - "ngc-general-access-and-private-registry-in-sa-nvex-org"
+
+  # Task execution configuration (for evaluation tasks)
+  tasks:
+    # Node group for evaluation tasks
+    node_group: "nv-int-multiteam-nebius-h200-01"
+
+    # Default environment variables for all tasks
+    env_vars: {}
+
+    # Storage mounts for task execution
+    mounts:
+      # Main workspace mount
+      - from: "node-nfs:lepton-shared-fs"
+        path: "/shared/nv-eval-workspace"
+        mount_path: "/workspace"
+
+    # Image pull secrets for task containers
+    image_pull_secrets:
+      - "lepton-nvidia"

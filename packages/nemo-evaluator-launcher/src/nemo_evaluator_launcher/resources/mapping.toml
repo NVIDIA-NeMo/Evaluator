@@ -1,0 +1,360 @@
+# NOTE(agronskiy): checked parity
+[lm-evaluation-harness]
+container = "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.08"
+
+[lm-evaluation-harness.tasks.chat.ifeval]
+required_env_vars = []
+
+[lm-evaluation-harness.tasks.chat.mmlu_prox]
+required_env_vars = []
+
+[lm-evaluation-harness.tasks.completions.mmlu]
+required_env_vars = []
+
+[lm-evaluation-harness.tasks.completions.mmlu_pro]
+
+[lm-evaluation-harness.tasks.completions.global_mmlu]
+[lm-evaluation-harness.tasks.completions.global_mmlu_ar]
+[lm-evaluation-harness.tasks.completions.global_mmlu_bn]
+[lm-evaluation-harness.tasks.completions.global_mmlu_de]
+[lm-evaluation-harness.tasks.completions.global_mmlu_en]
+[lm-evaluation-harness.tasks.completions.global_mmlu_es]
+[lm-evaluation-harness.tasks.completions.global_mmlu_fr]
+[lm-evaluation-harness.tasks.completions.global_mmlu_hi]
+[lm-evaluation-harness.tasks.completions.global_mmlu_id]
+[lm-evaluation-harness.tasks.completions.global_mmlu_it]
+[lm-evaluation-harness.tasks.completions.global_mmlu_ja]
+[lm-evaluation-harness.tasks.completions.global_mmlu_ko]
+[lm-evaluation-harness.tasks.completions.global_mmlu_pt]
+[lm-evaluation-harness.tasks.completions.global_mmlu_sw]
+[lm-evaluation-harness.tasks.completions.global_mmlu_yo]
+[lm-evaluation-harness.tasks.completions.global_mmlu_zh]
+
+[lm-evaluation-harness.tasks.completions.global_mmlu_full]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_am]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_ar]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_bn]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_cs]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_de]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_el]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_en]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_es]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_fa]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_fil]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_fr]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_ha]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_he]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_hi]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_id]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_ig]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_it]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_ja]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_ko]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_ky]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_lt]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_mg]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_ms]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_ne]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_nl]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_ny]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_pl]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_pt]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_ro]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_ru]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_si]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_sn]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_so]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_sr]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_sv]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_sw]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_te]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_tr]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_uk]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_vi]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_yo]
+[lm-evaluation-harness.tasks.completions.global_mmlu_full_zh]
+[lm-evaluation-harness.tasks.completions.mmlu_logits]
+
+[lm-evaluation-harness.tasks.chat.mmlu_instruct]
+
+[lm-evaluation-harness.tasks.chat.mmlu_redux_instruct]
+
+[lm-evaluation-harness.tasks.completions.gsm8k]
+required_env_vars = []
+
+[lm-evaluation-harness.tasks.chat.gsm8k_cot_instruct]
+required_env_vars = []
+
+[lm-evaluation-harness.tasks.chat.gsm8k_cot_llama]
+required_env_vars = []
+
+[lm-evaluation-harness.tasks.chat.mgsm_cot]
+
+[lm-evaluation-harness.tasks.chat.gpqa_diamond_cot]
+
+[lm-evaluation-harness.tasks.completions.winogrande]
+
+[lm-evaluation-harness.tasks.completions.hellaswag]
+[lm-evaluation-harness.tasks.completions.hellaswag_multilingual]
+
+[lm-evaluation-harness.tasks.completions.commonsense_qa]
+
+[lm-evaluation-harness.tasks.completions.openbookqa]
+
+[lm-evaluation-harness.tasks.completions.piqa]
+
+[lm-evaluation-harness.tasks.completions.adlr_race]
+
+[lm-evaluation-harness.tasks.completions.social_iqa]
+
+[lm-evaluation-harness.tasks.completions.adlr_truthfulqa_mc2]
+[lm-evaluation-harness.tasks.completions.adlr_minerva_math_nemo]
+[lm-evaluation-harness.tasks.completions.adlr_arc_challenge_llama]
+[lm-evaluation-harness.tasks.completions.adlr_mmlu_pro_5_shot_base]
+[lm-evaluation-harness.tasks.completions.adlr_mbpp_sanitized_3shot_greedy]
+[lm-evaluation-harness.tasks.completions.adlr_mbppplus_greedy_sanitized]
+[lm-evaluation-harness.tasks.completions.adlr_humaneval_greedy]
+[lm-evaluation-harness.tasks.completions.adlr_humanevalplus_greedy]
+[lm-evaluation-harness.tasks.chat.adlr_gsm8k_fewshot_cot]
+required_env_vars = []
+
+[lm-evaluation-harness.tasks.completions.arc_multilingual]
+
+
+###############################################################################
+# NOTE(agronskiy): checked parity
+[mtbench]
+container = "nvcr.io/nvidia/eval-factory/mtbench:25.08"
+
+[mtbench.tasks.chat.mtbench]
+
+[mtbench.tasks.chat.mtbench-cor1]
+
+
+###############################################################################
+# NOTE(agronskiy): checked parity
+[ifbench]
+container = "nvcr.io/nvidia/eval-factory/ifbench:25.08"
+
+[ifbench.tasks.chat.ifbench]
+required_env_vars = []
+
+
+###############################################################################
+[simple_evals]
+container = "nvcr.io/nvidia/eval-factory/simple-evals:25.08"
+
+[simple_evals.tasks.chat.gpqa_diamond]
+required_env_vars = ["HF_TOKEN"]
+
+[simple_evals.tasks.chat.gpqa_diamond_aa_v2]
+required_env_vars = ["HF_TOKEN"]
+
+[simple_evals.tasks.chat.gpqa_diamond_aa_v2_llama_4]
+required_env_vars = ["HF_TOKEN"]
+
+[simple_evals.tasks.chat.gpqa_diamond_nemo]
+required_env_vars = ["HF_TOKEN"]
+
+[simple_evals.tasks.chat.AA_math_test_500]
+required_env_vars = ["JUDGE_API_KEY"]
+
+[simple_evals.tasks.chat.math_test_500_nemo]
+required_env_vars = []
+
+[simple_evals.tasks.chat.aime_2024_nemo]
+required_env_vars = []
+
+[simple_evals.tasks.chat.AA_AIME_2024]
+required_env_vars = ["JUDGE_API_KEY"]
+
+[simple_evals.tasks.chat.aime_2025_nemo]
+required_env_vars = []
+
+[simple_evals.tasks.chat.AIME_2025]
+required_env_vars = ["JUDGE_API_KEY"]
+
+[simple_evals.tasks.chat.humaneval]
+required_env_vars = []
+
+[simple_evals.tasks.chat.mgsm]
+required_env_vars = []
+
+[simple_evals.tasks.chat.mmlu_pro]
+required_env_vars = []
+
+[simple_evals.tasks.chat.mmlu]
+required_env_vars = []
+
+[simple_evals.tasks.chat.mmlu_llama_4]
+required_env_vars = []
+
+[simple_evals.tasks.chat.mmlu_pro_llama_4]
+required_env_vars = []
+
+[simple_evals.tasks.chat.mmlu_ar-lite]
+[simple_evals.tasks.chat.mmlu_bn-lite]
+[simple_evals.tasks.chat.mmlu_de-lite]
+[simple_evals.tasks.chat.mmlu_en-lite]
+[simple_evals.tasks.chat.mmlu_es-lite]
+[simple_evals.tasks.chat.mmlu_fr-lite]
+[simple_evals.tasks.chat.mmlu_hi-lite]
+[simple_evals.tasks.chat.mmlu_id-lite]
+[simple_evals.tasks.chat.mmlu_it-lite]
+[simple_evals.tasks.chat.mmlu_ja-lite]
+[simple_evals.tasks.chat.mmlu_ko-lite]
+[simple_evals.tasks.chat.mmlu_my-lite]
+[simple_evals.tasks.chat.mmlu_pt-lite]
+[simple_evals.tasks.chat.mmlu_sw-lite]
+[simple_evals.tasks.chat.mmlu_yo-lite]
+[simple_evals.tasks.chat.mmlu_zh-lite]
+
+
+###############################################################################
+# NOTE(agronskiy): checked parity
+[bigcode-evaluation-harness]
+container = "nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.08"
+
+[bigcode-evaluation-harness.tasks.chat.mbpp]
+required_env_vars = []
+
+[bigcode-evaluation-harness.tasks.chat.mbppplus]
+
+[bigcode-evaluation-harness.tasks.chat.mbppplus_nemo]
+required_env_vars = []
+
+[bigcode-evaluation-harness.tasks.completions.humaneval]
+required_env_vars = []
+
+[bigcode-evaluation-harness.tasks.completions.humaneval_instruct]
+
+
+###############################################################################
+[livecodebench]
+container = "nvcr.io/nvidia/eval-factory/livecodebench:25.08"
+
+[livecodebench.tasks.chat.livecodebench_0724_0125]
+required_env_vars = []
+
+[livecodebench.tasks.chat.livecodebench_0824_0225]
+required_env_vars = []
+
+
+###############################################################################
+[scicode]
+container = "nvcr.io/nvidia/eval-factory/scicode:25.08"
+
+[scicode.tasks.chat.aa_scicode]
+required_env_vars = []
+
+
+###############################################################################
+[hle]
+container = "nvcr.io/nvidia/eval-factory/hle:25.08"
+
+[hle.tasks.chat.hle]
+required_env_vars = [
+  "HF_TOKEN",
+  "OPENAI_TOKEN_URL",
+  "OPENAI_CLIENT_ID",
+  "OPENAI_CLIENT_SECRET",
+  "OPENAI_SCOPE",
+]
+
+
+###############################################################################
+[bfcl]
+container = "nvcr.io/nvidia/eval-factory/bfcl:25.08"
+
+[bfcl.tasks.chat.bfclv2_ast_prompting]
+required_env_vars = []
+
+[bfcl.tasks.chat.bfclv3_ast_prompting]
+required_env_vars = []
+
+
+###############################################################################
+[vlmevalkit]
+container = "nvcr.io/nvidia/eval-factory/vlmevalkit:25.08"
+
+[vlmevalkit.tasks.vlm.ocrbench]
+required_env_vars = []
+
+[vlmevalkit.tasks.vlm.slidevqa]
+required_env_vars = [
+  "OPENAI_TOKEN_URL",
+  "OPENAI_CLIENT_ID",
+  "OPENAI_CLIENT_SECRET",
+  "OPENAI_SCOPE",
+]
+
+[vlmevalkit.tasks.vlm.chartqa]
+required_env_vars = []
+
+[vlmevalkit.tasks.vlm.ai2d_judge]
+required_env_vars = [
+  "OPENAI_TOKEN_URL",
+  "OPENAI_CLIENT_ID",
+  "OPENAI_CLIENT_SECRET",
+  "OPENAI_SCOPE",
+]
+
+
+###############################################################################
+[garak]
+container = "nvcr.io/nvidia/eval-factory/garak:25.08"
+
+[garak.tasks.chat.garak]
+required_env_vars = []
+
+
+###############################################################################
+[safety-harness]
+container = "nvcr.io/nvidia/eval-factory/safety-harness:25.08"
+
+[safety-harness.tasks.chat.aegis_v2]
+required_env_vars = ["HF_TOKEN"]
+
+
+###############################################################################
+# NOTE(agronskiy): checked parity
+[helm]
+container = "nvcr.io/nvidia/eval-factory/helm:25.08"
+
+[helm.tasks.chat.medcalc_bench]
+
+[helm.tasks.chat.medec]
+
+[helm.tasks.chat.head_qa]
+
+[helm.tasks.chat.medbullets]
+
+[helm.tasks.chat.pubmed_qa]
+
+[helm.tasks.chat.ehr_sql]
+
+[helm.tasks.chat.race_based_med]
+
+[helm.tasks.chat.medhallu]
+
+[helm.tasks.chat.mtsamples_replicate]
+
+[helm.tasks.chat.aci_bench]
+
+[helm.tasks.chat.mtsamples_procedures]
+
+[helm.tasks.chat.medication_qa]
+
+[helm.tasks.chat.med_dialog_healthcaremagic]
+
+[helm.tasks.chat.med_dialog_icliniq]
+
+[helm.tasks.chat.medi_qa]
+
+
+###############################################################################
+# NOTE(agronskiy): checked parity
+[tooltalk]
+container = "nvcr.io/nvidia/eval-factory/tooltalk:25.08"
+
+[tooltalk.tasks.chat.tooltalk]
