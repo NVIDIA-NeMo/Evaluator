@@ -249,7 +249,7 @@ runs:
       shell: bash
       run: |
         echo ::group::Check result
-        docker exec nemo_container_${{ github.run_id }} /opt/venv/bin/coverage xml 
+        docker exec nemo_container_${{ github.run_id }} /opt/venv/bin/coverage xml
         docker cp nemo_container_${{ github.run_id }}:.coverage .coverage
         docker cp nemo_container_${{ github.run_id }}:coverage.xml coverage.xml
 
