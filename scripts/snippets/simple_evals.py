@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pip install nvidia-simple-evals==25.7.1
+# pip install nvidia-simple-evals
 
 ## Export the required variables
 ## Key with access to https://build.nvidia.com/ endpoints
@@ -36,7 +36,13 @@ target_config = EvaluationTarget(
 )
 
 eval_config = EvaluationConfig(
+<<<<<<< HEAD
     type="AIME_2025", output_dir="/results/", params=ConfigParams(limit_samples=10)
+=======
+    type="AIME_2025",
+    output_dir="/results/",
+    params=ConfigParams(limit_samples=10, temperature=0, top_p=0, parallelism=1),
+>>>>>>> main
 )
 results = evaluate(target_cfg=target_config, eval_cfg=eval_config)
 

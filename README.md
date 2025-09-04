@@ -93,6 +93,7 @@ from nemo_evaluator.api.api_dataclasses import ApiEndpoint, EvaluationConfig, Ev
 # Configure evaluation
 api_endpoint = ApiEndpoint(
     url="http://0.0.0.0:8080/v1/completions/",
+    type="completions",
     model_id="megatron_model"
 )
 target = EvaluationTarget(api_endpoint=api_endpoint)
@@ -156,6 +157,7 @@ from nemo_evaluator.api.api_dataclasses import ApiEndpoint, ConfigParams, Evalua
 # Configure Endpoint
 api_endpoint = ApiEndpoint(
     url="http://0.0.0.0:8080/v1/completions/",
+    type="completions",
     model_id="megatron_model"
 )
 # Evaluation target configuration
@@ -180,19 +182,27 @@ from nemo_eval.utils.api import AdapterConfig
 
 # Configure adapter for reasoning
 adapter_config = AdapterConfig(
-    api_url="http://0.0.0.0:8080/v1/completions/",
-    use_reasoning=True,
-    end_reasoning_token="</think>",
-    custom_system_prompt="You are a helpful assistant that thinks step by step.",
-    max_logged_requests=5,
-    max_logged_responses=5
+    interceptors=[
+        dict(name="reasoning", config={"end_reasoning_token": "</think>"}),
+        dict(name="system_message", config={"system_message": "Detailed thinking on"}),
+        dict(name="request_logging", config={"max_requests": 5}),
+        dict(name="response_logging", config={"max_responses": 5}),
+    ]
+)
+
+target = EvaluationTarget(
+    api_endpoint={
+        "url": "http://0.0.0.0:8080/v1/chat/completions/",
+        "model_id": "megatron_model",
+        "type": "chat",
+        "adapter_config": adapter_config
+    }
 )
 
 # Run evaluation with adapter
 results = evaluate(
     target_cfg=target,
     eval_cfg=config,
-    adapter_cfg=adapter_config
 )
 ```
 
@@ -264,7 +274,7 @@ This project is licensed under the Apache License 2.0. See the [LICENSE](https:/
 
 - **Issues**: [GitHub Issues](https://github.com/NVIDIA-NeMo/Eval/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/NVIDIA-NeMo/Eval/discussions)
-- **Documentation**: [NeMo Documentation](https://nemo-framework-documentation.gitlab-master-pages.nvidia.com/eval-build/)
+- **Documentation**: [NeMo Documentation](https://docs.nvidia.com/nemo/eval/latest/index.html)
 
 ## 🔗 Related Projects
 

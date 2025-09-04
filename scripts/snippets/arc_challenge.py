@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pip install nvidia-lm-eval==25.7.1
+# pip install nvidia-lm-eval
 
 ## Run the evaluation
 from nemo_evaluator.api.api_dataclasses import (
@@ -38,6 +38,9 @@ eval_config = EvaluationConfig(
     output_dir="/results/",
     params=ConfigParams(
         limit_samples=10,
+        temperature=0,
+        top_p=0,
+        parallelism=1,
         extra={
             "tokenizer": "/checkpoints/llama-3_2-1b-instruct_v2.0/context/nemo_tokenizer",
             "tokenizer_backend": "huggingface",

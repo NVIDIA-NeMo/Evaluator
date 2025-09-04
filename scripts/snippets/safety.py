@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pip install nvidia-safety-harness==25.7.1
+# pip install nvidia-safety-harness
 
 ## Export the required variables
-## Key with access to https://build.nvidia.com/ endpoints
-# export JUDGE_API_KEY=...
 # export HF_TOKEN=...
 ## Run the evaluation
 from nemo_evaluator.api.api_dataclasses import (
@@ -40,6 +38,9 @@ eval_config = EvaluationConfig(
     output_dir="/results/",
     params=ConfigParams(
         limit_samples=10,
+        temperature=0,
+        top_p=0,
+        parallelism=1,
         extra={
             "judge": {
                 "model_id": "llama-nemotron-safety-guard-v2",

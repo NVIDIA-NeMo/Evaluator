@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pip install nvidia-bfcl==25.7.1
+# pip install nvidia-bfcl
 
 ## Export the required variables
 # No environment variables are required
@@ -36,7 +36,7 @@ target_config = EvaluationTarget(
 eval_config = EvaluationConfig(
     type="bfclv3_ast_prompting",
     output_dir="/results/",
-    params=ConfigParams(limit_samples=10),
+    params=ConfigParams(limit_samples=10, temperature=0, top_p=0, parallelism=1),
 )
 
 results = evaluate(target_cfg=target_config, eval_cfg=eval_config)
