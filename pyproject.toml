@@ -11,3 +11,6 @@ docs = [
     "myst_parser",         # For our markdown docs
     "nvidia-sphinx-theme", # Our NVIDIA theme
 ]
+
+[tool.coverage.paths]
+source = [".", "/workspace/", "/home/runner/work/Eval/Eval/"]
