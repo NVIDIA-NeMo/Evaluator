@@ -21,38 +21,36 @@ Evaluate models through natural language generation for academic benchmarks, rea
 :::
 
 :::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` Log-Probability
-:link: log-probability/index
+:link: log-probability
 :link-type: ref
 Assess model confidence and uncertainty using log-probabilities for multiple-choice scenarios without text generation.
 
 :::
 
 :::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Code Generation
-:link:
+:link: code-generation
 :link-type: ref
 Evaluate programming capabilities through code generation, completion, and algorithmic problem solving.
 
 :::
 
 :::{grid-item-card} {octicon}`shield;1.5em;sd-mr-1` Safety & Security
-:link:
+:link: safety-security
 :link-type: ref
 Test AI safety, alignment, and security vulnerabilities using specialized safety harnesses and probing techniques.
 
 :::
 
 :::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Function Calling
-:link:
+:link: function-calling
 :link-type: ref
 Assess tool use capabilities, API calling accuracy, and structured output generation for agent-like behaviors.
 
 :::
 
 :::{grid-item-card} {octicon}`package;1.5em;sd-mr-1` Specialized Domains
-:link:
-:link-type: ref
 
-Domain-specific evaluations for specialized use cases including multilingual, multimodal, and enterprise scenarios.
+Domain-specific evaluations for specialized use cases including multilingual, multimodal, and enterprise scenarios. Coming soon.
 
 :::
 
@@ -69,9 +67,9 @@ Domain-specific evaluations for specialized use cases including multilingual, mu
 
 **Instruction-Tuned Models**:
 - ✅ [Text Generation](text-gen.md) - Instruction following tasks
-- ✅ Code Generation - Programming tasks (documentation coming soon)
-- ✅ Safety Evaluation - Alignment testing (documentation coming soon)
-- ✅ Function Calling - Tool use scenarios (documentation coming soon)
+- ✅ [Code Generation](code-generation.md) - Programming tasks and algorithmic problem solving
+- ✅ [Safety & Security](safety-security.md) - Alignment testing and vulnerability scanning
+- ✅ [Function Calling](function-calling.md) - Tool use scenarios and API integration
 
 **Chat Models**:
 - ✅ All evaluation types with appropriate chat formatting
@@ -85,9 +83,9 @@ Domain-specific evaluations for specialized use cases including multilingual, mu
 - Specialized domains for research-specific metrics (documentation coming soon)
 
 **Production Deployment**:
-- Safety evaluation for alignment validation (documentation coming soon)
-- Function calling for agent capabilities (documentation coming soon)
-- Code generation for programming assistants (documentation coming soon)
+- [Safety & Security](safety-security.md) for alignment validation and vulnerability testing
+- [Function Calling](function-calling.md) for agent capabilities and tool use
+- [Code Generation](code-generation.md) for programming assistants and code completion
 
 **Model Development**:
 - [Text Generation](text-gen.md) for general capability assessment
@@ -98,7 +96,7 @@ Domain-specific evaluations for specialized use cases including multilingual, mu
 
 ### Quick Start Checklist
 
-1. **Deploy Model**: Use [PyTriton](../../deployment/pytriton.md) or [Ray Serve](../../deployment/ray-serve.md)
+1. **Get an Endpoint**: Use an existing OpenAI-compatible endpoint, or deploy one with [PyTriton](../../deployment/pytriton.md) or [Ray Serve](../../deployment/ray-serve.md)
 2. **Install Harness**: Install required evaluation packages for your scenario
 3. **Configure Parameters**: See [Configuration Parameters](../parameters.md) for optimization
 4. **Run Evaluation**: Follow scenario-specific guides for detailed instructions
@@ -107,13 +105,13 @@ Domain-specific evaluations for specialized use cases including multilingual, mu
 
 ```bash
 # Core evaluation framework (pre-installed in NeMo container)
-pip install nvidia-lm-eval>=25.6
+pip install nvidia-lm-eval==25.7.1
 
 # Optional harnesses (install as needed)
-pip install nvidia-simple-evals>=25.6      # Code generation
+pip install nvidia-simple-evals>=25.6      # Baseline/simple evaluations
 pip install nvidia-bigcode-eval>=25.6      # Advanced code evaluation  
 pip install nvidia-safety-harness>=25.6    # Safety evaluation
-pip install nvidia-bfcl>=25.6             # Function calling
+pip install nvidia-bfcl>=25.6              # Function calling
 pip install nvidia-eval-factory-garak>=25.6  # Security scanning
 ```
 
@@ -160,18 +158,13 @@ ConfigParams(
 )
 ```
 
-## Next Steps
-
-- **First Time**: Start with [Text Generation](text-gen.md) for general model assessment
-- **Configuration**: Review [Parameters Guide](../parameters.md) for optimization options
-- **Troubleshooting**: See [Evaluation Troubleshooting](../troubleshooting.md) for common issues
-- **Custom Tasks**: Learn [Custom Task Configuration](../custom-tasks.md) for specialized evaluations
-
-
 :::{toctree}
 :hidden:
 
 Log Probability <log-probability/index>
 Text Generation <text-gen>
-Log Probs <log-probs>
+Code Generation <code-generation>
+Function Calling <function-calling>
+Safety & Security <safety-security>
+Log Probs <logprobs>
 :::

@@ -45,8 +45,13 @@ if __name__ == "__main__":
 Once your model is deployed with Ray, you can run evaluations using the same evaluation API as with PyTriton deployment:
 
 ```python
-from nemo_eval.api import evaluate
-from nemo_eval.utils.api import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
+from nvidia_eval_commons.core.evaluate import evaluate
+from nvidia_eval_commons.api.api_dataclasses import (
+    ApiEndpoint,
+    ConfigParams,
+    EvaluationConfig,
+    EvaluationTarget
+)
 
 # Configure the evaluation target
 api_endpoint = ApiEndpoint(

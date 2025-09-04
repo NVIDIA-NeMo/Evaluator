@@ -39,27 +39,65 @@ Install {{ product_name_short }} and run your first model evaluation in just a f
 
 ## Evaluation Workflows
 
-Explore the main capabilities of {{ product_name_short }} for model deployment and evaluation.
+```{note}
+You need access to a model endpoint to run evaluations. If you already have an OpenAI-compatible endpoint, continue with the guides below. Otherwise, first deploy an endpoint in {ref}`deployment-overview`.
+```
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
-:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Model Deployment  
-:link: deployment/index
+:::{grid-item-card} {octicon}`pencil;1.5em;sd-mr-1` Text Generation
+:link: text-gen
 :link-type: ref
-Deploy NeMo models using PyTriton or Ray Serve for high-performance inference and evaluation.
+Evaluate models through natural language generation for academic benchmarks, reasoning tasks, and general knowledge assessment.
+
 :::
 
-:::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` Model Evaluation
+:::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` Log-Probability
+:link: log-probability
+:link-type: ref
+Assess model confidence and uncertainty using log-probabilities for multiple-choice scenarios without text generation.
+
+:::
+
+:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Code Generation
+:link: code-generation
+:link-type: ref
+Evaluate programming capabilities through code generation, completion, and algorithmic problem solving.
+
+:::
+
+:::{grid-item-card} {octicon}`shield;1.5em;sd-mr-1` Safety & Security
+:link: safety-security
+:link-type: ref
+Test AI safety, alignment, and security vulnerabilities using specialized safety harnesses and probing techniques.
+
+:::
+
+:::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Function Calling
+:link: function-calling
+:link-type: ref
+Assess tool use capabilities, API calling accuracy, and structured output generation for agent-like behaviors.
+
+:::
+
+:::{grid-item-card} {octicon}`package;1.5em;sd-mr-1` Specialized Domains
+
+Domain-specific evaluations for specialized use cases including multilingual, multimodal, and enterprise scenarios. Coming soon.
+
+:::
+
+::::
+
+## Model Deployment
+
+::::{grid} 1 2 2 2
+:gutter: 1 1 1 2
+
+:::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` TBD
 :link: evaluation/index
 :link-type: ref
-Evaluate models using various benchmarks, harnesses, and evaluation techniques.
-:::
-
-:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Development
-:link: development/index
-:link-type: ref
-Contribute to {{ product_name_short }}, extend functionality, and access API documentation.
+TBD
 :::
 
 ::::
@@ -113,7 +151,7 @@ Troubleshooting <evaluation/troubleshooting>
 About Model Deployment <deployment/index>
 PyTriton Backend <deployment/pytriton>
 Ray Serve Deployment <deployment/ray-serve>
-Evaluation Adapters <deployment/adapters>
+Evaluation Adapters <deployment/adapters/index>
 :::
 
 :::{toctree}
@@ -135,5 +173,6 @@ Debugging & Best Practices <troubleshooting/debugging-guide>
 
 References <references/index>
 Eval Parameters <evaluation/parameters>
+Eval Utils <references/eval-utils>
 API Documentation <apidocs/index.rst>
 :::

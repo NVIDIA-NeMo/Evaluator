@@ -110,7 +110,7 @@ Customize evaluation workflows with interceptor-based architecture:
 Built-in support for chain-of-thought and reasoning evaluation:
 
 ```python
-from nemo_eval.utils.api import AdapterConfig
+from nvidia_eval_commons.api.api_dataclasses import AdapterConfig
 
 adapter_config = AdapterConfig(
     use_reasoning=True,

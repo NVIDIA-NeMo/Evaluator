@@ -1,4 +1,4 @@
-(eval-run-text)=
+(text-gen)=
 
 # Text Generation Evaluation
 
@@ -194,11 +194,3 @@ Before configuring text generation evaluations:
 2. **Evaluation Framework**: `nvidia-lm-eval` or additional frameworks installed  
 3. **Authentication**: HuggingFace token for gated datasets (if required)
 4. **Resources**: Adequate compute for generation and evaluation processing
-
-## Next Steps
-
-- **End-to-End Tutorial**: Follow [MMLU Tutorial](../tutorials/mmlu.ipynb) for complete workflow
-- **Parameter Configuration**: See [Evaluation Configuration Parameters](parameters.md) for comprehensive settings reference
-- **Custom Task Setup**: Learn [Custom Task Configuration](custom-tasks.md) for specialized evaluations
-- **Log-Probability Methods**: Explore [Log-Probability Evaluation](logprobs.md) for confidence-based assessment
-- **Comprehensive Benchmarks**: Browse [Benchmark Catalog](benchmarks.md) for all available tasks

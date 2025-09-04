@@ -1,6 +1,10 @@
 (gs-quickstart)=
 # Quick Start
 
+```{note}
+If you already have an OpenAI-compatible model endpoint, skip to Step 2 to run evaluations.
+```
+
 ## 1. Deploy a Model
 
 ```python

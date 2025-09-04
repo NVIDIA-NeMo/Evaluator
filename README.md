@@ -176,7 +176,7 @@ results = evaluate(target_cfg=target, eval_cfg=config)
 The example below demonstrates how to configure an Adapter to provide a custom system prompt. Requests and responses are processed through interceptors, which are automatically selected based on the parameters defined in `AdapterConfig`.
 
 ```python
-from nemo_eval.utils.api import AdapterConfig
+from nvidia_eval_commons.api.api_dataclasses import AdapterConfig
 
 # Configure adapter for reasoning
 adapter_config = AdapterConfig(

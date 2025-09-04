@@ -1,28 +1,34 @@
-(development-overview)=
+# References
 
-# Development
+Comprehensive reference documentation for NeMo Eval APIs, functions, and configuration options.
 
-Resources and guides for contributing to and extending NeMo Eval.
-
-## Overview
-
-This section provides information for developers who want to contribute to NeMo Eval, extend its functionality, or understand its internal architecture. Whether you're fixing bugs, adding features, or building custom extensions, these resources will help you get started.
-
-## Development Resources
+## API References
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
-:::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Documentation Guide
-:link: documentation
+:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Deployment API
+:link: deployment-api
 :link-type: ref
-Learn how to contribute to and maintain the NeMo Eval documentation, including style guidelines and build processes.
+Complete reference for the deploy() function with all parameters, examples, and configuration options.
 :::
 
-:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` API Documentation
+:::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Evaluation Utilities
+:link: evaluation-utils
+:link-type: ref
+Reference for evaluation discovery, health checking, and utility functions.
+:::
+
+:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Auto-Generated API Docs
 :link: ../apidocs/index
 :link-type: ref
-Comprehensive API reference documentation for all NeMo Eval modules and functions.
+Sphinx-generated API documentation for all modules and classes.
+:::
+
+:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Configuration Reference
+:link: ../evaluation/parameters
+:link-type: ref
+Complete guide to evaluation parameters, optimization settings, and configuration patterns.
 :::
 
 ::::
