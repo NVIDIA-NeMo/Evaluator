@@ -276,6 +276,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: coverage-${{ matrix.flag }}-*
+          merge-multiple: true
 
       - name: List coverage files
         run: find . -type f -name "*.xml" -o -name "*.lcov"
