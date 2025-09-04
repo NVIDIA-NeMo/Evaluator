@@ -274,7 +274,7 @@ This project is licensed under the Apache License 2.0. See the [LICENSE](https:/
 
 - **Issues**: [GitHub Issues](https://github.com/NVIDIA-NeMo/Eval/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/NVIDIA-NeMo/Eval/discussions)
-- **Documentation**: [NeMo Documentation](https://nemo-framework-documentation.gitlab-master-pages.nvidia.com/eval-build/)
+- **Documentation**: [NeMo Documentation](https://docs.nvidia.com/nemo/eval/latest/index.html)
 
 ## 🔗 Related Projects
 
