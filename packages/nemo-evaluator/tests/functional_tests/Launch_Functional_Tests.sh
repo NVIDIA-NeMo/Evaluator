@@ -13,8 +13,6 @@
 # limitations under the License.
 export CUDA_VISIBLE_DEVICES=""
 
-cd /workspace/packages/nemo-evaluator/
-
 coverage run \
     --data-file=/workspace/packages/nemo-evaluator/.coverage \
     --source=/workspace/packages/nemo-evaluator/src/ \
@@ -23,4 +21,4 @@ coverage run \
     -o log_cli_level=INFO \
     -m "not pleasefixme" \
     /workspace/packages/nemo-evaluator/tests/functional_tests
-coverage combine --data-file=/workspace/packages/nemo-evaluator/.coverage -q 
+coverage combine -q 
