@@ -58,27 +58,4 @@ Resolve common evaluation issues, debug configuration problems, and optimize eva
 
 ## Core Evaluation Concepts
 
-### Evaluation Types
-
-**Text Generation Evaluation**: Models generate responses to prompts, which are then assessed for correctness, quality, or adherence to instructions.
-
-**Log-Probability Evaluation**: Models assign probabilities to different text continuations, allowing assessment of confidence and likelihood across multiple choices.
-
-**Multi-Choice Evaluation**: Models select the best answer from predefined options, typically used for academic benchmarks and reasoning tasks.
-
-### Evaluation Endpoints
-
-NeMo Eval supports evaluation through OpenAI-compatible API endpoints:
-
-- **Completions Endpoint** (`/v1/completions/`): Direct text completion without chat formatting
-- **Chat Endpoint** (`/v1/chat/completions/`): Conversational interface with role-based message formatting
-
-### Evaluation Metrics
-
-Different benchmarks use various metrics:
-
-- **Accuracy**: Percentage of correct answers
-- **Perplexity**: Measure of model uncertainty  
-- **Pass@k**: Percentage of problems solved in k attempts (coding tasks)
-- **BLEU/ROUGE**: Text similarity scores
-- **Safety Scores**: Alignment and safety assessment metrics
+Refer to {ref}`evaluation-model` for evaluation types, endpoints, and core metrics. This overview focuses on how to configure and run evaluations.

@@ -10,7 +10,9 @@ This section covers the most frequent problems encountered when running evaluati
 
 Before diving into specific problem areas, run these basic checks to verify your evaluation environment:
 
-**Verify Model Deployment**:
+::::{tab-set}
+
+:::{tab-item} Verify Model Deployment**:
 
 ```python
 import requests
@@ -29,7 +31,9 @@ response = requests.post("http://0.0.0.0:8080/v1/completions/", json=test_payloa
 print(f"Completions Status: {response.status_code}")
 ```
 
-**Check Available Tasks**:
+:::
+
+:::{tab-item} Check Available Tasks
 
 ```python
 from nemo_eval.utils.base import list_available_evaluations
@@ -40,6 +44,10 @@ try:
 except ImportError as e:
     print(f"Missing dependency: {e}")
 ```
+
+:::
+
+::::
 
 ## Troubleshooting Topics
 
@@ -92,23 +100,23 @@ Debugging techniques, logging, monitoring, and prevention strategies
 
 When reporting issues, include:
 
-1. **System Information**:
+1. System Information:
 
-```bash
-python --version
-pip list | grep nvidia
-nvidia-smi
-```
+   ```bash
+   python --version
+   pip list | grep nvidia
+   nvidia-smi
+   ```
 
-2. **Configuration Details**:
+2. Configuration Details:
 
-```python
-print(f"Task: {eval_cfg.type}")
-print(f"Endpoint: {target_cfg.api_endpoint.url}")
-print(f"Model: {target_cfg.api_endpoint.model_id}")
-```
+   ```python
+   print(f"Task: {eval_cfg.type}")
+   print(f"Endpoint: {target_cfg.api_endpoint.url}")
+   print(f"Model: {target_cfg.api_endpoint.model_id}")
+   ```
 
-3. **Error Messages**: Full stack traces and error logs
+3. Error Messages: Full stack traces and error logs
 
 ### Community Resources
 
@@ -119,4 +127,3 @@ print(f"Model: {target_cfg.api_endpoint.model_id}")
 ### Professional Support
 
 For enterprise support, contact: [nemo-toolkit@nvidia.com](mailto:nemo-toolkit@nvidia.com)
-

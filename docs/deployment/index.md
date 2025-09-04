@@ -8,7 +8,7 @@ Deploy NeMo Framework models for evaluation using different serving backends opt
 
 NeMo Eval supports multiple deployment backends to accommodate different evaluation scenarios, from single-GPU deployments to multi-instance distributed setups. Choose the deployment method that best fits your hardware and evaluation requirements.
 
-## Deployment Options
+## Backend Options
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
@@ -25,18 +25,51 @@ High-performance inference through NVIDIA Triton Inference Server with multi-nod
 Multi-instance evaluation capabilities with single-node model parallelism and horizontal scaling for accelerated evaluations.
 :::
 
-:::{grid-item-card} {octicon}`plug;1.5em;sd-mr-1` Evaluation Adapters
-:link: adapters
+::::
+
+### Choosing a Deployment Backend
+
+For backend selection guidance, scaling modes, and adapter placement, refer to {ref}`deployment-concepts`.
+
+## Evaluation Adapters
+
+::::{grid} 1 2 2 2
+:gutter: 1 1 1 2
+
+:::{grid-item-card} Usage
+:link: adapters-usage
 :link-type: ref
-Flexible request/response interceptors for custom processing, logging, and transformation during evaluation.
+Learn how to enable adapters and pass `AdapterConfig` to `evaluate`.
+:::
+
+:::{grid-item-card} Reasoning Cleanup
+:link: adapters-recipe-reasoning
+:link-type: ref
+Strip intermediate reasoning tokens before scoring.
+:::
+
+:::{grid-item-card} Custom System Prompt (Chat)
+:link: adapters-recipe-system-prompt
+:link-type: ref
+Enforce a standard system prompt for chat endpoints.
+:::
+
+:::{grid-item-card} Response Shaping
+:link: adapters-recipe-response-shaping
+:link-type: ref
+Normalize outputs for evaluators and downstream tools.
+:::
+
+:::{grid-item-card} Logging Caps
+:link: adapters-recipe-logging
+:link-type: ref
+Control logging volume for requests and responses.
+:::
+
+:::{grid-item-card} Configuration
+:link: adapters-configuration
+:link-type: ref
+View available `AdapterConfig` options and defaults.
 :::
 
 ::::
-
-## Choosing a Deployment Backend
-
-| Use Case | Recommended Backend | Key Benefits |
-|----------|-------------------|--------------|
-| Production deployment | PyTriton | High performance, multi-node support |
-| Accelerated evaluation | Ray Serve | Multi-instance, horizontal scaling |
-| Custom processing | Adapters | Request/response transformation |

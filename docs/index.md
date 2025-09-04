@@ -26,7 +26,7 @@ Learn what {{ product_name_short }} is, its key capabilities, and who should use
 :::{grid-item-card} {octicon}`info;1.5em;sd-mr-1` Concepts
 :link: about-concepts
 :link-type: ref
-<!-- TBD -->
+Core concepts: evaluation model, adapters, deployment, and configuration.
 :::
 
 :::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Get Started
@@ -81,23 +81,68 @@ Assess tool use capabilities, API calling accuracy, and structured output genera
 
 :::
 
-:::{grid-item-card} {octicon}`package;1.5em;sd-mr-1` Specialized Domains
-
-Domain-specific evaluations for specialized use cases including multilingual, multimodal, and enterprise scenarios. Coming soon.
-
-:::
-
 ::::
 
 ## Model Deployment
 
+### Backend Options
+
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
-:::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` TBD
-:link: evaluation/index
+:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` PyTriton Backend
+:link: pytriton-deployment
 :link-type: ref
-TBD
+High-performance inference through NVIDIA Triton Inference Server with multi-node model parallelism support for production deployments.
+:::
+
+:::{grid-item-card} {octicon}`organization;1.5em;sd-mr-1` Ray Serve
+:link: ray-serve
+:link-type: ref
+Multi-instance evaluation capabilities with single-node model parallelism and horizontal scaling for accelerated evaluations.
+:::
+
+::::
+
+### Evaluation Adapters
+
+::::{grid} 1 2 2 2
+:gutter: 1 1 1 2
+
+:::{grid-item-card} Usage
+:link: adapters-usage
+:link-type: ref
+Learn how to enable adapters and pass `AdapterConfig` to `evaluate`.
+:::
+
+:::{grid-item-card} Reasoning Cleanup
+:link: adapters-recipe-reasoning
+:link-type: ref
+Strip intermediate reasoning tokens before scoring.
+:::
+
+:::{grid-item-card} Custom System Prompt (Chat)
+:link: adapters-recipe-system-prompt
+:link-type: ref
+Enforce a standard system prompt for chat endpoints.
+:::
+
+:::{grid-item-card} Response Shaping
+:link: adapters-recipe-response-shaping
+:link-type: ref
+Normalize outputs for evaluators and downstream tools.
+:::
+
+:::{grid-item-card} Logging Caps
+:link: adapters-recipe-logging
+:link-type: ref
+Control logging volume for requests and responses.
+:::
+
+:::{grid-item-card} Configuration
+:link: adapters-configuration
+:link-type: ref
+View available `AdapterConfig` options and defaults.
 :::
 
 ::::
@@ -171,8 +216,8 @@ Debugging & Best Practices <troubleshooting/debugging-guide>
 :caption: References
 :hidden:
 
-References <references/index>
+About References <references/index>
 Eval Parameters <evaluation/parameters>
-Eval Utils <references/eval-utils>
+Eval Utils <references/evaluation-utils>
 API Documentation <apidocs/index.rst>
 :::

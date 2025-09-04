@@ -12,19 +12,20 @@ from nvidia_eval_commons.api.api_dataclasses import (
 )
 
 chat_url = "http://0.0.0.0:8080/v1/chat/completions/"
-target = EvaluationTarget(api_endpoint={"url": chat_url, "type": EndpointType.CHAT})
+target = EvaluationTarget(api_endpoint=ApiEndpoint(url=chat_url, type=EndpointType.CHAT))
 config = EvaluationConfig(type="mmlu", output_dir="results")
 
-adapter_cfg = AdapterConfig(
+adapter_config = AdapterConfig(
     api_url=target.api_endpoint.url,
     custom_system_prompt="You are a precise, concise assistant.",
 )
 
-results = evaluate(target_cfg=target, eval_cfg=config, adapter_cfg=adapter_cfg)
+results = evaluate(target_cfg=target, eval_cfg=config, adapter_cfg=adapter_config)
 ```
 
 Notes:
 
 - `custom_system_prompt` applies to chat endpoints.
 - The adapter replaces the upstream system message when provided.
+- Refer to {ref}`adapters-configuration` for available options and defaults.
 

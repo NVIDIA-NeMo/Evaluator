@@ -8,8 +8,11 @@ Limit logging volume during evaluations to control overhead.
 ```python
 from nvidia_eval_commons.core.evaluate import evaluate
 from nvidia_eval_commons.api.api_dataclasses import (
-    ApiEndpoint, EvaluationConfig, EvaluationTarget, AdapterConfig
+    EvaluationConfig, EvaluationTarget, AdapterConfig
 )
+
+# Completions API endpoint URL
+completions_url = "http://0.0.0.0:8080/v1/completions"
 
 target = EvaluationTarget(api_endpoint={"url": completions_url, "type": "completions"})
 config = EvaluationConfig(type="hellaswag", output_dir="results")
@@ -23,8 +26,10 @@ adapter_cfg = AdapterConfig(
 results = evaluate(target_cfg=target, eval_cfg=config, adapter_cfg=adapter_cfg)
 ```
 
-Tips:
+Use the following tips to control logging caps:
 
 - Set either value to `0` to disable logging for that direction.
-- Use small caps for quick debugging; increase when necessary.
+- Use low limits for quick debugging, and increase when needed.
+
+Refer to {ref}`adapters-configuration` for all `AdapterConfig` options and defaults.
 
