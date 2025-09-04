@@ -28,9 +28,7 @@ from nemo_evaluator.adapters.types import (
     AdapterResponse,
 )
 
-from tests.unit_tests.adapters.testing_utils import (
-    create_fake_endpoint_process,
-)
+from tests.unit_tests.adapters.testing_utils import create_fake_endpoint_process
 
 
 @pytest.fixture
@@ -45,7 +43,7 @@ def create_response():
     return _create_response
 
 
-def test_response_logging_json(create_response, capfd, tmpdir):
+def test_response_logging_json(create_response, caplog, tmpdir):
     # Given: A response with JSON content and cache hit metadata
     interceptor = ResponseLoggingInterceptor(
         params=ResponseLoggingInterceptor.Params(max_responses=1)
@@ -62,17 +60,17 @@ def test_response_logging_json(create_response, capfd, tmpdir):
 
     # Then: The response should be logged with JSON content and cache hit status
     assert result == adapter_response
-    out, err = capfd.readouterr()
-    assert re.findall(r"[^_]Outgoing response[^_]", out)
-    assert "200" in out
-    assert "'result': 'test result'" in out
+    # Use caplog to capture log messages
+    assert any("Outgoing response" in record.message for record in caplog.records)
+    assert any("200" in record.message for record in caplog.records)
+    assert any("result" in record.message for record in caplog.records)
 
 
 def mock_context(tmpdir):
     return AdapterGlobalContext(output_dir=str(tmpdir), url="http://localhost")
 
 
-def test_response_logging_max_responses(create_response, capfd, tmpdir):
+def test_response_logging_max_responses(create_response, caplog, tmpdir):
     # Given: A response and interceptor with max_responses=1
     interceptor = ResponseLoggingInterceptor(
         params=ResponseLoggingInterceptor.Params(max_responses=1)
@@ -89,11 +87,11 @@ def test_response_logging_max_responses(create_response, capfd, tmpdir):
     # Then: Only the first response should be logged
     assert result1 == adapter_response
     assert result2 == adapter_response
-    out, err = capfd.readouterr()
-    assert len(re.findall(r"[^_]Outgoing response[^_]", out)) == 1
+    # Use caplog to capture log messages
+    assert len([r for r in caplog.records if "Outgoing response" in r.message]) == 1
 
 
-def test_response_logging_unlimited(create_response, capfd, tmpdir):
+def test_response_logging_unlimited(create_response, caplog, tmpdir):
     # Given: A response and interceptor with max_responses=None
     interceptor = ResponseLoggingInterceptor(
         params=ResponseLoggingInterceptor.Params(max_responses=None)
@@ -109,9 +107,8 @@ def test_response_logging_unlimited(create_response, capfd, tmpdir):
 
     # Then: All responses should be logged
     assert result == adapter_response
-    out, err = capfd.readouterr()
-    print(repr(out))
-    assert len(re.findall(r"[^_]Outgoing response[^_]", out)) == 3
+    # Use caplog to capture log messages
+    assert len([r for r in caplog.records if "Outgoing response" in r.message]) == 3
 
 
 def test_logging_interceptor_with_adapter_server(capfd, tmp_path):
@@ -146,30 +143,44 @@ def test_logging_interceptor_with_adapter_server(capfd, tmp_path):
         # Start adapter server
         p = spawn_adapter_server(api_url, output_dir, adapter_config)
 
+        # Get the actual port from environment variable or default
+        import os
+
+        adapter_port = int(os.environ.get("ADAPTER_PORT", 3825))
+
         # Wait for server to be ready
-        wait_for_server("localhost", 3825)
+        wait_for_server("localhost", adapter_port)
 
         # Make a test request
         test_data = {"prompt": "Test prompt", "max_tokens": 100}
-        response = requests.post("http://localhost:3825", json=test_data)
+        response = requests.post(f"http://localhost:{adapter_port}", json=test_data)
         assert response.status_code == 200
 
         # Second request (should not be logged due to max_responses=1)
-        response2 = requests.post("http://localhost:3825", json=test_data)
+        response2 = requests.post(f"http://localhost:{adapter_port}", json=test_data)
         assert response2.status_code == 200
 
         # Then: Only the first response should be logged
-        out, _ = capfd.readouterr()
-        assert len(re.findall(r"[^_]Outgoing response[^_]", out)) == 1
+        # Check both stdout and stderr since our logging goes to stderr
+        out, err = capfd.readouterr()
+        assert (
+            len(
+                re.findall(r"Outgoing response", err)
+                or re.findall(r"Outgoing response", out)
+            )
+            == 1
+        )
 
     finally:
         # Clean up
-        p.terminate()
-        p.join(timeout=5)
+        if "p" in locals():
+            p.terminate()
+            p.join(timeout=5)
 
         # Clean up fake endpoint
-        fake_endpoint.terminate()
-        fake_endpoint.join(timeout=5)
+        if "fake_endpoint" in locals():
+            fake_endpoint.terminate()
+            fake_endpoint.join(timeout=5)
 
 
 def test_adapter_port_environment_variable(tmp_path):

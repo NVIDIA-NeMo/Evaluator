@@ -15,7 +15,9 @@
 
 """Tests for AdapterConfig class."""
 
+import pytest
 from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
+from nemo_evaluator.adapters.reports.post_eval_report_hook import ReportType
 
 
 def test_get_validated_config_with_valid_config():
@@ -276,6 +278,32 @@ def test_from_legacy_config():
     assert "progress_tracking" in hook_names
 
 
+@pytest.mark.parametrize(
+    "include_json, expected_types",
+    [
+        (True, [ReportType.HTML, ReportType.JSON]),
+        (False, [ReportType.HTML]),
+        (None, [ReportType.HTML, ReportType.JSON]),
+    ],
+    ids=["include_json_true", "include_json_false", "include_json_default"],
+)
+def test_legacy_html_report_types_parametrized(include_json, expected_types):
+    legacy_config = {"generate_html_report": True}
+    if include_json is not None:
+        legacy_config["include_json"] = include_json
+
+    config = AdapterConfig.from_legacy_config(legacy_config)
+
+    hook_configs = config.get_post_eval_hook_configs()
+    assert "post_eval_report" in hook_configs
+
+    report_types = hook_configs["post_eval_report"]["report_types"]
+    assert isinstance(report_types, list)
+    assert len(report_types) == len(expected_types)
+    assert set(report_types) == set(expected_types)
+    assert all(isinstance(rt, ReportType) for rt in report_types)
+
+
 def test_from_legacy_config_with_nvcf():
     """Test conversion from legacy configuration format with use_nvcf."""
     legacy_config = {
@@ -397,6 +425,10 @@ def test_legacy_params_to_add_with_other_interceptors():
     assert "payload_modifier" in interceptor_names
     assert "endpoint" in interceptor_names
 
+    request_logging_id = interceptor_names.index("request_logging")
+    payload_modifier_id = interceptor_names.index("payload_modifier")
+    assert request_logging_id > payload_modifier_id
+
     # Verify payload_modifier configuration
     payload_modifier = next(
         interceptor
@@ -438,7 +470,10 @@ def test_legacy_params_to_add_complex_config():
 
 def test_legacy_config_without_params_to_add():
     """Test that payload_modifier is not added when params_to_add is not specified."""
-    legacy_config = {"use_request_logging": True, "use_caching": True}
+    legacy_config = {
+        "use_request_logging": True,
+        "use_caching": True,
+    }
 
     adapter_config = AdapterConfig.from_legacy_config(legacy_config)
 

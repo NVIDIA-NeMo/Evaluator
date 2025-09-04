@@ -55,7 +55,7 @@ class FakeProgressTrackingServer:
         self.thread.daemon = True
         self.thread.start()
         # Give the server time to start
-        time.sleep(0.5)
+        time.sleep(0.1)
 
     def stop(self):
         """Stop the server."""
@@ -137,6 +137,7 @@ class TestProgressTrackingInterceptor:
             params = ProgressTrackingInterceptor.Params(
                 progress_tracking_url="http://localhost:8002",
                 progress_tracking_interval=3,
+                output_dir=None,
             )
             interceptor = ProgressTrackingInterceptor(params)
 

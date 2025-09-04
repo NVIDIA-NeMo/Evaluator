@@ -32,9 +32,7 @@ from nemo_evaluator.adapters.types import (
     AdapterResponse,
 )
 
-from tests.unit_tests.adapters.testing_utils import (
-    create_fake_endpoint_process,
-)
+from tests.unit_tests.adapters.testing_utils import create_fake_endpoint_process
 
 
 @pytest.fixture
@@ -333,7 +331,7 @@ def test_get_reasoning_info_explicit_content(
     assert reasoning_info["original_content_words"] == expected_original_content_words
     assert reasoning_info["reasoning_finished"] == expected_reasoning_finished
     # When reasoning_content is explicitly provided, reasoning_started should be True
-    assert reasoning_info["reasoning_started"]
+    assert reasoning_info["reasoning_started"] is True
 
 
 @pytest.mark.parametrize(

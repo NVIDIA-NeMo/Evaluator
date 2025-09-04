@@ -13,13 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
+"""Progress tracking interceptor that tracks number of samples processed via webhook."""
+
 import pathlib
 import threading
 from typing import Optional, final
 
 import requests
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from nemo_evaluator.adapters.decorators import register_for_adapter
 from nemo_evaluator.adapters.types import (
@@ -28,6 +29,7 @@ from nemo_evaluator.adapters.types import (
     PostEvalHook,
     ResponseInterceptor,
 )
+from nemo_evaluator.logging import BaseLoggingParams, get_logger
 
 
 @register_for_adapter(
@@ -38,7 +40,7 @@ from nemo_evaluator.adapters.types import (
 class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
     """Progress tracking via external webhook."""
 
-    class Params(BaseModel):
+    class Params(BaseLoggingParams):
         """Configuration parameters for progress tracking interceptor."""
 
         progress_tracking_url: Optional[str] = Field(
@@ -49,7 +51,7 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
             default=1,
             description="How often (every how many samples) to send a progress information.",
         )
-        output_dir: str = Field(
+        output_dir: Optional[str] = Field(
             default=None,
             description="Evaluation output directory. If provided, the progress tracking will be saved to a file in this directory.",
         )
@@ -76,14 +78,26 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
         self._samples_processed = self._initialize_samples_processed()
         self._lock = threading.Lock()
 
+        # Get logger for this interceptor with interceptor context
+        self.logger = get_logger(self.__class__.__name__)
+
+        self.logger.info(
+            "Progress tracking interceptor initialized",
+            progress_tracking_url=self.progress_tracking_url,
+            progress_tracking_interval=self.progress_tracking_interval,
+            output_dir=str(self.progress_filepath) if self.progress_filepath else None,
+            initial_samples_processed=self._samples_processed,
+        )
+
     def _initialize_samples_processed(self) -> int:
         if self.progress_filepath is not None and self.progress_filepath.exists():
             with open(self.progress_filepath, "r") as f:
                 try:
                     return int(f.read())
                 except ValueError:
-                    logging.warning(
-                        f"Failed to read progress from {self.progress_filepath}. Starting from 0."
+                    self.logger.warning(
+                        "Failed to read progress from file, starting from 0",
+                        filepath=str(self.progress_filepath),
                     )
                     return 0
         return 0
@@ -91,16 +105,32 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
     def _write_progress(self, num_samples: int):
         with self._lock:
             self.progress_filepath.write_text(str(num_samples))
+            self.logger.debug(
+                "Progress written to file",
+                filepath=str(self.progress_filepath),
+                samples_processed=num_samples,
+            )
 
     def _send_progress(self, num_samples: int):
-        logging.debug(f"Sending request to {self.progress_tracking_url}: ")
+        self.logger.debug(
+            "Sending progress to tracking server",
+            url=self.progress_tracking_url,
+            samples_processed=num_samples,
+        )
         try:
             requests.post(
                 self.progress_tracking_url,
                 json={"samples_processed": num_samples},
             )
+            self.logger.debug(
+                "Progress sent successfully", samples_processed=num_samples
+            )
         except requests.exceptions.RequestException as e:
-            logging.error(f"Failed to communicate with progress tracking server: {e}")
+            self.logger.error(
+                "Failed to communicate with progress tracking server",
+                error=str(e),
+                samples_processed=num_samples,
+            )
 
     @final
     def intercept_response(
@@ -111,16 +141,31 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
             self._samples_processed += 1
             curr_samples = self._samples_processed
 
+        self.logger.debug(
+            "Sample processed",
+            samples_processed=curr_samples,
+            interval=self.progress_tracking_interval,
+        )
+
         if (curr_samples % self.progress_tracking_interval) == 0:
             if self.progress_tracking_url is not None:
                 self._send_progress(curr_samples)
             if self.progress_filepath is not None:
                 self._write_progress(curr_samples)
 
+            self.logger.info(
+                "Progress milestone reached",
+                samples_processed=curr_samples,
+                interval=self.progress_tracking_interval,
+            )
+
         return ar
 
-    @final
     def post_eval_hook(self, context: AdapterGlobalContext) -> None:
+        self.logger.info(
+            "Post-eval hook executed", total_samples_processed=self._samples_processed
+        )
+
         if self.progress_tracking_url is not None:
             self._send_progress(self._samples_processed)
         if self.progress_filepath is not None:

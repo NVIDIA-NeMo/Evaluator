@@ -13,14 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Reasoning interceptor with registry support."""
+"""Reasoning interceptor that strips reasoning from responses and tracks reasoning information."""
 
 import json
 import re
 from typing import final
 
-import structlog
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from nemo_evaluator.adapters.decorators import register_for_adapter
 from nemo_evaluator.adapters.types import (
@@ -28,8 +27,7 @@ from nemo_evaluator.adapters.types import (
     AdapterResponse,
     ResponseInterceptor,
 )
-
-logger = structlog.get_logger(__name__)
+from nemo_evaluator.logging import BaseLoggingParams, get_logger
 
 
 @register_for_adapter(
@@ -40,7 +38,7 @@ logger = structlog.get_logger(__name__)
 class ResponseReasoningInterceptor(ResponseInterceptor):
     """Adds reasoning information to responses and tracks reasoning metrics."""
 
-    class Params(BaseModel):
+    class Params(BaseLoggingParams):
         """Configuration parameters for reasoning interceptor."""
 
         end_reasoning_token: str = Field(
@@ -80,6 +78,18 @@ class ResponseReasoningInterceptor(ResponseInterceptor):
         self.add_reasoning = params.add_reasoning
         self.enable_reasoning_tracking = params.enable_reasoning_tracking
         self.include_if_not_finished = params.include_if_not_finished
+
+        # Get logger for this interceptor with interceptor context
+        self.logger = get_logger(self.__class__.__name__)
+
+        self.logger.info(
+            "Reasoning interceptor initialized",
+            end_reasoning_token=self.end_reasoning_token,
+            start_reasoning_token=self.start_reasoning_token,
+            add_reasoning=self.add_reasoning,
+            enable_reasoning_tracking=self.enable_reasoning_tracking,
+            include_if_not_finished=self.include_if_not_finished,
+        )
 
     def _process_reasoning_message(self, msg: dict) -> tuple[dict, dict]:
         """
@@ -178,12 +188,18 @@ class ResponseReasoningInterceptor(ResponseInterceptor):
     ) -> AdapterResponse:
         """Remove reasoning tokens from assistant message content in the response and track reasoning info."""
         if not self.add_reasoning:
+            self.logger.debug("Reasoning processing disabled, returning response as-is")
             return resp
 
         try:
             response_data = resp.r.json()
 
             if isinstance(response_data, dict) and "choices" in response_data:
+                self.logger.debug(
+                    "Processing response with choices",
+                    choices_count=len(response_data["choices"]),
+                )
+
                 for choice in response_data["choices"]:
                     msg = choice.get("message")
                     if (
@@ -198,18 +214,40 @@ class ResponseReasoningInterceptor(ResponseInterceptor):
 
                         # Log reasoning information if tracking is enabled
                         if self.enable_reasoning_tracking:
-                            logger.info(
-                                "Reasoning tracking information",
-                                **reasoning_info,
+                            self.logger.info(
+                                "Reasoning tracking information", **reasoning_info
                             )
 
                         # Update the message with the modified content
                         msg.update(modified_msg)
-            # Optionally handle list responses if needed
+
+                        self.logger.debug(
+                            "Message processed",
+                            role=msg.get("role"),
+                            original_content_length=reasoning_info[
+                                "original_content_words"
+                            ],
+                            updated_content_length=reasoning_info[
+                                "updated_content_words"
+                            ],
+                            reasoning_words=reasoning_info["reasoning_words"],
+                        )
+                # Optionally handle list responses if needed
 
             resp.r._content = json.dumps(response_data).encode()
-        except Exception:
+
+            self.logger.info(
+                "Response reasoning processing completed",
+                response_keys=(
+                    list(response_data.keys())
+                    if isinstance(response_data, dict)
+                    else "unknown"
+                ),
+            )
+
+        except Exception as e:
             # If we can't parse the response, just return it as is
+            self.logger.error("Failed to process response reasoning", error=str(e))
             pass
 
         return resp

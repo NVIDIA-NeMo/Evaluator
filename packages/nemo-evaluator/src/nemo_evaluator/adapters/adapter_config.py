@@ -38,6 +38,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from nemo_evaluator.adapters.reports.post_eval_report_hook import ReportType
+
 
 class DiscoveryConfig(BaseModel):
     """Configuration for discovering 3rd party modules and directories"""
@@ -208,6 +210,28 @@ class AdapterConfig(BaseModel):
                 )
             )
 
+        # Add payload modifier interceptor if any payload modification parameters are specified (RequestToResponse)
+        params_to_add = legacy_config.get("params_to_add")
+        params_to_remove = legacy_config.get("params_to_remove")
+        params_to_rename = legacy_config.get("params_to_rename")
+
+        if params_to_add or params_to_remove or params_to_rename:
+            config = {}
+            if params_to_add:
+                config["params_to_add"] = params_to_add
+            if params_to_remove:
+                config["params_to_remove"] = params_to_remove
+            if params_to_rename:
+                config["params_to_rename"] = params_to_rename
+
+            interceptors.append(
+                InterceptorConfig(
+                    name="payload_modifier",
+                    enabled=True,
+                    config=config,
+                )
+            )
+
         # Add omni info interceptor if specified (Request)
         if legacy_config.get("use_omni_info"):
             interceptors.append(
@@ -232,32 +256,9 @@ class AdapterConfig(BaseModel):
                 )
             )
 
-        # Add payload modifier interceptor if any payload modification parameters are specified (RequestToResponse)
-        params_to_add = legacy_config.get("params_to_add")
-        params_to_remove = legacy_config.get("params_to_remove")
-        params_to_rename = legacy_config.get("params_to_rename")
-
-        if params_to_add or params_to_remove or params_to_rename:
-            config = {}
-            if params_to_add:
-                config["params_to_add"] = params_to_add
-            if params_to_remove:
-                config["params_to_remove"] = params_to_remove
-            if params_to_rename:
-                config["params_to_rename"] = params_to_rename
-
-            interceptors.append(
-                InterceptorConfig(
-                    name="payload_modifier",
-                    enabled=True,
-                    config=config,
-                )
-            )
-
         # Add caching interceptor (RequestToResponse)
         if legacy_config.get("use_caching"):
-            # Use caching_dir if provided, otherwise it will be set by server.py logic
-            cache_dir = legacy_config.get("caching_dir")
+            cache_dir = legacy_config.get("caching_dir", "cache")
             config = {
                 "cache_dir": cache_dir,
                 "reuse_cached_responses": legacy_config.get(
@@ -361,9 +362,9 @@ class AdapterConfig(BaseModel):
 
         # Convert legacy HTML report generation to post-eval hook
         if legacy_config.get("generate_html_report"):
-            report_types = ["html"]
+            report_types = [ReportType.HTML]
             if legacy_config.get("include_json", True):
-                report_types.append("json")
+                report_types.append(ReportType.JSON)
 
             post_eval_hooks.append(
                 PostEvalHookConfig(

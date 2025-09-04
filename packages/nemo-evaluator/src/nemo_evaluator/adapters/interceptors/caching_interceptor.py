@@ -22,7 +22,7 @@ from typing import Any, final
 
 import requests
 import requests.structures
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from nemo_evaluator.adapters.caching.diskcaching import Cache
 from nemo_evaluator.adapters.decorators import register_for_adapter
@@ -33,6 +33,7 @@ from nemo_evaluator.adapters.types import (
     RequestToResponseInterceptor,
     ResponseInterceptor,
 )
+from nemo_evaluator.logging import BaseLoggingParams, get_logger
 
 
 @register_for_adapter(
@@ -43,7 +44,7 @@ from nemo_evaluator.adapters.types import (
 class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
     """Caching interceptor is special in the sense that it intercepts both requests and responses."""
 
-    class Params(BaseModel):
+    class Params(BaseLoggingParams):
         """Configuration parameters for caching."""
 
         cache_dir: str = Field(..., description="Directory to store cache files")
@@ -60,7 +61,7 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
             default=None, description="Maximum number of requests to save"
         )
         max_saved_responses: int | None = Field(
-            default=None, description="Maximum number of responses to save"
+            default=None, description="Maximum number of responses to cache"
         )
 
     responses_cache: Cache
@@ -74,6 +75,8 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
         Args:
             params: Configuration parameters
         """
+
+        # Initialize caches immediately
         self.responses_cache = Cache(directory=f"{params.cache_dir}/responses")
         self.requests_cache = Cache(directory=f"{params.cache_dir}/requests")
         self.headers_cache = Cache(directory=f"{params.cache_dir}/headers")
@@ -82,9 +85,24 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
         self.save_responses = params.save_responses or params.reuse_cached_responses
         self.max_saved_requests = params.max_saved_requests
         self.max_saved_responses = params.max_saved_responses
+
+        # Counters for cache management
         self._cached_requests_count = 0
         self._cached_responses_count = 0
+
+        # Thread safety
         self._count_lock = threading.Lock()
+
+        # Get logger for this interceptor with interceptor context
+        self.logger = get_logger(self.__class__.__name__)
+
+        self.logger.info(
+            "Caching interceptor initialized",
+            cache_dir=params.cache_dir,
+            reuse_cached_responses=self.reuse_cached_responses,
+            save_requests=self.save_requests,
+            save_responses=self.save_responses,
+        )
 
     @staticmethod
     def _generate_cache_key(data: Any) -> str:
@@ -113,8 +131,10 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
         try:
             cached_content = self.responses_cache[cache_key]
             cached_headers = self.headers_cache[cache_key]
+            self.logger.debug("Cache hit", cache_key=cache_key[:8] + "...")
             return cached_content, cached_headers
         except KeyError:
+            self.logger.debug("Cache miss", cache_key=cache_key[:8] + "...")
             return None
 
     def _save_to_cache(self, cache_key: str, content: Any, headers: Any) -> None:
@@ -130,6 +150,10 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
         if self.max_saved_responses is not None:
             with self._count_lock:
                 if self._cached_responses_count >= self.max_saved_responses:
+                    self.logger.warning(
+                        "Maximum cached responses limit reached",
+                        max_saved_responses=self.max_saved_responses,
+                    )
                     return
                 self._cached_responses_count += 1
 
@@ -144,19 +168,35 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
             cached_headers = headers
         self.headers_cache[cache_key] = cached_headers
 
+        self.logger.debug(
+            "Saved response to cache",
+            cache_key=cache_key[:8] + "...",
+            content_size=len(content) if hasattr(content, "__len__") else "unknown",
+        )
+
     @final
     def intercept_request(
         self, req: AdapterRequest, context: AdapterGlobalContext
     ) -> AdapterRequest | AdapterResponse:
         """Shall return request if no cache hit, and response if it is.
         Args:
-            ar (AdapterRequest): The adapter request to intercept
+            req (AdapterRequest): The adapter request to intercept
             context (AdapterGlobalContext): Global context containing server-level configuration
         """
         request_data = req.r.get_json()
 
         # Check cache. Create cache key that will be used everywhere (also if no cache hit)
         req.rctx.cache_key = self._generate_cache_key(request_data)
+
+        self.logger.debug(
+            "Processing request for caching",
+            cache_key=req.rctx.cache_key[:8] + "...",
+            request_data_keys=(
+                list(request_data.keys())
+                if isinstance(request_data, dict)
+                else "unknown"
+            ),
+        )
 
         # Cache request if needed and within limit
         if self.save_requests:
@@ -167,6 +207,15 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
                 ):
                     self.requests_cache[req.rctx.cache_key] = request_data
                     self._cached_requests_count += 1
+                    self.logger.debug(
+                        "Saved request to cache",
+                        cache_key=req.rctx.cache_key[:8] + "...",
+                    )
+                else:
+                    self.logger.warning(
+                        "Maximum cached requests limit reached",
+                        max_saved_requests=self.max_saved_requests,
+                    )
 
         # Only check cache if response reuse is enabled
         if self.reuse_cached_responses:
@@ -184,8 +233,18 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
                 # Make downstream know
                 req.rctx.cache_hit = True
 
+                self.logger.info(
+                    "Returning cached response",
+                    cache_key=req.rctx.cache_key[:8] + "...",
+                    status_code=200,
+                )
+
                 return AdapterResponse(r=requests_response, rctx=req.rctx)
 
+        self.logger.debug(
+            "No cache hit, proceeding with request",
+            cache_key=req.rctx.cache_key[:8] + "...",
+        )
         return req
 
     @final
@@ -193,8 +252,17 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
         self, resp: AdapterResponse, context: AdapterGlobalContext
     ) -> AdapterResponse:
         """Cache the response if caching is enabled and response is successful."""
+
         # first, if caching was used, we do nothing
         if resp.rctx.cache_hit:
+            self.logger.debug(
+                "Response was from cache, skipping caching",
+                cache_key=(
+                    resp.rctx.cache_key[:8] + "..."
+                    if hasattr(resp.rctx, "cache_key")
+                    else "unknown"
+                ),
+            )
             return resp
 
         if resp.r.status_code == 200 and self.save_responses:
@@ -206,8 +274,26 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
                     content=resp.r.content,
                     headers=resp.r.headers,
                 )
+                self.logger.info(
+                    "Cached successful response",
+                    cache_key=resp.rctx.cache_key[:8] + "...",
+                )
             except Exception as e:
-                print(f"Warning: Could not cache response: {e}")
+                self.logger.error(
+                    "Could not cache response",
+                    error=str(e),
+                    cache_key=(
+                        resp.rctx.cache_key[:8] + "..."
+                        if hasattr(resp.rctx, "cache_key")
+                        else "unknown"
+                    ),
+                )
+        else:
+            self.logger.debug(
+                "Response not cached",
+                status_code=resp.r.status_code,
+                save_responses=self.save_responses,
+            )
 
         # And just propagate
         return resp

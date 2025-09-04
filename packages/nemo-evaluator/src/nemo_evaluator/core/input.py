@@ -17,7 +17,6 @@ import os
 import pkgutil
 from typing import Optional
 
-import structlog
 import yaml
 
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
@@ -31,9 +30,9 @@ from nemo_evaluator.core.utils import (
     deep_update,
     dotlist_to_dict,
 )
+from nemo_evaluator.logging import get_logger
 
-logger = structlog.get_logger(__name__)
-structlog.stdlib.recreate_defaults()
+logger = get_logger(__name__)
 
 
 def load_run_config(yaml_file: str) -> dict:
@@ -159,6 +158,33 @@ def _get_framework_evaluations(
     return framework_eval_mapping, framework_defaults, eval_name_mapping
 
 
+def merge_dicts(dict1, dict2):
+    merged = {}
+    all_keys = set(dict1.keys()) | set(dict2.keys())
+
+    for key in all_keys:
+        v1 = dict1.get(key)
+        v2 = dict2.get(key)
+
+        if key in dict1 and key in dict2:
+            result = []
+            # Handle case where value is a list or not
+            if isinstance(v1, list):
+                result.extend(v1)
+            elif v1 is not None:
+                result.append(v1)
+            if isinstance(v2, list):
+                result.extend(v2)
+            elif v2 is not None:
+                result.append(v2)
+            merged[key] = result
+        elif key in dict1:
+            merged[key] = v1
+        else:
+            merged[key] = v2
+    return merged
+
+
 def get_available_evaluations() -> tuple[
     dict[str, dict[str, Evaluation]], dict[str, Evaluation], dict
 ]:
@@ -182,7 +208,7 @@ def get_available_evaluations() -> tuple[
         )
         all_framework_eval_mappings.update(framework_eval_mapping)
         all_framework_defaults.update(framework_defaults)
-        all_eval_name_mapping.update(eval_name_mapping)
+        all_eval_name_mapping = merge_dicts(all_eval_name_mapping, eval_name_mapping)
 
     return (
         all_framework_eval_mappings,
@@ -298,6 +324,16 @@ def get_evaluation(
             evaluation_config.type = evaluation_name
             default_evaluation.config.params.task = evaluation_name
     else:
+        if isinstance(all_eval_name_mapping[evaluation_name], list):
+            framework_handlers = [
+                evaluation.framework_name
+                for evaluation in all_eval_name_mapping[evaluation_name]
+            ]
+            raise MisconfigurationError(
+                f"{evaluation_name} is available in multiple frameworks: {','.join(framework_handlers)}. \
+Please indicate which implementation you would like to choose by using 'framework.task' invocation. \
+For example: {framework_handlers[0]}.{evaluation_name}. "
+            )
         default_evaluation = all_eval_name_mapping[evaluation_name]
 
     default_configuration = default_evaluation.model_dump(exclude_none=True)

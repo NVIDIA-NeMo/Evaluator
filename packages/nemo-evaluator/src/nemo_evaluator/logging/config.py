@@ -13,6 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_evaluator.core.entrypoint import run_eval
+"""Base logging configuration parameters."""
 
-__all__ = ["run_eval"]
+from pydantic import BaseModel, Field
+
+
+class BaseLoggingParams(BaseModel):
+    """Base configuration parameters for logging in interceptors."""
+
+    log_level: str = Field(
+        default="INFO",
+        description="Log level for this interceptor. Can be overridden by NV_EVAL_LOG_LEVEL environment variable.",
+    )

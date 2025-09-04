@@ -17,7 +17,6 @@ import importlib
 import json
 import os
 
-import structlog
 import yaml
 
 from nemo_evaluator.adapters.server import AdapterServerProcess
@@ -27,14 +26,12 @@ from nemo_evaluator.api.api_dataclasses import (
     EvaluationResult,
     EvaluationTarget,
 )
-from nemo_evaluator.core.input import (
-    prepare_output_directory,
-    validate_configuration,
-)
+from nemo_evaluator.core.input import prepare_output_directory, validate_configuration
 from nemo_evaluator.core.resources import monitor_memory_usage
 from nemo_evaluator.core.utils import run_command
+from nemo_evaluator.logging import get_logger
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 def parse_output(evaluation: Evaluation) -> EvaluationResult:

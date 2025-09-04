@@ -23,13 +23,14 @@ from typing import Optional
 
 import nemo_run as run
 from helpers import wait_and_evaluate
-from nemo_eval.api import deploy
 from nemo_evaluator.api.api_dataclasses import (
     ApiEndpoint,
     ConfigParams,
     EvaluationConfig,
     EvaluationTarget,
 )
+
+from nemo_eval.api import deploy
 
 ENDPOINT_TYPES = {"chat": "chat/completions/", "completions": "completions/"}
 

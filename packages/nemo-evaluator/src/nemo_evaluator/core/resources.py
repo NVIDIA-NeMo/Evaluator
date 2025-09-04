@@ -14,7 +14,6 @@
 # limitations under the License.
 
 
-import logging
 import os
 import sqlite3
 import threading
@@ -25,6 +24,7 @@ from typing import Any
 import psutil
 
 from nemo_evaluator.api.api_dataclasses import EvaluationResult
+from nemo_evaluator.logging.utils import logger
 
 
 def get_token_usage_from_cache_db(cache_db_path: str | Path) -> dict:
@@ -67,7 +67,7 @@ def get_token_usage_from_cache_db(cache_db_path: str | Path) -> dict:
                     "total_cached_requests": row[3],
                 }
     except Exception as e:
-        logging.warning(f"Failed to read token usage from cache: {e}")
+        logger.warning(f"Failed to read token usage from cache: {e}")
 
     return {}
 

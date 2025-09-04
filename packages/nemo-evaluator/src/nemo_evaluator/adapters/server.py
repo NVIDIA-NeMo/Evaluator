@@ -15,7 +15,6 @@
 
 """Main server which serves on a local port and holds chain of interceptors"""
 
-import logging
 import multiprocessing
 import os
 import signal
@@ -27,13 +26,10 @@ from typing import List
 
 import flask
 import requests
-import structlog
 import werkzeug.serving
 
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
-from nemo_evaluator.adapters.interceptors.logging_interceptor import (
-    _get_safe_headers,
-)
+from nemo_evaluator.adapters.interceptors.logging_interceptor import _get_safe_headers
 from nemo_evaluator.adapters.registry import InterceptorRegistry
 from nemo_evaluator.adapters.types import (
     AdapterGlobalContext,
@@ -46,8 +42,21 @@ from nemo_evaluator.adapters.types import (
     ResponseInterceptor,
 )
 from nemo_evaluator.api.api_dataclasses import Evaluation
+from nemo_evaluator.logging import get_logger
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
+
+
+def _setup_file_logging() -> None:
+    """Set up centralized logging using NV_EVAL_LOG_DIR environment variable if set."""
+    from nemo_evaluator.logging import configure_logging
+
+    # configure_logging will automatically use NV_EVAL_LOG_DIR if set
+    configure_logging()
+
+    logger.info(
+        "File logging setup completed (uses NV_EVAL_LOG_DIR environment variable if set)"
+    )
 
 
 def is_port_open(host: str, port: int, timeout: float = 0.5) -> bool:
@@ -96,9 +105,14 @@ def wait_for_server(
 
 
 def _run_adapter_server(
-    api_url: str, output_dir: str, adapter_config: AdapterConfig
+    api_url: str,
+    output_dir: str,
+    adapter_config: AdapterConfig,
 ) -> None:
     """Internal function to run the adapter server."""
+    # Set up centralized logging using NV_EVAL_LOG_DIR environment variable if set
+    _setup_file_logging()
+
     adapter = AdapterServer(
         api_url=api_url,
         output_dir=output_dir,
@@ -123,11 +137,17 @@ def _run_adapter_server(
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
+    if os.environ.get("NV_EVAL_LOG_DIR") is not None:
+        logger.info("Starting adapter server with centralized logging enabled")
+    else:
+        logger.info("Starting adapter server with default logging")
     adapter.run()
 
 
 def spawn_adapter_server(
-    api_url: str, output_dir: str, adapter_config: AdapterConfig
+    api_url: str,
+    output_dir: str,
+    adapter_config: AdapterConfig,
 ) -> SpawnProcess | None:
     """Spawn an AdapterServer in a separate process.
 
@@ -213,9 +233,6 @@ class AdapterServerProcess:
             f"http://{adapter_host}:{adapter_port}"
         )
         output_dir = self.evaluation.config.output_dir
-        if adapter_config.caching_dir is None:
-            adapter_config.caching_dir = os.path.join(output_dir, "cache")
-        output_dir = self.evaluation.config.output_dir
 
         self.process = multiprocessing.get_context("spawn").Process(
             target=_run_adapter_server,
@@ -252,13 +269,13 @@ class AdapterServerProcess:
             )
             response = requests.post(post_hook_url, timeout=30)
             if response.status_code == 200:
-                logging.info("Successfully ran post-evaluation hooks")
+                logger.info("Successfully ran post-evaluation hooks")
             else:
-                logging.error(
+                logger.error(
                     f"Failed to run post-evaluation hooks: {response.status_code} - {response.text}"
                 )
         except Exception as e:
-            logging.error(f"Failed to run post-evaluation hooks: {e}")
+            logger.error(f"Failed to run post-evaluation hooks: {e}")
         self.process.terminate()
         self.process.join()
 
@@ -316,12 +333,14 @@ class AdapterServer:
         )
 
         logger.info(
-            "Using interceptors: %s",
-            [ic.name for ic in adapter_config.interceptors if ic.enabled],
+            "Using interceptors",
+            interceptors=[ic.name for ic in adapter_config.interceptors if ic.enabled],
         )
         logger.info(
-            "Using post-eval hooks: %s",
-            [hook.name for hook in adapter_config.post_eval_hooks if hook.enabled],
+            "Using post-eval hooks",
+            hooks=[
+                hook.name for hook in adapter_config.post_eval_hooks if hook.enabled
+            ],
         )
 
         # Validate and build chains
@@ -483,6 +502,23 @@ class AdapterServer:
     def _handler(self, path: str) -> flask.Response:
         """Main request handler that processes requests through the interceptor chain."""
         try:
+            # Generate unique request ID for this request and bind it to logging context
+            from nemo_evaluator.logging import bind_request_id, get_logger
+
+            # Bind the request ID to the current context so all loggers can access it
+            _ = bind_request_id()  # generates a new UUID
+
+            # Get a logger for this request - context variables are automatically included
+            request_logger = get_logger()
+
+            # Log request start (request_id is automatically included from context)
+            request_logger.info(
+                "Request started",
+                path=path,
+                method=flask.request.method,
+                url=self.api_url,
+            )
+
             # Create global context
             global_context = AdapterGlobalContext(
                 output_dir=self.output_dir,
@@ -520,7 +556,7 @@ class AdapterServer:
                         continue
 
                 except Exception as e:
-                    logger.error(
+                    request_logger.error(
                         f"Request interceptor {type(interceptor).__name__} failed: {e}"
                     )
                     # Continue with next interceptor
@@ -538,7 +574,7 @@ class AdapterServer:
                             current_response, global_context
                         )
                 except Exception as e:
-                    logger.error(
+                    request_logger.error(
                         f"Response interceptor {type(interceptor).__name__} failed: {e}"
                     )
                     # Continue with next interceptor
@@ -566,7 +602,14 @@ class AdapterServer:
                         },
                     }
                 }
-                logger.error("failed_request_response_pair", data=log_data)
+                request_logger.error("failed_request_response_pair", data=log_data)
+
+            # Log request completion (request_id is automatically included from context)
+            request_logger.info(
+                "Request completed",
+                status_code=current_response.r.status_code,
+                path=path,
+            )
 
             # Return the final response
             headers = self._process_response_headers(current_response.r)
@@ -577,7 +620,7 @@ class AdapterServer:
             )
 
         except Exception as e:
-            logger.error(f"Handler error: {e}")
+            request_logger.error(f"Handler error: {e}")
             return flask.Response(
                 f"Internal server error: {str(e)}", status=500, mimetype="text/plain"
             )

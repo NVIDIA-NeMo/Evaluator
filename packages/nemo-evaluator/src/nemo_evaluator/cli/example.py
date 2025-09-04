@@ -20,14 +20,13 @@ CLI script to set up NVIDIA Eval Factory framework files in a destination folder
 """
 
 import argparse
-import logging
 import os
-from importlib.resources import as_file, files
+from importlib.resources import files
 from pathlib import Path
 
 import jinja2
 
-logging.basicConfig(level=logging.INFO)
+from nemo_evaluator.logging.utils import logger
 
 
 def add_example_files(package_name: str, destination_folder: str | None = None) -> None:
@@ -54,40 +53,39 @@ def add_example_files(package_name: str, destination_folder: str | None = None) 
     nvidia_path: Path = dest_path / "core_evals" / package_name
     nvidia_path.mkdir(parents=True, exist_ok=True)
 
-    # Use importlib.resources to access package resources, they might be in zip etc so this
-    # esotherics with as_file
-    resources_dir_traversable = files("nemo_evaluator.resources")
-    with as_file(resources_dir_traversable) as resources_dir:
-        template_files = {
-            "framework_tpl.yml": "framework.yml",
-            "output_tpl.py": "output.py",
-            "init_tpl.py": "__init__.py",
-        }
+    # Use importlib.resources to access package resources
+    resources_dir = files("nemo_evaluator.resources")
 
-        for template_name, target_name in template_files.items():
-            template_path = resources_dir / template_name
-            target_path = nvidia_path / target_name
+    template_files = {
+        "framework_tpl.yml": "framework.yml",
+        "output_tpl.py": "output.py",
+        "init_tpl.py": "__init__.py",
+    }
 
-            if target_path.exists():
-                with open(target_path, "r") as f:
-                    content = f.read().strip()
-                if content != "":
-                    logging.warning(
-                        f"Target exists and is not empty, not copying: {target_path}"
-                    )
-                    continue
-            with template_path.open() as in_f:
-                template_rendered = (
-                    jinja2.Environment()
-                    .from_string(in_f.read())
-                    .render(framework_name=package_name)
+    for template_name, target_name in template_files.items():
+        template_path = resources_dir / template_name
+        target_path = nvidia_path / target_name
+
+        if target_path.exists():
+            with open(target_path, "r") as f:
+                content = f.read().strip()
+            if content != "":
+                logger.warning(
+                    f"Target exists and is not empty, not copying: {target_path}"
                 )
+                continue
+        with template_path.open() as in_f:
+            template_rendered = (
+                jinja2.Environment()
+                .from_string(in_f.read())
+                .render(framework_name=package_name)
+            )
 
             with target_path.open("w") as out_f:
                 out_f.write(template_rendered)
-            logging.info(f"Created: {target_path}")
+            logger.info(f"Created: {target_path}")
 
-        logging.info(
+        logger.info(
             "The Eval Factory compatibility package was initialized! Please ensure the following:\n"
             + f"1) Implement the core_evals/{package_name}/framework.yml according to contributing guide\n"
             + "2) Add core_evals module in your build config to be included in your wheel\n"

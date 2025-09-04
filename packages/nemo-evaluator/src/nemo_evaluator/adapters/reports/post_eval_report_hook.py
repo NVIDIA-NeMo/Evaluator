@@ -25,10 +25,9 @@ from pydantic import BaseModel, Field
 
 from nemo_evaluator.adapters.caching.diskcaching import Cache
 from nemo_evaluator.adapters.decorators import register_for_adapter
-from nemo_evaluator.adapters.reports.templates.simple_template import (
-    SIMPLE_TEMPLATE,
-)
+from nemo_evaluator.adapters.reports.templates.simple_template import SIMPLE_TEMPLATE
 from nemo_evaluator.adapters.types import AdapterGlobalContext, PostEvalHook
+from nemo_evaluator.logging import get_logger
 
 
 class ReportType(str, Enum):
@@ -120,12 +119,10 @@ class PostEvalReportHook(PostEvalHook):
         # Create cache directories if they don't exist
         responses_dir = cache_dir / "responses"
         requests_dir = cache_dir / "requests"
-        headers_dir = cache_dir / "headers"
 
         # Initialize caches with directory paths
         responses_cache = Cache(directory=str(responses_dir))
         requests_cache = Cache(directory=str(requests_dir))
-        Cache(directory=str(headers_dir))
 
         # Get all cache keys from both caches
         response_keys = [key for key in responses_cache.iterkeys()]
@@ -133,6 +130,15 @@ class PostEvalReportHook(PostEvalHook):
 
         # Use request keys as primary since they should match response keys
         cache_keys = request_keys if request_keys else response_keys
+
+        get_logger().debug(
+            "Cache keys collected for the report",
+            types=self.report_types,
+            request_keys_len=len(request_keys),
+            response_keys_len=len(response_keys),
+            cache_keys_len=len(cache_keys),
+            dirs=(responses_dir, requests_dir),
+        )
 
         if not cache_keys:
             return []
@@ -167,6 +173,8 @@ class PostEvalReportHook(PostEvalHook):
             except Exception:
                 continue
 
+        get_logger().debug("Entries collected", num_entries=len(entries))
+
         return entries
 
     def _generate_html_report(self, entries: list, output_path: Path) -> None:
@@ -198,6 +206,8 @@ class PostEvalReportHook(PostEvalHook):
             if report_type == ReportType.HTML:
                 output_path = Path(context.output_dir) / "report.html"
                 self._generate_html_report(entries, output_path)
+                get_logger().info("Generated HTML report", path=output_path)
             elif report_type == ReportType.JSON:
                 output_path = Path(context.output_dir) / "report.json"
                 self._generate_json_report(entries, output_path)
+                get_logger().info("Generated JSON report", path=output_path)
