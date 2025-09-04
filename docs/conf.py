@@ -103,6 +103,7 @@ html_extra_path = ["project.json", "versions1.json"]
 nitpicky = False
 suppress_warnings = [
     "ref.python",  # Suppress ambiguous cross-reference warnings
+]
 
 # Github links are now getting rate limited from the Github Actions
 linkcheck_ignore = [
