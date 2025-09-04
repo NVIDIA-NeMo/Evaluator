@@ -21,4 +21,4 @@ coverage run \
     -o log_cli_level=INFO \
     -m "not pleasefixme" \
     /workspace/packages/nemo-evaluator/tests/unit_tests
-# coverage combine -q 
+coverage combine -q 
