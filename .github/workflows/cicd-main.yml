@@ -52,6 +52,8 @@ jobs:
 
       - name: Check lint
         run: |
+          cd packages/nemo-evaluator
+
           pip install pre-commit==3.6.0
           pre-commit install
           pre-commit run --all-files --show-diff-on-failure --color=always
@@ -70,19 +72,9 @@ jobs:
           echo "Running CI tests"
 
   cicd-unit-tests:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - script: L0_Unit_Tests_GPU
-            runner: self-hosted-nemo
-            timeout: 30
-          - script: L0_Unit_Tests_CPU
-            runner: linux-amd64-cpu16
-            cpu-only: true
     needs: [pre-flight, cicd-wait-in-queue]
-    runs-on: ${{ matrix.runner }}
-    name: ${{ matrix.script }}
+    runs-on: ubuntu-latest
+    name: unit-tests
     environment: nemo-ci
     if: |
       (
@@ -97,32 +89,25 @@ jobs:
       - name: main
         uses: ./.github/actions/test-template
         with:
-          script: ${{ matrix.script }}
-          timeout: ${{ matrix.timeout || 10 }}
+          script: Launch_Unit_Tests
+          timeout: 10
           is_unit_test: "true"
-          cpu-only: ${{ matrix.cpu-only || false }}
+          cpu-only: true
           has-azure-credentials: "true"
           azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           PAT: ${{ secrets.PAT }}
-          inference-framework: "inframework"
+          package: nemo-evaluator
 
   cicd-e2e-tests:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - script: L2_Functional_Tests_GPU
-            runner: self-hosted-nemo
-            timeout: 30
     needs: [pre-flight, cicd-unit-tests]
-    runs-on: ${{ matrix.runner }}
-    name: ${{ matrix.is_optional && 'PLEASEFIXME_' || '' }}${{ matrix.script }}
+    runs-on: ubuntu-latest
+    name: functional-tests
     environment: nemo-ci
     if: |
       (
-        success() 
+        success()
         || needs.pre-flight.outputs.is_ci_workload == 'true'
         || needs.pre-flight.outputs.force_run_all == 'true'
       )
@@ -133,15 +118,15 @@ jobs:
       - name: main
         uses: ./.github/actions/test-template
         with:
-          script: ${{ matrix.script }}
+          script: Launch_Functional_Tests
           timeout: ${{ matrix.timeout || 10 }}
-          cpu-only: ${{ matrix.cpu-only || false }}
+          cpu-only: true
           has-azure-credentials: "true"
           azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           PAT: ${{ secrets.PAT }}
-          inference-framework: "inframework"
+          package: nemo-evaluator
 
   Nemo_CICD_Test:
     needs:
@@ -304,6 +289,8 @@ jobs:
           ls -al .
           ls -al coverage-*/
           coverage combine --keep $(ls coverage-*/.coverage)
+          mv .coverage packages/nemo-evaluator/
+          cd packages/nemo-evaluator/
           coverage report -i
           rm -rf coverage-*
           ls -al
@@ -320,5 +307,5 @@ jobs:
         with:
           name: coverage-${{ matrix.flag }}-aggregated
           path: |
-            .coverage
+            packages/nemo-evaluator/.coverage
           include-hidden-files: true

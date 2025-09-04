@@ -1,0 +1,51 @@
+framework:
+  name: dummy-framework
+  pkg_name: dummy_framework
+defaults:
+  command: echo {{config.params.extra.dummy_score}} > {{config.output_dir}}/output.txt
+  config:
+    params:
+      limit_samples: null
+      max_new_tokens: 1
+      temperature: 0.7
+      top_p: 0.9
+      parallelism: 13
+      max_retries: 3
+      request_timeout: 2
+      extra:
+        dummy_score: 123
+  target:
+    api_endpoint: {}
+evaluations:
+  - name: dummy_default_eval
+    description: Dummy Evaluation Task with Default Config
+    defaults:
+      config:
+        type: dummy_default_task
+        supported_endpoint_types:
+          - chat
+          - completions
+          - vlm
+          - embedding
+
+  - name: dummy_eval
+    description: Dummy Evaluation Task
+    defaults:
+      config:
+        type: dummy_task
+        supported_endpoint_types:
+          - chat
+          - completions
+          - vlm
+          - embedding
+        params:
+          extra:
+            dummy_score: 42
+
+  - name: dummy_eval_chat
+    description: Dummy Evaluation Task for Chat Endpoint
+    defaults:
+      config:
+        type: dummy_chat_task
+        supported_endpoint_types:
+          - chat

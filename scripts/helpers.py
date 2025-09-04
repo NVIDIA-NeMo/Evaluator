@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia_eval_commons.core.evaluate import evaluate
-
 from nemo_eval.utils.base import check_endpoint
+from nvidia_eval_commons.core.evaluate import evaluate
 
 
 def wait_and_evaluate(target_cfg, eval_cfg):
@@ -24,5 +23,7 @@ def wait_and_evaluate(target_cfg, eval_cfg):
         model_name=target_cfg.api_endpoint.model_id,
     )
     if not server_ready:
-        raise RuntimeError("Server is not ready to accept requests. Check the deployment logs for errors.")
+        raise RuntimeError(
+            "Server is not ready to accept requests. Check the deployment logs for errors."
+        )
     return evaluate(target_cfg=target_cfg, eval_cfg=eval_cfg)
