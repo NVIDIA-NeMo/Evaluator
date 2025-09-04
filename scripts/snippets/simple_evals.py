@@ -36,13 +36,9 @@ target_config = EvaluationTarget(
 )
 
 eval_config = EvaluationConfig(
-<<<<<<< HEAD
-    type="AIME_2025", output_dir="/results/", params=ConfigParams(limit_samples=10)
-=======
     type="AIME_2025",
     output_dir="/results/",
     params=ConfigParams(limit_samples=10, temperature=0, top_p=0, parallelism=1),
->>>>>>> main
 )
 results = evaluate(target_cfg=target_config, eval_cfg=eval_config)
 

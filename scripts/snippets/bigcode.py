@@ -30,17 +30,13 @@ model_name = "megatron_model"
 chat_url = "http://0.0.0.0:8080/v1/chat/completions/"
 
 
-<<<<<<< HEAD
 target_config = EvaluationTarget(
     api_endpoint=ApiEndpoint(url=chat_url, type=EndpointType.CHAT, model_id=model_name)
 )
 eval_config = EvaluationConfig(
-    type="mbpp", output_dir="/results/", params=ConfigParams(limit_samples=10)
-=======
-target_config = EvaluationTarget(api_endpoint=ApiEndpoint(url=chat_url, type=EndpointType.CHAT, model_id=model_name))
-eval_config = EvaluationConfig(
-    type="mbpp", output_dir="/results/", params=ConfigParams(limit_samples=10, temperature=0, top_p=0, parallelism=1)
->>>>>>> main
+    type="mbpp",
+    output_dir="/results/",
+    params=ConfigParams(limit_samples=10, temperature=0, top_p=0, parallelism=1),
 )
 
 
