@@ -14,11 +14,11 @@
 export CUDA_VISIBLE_DEVICES=""
 
 coverage run \
-    --data-file=/workspace/packages/nemo-evaluator/.coverage \
+    --data-file=/workspace/.coverage.unit_tests \
     --source=/workspace/packages/nemo-evaluator/src/ \
     -m pytest \
     -o log_cli=true \
     -o log_cli_level=INFO \
     -m "not pleasefixme" \
     /workspace/packages/nemo-evaluator/tests/unit_tests
-coverage combine -q 
+# coverage combine -q 

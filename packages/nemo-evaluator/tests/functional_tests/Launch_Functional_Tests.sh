@@ -14,7 +14,7 @@
 export CUDA_VISIBLE_DEVICES=""
 
 coverage run \
-    --data-file=/workspace/packages/nemo-evaluator/.coverage \
+    --data-file=/workspace/.coverage.functional_tests \
     --source=/workspace/packages/nemo-evaluator/src/ \
     -m pytest \
     -o log_cli=true \
