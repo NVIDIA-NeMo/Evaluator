@@ -1,0 +1,18 @@
+# Each slurm cluster has its own flavour, below we provide some defaults that might meet one's needs.
+hostname: ???
+username: ${oc.env:USER}
+account: ???
+partition: batch
+num_nodes: 1
+ntasks_per_node: 1
+gres: gpu:8
+walltime: 01:00:00
+subproject: nv-eval
+output_dir: ???
+env_vars:
+  deployment: {}
+  evaluation: {}
+mounts:
+  deployment: {}
+  evaluation: {}
+  mount_home: true

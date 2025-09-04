@@ -1,0 +1,71 @@
+# Run this config with `nv-eval run --config-dir examples --config-name slurm_llama_3_1_8b_instruct`.
+# For every benchmark to evaluate, it will create a Slurm job with a dedicated
+# deployed model (vLLM, in this case) and the evaluation script.
+
+# Commented out values show an example of how to override the config values from this file.
+
+# You can also override the values in this config from CLI using dot notation.
+# For example, `nv-eval run --config-dir examples --config-name slurm_llama_3_1_8b_instruct execution.walltime="1:00:00"`
+# To see the full config, run `nv-eval run --config-dir examples --config-name slurm_ llama_3_1_8b_instruct --dry-run`
+
+# specify default configs for execution and deployment
+defaults:
+  - execution: internal/slurm/oci-ord
+  - deployment: vllm
+  - _self_
+
+# override default execution arguments
+execution:
+  account: coreai_dlalgo_llm
+  output_dir: /lustre/fsw/portfolios/coreai/projects/coreai_dlalgo_llm/users/dfridman/nv-eval-rundirs
+  walltime: 02:00:00
+  # partition: backfill
+  # New execution-level configuration options (preferred over deployment.env_vars)
+  env_vars:
+    deployment: {} # Environment variables for deployment container
+    evaluation: {} # Environment variables for evaluation container
+  mounts:
+    deployment: {} # Mount points for deployment container (source:target format)
+    evaluation: {} # Mount points for evaluation container (source:target format)
+    mount_home: true # Whether to mount home directory (default: true)
+
+# override default deployment arguments
+deployment:
+  checkpoint_path: /lustre/fsw/portfolios/coreai/projects/coreai_dlalgo_llm/users/anowaczynski/checkpoints/meta-llama3.1-8B-instruct-hf
+  served_model_name: meta-llama/Llama-3.1-8B-Instruct
+  tensor_parallel_size: 1
+  data_parallel_size: 8
+  # DEPRECATED: env_vars in deployment section will be deprecated in future versions.
+  # Use execution.env_vars.deployment instead for environment variables specific to deployment container
+  # env_vars:
+  #   SOME_ENV_VAR: "value"
+  #   SOME_VLLM_ENV_VAR: "value"
+  # extra_args: "--max-model-len 32768"
+
+# specify the benchmarks to evaluate
+evaluation:
+  overrides: # these overrides apply to all tasks; for task-specific overrides, use the `overrides` field
+    config.params.request_timeout: 3600
+    target.api_endpoint.adapter_config.use_reasoning: false # if true, strips reasoning tokens
+    target.api_endpoint.adapter_config.use_system_prompt: true
+    target.api_endpoint.adapter_config.custom_system_prompt: >-
+      "Think step by step."
+  tasks:
+    - name: ifeval # use the default benchmark configuration
+    - name: gpqa_diamond
+      overrides: # task-specific overrides
+        config.params.temperature: 0.6
+        config.params.top_p: 0.95
+        config.params.max_new_tokens: 8192
+        config.params.parallelism: 32
+      env_vars:
+        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
+    - name: mbpp
+      overrides: # task-specific overrides
+        config.params.temperature: 0.2
+        config.params.top_p: 0.95
+        config.params.max_new_tokens: 2048
+        config.params.extra.n_samples: 5 # sample 5 predictions per prompt
+        config.params.parallelism: 32
+        target.api_endpoint.adapter_config.custom_system_prompt: >-
+          "You must only provide the code implementation"

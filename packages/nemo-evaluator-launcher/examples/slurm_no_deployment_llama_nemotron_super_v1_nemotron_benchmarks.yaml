@@ -1,0 +1,83 @@
+# Run this config with `nv-eval run --config-dir examples --config-name slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks`.
+# For every benchmark to evaluate, it will create a Slurm job to evaluate an endpoint.
+# NOTE: in this example, we are evaluating an existing endpoint, so we don't need to deploy a model.
+
+# Commented out values show an example of how to override the config values from this file.
+
+# You can also override the values in this config from CLI using dot notation.
+# For example, `nv-eval run --config-dir examples --config-name slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks execution.walltime="1:00:00"`
+# To see the full config, run `nv-eval run --config-dir examples --config-name slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks --dry-run`
+
+# specify default configs for execution and deployment
+defaults:
+  - execution: slurm/default
+  - deployment: none
+  - _self_
+
+# override default execution arguments
+execution:
+  account: coreai_dlalgo_llm
+  output_dir: /lustre/fsw/portfolios/coreai/projects/coreai_dlalgo_llm/users/dfridman/nv-eval-rundirs
+  walltime: 02:00:00
+  partition: cpu_short # no deployment -> no GPUs needed
+  gpus_per_node: null # no deployment -> no GPUs needed
+
+target:
+  api_endpoint:
+    model_id: nvidia/llama-3.3-nemotron-super-49b-v1
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    api_key_name: API_KEY # API Key with access to build.nvidia.com
+
+# specify the benchmarks to evaluate
+evaluation:
+  overrides: # these overrides apply to all tasks; for task-specific overrides, use the `overrides` field
+    # apply recommended sampling parameters for reasoning-on mode
+    config.params.temperature: 0.6
+    config.params.top_p: 0.95
+    config.params.max_new_tokens: 65536
+    config.params.parallelism: 8
+    config.params.request_timeout: 3600
+    target.api_endpoint.adapter_config.use_reasoning: true # if true, strips reasoning tokens
+    target.api_endpoint.adapter_config.use_system_prompt: true
+    target.api_endpoint.adapter_config.custom_system_prompt:
+      >- # turn on thinking mode
+      "detailed thinking on"
+  tasks:
+    - name: gpqa_diamond_nemo
+      env_vars:
+        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
+
+    - name: math_test_500_nemo
+
+    - name: aime_2024_nemo
+
+    - name: aime_2025_nemo
+
+    - name: mbppplus_nemo
+
+    - name: livecodebench_0824_0225
+
+    - name: ifeval # evaluated in reasoning-off mode
+      overrides:
+        config.params.temperature: 0
+        config.params.top_p: 1e-5
+        config.params.max_new_tokens: 4096
+        target.api_endpoint.adapter_config.use_system_prompt: true
+        target.api_endpoint.adapter_config.custom_system_prompt:
+          >- # turn off thinking mode
+          "detailed thinking off"
+
+    - name: arena-hard-v0-1 # evaluated in reasoning-off mode
+      overrides:
+        config.params.temperature: 0
+        config.params.top_p: 1e-5
+        config.params.max_new_tokens: 4096
+        target.api_endpoint.adapter_config.use_system_prompt: true
+        target.api_endpoint.adapter_config.custom_system_prompt:
+          >- # turn off thinking mode
+          "detailed thinking off"
+      env_vars:
+        OPENAI_TOKEN_URL: OPENAI_TOKEN_URL_FOR_ARENA_HARD_V0_1
+        OPENAI_CLIENT_ID: OPENAI_CLIENT_ID_FOR_ARENA_HARD_V0_1
+        OPENAI_CLIENT_SECRET: OPENAI_CLIENT_SECRET_FOR_ARENA_HARD_V0_1
+        OPENAI_SCOPE: OPENAI_SCOPE_FOR_ARENA_HARD_V0_1
