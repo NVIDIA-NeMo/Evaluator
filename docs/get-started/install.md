@@ -5,29 +5,32 @@ NeMo Evaluator provides multiple installation paths depending on your needs. Cho
 
 ## Choose Your Installation Path
 
-### 🚀 **NeMo Evaluator Launcher** (Recommended)
-**Best for**: Most users who want unified CLI and orchestration across backends
+```{list-table} Installation Path Comparison
+:header-rows: 1
+:widths: 25 25 50
 
-- ✅ Unified CLI for 100+ benchmarks
-- ✅ Multi-backend execution (local, Slurm, cloud)
-- ✅ Built-in result export to MLflow, W&B, etc.
-- ✅ Configuration management with examples
-
-### ⚙️ **NeMo Evaluator Core**  
-**Best for**: Developers building custom evaluation pipelines
-
-- ✅ Programmatic Python API
-- ✅ Direct container access
-- ✅ Custom framework integration
-- ✅ Advanced adapter configuration
-
-### 🐳 **Container Direct**
-**Best for**: Users who prefer container-based workflows
-
-- ✅ Pre-built NGC evaluation containers
-- ✅ Guaranteed reproducibility
-- ✅ No local installation required
-- ✅ Isolated evaluation environments
+* - **Installation Path**
+  - **Best For**
+  - **Key Features**
+* - **NeMo Evaluator Launcher** (Recommended)
+  - Most users who want unified CLI and orchestration across backends
+  - • Unified CLI for 100+ benchmarks  
+    • Multi-backend execution (local, Slurm, cloud)  
+    • Built-in result export to MLflow, W&B, etc.  
+    • Configuration management with examples
+* - **NeMo Evaluator Core**
+  - Developers building custom evaluation pipelines
+  - • Programmatic Python API  
+    • Direct container access  
+    • Custom framework integration  
+    • Advanced adapter configuration
+* - **Container Direct**
+  - Users who prefer container-based workflows
+  - • Pre-built NGC evaluation containers  
+    • Guaranteed reproducibility  
+    • No local installation required  
+    • Isolated evaluation environments
+```
 
 ---
 
@@ -56,19 +59,7 @@ NeMo Evaluator provides multiple installation paths depending on your needs. Cho
 
 Install NeMo Evaluator Launcher for unified CLI and orchestration:
 
-```bash
-# Create and activate virtual environment
-python3 -m venv nemo-evaluator-env
-source nemo-evaluator-env/bin/activate
-
-# Install NeMo Evaluator Launcher
-pip install nemo-evaluator-launcher
-```
-
-Quick verification:
-```bash
-nemo-evaluator-launcher ls tasks
-```
+TODO
 
 :::
 
@@ -76,19 +67,7 @@ nemo-evaluator-launcher ls tasks
 
 Install NeMo Evaluator Core for programmatic access:
 
-```bash
-# Create and activate virtual environment  
-python3 -m venv nemo-evaluator-env
-source nemo-evaluator-env/bin/activate
-
-# Install core dependencies
-pip install torch==2.7.0 setuptools pybind11 wheel_stub  # Required for TE
-pip install --no-build-isolation nemo-evaluator
-
-# Install specific evaluation packages as needed
-pip install nvidia-simple-evals  # For basic evaluations
-pip install nvidia-lm-eval      # For language model benchmarks
-```
+TODO
 
 Quick verification:
 ```bash
@@ -97,59 +76,11 @@ python -c "from nemo_evaluator.core.evaluate import evaluate; print('Core librar
 
 :::
 
-
-
-:::{tab-item} NGC Containers (Recommended)
+:::{tab-item} NGC Containers
 
 Use pre-built evaluation containers from NVIDIA NGC for guaranteed reproducibility:
 
-```bash
-# Pull and run a specific evaluation container
-docker pull nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
-
-# Inside container - run evaluations
-export MY_API_KEY=your_api_key
-eval-factory run_eval \
-    --eval_type mmlu_pro \
-    --model_id meta/llama-3.1-8b-instruct \
-    --model_url https://integrate.api.nvidia.com/v1/chat/completions \
-    --model_type chat \
-    --api_key_name MY_API_KEY \
-    --output_dir /tmp/results
-```
-
-Available containers:
-- `simple-evals` - Basic evaluation tasks
-- `lm-evaluation-harness` - Language model benchmarks  
-- `bigcode-evaluation-harness` - Code generation
-- `safety-harness` - Safety and bias evaluation
-- `vlmevalkit` - Vision-language models
-
-See [Container Reference](../nemo-evaluator/reference/containers.md) for complete list.
-
-:::
-
-:::{tab-item} NeMo Framework
-
-For optimal performance with NeMo models, use the NeMo Framework container:
-
-```bash
-# Get the latest NeMo Framework container
-docker run --rm -it -w /workdir -v $(pwd):/workdir \
-  --entrypoint bash \
-  --gpus all \
-  nvcr.io/nvidia/nemo:${TAG}
-
-# Inside container - install NeMo Evaluator
-pip install nemo-evaluator-launcher
-```
-
-:::
-
-:::{tab-item} UV
-
-To install NeMo Eval with `uv`,  refer to our [Contribution guide](https://github.com/NVIDIA-NeMo/Eval/blob/main/CONTRIBUTING.md).
+TODO
 
 :::
 

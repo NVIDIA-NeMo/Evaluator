@@ -19,16 +19,117 @@ Safety and security evaluation assesses models for:
 
 Ensure you have:
 
-- **Model Deployed**: Chat-enabled model deployment for interactive safety testing
-- **Safety Packages**: Required safety evaluation harnesses installed
+- **Model Endpoint**: Chat-enabled OpenAI-compatible endpoint for interactive safety testing
+- **API Access**: Valid API key for your model endpoint
 - **Judge Model Access**: API access to safety evaluation models (NemoGuard, etc.)
 - **Authentication**: Hugging Face token for accessing gated safety datasets
 
 ---
 
+## Choose Your Approach
+
+::::{tab-set}
+:::{tab-item} 🚀 NeMo Evaluator Launcher
+:sync: launcher
+
+**Recommended** - The fastest way to run safety & security evaluations with unified CLI:
+
+```bash
+# List available safety tasks
+nemo-evaluator-launcher ls tasks | grep -E "(safety|aegis|toxic|garak)"
+
+# Run Aegis safety evaluation
+nemo-evaluator-launcher run \
+    --config-dir examples \
+    --config-name local_llama_3_1_8b_instruct \
+    -o evaluation.tasks='["aegis_v2"]' \
+    -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
+    -o target.api_endpoint.api_key=${YOUR_API_KEY}
+
+# Run comprehensive safety evaluation
+nemo-evaluator-launcher run \
+    --config-dir examples \
+    --config-name local_safety_suite \
+    -o evaluation.tasks='["aegis_v2", "toxic_chat", "safety_bench"]'
+```
+:::
+
+:::{tab-item} ⚙️ Core API
+:sync: api
+
+For programmatic evaluation in custom workflows:
+
+```python
+from nemo_evaluator.core.evaluate import evaluate
+from nemo_evaluator.api.api_dataclasses import (
+    EvaluationConfig, EvaluationTarget, ApiEndpoint, ConfigParams
+)
+
+# Configure safety evaluation
+eval_config = EvaluationConfig(
+    type="aegis_v2",
+    output_dir="./results",
+    params=ConfigParams(
+        limit_samples=10,    # Remove for full dataset
+        temperature=0.7,     # Natural conversation temperature
+        max_new_tokens=512,
+        parallelism=1,       # Sequential for safety analysis
+        extra={
+            "judge": {
+                "model_id": "llama-nemotron-safety-guard-v2",
+                "url": "http://0.0.0.0:9000/v1/completions",
+                "api_key": "your_judge_api_key"
+            }
+        }
+    )
+)
+
+target_config = EvaluationTarget(
+    api_endpoint=ApiEndpoint(
+        url="https://integrate.api.nvidia.com/v1/chat/completions",
+        model_id="meta/llama-3.1-8b-instruct", 
+        type="chat",
+        api_key="your_api_key"
+    )
+)
+
+result = evaluate(eval_cfg=eval_config, target_cfg=target_config)
+print(f"Evaluation completed: {result}")
+```
+:::
+
+:::{tab-item} 🐳 Containers Directly
+:sync: containers
+
+For specialized container workflows:
+
+```bash
+# Pull and run Safety Harness container
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/safety-harness:25.07.3 bash
+
+# Inside container - set environment
+export MY_API_KEY=your_api_key_here
+export HF_TOKEN=your_hf_token_here
+
+# Run safety evaluation
+eval-factory run_eval \
+    --eval_type aegis_v2 \
+    --model_id meta/llama-3.1-8b-instruct \
+    --model_url https://integrate.api.nvidia.com/v1/chat/completions \
+    --model_type chat \
+    --api_key_name MY_API_KEY \
+    --output_dir /tmp/results \
+    --overrides 'config.params.limit_samples=10,config.params.temperature=0.7'
+
+# For security testing with Garak
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/garak:25.07.1 bash
+```
+:::
+::::
+
 ## Installation
 
-Install the safety evaluation packages:
+Install the safety evaluation packages for local development:
 
 ```bash
 # Safety harness for comprehensive safety evaluation
@@ -70,64 +171,7 @@ export HF_TOKEN="your_hf_token"
 
 ## Basic Safety Evaluation
 
-### Content Safety with NemoGuard
-
-Evaluate content safety using NVIDIA's NemoGuard safety model:
-
-```python
-from nvidia_eval_commons.core.evaluate import evaluate
-from nvidia_eval_commons.api.api_dataclasses import (
-    ApiEndpoint,
-    ConfigParams,
-    EndpointType,
-    EvaluationConfig,
-    EvaluationTarget,
-)
-
-# Configure target model endpoint
-model_name = "megatron_model"
-chat_url = "http://0.0.0.0:8080/v1/chat/completions/"
-
-target_config = EvaluationTarget(
-    api_endpoint=ApiEndpoint(
-        url=chat_url, 
-        type=EndpointType.CHAT, 
-        model_id=model_name
-    )
-)
-
-# Configure safety evaluation with judge model
-eval_config = EvaluationConfig(
-    type="aegis_v2",
-    output_dir="/results/safety_evaluation/",
-    params=ConfigParams(
-        limit_samples=10,  # Remove for full dataset
-        extra={
-            "judge": {
-                "model_id": "llama-nemotron-safety-guard-v2",
-                "url": "http://0.0.0.0:9000/v1/completions",  # Judge model endpoint
-            }
-        },
-    ),
-)
-
-# Run safety evaluation
-results = evaluate(target_cfg=target_config, eval_cfg=eval_config)
-print(results)
-```
-
-### Judge Model Configuration
-
-The safety evaluation requires a separate judge model deployment:
-
-```python
-# Deploy NemoGuard judge model (example configuration)
-judge_config = {
-    "model_id": "llama-nemotron-safety-guard-v2",
-    "url": "http://your-judge-endpoint:9000/v1/completions",
-    "api_key": "your_judge_api_key"  # If required
-}
-```
+Content safety evaluation using NVIDIA's NemoGuard safety model can be performed using any of the three approaches above. The safety evaluation requires a separate judge model deployment for scoring responses.
 
 ## Advanced Safety Configuration
 

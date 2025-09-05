@@ -34,9 +34,23 @@ NeMo Evaluator is NVIDIA's open-source evaluation stack that provides a unified 
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Getting Started Paths
+### Choose Your Entry Point
 
-Choose your path based on your needs:
+NeMo Evaluator provides two primary paths for different user needs. Choose based on your workflow requirements:
+
+```{mermaid}
+flowchart LR
+    A[New to NeMo Evaluator?] --> B{What's your use case?}
+    
+    B -->|Quick evaluations<br/>CLI interface<br/>Multi-backend support| C[🚀 Launcher<br/>Recommended]
+    B -->|Custom workflows<br/>Programmatic control<br/>Integrations| D[⚙️ Core<br/>Advanced]
+    
+    C --> E[Start with Launcher Quickstart]
+    D --> F[Start with Core API Guide]
+    
+    style C fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    style D fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+```
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
@@ -45,12 +59,16 @@ Choose your path based on your needs:
 :link: nemo-evaluator-launcher-overview
 :link-type: ref
 **Recommended for most users**: Unified CLI and orchestration for running evaluations across local, Slurm, and cloud backends with 100+ benchmarks.
+
+**Best for**: Researchers, ML engineers, teams wanting turnkey evaluation capabilities
 :::
 
 :::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` NeMo Evaluator Core
 :link: nemo-evaluator-overview
 :link-type: ref
 **For developers and integrations**: Core evaluation engine, adapter system, and containerized frameworks for programmatic access.
+
+**Best for**: Custom pipelines, system integrations, framework extensions
 :::
 
 :::{grid-item-card} {octicon}`info;1.5em;sd-mr-1` About & Concepts

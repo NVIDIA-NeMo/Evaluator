@@ -74,4 +74,4 @@ See specific guides:
 - [Local](local.md)
 - [Slurm](slurm.md)
 - [Lepton](lepton.md)
-- Custom: write your own executor to run evaluations anywhere
+ - Custom: write your own executor to run evaluations anywhere

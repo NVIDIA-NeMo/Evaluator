@@ -53,7 +53,7 @@ pip install nvidia-lm-eval==25.6
 
 1. Deploy your model:
 
-```{literalinclude} ../scripts/snippets/deploy.py
+:::{literalinclude} ../scripts/snippets/deploy.py
 :language: python
 :start-after: "## Deploy"
 :linenos:
@@ -62,6 +62,7 @@ pip install nvidia-lm-eval==25.6
 ```bash
 python deploy.py
 ```
+
 The server will return the log-probabilities of tokens if it receives a `logprob=<int>` parameter in the request.
 When combined with `echo=true`, the model will include the input in its response, along with the corresponding log-probabilities.
 
@@ -72,11 +73,11 @@ This process occurs behind the scenes when running an evaluation on `arc_challen
 Make sure to open a new terminal within the same container to execute it.
 
 
-```{literalinclude} ../scripts/snippets/arc_challenge.py
+:::{literalinclude} ../scripts/snippets/arc_challenge.py
 :language: python
 :start-after: "## Run the evaluation"
 :linenos:
-```
+:::
 
 Note in the example above you must provide a path to the tokenizer:
 

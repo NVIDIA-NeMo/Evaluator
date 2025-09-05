@@ -32,6 +32,33 @@ Deploy your first model and run a simple evaluation in just a few minutes.
 
 ::::
 
+## Entry Point Decision Guide
+
+NeMo Evaluator provides two primary entry points, each designed for different user needs and workflows. Use this guide to choose the right approach for your use case.
+
+```{mermaid}
+flowchart TD
+    A[I need to evaluate AI models] --> B{What's your primary goal?}
+    
+    B -->|Quick evaluations with minimal setup| C[NeMo Evaluator Launcher]
+    B -->|Custom integrations and workflows| D[NeMo Evaluator Core]
+    B -->|Direct container control| E[Direct Container Usage]
+    
+    C --> C1[✅ Unified CLI interface<br/>✅ Multi-backend execution<br/>✅ Built-in result export<br/>✅ 100+ benchmarks ready]
+    
+    D --> D1[✅ Programmatic API control<br/>✅ Custom evaluation workflows<br/>✅ Adapter/interceptor system<br/>✅ Framework extensions]
+    
+    E --> E1[✅ Maximum flexibility<br/>✅ Custom container workflows<br/>✅ Direct framework access<br/>⚠️ Advanced users only]
+    
+    C1 --> F[Start with Launcher Quickstart]
+    D1 --> G[Start with Core API Guide]
+    E1 --> H[Start with Container Reference]
+    
+    style C fill:#e1f5fe
+    style D fill:#f3e5f5
+    style E fill:#fff3e0
+```
+
 ## What You'll Learn
 
 By the end of this section, you'll be able to:
@@ -48,11 +75,3 @@ By the end of this section, you'll be able to:
 3. **Configure** evaluation parameters and select benchmarks
 4. **Run** evaluations and analyze results
 5. **Explore** advanced features and custom configurations
-
-## Getting Help
-
-If you encounter issues during setup or evaluation:
-
-- **Documentation**: Explore the comprehensive guides in this documentation
-- **GitHub Issues**: Report bugs or ask questions on [GitHub Issues](https://github.com/NVIDIA-NeMo/Eval/issues)
-- **Community**: Join discussions on [GitHub Discussions](https://github.com/NVIDIA-NeMo/Eval/discussions)

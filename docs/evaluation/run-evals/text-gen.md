@@ -23,9 +23,11 @@ For log-probability methods, refer to ["Log-Probability Evaluation"](logprobs.md
 
 ## Choose Your Approach
 
-### 🚀 **Using NeMo Evaluator Launcher** (Recommended)
+::::{tab-set}
+:::{tab-item} NeMo Evaluator Launcher
+:sync: launcher
 
-The fastest way to run text generation evaluations with unified CLI:
+**Recommended** - The fastest way to run text generation evaluations with unified CLI:
 
 ```bash
 # List available text generation tasks
@@ -46,7 +48,10 @@ nemo-evaluator-launcher run \
     -o evaluation.tasks='["mmlu_pro", "arc_challenge", "hellaswag", "truthfulqa"]'
 ```
 
-### ⚙️ **Using Core API**
+:::
+
+:::{tab-item} ⚙️ Core API
+:sync: api
 
 For programmatic evaluation in custom workflows:
 
@@ -81,7 +86,10 @@ result = evaluate(eval_cfg=eval_config, target_cfg=target_config)
 print(f"Evaluation completed: {result}")
 ```
 
-### 🐳 **Using Containers Directly**
+:::
+
+:::{tab-item} 🐳 Containers Directly
+:sync: containers
 
 For specialized container workflows:
 
@@ -102,6 +110,9 @@ eval-factory run_eval \
     --output_dir /tmp/results \
     --overrides 'config.params.limit_samples=100'
 ```
+
+:::
+::::
 
 ## Discovering Available Tasks
 

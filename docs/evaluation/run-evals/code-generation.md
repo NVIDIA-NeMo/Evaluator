@@ -18,15 +18,105 @@ Code generation evaluation assesses a model's ability to:
 
 Ensure you have:
 
-- **Model Deployed**: A chat-enabled model deployment via [PyTriton](../../deployment/pytriton.md) or [Ray Serve](../../deployment/ray-serve.md)
-- **BigCode Package**: Install the BigCode evaluation harness
+- **Model Endpoint**: An OpenAI-compatible endpoint for your model
+- **API Access**: Valid API key for your model endpoint
 - **Sufficient Context**: Models with adequate context length for code problems
 
 ---
 
+## Choose Your Approach
+
+::::{tab-set}
+:::{tab-item} 🚀 NeMo Evaluator Launcher
+:sync: launcher
+
+**Recommended** - The fastest way to run code generation evaluations with unified CLI:
+
+```bash
+# List available code generation tasks
+nemo-evaluator-launcher ls tasks | grep -E "(mbpp|humaneval|apps|codegen)"
+
+# Run MBPP evaluation
+nemo-evaluator-launcher run \
+    --config-dir examples \
+    --config-name local_llama_3_1_8b_instruct \
+    -o evaluation.tasks='["mbpp"]' \
+    -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
+    -o target.api_endpoint.api_key=${YOUR_API_KEY}
+
+# Run multiple code generation benchmarks
+nemo-evaluator-launcher run \
+    --config-dir examples \
+    --config-name local_code_generation_suite \
+    -o evaluation.tasks='["mbpp", "humaneval", "apps"]'
+```
+:::
+
+:::{tab-item} ⚙️ Core API
+:sync: api
+
+For programmatic evaluation in custom workflows:
+
+```python
+from nemo_evaluator.core.evaluate import evaluate
+from nemo_evaluator.api.api_dataclasses import (
+    EvaluationConfig, EvaluationTarget, ApiEndpoint, ConfigParams
+)
+
+# Configure code generation evaluation
+eval_config = EvaluationConfig(
+    type="mbpp",
+    output_dir="./results",
+    params=ConfigParams(
+        limit_samples=10,    # Remove for full dataset
+        temperature=0.2,     # Low temperature for consistent code
+        max_new_tokens=1024, # Sufficient tokens for complete functions
+        top_p=0.9
+    )
+)
+
+target_config = EvaluationTarget(
+    api_endpoint=ApiEndpoint(
+        url="https://integrate.api.nvidia.com/v1/chat/completions",
+        model_id="meta/llama-3.1-8b-instruct", 
+        type="chat",
+        api_key="your_api_key"
+    )
+)
+
+result = evaluate(eval_cfg=eval_config, target_cfg=target_config)
+print(f"Evaluation completed: {result}")
+```
+:::
+
+:::{tab-item} 🐳 Containers Directly
+:sync: containers
+
+For specialized container workflows:
+
+```bash
+# Pull and run BigCode evaluation container
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.07.3 bash
+
+# Inside container - set environment
+export MY_API_KEY=your_api_key_here
+
+# Run code generation evaluation
+eval-factory run_eval \
+    --eval_type mbpp \
+    --model_id meta/llama-3.1-8b-instruct \
+    --model_url https://integrate.api.nvidia.com/v1/chat/completions \
+    --model_type chat \
+    --api_key_name MY_API_KEY \
+    --output_dir /tmp/results \
+    --overrides 'config.params.limit_samples=10,config.params.temperature=0.2'
+```
+:::
+::::
+
 ## Installation
 
-Install the BigCode evaluation package:
+Install the BigCode evaluation package for local development:
 
 ```bash
 pip install nvidia-bigcode-eval==25.7.1
@@ -45,43 +135,7 @@ The BigCode harness provides various programming benchmarks:
 
 ## Basic Code Generation Evaluation
 
-### Python Programming (MBPP)
-
-The Most Basic Programming Problems (MBPP) benchmark tests fundamental programming skills:
-
-```python
-from nvidia_eval_commons.core.evaluate import evaluate
-from nvidia_eval_commons.api.api_dataclasses import (
-    ApiEndpoint,
-    ConfigParams,
-    EndpointType,
-    EvaluationConfig,
-    EvaluationTarget,
-)
-
-# Configure endpoint for chat-based evaluation
-model_name = "megatron_model"
-chat_url = "http://0.0.0.0:8080/v1/chat/completions/"
-
-target_config = EvaluationTarget(
-    api_endpoint=ApiEndpoint(
-        url=chat_url, 
-        type=EndpointType.CHAT, 
-        model_id=model_name
-    )
-)
-
-# Configure MBPP evaluation
-eval_config = EvaluationConfig(
-    type="mbpp", 
-    output_dir="/results/", 
-    params=ConfigParams(limit_samples=10)  # Remove for full dataset
-)
-
-# Run evaluation
-results = evaluate(target_cfg=target_config, eval_cfg=eval_config)
-print(results)
-```
+The Most Basic Programming Problems (MBPP) benchmark tests fundamental programming skills. Use any of the three approaches above to run MBPP evaluations.
 
 ### Understanding Results
 

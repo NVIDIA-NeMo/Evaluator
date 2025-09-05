@@ -4,7 +4,6 @@
 
 Assess tool use capabilities, API calling accuracy, and structured output generation for agent-like behaviors using the Berkeley Function Calling Leaderboard (BFCL).
 
-
 ## Overview
 
 Function calling evaluation measures a model's ability to:
@@ -19,15 +18,105 @@ Function calling evaluation measures a model's ability to:
 
 Ensure you have:
 
-- **Chat Model Deployment**: Function calling requires chat-formatted endpoints
-- **BFCL Package**: Berkeley Function Calling Leaderboard evaluation harness
+- **Chat Model Endpoint**: Function calling requires chat-formatted OpenAI-compatible endpoints
+- **API Access**: Valid API key for your model endpoint
 - **Structured Output Support**: Model capable of generating JSON/function call formats
 
 ---
 
+## Choose Your Approach
+
+::::{tab-set}
+:::{tab-item} NeMo Evaluator Launcher
+:sync: launcher
+
+**Recommended** - The fastest way to run function calling evaluations with unified CLI:
+
+```bash
+# List available function calling tasks
+nemo-evaluator-launcher ls tasks | grep -E "(bfcl|function)"
+
+# Run BFCL AST prompting evaluation
+nemo-evaluator-launcher run \
+    --config-dir examples \
+    --config-name local_llama_3_1_8b_instruct \
+    -o evaluation.tasks='["bfclv3_ast_prompting"]' \
+    -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
+    -o target.api_endpoint.api_key=${YOUR_API_KEY}
+
+# Run multiple function calling benchmarks
+nemo-evaluator-launcher run \
+    --config-dir examples \
+    --config-name local_function_calling_suite \
+    -o evaluation.tasks='["bfclv3_simple", "bfclv3_ast_prompting", "bfclv3_parallel"]'
+```
+:::
+
+:::{tab-item} ⚙️ Core API
+:sync: api
+
+For programmatic evaluation in custom workflows:
+
+```python
+from nemo_evaluator.core.evaluate import evaluate
+from nemo_evaluator.api.api_dataclasses import (
+    EvaluationConfig, EvaluationTarget, ApiEndpoint, ConfigParams
+)
+
+# Configure function calling evaluation
+eval_config = EvaluationConfig(
+    type="bfclv3_ast_prompting",
+    output_dir="./results",
+    params=ConfigParams(
+        limit_samples=10,    # Remove for full dataset
+        temperature=0.1,     # Low temperature for precise function calls
+        max_new_tokens=512,  # Adequate for function call generation
+        top_p=0.9
+    )
+)
+
+target_config = EvaluationTarget(
+    api_endpoint=ApiEndpoint(
+        url="https://integrate.api.nvidia.com/v1/chat/completions",
+        model_id="meta/llama-3.1-8b-instruct", 
+        type="chat",
+        api_key="your_api_key"
+    )
+)
+
+result = evaluate(eval_cfg=eval_config, target_cfg=target_config)
+print(f"Evaluation completed: {result}")
+```
+:::
+
+:::{tab-item} 🐳 Containers Directly
+:sync: containers
+
+For specialized container workflows:
+
+```bash
+# Pull and run BFCL evaluation container
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/bfcl:25.07.3 bash
+
+# Inside container - set environment
+export MY_API_KEY=your_api_key_here
+
+# Run function calling evaluation
+eval-factory run_eval \
+    --eval_type bfclv3_ast_prompting \
+    --model_id meta/llama-3.1-8b-instruct \
+    --model_url https://integrate.api.nvidia.com/v1/chat/completions \
+    --model_type chat \
+    --api_key_name MY_API_KEY \
+    --output_dir /tmp/results \
+    --overrides 'config.params.limit_samples=10,config.params.temperature=0.1'
+```
+:::
+::::
+
 ## Installation
 
-Install the BFCL evaluation package:
+Install the BFCL evaluation package for local development:
 
 ```bash
 pip install nvidia-bfcl==25.7.1
@@ -46,43 +135,7 @@ BFCL provides comprehensive function calling benchmarks:
 
 ## Basic Function Calling Evaluation
 
-### AST-Based Function Calling
-
-The most comprehensive BFCL task that evaluates structured function calling:
-
-```python
-from nvidia_eval_commons.core.evaluate import evaluate
-from nvidia_eval_commons.api.api_dataclasses import (
-    ApiEndpoint,
-    ConfigParams,
-    EndpointType,
-    EvaluationConfig,
-    EvaluationTarget,
-)
-
-# Configure chat endpoint for function calling
-model_name = "megatron_model"
-chat_url = "http://0.0.0.0:8080/v1/chat/completions/"
-
-target_config = EvaluationTarget(
-    api_endpoint=ApiEndpoint(
-        url=chat_url, 
-        type=EndpointType.CHAT, 
-        model_id=model_name
-    )
-)
-
-# Configure BFCL evaluation
-eval_config = EvaluationConfig(
-    type="bfclv3_ast_prompting", 
-    output_dir="/results/function_calling/", 
-    params=ConfigParams(limit_samples=10)  # Remove for full dataset
-)
-
-# Run evaluation
-results = evaluate(target_cfg=target_config, eval_cfg=eval_config)
-print(results)
-```
+The most comprehensive BFCL task is AST-based function calling that evaluates structured function calling. Use any of the three approaches above to run BFCL evaluations.
 
 ### Understanding Function Calling Format
 
