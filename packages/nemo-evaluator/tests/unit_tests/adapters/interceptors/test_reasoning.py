@@ -331,7 +331,7 @@ def test_get_reasoning_info_explicit_content(
     assert reasoning_info["original_content_words"] == expected_original_content_words
     assert reasoning_info["reasoning_finished"] == expected_reasoning_finished
     # When reasoning_content is explicitly provided, reasoning_started should be True
-    assert reasoning_info["reasoning_started"] is True
+    assert reasoning_info["reasoning_started"]
 
 
 @pytest.mark.parametrize(

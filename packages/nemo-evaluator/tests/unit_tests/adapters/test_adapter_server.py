@@ -496,9 +496,6 @@ def test_adapter_server_process_uses_original_url_in_args():
         ) as mock_context,
         patch("nemo_evaluator.adapters.server.wait_for_server", return_value=True),
     ):
-        # Mock the Process to capture the arguments
-        # mock_process = mock_context.return_value.Process.return_value
-
         adapter_process = AdapterServerProcess(evaluation)
 
         with adapter_process:
@@ -582,7 +579,6 @@ def test_evaluate_function_url_replacement():
 
         # Mock file operations
         mock_join.return_value = "/tmp/test/eval_factory_metrics.json"
-        # mock_file = mock_open.return_value.__enter__.return_value
 
         # Call the evaluate function
         result = evaluate(eval_config, target_config)
@@ -617,7 +613,7 @@ def test_evaluate_function_url_replacement():
         assert call_args[0][0] == command_value, (
             f"Expected command '{command_value}', got '{call_args[0][0]}'"
         )
-        assert call_args[1]["verbose"] is True
+        assert call_args[1]["verbose"]
 
         # Verify that the evaluation result is returned
         assert result == mock_result

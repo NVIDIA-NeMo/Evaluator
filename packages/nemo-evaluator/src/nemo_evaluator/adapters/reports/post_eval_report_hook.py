@@ -119,10 +119,12 @@ class PostEvalReportHook(PostEvalHook):
         # Create cache directories if they don't exist
         responses_dir = cache_dir / "responses"
         requests_dir = cache_dir / "requests"
+        headers_dir = cache_dir / "headers"
 
         # Initialize caches with directory paths
         responses_cache = Cache(directory=str(responses_dir))
         requests_cache = Cache(directory=str(requests_dir))
+        _ = Cache(directory=str(headers_dir))
 
         # Get all cache keys from both caches
         response_keys = [key for key in responses_cache.iterkeys()]
