@@ -32,7 +32,7 @@ while [[ $# -gt 0 ]]; do
         ;;
     *)
         echo "Unknown option: $1"
-        echo "Usage: $0 --package {nemo-evaluator} --python-version {3.10|3.11|3.12}"
+        echo "Usage: $0 --package {nemo-evaluator|nemo-evaluator-launcher} --python-version {3.10|3.11|3.12}"
         exit 1
         ;;
     esac
@@ -40,13 +40,13 @@ done
 
 if [[ -z "${PACKAGE:-}" || -z "${PYTHON_VERSION:-}" ]]; then
     echo "Error: --package argument is required"
-    echo "Usage: $0 --package {nemo-evaluator} --python-version {3.10|3.11|3.12}"
+    echo "Usage: $0 --package {nemo-evaluator|nemo-evaluator-launcher --python-version {3.10|3.11|3.12}"
     exit 1
 fi
 
-if [[ "$PACKAGE" != "nemo-evaluator" || ("$PYTHON_VERSION" != "3.10" && "$PYTHON_VERSION" != "3.11" && "$PYTHON_VERSION" != "3.12") ]]; then
-    echo "Error: --package must be either 'nemo-evaluator' and --python-version must be either '3.10', '3.11', or '3.12'"
-    echo "Usage: $0 --package {nemo-evaluator} --python-version {3.10|3.11|3.12}"
+if [[ ("$PACKAGE" != "nemo-evaluator" && "$PACKAGE" != "nemo-evaluator-launcher") || ("$PYTHON_VERSION" != "3.10" && "$PYTHON_VERSION" != "3.11" && "$PYTHON_VERSION" != "3.12") ]]; then
+    echo "Error: --package must be either 'nemo-evaluator' or 'nemo-evaluator-launcher' and --python-version must be either '3.10', '3.11', or '3.12'"
+    echo "Usage: $0 --package {nemo-evaluator|nemo-evaluator-launcher} --python-version {3.10|3.11|3.12}"
     exit 1
 fi
 
