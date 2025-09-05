@@ -1,38 +1,68 @@
 (template-home)=
 
-# {{ product_name }} Documentation
+# NeMo Evaluator Documentation
 
-Welcome to the {{ product_name_short }} documentation.
+Welcome to NeMo Evaluator - NVIDIA's comprehensive platform for AI model evaluation and benchmarking.
 
-## Introduction to {{ product_name_short }}
+## Overview
 
-New to {{ product_name_short }}? Start here to get up and running with your first model deployment and evaluation.
+NeMo Evaluator is NVIDIA's open-source evaluation stack that provides a unified platform for AI model evaluation and benchmarking. It consists of two core libraries: **nemo-evaluator** (the core evaluation engine) and **nemo-evaluator-launcher** (the user interface and orchestration layer). Together, these components enable consistent, scalable, and reproducible evaluation of GenAI models spanning LLMs, VLMs, agentic AI, and retrieval systems.
+
+### System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    NeMo Evaluator Ecosystem                     │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────────┐                    ┌─────────────────┐     │
+│  │   nemo-         │                    │   nemo-         │     │
+│  │  evaluator      │                    │  evaluator-     │     │
+│  │                 │                    │  launcher       │     │
+│  │  Core evaluation│◄──────────────────►│  User interface │     │
+│  │  engine &       │                    │  & orchestration│     │
+│  │  adapters       │                    │                 │     │
+│  └─────────────────┘                    └─────────────────┘     │
+│           │                              │                      │
+│           ▼                              ▼                      │
+│  ┌─────────────────┐                    ┌─────────────────┐     │
+│  │   Evaluation    │                    │   CLI & API     │     │
+│  │   Frameworks    │                    │   Interface     │     │
+│  │   & Containers  │                    │                 │     │
+│  └─────────────────┘                    └─────────────────┘     │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Getting Started Paths
+
+Choose your path based on your needs:
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
-:::{grid-item-card} {octicon}`info;1.5em;sd-mr-1` About {{ product_name_short }}
-:link: get-started-overview
+:::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` NeMo Evaluator Launcher
+:link: nemo-evaluator-launcher-overview
 :link-type: ref
-Learn what {{ product_name_short }} is, its key capabilities, and who should use it for LLM evaluation.
+**Recommended for most users**: Unified CLI and orchestration for running evaluations across local, Slurm, and cloud backends with 100+ benchmarks.
 :::
 
-:::{grid-item-card} {octicon}`info;1.5em;sd-mr-1` Key Features
-:link: about-key-features
+:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` NeMo Evaluator Core
+:link: nemo-evaluator-overview
 :link-type: ref
-<!-- TBD -->
+**For developers and integrations**: Core evaluation engine, adapter system, and containerized frameworks for programmatic access.
 :::
 
-:::{grid-item-card} {octicon}`info;1.5em;sd-mr-1` Concepts
+:::{grid-item-card} {octicon}`info;1.5em;sd-mr-1` About & Concepts
 :link: about-concepts
 :link-type: ref
-Core concepts: evaluation model, adapters, deployment, and configuration.
+Learn the core concepts: evaluation model, adapters, deployment patterns, and system architecture.
 :::
 
-:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Get Started
+:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Quick Start
 :link: get-started-overview
 :link-type: ref
-Install {{ product_name_short }} and run your first model evaluation in just a few minutes.
+Get up and running with your first evaluation in just a few minutes using either the launcher or core library.
 :::
 
 ::::
@@ -172,6 +202,29 @@ Quickstart <get-started/quickstart>
 :::
 
 :::{toctree}
+:caption: NeMo Evaluator Launcher
+:hidden:
+
+About Launcher <nemo-evaluator-launcher/index>
+Quickstart <nemo-evaluator-launcher/quickstart>
+Executors <nemo-evaluator-launcher/executors/overview>
+Exporters <nemo-evaluator-launcher/exporters/overview>
+:::
+
+:::{toctree}
+:caption: NeMo Evaluator Core
+:hidden:
+
+About Core <nemo-evaluator/index>
+Python API <nemo-evaluator/workflows/python-api>
+Container Workflows <nemo-evaluator/workflows/using_containers>
+API Reference <nemo-evaluator/reference/api>
+CLI Reference <nemo-evaluator/reference/cli>
+Container Reference <nemo-evaluator/reference/containers>
+Extending <nemo-evaluator/extending/framework_definition_file>
+:::
+
+:::{toctree}
 :caption: Tutorials
 :hidden:
 
@@ -186,7 +239,7 @@ About Model Evaluation <evaluation/index>
 Run Evals <evaluation/run-evals/index>
 Custom Task Configuration <evaluation/custom-tasks>
 Benchmark Catalog <evaluation/benchmarks>
-Troubleshooting <evaluation/troubleshooting>
+Troubleshooting <troubleshooting/index>
 :::
 
 :::{toctree}

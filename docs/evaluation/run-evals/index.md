@@ -10,13 +10,13 @@ This section provides practical guides for running different types of evaluation
 
 ## Before You Start
 
-1. Ensure you have completed the initial getting started guides for [installation]() and [quickstart]().
+1. Ensure you have completed the initial getting started guides for [installation](../../get-started/install.md) and [quickstart](../../get-started/quickstart.md).
 1. Select an existing OpenAI-compatible endpoint, or deploy one with [PyTriton](../../deployment/pytriton.md) or [Ray Serve](../../deployment/ray-serve.md)
 3. Review the [evaluation parameters](eval-parameters) available for optimization.
 
 ::::{tab-set}
 
-:::{tab-item}
+:::{tab-item} Setup Requirements
 
 ### Environment Requirements
 
@@ -44,7 +44,9 @@ export HF_TOKEN="your_hf_token"
 export JUDGE_API_KEY="your_nvidia_api_key"
 ```
 
----
+:::
+
+::::
 
 ## Evaluations
 
@@ -55,35 +57,30 @@ export JUDGE_API_KEY="your_nvidia_api_key"
 :link: text-gen
 :link-type: ref
 Evaluate models through natural language generation for academic benchmarks, reasoning tasks, and general knowledge assessment.
-
 :::
 
 :::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` Log-Probability
 :link: log-probability
 :link-type: ref
 Assess model confidence and uncertainty using log-probabilities for multiple-choice scenarios without text generation.
-
 :::
 
 :::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Code Generation
 :link: code-generation
 :link-type: ref
 Evaluate programming capabilities through code generation, completion, and algorithmic problem solving.
-
 :::
 
 :::{grid-item-card} {octicon}`shield;1.5em;sd-mr-1` Safety & Security
 :link: safety-security
 :link-type: ref
 Test AI safety, alignment, and security vulnerabilities using specialized safety harnesses and probing techniques.
-
 :::
 
 :::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Function Calling
 :link: function-calling
 :link-type: ref
 Assess tool use capabilities, API calling accuracy, and structured output generation for agent-like behaviors.
-
 :::
 
 ::::

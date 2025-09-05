@@ -4,6 +4,7 @@
 
 Comprehensive reference for configuring evaluation tasks in NeMo Eval, covering universal parameters, framework-specific settings, and optimization patterns.
 
+
 ## Overview
 
 All evaluation tasks in NeMo Eval use the `ConfigParams` class for configuration. This provides a consistent interface across different evaluation harnesses while allowing framework-specific customization through the `extra` parameter.
@@ -301,7 +302,7 @@ params = ConfigParams(
 
 ## Next Steps
 
-- **Basic Usage**: See [Text Generation Evaluation](basic-evaluation.md) for getting started
+- **Basic Usage**: See [Text Generation Evaluation](run-evals/text-gen.md) for getting started
 - **Custom Tasks**: Learn [Custom Task Configuration](custom-tasks.md) for specialized evaluations
-- **Troubleshooting**: Refer to [Evaluation Troubleshooting](troubleshooting.md) for common issues
+- **Troubleshooting**: Refer to [Evaluation Troubleshooting](../troubleshooting/index.md) for common issues
 - **Benchmarks**: Browse [Benchmark Catalog](benchmarks.md) for task-specific recommendations

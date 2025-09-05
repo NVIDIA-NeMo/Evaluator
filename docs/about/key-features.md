@@ -3,153 +3,299 @@
 
 # Key Features
 
-NeMo Eval delivers enterprise-grade LLM evaluation capabilities through a unified framework that streamlines deployment, benchmarking, and performance optimization.
+NeMo Evaluator delivers comprehensive AI model evaluation through a dual-library architecture that scales from local development to enterprise production. Experience container-first reproducibility, multi-backend execution, and 100+ benchmarks across 18 evaluation harnesses.
 
-## Streamlined Model Deployment
+## 🚀 **Unified Orchestration (NeMo Evaluator Launcher)**
 
-### Multi-Backend Flexibility
+### Multi-Backend Execution
+Run evaluations anywhere with unified configuration and monitoring:
 
-Deploy your models with the backend that best fits your use case:
+- **Local Execution**: Docker-based evaluation on your workstation
+- **HPC Clusters**: Slurm integration for large-scale parallel evaluation  
+- **Cloud Platforms**: Lepton AI and custom cloud backend support
+- **Hybrid Workflows**: Mix local development with cloud production
 
-- **PyTriton Backend**: High-performance inference through NVIDIA Triton Inference Server with multi-node model parallelism support for production deployments
-- **Ray Serve Backend**: Multi-instance evaluation capabilities with single-node model parallelism and horizontal scaling for accelerated benchmarking
-
-### One-Line Deployment
-
-Get your model running with minimal code:
-
-```python
-from nemo_eval.api import deploy
-
-deploy(
-    nemo_checkpoint="/path/to/checkpoint",
-    serving_backend="pytriton",
-    num_gpus=4,
-    tensor_parallelism_size=4
-)
+```bash
+# Single command, multiple backends
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir examples --config-name slurm_multi_gpu_evaluation  
+nemo-evaluator-launcher run --config-dir examples --config-name lepton_cloud_deployment
 ```
 
-## Comprehensive Evaluation Ecosystem
+### 100+ Benchmarks Across 18 Harnesses
+Access comprehensive benchmark suite with single CLI:
 
-### Extensive Benchmark Coverage
+```bash
+# Discover available benchmarks
+nemo-evaluator-launcher ls tasks
 
-Evaluate across multiple dimensions of LLM performance:
+# Run academic benchmarks
+nemo-evaluator-launcher run --config-dir examples --config-name academic_suite \
+  -o evaluation.tasks='["mmlu_pro", "gsm8k", "arc_challenge"]'
 
-- **Academic Benchmarks**: MMLU, ARC Challenge, HellaSwag, TruthfulQA
-- **Reasoning Tasks**: GSM8K, Big-Bench Hard, CommonsenseQA
-- **Code Generation**: HumanEval, MBPP, APPS
-- **Function Calling**: Berkeley Function Calling Leaderboard (BFCL)
-- **Safety & Alignment**: Toxicity detection, bias evaluation, vulnerability scanning
-- **Multilingual**: Multilingual MMLU, ARC, and reasoning tasks
-
-### Intelligent Task Discovery
-
-Automatically discover and configure available evaluation tasks:
-
-```python
-from nemo_eval.utils.base import list_available_evaluations
-
-# Get all available tasks across frameworks
-available_tasks = list_available_evaluations()
+# Run safety evaluation
+nemo-evaluator-launcher run --config-dir examples --config-name safety_evaluation \
+  -o evaluation.tasks='["toxicity", "bias_detection", "jailbreak_resistance"]'
 ```
 
-### Framework Conflict Resolution
+### Built-in Result Export
+First-class integration with MLOps platforms:
 
-Intelligent handling of task name conflicts across evaluation frameworks:
+```bash
+# Export to MLflow
+nemo-evaluator-launcher export <invocation_id> --dest mlflow
 
-## Production-Ready Performance
+# Export to Weights & Biases
+nemo-evaluator-launcher export <invocation_id> --dest wandb
 
-### Hardware Optimization
+# Export to Google Sheets
+nemo-evaluator-launcher export <invocation_id> --dest gsheets
+```
 
-- **CUDA Graphs**: Optimized inference execution paths
-- **Flash Decoding**: Accelerated attention computation
-- **Multi-GPU Scaling**: Tensor and pipeline parallelism support
-- **Multi-Node Deployment**: Distributed inference across compute clusters
+## ⚙️ **Core Evaluation Engine (NeMo Evaluator Core)**
 
-### Intelligent Health Monitoring
+### Container-First Architecture
+Pre-built NGC containers guarantee reproducible results across environments:
 
-Ensure deployment reliability with built-in health checks:
+| Container | Benchmarks | Use Case |
+|-----------|------------|----------|
+| **simple-evals** | MMLU Pro, GSM8K, ARC | Academic benchmarks |
+| **lm-evaluation-harness** | HellaSwag, TruthfulQA, PIQA | Language model evaluation |
+| **bigcode-evaluation-harness** | HumanEval, MBPP, APPS | Code generation |
+| **safety-harness** | Toxicity, bias, jailbreaking | Safety assessment |
+| **vlmevalkit** | VQA, image captioning | Vision-language models |
+| **agentic_eval** | Tool usage, planning | Agentic AI evaluation |
 
-### Scalable Architecture
+```bash
+# Pull and run any evaluation container
+docker pull nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
+```
 
-- **Multi-Instance Evaluation**: Parallel model replicas for accelerated benchmarking
-- **Load Balancing**: Automatic request distribution
-- **Resource Management**: Configurable CPU and GPU allocation
-
-## OpenAI API Compatibility
-
-### Standard REST Endpoints
-
-Seamless integration with existing workflows through OpenAI-compatible APIs:
-
-- `/v1/completions/` - Direct text completion
-- `/v1/chat/completions/` - Conversational interface
-
-### Flexible Request Processing
-
-Support for diverse evaluation methodologies:
-
-- **Text Generation**: Open-ended response generation
-- **Log-Probability**: Confidence assessment across multiple choices
-- **Multi-Choice**: Standardized academic benchmark format
-
-## Advanced Adapter System
-
-### Modular Request Processing
-
-Customize evaluation workflows with interceptor-based architecture:
-
-- **SystemMessageInterceptor**: Custom system prompts
-- **RequestLoggingInterceptor**: Comprehensive request logging
-- **ResponseLoggingInterceptor**: Response analysis and storage
-- **ResponseReasoningInterceptor**: Chain-of-thought processing
-- **EndpointInterceptor**: Model routing and load balancing
-
-### Reasoning Chain Support
-
-Built-in support for chain-of-thought and reasoning evaluation:
+### Advanced Adapter System
+Sophisticated request/response processing pipeline with interceptor architecture:
 
 ```python
-from nvidia_eval_commons.api.api_dataclasses import AdapterConfig
+from nemo_evaluator.api.api_dataclasses import AdapterConfig
 
 adapter_config = AdapterConfig(
-    use_reasoning=True,
-    end_reasoning_token="</think>",
-    custom_system_prompt="Think step by step."
+    use_request_logging=True,      # Log all requests for debugging
+    use_response_logging=True,     # Log all responses for analysis
+    use_caching=True,              # Cache responses for performance
+    use_reasoning=True,            # Chain-of-thought support
+    custom_system_prompt="You are a helpful AI assistant.",
+    interceptors=[
+        {"name": "request_logging", "enabled": True},
+        {"name": "caching", "enabled": True, "config": {"cache_dir": "./cache"}},
+        {"name": "reasoning", "enabled": True, "config": {"start_reasoning_token": "<think>"}}
+    ]
 )
 ```
 
-## Enterprise Scalability
+### Programmatic API
+Full Python API for integration into ML pipelines:
 
-### Multi-Tenancy Support
+```python
+from nemo_evaluator.core.evaluate import evaluate
+from nemo_evaluator.api.api_dataclasses import EvaluationConfig, EvaluationTarget
 
-- **Model Parallelism**: Efficient resource utilization across GPUs
-- **Request Batching**: Optimized throughput management
-- **Dynamic Scaling**: Automatic replica adjustment based on load
+# Configure and run evaluation programmatically
+result = evaluate(
+    eval_cfg=EvaluationConfig(type="mmlu_pro", output_dir="./results"),
+    target_cfg=EvaluationTarget(api_endpoint=endpoint_config)
+)
+```
 
-### Monitoring and Observability
+## 🐳 **Container Direct Access**
 
-- **Health Endpoints**: Real-time service status monitoring
-- **Request Logging**: Comprehensive evaluation tracking
-- **Performance Metrics**: Throughput and latency optimization
+### NGC Container Catalog
+Direct access to specialized evaluation containers:
 
-## Security and Reliability
+```bash
+# Academic benchmarks
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
 
-### Comprehensive Safety Testing
+# Code generation evaluation  
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.07.3
 
-Integrated safety evaluation through specialized harnesses:
+# Safety and security testing
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/safety-harness:25.07.3
 
-- **Vulnerability Scanning**: Prompt injection and jailbreaking detection
-- **Bias Assessment**: Demographic fairness evaluation
-- **Privacy Protection**: Information leakage prevention
-- **Content Filtering**: Toxic content detection
+# Vision-language model evaluation
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/vlmevalkit:25.07.1
+```
 
-### Production Deployment Features
+### Reproducible Evaluation Environments
+Every container provides:
+- **Fixed dependencies**: Locked versions for consistent results
+- **Pre-configured frameworks**: Ready-to-run evaluation harnesses  
+- **Isolated execution**: No dependency conflicts between evaluations
+- **Version tracking**: Tagged releases for exact reproducibility
 
-- **Multi-Node Fault Tolerance**: Distributed deployment resilience
-- **Resource Isolation**: Secure multi-tenant evaluation
-- **Configuration Validation**: Comprehensive parameter checking
+## 🏢 **Enterprise Features**
+
+### Multi-Backend Scalability
+Scale from laptop to datacenter with unified configuration:
+
+- **Local Development**: Quick iteration with Docker
+- **HPC Clusters**: Slurm integration for large-scale evaluation
+- **Cloud Platforms**: Lepton AI and custom backend support
+- **Hybrid Workflows**: Seamless transition between environments
+
+### Advanced Configuration Management
+Hydra-based configuration with full reproducibility:
+
+```yaml
+# Evaluation configuration with overrides
+evaluation:
+  tasks:
+    - name: mmlu_pro
+      params:
+        limit_samples: 1000
+    - name: gsm8k
+      params:
+        temperature: 0.0
+
+execution:
+  backend: slurm
+  resources:
+    nodes: 4
+    gpus_per_node: 8
+
+target:
+  api_endpoint:
+    url: https://my-model-endpoint.com/v1/chat/completions
+    model_id: my-custom-model
+```
+
+## 🔌 **OpenAI API Compatibility**
+
+### Universal Model Support
+Evaluate any model that exposes OpenAI-compatible endpoints:
+
+- **Hosted Models**: NVIDIA Build, OpenAI, Anthropic, Cohere
+- **Self-Hosted**: vLLM, TRT-LLM, NeMo Framework, Ray Serve
+- **Custom Endpoints**: Any service implementing OpenAI API spec
+
+### Flexible Evaluation Modes
+Support for diverse evaluation methodologies:
+
+```bash
+# Text generation evaluation
+eval-factory run_eval --model_type chat --eval_type mmlu_pro
+
+# Log-probability evaluation  
+eval-factory run_eval --model_type completions --eval_type multiple_choice
+
+# Vision-language evaluation
+eval-factory run_eval --model_type vlm --eval_type vqa_benchmark
+```
+
+## 🔧 **Extensibility & Customization**
+
+### Custom Framework Support
+Add your own evaluation frameworks using Framework Definition Files:
+
+```yaml
+# custom_framework.yml
+framework:
+  name: my_custom_eval
+  description: Custom evaluation for domain-specific tasks
+  
+defaults:
+  command: >-
+    python custom_eval.py --model {{target.api_endpoint.model_id}}
+    --task {{config.params.task}} --output {{config.output_dir}}
+    
+evaluations:
+  - name: domain_specific_task
+    description: Evaluate domain-specific capabilities
+    defaults:
+      config:
+        params:
+          task: domain_task
+          temperature: 0.0
+```
+
+### Advanced Interceptor Configuration
+Fine-tune request/response processing with custom interceptors:
+
+```python
+# Custom interceptor chain
+interceptors = [
+    {"name": "system_message", "config": {"system_message": "Custom prompt"}},
+    {"name": "request_logging", "enabled": True},
+    {"name": "caching", "config": {"cache_dir": "./cache", "reuse_cached_responses": True}},
+    {"name": "reasoning", "config": {"start_reasoning_token": "<think>", "end_reasoning_token": "</think>"}},
+    {"name": "endpoint", "enabled": True}
+]
+```
+
+## 🛡️ **Security & Safety**
+
+### Comprehensive Safety Evaluation
+Built-in safety assessment through specialized containers:
+
+```bash
+# Run safety evaluation suite
+nemo-evaluator-launcher run \
+    --config-dir examples \
+    --config-name comprehensive_safety \
+    -o evaluation.tasks='["toxicity", "bias_detection", "jailbreak_resistance", "privacy_leakage"]'
+```
+
+**Safety Containers Available:**
+- **safety-harness**: Toxicity, bias, and alignment testing
+- **garak**: Security vulnerability scanning and prompt injection detection  
+- **agentic_eval**: Tool misuse and planning safety evaluation
+
+### Production Security Features
+- **Request Validation**: Input sanitization and validation
+- **Resource Isolation**: Containerized execution environments
+- **Audit Logging**: Complete evaluation traceability
+- **Access Control**: Role-based permissions and API key management
+
+## 📊 **Monitoring & Observability**
+
+### Real-Time Progress Tracking
+Monitor evaluation progress across all backends:
+
+```bash
+# Check evaluation status
+nemo-evaluator-launcher status <invocation_id>
+
+# View live logs
+nemo-evaluator-launcher logs <invocation_id> --follow
+```
+
+### Comprehensive Result Analytics
+Built-in analysis and visualization capabilities:
+- **Performance Metrics**: Accuracy, latency, throughput analysis
+- **Comparative Analysis**: Multi-model benchmarking
+- **Trend Analysis**: Performance over time tracking
+- **Export Integration**: Seamless data pipeline integration
+
+## 🚀 **Getting Started**
+
+### Quick Start Options
+
+**For Most Users (Launcher):**
+```bash
+pip install nemo-evaluator-launcher
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
+```
+
+**For Developers (Core API):**
+```bash
+pip install nemo-evaluator nvidia-simple-evals
+python -c "from nemo_evaluator.core.evaluate import evaluate; print('Ready for programmatic evaluation')"
+```
+
+**For Container Users (Direct):**
+```bash
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
+```
 
 ---
 
-*Ready to get started? Explore our [Quick Start Guide](../get-started/quickstart.md) or dive into [Deployment Options](../deployment/index.md).*
+*Ready to dive deeper? Explore our [Quick Start Guide](../get-started/quickstart.md), browse the [Container Reference](../nemo-evaluator/reference/containers.md), or learn about [Multi-Backend Execution](../nemo-evaluator-launcher/executors/overview.md).*

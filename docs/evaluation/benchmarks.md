@@ -2,272 +2,149 @@
 
 # Benchmark Catalog
 
-Comprehensive reference of available evaluation harnesses, benchmarks, and tasks supported in NeMo Eval.
+Comprehensive catalog of 100+ benchmarks across 18 evaluation harnesses, all available through NGC containers and the NeMo Evaluator platform.
+
 
 ## Overview
 
-NeMo Eval integrates with multiple evaluation frameworks through the NVIDIA Eval Factory ecosystem. Each framework provides specialized benchmarks for different aspects of LLM evaluation.
+NeMo Evaluator provides access to 100+ benchmarks through pre-built NGC containers and the unified launcher CLI. Each container specializes in different evaluation domains while maintaining consistent interfaces and reproducible results.
 
-## Core Evaluation Harnesses
+## Available via Launcher
 
-### lm-evaluation-harness (Pre-installed)
+```bash
+# List all available benchmarks
+nemo-evaluator-launcher ls tasks
 
-The foundational evaluation framework providing academic benchmarks and reasoning tasks.
+# Filter by category
+nemo-evaluator-launcher ls tasks --category reasoning
+nemo-evaluator-launcher ls tasks --category safety
+nemo-evaluator-launcher ls tasks --category coding
+```
 
-**Source**: [EleutherAI/lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness)  
-**Package**: `nvidia-lm-eval` (pre-installed in NeMo Framework container)
+## Benchmark Categories
 
-#### Available Tasks
+### 📚 **Academic & Reasoning**
+| Container | Benchmarks | Description | NGC Catalog |
+|-----------|------------|-------------|-------------|
+| **simple-evals** | MMLU Pro, GSM8K, ARC Challenge | Core academic benchmarks | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/simple-evals) |
+| **lm-evaluation-harness** | MMLU, HellaSwag, TruthfulQA, PIQA | Language model evaluation suite | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/lm-evaluation-harness) |
 
-**Academic Benchmarks**:
-- `mmlu` - Massive Multitask Language Understanding
-- `mmlu_pro` - Enhanced MMLU with harder questions
-- `mmlu_redux` - Refined MMLU dataset
-- `arc_challenge` - AI2 Reasoning Challenge
-- `hellaswag` - Commonsense reasoning
-- `truthfulqa` - Truthfulness assessment
+**Example Usage:**
+```bash
+# Run academic benchmark suite
+nemo-evaluator-launcher run \
+    --config-dir examples \
+    --config-name academic_benchmark_suite \
+    -o evaluation.tasks='["mmlu_pro", "gsm8k", "arc_challenge"]'
+```
 
-**Reasoning Tasks**:
-- `gsm8k` - Grade school math word problems
-- `bbh` - Big-Bench Hard reasoning tasks
-- `commonsense_qa` - Common sense reasoning
-- `winogrande` - Pronoun resolution reasoning
+### 💻 **Code Generation**  
+| Container | Benchmarks | Description | NGC Catalog |
+|-----------|------------|-------------|-------------|
+| **bigcode-evaluation-harness** | HumanEval, MBPP, APPS | Code generation and completion | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bigcode-evaluation-harness) |
 
-**Multilingual Benchmarks**:
-- `arc_multilingual` - ARC in multiple languages
-- `hellaswag_multilingual` - HellaSwag multilingual version
-- `mgsm` - Multilingual grade school math
+**Example Usage:**
+```bash
+# Run code generation evaluation
+nemo-evaluator-launcher run \
+    --config-dir examples \
+    --config-name coding_evaluation \
+    -o evaluation.tasks='["humaneval", "mbpp"]'
+```
 
-**Chat/Instruction Tasks**:
-- `mmlu_instruct` - MMLU with instruction formatting
-- `mmlu_pro_instruct` - MMLU Pro for instruction-tuned models
-- `ifeval` - Instruction following evaluation
-- `gpqa_diamond_cot` - Graduate-level Q&A with chain-of-thought
+### 🛡️ **Safety & Security**
+| Container | Benchmarks | Description | NGC Catalog |
+|-----------|------------|-------------|-------------|
+| **safety-harness** | Toxicity, bias, alignment tests | Safety and bias evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/safety-harness) |
+| **garak** | Prompt injection, jailbreaking | Security vulnerability scanning | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/garak) |
 
-#### Endpoint Requirements
+**Example Usage:**
+```bash
+# Run comprehensive safety evaluation
+nemo-evaluator-launcher run \
+    --config-dir examples \
+    --config-name comprehensive_safety \
+    -o evaluation.tasks='["toxicity", "bias_detection", "jailbreak_resistance"]'
+```
 
-| Task Category | Endpoint Type | Special Requirements |
-|---------------|---------------|---------------------|
-| Academic benchmarks | `completions` | None |
-| Chat benchmarks | `chat` | Instruction-tuned model |
-| Log-probability tasks | `completions` | Tokenizer configuration |
+### 🔧 **Function Calling & Agentic AI**
+| Container | Benchmarks | Description | NGC Catalog |
+|-----------|------------|-------------|-------------|
+| **bfcl** | Berkeley Function Calling Leaderboard | Function calling evaluation | [Link](https://catalog.ngc.nvidia.com/teams/eval-factory/containers/bfcl) |
+| **agentic_eval** | Tool usage, planning tasks | Agentic AI evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/agentic_eval) |
+| **tooltalk** | Tool interaction evaluation | Tool usage assessment | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk) |
 
-## Optional Evaluation Harnesses
+### 👁️ **Vision-Language Models**
+| Container | Benchmarks | Description | NGC Catalog |
+|-----------|------------|-------------|-------------|
+| **vlmevalkit** | VQA, image captioning, visual reasoning | Vision-language model evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit) |
 
-### simple-evals
+### 🔍 **Retrieval & RAG**
+| Container | Benchmarks | Description | NGC Catalog |
+|-----------|------------|-------------|-------------|
+| **rag_retriever_eval** | Document retrieval, context relevance | RAG system evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/rag_retriever_eval) |
 
-Streamlined evaluation workflows for common benchmarks.
+### 🏥 **Domain-Specific**
+| Container | Benchmarks | Description | NGC Catalog |
+|-----------|------------|-------------|-------------|
+| **helm** | Medical AI evaluation (MedHELM) | Healthcare-specific benchmarking | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/helm) |
 
-**Installation**: `pip install nvidia-simple-evals`  
-**Focus**: Simplified evaluation with standardized metrics
+## Container Details
 
-**Key Benchmarks**:
-- `mmlu` - Simplified MMLU implementation
-- `humaneval` - Code generation evaluation
-- `math` - Mathematical reasoning
-- `drop` - Reading comprehension with arithmetic
+For detailed specifications of each container, see the [Container Reference](../nemo-evaluator/reference/containers.md).
 
-### BigCode
+### Quick Container Access
 
-Specialized evaluation for code generation and programming tasks.
+Pull and run any evaluation container directly:
 
-**Installation**: `pip install nvidia-bigcode`  
-**Focus**: Programming ability assessment
+```bash
+# Academic benchmarks
+docker pull nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
 
-**Key Benchmarks**:
-- `humaneval` - Python programming problems
-- `mbpp` - Mostly Basic Python Problems
-- `apps` - Algorithmic programming problems
-- `code_contests` - Competitive programming
+# Code generation
+docker pull nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.07.3
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.07.3
 
-### BFCL (Berkeley Function Calling Leaderboard)
+# Safety evaluation
+docker pull nvcr.io/nvidia/eval-factory/safety-harness:25.07.3
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/safety-harness:25.07.3
+```
 
-Function calling and tool use evaluation.
+### Available Tasks by Container
 
-**Installation**: `pip install nvidia-bfcl`  
-**Focus**: API usage and function calling capabilities
+For a complete list of available tasks in each container:
 
-**Key Benchmarks**:
-- `simple` - Basic function calling
-- `multiple` - Multiple function calls
-- `parallel` - Parallel function execution
-- `irrelevant` - Handling irrelevant function calls
+```bash
+# List tasks in any container
+docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 eval-factory ls
 
-### safety-harness
+# Or use the launcher for unified access
+nemo-evaluator-launcher ls tasks
+```
 
-AI safety and alignment testing framework.
+## Migration from Legacy Framework
 
-**Installation**: `pip install nvidia-safety-harness`  
-**Focus**: Safety, bias, and alignment assessment
+If you're migrating from the legacy framework-based approach:
 
-**Key Benchmarks**:
-- `toxicity` - Toxic content generation
-- `bias` - Demographic bias evaluation
-- `fairness` - Fairness across groups
-- `privacy` - Privacy leakage detection
-
-### garak
-
-LLM vulnerability scanning and red teaming.
-
-**Installation**: `pip install nvidia-garak`  
-**Focus**: Security vulnerabilities and attack resistance
-
-**Key Benchmarks**:
-- `prompt_injection` - Prompt injection attacks
-- `jailbreaking` - Safety filter bypassing
-- `hallucination` - Factual accuracy assessment
-- `leakage` - Information leakage detection
-
-## Task Configuration Reference
-
-### Discovering Available Tasks
-
-List all available evaluation tasks in your environment:
-
+### **Old Approach** (Deprecated)
 ```python
 from nemo_eval.utils.base import list_available_evaluations
-
-# Get all available tasks
 available_tasks = list_available_evaluations()
-print(available_tasks)
 ```
 
-### Task Naming Conventions
-
-When multiple frameworks provide the same task name, use the full specification:
-
-```python
-# Ambiguous (will cause error if multiple frameworks installed)
-task = "mmlu"
-
-# Explicit framework specification
-task = "lm-evaluation-harness.mmlu"
-task = "simple-evals.mmlu"
-```
-
-### Common Configuration Parameters
-
-| Parameter | Description | Example Values |
-|-----------|-------------|----------------|
-| `limit_samples` | Number of samples to evaluate | `100`, `0.1` (10%) |
-| `parallelism` | Concurrent requests | `1`, `4`, `8` |
-| `temperature` | Sampling temperature | `0.0`, `1.0` |
-| `top_p` | Nucleus sampling | `1.0`, `0.9` |
-| `max_tokens` | Response length limit | `256`, `1024` |
-
-## Evaluation Requirements by Category
-
-### Log-Probability Tasks
-
-**Required Configuration**:
-```python
-params = ConfigParams(
-    extra={
-        "tokenizer": "/path/to/tokenizer",
-        "tokenizer_backend": "huggingface"
-    }
-)
-```
-
-**Applicable Tasks**: `arc_challenge`, `hellaswag`, `truthfulqa`, `winogrande`
-
-### Chat/Instruction Tasks
-
-**Required Configuration**:
-- Chat endpoint (`/v1/chat/completions/`)
-- Instruction-tuned model
-- Proper chat template configuration
-
-**Applicable Tasks**: `mmlu_instruct`, `ifeval`, `gpqa_diamond_cot`
-
-### Code Generation Tasks
-
-**Required Configuration**:
-- High `max_tokens` limit (512-2048)
-- Low temperature (0.0-0.2) for deterministic output
-- Code execution environment (for some benchmarks)
-
-**Applicable Tasks**: `humaneval`, `mbpp`, `apps`
-
-### Gated Dataset Requirements
-
-Some benchmarks require Hugging Face authentication:
-
-**Setup**:
+### **New Approach** (Recommended)
 ```bash
-# Set HuggingFace token
-export HF_TOKEN=your_token_here
-
-# Or authenticate via CLI
-huggingface-cli login
+# Use launcher for unified access
+nemo-evaluator-launcher ls tasks
+nemo-evaluator-launcher run --config-dir examples --config-name local_mmlu_evaluation
 ```
 
-**Gated Benchmarks**: `gpqa`, some safety-harness tasks
-
-## Performance Considerations
-
-### Evaluation Speed Optimization
-
-1. **Parallel Requests**: Increase `parallelism` for faster evaluation
-2. **Sample Limiting**: Use `limit_samples` for quick testing
-3. **Batch Size**: Optimize model `max_batch_size` for throughput
-4. **Multi-Instance**: Use Ray Serve for concurrent model replicas
-
-### Resource Requirements
-
-| Benchmark Category | GPU Memory | Evaluation Time | Special Requirements |
-|-------------------|------------|-----------------|---------------------|
-| Academic (MMLU) | Low | Fast | None |
-| Code Generation | Medium | Slow | Code execution |
-| Safety Testing | Low | Medium | Content filtering |
-| Multilingual | Medium | Medium | Multilingual tokenizer |
-
-## Custom Benchmark Integration
-
-For benchmarks not available in standard harnesses:
-
-1. **Identify Base Framework**: Choose appropriate evaluation harness
-2. **Task Definition**: Create task configuration following harness patterns
-3. **Data Preparation**: Format dataset according to harness requirements
-4. **Metric Implementation**: Define evaluation metrics and scoring
-5. **Validation**: Test with known baseline models
-
-## Troubleshooting Common Issues
-
-### Framework Not Found
-```bash
-# Install missing framework
-pip install nvidia-<framework-name>
-
-# Reload evaluation registry
-python -c "import importlib; import core_evals; importlib.reload(core_evals)"
-```
-
-### Task Conflicts
-```python
-# Use explicit framework specification
-task = "lm-evaluation-harness.task_name"
-```
-
-### Authentication Issues
-```bash
-# Verify HuggingFace token
-huggingface-cli whoami
-
-# Set token for current session
-export HF_TOKEN=your_token
-```
-
-### Performance Issues
-- Reduce `parallelism` if hitting rate limits
-- Increase `max_batch_size` for better throughput
-- Use `limit_samples` for quick validation
-- Consider Ray Serve for multi-instance acceleration
+For detailed migration guidance, see the [Migration Guide](../get-started/quickstart.md#migrating-from-legacy-api).
 
 ## Next Steps
 
-- **Getting Started**: Try the [MMLU Tutorial](../tutorials/mmlu.ipynb)
-- **Custom Tasks**: Learn [Custom Task Configuration](custom-tasks.md)
-- **Advanced Evaluation**: Explore [Log-Probability Methods](logprobs.md)
-- **Performance**: Review [Deployment Options](../deployment/index.md)
+- **Start Evaluating**: Use the [Launcher Quickstart](../nemo-evaluator-launcher/quickstart.md) for immediate access to all benchmarks
+- **Container Details**: Browse the complete [Container Reference](../nemo-evaluator/reference/containers.md) for specifications
+- **Custom Benchmarks**: Learn to [Extend with Custom Frameworks](../nemo-evaluator/extending/framework_definition_file.md)
+- **Advanced Usage**: Explore [Multi-Backend Execution](../nemo-evaluator-launcher/executors/overview.md) for scale

@@ -41,7 +41,6 @@ View available `AdapterConfig` options and defaults.
 :hidden:
 
 Usage <usage>
-Architecture <architecture>
 Recipes <recipes/index>
 Configuration <configuration>
 ```

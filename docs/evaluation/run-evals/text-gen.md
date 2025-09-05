@@ -4,6 +4,7 @@
 
 Understanding the core concepts and configuration for text generation evaluation in NeMo Eval.
 
+
 ## Overview
 
 Text generation evaluation is the primary method for assessing LLM capabilities where models produce natural language responses to prompts. This approach evaluates the quality, accuracy, and appropriateness of generated text across various tasks and domains.
@@ -20,27 +21,101 @@ In text generation evaluation:
 This differs from **log-probability evaluation** where models assign confidence scores to predefined choices.
 For log-probability methods, refer to ["Log-Probability Evaluation"](logprobs.md).
 
-## Discovering Available Tasks
+## Choose Your Approach
 
-Use the `list_available_evaluations` function to discover evaluation tasks in your environment:
+### 🚀 **Using NeMo Evaluator Launcher** (Recommended)
 
-```python
-from nemo_eval.utils.base import list_available_evaluations
+The fastest way to run text generation evaluations with unified CLI:
 
-# Get dictionary of available tasks by framework
-available_tasks = list_available_evaluations()
-print(available_tasks)
+```bash
+# List available text generation tasks
+nemo-evaluator-launcher ls tasks
+
+# Run MMLU Pro evaluation
+nemo-evaluator-launcher run \
+    --config-dir examples \
+    --config-name local_llama_3_1_8b_instruct \
+    -o evaluation.tasks='["mmlu_pro"]' \
+    -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
+    -o target.api_endpoint.api_key=${YOUR_API_KEY}
+
+# Run multiple text generation benchmarks
+nemo-evaluator-launcher run \
+    --config-dir examples \
+    --config-name local_text_generation_suite \
+    -o evaluation.tasks='["mmlu_pro", "arc_challenge", "hellaswag", "truthfulqa"]'
 ```
 
-Example output:
+### ⚙️ **Using Core API**
+
+For programmatic evaluation in custom workflows:
+
 ```python
-{
-    'core_evals.lm_evaluation_harness': [
-        'mmlu', 'mmlu_instruct', 'gsm8k', 'arc_challenge',
-        'hellaswag', 'truthfulqa', 'ifeval', 'mmlu_pro'
-        # ... more tasks
-    ]
-}
+from nemo_evaluator.core.evaluate import evaluate
+from nemo_evaluator.api.api_dataclasses import (
+    EvaluationConfig, EvaluationTarget, ApiEndpoint, ConfigParams
+)
+
+# Configure text generation evaluation
+eval_config = EvaluationConfig(
+    type="mmlu_pro",
+    output_dir="./results",
+    params=ConfigParams(
+        limit_samples=None,  # Full dataset
+        temperature=0.0,     # Deterministic
+        max_new_tokens=512,
+        top_p=0.95
+    )
+)
+
+target_config = EvaluationTarget(
+    api_endpoint=ApiEndpoint(
+        url="https://integrate.api.nvidia.com/v1/chat/completions",
+        model_id="meta/llama-3.1-8b-instruct", 
+        type="chat",
+        api_key="your_api_key"
+    )
+)
+
+result = evaluate(eval_cfg=eval_config, target_cfg=target_config)
+print(f"Evaluation completed: {result}")
+```
+
+### 🐳 **Using Containers Directly**
+
+For specialized container workflows:
+
+```bash
+# Pull and run text generation container
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 bash
+
+# Inside container - set environment
+export MY_API_KEY=your_api_key_here
+
+# Run evaluation
+eval-factory run_eval \
+    --eval_type mmlu_pro \
+    --model_id meta/llama-3.1-8b-instruct \
+    --model_url https://integrate.api.nvidia.com/v1/chat/completions \
+    --model_type chat \
+    --api_key_name MY_API_KEY \
+    --output_dir /tmp/results \
+    --overrides 'config.params.limit_samples=100'
+```
+
+## Discovering Available Tasks
+
+Use the launcher CLI to discover all available text generation tasks:
+
+```bash
+# List all available benchmarks
+nemo-evaluator-launcher ls tasks
+
+# Filter by text generation category
+nemo-evaluator-launcher ls tasks --category text_generation
+
+# Get detailed information about a specific task
+nemo-evaluator-launcher ls tasks --task mmlu_pro
 ```
 
 ## Text Generation Task Categories

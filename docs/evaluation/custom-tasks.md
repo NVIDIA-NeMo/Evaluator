@@ -4,6 +4,7 @@
 
 Advanced guide for evaluating models on tasks without pre-defined configurations using custom benchmark definitions and configuration patterns.
 
+
 ## Overview
 
 While NeMo Eval provides pre-configured tasks for common benchmarks, you may need to evaluate models on:
@@ -26,7 +27,7 @@ This guide demonstrates how to configure custom evaluations across multiple harn
 
 **Use Pre-Defined Tasks When**:
 
-- Standard benchmarks with optimal settings (refer to [Basic Evaluation](basic-evaluation.md))
+- Standard benchmarks with optimal settings (refer to [Text Generation Evaluation](run-evals/text-gen.md))
 - Quick prototyping and baseline comparisons
 - Following established evaluation protocols
 
@@ -74,7 +75,7 @@ pip install nvidia-lm-eval==25.6
 
 **Key Configuration Notes**:
 
-- Uses log-probabilities for evaluation (refer to [Log-Probability Evaluation](logprobs.md))
+- Uses log-probabilities for evaluation (refer to [Log-Probability Evaluation](run-evals/logprobs.md))
 - Requires tokenizer configuration for proper probability calculation
 - `limit_samples=10` used for quick testing (remove for full evaluation)
 

@@ -1,16 +1,44 @@
 (gs-install)=
-# Install Eval
+# Installation Guide
 
-## Before You Start
+NeMo Evaluator provides multiple installation paths depending on your needs. Choose the approach that best fits your use case.
 
-### Prerequisites
+## Choose Your Installation Path
 
+### 🚀 **NeMo Evaluator Launcher** (Recommended)
+**Best for**: Most users who want unified CLI and orchestration across backends
+
+- ✅ Unified CLI for 100+ benchmarks
+- ✅ Multi-backend execution (local, Slurm, cloud)
+- ✅ Built-in result export to MLflow, W&B, etc.
+- ✅ Configuration management with examples
+
+### ⚙️ **NeMo Evaluator Core**  
+**Best for**: Developers building custom evaluation pipelines
+
+- ✅ Programmatic Python API
+- ✅ Direct container access
+- ✅ Custom framework integration
+- ✅ Advanced adapter configuration
+
+### 🐳 **Container Direct**
+**Best for**: Users who prefer container-based workflows
+
+- ✅ Pre-built NGC evaluation containers
+- ✅ Guaranteed reproducibility
+- ✅ No local installation required
+- ✅ Isolated evaluation environments
+
+---
+
+## Prerequisites
+
+### System Requirements
 - Python 3.10 or higher
-- CUDA-compatible GPU(s) (tested on RTX A6000, A100, H100)
-- NeMo Framework container (recommended)
+- CUDA-compatible GPU(s) (tested on RTX A6000, A100, H100) 
+- Docker (for container-based workflows)
 
-### Requirements
-
+### Recommended Environment
 - Python 3.12
 - PyTorch 2.7
 - CUDA 12.9
@@ -24,26 +52,97 @@
 
 ::::{tab-set}
 
-:::{tab-item} Pip
+:::{tab-item} Launcher (Recommended)
 
-For quick exploration of NeMo Eval, we recommend installing our pip package:
+Install NeMo Evaluator Launcher for unified CLI and orchestration:
 
 ```bash
-pip install torch==2.7.0 setuptools pybind11 wheel_stub  # Required for TE
-pip install --no-build-isolation nemo-eval
+# Create and activate virtual environment
+python3 -m venv nemo-evaluator-env
+source nemo-evaluator-env/bin/activate
+
+# Install NeMo Evaluator Launcher
+pip install nemo-evaluator-launcher
+```
+
+Quick verification:
+```bash
+nemo-evaluator-launcher ls tasks
 ```
 
 :::
 
-:::{tab-item} Docker
+:::{tab-item} Core Library
 
-For optimal performance and user experience, use the latest version of the [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags). Please fetch the most recent $TAG and run the following command to start a container:
+Install NeMo Evaluator Core for programmatic access:
 
 ```bash
+# Create and activate virtual environment  
+python3 -m venv nemo-evaluator-env
+source nemo-evaluator-env/bin/activate
+
+# Install core dependencies
+pip install torch==2.7.0 setuptools pybind11 wheel_stub  # Required for TE
+pip install --no-build-isolation nemo-evaluator
+
+# Install specific evaluation packages as needed
+pip install nvidia-simple-evals  # For basic evaluations
+pip install nvidia-lm-eval      # For language model benchmarks
+```
+
+Quick verification:
+```bash
+python -c "from nemo_evaluator.core.evaluate import evaluate; print('Core library installed successfully')"
+```
+
+:::
+
+
+
+:::{tab-item} NGC Containers (Recommended)
+
+Use pre-built evaluation containers from NVIDIA NGC for guaranteed reproducibility:
+
+```bash
+# Pull and run a specific evaluation container
+docker pull nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
+
+# Inside container - run evaluations
+export MY_API_KEY=your_api_key
+eval-factory run_eval \
+    --eval_type mmlu_pro \
+    --model_id meta/llama-3.1-8b-instruct \
+    --model_url https://integrate.api.nvidia.com/v1/chat/completions \
+    --model_type chat \
+    --api_key_name MY_API_KEY \
+    --output_dir /tmp/results
+```
+
+Available containers:
+- `simple-evals` - Basic evaluation tasks
+- `lm-evaluation-harness` - Language model benchmarks  
+- `bigcode-evaluation-harness` - Code generation
+- `safety-harness` - Safety and bias evaluation
+- `vlmevalkit` - Vision-language models
+
+See [Container Reference](../nemo-evaluator/reference/containers.md) for complete list.
+
+:::
+
+:::{tab-item} NeMo Framework
+
+For optimal performance with NeMo models, use the NeMo Framework container:
+
+```bash
+# Get the latest NeMo Framework container
 docker run --rm -it -w /workdir -v $(pwd):/workdir \
   --entrypoint bash \
   --gpus all \
   nvcr.io/nvidia/nemo:${TAG}
+
+# Inside container - install NeMo Evaluator
+pip install nemo-evaluator-launcher
 ```
 
 :::
