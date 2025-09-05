@@ -3,15 +3,14 @@
 This guide provides step-by-step instructions for evaluating checkpoints trained using the NeMo Framework with the Automodel backend. This section specifically covers evaluation with [nvidia-lm-eval](https://pypi.org/project/nvidia-lm-eval/), a wrapper around the [
 lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness/tree/main) tool.
 
-Here, we focus on benchmarks in the `lm-evaluation-harness` that rely on text generation.
-For more details on generation benchmarks v/s logprob benchmarks, refer to ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md).
+Here, we focus on benchmarks within the `lm-evaluation-harness` that depend on text generation. For a detailed comparison between generation-based and log-probability-based benchmarks, refer to ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md).
 
-> **Note:** The current support for evaluation of automodel checkpoints is limited to generation benchmarks and support for logprob benchmarks will be added in upcoming releases.
-### Deploy and Evaluate Automodel checkpoints
+> **Note:** The current support for evaluation of Automodel checkpoints is limited to generation benchmarks. Support for  log-probability benchmarks will be added in upcoming releases.
+### Deploy Automodel Checkpoints
 
-This section outlines the steps to deploy and evaluate automodel checkpoint using Python commands. This method is quick and easy, making it ideal for interactive evaluations. 
+This section outlines the steps to deploy Automodel checkpoints using Python commands.
 
-Deployment of Automodel checkpoints uses Ray serve as the serving backend. Deployment of Automodel checkpoint also provides OpenAI API (OAI) compatible endpoint similar to deployment of checkpoints trained with Megatron Core backend. Below is an example command for deployment.
+Automodel checkpoint deployment uses Ray Serve as the serving backend. It also offers an OpenAI API (OAI)-compatible endpoint, similar to deployments of checkpoints trained with the Megatron Core backend. An example deployment command is shown below.
 
 ```python
 from nemo_eval.api import deploy
@@ -27,12 +26,18 @@ if __name__ == "__main__":
         num_replicas=1)
 ```
 
-`hf_model_id_path` can be a path to the local checkpoint or HuggingFace model id as shown in the example above.
-Deployment of Automodel checkpoints uses `vllm` backend by default. Please install `vllm` in your environment (NeMo FW container or outside) with the command `pip install vllm` to benefit from accelerated inference with `vlm` backend. If you would like to evaluate Automodel checkpoint directly without using the `vllm` backend, please set `use_vllm_backend` to `False` in the deploy method.
+The `hf_model_id_path` can refer to either a local checkpoint path or a Hugging Face model ID, as shown in the example above. By default, Automodel checkpoint deployment uses the `vLLM` backend. To enable accelerated inference, install `vLLM` in your environment—either within the NeMo Framework container or externally—using the command `pip install vllm`. If you prefer to evaluate the Automodel checkpoint without using the `vLLM` backend, set `use_vllm_backend` to `False` in the deploy method.
 
-> **Note:** Make sure to provide `ray` as the `serving_backend` as the Automodel checkpoint evaluation is supported only with `ray` backend. Also increase `num_replicas` for faster evaluation with multiple instances. More details on this in ["Use Ray Serve for Multi-Instance Evaluations"](evaluation-with-ray.md)
-Once deployment is successful, you can run evaluations using the same evaluation API as described in other sections like ["Evaluate Models Locally on Your Workstation"](evaluation-doc.md#evaluate-models-locally-on-your-workstation) section. 
-It is recommended to use [`check_endpoint`](https://github.com/NVIDIA-NeMo/Eval/blob/main/src/nemo_eval/utils/base.py) function to verify that the endpoint is responsive and ready to accept requests before starting the evaluation.
+> **Note:** Ensure that `ray` is specified as the `serving_backend`, as Automodel checkpoint evaluation is supported only with the Ray backend. To speed up evaluation using multiple instances, increase the `num_replicas` parameter.  
+For additional guidance, refer to ["Use Ray Serve for Multi-Instance Evaluations"](evaluation-with-ray.md).
+
+### Evaluate Automodel Checkpoints
+
+This section outlines the steps to evaluate Automodel checkpoints using Python commands. This method is quick and easy, making it ideal for interactive evaluations. 
+
+Once deployment is successful, you can run evaluations using the same evaluation API described in other sections, such as the ["Evaluate Models Locally on Your Workstation"](evaluation-doc.md#evaluate-models-locally-on-your-workstation) section.
+
+Before starting the evaluation, it’s recommended to use the [`check_endpoint`](https://github.com/NVIDIA-NeMo/Eval/blob/main/src/nemo_eval/utils/base.py) function to verify that the endpoint is responsive and ready to accept requests.
 
 ```python
 from nemo_eval.utils.base import check_endpoint
