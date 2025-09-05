@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
 ## Run Evaluations on Ray-Deployed Models
 
-Once your model is deployed with Ray, you can run evaluations using the same evaluation API as with PyTriton deployment. It is recommended to use [`check_endpoint`](https://github.com/NVIDIA-NeMo/Eval/blob/main/src/nemo_eval/utils/base.py) function to verify that the endpoint is responsive and ready to accept requests before starting the evaluation.
+Once your model is deployed with Ray, you can run evaluations using the same evaluation API as with PyTriton deployment. It is recommended to use the [`check_endpoint`](https://github.com/NVIDIA-NeMo/Eval/blob/main/src/nemo_eval/utils/base.py) function to verify that the endpoint is responsive and ready to accept requests before starting the evaluation.
 
 To evaluate on generation benchmarks use the code snippet below:
 
@@ -69,7 +69,8 @@ if __name__ == "__main__":
 ```
 > **Note:** To evaluate the chat endpoint, update the url by replacing `/v1/completions/` with `/v1/chat/completions/`. Additionally, set the `type` field to `"chat"` in both `ApiEndpoint` and `EvaluationConfig` to indicate a chat benchmark. A list of available chat benchmarks can be found in the ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md#evaluate-checkpoints-trained-by-nemo-framework) page.
 
-To evaluate on logprob benchmarks (for ex: `arc_challenge`) use the following code snippet after deployment. For more details on generation benchmarks v/s logprob bechmarks, refer to the ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md) section.
+To evaluate log-probability benchmarks (e.g.,  `arc_challenge`), run the following code snippet after deployment.
+For a comparison between generation benchmarks and log-probability benchmarks, refer to the ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md) section.
 
 Make sure to open a new terminal within the same container to execute it.
 
@@ -89,6 +90,6 @@ Note in the example above you must provide a path to the tokenizer:
         },
 ```
 
-For more details on logprob benchmarks refer to ["Evaluate LLMs Using Log-Probabilities"](logprobs.md)
+For more details on log-probability benchmarks, refer to ["Evaluate LLMs Using Log-Probabilities"](logprobs.md).
 
 > **Tip:** To get a performance boost from multiple replicas in Ray, increase the parallelism value in your `EvaluationConfig`. You won't see any speed improvement if  `parallelism=1`. Try setting it to a higher value, such as 4 or 8.
