@@ -13,7 +13,7 @@ from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.executors.base import ExecutionState
 from omegaconf import OmegaConf
 
-from tests.conftest import DummyExecutor, extract_invocation_id
+from tests.unit_tests.conftest import DummyExecutor, extract_invocation_id
 
 
 class TestCLIWorkflowIntegration:
