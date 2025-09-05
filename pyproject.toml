@@ -11,3 +11,11 @@ docs = [
     "myst_parser",         # For our markdown docs
     "nvidia-sphinx-theme", # Our NVIDIA theme
 ]
+
+
+[tool.isort]
+known_first_party = [
+  "nemo_evaluator",
+  "nemo_evaluator_launcher",
+  "tests"
+]
