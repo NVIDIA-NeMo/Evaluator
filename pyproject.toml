@@ -1,6 +1,6 @@
 
 [tool.uv.workspace]
-members = ["packages/nemo-evaluator"]
+members = ["packages/nemo-evaluator", "packages/nemo-evaluator-launcher"]
 
 [dependency-groups]
 docs = [
