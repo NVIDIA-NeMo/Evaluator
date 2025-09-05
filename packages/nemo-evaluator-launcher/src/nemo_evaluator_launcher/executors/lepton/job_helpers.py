@@ -195,7 +195,7 @@ def _get_lepton_job_status_api(job_name_or_id: str) -> dict:
             # If it looks like an ID, try that first
             if len(job_name_or_id) > 20:  # Job IDs are longer
                 job = client.job.get(job_name_or_id)
-        except:
+        except Exception:
             pass
 
         # If not found by ID, try by name

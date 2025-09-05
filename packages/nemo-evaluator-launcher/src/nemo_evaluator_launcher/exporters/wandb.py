@@ -200,7 +200,7 @@ class WandBExporter(BaseExporter):
                     # Verify the run actually exists
                     run = api.run(f"{entity}/{project}/{webhook_meta['run_id']}")
                     return True, run.id
-                except:
+                except Exception:
                     pass
 
             # Check explicit name first

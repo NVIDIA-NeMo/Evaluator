@@ -27,3 +27,6 @@ except Exception as e:
         package="nemo_evaluator_launcher_internal",
         error=str(e),
     )
+
+
+__all__ = ["__version__"]

@@ -46,9 +46,9 @@ class Cmd:
         executor_key = next((k for k in executor_mappings if k in first_data), None)
 
         if executor_key:
-            info_header, location_key = executor_mappings[executor_key]
+            info_header, _ = executor_mappings[executor_key]
         else:
-            info_header, location_key = "Executor Info", None
+            info_header = "Executor Info"
 
         headers = ["Job ID", "Status", "Progress", info_header, "Location"]
 
