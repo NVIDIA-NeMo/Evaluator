@@ -16,7 +16,8 @@ FROM ubuntu:24.04
 WORKDIR /workspace
 ARG PACKAGE
 COPY packages/${PACKAGE} packages/${PACKAGE}
-copy docker docker
+COPY packages/${PACKAGE}/uv.lock uv.lock
+COPY docker docker
 ARG PYTHON_VERSION=3.12
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
