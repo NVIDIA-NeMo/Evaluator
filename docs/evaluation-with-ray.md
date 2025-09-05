@@ -6,7 +6,7 @@ This guide explains how to deploy and evaluate NeMo Framework models, trained wi
 
 Deployment with Ray Serve provides support for multiple replicas of your model across available GPUs, enabling higher throughput and better resource utilization during evaluation. This approach is particularly beneficial for evaluation scenarios where you need to process large datasets efficiently and would like to accelerate evaluation.
 
-> **Note:** Multi-instance evaluation with Ray is currently supported only on single-node with model parallelism. Support for multi-node will be added in upcoming releases. Also the current support for Ray is limited to generation benchmarks and support for logprob benchmarks will be added in upcoming releases. For more details on generation benchmarks v/s logprob bechmarks, refer to the ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md) section.
+> **Note:** Multi-instance evaluation with Ray is currently supported only on single-node with model parallelism. Support for multi-node will be added in upcoming releases.
 
 ### Key Benefits of Ray Deployment
 
@@ -40,33 +40,56 @@ if __name__ == "__main__":
 
 ## Run Evaluations on Ray-Deployed Models
 
-Once your model is deployed with Ray, you can run evaluations using the same evaluation API as with PyTriton deployment:
+Once your model is deployed with Ray, you can run evaluations using the same evaluation API as with PyTriton deployment. It is recommended to use the [`check_endpoint`](https://github.com/NVIDIA-NeMo/Eval/blob/main/src/nemo_eval/utils/base.py) function to verify that the endpoint is responsive and ready to accept requests before starting the evaluation.
+
+To evaluate on generation benchmarks use the code snippet below:
 
 ```python
-from nemo_eval.api import evaluate
-from nemo_eval.utils.api import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
+from nemo_eval.utils.base import check_endpoint
+from nvidia_eval_commons.core.evaluate import evaluate
+from nvidia_eval_commons.api.api_dataclasses import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
 
 # Configure the evaluation target
 api_endpoint = ApiEndpoint(
     url="http://0.0.0.0:8080/v1/completions/",
-    type="completions"
+    type="completions",
     model_id="megatron_model",
 )
 eval_target = EvaluationTarget(api_endpoint=api_endpoint)
-
-# Configure evaluation parameters
-eval_params = ConfigParams(
-    top_p=1,
-    temperature=1,
-    limit_samples=100,
-    parallelism=4
-)
+eval_params = ConfigParams(top_p=0, temperature=0, limit_samples=2, parallelism=1)
 eval_config = EvaluationConfig(type='mmlu', params=eval_params)
 
-# Run evaluation
 if __name__ == "__main__":
+    check_endpoint(
+            endpoint_url=eval_target.api_endpoint.url,
+            endpoint_type=eval_target.api_endpoint.type,
+            model_name=eval_target.api_endpoint.model_id,
+        )
     evaluate(target_cfg=eval_target, eval_cfg=eval_config)
 ```
 > **Note:** To evaluate the chat endpoint, update the url by replacing `/v1/completions/` with `/v1/chat/completions/`. Additionally, set the `type` field to `"chat"` in both `ApiEndpoint` and `EvaluationConfig` to indicate a chat benchmark. A list of available chat benchmarks can be found in the ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md#evaluate-checkpoints-trained-by-nemo-framework) page.
+
+To evaluate log-probability benchmarks (e.g.,  `arc_challenge`), run the following code snippet after deployment.
+For a comparison between generation benchmarks and log-probability benchmarks, refer to the ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md) section.
+
+Make sure to open a new terminal within the same container to execute it.
+
+
+```{literalinclude} ../scripts/snippets/arc_challenge.py
+:language: python
+:start-after: "## Run the evaluation"
+:linenos:
+```
+
+Note in the example above you must provide a path to the tokenizer:
+
+```
+        "extra": {
+            "tokenizer": "/workspace/llama3_8b_nemo2/context/nemo_tokenizer",
+            "tokenizer_backend": "huggingface",
+        },
+```
+
+For more details on log-probability benchmarks, refer to ["Evaluate LLMs Using Log-Probabilities"](logprobs.md).
 
 > **Tip:** To get a performance boost from multiple replicas in Ray, increase the parallelism value in your `EvaluationConfig`. You won't see any speed improvement if  `parallelism=1`. Try setting it to a higher value, such as 4 or 8.
