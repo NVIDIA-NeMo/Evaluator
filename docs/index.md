@@ -8,6 +8,7 @@
 :hidden:
 
 evaluation-doc.md
+evaluation-hf.md
 ```
 
 ```{toctree}
