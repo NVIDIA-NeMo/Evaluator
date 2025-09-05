@@ -78,7 +78,6 @@ class Cmd:
 
         # Save the complete configuration to the raw_configs directory
         if not self.dry_run and invocation_id is not None:
-
             # Create ~/.nv-eval/run_configs directory
             home_dir = pathlib.Path.home()
             run_configs_dir = home_dir / ".nv-eval" / "run_configs"

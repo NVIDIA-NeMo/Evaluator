@@ -8,8 +8,6 @@ from typing import Dict
 from unittest.mock import patch
 
 import pytest
-from omegaconf import DictConfig, OmegaConf
-
 from nemo_evaluator_launcher.common.execdb import (
     ExecutionDB,
     JobData,
@@ -22,6 +20,7 @@ from nemo_evaluator_launcher.executors.base import (
     ExecutionStatus,
 )
 from nemo_evaluator_launcher.executors.registry import register_executor
+from omegaconf import DictConfig, OmegaConf
 
 
 @register_executor("dummy")

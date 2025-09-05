@@ -5,9 +5,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from omegaconf import OmegaConf
-
 from nemo_evaluator_launcher.executors.slurm.executor import _create_slurm_sbatch_script
+from omegaconf import OmegaConf
 
 
 class TestSlurmExecutorFeatures:
@@ -73,7 +72,6 @@ class TestSlurmExecutorFeatures:
                 "nemo_evaluator_launcher.common.helpers.get_served_model_name"
             ) as mock_get_model_name,
         ):
-
             mock_load_tasks.return_value = {}
             mock_get_task.return_value = {
                 "container": "test-eval-container:latest",
@@ -410,12 +408,6 @@ class TestSlurmExecutorFeatures:
         assert "export DEPLOY_VAR=deploy_value" in script
         assert "export EVAL_VAR=eval_value" in script
 
-        # But deployment-specific srun should not be present
-        deployment_srun_lines = [
-            line for line in script.split("\n") if "deployment server" in line.lower()
-        ]
-        # Should not have deployment server section when type is 'none'
-
         # Evaluation should still be present
         assert "evaluation client" in script
         assert "--container-env EVAL_VAR" in script
@@ -477,22 +469,3 @@ class TestSlurmExecutorFeatures:
 
         # mount_home=False should add --no-container-mount-home
         assert "--no-container-mount-home" in script
-
-        # Environment variables should be passed to appropriate containers
-        # Deployment container should get deployment + old deployment vars
-        deployment_env_vars = [
-            line
-            for line in script.split("\n")
-            if "--container-env" in line
-            and "deployment server"
-            in script[script.find(line) - 100 : script.find(line)]
-        ]
-
-        # Evaluation container should get evaluation vars
-        evaluation_env_vars = [
-            line
-            for line in script.split("\n")
-            if "--container-env" in line
-            and "evaluation client"
-            in script[script.find(line) - 100 : script.find(line)]
-        ]

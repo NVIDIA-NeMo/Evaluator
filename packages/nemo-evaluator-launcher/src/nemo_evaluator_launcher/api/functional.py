@@ -5,7 +5,7 @@ This module provides the main functional entry points for running evaluations, q
 
 from typing import Any, List, Optional, Union
 
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from nemo_evaluator_launcher.api.types import RunConfig
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
@@ -473,9 +473,7 @@ def export_results(
             db = ExecutionDB()
             grouped_jobs = {}  # invocation_id -> {job_id: job_data}
             invocation_only = set()  # invocation_ids with no specific jobs
-            all_jobs_for_consolidated = (
-                {}
-            )  # job_id -> job_data (for consolidated export)
+            all_jobs_for_consolidated = {}  # job_id -> job_data (for consolidated export)
 
             # Parse and group IDs
             for id_str in invocation_ids:

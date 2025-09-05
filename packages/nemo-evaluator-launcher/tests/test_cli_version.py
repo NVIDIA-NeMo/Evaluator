@@ -1,12 +1,8 @@
 """Tests for the CLI version command and --version flag."""
 
-import importlib
-import sys
 from contextlib import redirect_stdout
 from io import StringIO
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from nemo_evaluator_launcher.cli.main import create_parser, main
 from nemo_evaluator_launcher.cli.version import Cmd as VersionCmd

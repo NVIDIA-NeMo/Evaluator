@@ -119,12 +119,12 @@ def _load_packaged_resource(
         with resources.files(pkg_name).joinpath(resource_name).open("rb") as f:
             resource_toml = tomllib.load(f)
         logger.info(
-            f"Loaded resource from packaged file", resource=resource_name, pkg=pkg_name
+            "Loaded resource from packaged file", resource=resource_name, pkg=pkg_name
         )
         return resource_toml
     except (OSError, tomllib.TOMLDecodeError) as e:
         logger.error(
-            f"Failed to load from packaged file",
+            "Failed to load from packaged file",
             resource=resource_name,
             pkg=pkg_name,
             error=str(e),

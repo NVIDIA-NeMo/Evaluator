@@ -16,9 +16,9 @@ from nemo_evaluator_launcher.common.mapping import MAPPING_URL, _download_latest
 def test_mapping_url_contains_main():
     """Test that MAPPING_URL contains 'main' substring in the branch path."""
     # Check that the URL contains 'main' in the branch part (after /raw/)
-    assert (
-        "ref=main" in MAPPING_URL
-    ), f"MAPPING_URL '{MAPPING_URL}' must contain '/raw/main/'"
+    assert "ref=main" in MAPPING_URL, (
+        f"MAPPING_URL '{MAPPING_URL}' must contain '/raw/main/'"
+    )
 
 
 def test_mapping_url_is_reachable():
@@ -35,4 +35,4 @@ def test_mapping_url_is_reachable():
     assert len(result) > 0, "Downloaded mapping should not be empty"
     # Test the content
     mapping_str = result.decode("utf-8")
-    mapping = tomllib.loads(mapping_str)
+    _ = tomllib.loads(mapping_str)

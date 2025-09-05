@@ -1,7 +1,6 @@
 """Tests for exporter registry and core interface consistency."""
 
 import pytest
-
 from nemo_evaluator_launcher.exporters import create_exporter
 from nemo_evaluator_launcher.exporters.gsheets import GSheetsExporter
 from nemo_evaluator_launcher.exporters.local import LocalExporter

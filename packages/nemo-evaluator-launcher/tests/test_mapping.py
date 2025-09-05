@@ -3,7 +3,6 @@
 import copy
 
 import pytest
-
 from nemo_evaluator_launcher.common.mapping import (
     CACHE_DIR,
     CACHE_FILENAME,
@@ -102,7 +101,7 @@ def test_get_task_from_mapping():
     assert result1 == expected1
 
     with pytest.raises(ValueError, match=expected2):
-        result2 = get_task_from_mapping("task1", tasks_mapping)
+        _ = get_task_from_mapping("task1", tasks_mapping)
 
     result3 = get_task_from_mapping("harnessA.task1", tasks_mapping)
     assert result3 == expected3

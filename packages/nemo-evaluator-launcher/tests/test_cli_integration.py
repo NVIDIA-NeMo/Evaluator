@@ -5,14 +5,14 @@ from io import StringIO
 from unittest.mock import patch
 
 import pytest
-from omegaconf import OmegaConf
-
 from nemo_evaluator_launcher.cli.export import ExportCmd
 from nemo_evaluator_launcher.cli.ls_tasks import Cmd as LsCmd
 from nemo_evaluator_launcher.cli.run import Cmd as RunCmd
 from nemo_evaluator_launcher.cli.status import Cmd as StatusCmd
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.executors.base import ExecutionState
+from omegaconf import OmegaConf
+
 from tests.conftest import DummyExecutor, extract_invocation_id
 
 
@@ -61,7 +61,7 @@ class TestCLIWorkflowIntegration:
 
             with (
                 patch("json.dumps") as mock_json_dumps,
-                patch("builtins.print") as mock_status_print,
+                patch("builtins.print"),
             ):
                 status_cmd.execute()
 
@@ -87,7 +87,6 @@ class TestCLIWorkflowIntegration:
                 ) as mock_load_tasks,
                 patch("builtins.print") as mock_ls_print,
             ):
-
                 mock_load_tasks.return_value = {
                     ("lm-eval", "test_task_1"): {
                         "task": "test_task_1",
@@ -167,7 +166,7 @@ class TestCLIWorkflowIntegration:
 
                 with (
                     patch("json.dumps") as mock_json_dumps,
-                    patch("builtins.print") as mock_status_print,
+                    patch("builtins.print"),
                 ):
                     status_cmd.execute()
 
@@ -215,7 +214,7 @@ class TestCLIWorkflowIntegration:
 
             with (
                 patch("json.dumps") as mock_json_dumps,
-                patch("builtins.print") as mock_status_print,
+                patch("builtins.print"),
             ):
                 status_cmd.execute()
 
@@ -261,7 +260,7 @@ class TestCLIWorkflowIntegration:
 
             with (
                 patch("json.dumps") as mock_json_dumps,
-                patch("builtins.print") as mock_status_print,
+                patch("builtins.print"),
             ):
                 status_cmd.execute()
 
@@ -297,7 +296,7 @@ class TestCLIWorkflowIntegration:
             run_cmd = RunCmd()
             run_cmd.execute()
 
-            invocation_id = extract_invocation_id(mock_print)
+            _ = extract_invocation_id(mock_print)
 
             # Query nonexistent job and invocation
             status_cmd = StatusCmd(job_ids=["nonexistent_job", "12345678"])
@@ -415,7 +414,7 @@ class TestCLIWorkflowIntegration:
 
             with (
                 patch("json.dumps") as mock_json_dumps,
-                patch("builtins.print") as mock_status_print,
+                patch("builtins.print"),
             ):
                 status_cmd.execute()
 
@@ -439,16 +438,6 @@ class TestCLICommandLineInterface:
     ):
         """Test CLI run command from command line."""
         from nemo_evaluator_launcher.cli.main import main
-
-        # Mock sys.argv
-        test_args = [
-            "nv-eval",
-            "run",
-            "--config-name",
-            "test_config",
-            "-o",
-            "param=value",
-        ]
 
         with patch(
             "nemo_evaluator_launcher.cli.main.create_parser"
@@ -484,9 +473,6 @@ class TestCLICommandLineInterface:
         """Test CLI status command from command line."""
         from nemo_evaluator_launcher.cli.main import main
 
-        # Mock sys.argv
-        test_args = ["nv-eval", "status", "abc123", "def456"]
-
         with patch(
             "nemo_evaluator_launcher.cli.main.create_parser"
         ) as mock_create_parser:
@@ -516,9 +502,6 @@ class TestCLICommandLineInterface:
     def test_cli_ls_tasks_command_line(self, mock_tasks_mapping_load, mock_print):
         """Test CLI ls command from command line."""
         from nemo_evaluator_launcher.cli.main import main
-
-        # Mock sys.argv
-        test_args = ["nv-eval", "ls", "tasks"]
 
         with patch(
             "nemo_evaluator_launcher.cli.main.create_parser"

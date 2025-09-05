@@ -4,8 +4,6 @@ import importlib
 import logging
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 # Import the module under test
 import nemo_evaluator_launcher
 

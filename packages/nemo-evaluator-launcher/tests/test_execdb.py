@@ -6,7 +6,6 @@ import time
 from unittest.mock import patch
 
 import pytest
-
 from nemo_evaluator_launcher.common.execdb import (
     EXEC_DB_DIR,
     EXEC_DB_FILE,
@@ -55,7 +54,7 @@ def test_ensure_db_dir_creation(tmpdir):
         "nemo_evaluator_launcher.common.execdb.EXEC_DB_DIR",
         pathlib.Path(tmpdir) / "test-db",
     ):
-        db = ExecutionDB()
+        _ = ExecutionDB()
         assert EXEC_DB_DIR.exists()
         assert EXEC_DB_DIR.is_dir()
 
@@ -206,7 +205,7 @@ def test_load_existing_jobs(tmpdir):
             for job in existing_jobs:
                 f.write(json.dumps(job) + "\n")
 
-        db = ExecutionDB()
+        _ = ExecutionDB()
 
         # Verify jobs are loaded
         result1 = get_job("job-22222222")
@@ -244,7 +243,7 @@ def test_load_existing_jobs_with_invalid_json(tmpdir):
                 '{"invocation_id": "inv-33333333", "job_id": "job-44444444", "timestamp": 1234567891, "executor": "gitlab", "data": {}}\n'
             )
 
-        db = ExecutionDB()
+        _ = ExecutionDB()
 
         assert get_job("job-22222222") is not None
         assert get_job("job-44444444") is not None
