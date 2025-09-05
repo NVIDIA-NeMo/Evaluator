@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia_eval_commons.core.evaluate import evaluate
-
 from nemo_eval.utils.base import check_endpoint
+from nvidia_eval_commons.core.evaluate import evaluate
 
 
 def wait_and_evaluate(target_cfg, eval_cfg):
