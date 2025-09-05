@@ -7,7 +7,7 @@ Here, we focus on benchmarks within the `lm-evaluation-harness` that depend on t
 
 > **Note:** The current support for evaluation of Automodel checkpoints is limited to generation benchmarks. Support for  log-probability benchmarks will be added in upcoming releases.
 
-### Deploy Automodel Checkpoints
+## Deploy Automodel Checkpoints
 
 This section outlines the steps to deploy Automodel checkpoints using Python commands.
 
@@ -31,7 +31,8 @@ The `hf_model_id_path` can refer to either a local checkpoint path or a Hugging 
 
 > **Note:** Ensure that `ray` is specified as the `serving_backend`, as Automodel checkpoint evaluation is supported only with the Ray backend. To speed up evaluation using multiple instances, increase the `num_replicas` parameter.  
 For additional guidance, refer to ["Use Ray Serve for Multi-Instance Evaluations"](evaluation-with-ray.md).
-### Evaluate Automodel Checkpoints
+
+## Evaluate Automodel Checkpoints
 
 This section outlines the steps to evaluate Automodel checkpoints using Python commands. This method is quick and easy, making it ideal for interactive evaluations. 
 Once deployment is successful, you can run evaluations using the same evaluation API described in other sections, such as the ["Evaluate Models Locally on Your Workstation"](evaluation-doc.md#evaluate-models-locally-on-your-workstation) section.
