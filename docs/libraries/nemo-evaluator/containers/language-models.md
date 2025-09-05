@@ -1,0 +1,157 @@
+# Language Model Containers
+
+Containers specialized for evaluating large language models across academic benchmarks, custom tasks, and conversation scenarios.
+
+---
+
+## Simple-Evals Container
+
+**NGC Catalog**: [simple-evals](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/simple-evals)
+
+Container for lightweight evaluation tasks and simple model assessments.
+
+**Use Cases:**
+- Simple question-answering evaluation
+- Math and reasoning capabilities
+- Basic Python coding
+
+**Pull Command:**
+```bash
+docker pull nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
+```
+
+**Default Parameters:**
+
+| Parameter | Value |
+|-----------|-------|
+| `limit_samples` | `None` |
+| `max_new_tokens` | `4096` |
+| `temperature` | `0` |
+| `top_p` | `1e-05` |
+| `parallelism` | `10` |
+| `max_retries` | `5` |
+| `request_timeout` | `60` |
+| `downsampling_ratio` | `None` |
+| `add_system_prompt` | `False` |
+| `custom_config` | `None` |
+
+---
+
+## LM-Evaluation-Harness Container
+
+**NGC Catalog**: [lm-evaluation-harness](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/lm-evaluation-harness)
+
+Container based on the Language Model Evaluation Harness framework for comprehensive language model evaluation.
+
+**Use Cases:**
+- Standard NLP benchmarks
+- Language model performance evaluation
+- Multi-task assessment
+- Academic benchmark evaluation
+
+**Pull Command:**
+```bash
+docker pull nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.07.3
+```
+
+**Default Parameters:**
+
+| Parameter | Value |
+|-----------|-------|
+| `limit_samples` | `None` |
+| `max_new_tokens` | `None` |
+| `temperature` | `1e-07` |
+| `top_p` | `0.9999999` |
+| `parallelism` | `10` |
+| `max_retries` | `5` |
+| `request_timeout` | `30` |
+| `tokenizer` | `None` |
+| `tokenizer_backend` | `None` |
+| `downsampling_ratio` | `None` |
+| `tokenized_requests` | `False` |
+
+---
+
+## MT-Bench Container
+
+**NGC Catalog**: [mtbench](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench)
+
+Container for MT-Bench evaluation framework, designed for multi-turn conversation evaluation.
+
+**Use Cases:**
+- Multi-turn dialogue evaluation
+- Conversation quality assessment
+- Context maintenance evaluation
+- Interactive AI system testing
+
+**Pull Command:**
+```bash
+docker pull nvcr.io/nvidia/eval-factory/mtbench:25.07.1
+```
+
+**Default Parameters:**
+
+| Parameter | Value |
+|-----------|-------|
+| `max_new_tokens` | `1024` |
+| `parallelism` | `10` |
+| `max_retries` | `5` |
+| `request_timeout` | `30` |
+| `judge` | `{'url': None, 'model_id': 'gpt-4', 'api_key': None, 'request_timeout': 60, 'max_retries': 16, 'temperature': 0.0, 'top_p': 0.0001, 'max_tokens': 2048}` |
+
+---
+
+## HELM Container
+
+**NGC Catalog**: [helm](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/helm)
+
+Container for the Holistic Evaluation of Language Models (HELM) framework, with a focus on MedHELM - an extensible evaluation framework for assessing LLM performance for medical tasks.
+
+**Use Cases:**
+- Medical AI model evaluation
+- Clinical task assessment
+- Healthcare-specific benchmarking
+- Diagnostic decision-making evaluation
+- Patient communication assessment
+- Medical knowledge evaluation
+
+**Pull Command:**
+```bash
+docker pull nvcr.io/nvidia/eval-factory/helm:25.07.2
+```
+
+**Default Parameters:**
+
+| Parameter | Value |
+|-----------|-------|
+| `limit_samples` | `None` |
+| `parallelism` | `1` |
+| `data_path` | `None` |
+| `num_output_tokens` | `None` |
+| `subject` | `None` |
+| `condition` | `None` |
+| `max_length` | `None` |
+| `num_train_trials` | `None` |
+| `subset` | `None` |
+| `gpt_judge_api_key` | `GPT_JUDGE_API_KEY` |
+| `llama_judge_api_key` | `LLAMA_JUDGE_API_KEY` |
+| `claude_judge_api_key` | `CLAUDE_JUDGE_API_KEY` |
+
+---
+
+## RAG Retriever Evaluation Container
+
+**NGC Catalog**: [rag_retriever_eval](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/rag_retriever_eval)
+
+Container for evaluating Retrieval-Augmented Generation (RAG) systems and their retrieval capabilities.
+
+**Use Cases:**
+- Document retrieval accuracy
+- Context relevance assessment
+- RAG pipeline evaluation
+- Information retrieval performance
+
+**Pull Command:**
+```bash
+docker pull nvcr.io/nvidia/eval-factory/rag_retriever_eval:25.07.3
+```

@@ -2,37 +2,59 @@
 
 # NeMo Evaluator Documentation
 
-Welcome to NeMo Evaluator - NVIDIA's comprehensive platform for AI model evaluation and benchmarking.
+Welcome to the NeMo Evluator Documentation.
 
-## Overview
+````{div} sd-d-flex-row
+```{button-ref} get-started/index
+:ref-type: doc
+:color: primary
+:class: sd-rounded-pill sd-mr-3
 
-NeMo Evaluator is NVIDIA's open-source evaluation stack that provides a unified platform for AI model evaluation and benchmarking. It consists of two core libraries: **nemo-evaluator** (the core evaluation engine) and **nemo-evaluator-launcher** (the user interface and orchestration layer). Together, these components enable consistent, scalable, and reproducible evaluation of GenAI models spanning LLMs, VLMs, agentic AI, and retrieval systems.
-
-### System Architecture
-
+Install
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    NeMo Evaluator Ecosystem                     │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────────┐                    ┌─────────────────┐     │
-│  │   nemo-         │                    │   nemo-         │     │
-│  │  evaluator      │                    │  evaluator-     │     │
-│  │                 │                    │  launcher       │     │
-│  │  Core evaluation│◄──────────────────►│  User interface │     │
-│  │  engine &       │                    │  & orchestration│     │
-│  │  adapters       │                    │                 │     │
-│  └─────────────────┘                    └─────────────────┘     │
-│           │                              │                      │
-│           ▼                              ▼                      │
-│  ┌─────────────────┐                    ┌─────────────────┐     │
-│  │   Evaluation    │                    │   CLI & API     │     │
-│  │   Frameworks    │                    │   Interface     │     │
-│  │   & Containers  │                    │                 │     │
-│  └─────────────────┘                    └─────────────────┘     │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+
+```{button-ref} nemo-eval-launcher/quickstart
+:ref-type: doc
+:color: secondary
+:class: sd-rounded-pill
+
+Quickstart Evaluations
 ```
+````
+
+---
+
+## Introduction to NeMo Evaluator
+
+Learn about the NeMo Evaluator, how it works at a high-level, and the key features.
+
+::::{grid} 1 2 2 2
+:gutter: 1 1 1 2
+
+:::{grid-item-card} {octicon}`info;1.5em;sd-mr-1` About NeMo Evaluator
+:link: about/index
+:link-type: doc
+Learn about the NeMo Evaluator Core and Launcher
+:::
+
+:::{grid-item-card} {octicon}`star;1.5em;sd-mr-1` Key Features
+:link: about/key-features
+:link-type: doc
+Learn about the key features of the NeMo Microservices Platform.
+:::
+
+:::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Concepts
+:link: about/concepts/index
+:link-type: doc
+Learn about the concepts used across the NeMo Microservices Platform.
+:::
+
+:::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Release Notes
+:link: about/release-notes/index
+:link-type: doc
+Release notes for the NeMo microservices.
+:::
+::::
 
 ### Choose Your Entry Point
 
@@ -220,29 +242,6 @@ Quickstart <get-started/quickstart>
 :::
 
 :::{toctree}
-:caption: NeMo Evaluator Launcher
-:hidden:
-
-About Launcher <nemo-evaluator-launcher/index>
-Quickstart <nemo-evaluator-launcher/quickstart>
-Executors <nemo-evaluator-launcher/executors/overview>
-Exporters <nemo-evaluator-launcher/exporters/overview>
-:::
-
-:::{toctree}
-:caption: NeMo Evaluator Core
-:hidden:
-
-About Core <nemo-evaluator/index>
-Python API <nemo-evaluator/workflows/python-api>
-Container Workflows <nemo-evaluator/workflows/using_containers>
-API Reference <nemo-evaluator/reference/api>
-CLI Reference <nemo-evaluator/reference/cli>
-Container Reference <nemo-evaluator/reference/containers>
-Extending <nemo-evaluator/extending/framework_definition_file>
-:::
-
-:::{toctree}
 :caption: Tutorials
 :hidden:
 
@@ -268,6 +267,15 @@ About Model Deployment <deployment/index>
 PyTriton Backend <deployment/pytriton>
 Ray Serve Deployment <deployment/ray-serve>
 Evaluation Adapters <deployment/adapters/index>
+:::
+
+:::{toctree}
+:caption: Libraries
+:hidden:
+
+About NeMo Evaluator Libraries <libraries/index>
+Launcher <libraries/nemo-evaluator-launcher/index>
+Core <libraries/nemo-evaluator/index>
 :::
 
 :::{toctree}
