@@ -14,12 +14,13 @@
 
 FROM ubuntu:24.04
 WORKDIR /workspace
-COPY . .
 ARG PACKAGE
+COPY packages/${PACKAGE} packages/${PACKAGE}
+copy docker docker
 ARG PYTHON_VERSION=3.12
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 ENV UV_LINK_MODE=copy
 ENV HOME=/root
 ENV PATH="$HOME/.local/bin:$PATH"
-RUN bash docker/common/install.sh --package $PACKAGE --python-version "$PYTHON_VERSION" --use-uv $USE_UV
+RUN bash docker/common/install.sh --package $PACKAGE --python-version "$PYTHON_VERSION" --use-uv
