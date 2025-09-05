@@ -88,11 +88,11 @@ main() {
         uv venv ${UV_PROJECT_ENVIRONMENT} $([[ "$BASE_IMAGE" == "pytorch" ]] && echo "--system-site-packages")
 
         # Install dependencies
-        uv sync --locked --only-group build ${UV_ARGS[@]}
+        uv sync --locked --only-group build
         uv sync \
             --link-mode copy \
             --locked \
-            --all-groups ${UV_ARGS[@]}
+            --all-groups
 
         # Install the package
         uv pip install --no-deps -e .
