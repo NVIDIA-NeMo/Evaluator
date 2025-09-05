@@ -11,15 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 export CUDA_VISIBLE_DEVICES=""
-cd /workspace/packages/nemo-evaluator/
 
 coverage run \
-    --data-file=.coverage \
-    --source=src/ \
+    --data-file=/workspace/.coverage.functional_tests \
+    --source=/workspace/packages/nemo-evaluator/src/ \
     -m pytest \
     -o log_cli=true \
     -o log_cli_level=INFO \
     -m "not pleasefixme" \
-    tests/functional_tests
-coverage combine -q
+    /workspace/packages/nemo-evaluator/tests/functional_tests
+coverage combine -q 
