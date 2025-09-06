@@ -50,11 +50,11 @@ flowchart TD
     B -->|Custom integrations and workflows| D[NeMo Evaluator Core]
     B -->|Direct container control| E[Direct Container Usage]
     
-    C --> C1[✅ Unified CLI interface<br/>✅ Multi-backend execution<br/>✅ Built-in result export<br/>✅ 100+ benchmarks ready]
+    C --> C1[ Unified CLI interface<br/> Multi-backend execution<br/> Built-in result export<br/> 100+ benchmarks ready]
     
-    D --> D1[✅ Programmatic API control<br/>✅ Custom evaluation workflows<br/>✅ Adapter/interceptor system<br/>✅ Framework extensions]
+    D --> D1[ Programmatic API control<br/> Custom evaluation workflows<br/> Adapter/interceptor system<br/> Framework extensions]
     
-    E --> E1[✅ Maximum flexibility<br/>✅ Custom container workflows<br/>✅ Direct framework access<br/>⚠️ Advanced users only]
+    E --> E1[ Maximum flexibility<br/> Custom container workflows<br/> Direct framework access<br/> Advanced users only]
     
     C1 --> F[Start with Launcher Quickstart]
     D1 --> G[Start with Core API Guide]

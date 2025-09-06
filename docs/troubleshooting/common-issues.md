@@ -21,7 +21,7 @@ server_ready = wait_for_fastapi_server(
     retry_interval=10
 )
 if not server_ready:
-    print("❌ Server failed to start within timeout")
+    print(" Server failed to start within timeout")
 ```
 
 **Solutions**:
@@ -44,9 +44,9 @@ deploy(
 import os
 checkpoint_path = "/path/to/checkpoint"
 if not os.path.exists(checkpoint_path):
-    print(f"❌ Checkpoint not found: {checkpoint_path}")
+    print(f" Checkpoint not found: {checkpoint_path}")
 else:
-    print(f"✅ Checkpoint found: {checkpoint_path}")
+    print(f" Checkpoint found: {checkpoint_path}")
 ```
 
 3. **Check Port Availability**:
@@ -73,7 +73,7 @@ deploy(checkpoint_path, server_port=8081)
 
 **Common Valid Configurations**:
 ```python
-# ✅ Correct parameter combinations
+#  Correct parameter combinations
 valid_configs = [
     {"top_p": 0.1, "temperature": 0.001},
     {"limit_samples": 10},
@@ -85,7 +85,7 @@ valid_configs = [
 
 for params in valid_configs:
     config = EvaluationConfig(type="mmlu", params=params)
-    print(f"✅ Valid config: {params}")
+    print(f" Valid config: {params}")
 ```
 
 **Parameter Validation**:
@@ -94,10 +94,10 @@ def validate_eval_config(params: dict) -> bool:
     """Validate evaluation configuration parameters."""
     try:
         config = EvaluationConfig(type="test", params=params)
-        print(f"✅ Configuration valid: {params}")
+        print(f" Configuration valid: {params}")
         return True
     except Exception as e:
-        print(f"❌ Configuration invalid: {e}")
+        print(f" Configuration invalid: {e}")
         return False
 
 # Test your configuration
@@ -158,13 +158,13 @@ def check_dataset_access():
     try:
         from nemo_eval.utils.base import list_available_evaluations
         evals = list_available_evaluations()
-        print(f"✅ Available evaluations: {len(evals)} frameworks")
+        print(f" Available evaluations: {len(evals)} frameworks")
         return True
     except ImportError as e:
-        print(f"❌ Missing evaluation packages: {e}")
+        print(f" Missing evaluation packages: {e}")
         return False
     except Exception as e:
-        print(f"❌ Dataset access error: {e}")
+        print(f" Dataset access error: {e}")
         return False
 
 check_dataset_access()
@@ -184,8 +184,8 @@ export CUDA_VISIBLE_DEVICES=0,1,2,3
 
 # Verify in Python
 import torch
-print(f"✅ CUDA available: {torch.cuda.is_available()}")
-print(f"✅ GPU count: {torch.cuda.device_count()}")
+print(f" CUDA available: {torch.cuda.is_available()}")
+print(f" GPU count: {torch.cuda.device_count()}")
 ```
 
 ---
@@ -266,9 +266,9 @@ def diagnose_imports():
     for package in packages_to_check:
         try:
             __import__(package)
-            print(f"✅ {package}")
+            print(f" {package}")
         except ImportError as e:
-            print(f"❌ {package}: {e}")
+            print(f" {package}: {e}")
 
 diagnose_imports()
 ```
@@ -279,7 +279,7 @@ diagnose_imports()
 pip install nvidia-lm-eval
 
 # Verify installation
-python -c "import core_evals; print('✅ core_evals installed')"
+python -c "import core_evals; print(' core_evals installed')"
 
 # For additional harnesses
 pip install nvidia-simple-evals==25.7.1
@@ -319,7 +319,7 @@ duration = time.time() - start_time
 
 samples = config.params.limit_samples or 1000
 throughput = samples / duration
-print(f"📊 Throughput: {throughput:.2f} samples/second")
+print(f" Throughput: {throughput:.2f} samples/second")
 ```
 
 **Optimization**:
@@ -369,16 +369,16 @@ torch.cuda.empty_cache()
 ```python
 def comprehensive_health_check():
     """Perform comprehensive system health check."""
-    print("🔍 NeMo Eval Health Check")
+    print(" NeMo Eval Health Check")
     print("=" * 50)
     
     # 1. Import check
     try:
         from nemo_eval.utils.base import list_available_evaluations
         evals = list_available_evaluations()
-        print(f"✅ Available frameworks: {len(evals)}")
+        print(f" Available frameworks: {len(evals)}")
     except Exception as e:
-        print(f"❌ Import error: {e}")
+        print(f" Import error: {e}")
         return False
     
     # 2. Server check
@@ -389,24 +389,24 @@ def comprehensive_health_check():
             max_retries=5,
             retry_interval=2
         )
-        print(f"✅ Server ready: {ready}")
+        print(f" Server ready: {ready}")
     except Exception as e:
-        print(f"⚠️ Server check failed: {e}")
+        print(f" Server check failed: {e}")
     
     # 3. CUDA check
     try:
         import torch
-        print(f"✅ CUDA available: {torch.cuda.is_available()}")
-        print(f"✅ GPU count: {torch.cuda.device_count()}")
+        print(f" CUDA available: {torch.cuda.is_available()}")
+        print(f" GPU count: {torch.cuda.device_count()}")
     except Exception as e:
-        print(f"❌ CUDA error: {e}")
+        print(f" CUDA error: {e}")
     
     # 4. Environment check
     import os
     env_vars = ["HF_TOKEN", "CUDA_VISIBLE_DEVICES", "HF_HOME"]
     for var in env_vars:
         value = os.environ.get(var, "Not set")
-        print(f"📋 {var}: {value}")
+        print(f" {var}: {value}")
     
     return True
 
@@ -438,13 +438,13 @@ def minimal_evaluation_test():
             params=ConfigParams(limit_samples=1)  # Single sample test
         )
         
-        print("🧪 Running minimal evaluation test...")
+        print(" Running minimal evaluation test...")
         results = evaluate(target_cfg=target, eval_cfg=config)
-        print("✅ Minimal evaluation successful")
+        print(" Minimal evaluation successful")
         return True
         
     except Exception as e:
-        print(f"❌ Minimal evaluation failed: {e}")
+        print(f" Minimal evaluation failed: {e}")
         return False
 
 # Test minimal setup

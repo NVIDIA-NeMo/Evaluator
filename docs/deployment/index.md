@@ -16,7 +16,7 @@ NeMo Evaluator provides multiple approaches to model deployment and serving, fro
 
 ## Deployment Approaches
 
-### 🚀 **Launcher-Managed Deployment** (Recommended)
+###  **Launcher-Managed Deployment** (Recommended)
 Let the launcher handle model deployment and evaluation orchestration:
 
 ```bash
@@ -29,12 +29,12 @@ nv-eval run \
 ```
 
 **Benefits:**
-- ✅ Automatic deployment lifecycle management  
-- ✅ Multi-backend support (local, Slurm, Lepton)
-- ✅ Built-in cleanup and resource management
-- ✅ Integrated monitoring and logging
+-  Automatic deployment lifecycle management  
+-  Multi-backend support (local, Slurm, Lepton)
+-  Built-in cleanup and resource management
+-  Integrated monitoring and logging
 
-### ⚙️ **Self-Managed Deployment**
+###  **Self-Managed Deployment**
 Deploy your own model endpoint for use with evaluations:
 
 ::::{grid} 1 2 2 2
@@ -66,7 +66,7 @@ Use existing hosted models from NVIDIA Build, OpenAI, or other providers.
 
 ::::
 
-### 🐳 **Container-Integrated Deployment**
+###  **Container-Integrated Deployment**
 Deploy models within evaluation containers for isolated workflows:
 
 ```bash
@@ -223,7 +223,7 @@ Enforce standard system prompts for consistent evaluation across endpoints.
 :::
 
 :::{grid-item-card} Advanced Interceptors
-:link: ../nemo-evaluator/reference/configuring_interceptors
+:link: ../libraries/nemo-evaluator/interceptors/index
 :link-type: doc
 Configure logging, caching, reasoning, and custom request processing.
 :::

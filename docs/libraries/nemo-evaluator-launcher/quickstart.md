@@ -103,17 +103,47 @@ The NeMo Evaluator Launcher uses Hydra for configuration management. You can run
 
 The examples/ directory contains ready-to-use configurations:
 
-- Local execution: examples/local_llama_3_1_8b_instruct.yaml
-- Slurm execution: see executors guide (executors/slurm.md)
-- Lepton AI execution: see executors guide (executors/lepton.md)
+- Local execution: `examples/local_llama_3_1_8b_instruct.yaml`
+- Slurm execution: `examples/slurm_llama_3_1_8b_instruct.yaml`  
+- Lepton AI execution: `examples/lepton_vllm_llama_3_1_8b_instruct.yaml`
 
-Run a local evaluation (requires Docker):
+**Complete Working Example**: Here's the actual `local_llama_3_1_8b_instruct.yaml` configuration:
+
+```yaml
+# examples/local_llama_3_1_8b_instruct.yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: ./results
+
+target:
+  api_endpoint:
+    url: http://localhost:8080/v1/chat/completions
+    model_id: meta/llama-3.1-8b-instruct
+    
+evaluation:
+  tasks:
+    - name: hellaswag
+      params:
+        limit_samples: 100
+    - name: arc_challenge  
+      params:
+        limit_samples: 100
+    - name: winogrande
+      params:
+        limit_samples: 100
+```
+
+Run this configuration (requires Docker and a model endpoint):
 ```bash
 # Using short alias (recommended)
 nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
   --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
 
-# Or using full command name
+# Or using full command name  
 nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
   --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
 ```

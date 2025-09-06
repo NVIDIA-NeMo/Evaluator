@@ -50,7 +50,7 @@ nv-eval run \
 
 :::
 
-:::{tab-item} ⚙️ Core API
+:::{tab-item}  Core API
 :sync: api
 
 For programmatic evaluation in custom workflows:
@@ -88,7 +88,7 @@ print(f"Evaluation completed: {result}")
 
 :::
 
-:::{tab-item} 🐳 Containers Directly
+:::{tab-item}  Containers Directly
 :sync: containers
 
 For specialized container workflows:
@@ -264,7 +264,7 @@ results = evaluate(target_cfg=target, eval_cfg=config)
 
 ### Configuration Parameters
 
-For comprehensive parameter reference including all available settings, optimization patterns, and framework-specific options, refer to [Evaluation Configuration Parameters](parameters.md).
+For comprehensive parameter reference including all available settings, optimization patterns, and framework-specific options, refer to [Evaluation Configuration Parameters](../parameters.md).
 
 **Key Parameters for Text Generation**:
 - `temperature=0` for deterministic, reproducible results

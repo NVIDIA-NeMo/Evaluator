@@ -2,37 +2,135 @@
 
 # NeMo Evaluator Launcher
 
-NeMo Evaluator Launcher is the user-facing orchestration layer for running AI model evaluations at scale. It provides a unified CLI and programmatic entry points to discover benchmarks, configure runs, submit jobs to different execution backends, monitor progress, and export results.
+The user-facing orchestration layer for running AI model evaluations at scale. Provides unified CLI and programmatic entry points to discover benchmarks, configure runs, submit jobs to different execution backends, monitor progress, and export results.
 
-## Typical workflow
+:::{tip}
+**New to evaluation?** Start with the [Quickstart Guide](quickstart.md) for a step-by-step walkthrough.
+:::
 
-1. Pick execution backend (local, Slurm, CI, hosted)
-2. Select or copy an example config from the examples directory
-3. Point the target to your OpenAI-compatible endpoint (self-hosted or hosted)
-4. Launch evaluations via CLI or API
-5. Tail logs, check status, and export results
+## Get Started
 
-## When to use the launcher
+::::{grid} 1 2 2 2
+:gutter: 1 1 1 2
+
+:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Quickstart
+:link: quickstart
+:link-type: doc
+
+Step-by-step guide to install, configure, and run your first evaluation in minutes.
+:::
+
+:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Python API
+:link: api
+:link-type: doc
+
+Programmatic access for notebooks, automation, and custom evaluation workflows.
+:::
+
+:::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` CLI Reference
+:link: cli
+:link-type: doc
+
+Complete command-line interface documentation with examples and usage patterns.
+:::
+
+:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Configuration
+:link: configuration
+:link-type: doc
+
+Complete configuration schema, examples, and advanced patterns for all use cases.
+:::
+
+::::
+
+## Execution & Export
+
+::::{grid} 1 2 2 2
+:gutter: 1 1 1 2
+
+:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Executors
+:link: executors/overview
+:link-type: doc
+
+Run evaluations on local machines, HPC clusters (Slurm), or cloud platforms (Lepton AI).
+:::
+
+:::{grid-item-card} {octicon}`upload;1.5em;sd-mr-1` Exporters
+:link: exporters/overview
+:link-type: doc
+
+Export results to MLflow, Weights & Biases, Google Sheets, or local files with one command.
+:::
+
+:::{grid-item-card} {octicon}`workflow;1.5em;sd-mr-1` Local Executor
+:link: executors/local
+:link-type: doc
+
+Docker-based evaluation on your workstation. Perfect for development and testing.
+:::
+
+:::{grid-item-card} {octicon}`organization;1.5em;sd-mr-1` Slurm Executor
+:link: executors/slurm
+:link-type: doc
+
+HPC cluster execution with automatic resource management and job scheduling.
+:::
+
+:::{grid-item-card} {octicon}`cloud;1.5em;sd-mr-1` Lepton Executor
+:link: executors/lepton
+:link-type: doc
+
+Cloud execution with on-demand GPU provisioning and automatic scaling.
+:::
+
+:::{grid-item-card} {octicon}`database;1.5em;sd-mr-1` MLflow Export
+:link: exporters/mlflow
+:link-type: doc
+
+Export evaluation results and metrics to MLflow for experiment tracking.
+:::
+
+:::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` W&B Export
+:link: exporters/wandb
+:link-type: doc
+
+Integrate with Weights & Biases for advanced visualization and collaboration.
+:::
+
+:::{grid-item-card} {octicon}`table;1.5em;sd-mr-1` Sheets Export
+:link: exporters/gsheets
+:link-type: doc
+
+Export to Google Sheets for easy sharing and analysis with stakeholders.
+:::
+
+::::
+
+## Typical Workflow
+
+1. **Choose execution backend** (local, Slurm, Lepton AI)
+2. **Select example configuration** from the examples directory
+3. **Point to your model endpoint** (OpenAI-compatible API)
+4. **Launch evaluation** via CLI or Python API
+5. **Monitor progress** and export results to your preferred platform
+
+## When to Use the Launcher
 
 Use the launcher whenever you want:
-- A single, consistent command surface for running evaluations anywhere
-- To coordinate multiple benchmarks/models concurrently
-- Turnkey reproducibility and run bookkeeping
-- Easy integration with exporters and dashboards
+- **Unified interface** for running evaluations across different backends
+- **Multi-benchmark coordination** with concurrent execution
+- **Turnkey reproducibility** with saved configurations
+- **Easy result export** to MLOps platforms and dashboards
+- **Production-ready orchestration** with monitoring and lifecycle management
 
-## Getting Started
+:::{toctree}
+:caption: NeMo Evaluator Launcher
+:hidden:
 
-For a guided setup, start with the [Quickstart](quickstart.md).
-
-## Key Documentation
-
-- **[Quickstart](quickstart.md)** - Getting started guide with installation and first run
-- **[Python API](api.md)** - Programmatic access for notebooks and automation
-- **[CLI Reference](cli.md)** - Complete command-line interface documentation
-- **[Configuration Reference](configuration.md)** - Complete configuration schema and examples
-- **[Executors Overview](executors/overview.md)** - Available execution backends
-- **[Exporters Overview](exporters/overview.md)** - Result export options
-
-## Architecture
-
-Curious about where and how evaluations run? Explore the available backends in the [Executors Overview](executors/overview.md). Ready to publish results to files, W&B, MLflow, or Sheets? See the [Exporters Overview](exporters/overview.md).
+Quickstart <quickstart>
+Python API <api>
+CLI Reference <cli>
+Configuration <configuration>
+Executors <executors/overview>
+Exporters <exporters/overview>
+:::

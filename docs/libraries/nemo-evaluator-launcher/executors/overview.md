@@ -27,14 +27,99 @@ When on‑the‑fly hosting is enabled, the evaluation configuration also includ
 3. Run and monitor logs
 4. Optionally export results to dashboards or files
 
-## Key commands
+## Multi-Backend Configuration Examples
+
+Choose the execution backend that matches your infrastructure. All examples use the same model and evaluation tasks, showing how easy it is to switch between backends:
+
+### Local Execution
+```yaml
+# examples/local_llama_3_1_8b_instruct.yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: ./results
+
+target:
+  api_endpoint:
+    url: http://localhost:8080/v1/chat/completions
+    model_id: meta/llama-3.1-8b-instruct
+    
+evaluation:
+  tasks:
+    - name: hellaswag
+    - name: arc_challenge
+    - name: winogrande
+```
+
+### Slurm HPC Cluster
+```yaml
+# examples/slurm_llama_3_1_8b_instruct.yaml
+defaults:
+  - execution: slurm
+  - deployment: vllm
+  - _self_
+
+execution:
+  output_dir: /shared/results
+  partition: gpu
+  nodes: 1
+  gpus_per_node: 8
+  time_limit: "04:00:00"
+
+deployment:
+  type: vllm
+  model_path: /shared/models/llama-3.1-8b-instruct
+  
+target:
+  api_endpoint:
+    url: http://localhost:8000/v1/chat/completions
+    model_id: meta/llama-3.1-8b-instruct
+    
+evaluation:
+  tasks:
+    - name: hellaswag
+    - name: arc_challenge  
+    - name: winogrande
+```
+
+### Lepton AI Cloud
+```yaml
+# examples/lepton_vllm_llama_3_1_8b_instruct.yaml
+defaults:
+  - execution: lepton
+  - deployment: vllm
+  - _self_
+
+execution:
+  output_dir: ./cloud_results
+
+deployment:
+  type: vllm
+  model_id: meta-llama/Llama-3.1-8B-Instruct
+  
+target:
+  api_endpoint:
+    model_id: meta/llama-3.1-8b-instruct
+    
+evaluation:
+  tasks:
+    - name: hellaswag
+    - name: arc_challenge
+    - name: winogrande
+```
+
+## Key Commands
 ```bash
 # List available benchmarks
 nv-eval ls tasks
 
-# Run evaluations (examples)
+# Run evaluations using the examples above
 nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct
-nv-eval run --config-dir examples --config-name slurm_llama_3_1_8b_instruct
+nv-eval run --config-dir examples --config-name slurm_llama_3_1_8b_instruct  
+nv-eval run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruct
 
 # Status and management
 nv-eval status <invocation_id>

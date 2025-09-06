@@ -213,11 +213,11 @@ deploy(
 
 | Feature | PyTriton | Ray Serve |
 |---------|----------|-----------|
-| **Multi-Node Model Parallelism** | ✅ Yes | ❌ Coming soon |
-| **Multi-Instance Evaluation** | ❌ No | ✅ Yes |
-| **Hugging Face Models** | ❌ NeMo only | ✅ Yes |
-| **Production Deployment** | ✅ Optimized | ✅ Good |
-| **Development/Testing** | ✅ Good | ✅ Excellent |
+| **Multi-Node Model Parallelism** |  Yes |  Coming soon |
+| **Multi-Instance Evaluation** |  No |  Yes |
+| **Hugging Face Models** |  NeMo only |  Yes |
+| **Production Deployment** |  Optimized |  Good |
+| **Development/Testing** |  Good |  Excellent |
 
 ### Error Handling
 
@@ -270,9 +270,9 @@ success = wait_for_fastapi_server(
 )
 
 if success:
-    print("✅ Model deployment successful")
+    print(" Model deployment successful")
 else:
-    print("❌ Model deployment failed")
+    print(" Model deployment failed")
 ```
 
 ## Related Functions

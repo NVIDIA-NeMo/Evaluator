@@ -5,7 +5,7 @@
 
 NeMo Evaluator delivers comprehensive AI model evaluation through a dual-library architecture that scales from local development to enterprise production. Experience container-first reproducibility, multi-backend execution, and 100+ benchmarks across 18 evaluation harnesses.
 
-## 🚀 **Unified Orchestration (NeMo Evaluator Launcher)**
+##  **Unified Orchestration (NeMo Evaluator Launcher)**
 
 ### Multi-Backend Execution
 Run evaluations anywhere with unified configuration and monitoring:
@@ -52,7 +52,7 @@ nv-eval export <invocation_id> --dest wandb
 nv-eval export <invocation_id> --dest gsheets
 ```
 
-## ⚙️ **Core Evaluation Engine (NeMo Evaluator Core)**
+##  **Core Evaluation Engine (NeMo Evaluator Core)**
 
 ### Container-First Architecture
 Pre-built NGC containers guarantee reproducible results across environments:
@@ -120,7 +120,7 @@ result = evaluate(
 )
 ```
 
-## 🐳 **Container Direct Access**
+##  **Container Direct Access**
 
 ### NGC Container Catalog
 Direct access to specialized evaluation containers:
@@ -146,7 +146,7 @@ Every container provides:
 - **Isolated execution**: No dependency conflicts between evaluations
 - **Version tracking**: Tagged releases for exact reproducibility
 
-## 🏢 **Enterprise Features**
+##  **Enterprise Features**
 
 ### Multi-Backend Scalability
 Scale from laptop to datacenter with unified configuration:
@@ -182,7 +182,7 @@ target:
     model_id: my-custom-model
 ```
 
-## 🔌 **OpenAI API Compatibility**
+##  **OpenAI API Compatibility**
 
 ### Universal Model Support
 Evaluate any model that exposes OpenAI-compatible endpoints:
@@ -205,7 +205,7 @@ eval-factory run_eval --model_type completions --eval_type multiple_choice
 eval-factory run_eval --model_type vlm --eval_type vqa_benchmark
 ```
 
-## 🔧 **Extensibility & Customization**
+##  **Extensibility & Customization**
 
 ### Custom Framework Support
 Add your own evaluation frameworks using Framework Definition Files:
@@ -272,7 +272,7 @@ adapter_config = AdapterConfig(
 )
 ```
 
-## 🛡️ **Security & Safety**
+##  **Security & Safety**
 
 ### Comprehensive Safety Evaluation
 Built-in safety assessment through specialized containers:
@@ -296,7 +296,7 @@ nv-eval run \
 - **Audit Logging**: Complete evaluation traceability
 - **Access Control**: Role-based permissions and API key management
 
-## 📊 **Monitoring & Observability**
+##  **Monitoring & Observability**
 
 ### Real-Time Progress Tracking
 Monitor evaluation progress across all backends:
@@ -316,7 +316,7 @@ Built-in analysis and visualization capabilities:
 - **Trend Analysis**: Performance over time tracking
 - **Export Integration**: Seamless data pipeline integration
 
-## 🚀 **Getting Started**
+##  **Getting Started**
 
 ### Quick Start Options
 

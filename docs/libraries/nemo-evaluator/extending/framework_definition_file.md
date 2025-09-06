@@ -45,7 +45,7 @@ framework:
 
 ### 2. Defaults Section
 
-The `defaults` section defines the default configuration and execution command that will be used across all evaluations unless overridden. Overriding is supported either through `--overrides` flag (see [Parameter Overrides](../reference/cli.md#parameter-overrides)) or [Run Configuration file](../reference/cli.md#run-configuration).
+The `defaults` section defines the default configuration and execution command that will be used across all evaluations unless overridden. Overriding is supported either through `--overrides` flag (see [Parameter Overrides](../cli.md#parameter-overrides)) or [Run Configuration file](../cli.md#run-configuration).
 
 #### Command Template
 
@@ -162,7 +162,7 @@ Parameters follow a hierarchical override system:
 3. **User configuration** (2nd priority)
 4. **CLI overrides** (1st priority)
 
-For more information on how to use these overrides, see the [CLI Reference](../reference/cli.md#parameter-overrides) documentation.
+For more information on how to use these overrides, see the [CLI Reference](../cli.md#parameter-overrides) documentation.
 
 ### Dynamic Configuration
 
@@ -181,14 +181,14 @@ Place your FDF in the `core_evals/<framework_name>/` directory of your framework
 
 ```
 your-framework/
-├── core_evals/
-│   └── your_framework/
-│       ├── framework.yml           # This is your FDF
-|       ├── framework_entrypoint.py # This is an entrypoint to execute evaluation (usually pre-defined)
-│       ├── output.py               # Output parser (custom)
-│       └── __init__.py             # Empty init file
-├── setup.py                        # Package configuration
-└── README.md                       # Framework documentation
+ core_evals/
+    your_framework/
+        framework.yml           # This is your FDF
+|        framework_entrypoint.py # This is an entrypoint to execute evaluation (usually pre-defined)
+        output.py               # Output parser (custom)
+        __init__.py             # Empty init file
+ setup.py                        # Package configuration
+ README.md                       # Framework documentation
 ```
 
 ## Validation

@@ -8,21 +8,21 @@ Comprehensive guide to AI model evaluation using the NeMo Evaluator platform. Ch
 
 NeMo Evaluator provides three main approaches for running evaluations:
 
-### 🚀 **NeMo Evaluator Launcher** (Recommended)
+### **NeMo Evaluator Launcher** (Recommended)
 Unified CLI and orchestration for most evaluation needs:
 - **100+ benchmarks** across 18 evaluation harnesses
 - **Multi-backend execution** (local, Slurm, cloud)
 - **Built-in result export** to MLflow, W&B, Google Sheets
 - **Configuration management** with reproducible runs
 
-### ⚙️ **NeMo Evaluator Core**
+### **NeMo Evaluator Core**
 Programmatic API for custom evaluation pipelines:
 - **Python API** for integration into ML workflows
 - **Direct container access** for specialized use cases
 - **Advanced adapter configuration** for request/response processing
 - **Custom framework support** via Framework Definition Files
 
-### 🐳 **Container Direct**
+### **Container Direct**
 Direct access to NGC evaluation containers:
 - **Pre-built containers** for each evaluation framework
 - **Guaranteed reproducibility** across environments
@@ -77,19 +77,19 @@ Step-by-step guides for different evaluation scenarios using launcher, core API,
 :::
 
 :::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` Launcher Workflows
-:link: ../nemo-evaluator-launcher/quickstart
+:link: ../libraries/nemo-evaluator-launcher/quickstart
 :link-type: doc
 Unified CLI for running evaluations across local, Slurm, and cloud backends with built-in result export.
 :::
 
 :::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Core API Workflows
-:link: ../nemo-evaluator/workflows/python-api
+:link: ../libraries/nemo-evaluator/workflows/python-api
 :link-type: doc
 Programmatic evaluation using Python API for integration into ML pipelines and custom workflows.
 :::
 
 :::{grid-item-card} {octicon}`package;1.5em;sd-mr-1` Container Workflows
-:link: ../nemo-evaluator/workflows/using_containers
+:link: ../libraries/nemo-evaluator/workflows/using_containers
 :link-type: doc
 Direct container access for specialized use cases and custom evaluation environments.
 :::
@@ -120,7 +120,7 @@ Explore 100+ available benchmarks across 18 evaluation harnesses and their speci
 :::
 
 :::{grid-item-card} {octicon}`plus;1.5em;sd-mr-1` Extend Framework
-:link: ../nemo-evaluator/extending/framework_definition_file
+:link: ../libraries/nemo-evaluator/extending/framework_definition_file
 :link-type: doc
 Add custom evaluation frameworks using Framework Definition Files for specialized benchmarks.
 :::
@@ -133,26 +133,26 @@ Add custom evaluation frameworks using Framework Definition Files for specialize
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`workflow;1.5em;sd-mr-1` Multi-Backend Execution
-:link: ../nemo-evaluator-launcher/executors/overview
+:link: ../libraries/nemo-evaluator-launcher/executors/overview
 :link-type: doc
 Run evaluations on local machines, HPC clusters, or cloud platforms with unified configuration.
 :::
 
 :::{grid-item-card} {octicon}`database;1.5em;sd-mr-1` Result Export
-:link: ../nemo-evaluator-launcher/exporters/overview
+:link: ../libraries/nemo-evaluator-launcher/exporters/overview
 :link-type: doc
 Export evaluation results to MLflow, Weights & Biases, Google Sheets, and other platforms.
 :::
 
 :::{grid-item-card} {octicon}`shield;1.5em;sd-mr-1` Adapter System
-:link: ../nemo-evaluator/reference/configuring_interceptors
+:link: ../libraries/nemo-evaluator/interceptors/index
 :link-type: doc
 Configure request/response processing, logging, caching, and custom interceptors.
 :::
 
 :::{grid-item-card} {octicon}`alert;1.5em;sd-mr-1` Troubleshooting
-:link: troubleshooting-index
-:link-type: ref
+:link: ../troubleshooting/index
+:link-type: doc
 Resolve common evaluation issues, debug configuration problems, and optimize evaluation performance.
 :::
 
@@ -160,4 +160,4 @@ Resolve common evaluation issues, debug configuration problems, and optimize eva
 
 ## Core Evaluation Concepts
 
-For architectural details and core concepts, see {ref}`evaluation-model`. For container specifications, see the [Container Reference](../nemo-evaluator/reference/containers.md).
+For architectural details and core concepts, see {ref}`evaluation-model`. For container specifications, see the [Container Reference](../libraries/nemo-evaluator/containers/index.md).

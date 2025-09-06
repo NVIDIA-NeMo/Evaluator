@@ -6,7 +6,7 @@ Solutions for configuration parameters, tokenizer setup, and endpoint configurat
 
 ## Log-Probability Evaluation Issues
 
-### ❌ Problem: Log-probability evaluation fails
+###  Problem: Log-probability evaluation fails
 
 **Required Configuration**:
 
@@ -36,15 +36,15 @@ config = EvaluationConfig(
 import os
 tokenizer_path = "/path/to/checkpoint/context/nemo_tokenizer"
 if os.path.exists(tokenizer_path):
-    print("✅ Tokenizer path exists")
+    print(" Tokenizer path exists")
 else:
-    print("❌ Tokenizer path not found")
+    print(" Tokenizer path not found")
     # Check alternative locations
 ```
 
 ## Chat vs. Completions Configuration
 
-### ❌ Problem: Chat evaluation fails with base model
+###  Problem: Chat evaluation fails with base model
 
 **Issue**: Base models don't have chat templates
 
@@ -91,7 +91,7 @@ target_cfg = TargetConfig(
 
 ## Timeout and Parallelism Issues
 
-### ❌ Problem: Evaluation hangs or times out
+###  Problem: Evaluation hangs or times out
 
 **Diagnosis**:
 

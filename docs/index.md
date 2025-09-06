@@ -13,7 +13,7 @@ Welcome to the NeMo Evaluator Documentation.
 Install
 ```
 
-```{button-ref} nemo-eval-launcher/quickstart
+```{button-ref} libraries/nemo-evaluator-launcher/quickstart
 :ref-type: doc
 :color: secondary
 :class: sd-rounded-pill
@@ -64,8 +64,8 @@ NeMo Evaluator provides two primary paths for different user needs. Choose based
 flowchart LR
     A[New to NeMo Evaluator?] --> B{What's your use case?}
     
-    B -->|Quick evaluations<br/>CLI interface<br/>Multi-backend support| C[🚀 Launcher<br/>Recommended]
-    B -->|Custom workflows<br/>Programmatic control<br/>Integrations| D[⚙️ Core<br/>Advanced]
+    B -->|Quick evaluations<br/>CLI interface<br/>Multi-backend support| C[Launcher<br/>Recommended]
+    B -->|Custom workflows<br/>Programmatic control<br/>Integrations| D[Core<br/>Advanced]
     
     C --> E[Start with Launcher Quickstart]
     D --> F[Start with Core API Guide]
@@ -79,15 +79,15 @@ flowchart LR
 
 :::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` NeMo Evaluator Launcher
 :link: libraries/nemo-evaluator-launcher/index
-:link-type: ref
+:link-type: doc
 **Recommended for most users**: Unified CLI and orchestration for running evaluations across local, Slurm, and cloud backends with 100+ benchmarks.
 
 **Best for**: Researchers, ML engineers, teams wanting turnkey evaluation capabilities
 :::
 
 :::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` NeMo Evaluator Core
-:link: nemo-evaluator-overview
-:link-type: ref
+:link: libraries/nemo-evaluator/index
+:link-type: doc
 **For developers and integrations**: Core evaluation engine, adapter system, and containerized frameworks for programmatic access.
 
 **Best for**: Custom pipelines, system integrations, framework extensions
@@ -217,6 +217,139 @@ View available `AdapterConfig` options and defaults.
 
 ::::
 
+## Configuration Examples Gallery
+
+Ready-to-use configuration examples from the launcher package. Copy and modify these for your evaluations:
+
+::::{grid} 1 2 2 2  
+:gutter: 1 1 1 2
+
+:::{grid-item-card} {octicon}`play;1.5em;sd-mr-1` Quick Start Local
+:link-type: url
+:link: #local-execution-example
+
+Basic local evaluation with Docker. Perfect for getting started and development testing.
+
+```bash
+nv-eval run --config-dir examples \
+  --config-name local_llama_3_1_8b_instruct
+```
+:::
+
+:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` HPC Cluster (Slurm)
+:link-type: url  
+:link: #slurm-execution-example
+
+Production evaluation on HPC clusters with automatic model deployment and resource management.
+
+```bash
+nv-eval run --config-dir examples \
+  --config-name slurm_llama_3_1_8b_instruct
+```
+:::
+
+:::{grid-item-card} {octicon}`cloud;1.5em;sd-mr-1` Cloud Execution (Lepton)
+:link-type: url
+:link: #lepton-execution-example
+
+Scalable cloud evaluation with on-demand GPU provisioning and automatic teardown.
+
+```bash
+nv-eval run --config-dir examples \
+  --config-name lepton_vllm_llama_3_1_8b_instruct
+```
+:::
+
+:::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Advanced Patterns
+:link: libraries/nemo-evaluator-launcher/configuration
+:link-type: doc
+
+Auto-export, custom metadata, sample limiting, and reasoning-specific configurations.
+
+**Examples**: `local_auto_export_*`, `local_with_user_provided_metadata`, `local_limit_samples`
+:::
+
+::::
+
+### Local Execution Example
+
+```yaml
+# examples/local_llama_3_1_8b_instruct.yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: ./results
+
+target:
+  api_endpoint:
+    url: http://localhost:8080/v1/chat/completions
+    model_id: meta/llama-3.1-8b-instruct
+    
+evaluation:
+  tasks:
+    - name: hellaswag
+      params:
+        limit_samples: 100
+    - name: arc_challenge
+      params:
+        limit_samples: 100
+```
+
+### Slurm Execution Example
+
+```yaml
+# examples/slurm_llama_3_1_8b_instruct.yaml  
+defaults:
+  - execution: slurm
+  - deployment: vllm
+  - _self_
+
+execution:
+  output_dir: /shared/results
+  partition: gpu
+  nodes: 1
+  gpus_per_node: 8
+  time_limit: "04:00:00"
+
+deployment:
+  type: vllm
+  model_path: /shared/models/llama-3.1-8b-instruct
+  
+evaluation:
+  tasks:
+    - name: hellaswag
+    - name: arc_challenge
+    - name: winogrande
+```
+
+### Lepton Execution Example
+
+```yaml
+# examples/lepton_vllm_llama_3_1_8b_instruct.yaml
+defaults:
+  - execution: lepton
+  - deployment: vllm
+  - _self_
+
+execution:
+  output_dir: ./cloud_results
+
+deployment:
+  type: vllm
+  model_id: meta-llama/Llama-3.1-8B-Instruct
+  
+evaluation:
+  tasks:
+    - name: hellaswag
+    - name: arc_challenge
+    - name: winogrande
+```
+
+**More Examples**: See [Configuration Reference](libraries/nemo-evaluator-launcher/configuration.md) for advanced patterns including auto-export, metadata injection, and development testing configurations.
+
 :::{toctree}
 :hidden:
 Home <self>
@@ -256,7 +389,6 @@ About Model Evaluation <evaluation/index>
 Run Evals <evaluation/run-evals/index>
 Custom Task Configuration <evaluation/custom-tasks>
 Benchmark Catalog <evaluation/benchmarks>
-Troubleshooting <troubleshooting/index>
 :::
 
 :::{toctree}

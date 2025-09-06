@@ -44,3 +44,13 @@ Select the executor that best matches your environment and requirements:
 - **Lepton**: Best for cloud-native workflows with hosted models and automatic scaling
 
 All executors provide the same evaluation guarantees and produce identical, reproducible results using the same containerized benchmarks.
+
+:::{toctree}
+:caption: Executors
+:hidden:
+
+Overview <overview>
+Local Executor <local>
+Slurm Executor <slurm>
+Lepton Executor <lepton>
+:::

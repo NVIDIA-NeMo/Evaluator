@@ -23,7 +23,7 @@ nv-eval ls tasks --filter coding
 
 ## Benchmark Categories
 
-### 📚 **Academic & Reasoning**
+###  **Academic & Reasoning**
 | Container | Benchmarks | Description | NGC Catalog |
 |-----------|------------|-------------|-------------|
 | **simple-evals** | MMLU Pro, GSM8K, ARC Challenge | Core academic benchmarks | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/simple-evals) |
@@ -38,7 +38,7 @@ nv-eval run \
     -o evaluation.tasks='["mmlu_pro", "gsm8k", "arc_challenge"]'
 ```
 
-### 💻 **Code Generation**  
+###  **Code Generation**  
 | Container | Benchmarks | Description | NGC Catalog |
 |-----------|------------|-------------|-------------|
 | **bigcode-evaluation-harness** | HumanEval, MBPP, APPS | Code generation and completion | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bigcode-evaluation-harness) |
@@ -52,7 +52,7 @@ nv-eval run \
     -o evaluation.tasks='["humaneval", "mbpp"]'
 ```
 
-### 🛡️ **Safety & Security**
+###  **Safety & Security**
 | Container | Benchmarks | Description | NGC Catalog |
 |-----------|------------|-------------|-------------|
 | **safety-harness** | Toxicity, bias, alignment tests | Safety and bias evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/safety-harness) |
@@ -67,31 +67,31 @@ nv-eval run \
     -o evaluation.tasks='["toxicity", "bias_detection", "jailbreak_resistance"]'
 ```
 
-### 🔧 **Function Calling & Agentic AI**
+###  **Function Calling & Agentic AI**
 | Container | Benchmarks | Description | NGC Catalog |
 |-----------|------------|-------------|-------------|
 | **bfcl** | Berkeley Function Calling Leaderboard | Function calling evaluation | [Link](https://catalog.ngc.nvidia.com/teams/eval-factory/containers/bfcl) |
 | **agentic_eval** | Tool usage, planning tasks | Agentic AI evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/agentic_eval) |
 | **tooltalk** | Tool interaction evaluation | Tool usage assessment | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk) |
 
-### 👁️ **Vision-Language Models**
+###  **Vision-Language Models**
 | Container | Benchmarks | Description | NGC Catalog |
 |-----------|------------|-------------|-------------|
 | **vlmevalkit** | VQA, image captioning, visual reasoning | Vision-language model evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit) |
 
-### 🔍 **Retrieval & RAG**
+###  **Retrieval & RAG**
 | Container | Benchmarks | Description | NGC Catalog |
 |-----------|------------|-------------|-------------|
 | **rag_retriever_eval** | Document retrieval, context relevance | RAG system evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/rag_retriever_eval) |
 
-### 🏥 **Domain-Specific**
+###  **Domain-Specific**
 | Container | Benchmarks | Description | NGC Catalog |
 |-----------|------------|-------------|-------------|
 | **helm** | Medical AI evaluation (MedHELM) | Healthcare-specific benchmarking | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/helm) |
 
 ## Container Details
 
-For detailed specifications of each container, see the [Container Reference](../nemo-evaluator/reference/containers.md).
+For detailed specifications of each container, see the [Container Reference](../libraries/nemo-evaluator/containers/index.md).
 
 ### Quick Container Access
 
@@ -140,11 +140,11 @@ nv-eval ls tasks
 nv-eval run --config-dir examples --config-name local_mmlu_evaluation
 ```
 
-For detailed migration guidance, see the [Migration Guide](../get-started/migration-guide.md).
+For detailed migration guidance, see the [Integration Patterns](../get-started/integration-patterns.md).
 
 ## Next Steps
 
-- **Start Evaluating**: Use the [Launcher Quickstart](../nemo-evaluator-launcher/quickstart.md) for immediate access to all benchmarks
-- **Container Details**: Browse the complete [Container Reference](../nemo-evaluator/reference/containers.md) for specifications
-- **Custom Benchmarks**: Learn to [Extend with Custom Frameworks](../nemo-evaluator/extending/framework_definition_file.md)
-- **Advanced Usage**: Explore [Multi-Backend Execution](../nemo-evaluator-launcher/executors/overview.md) for scale
+- **Start Evaluating**: Use the [Launcher Quickstart](../libraries/nemo-evaluator-launcher/quickstart.md) for immediate access to all benchmarks
+- **Container Details**: Browse the complete [Container Reference](../libraries/nemo-evaluator/containers/index.md) for specifications
+- **Custom Benchmarks**: Learn to [Extend with Custom Frameworks](../libraries/nemo-evaluator/extending/framework_definition_file.md)
+- **Advanced Usage**: Explore [Multi-Backend Execution](../libraries/nemo-evaluator-launcher/executors/overview.md) for scale

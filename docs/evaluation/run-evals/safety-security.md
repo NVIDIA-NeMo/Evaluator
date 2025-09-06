@@ -29,7 +29,7 @@ Ensure you have:
 ## Choose Your Approach
 
 ::::{tab-set}
-:::{tab-item} 🚀 NeMo Evaluator Launcher
+:::{tab-item}  NeMo Evaluator Launcher
 :sync: launcher
 
 **Recommended** - The fastest way to run safety & security evaluations with unified CLI:
@@ -54,7 +54,7 @@ nv-eval run \
 ```
 :::
 
-:::{tab-item} ⚙️ Core API
+:::{tab-item}  Core API
 :sync: api
 
 For programmatic evaluation in custom workflows:
@@ -98,7 +98,7 @@ print(f"Evaluation completed: {result}")
 ```
 :::
 
-:::{tab-item} 🐳 Containers Directly
+:::{tab-item}  Containers Directly
 :sync: containers
 
 For specialized container workflows:

@@ -88,7 +88,7 @@ Quick verification:
 ```bash
 # Test basic functionality
 nv-eval ls tasks | head -10
-echo "✅ Launcher installed successfully"
+echo " Launcher installed successfully"
 ```
 
 :::
@@ -110,8 +110,8 @@ pip install --no-build-isolation nemo-eval
 pip install nvidia-simple-evals nvidia-lm-eval
 
 # Verify installation
-python -c "from nemo_evaluator.core.evaluate import evaluate; print('✅ Core library installed')"
-python -c "from nemo_evaluator.adapters.adapter_config import AdapterConfig; print('✅ Adapter system available')"
+python -c "from nemo_evaluator.core.evaluate import evaluate; print(' Core library installed')"
+python -c "from nemo_evaluator.adapters.adapter_config import AdapterConfig; print(' Adapter system available')"
 ```
 
 Quick verification:
@@ -119,8 +119,8 @@ Quick verification:
 python -c "
 from nemo_evaluator.core.evaluate import evaluate
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
-print('✅ Core library installed successfully')
-print('✅ Adapter system ready')
+print(' Core library installed successfully')
+print(' Adapter system ready')
 "
 ```
 
@@ -159,7 +159,7 @@ Quick verification:
 # Test container access
 docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 \
     eval-factory ls | head -5
-echo "✅ Container access verified"
+echo " Container access verified"
 ```
 
 :::

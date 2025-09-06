@@ -4,7 +4,7 @@ Troubleshooting guide for NeMo Evaluator Launcher-specific problems including co
 
 ## Configuration Issues
 
-### ❌ Configuration Validation Errors
+###  Configuration Validation Errors
 
 **Problem**: Configuration fails validation before execution
 
@@ -42,7 +42,7 @@ Error: Cannot specify both 'api_key' and 'api_key_name' in target.api_endpoint
 ```
 **Fix**: Use only one authentication method in configuration.
 
-### ❌ Hydra Configuration Errors
+###  Hydra Configuration Errors
 
 **Problem**: Hydra fails to resolve configuration composition
 
@@ -77,7 +77,7 @@ nv-eval run --config-dir /absolute/path/to/configs --config-name my_config
 
 ## Job Management Issues
 
-### ❌ Job Status Problems
+###  Job Status Problems
 
 **Problem**: Cannot check job status or jobs appear stuck
 
@@ -113,7 +113,7 @@ nv-eval ls runs
 ls -la nemo_evaluator_launcher.db
 ```
 
-### ❌ Job Termination Issues
+###  Job Termination Issues
 
 **Problem**: Cannot kill running jobs
 
@@ -137,7 +137,7 @@ nv-eval kill <invocation_id> --force
 
 ## Multi-Backend Execution Issues
 
-### ❌ Local Executor Problems
+###  Local Executor Problems
 
 **Problem**: Docker-related execution failures
 
@@ -168,7 +168,7 @@ Error: NVIDIA runtime not found
 ```
 **Fix**: Install nvidia-container-toolkit and restart Docker.
 
-### ❌ Slurm Executor Problems
+###  Slurm Executor Problems
 
 **Problem**: Jobs fail to submit to Slurm cluster
 
@@ -205,7 +205,7 @@ execution:
   time_limit: "2:00:00"  # Reduce time limit
 ```
 
-### ❌ Lepton Executor Problems
+###  Lepton Executor Problems
 
 **Problem**: Lepton deployment or execution failures
 
@@ -236,7 +236,7 @@ Error: Deployment failed to reach Ready state
 
 ## Export Issues
 
-### ❌ Export Failures
+###  Export Failures
 
 **Problem**: Results export fails to destination
 
@@ -284,7 +284,7 @@ curl -I http://mlflow-server:5000/health
 
 ## Performance Issues
 
-### ❌ Slow Execution
+###  Slow Execution
 
 **Problem**: Evaluations run slower than expected
 
@@ -312,7 +312,7 @@ nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
   -o +config.params.limit_samples=10
 ```
 
-### ❌ Resource Exhaustion
+###  Resource Exhaustion
 
 **Problem**: Out of memory or disk space errors
 

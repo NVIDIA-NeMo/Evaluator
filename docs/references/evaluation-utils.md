@@ -62,10 +62,10 @@ print(f"Code tasks: {code_tasks}")
 ```python
 available_evals = list_available_evaluations()
 
-print("📊 Available Evaluation Frameworks:")
+print(" Available Evaluation Frameworks:")
 for framework, tasks in available_evals.items():
     framework_name = framework.replace('core_evals.', '').replace('_', '-')
-    print(f"\n🔹 {framework_name}:")
+    print(f"\n {framework_name}:")
     print(f"   Tasks: {len(tasks)}")
     print(f"   Examples: {tasks[:5]}")  # Show first 5 tasks
 ```
@@ -76,10 +76,10 @@ for framework, tasks in available_evals.items():
 try:
     evals = list_available_evaluations()
 except ImportError as e:
-    print("❌ core_evals package not installed")
+    print(" core_evals package not installed")
     print("Install with: pip install nvidia-lm-eval")
 except Exception as e:
-    print(f"❌ Error discovering evaluations: {e}")
+    print(f" Error discovering evaluations: {e}")
 ```
 
 ---
@@ -130,9 +130,9 @@ print(f"MBPP is implemented by: {framework}")
 # When multiple frameworks implement the same task
 try:
     framework = find_framework("mmlu")
-    print(f"✅ Found unique framework: {framework}")
+    print(f" Found unique framework: {framework}")
 except ValueError as e:
-    print(f"⚠️ Multiple frameworks found: {e}")
+    print(f" Multiple frameworks found: {e}")
     # Use explicit framework specification: "lm-evaluation-harness.mmlu"
 ```
 
@@ -145,14 +145,14 @@ def safe_find_framework(task: str) -> str:
         return find_framework(task)
     except ValueError as e:
         if "Multiple frameworks" in str(e):
-            print(f"⚠️ Task '{task}' found in multiple frameworks")
+            print(f" Task '{task}' found in multiple frameworks")
             print("Use format: <framework>.<task>")
             return None
         elif "not found" in str(e):
-            print(f"❌ Task '{task}' not available")
+            print(f" Task '{task}' not available")
             return None
     except Exception as e:
-        print(f"❌ Error finding framework: {e}")
+        print(f" Error finding framework: {e}")
         return None
 
 # Usage
@@ -203,9 +203,9 @@ from nemo_eval.utils.base import wait_for_fastapi_server
 # Wait for default server
 ready = wait_for_fastapi_server()
 if ready:
-    print("✅ Server is ready for evaluation")
+    print(" Server is ready for evaluation")
 else:
-    print("❌ Server failed to start")
+    print(" Server failed to start")
 ```
 
 #### Custom Server Configuration
@@ -227,7 +227,7 @@ import time
 
 def robust_server_check(base_url: str, model_name: str) -> bool:
     """Robust server health check with logging."""
-    print(f"🔍 Checking server health: {base_url}")
+    print(f" Checking server health: {base_url}")
     start_time = time.time()
     
     ready = wait_for_fastapi_server(
@@ -239,10 +239,10 @@ def robust_server_check(base_url: str, model_name: str) -> bool:
     
     elapsed = time.time() - start_time
     if ready:
-        print(f"✅ Server ready in {elapsed:.1f} seconds")
+        print(f" Server ready in {elapsed:.1f} seconds")
         return True
     else:
-        print(f"❌ Server failed to start after {elapsed:.1f} seconds")
+        print(f" Server failed to start after {elapsed:.1f} seconds")
         return False
 ```
 
@@ -314,7 +314,7 @@ def validate_all_endpoints(base_url: str, model_name: str) -> dict:
     
     results = {}
     for endpoint_type, url in endpoints.items():
-        print(f"🧪 Testing {endpoint_type} endpoint...")
+        print(f" Testing {endpoint_type} endpoint...")
         ready = check_endpoint(
             endpoint_url=url,
             endpoint_type=endpoint_type,
@@ -323,7 +323,7 @@ def validate_all_endpoints(base_url: str, model_name: str) -> dict:
             retry_interval=2
         )
         results[endpoint_type] = ready
-        status = "✅ Ready" if ready else "❌ Failed"
+        status = " Ready" if ready else " Failed"
         print(f"   {status}")
     
     return results
@@ -397,7 +397,7 @@ def create_capability_matrix() -> dict:
 # Usage
 matrix = create_capability_matrix()
 for capability, frameworks in matrix.items():
-    print(f"\n📊 {capability.title()} Evaluation:")
+    print(f"\n {capability.title()} Evaluation:")
     for framework, tasks in frameworks.items():
         print(f"   {framework}: {len(tasks)} tasks")
 ```

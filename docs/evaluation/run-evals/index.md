@@ -98,19 +98,19 @@ Assess tool use capabilities, API calling accuracy, and structured output genera
   - Recommended Evaluations
 * - Base Models (Pre-trained)
   -
-    - ✅ [Log-Probability](log-probability/index.md) - No instruction following required
-    - ✅ [Text Generation](text-gen.md) - With academic prompting
-    - ❌ Avoid chat-specific evaluations
+    -  [Log-Probability](log-probability/index.md) - No instruction following required
+    -  [Text Generation](text-gen.md) - With academic prompting
+    -  Avoid chat-specific evaluations
 * - Instruction-Tuned Models
   -
-    - ✅ [Text Generation](text-gen.md) - Instruction following tasks
-    - ✅ [Code Generation](code-generation.md) - Programming tasks and algorithmic problem solving
-    - ✅ [Safety & Security](safety-security.md) - Alignment testing and vulnerability scanning
-    - ✅ [Function Calling](function-calling.md) - Tool use scenarios and API integration
+    -  [Text Generation](text-gen.md) - Instruction following tasks
+    -  [Code Generation](code-generation.md) - Programming tasks and algorithmic problem solving
+    -  [Safety & Security](safety-security.md) - Alignment testing and vulnerability scanning
+    -  [Function Calling](function-calling.md) - Tool use scenarios and API integration
 * - Chat Models
   -
-    - ✅ All evaluation types with appropriate chat formatting
-    - ✅ Conversational benchmarks and multi-turn evaluations
+    -  All evaluation types with appropriate chat formatting
+    -  Conversational benchmarks and multi-turn evaluations
 ```
 
 :::

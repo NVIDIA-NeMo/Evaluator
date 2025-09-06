@@ -6,7 +6,7 @@ Solutions for memory optimization, scaling issues, and resource management probl
 
 ## Speed Optimization
 
-### ❌ Problem: Evaluation too slow
+###  Problem: Evaluation too slow
 
 **Optimization Strategies**:
 
@@ -65,7 +65,7 @@ def monitor_evaluation_performance():
 
 ## Memory Management
 
-### ❌ Problem: GPU memory issues
+###  Problem: GPU memory issues
 
 **Solutions**:
 
@@ -109,10 +109,10 @@ memory_configs = [
 for config in memory_configs:
     try:
         deploy(**config)
-        print(f"✅ Successfully deployed with: {config}")
+        print(f" Successfully deployed with: {config}")
         break
     except Exception as e:
-        print(f"❌ Failed with {config}: {e}")
+        print(f" Failed with {config}: {e}")
         continue
 ```
 

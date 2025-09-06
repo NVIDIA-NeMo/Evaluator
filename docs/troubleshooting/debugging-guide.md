@@ -155,39 +155,39 @@ def comprehensive_health_check():
     # Check 1: Python environment
     try:
         import nemo_eval
-        checks["nemo_eval"] = "✅ Installed"
+        checks["nemo_eval"] = " Installed"
     except ImportError:
-        checks["nemo_eval"] = "❌ Not installed"
+        checks["nemo_eval"] = " Not installed"
     
     # Check 2: Frameworks
     frameworks = ["nvidia_lm_eval", "nvidia_simple_evals", "nvidia_bigcode"]
     for framework in frameworks:
         try:
             __import__(framework)
-            checks[framework] = "✅ Available"
+            checks[framework] = " Available"
         except ImportError:
-            checks[framework] = "❌ Missing"
+            checks[framework] = " Missing"
     
     # Check 3: Server connectivity
     try:
         response = requests.get("http://0.0.0.0:8080/v1/triton_health")
-        checks["server"] = f"✅ Responding ({response.status_code})"
+        checks["server"] = f" Responding ({response.status_code})"
     except:
-        checks["server"] = "❌ Not accessible"
+        checks["server"] = " Not accessible"
     
     # Check 4: GPU availability
     try:
         import torch
         if torch.cuda.is_available():
             gpu_count = torch.cuda.device_count()
-            checks["gpu"] = f"✅ {gpu_count} GPU(s) available"
+            checks["gpu"] = f" {gpu_count} GPU(s) available"
         else:
-            checks["gpu"] = "❌ No CUDA GPUs"
+            checks["gpu"] = " No CUDA GPUs"
     except:
-        checks["gpu"] = "❌ PyTorch not available"
+        checks["gpu"] = " PyTorch not available"
     
     # Print results
-    print("🔍 Health Check Results:")
+    print(" Health Check Results:")
     for component, status in checks.items():
         print(f"  {component:20s}: {status}")
     
@@ -261,18 +261,18 @@ def validate_before_evaluation(target_cfg, eval_cfg):
             timeout=30
         )
         assert response.status_code == 200
-        validations.append("✅ Endpoint responding")
+        validations.append(" Endpoint responding")
     except Exception as e:
-        validations.append(f"❌ Endpoint failed: {e}")
+        validations.append(f" Endpoint failed: {e}")
         return False, validations
     
     # Validate task
     try:
         from nemo_eval.utils.base import find_framework
         framework = find_framework(eval_cfg.type.split('.')[-1])
-        validations.append(f"✅ Task found in {framework}")
+        validations.append(f" Task found in {framework}")
     except Exception as e:
-        validations.append(f"❌ Task validation failed: {e}")
+        validations.append(f" Task validation failed: {e}")
         return False, validations
     
     # Validate resources
@@ -280,11 +280,11 @@ def validate_before_evaluation(target_cfg, eval_cfg):
         import psutil
         memory = psutil.virtual_memory()
         if memory.percent > 90:
-            validations.append("⚠️  High memory usage detected")
+            validations.append("  High memory usage detected")
         else:
-            validations.append("✅ Memory usage acceptable")
+            validations.append(" Memory usage acceptable")
     except:
-        validations.append("⚠️  Could not check memory usage")
+        validations.append("  Could not check memory usage")
     
     return True, validations
 ```

@@ -6,7 +6,7 @@ Solutions for model deployment problems, server connectivity, and inference fail
 
 ## Connection and Server Issues
 
-### ❌ Problem: `Connection refused` or `Server not ready`
+###  Problem: `Connection refused` or `Server not ready`
 
 **Diagnosis**:
 
@@ -31,7 +31,7 @@ print(f"Server ready: {success}")
 
 ## Model Loading and Inference Issues
 
-### ❌ Problem: Model loads but inference fails
+###  Problem: Model loads but inference fails
 
 **Diagnosis**:
 
@@ -77,7 +77,7 @@ def verify_deployment(base_url="http://0.0.0.0:8080"):
         health_response = requests.get(f"{base_url}/v1/triton_health")
         print(f"Health endpoint: {health_response.status_code}")
     except requests.exceptions.ConnectionError:
-        print("❌ Cannot connect to server")
+        print(" Cannot connect to server")
         return False
     
     # Test completions endpoint
@@ -91,10 +91,10 @@ def verify_deployment(base_url="http://0.0.0.0:8080"):
         comp_response = requests.post(f"{base_url}/v1/completions/", json=test_payload)
         print(f"Completions endpoint: {comp_response.status_code}")
         if comp_response.status_code == 200:
-            print("✅ Deployment successful")
+            print(" Deployment successful")
             return True
     except Exception as e:
-        print(f"❌ Completions test failed: {e}")
+        print(f" Completions test failed: {e}")
     
     return False
 ```

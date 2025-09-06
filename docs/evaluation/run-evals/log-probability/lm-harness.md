@@ -264,7 +264,7 @@ base_params = ConfigParams(
 # Run evaluations
 results = {}
 for task in log_prob_tasks:
-    print(f"🚀 Running {task}...")
+    print(f" Running {task}...")
     
     eval_config = EvaluationConfig(
         type=task,
@@ -275,10 +275,10 @@ for task in log_prob_tasks:
     task_results = evaluate(target_cfg=target_config, eval_cfg=eval_config)
     results[task] = task_results.tasks[task]
     
-    print(f"✅ {task} completed: {task_results.tasks[task]}")
+    print(f" {task} completed: {task_results.tasks[task]}")
 
 # Summary report
-print("\n📊 Log-Probability Evaluation Summary:")
+print("\n Log-Probability Evaluation Summary:")
 for task, metrics in results.items():
     acc = metrics.get('acc', metrics.get('exact_match', 'N/A'))
     print(f"{task:15}: {acc:.3f}")

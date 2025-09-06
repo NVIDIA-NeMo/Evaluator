@@ -140,4 +140,4 @@ except Exception as e:
     print("Note: This is expected if the model endpoint is not accessible")
 ```
 
-For full API reference, see [API](../reference/api.md) page.
+For full API reference, see [API](../api.md) page.

@@ -153,7 +153,7 @@ export HF_DATASETS_CACHE="$HF_HOME/datasets"
 pip install nvidia-lm-eval>=25.6
 
 # Verify installation
-python -c "from nemo_eval.utils.base import list_available_evaluations; print('✅ NeMo Eval installed')"
+python -c "from nemo_eval.utils.base import list_available_evaluations; print(' NeMo Eval installed')"
 ```
 
 ---

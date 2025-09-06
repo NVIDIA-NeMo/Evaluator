@@ -6,7 +6,7 @@ Get up and running with NeMo Evaluator in minutes. Choose your preferred approac
 
 ## Choose Your Path
 
-### 🚀 **Path 1: NeMo Evaluator Launcher** (Recommended)
+### **Path 1: NeMo Evaluator Launcher** (Recommended)
 
 **Best for**: Most users who want a unified CLI experience
 
@@ -70,7 +70,7 @@ ls -la ./results/<invocation_id>/
 
 ---
 
-### ⚙️ **Path 2: NeMo Evaluator Core**
+### **Path 2: NeMo Evaluator Core**
 
 **Best for**: Developers who need programmatic control
 
@@ -179,17 +179,17 @@ target_config = EvaluationTarget(
 try:
     print("Starting evaluation...")
     result = evaluate(eval_cfg=eval_config, target_cfg=target_config)
-    print(f"✅ Evaluation completed successfully!")
+    print(f" Evaluation completed successfully!")
     print(f"Results saved to: {eval_config.output_dir}")
     print(f"Result summary: {result}")
 except Exception as e:
-    print(f"❌ Evaluation failed: {e}")
+    print(f" Evaluation failed: {e}")
     print("Check your API key and endpoint configuration")
 ```
 
 ---
 
-### 🐳 **Path 3: Container Direct**
+### **Path 3: Container Direct**
 
 **Best for**: Users who prefer container-based workflows
 
@@ -275,7 +275,7 @@ docker run --rm --gpus all \
 
 ---
 
-### 🔧 **Path 4: Complete Stack Integration** (For Advanced Users)
+### **Path 4: Complete Stack Integration** (For Advanced Users)
 
 **Best for**: Users who want complete control over deployment and evaluation
 
@@ -305,10 +305,10 @@ from nvidia_eval_commons.api.api_dataclasses import (
     ApiEndpoint, EvaluationConfig, EvaluationTarget, ConfigParams
 )
 
-print("🚀 Starting Complete Stack Integration Example")
+print("Starting Complete Stack Integration Example")
 
 # Step 1: Deploy Model (Tier 1)
-print("\n📦 Step 1: Deploying model with nemo_eval...")
+print("\nStep 1: Deploying model with nemo_eval...")
 deploy(
     nemo_checkpoint="/path/to/your/checkpoint.nemo",  # Replace with your checkpoint
     serving_backend="pytriton",
@@ -321,7 +321,7 @@ deploy(
 )
 
 # Wait for deployment to be ready
-print("⏳ Waiting for model server to be ready...")
+print("Waiting for model server to be ready...")
 server_ready = wait_for_fastapi_server(
     base_url="http://0.0.0.0:8080",
     model_name="megatron_model",
@@ -332,10 +332,10 @@ server_ready = wait_for_fastapi_server(
 if not server_ready:
     raise RuntimeError("Model server failed to start")
 
-print("✅ Model server is ready!")
+print("Model server is ready!")
 
 # Step 2: Configure Advanced Evaluation (Tier 2)
-print("\n⚙️ Step 2: Configuring advanced evaluation with adapters...")
+print("\nStep 2: Configuring advanced evaluation with adapters...")
 
 # Create sophisticated adapter configuration
 adapter_config = AdapterConfig(
@@ -379,10 +379,10 @@ target = EvaluationTarget(api_endpoint=api_endpoint)
 benchmarks = ["gsm8k", "hellaswag", "arc_easy"]
 results = {}
 
-print(f"🧪 Step 3: Running evaluations on {len(benchmarks)} benchmarks...")
+print(f"Step 3: Running evaluations on {len(benchmarks)} benchmarks...")
 
 for benchmark in benchmarks:
-    print(f"\n📊 Evaluating {benchmark}...")
+    print(f"\n Evaluating {benchmark}...")
     
     config = EvaluationConfig(
         type=benchmark,
@@ -403,22 +403,22 @@ for benchmark in benchmarks:
             adapter_cfg=adapter_config
         )
         results[benchmark] = result
-        print(f"✅ {benchmark} completed successfully")
+        print(f" {benchmark} completed successfully")
     except Exception as e:
-        print(f"❌ {benchmark} failed: {e}")
+        print(f" {benchmark} failed: {e}")
         results[benchmark] = {"error": str(e)}
 
 # Step 4: Results Analysis
-print(f"\n📈 Step 4: Analysis complete!")
+print(f"\n Step 4: Analysis complete!")
 print("=" * 50)
 
 for benchmark, result in results.items():
     if "error" not in result:
-        print(f"✅ {benchmark}: {result}")
+        print(f" {benchmark}: {result}")
     else:
-        print(f"❌ {benchmark}: {result['error']}")
+        print(f" {benchmark}: {result['error']}")
 
-print("\n🎯 Integration Features Demonstrated:")
+print("\n Integration Features Demonstrated:")
 print("  • Model deployment with optimized settings")
 print("  • Chain-of-thought reasoning extraction")
 print("  • Comprehensive request/response logging")
@@ -427,9 +427,9 @@ print("  • Custom system prompts")
 print("  • Multi-benchmark evaluation")
 print("  • Error handling and progress tracking")
 
-print(f"\n📁 Check results in: ./results/")
-print(f"📁 Check cache in: ./evaluation_cache/")
-print(f"📁 Check logs for detailed request/response data")
+print(f"\n Check results in: ./results/")
+print(f" Check cache in: ./evaluation_cache/")
+print(f" Check logs for detailed request/response data")
 ```
 
 #### Alternative: Configuration-Based Full Stack

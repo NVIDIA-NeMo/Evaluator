@@ -4,7 +4,7 @@ This document provides a comprehensive reference for the `nemo-evaluator` comman
 
 ## Prerequisites
 
-- **Container way**: Use simple-evals container mentioned in the [Container Reference](containers.md)
+- **Container way**: Use simple-evals container mentioned in the [Container Reference](containers/index.md)
 - **Python way**: 
   ```bash
   pip install nemo-evaluator nvidia-simple-evals
@@ -247,10 +247,10 @@ nvidia-eval-commons-example my_custom_eval .
 
 # This creates the basic structure:
 # core_evals/my_custom_eval/
-# ├── framework.yml
-# ├── output.py
-# ├── framework_entrypoint.py
-# └── __init__.py
+#  framework.yml
+#  output.py
+#  framework_entrypoint.py
+#  __init__.py
 
 # Edit framework.yml to configure your evaluation
 # Edit output.py to implement result parsing

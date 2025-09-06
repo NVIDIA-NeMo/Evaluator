@@ -226,13 +226,13 @@ performance_params = ConfigParams(
 
 ### Tokenizer Issues
 
-❌ **Problem**: Missing tokenizer for log-probability tasks
+ **Problem**: Missing tokenizer for log-probability tasks
 ```python
 # Incorrect - missing tokenizer
 params = ConfigParams(extra={})
 ```
 
-✅ **Solution**: Always specify tokenizer for log-probability tasks
+ **Solution**: Always specify tokenizer for log-probability tasks
 ```python
 # Correct
 params = ConfigParams(
@@ -245,13 +245,13 @@ params = ConfigParams(
 
 ### Performance Issues
 
-❌ **Problem**: Excessive parallelism overwhelming server
+ **Problem**: Excessive parallelism overwhelming server
 ```python
 # Incorrect - too many concurrent requests
 params = ConfigParams(parallelism=100)
 ```
 
-✅ **Solution**: Start conservative and scale up
+ **Solution**: Start conservative and scale up
 ```python
 # Correct - reasonable concurrency
 params = ConfigParams(parallelism=8, max_retries=3)
@@ -259,7 +259,7 @@ params = ConfigParams(parallelism=8, max_retries=3)
 
 ### Parameter Conflicts
 
-❌ **Problem**: Mixing generation and log-probability parameters
+ **Problem**: Mixing generation and log-probability parameters
 ```python
 # Incorrect - generation params unused for log-probability
 params = ConfigParams(
@@ -268,7 +268,7 @@ params = ConfigParams(
 )
 ```
 
-✅ **Solution**: Use appropriate parameters for task type
+ **Solution**: Use appropriate parameters for task type
 ```python
 # Correct - only relevant parameters
 params = ConfigParams(

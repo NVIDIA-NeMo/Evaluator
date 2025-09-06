@@ -4,15 +4,15 @@ NeMo Eval provides a **three-tier architecture** for comprehensive model evaluat
 
 ```{mermaid}
 graph TB
-    subgraph Tier3["🚀 Tier 3: Orchestration Layer"]
+    subgraph Tier3[" Tier 3: Orchestration Layer"]
         Launcher["NeMo Evaluator Launcher<br/>• CLI & API orchestration<br/>• Multi-backend execution<br/>• Result export & monitoring"]
     end
     
-    subgraph Tier2["⚙️ Tier 2: Evaluation Engine"]
+    subgraph Tier2[" Tier 2: Evaluation Engine"]
         Evaluator["NeMo Evaluator Core<br/>• Adapter system<br/>• Interceptor pipeline<br/>• Advanced evaluation logic"]
     end
     
-    subgraph Tier1["🔧 Tier 1: Model Deployment"]
+    subgraph Tier1[" Tier 1: Model Deployment"]
         Deploy["NeMo Eval Deploy<br/>• PyTriton & Ray backends<br/>• Model serving<br/>• OpenAI-compatible APIs"]
     end
     

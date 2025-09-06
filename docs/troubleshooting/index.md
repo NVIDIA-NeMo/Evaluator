@@ -76,7 +76,7 @@ Choose the category that best matches your issue for targeted solutions and debu
 
 :::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` Launcher Issues
 :link: launcher-issues
-:link-type: ref
+:link-type: doc
 Configuration validation, job management, multi-backend execution, and export problems
 :::
 
@@ -118,7 +118,7 @@ Debugging techniques, logging, monitoring, and prevention strategies
 
 :::{grid-item-card} {octicon}`checklist;1.5em;sd-mr-1` Common Issues
 :link: common-issues
-:link-type: ref
+:link-type: doc
 Frequently encountered problems and their solutions based on user patterns
 :::
 

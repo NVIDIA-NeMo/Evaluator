@@ -6,7 +6,7 @@ Solutions for HuggingFace token issues, dataset access permissions, and gated mo
 
 ## Common Authentication Issues
 
-### ❌ Problem: `401 Unauthorized` for gated datasets
+###  Problem: `401 Unauthorized` for gated datasets
 
 **Solution**:
 
@@ -28,7 +28,7 @@ import os
 os.environ["HF_TOKEN"] = "your_token_here"
 ```
 
-### ❌ Problem: `403 Forbidden` for specific datasets
+###  Problem: `403 Forbidden` for specific datasets
 
 **Solution**:
 

@@ -6,7 +6,7 @@ Solutions for import errors, missing dependencies, and framework installation pr
 
 ## Common Import and Installation Problems
 
-### ❌ Problem: `ModuleNotFoundError: No module named 'core_evals'`
+###  Problem: `ModuleNotFoundError: No module named 'core_evals'`
 
 **Solution**:
 ```bash
@@ -17,7 +17,7 @@ pip install nvidia-lm-eval
 pip install nvidia-simple-evals nvidia-bigcode nvidia-bfcl
 ```
 
-### ❌ Problem: `Framework for task X not found`
+###  Problem: `Framework for task X not found`
 
 **Diagnosis**:
 ```python
@@ -34,7 +34,7 @@ pip install nvidia-<framework-name>
 # Restart Python session to reload frameworks
 ```
 
-### ❌ Problem: `Multiple frameworks found for task X`
+###  Problem: `Multiple frameworks found for task X`
 
 **Solution**:
 ```python

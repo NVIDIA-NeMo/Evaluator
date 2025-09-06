@@ -163,7 +163,7 @@ def evaluate(
 ```
 
 **Prerequisites:**
-- **Container way**: Use simple-evals container mentioned in the [Container Reference](containers.md)
+- **Container way**: Use simple-evals container mentioned in the [Container Reference](containers/index.md)
 - **Python way**: 
   ```bash
   pip install nemo-evaluator nvidia-simple-evals
@@ -561,7 +561,7 @@ There are two primary ways to configure interceptors:
 
 ### Configuring Interceptors
 
-Refer to [Configuring Interceptors](./configuring_interceptors.md) for details.
+Refer to [Configuring Interceptors](interceptors/index.md) for details.
 
 ### Complete Configuration Example
 

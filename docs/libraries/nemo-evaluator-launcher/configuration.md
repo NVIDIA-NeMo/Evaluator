@@ -412,14 +412,153 @@ Error: Unknown task 'invalid_task'. Available tasks: hellaswag, arc_challenge, .
 Error: Cannot specify both 'api_key' and 'api_key_name' in target.api_endpoint
 ```
 
+## Advanced Configuration Patterns
+
+These real-world examples from the launcher package show advanced configuration techniques:
+
+### Automatic Result Export
+```yaml
+# examples/local_auto_export_llama_3_1_8b_instruct.yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: ./results
+  auto_export: true
+  exporters:
+    - type: mlflow
+      tracking_uri: ${oc.env:MLFLOW_TRACKING_URI}
+    - type: wandb
+      project: llm-evaluation
+      entity: ${oc.env:WANDB_ENTITY}
+
+target:
+  api_endpoint:
+    url: http://localhost:8080/v1/chat/completions
+    model_id: meta/llama-3.1-8b-instruct
+    
+evaluation:
+  tasks:
+    - name: hellaswag
+    - name: arc_challenge
+    - name: winogrande
+```
+
+### Custom Metadata Injection
+```yaml  
+# examples/local_with_user_provided_metadata.yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: ./results
+  metadata:
+    experiment_name: "baseline_evaluation"
+    model_version: "v1.0"
+    dataset_version: "2024-01"
+    researcher: ${oc.env:USER}
+    notes: "Initial baseline run for comparison"
+
+target:
+  api_endpoint:
+    url: http://localhost:8080/v1/chat/completions
+    model_id: meta/llama-3.1-8b-instruct
+    
+evaluation:
+  tasks:
+    - name: hellaswag
+      params:
+        temperature: 0.0
+        max_tokens: 512
+    - name: arc_challenge
+      params:
+        temperature: 0.0
+        max_tokens: 512
+```
+
+### Development Testing with Sample Limits
+```yaml
+# examples/local_limit_samples.yaml  
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: ./dev_results
+
+target:
+  api_endpoint:
+    url: http://localhost:8080/v1/chat/completions
+    model_id: meta/llama-3.1-8b-instruct
+    
+evaluation:
+  # Use small sample sizes for quick development testing
+  tasks:
+    - name: hellaswag
+      params:
+        limit_samples: 10
+    - name: arc_challenge  
+      params:
+        limit_samples: 10
+    - name: winogrande
+      params:
+        limit_samples: 10
+    - name: gsm8k
+      params:
+        limit_samples: 5  # Math problems take longer
+```
+
+### Reasoning vs Non-Reasoning Task Separation
+```yaml
+# examples/local_aa_reasoning.yaml - For reasoning-heavy tasks
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: ./reasoning_results
+
+target:
+  api_endpoint:
+    url: http://localhost:8080/v1/chat/completions
+    model_id: meta/llama-3.1-8b-instruct
+    
+evaluation:
+  # Tasks that benefit from chain-of-thought reasoning
+  tasks:
+    - name: gsm8k
+      params:
+        temperature: 0.1
+        max_tokens: 1024
+        enable_cot: true
+    - name: math
+      params:
+        temperature: 0.1  
+        max_tokens: 2048
+        enable_cot: true
+    - name: arc_challenge
+      params:
+        temperature: 0.1
+        max_tokens: 512
+        enable_cot: true
+```
+
 ### Best Practices
 
 1. **Use Environment Variables**: Store sensitive information in environment variables
-2. **Modular Configs**: Create reusable base configurations
+2. **Modular Configs**: Create reusable base configurations  
 3. **Descriptive Names**: Use clear, descriptive configuration file names
 4. **Test with Dry Run**: Always test configurations with `--dry-run` first
 5. **Version Control**: Store configurations in version control
 6. **Documentation**: Document custom configurations and their purpose
+7. **Sample Limits for Testing**: Use `limit_samples` for development and validation
+8. **Metadata for Tracking**: Include experiment metadata for better result organization
 
 ## See Also
 
