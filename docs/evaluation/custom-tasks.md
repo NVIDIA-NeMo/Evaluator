@@ -7,7 +7,7 @@ Advanced guide for evaluating models on tasks without pre-defined configurations
 
 ## Overview
 
-While NeMo Eval provides pre-configured tasks for common benchmarks, you may need to evaluate models on:
+While NeMo Evaluator provides pre-configured tasks for common benchmarks, you may need to evaluate models on:
 
 - **Research Benchmarks**: Newly released datasets not yet integrated
 - **Custom Datasets**: Proprietary or domain-specific evaluation data  

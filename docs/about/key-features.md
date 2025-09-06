@@ -339,4 +339,4 @@ docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
 
 ---
 
-*Ready to dive deeper? Explore our [Quick Start Guide](../get-started/quickstart.md), browse the [Container Reference](../nemo-evaluator/reference/containers.md), or learn about [Multi-Backend Execution](../nemo-evaluator-launcher/executors/overview.md).*
+*Ready to dive deeper? Explore our [Quick Start Guide](../get-started/quickstart.md), browse the [Container Reference](../libraries/nemo-evaluator/containers/index.md), or learn about [Multi-Backend Execution](../libraries/nemo-evaluator-launcher/executors/overview.md).*

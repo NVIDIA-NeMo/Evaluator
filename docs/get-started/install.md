@@ -196,11 +196,11 @@ Make sure to open two separate terminals within the same container for executing
 
 3. (Optional) Export the required environment variables. 
 
-4. Run the evalution of your choice.
+4. Run the evaluation of your choice.
 
 Below you can find examples for enabling and launching evaluations for different packages.
-Note that all example use only a subset of samples.
-To run the evaluation on the whole dataset, remove the `"limit_samples"` parameter.
+Note that all examples use only a subset of samples.
+To run the evaluation on the entire dataset, remove the `"limit_samples"` parameter.
 
 ::::{tab-set}
 
@@ -269,7 +269,7 @@ pip install nvidia-bfcl==25.7.1
 In the example below, we use the `AIME_2025` task, which follows the llm-as-a-judge approach for checking the output correctness.
 By default, [Llama 3.3 70B](https://build.nvidia.com/meta/llama-3_3-70b-instruct) NVIDIA NIM is used for judging.
 
-1. To run evaluation, set your [build.nvidia.com](https://build.nvidia.com/) API key as the `JUDGE_API_KEY` variable:
+2. To run evaluation, set your [build.nvidia.com](https://build.nvidia.com/) API key as the `JUDGE_API_KEY` variable:
 
 ```bash
 export JUDGE_API_KEY=...

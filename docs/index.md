@@ -2,7 +2,7 @@
 
 # NeMo Evaluator Documentation
 
-Welcome to the NeMo Evluator Documentation.
+Welcome to the NeMo Evaluator Documentation.
 
 ````{div} sd-d-flex-row
 ```{button-ref} get-started/index
@@ -40,19 +40,19 @@ Learn about the NeMo Evaluator Core and Launcher
 :::{grid-item-card} {octicon}`star;1.5em;sd-mr-1` Key Features
 :link: about/key-features
 :link-type: doc
-Learn about the key features of the NeMo Microservices Platform.
+Learn about the key features of the NeMo Evaluator.
 :::
 
 :::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Concepts
 :link: about/concepts/index
 :link-type: doc
-Learn about the concepts used across the NeMo Microservices Platform.
+Learn about the concepts used across the NeMo Evaluator.
 :::
 
 :::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Release Notes
 :link: about/release-notes/index
 :link-type: doc
-Release notes for the NeMo microservices.
+Release notes for the NeMo Evaluator.
 :::
 ::::
 

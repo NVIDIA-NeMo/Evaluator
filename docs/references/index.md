@@ -1,6 +1,6 @@
 # References
 
-Comprehensive reference documentation for NeMo Eval APIs, functions, and configuration options.
+Comprehensive reference documentation for NeMo Evaluator APIs, functions, and configuration options.
 
 ## API References
 
@@ -57,7 +57,7 @@ Comprehensive catalog of 100+ benchmarks across 18 evaluation harnesses.
 
 ::::
 
-## Contributing to NeMo Eval
+## Contributing to NeMo Evaluator
 
 ### Getting Started
 1. **Fork the Repository**: Start by forking the [NeMo Eval GitHub repository](https://github.com/NVIDIA-NeMo/Eval)
@@ -72,7 +72,7 @@ Comprehensive catalog of 100+ benchmarks across 18 evaluation harnesses.
 
 ## Architecture Overview
 
-NeMo Eval is built with a modular architecture:
+NeMo Evaluator is built with a modular architecture:
 
 - **Core API Layer**: Primary interface for deployment and evaluation operations
 - **Backend Adapters**: Pluggable deployment backends (PyTriton, Ray Serve)
