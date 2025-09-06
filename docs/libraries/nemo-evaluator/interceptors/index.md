@@ -1,5 +1,39 @@
 # Interceptors
 
+The interceptor system is the core innovation of NeMo Evaluator, providing sophisticated **adapter and interceptor architecture** for fine-grained control over request and response processing during model evaluation.
+
+## Overview
+
+The adapter system transforms simple model API calls into sophisticated evaluation workflows through a configurable pipeline of **interceptors**. Each interceptor can inspect, modify, or augment requests and responses as they flow through the evaluation process.
+
+```{mermaid}
+graph LR
+    A[Evaluation Request] --> B[Adapter System]
+    B --> C[Interceptor Pipeline]
+    C --> D[Model API]
+    D --> E[Response Pipeline]
+    E --> F[Processed Response]
+    
+    subgraph "Request Processing"
+        C --> G[System Message]
+        G --> H[Payload Modifier]
+        H --> I[Request Logging]
+        I --> J[Caching Check]
+        J --> K[Endpoint Call]
+    end
+    
+    subgraph "Response Processing"
+        E --> L[Response Logging]
+        L --> M[Reasoning Extraction]
+        M --> N[Progress Tracking]
+        N --> O[Cache Storage]
+    end
+    
+    style B fill:#f3e5f5
+    style C fill:#e1f5fe
+    style E fill:#e8f5e8
+```
+
 Configure request/response interceptors to add logging, caching, and custom processing to your evaluations.
 
 ## Core Interceptors

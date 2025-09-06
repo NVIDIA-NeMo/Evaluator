@@ -36,10 +36,10 @@ Ensure you have:
 
 ```bash
 # List available safety tasks
-nemo-evaluator-launcher ls tasks | grep -E "(safety|aegis|toxic|garak)"
+nv-eval ls tasks | grep -E "(safety|aegis|toxic|garak)"
 
 # Run Aegis safety evaluation
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o evaluation.tasks='["aegis_v2"]' \
@@ -47,7 +47,7 @@ nemo-evaluator-launcher run \
     -o target.api_endpoint.api_key=${YOUR_API_KEY}
 
 # Run comprehensive safety evaluation
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_safety_suite \
     -o evaluation.tasks='["aegis_v2", "toxic_chat", "safety_bench"]'

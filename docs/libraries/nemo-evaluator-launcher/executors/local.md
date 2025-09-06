@@ -13,6 +13,11 @@ See common concepts and commands in the [executors overview](overview.md).
 Run a local evaluation using an example configuration:
 
 ```bash
+# Using short alias (recommended)
+nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+  --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
+
+# Or using full command name
 nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
   --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
 ```
@@ -34,5 +39,5 @@ cp examples/local_llama_3_1_8b_instruct.yaml my_configs/my_evaluation.yaml
 
 Run your custom configuration:
 ```bash
-nemo-evaluator-launcher run --config-dir my_configs --config-name my_evaluation
+nv-eval run --config-dir my_configs --config-name my_evaluation
 ```

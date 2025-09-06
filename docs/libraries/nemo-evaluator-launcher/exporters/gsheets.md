@@ -16,11 +16,11 @@ See common behavior and usage in [overview](overview.md).
 
 CLI:
 ```bash
-nemo-evaluator-launcher export 8abcd123 --dest gsheets --output-dir .
+nv-eval export 8abcd123 --dest gsheets --output-dir .
 ```
 
 Python:
 ```python
-from nv_eval.api.functional import export_results
+from nemo_evaluator_launcher.api.functional import export_results
 export_results(["8abcd123"], dest="gsheets", config={"spreadsheet_name": "Nemo Evaluator Launcher Results"})
 ```

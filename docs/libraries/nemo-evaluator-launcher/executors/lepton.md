@@ -31,13 +31,13 @@ lep login -c <workspace_name>:<your_token>
 Run a Lepton evaluation using the provided examples:
 ```bash
 # Deploy NIM model and run evaluation
-nemo-evaluator-launcher run --config-dir examples --config-name lepton_nim_llama_3_1_8b_instruct
+nv-eval run --config-dir examples --config-name lepton_nim_llama_3_1_8b_instruct
 
 # Deploy vLLM model and run evaluation
-nemo-evaluator-launcher run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruct
+nv-eval run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruct
 
 # Use an existing endpoint (no deployment)
-nemo-evaluator-launcher run --config-dir examples --config-name lepton_none_llama_3_1_8b_instruct
+nv-eval run --config-dir examples --config-name lepton_none_llama_3_1_8b_instruct
 ```
 
 ## Parallel Deployment Strategy
@@ -50,7 +50,7 @@ nemo-evaluator-launcher run --config-dir examples --config-name lepton_none_llam
 Mermaid overview:
 ```mermaid
 graph TD
-    A["nemo-evaluator-launcher run"] --> B["Load Tasks"]
+    A["nv-eval run"] --> B["Load Tasks"]
     B --> D["Endpoints Deployment"]
     D --> E1["Deployment 1: Create Endpoint 1"]
     D --> E2["Deployment 2: Create Endpoint 2"]

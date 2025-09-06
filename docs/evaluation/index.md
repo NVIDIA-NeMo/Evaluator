@@ -35,7 +35,7 @@ Direct access to NGC evaluation containers:
 ```bash
 # Install and run your first evaluation
 pip install nemo-evaluator-launcher
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
+nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct
 ```
 
 ### For Developers: Use the Core API

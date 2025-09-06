@@ -31,10 +31,10 @@ For log-probability methods, refer to ["Log-Probability Evaluation"](logprobs.md
 
 ```bash
 # List available text generation tasks
-nemo-evaluator-launcher ls tasks
+nv-eval ls tasks
 
 # Run MMLU Pro evaluation
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o evaluation.tasks='["mmlu_pro"]' \
@@ -42,7 +42,7 @@ nemo-evaluator-launcher run \
     -o target.api_endpoint.api_key=${YOUR_API_KEY}
 
 # Run multiple text generation benchmarks
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_text_generation_suite \
     -o evaluation.tasks='["mmlu_pro", "arc_challenge", "hellaswag", "truthfulqa"]'
@@ -120,13 +120,13 @@ Use the launcher CLI to discover all available text generation tasks:
 
 ```bash
 # List all available benchmarks
-nemo-evaluator-launcher ls tasks
+nv-eval ls tasks
 
-# Filter by text generation category
-nemo-evaluator-launcher ls tasks --category text_generation
+# Filter by text generation category (if supported)
+nv-eval ls tasks --filter text_generation
 
-# Get detailed information about a specific task
-nemo-evaluator-launcher ls tasks --task mmlu_pro
+# Get detailed information about a specific task (if supported)
+nv-eval ls tasks --task mmlu_pro
 ```
 
 ## Text Generation Task Categories

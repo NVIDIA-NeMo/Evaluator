@@ -18,11 +18,11 @@ See common behavior and usage in [overview](overview.md).
 
 CLI:
 ```bash
-nemo-evaluator-launcher export 8abcd123 --dest local --format json -o results/
+nv-eval export 8abcd123 --dest local --format json -o results/
 ```
 
 Python:
 ```python
-from nv_eval.api.functional import export_results
+from nemo_evaluator_launcher.api.functional import export_results
 export_results(["8abcd123"], dest="local", config={"format": "json", "output_dir": "./results"})
 ```

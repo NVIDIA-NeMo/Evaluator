@@ -13,12 +13,12 @@ NeMo Evaluator provides access to 100+ benchmarks through pre-built NGC containe
 
 ```bash
 # List all available benchmarks
-nemo-evaluator-launcher ls tasks
+nv-eval ls tasks
 
-# Filter by category
-nemo-evaluator-launcher ls tasks --category reasoning
-nemo-evaluator-launcher ls tasks --category safety
-nemo-evaluator-launcher ls tasks --category coding
+# Filter by category (if supported)
+nv-eval ls tasks --filter reasoning
+nv-eval ls tasks --filter safety
+nv-eval ls tasks --filter coding
 ```
 
 ## Benchmark Categories
@@ -32,7 +32,7 @@ nemo-evaluator-launcher ls tasks --category coding
 **Example Usage:**
 ```bash
 # Run academic benchmark suite
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name academic_benchmark_suite \
     -o evaluation.tasks='["mmlu_pro", "gsm8k", "arc_challenge"]'
@@ -46,7 +46,7 @@ nemo-evaluator-launcher run \
 **Example Usage:**
 ```bash
 # Run code generation evaluation
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name coding_evaluation \
     -o evaluation.tasks='["humaneval", "mbpp"]'
@@ -61,7 +61,7 @@ nemo-evaluator-launcher run \
 **Example Usage:**
 ```bash
 # Run comprehensive safety evaluation
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name comprehensive_safety \
     -o evaluation.tasks='["toxicity", "bias_detection", "jailbreak_resistance"]'
@@ -120,7 +120,7 @@ For a complete list of available tasks in each container:
 docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 eval-factory ls
 
 # Or use the launcher for unified access
-nemo-evaluator-launcher ls tasks
+nv-eval ls tasks
 ```
 
 ## Migration from Legacy Framework
@@ -136,8 +136,8 @@ available_tasks = list_available_evaluations()
 ### **New Approach** (Recommended)
 ```bash
 # Use launcher for unified access
-nemo-evaluator-launcher ls tasks
-nemo-evaluator-launcher run --config-dir examples --config-name local_mmlu_evaluation
+nv-eval ls tasks
+nv-eval run --config-dir examples --config-name local_mmlu_evaluation
 ```
 
 For detailed migration guidance, see the [Migration Guide](../get-started/quickstart.md#migrating-from-legacy-api).

@@ -30,21 +30,24 @@ When on‑the‑fly hosting is enabled, the evaluation configuration also includ
 ## Key commands
 ```bash
 # List available benchmarks
-nemo-evaluator-launcher ls tasks
+nv-eval ls tasks
 
-# Run (examples)
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
-nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct
+# Run evaluations (examples)
+nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct
+nv-eval run --config-dir examples --config-name slurm_llama_3_1_8b_instruct
 
-# Status / management
-nemo-evaluator-launcher status <invocation_id>
-nemo-evaluator-launcher kill <invocation_id>
+# Status and management
+nv-eval status <invocation_id>
+nv-eval kill <invocation_id>
+
+# Export results
+nv-eval export <invocation_id> --dest local --format json
 ```
 
 ## Test runs
 Use a small subset to validate your setup before running full benchmarks:
 ```bash
-nemo-evaluator-launcher run --config-dir examples --config-name <your_config> -o +config.params.limit_samples=10
+nv-eval run --config-dir examples --config-name <your_config> -o +config.params.limit_samples=10
 ```
 
 
@@ -52,7 +55,7 @@ nemo-evaluator-launcher run --config-dir examples --config-name <your_config> -o
 
 You can override values from the command line (Hydra syntax):
 ```bash
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
   -o execution.output_dir=my_results \
   -o target.api_endpoint.model_id=model/another/one
 ```
@@ -61,7 +64,7 @@ nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_
 
 View the fully resolved configuration without running:
 ```bash
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct --dry-run
+nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct --dry-run
 ```
 
 ## Create your own executor

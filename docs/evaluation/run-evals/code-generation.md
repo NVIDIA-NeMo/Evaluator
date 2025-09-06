@@ -34,10 +34,10 @@ Ensure you have:
 
 ```bash
 # List available code generation tasks
-nemo-evaluator-launcher ls tasks | grep -E "(mbpp|humaneval|apps|codegen)"
+nv-eval ls tasks | grep -E "(mbpp|humaneval|apps|codegen)"
 
 # Run MBPP evaluation
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o evaluation.tasks='["mbpp"]' \
@@ -45,7 +45,7 @@ nemo-evaluator-launcher run \
     -o target.api_endpoint.api_key=${YOUR_API_KEY}
 
 # Run multiple code generation benchmarks
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_code_generation_suite \
     -o evaluation.tasks='["mbpp", "humaneval", "apps"]'

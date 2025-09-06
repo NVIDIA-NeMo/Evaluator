@@ -21,11 +21,11 @@ See common behavior and usage in [overview](overview.md).
 
 CLI:
 ```bash
-nemo-evaluator-launcher export 8abcd123 --dest mlflow -o . --output-filename processed_results.json
+nv-eval export 8abcd123 --dest mlflow -o . --output-filename processed_results.json
 ```
 
 Python:
 ```python
-from nv_eval.api.functional import export_results
+from nemo_evaluator_launcher.api.functional import export_results
 export_results(["8abcd123"], dest="mlflow", config={"tracking_uri": "http://mlflow:5000"})
 ```

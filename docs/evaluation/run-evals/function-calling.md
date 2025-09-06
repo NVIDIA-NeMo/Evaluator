@@ -34,10 +34,10 @@ Ensure you have:
 
 ```bash
 # List available function calling tasks
-nemo-evaluator-launcher ls tasks | grep -E "(bfcl|function)"
+nv-eval ls tasks | grep -E "(bfcl|function)"
 
 # Run BFCL AST prompting evaluation
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o evaluation.tasks='["bfclv3_ast_prompting"]' \
@@ -45,7 +45,7 @@ nemo-evaluator-launcher run \
     -o target.api_endpoint.api_key=${YOUR_API_KEY}
 
 # Run multiple function calling benchmarks
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_function_calling_suite \
     -o evaluation.tasks='["bfclv3_simple", "bfclv3_ast_prompting", "bfclv3_parallel"]'

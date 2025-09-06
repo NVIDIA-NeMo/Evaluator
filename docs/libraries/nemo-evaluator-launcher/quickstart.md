@@ -10,11 +10,19 @@ python3 -m venv venv
 source venv/bin/activate
 
 # Install NeMo Evaluator launcher
-pip3 install \
-  <TODO> \
-  --extra-index-url <TODO> \
-  --extra-index-url <TODO>
+pip install nemo-evaluator-launcher
+
+# Optional: Install with specific exporters
+pip install nemo-evaluator-launcher[mlflow,wandb,gsheets]  # All exporters
+pip install nemo-evaluator-launcher[mlflow]               # MLflow only
+pip install nemo-evaluator-launcher[wandb]                # W&B only
+pip install nemo-evaluator-launcher[gsheets]              # Google Sheets only
 ```
+
+**Requirements:**
+- Python 3.10 or higher (up to 3.13)
+- Docker (for local execution)
+- Access to model endpoints (hosted or self-deployed)
 
 ## 2) Prerequisite: an OpenAI-compatible endpoint
 
@@ -29,6 +37,13 @@ Hosted endpoints (fastest):
 
   Minimal usage (override endpoint URL and key):
   ```bash
+  # Using the short alias (recommended)
+  nv-eval run --config-dir examples \
+    --config-name local_llama_3_1_8b_instruct \
+    -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
+    -o target.api_endpoint.api_key=${NGC_API_KEY}
+  
+  # Or using the full command name
   nemo-evaluator-launcher run --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -60,7 +75,8 @@ docker run --gpus all -p 8000:8000 vllm/vllm-openai:latest \
 
 Optional: quick endpoint check
 ```bash
-nemo-evaluator-launcher test-endpoint --url http://localhost:8000/v1
+# Check if your endpoint is working
+nv-eval test-endpoint --url http://localhost:8000/v1
 ```
 
 
@@ -72,7 +88,11 @@ nemo-evaluator-launcher test-endpoint --url http://localhost:8000/v1
 View all available evaluation benchmarks:
 
 ```bash
-nemo-evaluator-launcher ls tasks
+# List all available tasks/benchmarks
+nv-eval ls tasks
+
+# Alternative: list recent runs
+nv-eval ls runs
 ```
 
 ### 2. Run Evaluations
@@ -89,7 +109,13 @@ The examples/ directory contains ready-to-use configurations:
 
 Run a local evaluation (requires Docker):
 ```bash
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
+# Using short alias (recommended)
+nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+  --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
+
+# Or using full command name
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+  --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
 ```
 
 For other backends:
@@ -120,6 +146,10 @@ cp examples/local_llama_3_1_8b_instruct.yaml my_configs/my_evaluation.yaml
 
 4. Run your custom configuration:
 ```bash
+# Using short alias
+nv-eval run --config-dir my_configs --config-name my_evaluation
+
+# Or using full command
 nemo-evaluator-launcher run --config-dir my_configs --config-name my_evaluation
 ```
 
@@ -128,6 +158,12 @@ nemo-evaluator-launcher run --config-dir my_configs --config-name my_evaluation
 You can override configuration values from the command line (`-o` can be used multiple times, the notation follows Hydra):
 
 ```bash
+# Using short alias (recommended)
+nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+  -o execution.output_dir=my_results \
+  -o target.api_endpoint.model_id=model/another/one
+
+# Or using full command
 nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
   -o execution.output_dir=my_results \
   -o target.api_endpoint.model_id=model/another/one
@@ -179,11 +215,49 @@ This will generate a sbatch script that exports these variables before running t
 Monitor the status of your evaluation jobs:
 
 ```bash
+# Check status using short alias
+nv-eval status <job_id_or_invocation_id>
+
+# Or using full command
 nemo-evaluator-launcher status <job_id_or_invocation_id>
 ```
 
 You can check:
-- Individual job status: `nemo-evaluator-launcher status <job_id>`
-- All jobs in an invocation: `nemo-evaluator-launcher status <invocation_id>`
+- Individual job status: `nv-eval status <job_id>`
+- All jobs in an invocation: `nv-eval status <invocation_id>`
+- Kill running jobs: `nv-eval kill <job_id_or_invocation_id>`
 
 The status command returns JSON output with job status information.
+
+### 4. Export Results
+
+Export evaluation results to various destinations:
+
+```bash
+# Export to local files (JSON/CSV)
+nv-eval export <invocation_id> --dest local --format json
+
+# Export to MLflow
+nv-eval export <invocation_id> --dest mlflow
+
+# Export to Weights & Biases
+nv-eval export <invocation_id> --dest wandb
+
+# Export to Google Sheets
+nv-eval export <invocation_id> --dest gsheets
+```
+
+### 5. Troubleshooting
+
+View the full resolved configuration without running:
+```bash
+# Dry run to see full config
+nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct --dry-run
+```
+
+Test a small subset before running full benchmarks:
+```bash
+# Limit to 10 samples for testing
+nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+  -o +config.params.limit_samples=10
+```

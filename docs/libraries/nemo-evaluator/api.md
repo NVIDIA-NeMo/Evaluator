@@ -4,16 +4,19 @@ This document provides a comprehensive reference for the NeMo Evaluator Python A
 
 ## Core API Functions
 
-### CLI vs Programmatic Usage
+The NeMo Evaluator provides multiple API layers for different use cases:
 
-The NeMo Evaluator API supports two usage patterns:
+### API Layers
 
-1. **CLI Usage** (Recommended): Use `eval-factory run_eval` function which parses command line arguments
-2. **Programmatic Usage**: Use `evaluate()` function with configuration objects
+1. **Core Evaluation API** (`nemo_evaluator.core.evaluate`): Direct evaluation with full adapter support
+2. **High-level API** (`nemo_evaluator.api.run`): Simplified interface for common workflows  
+3. **CLI Interface** (`nemo_evaluator.cli`): Command-line evaluation tools
 
-**When to use which:**
-- **CLI**: For command-line tools, scripts, and simple automation
-- **Programmatic**: For building custom applications, workflows, and integration with other systems
+### When to Use Each Layer
+
+- **Core API**: Maximum flexibility, custom interceptors, integration into ML pipelines
+- **High-level API**: Standard evaluations with adapter configuration
+- **CLI**: Quick evaluations, scripting, and automation
 
 ### Available Dataclasses
 
@@ -36,9 +39,75 @@ from nemo_evaluator.api.api_dataclasses import (
 )
 ```
 
+## Core Evaluation API
+
+### `evaluate`
+
+The primary function for running evaluations with full adapter support.
+
+```python
+from nemo_evaluator.core.evaluate import evaluate
+from nemo_evaluator.adapters.adapter_config import AdapterConfig
+
+def evaluate(
+    target_cfg: EvaluationTarget,
+    eval_cfg: EvaluationConfig,
+    adapter_cfg: Optional[AdapterConfig] = None
+) -> EvaluationResult:
+    """
+    Run evaluation with adapter system support.
+    
+    Args:
+        target_cfg: Target model configuration
+        eval_cfg: Evaluation configuration  
+        adapter_cfg: Optional adapter configuration for advanced processing
+        
+    Returns:
+        EvaluationResult: Complete evaluation results
+        
+    Example:
+        >>> from nemo_evaluator.core.evaluate import evaluate
+        >>> from nemo_evaluator.adapters.adapter_config import AdapterConfig
+        >>> 
+        >>> # Configure adapter with reasoning extraction
+        >>> adapter_config = AdapterConfig(
+        ...     use_reasoning=True,
+        ...     use_caching=True,
+        ...     custom_system_prompt="Think step by step."
+        ... )
+        >>> 
+        >>> result = evaluate(
+        ...     target_cfg=target,
+        ...     eval_cfg=config,
+        ...     adapter_cfg=adapter_config
+        ... )
+    """
+```
+
+### `run`
+
+High-level API for standard evaluation workflows.
+
+```python  
+from nemo_evaluator.api.run import run
+
+def run(
+    target_cfg: EvaluationTarget,
+    eval_cfg: EvaluationConfig,
+    adapter_cfg: Optional[AdapterConfig] = None,
+    **kwargs
+) -> EvaluationResult:
+    """
+    High-level evaluation interface.
+    
+    This is a convenience wrapper around the core evaluate() function
+    with additional validation and error handling.
+    """
+```
+
 ### `run_eval`
 
-The main entry point for running evaluations. This is a CLI entry point that parses command line arguments.
+CLI entry point for running evaluations. This function parses command line arguments.
 
 ```python
 from nemo_evaluator.api.run import run_eval

@@ -18,12 +18,12 @@ Exporters move evaluation results and artifacts from completed runs to external 
 
 CLI:
 ```bash
-nemo-evaluator-launcher export <id1> [<id2> ...] --dest <local|gsheets|wandb|mlflow|leaderboard> [options]
+nv-eval export <id1> [<id2> ...] --dest <local|gsheets|wandb|mlflow|leaderboard> [options]
 ```
 
 Python:
 ```python
-from nv_eval.api.functional import export_results
+from nemo_evaluator_launcher.api.functional import export_results
 export_results(["8abcd123"], dest="local", config={"format": "json", "output_dir": "./out"})
 ```
 

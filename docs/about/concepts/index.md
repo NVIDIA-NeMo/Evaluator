@@ -12,10 +12,10 @@ Use this section to understand how NeMo Eval works at a high level. Start with t
 Core evaluation types, OpenAI-compatible endpoints, and metrics.
 :::
 
-:::{grid-item-card} Adapters
-:link: adapters
-:link-type: ref
-Reverse proxy with interceptor chains for request and response processing.
+:::{grid-item-card} Adapters & Interceptors
+:link: adapters-interceptors
+:link-type: doc
+Advanced request/response processing with configurable interceptor pipelines.
 :::
 
 :::{grid-item-card} Deployment Concepts
@@ -37,7 +37,7 @@ Parameter layers, overrides, and authentication concepts.
 
 Architecture <architecture>
 Evaluation Model <evaluation-model>
-Adapters <adapters>
+Adapters & Interceptors <adapters-interceptors>
 Deployment Concepts <deployment-concepts>
 Configuration Model <configuration-model>
 ```
