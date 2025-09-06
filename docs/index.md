@@ -348,7 +348,7 @@ evaluation:
     - name: winogrande
 ```
 
-**More Examples**: See [Configuration Reference](libraries/nemo-evaluator-launcher/configuration.md) for advanced patterns including auto-export, metadata injection, and development testing configurations.
+**More Examples**: See [Configuration Reference](libraries/nemo-evaluator-launcher/configuration/index.md) for advanced patterns including auto-export, metadata injection, and development testing configurations.
 
 :::{toctree}
 :hidden:

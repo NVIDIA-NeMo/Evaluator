@@ -309,4 +309,4 @@ def run_batch_evaluation(
 - [Quickstart Guide](quickstart.md) - Getting started with the CLI
 - [Executors](executors/index.md) - Available execution backends  
 - [Exporters](exporters/index.md) - Result export options
-- [Configuration Schema](configuration.md) - Full configuration reference
+- [Configuration Schema](configuration/index.md) - Full configuration reference

@@ -136,7 +136,7 @@ Use the launcher whenever you want:
 
 Quickstart <quickstart>
 Executors <executors/index>
-Configuration <configuration>
+Configuration <configuration/index>
 Exporters <exporters/index>
 Python API <api>
 CLI Reference <cli>
