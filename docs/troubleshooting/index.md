@@ -12,7 +12,25 @@ Before diving into specific problem areas, run these basic checks to verify your
 
 ::::{tab-set}
 
-:::{tab-item} Verify Model Deployment**:
+:::{tab-item} Launcher Quick Check
+
+```bash
+# Verify launcher installation and basic functionality
+nv-eval --version
+
+# List available tasks
+nv-eval ls tasks
+
+# Validate configuration without running
+nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct --dry-run
+
+# Check recent runs
+nv-eval ls runs
+```
+
+:::
+
+:::{tab-item} Model Endpoint Check
 
 ```python
 import requests
@@ -33,7 +51,7 @@ print(f"Completions Status: {response.status_code}")
 
 :::
 
-:::{tab-item} Check Available Tasks
+:::{tab-item} Core API Check
 
 ```python
 from nemo_eval.utils.base import list_available_evaluations
@@ -55,6 +73,12 @@ Choose the category that best matches your issue for targeted solutions and debu
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
+
+:::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` Launcher Issues
+:link: launcher-issues
+:link-type: ref
+Configuration validation, job management, multi-backend execution, and export problems
+:::
 
 :::{grid-item-card} {octicon}`download;1.5em;sd-mr-1` Installation Issues
 :link: installation-issues
@@ -90,6 +114,12 @@ Memory optimization, scaling issues, and resource management
 :link: debugging-guide
 :link-type: ref
 Debugging techniques, logging, monitoring, and prevention strategies
+:::
+
+:::{grid-item-card} {octicon}`checklist;1.5em;sd-mr-1` Common Issues
+:link: common-issues
+:link-type: ref
+Frequently encountered problems and their solutions based on user patterns
 :::
 
 ::::

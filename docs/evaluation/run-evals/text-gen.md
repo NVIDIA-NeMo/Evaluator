@@ -57,7 +57,7 @@ For programmatic evaluation in custom workflows:
 
 ```python
 from nemo_evaluator.core.evaluate import evaluate
-from nemo_evaluator.api.api_dataclasses import (
+from nvidia_eval_commons.api.api_dataclasses import (
     EvaluationConfig, EvaluationTarget, ApiEndpoint, ConfigParams
 )
 
@@ -218,7 +218,7 @@ print(f"MMLU provided by: {framework}")
 Text generation evaluations use the NVIDIA Eval Commons framework:
 
 ```python
-from nvidia_eval_commons.core.evaluate import evaluate
+from nemo_evaluator.core.evaluate import evaluate
 from nvidia_eval_commons.api.api_dataclasses import (
     ApiEndpoint, EvaluationConfig, EvaluationTarget, ConfigParams
 )

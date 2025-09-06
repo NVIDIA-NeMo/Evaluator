@@ -21,9 +21,9 @@ Let the launcher handle model deployment and evaluation orchestration:
 
 ```bash
 # Launcher deploys model AND runs evaluation
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
-    --config-name slurm_vllm_llama_3_1_8b \
+    --config-name slurm_llama_3_1_8b_instruct \
     -o deployment.model_path=/shared/models/llama-3.1-8b \
     -o evaluation.tasks='["mmlu_pro", "gsm8k"]'
 ```
@@ -164,9 +164,9 @@ vllm serve meta-llama/Llama-3.1-8B-Instruct \
 **Integration with NeMo Evaluator:**
 ```bash
 # Run evaluation against vLLM endpoint
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
-    --config-name local_external_endpoint \
+    --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=http://localhost:8080/v1/chat/completions \
     -o target.api_endpoint.model_id=llama-3.1-8b
 ```
@@ -178,9 +178,9 @@ Use existing hosted models without deployment:
 ### NVIDIA Build
 ```bash
 # Run evaluation against NVIDIA Build endpoint
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
-    --config-name hosted_nvidia_build \
+    --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
     -o target.api_endpoint.api_key=${NGC_API_KEY}
@@ -189,9 +189,9 @@ nemo-evaluator-launcher run \
 ### OpenAI Compatible
 ```bash
 # Run evaluation against OpenAI API
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
-    --config-name hosted_openai \
+    --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://api.openai.com/v1/chat/completions \
     -o target.api_endpoint.model_id=gpt-4 \
     -o target.api_endpoint.api_key=${OPENAI_API_KEY}

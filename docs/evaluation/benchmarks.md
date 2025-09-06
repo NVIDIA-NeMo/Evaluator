@@ -140,7 +140,7 @@ nv-eval ls tasks
 nv-eval run --config-dir examples --config-name local_mmlu_evaluation
 ```
 
-For detailed migration guidance, see the [Migration Guide](../get-started/quickstart.md#migrating-from-legacy-api).
+For detailed migration guidance, see the [Migration Guide](../get-started/migration-guide.md).
 
 ## Next Steps
 

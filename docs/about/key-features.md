@@ -17,9 +17,9 @@ Run evaluations anywhere with unified configuration and monitoring:
 
 ```bash
 # Single command, multiple backends
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
-nemo-evaluator-launcher run --config-dir examples --config-name slurm_multi_gpu_evaluation  
-nemo-evaluator-launcher run --config-dir examples --config-name lepton_cloud_deployment
+nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct
+nv-eval run --config-dir examples --config-name slurm_llama_3_1_8b_instruct  
+nv-eval run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruct
 ```
 
 ### 100+ Benchmarks Across 18 Harnesses
@@ -27,14 +27,14 @@ Access comprehensive benchmark suite with single CLI:
 
 ```bash
 # Discover available benchmarks
-nemo-evaluator-launcher ls tasks
+nv-eval ls tasks
 
 # Run academic benchmarks
-nemo-evaluator-launcher run --config-dir examples --config-name academic_suite \
+nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
   -o evaluation.tasks='["mmlu_pro", "gsm8k", "arc_challenge"]'
 
 # Run safety evaluation
-nemo-evaluator-launcher run --config-dir examples --config-name safety_evaluation \
+nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
   -o evaluation.tasks='["toxicity", "bias_detection", "jailbreak_resistance"]'
 ```
 
@@ -43,13 +43,13 @@ First-class integration with MLOps platforms:
 
 ```bash
 # Export to MLflow
-nemo-evaluator-launcher export <invocation_id> --dest mlflow
+nv-eval export <invocation_id> --dest mlflow
 
 # Export to Weights & Biases
-nemo-evaluator-launcher export <invocation_id> --dest wandb
+nv-eval export <invocation_id> --dest wandb
 
 # Export to Google Sheets
-nemo-evaluator-launcher export <invocation_id> --dest gsheets
+nv-eval export <invocation_id> --dest gsheets
 ```
 
 ## ⚙️ **Core Evaluation Engine (NeMo Evaluator Core)**
@@ -76,19 +76,33 @@ docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
 Sophisticated request/response processing pipeline with interceptor architecture:
 
 ```python
-from nemo_evaluator.api.api_dataclasses import AdapterConfig
+from nemo_evaluator.adapters.adapter_config import AdapterConfig
 
 adapter_config = AdapterConfig(
+    # Core endpoint configuration
+    api_url="http://localhost:8080/v1/completions/",
+    
+    # Logging interceptors
     use_request_logging=True,      # Log all requests for debugging
     use_response_logging=True,     # Log all responses for analysis
+    max_logged_requests=1000,
+    
+    # Caching interceptor
     use_caching=True,              # Cache responses for performance
+    caching_dir="./evaluation_cache",
+    reuse_cached_responses=True,
+    
+    # Reasoning interceptor
     use_reasoning=True,            # Chain-of-thought support
-    custom_system_prompt="You are a helpful AI assistant.",
-    interceptors=[
-        {"name": "request_logging", "enabled": True},
-        {"name": "caching", "enabled": True, "config": {"cache_dir": "./cache"}},
-        {"name": "reasoning", "enabled": True, "config": {"start_reasoning_token": "<think>"}}
-    ]
+    start_reasoning_token="<think>",
+    end_reasoning_token="</think>",
+    
+    # System message interceptor
+    use_system_prompt=True,
+    custom_system_prompt="You are a helpful AI assistant. Think step by step.",
+    
+    # Progress tracking
+    use_progress_tracking=True
 )
 ```
 
@@ -218,17 +232,44 @@ evaluations:
 ```
 
 ### Advanced Interceptor Configuration
-Fine-tune request/response processing with custom interceptors:
+Fine-tune request/response processing with the adapter system:
 
 ```python
-# Custom interceptor chain
-interceptors = [
-    {"name": "system_message", "config": {"system_message": "Custom prompt"}},
-    {"name": "request_logging", "enabled": True},
-    {"name": "caching", "config": {"cache_dir": "./cache", "reuse_cached_responses": True}},
-    {"name": "reasoning", "config": {"start_reasoning_token": "<think>", "end_reasoning_token": "</think>"}},
-    {"name": "endpoint", "enabled": True}
-]
+# Production-ready adapter configuration
+from nemo_evaluator.adapters.adapter_config import AdapterConfig
+
+adapter_config = AdapterConfig(
+    # Endpoint configuration
+    api_url="https://production-api.com/v1/completions",
+    max_retries=3,
+    retry_delay=2.0,
+    timeout=30.0,
+    
+    # System message interceptor
+    use_system_prompt=True,
+    custom_system_prompt="You are an expert AI assistant specialized in this domain.",
+    
+    # Comprehensive logging
+    use_request_logging=True,
+    use_response_logging=True,
+    max_logged_requests=5000,
+    log_failed_requests=True,
+    
+    # Performance optimization
+    use_caching=True,
+    caching_dir="./production_cache",
+    reuse_cached_responses=True,
+    
+    # Advanced reasoning
+    use_reasoning=True,
+    start_reasoning_token="<think>",
+    end_reasoning_token="</think>",
+    extract_reasoning=True,
+    
+    # Monitoring
+    use_progress_tracking=True,
+    progress_tracking_url="http://monitoring.internal:3828/progress"
+)
 ```
 
 ## 🛡️ **Security & Safety**
@@ -238,7 +279,7 @@ Built-in safety assessment through specialized containers:
 
 ```bash
 # Run safety evaluation suite
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name comprehensive_safety \
     -o evaluation.tasks='["toxicity", "bias_detection", "jailbreak_resistance", "privacy_leakage"]'
@@ -262,10 +303,10 @@ Monitor evaluation progress across all backends:
 
 ```bash
 # Check evaluation status
-nemo-evaluator-launcher status <invocation_id>
+nv-eval status <invocation_id>
 
 # View live logs
-nemo-evaluator-launcher logs <invocation_id> --follow
+nv-eval logs <invocation_id> --follow
 ```
 
 ### Comprehensive Result Analytics
@@ -282,7 +323,7 @@ Built-in analysis and visualization capabilities:
 **For Most Users (Launcher):**
 ```bash
 pip install nemo-evaluator-launcher
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
+nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct
 ```
 
 **For Developers (Core API):**

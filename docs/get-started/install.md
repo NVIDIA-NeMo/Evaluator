@@ -37,7 +37,7 @@ NeMo Evaluator provides multiple installation paths depending on your needs. Cho
 ## Prerequisites
 
 ### System Requirements
-- Python 3.10 or higher
+- Python 3.10 or higher (up to 3.13)
 - CUDA-compatible GPU(s) (tested on RTX A6000, A100, H100) 
 - Docker (for container-based workflows)
 
@@ -59,7 +59,37 @@ NeMo Evaluator provides multiple installation paths depending on your needs. Cho
 
 Install NeMo Evaluator Launcher for unified CLI and orchestration:
 
-TODO
+```bash
+# Create and activate virtual environment
+python3 -m venv nemo-eval-env
+source nemo-eval-env/bin/activate
+
+# Install launcher
+pip install nemo-evaluator-launcher
+
+# Optional: Install with exporters
+pip install nemo-evaluator-launcher[all]                      # All exporters (recommended)
+pip install nemo-evaluator-launcher[mlflow,wandb,gsheets]     # All exporters (alternative syntax)
+
+# Or install individual exporters
+pip install nemo-evaluator-launcher[mlflow]      # MLflow only
+pip install nemo-evaluator-launcher[wandb]       # Weights & Biases only  
+pip install nemo-evaluator-launcher[gsheets]     # Google Sheets only
+
+# Optional: Install Lepton AI for cloud execution
+pip install leptonai
+
+# Verify installation
+nv-eval --version
+nv-eval ls tasks
+```
+
+Quick verification:
+```bash
+# Test basic functionality
+nv-eval ls tasks | head -10
+echo "✅ Launcher installed successfully"
+```
 
 :::
 
@@ -67,11 +97,31 @@ TODO
 
 Install NeMo Evaluator Core for programmatic access:
 
-TODO
+```bash
+# Create and activate virtual environment
+python3 -m venv nemo-eval-env
+source nemo-eval-env/bin/activate
+
+# Install core library with dependencies
+pip install torch==2.7.0 setuptools pybind11 wheel_stub  # Required for TE
+pip install --no-build-isolation nemo-eval
+
+# Install evaluation frameworks
+pip install nvidia-simple-evals nvidia-lm-eval
+
+# Verify installation
+python -c "from nemo_evaluator.core.evaluate import evaluate; print('✅ Core library installed')"
+python -c "from nemo_evaluator.adapters.adapter_config import AdapterConfig; print('✅ Adapter system available')"
+```
 
 Quick verification:
 ```bash
-python -c "from nemo_evaluator.core.evaluate import evaluate; print('Core library installed successfully')"
+python -c "
+from nemo_evaluator.core.evaluate import evaluate
+from nemo_evaluator.adapters.adapter_config import AdapterConfig
+print('✅ Core library installed successfully')
+print('✅ Adapter system ready')
+"
 ```
 
 :::
@@ -80,7 +130,37 @@ python -c "from nemo_evaluator.core.evaluate import evaluate; print('Core librar
 
 Use pre-built evaluation containers from NVIDIA NGC for guaranteed reproducibility:
 
-TODO
+```bash
+# Pull evaluation containers (no local installation needed)
+docker pull nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
+docker pull nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.07.3
+docker pull nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.07.3
+
+# Run container interactively
+docker run --rm -it --gpus all \
+    -v $(pwd)/results:/workspace/results \
+    nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 bash
+
+# Or run evaluation directly
+docker run --rm --gpus all \
+    -v $(pwd)/results:/workspace/results \
+    -e MY_API_KEY=your-api-key \
+    nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 \
+    eval-factory run_eval \
+        --eval_type mmlu_pro \
+        --model_url https://integrate.api.nvidia.com/v1/chat/completions \
+        --model_id meta/llama-3.1-8b-instruct \
+        --api_key_name MY_API_KEY \
+        --output_dir /workspace/results
+```
+
+Quick verification:
+```bash
+# Test container access
+docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 \
+    eval-factory ls | head -5
+echo "✅ Container access verified"
+```
 
 :::
 

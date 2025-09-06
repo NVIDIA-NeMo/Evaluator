@@ -87,7 +87,7 @@ Evaluate language modeling capabilities using the WikiText benchmark:
 from nvidia_eval_commons.api.api_dataclasses import (
     ApiEndpoint, ConfigParams, EndpointType, EvaluationConfig, EvaluationTarget
 )
-from nvidia_eval_commons.core.evaluate import evaluate
+from nemo_evaluator.core.evaluate import evaluate
 
 # Configure evaluation
 target_config = EvaluationTarget(

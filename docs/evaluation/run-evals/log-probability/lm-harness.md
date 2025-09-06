@@ -162,8 +162,10 @@ eval_config = EvaluationConfig(
 ### ARC Challenge (Recommended Starting Point)
 
 ```python
-from nvidia_eval_commons.api.api_dataclasses import *
-from nvidia_eval_commons.core.evaluate import evaluate
+from nvidia_eval_commons.api.api_dataclasses import (
+    ApiEndpoint, EndpointType, EvaluationConfig, EvaluationTarget, ConfigParams
+)
+from nemo_evaluator.core.evaluate import evaluate
 
 # Basic configuration
 target_config = EvaluationTarget(
@@ -238,7 +240,7 @@ Run multiple log-probability tasks in sequence:
 
 ```python
 import os
-from nvidia_eval_commons.core.evaluate import evaluate
+from nemo_evaluator.core.evaluate import evaluate
 
 # Define tasks to evaluate
 log_prob_tasks = [

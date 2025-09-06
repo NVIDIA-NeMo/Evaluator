@@ -59,7 +59,7 @@ For programmatic evaluation in custom workflows:
 
 ```python
 from nemo_evaluator.core.evaluate import evaluate
-from nemo_evaluator.api.api_dataclasses import (
+from nvidia_eval_commons.api.api_dataclasses import (
     EvaluationConfig, EvaluationTarget, ApiEndpoint, ConfigParams
 )
 

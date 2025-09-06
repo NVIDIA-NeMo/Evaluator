@@ -6,10 +6,10 @@
 
 Before you begin, make sure you have:
 
-- **NVIDIA GPU**: CUDA-compatible GPU for model inference
-- **Python Environment**: Python 3.8+ with virtual environment support
-- **NeMo Framework**: Access to NeMo-trained checkpoints or compatible models
-- **Sufficient Resources**: Adequate GPU memory for your target models
+- **Python Environment**: Python 3.10 or higher (up to 3.13)
+- **OpenAI-Compatible Endpoint**: Hosted or self-deployed model API
+- **Docker**: For container-based evaluation workflows (optional)
+- **NVIDIA GPU**: For local model deployment (optional)
 
 ---
 
@@ -30,11 +30,17 @@ Install NeMo Eval and set up your evaluation environment with all necessary depe
 Deploy your first model and run a simple evaluation in just a few minutes.
 :::
 
+:::{grid-item-card} {octicon}`workflow;1.5em;sd-mr-1` Integration Patterns
+:link: integration-patterns
+:link-type: doc
+Learn advanced integration patterns for the three-tier architecture.
+:::
+
 ::::
 
 ## Entry Point Decision Guide
 
-NeMo Evaluator provides two primary entry points, each designed for different user needs and workflows. Use this guide to choose the right approach for your use case.
+NeMo Evaluator provides three primary entry points, each designed for different user needs and workflows. Use this guide to choose the right approach for your use case.
 
 ```{mermaid}
 flowchart TD
@@ -63,15 +69,28 @@ flowchart TD
 
 By the end of this section, you'll be able to:
 
-1. **Install and configure** NeMo Eval in your environment
-2. **Deploy a model** using either PyTriton or Ray Serve backends
-3. **Run your first evaluation** on a standard benchmark
-4. **Understand the results** and next steps for advanced usage
+1. **Install and configure** NeMo Evaluator components for your needs
+2. **Choose the right approach** from the three-tier architecture
+3. **Run your first evaluation** using hosted or self-deployed endpoints
+4. **Configure advanced features** like adapters and interceptors
+5. **Integrate evaluations** into your ML workflows
 
-## Typical Workflow
+## Typical Workflows
 
-1. **Install** NeMo Eval and dependencies
-2. **Deploy** your model using a serving backend
-3. **Configure** evaluation parameters and select benchmarks
-4. **Run** evaluations and analyze results
-5. **Explore** advanced features and custom configurations
+### **Launcher Workflow** (Most Users)
+1. **Install** NeMo Evaluator Launcher
+2. **Configure** endpoint and benchmarks in YAML
+3. **Run** evaluations with single CLI command
+4. **Export** results to MLflow, W&B, or local files
+
+### **Core API Workflow** (Developers)
+1. **Install** NeMo Evaluator Core library
+2. **Configure** adapters and interceptors programmatically
+3. **Integrate** into existing ML pipelines
+4. **Customize** evaluation logic and processing
+
+### **Container Workflow** (Container Users)
+1. **Pull** pre-built evaluation containers
+2. **Run** evaluations directly in isolated environments
+3. **Mount** data and results for persistence
+4. **Combine** with existing container orchestration

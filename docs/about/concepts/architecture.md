@@ -145,7 +145,7 @@ results = evaluate(target_cfg=target, eval_cfg=config, adapter_cfg=adapter_confi
 
 ```bash
 # Single command handles deployment, evaluation, and export
-nemo-evaluator-launcher run \
+nv-eval run \
   --config-dir examples \
   --config-name local_llama_3_1_8b_instruct \
   -o target.api_endpoint.adapter_config.use_reasoning=true

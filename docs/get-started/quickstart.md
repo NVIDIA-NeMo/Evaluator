@@ -22,10 +22,10 @@ Get up and running with NeMo Evaluator in minutes. Choose your preferred approac
 pip install nemo-evaluator-launcher
 
 # 2. List available benchmarks
-nemo-evaluator-launcher ls tasks
+nv-eval ls tasks
 
 # 3. Run evaluation against a hosted endpoint
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -33,7 +33,7 @@ nemo-evaluator-launcher run \
     -o execution.output_dir=./results
 
 # 4. Check status and results
-nemo-evaluator-launcher status <invocation_id>
+nv-eval status <invocation_id>
 ```
 
 #### Complete Working Example
@@ -45,7 +45,7 @@ Here's a complete example using NVIDIA Build (build.nvidia.com):
 export NGC_API_KEY="nvapi-your-key-here"
 
 # Run a quick test evaluation with limited samples
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -55,7 +55,7 @@ nemo-evaluator-launcher run \
     -o +config.params.limit_samples=10
 
 # Monitor progress (replace with actual invocation_id from output)
-nemo-evaluator-launcher status <invocation_id>
+nv-eval status <invocation_id>
 
 # View results
 ls -la ./results/<invocation_id>/
@@ -510,7 +510,7 @@ exporters:
 
 ```bash
 # Run the complete stack with single command
-nemo-evaluator-launcher run --config-name full_stack_config
+nv-eval run --config-name full_stack_config
 ```
 
 This demonstrates the power of NeMo Eval's three-tier architecture working together seamlessly.
@@ -550,34 +550,34 @@ See [Model Serving & Deployment](../deployment/index.md) for detailed deployment
 
 ```bash
 # List all available tasks
-nemo-evaluator-launcher ls tasks
+nv-eval ls tasks
 
 # Run different evaluation types
-nemo-evaluator-launcher run --config-dir examples --config-name local_safety_evaluation
-nemo-evaluator-launcher run --config-dir examples --config-name local_code_generation
+nv-eval run --config-dir examples --config-name local_safety_evaluation
+nv-eval run --config-dir examples --config-name local_code_generation
 ```
 
 ### Export Results
 
 ```bash
 # Export to MLflow
-nemo-evaluator-launcher export <invocation_id> --dest mlflow
+nv-eval export <invocation_id> --dest mlflow
 
 # Export to Weights & Biases  
-nemo-evaluator-launcher export <invocation_id> --dest wandb
+nv-eval export <invocation_id> --dest wandb
 
 # Export to local files
-nemo-evaluator-launcher export <invocation_id> --dest local --format json
+nv-eval export <invocation_id> --dest local --format json
 ```
 
 ### Scale to Clusters
 
 ```bash
 # Run on Slurm cluster
-nemo-evaluator-launcher run --config-dir examples --config-name slurm_multi_gpu
+nv-eval run --config-dir examples --config-name slurm_multi_gpu
 
 # Run on Lepton AI
-nemo-evaluator-launcher run --config-dir examples --config-name lepton_deployment
+nv-eval run --config-dir examples --config-name lepton_deployment
 ```
 
 ## Validation and Troubleshooting
@@ -598,13 +598,13 @@ curl -X POST "https://integrate.api.nvidia.com/v1/chat/completions" \
     }'
 
 # 2. Run a dry-run to validate configuration
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     --dry-run
 
 # 3. Run a minimal test with very few samples
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o +config.params.limit_samples=1 \
@@ -636,7 +636,7 @@ docker pull nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
 export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
 
 # Check available evaluation types
-nemo-evaluator-launcher ls tasks
+nv-eval ls tasks
 ```
 
 **Result Validation:**
@@ -667,9 +667,9 @@ cat ./results/<invocation_id>/summary.json
 
 | Task | Command |
 |------|---------|
-| List benchmarks | `nemo-evaluator-launcher ls tasks` |
-| Run evaluation | `nemo-evaluator-launcher run --config-dir examples --config-name <config>` |
-| Check status | `nemo-evaluator-launcher status <invocation_id>` |
-| Export results | `nemo-evaluator-launcher export <invocation_id> --dest local --format json` |
+| List benchmarks | `nv-eval ls tasks` |
+| Run evaluation | `nv-eval run --config-dir examples --config-name <config>` |
+| Check status | `nv-eval status <invocation_id>` |
+| Export results | `nv-eval export <invocation_id> --dest local --format json` |
 | Dry run | Add `--dry-run` to any run command |
 | Test with few samples | Add `-o +config.params.limit_samples=3` |

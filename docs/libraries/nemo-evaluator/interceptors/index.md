@@ -90,6 +90,13 @@ Handle reasoning tokens and track reasoning metrics.
 Track evaluation progress and status updates.
 :::
 
+:::{grid-item-card} {octicon}`globe;1.5em;sd-mr-1` Endpoint
+:link: endpoint
+:link-type: doc
+
+Route requests to model APIs with retry logic and error handling.
+:::
+
 ::::
 
 ## Post-Evaluation Processing
@@ -116,5 +123,6 @@ System Messages <system-messages>
 Payload Modification <payload-modification>
 Reasoning <reasoning>
 Progress Tracking <progress-tracking>
+Endpoint <endpoint>
 Post-Evaluation Hooks <post-evaluation-hooks>
 :::

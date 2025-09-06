@@ -78,7 +78,7 @@ flowchart LR
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` NeMo Evaluator Launcher
-:link: nemo-evaluator-launcher-overview
+:link: libraries/nemo-evaluator-launcher/index
 :link-type: ref
 **Recommended for most users**: Unified CLI and orchestration for running evaluations across local, Slurm, and cloud backends with 100+ benchmarks.
 

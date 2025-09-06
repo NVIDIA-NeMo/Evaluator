@@ -8,7 +8,7 @@ NeMo Eval's three-tier architecture provides flexible integration options:
 
 - **Tier 1** (`nemo_eval`): Model deployment and serving
 - **Tier 2** (`nemo-evaluator`): Advanced evaluation with adapters
-- **Tier 3** (`nemo-evaluator-launcher`): Workflow orchestration
+- **Tier 3** (`nv-eval`): Workflow orchestration
 
 ## Pattern 1: Full Stack Integration
 
@@ -117,25 +117,25 @@ execution:
 EOF
 
 # Run orchestrated evaluation
-nemo-evaluator-launcher run --config-name my_evaluation
+nv-eval run --config-name my_evaluation
 ```
 
 ### Advanced Orchestration Features
 
 ```bash
 # Multi-benchmark evaluation
-nemo-evaluator-launcher run \
+nv-eval run \
   --config-name my_evaluation \
   -o config.type=gsm8k,hellaswag,arc_easy \
   -o execution.parallel_jobs=3
 
 # Export results to multiple destinations
-nemo-evaluator-launcher export <invocation_id> \
+nv-eval export <invocation_id> \
   --dest mlflow,wandb,local \
   --format json
 
 # Monitor progress
-nemo-evaluator-launcher status <invocation_id>
+nv-eval status <invocation_id>
 ```
 
 ## Pattern 3: Custom Pipeline Integration
@@ -273,7 +273,7 @@ deployment:
 
 ```bash
 # Submit distributed evaluation
-nemo-evaluator-launcher run \
+nv-eval run \
   --config-name slurm_evaluation \
   --executor slurm
 ```
