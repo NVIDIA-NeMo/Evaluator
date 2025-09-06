@@ -76,11 +76,12 @@ Multiple exporters can be configured simultaneously to support different stakeho
 
 ## Add Your Own Exporter
 
-It's straightforward to add a custom exporter to fit your tools:
-- Define destination-specific configuration (credentials, endpoints, paths)
-- Implement metric selection and artifact upload logic
-- Ensure idempotency (e.g., `skip_existing`) and good error messages
-- Expose a CLI/Python entry point consistent with other exporters
+How to a custom exporter to fit your tools:
+
+1. Define destination-specific configuration (credentials, endpoints, paths)
+1. Implement metric selection and artifact upload logic
+1. Ensure idempotency (e.g., `skip_existing`) and good error messages
+1. Expose a CLI/Python entry point consistent with other exporters
 
 :::{toctree}
 :caption: Exporters

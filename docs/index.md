@@ -371,7 +371,7 @@ Release Notes <about/release-notes/index>
 
 About Getting Started <get-started/index>
 Install Eval <get-started/install>
-Quickstart <get-started/quickstart>
+Quickstart <get-started/quickstart/index>
 :::
 
 :::{toctree}
@@ -415,12 +415,9 @@ Core <libraries/nemo-evaluator/index>
 :hidden:
 
 About Troubleshooting <troubleshooting/index>
-Installation Issues <troubleshooting/installation-issues>
-Authentication <troubleshooting/authentication>
-Deployment Issues <troubleshooting/deployment-issues>
-Configuration <troubleshooting/configuration-issues>
-Performance <troubleshooting/performance-issues>
-Debugging & Best Practices <troubleshooting/debugging-guide>
+Setup & Installation <troubleshooting/setup-issues/index>
+Runtime & Execution <troubleshooting/runtime-issues/index>
+Advanced & Debugging <troubleshooting/advanced/index>
 :::
 
 :::{toctree}

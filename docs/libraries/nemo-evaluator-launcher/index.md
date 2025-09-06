@@ -20,20 +20,6 @@ The user-facing orchestration layer for running AI model evaluations at scale. P
 Step-by-step guide to install, configure, and run your first evaluation in minutes.
 :::
 
-:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Python API
-:link: api
-:link-type: doc
-
-Programmatic access for notebooks, automation, and custom evaluation workflows.
-:::
-
-:::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` CLI Reference
-:link: cli
-:link-type: doc
-
-Complete command-line interface documentation with examples and usage patterns.
-:::
-
 :::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Configuration
 :link: configuration
 :link-type: doc
@@ -106,6 +92,27 @@ Export to Google Sheets for easy sharing and analysis with stakeholders.
 
 ::::
 
+## References
+
+::::{grid} 1 2 2 2
+:gutter: 1 1 1 2
+
+:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Python API
+:link: api
+:link-type: doc
+
+Programmatic access for notebooks, automation, and custom evaluation workflows.
+:::
+
+:::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` CLI Reference
+:link: cli
+:link-type: doc
+
+Complete command-line interface documentation with examples and usage patterns.
+:::
+
+::::
+
 ## Typical Workflow
 
 1. **Choose execution backend** (local, Slurm, Lepton AI)
@@ -128,9 +135,9 @@ Use the launcher whenever you want:
 :hidden:
 
 Quickstart <quickstart>
+Executors <executors/index>
+Configuration <configuration>
+Exporters <exporters/index>
 Python API <api>
 CLI Reference <cli>
-Configuration <configuration>
-Executors <executors/index>
-Exporters <exporters/index>
 :::
