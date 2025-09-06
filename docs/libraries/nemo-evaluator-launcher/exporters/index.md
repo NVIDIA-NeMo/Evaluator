@@ -2,15 +2,45 @@
 
 Exporters move evaluation results and artifacts from completed runs to external destinations for analysis, sharing, and reporting. They provide flexible options for integrating evaluation results into your existing workflows and tools.
 
+## How to Set an Exporter
+
+::::{tab-set}
+
+:::{tab-item} CLI
+
+```bash
+nv-eval export <id1> [<id2> ...] \
+  --dest <local|gsheets|wandb|mlflow|leaderboard> \
+  [options]
+```
+
+:::
+
+:::{tab-item} Python
+
+```python
+from nemo_evaluator_launcher.api.functional import export_results
+
+export_results(
+    ["8abcd123"], 
+    dest="local", 
+    config={
+        "format": "json", 
+        "output_dir": "./out"
+    }
+)
+```
+
+:::
+
+::::
+
+## Choosing an Exporter
+
+Select exporters based on your analysis and reporting needs:
+
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
-
-:::{grid-item-card} {octicon}`info;1.5em;sd-mr-1` Overview
-:link: overview
-:link-type: doc
-
-Understand how exporters work, their common patterns, and configuration options for moving evaluation results.
-:::
 
 :::{grid-item-card} {octicon}`file-directory;1.5em;sd-mr-1` Local Files
 :link: local
@@ -42,22 +72,20 @@ Export metrics to Google Sheets for easy sharing, reporting, and collaborative a
 
 ::::
 
-## Choosing an Exporter
-
-Select exporters based on your analysis and reporting needs:
-
-- **Local**: Perfect for custom analysis, file-based workflows, and development
-- **W&B**: Ideal for ML teams using Weights & Biases for experiment tracking
-- **MLflow**: Best for organizations with MLflow-based ML platforms
-- **Google Sheets**: Great for business reporting and collaborative metric tracking
-
 Multiple exporters can be configured simultaneously to support different stakeholder needs and workflow integration points.
+
+## Add Your Own Exporter
+
+It's straightforward to add a custom exporter to fit your tools:
+- Define destination-specific configuration (credentials, endpoints, paths)
+- Implement metric selection and artifact upload logic
+- Ensure idempotency (e.g., `skip_existing`) and good error messages
+- Expose a CLI/Python entry point consistent with other exporters
 
 :::{toctree}
 :caption: Exporters
 :hidden:
 
-Overview <overview>
 Local Files <local>
 Weights & Biases <wandb>
 MLflow <mlflow>

@@ -5,22 +5,79 @@ Exports accuracy metrics to a Google Sheet. Dynamically creates/extends header c
 - **Purpose**: Centralized spreadsheet for tracking results across runs
 - **Requirements**: `gspread` installed and a Google service account with access
 
-See common behavior and usage in [overview](overview.md).
+## Usage
 
-## Key configuration
-- `service_account_file` (str, optional): Path to service account JSON; default creds if omitted
-- `spreadsheet_name` (str): Target spreadsheet name.
-- `log_metrics` (list[str], optional): Filter metrics to log
+Export evaluation results to a Google Sheets spreadsheet for easy sharing and analysis.
 
-## Examples
+::::{tab-set}
 
-CLI:
+:::{tab-item} CLI
+
+Export results from a specific evaluation run to Google Sheets:
+
 ```bash
-nv-eval export 8abcd123 --dest gsheets --output-dir .
+# Export results using default spreadsheet name
+nv-eval export 8abcd123 --dest gsheets
+
+# Export with custom spreadsheet name and service account
+nv-eval export 8abcd123 --dest gsheets \
+  --config '{"spreadsheet_name": "My Evaluation Results", "service_account_file": "/path/to/service-account.json"}'
 ```
 
-Python:
+:::
+
+:::{tab-item} Python
+
+Export results programmatically with custom configuration:
+
 ```python
 from nemo_evaluator_launcher.api.functional import export_results
-export_results(["8abcd123"], dest="gsheets", config={"spreadsheet_name": "Nemo Evaluator Launcher Results"})
+
+# Basic export to Google Sheets
+export_results(
+    ["8abcd123"], 
+    dest="gsheets", 
+    config={
+        "spreadsheet_name": "Nemo Evaluator Launcher Results"
+    }
+)
+
+# Export with service account and filtered metrics
+export_results(
+    ["8abcd123", "9def4567"], 
+    dest="gsheets", 
+    config={
+        "spreadsheet_name": "Model Comparison Results",
+        "service_account_file": "/path/to/service-account.json",
+        "log_metrics": ["accuracy", "f1_score"]
+    }
+)
+```
+
+:::
+
+::::
+
+## Key Configuration
+
+```{list-table}
+:header-rows: 1
+:widths: 25 25 25 25
+
+* - Parameter
+  - Type
+  - Description
+  - Default/Notes
+* - `service_account_file`
+  - str, optional
+  - Path to service account JSON
+  - Uses default credentials if omitted
+* - `spreadsheet_name`
+  - str
+  - Target spreadsheet name
+  - Required
+* - `log_metrics`
+  - list[str], optional
+  - Filter metrics to log
+  - All metrics if omitted
 ```

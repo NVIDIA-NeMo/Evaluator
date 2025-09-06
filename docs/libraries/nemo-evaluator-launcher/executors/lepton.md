@@ -69,14 +69,40 @@ graph TD
     K --> L["Finish"]
 ```
 
-## Example Configuration
+## Configuration Example
+
+Here's a complete Lepton executor configuration with vLLM deployment:
+
 ```yaml
+# examples/lepton_vllm_llama_3_1_8b_instruct.yaml
+defaults:
+  - execution: lepton
+  - deployment: vllm
+  - _self_
+
+execution:
+  output_dir: ./cloud_results
+
+deployment:
+  type: vllm
+  model_id: meta-llama/Llama-3.1-8B-Instruct
+  
+target:
+  api_endpoint:
+    model_id: meta/llama-3.1-8b-instruct
+    
 evaluation:
   tasks:
-    - name: gpqa_diamond
     - name: hellaswag
+    - name: arc_challenge
     - name: winogrande
 ```
+
+This configuration:
+- Uses the `lepton` execution backend
+- Deploys a vLLM model server on Lepton AI infrastructure
+- Automatically handles model deployment and endpoint creation
+- Runs three common benchmark tasks
 
 ## Configuration Notes
 - Supports Hydra overrides for endpoint URLs, API keys, and execution output paths

@@ -41,3 +41,35 @@ Run your custom configuration:
 ```bash
 nv-eval run --config-dir my_configs --config-name my_evaluation
 ```
+
+## Configuration Example
+
+Here's a complete local executor configuration:
+
+```yaml
+# examples/local_llama_3_1_8b_instruct.yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: ./results
+
+target:
+  api_endpoint:
+    url: http://localhost:8080/v1/chat/completions
+    model_id: meta/llama-3.1-8b-instruct
+    
+evaluation:
+  tasks:
+    - name: hellaswag
+    - name: arc_challenge
+    - name: winogrande
+```
+
+This configuration:
+- Uses the `local` execution backend
+- Sets no deployment (assumes your model is already running)
+- Points to a local model endpoint at `localhost:8080`
+- Runs three common benchmark tasks

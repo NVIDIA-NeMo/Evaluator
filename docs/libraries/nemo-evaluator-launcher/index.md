@@ -131,6 +131,6 @@ Quickstart <quickstart>
 Python API <api>
 CLI Reference <cli>
 Configuration <configuration>
-Executors <executors/overview>
-Exporters <exporters/overview>
+Executors <executors/index>
+Exporters <exporters/index>
 :::
