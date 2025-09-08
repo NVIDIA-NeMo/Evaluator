@@ -85,10 +85,9 @@ main() {
         export UV_LINK_MODE=copy
 
         # Create virtual environment and install dependencies
-        uv venv ${UV_PROJECT_ENVIRONMENT} $([[ "$BASE_IMAGE" == "pytorch" ]] && echo "--system-site-packages")
+        uv venv ${UV_PROJECT_ENVIRONMENT}
 
         # Install dependencies
-        uv sync --locked --only-group build
         uv sync \
             --link-mode copy \
             --locked \

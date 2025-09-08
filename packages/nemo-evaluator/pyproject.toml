@@ -43,8 +43,6 @@ classifiers = [
 ]
 
 [dependency-groups]
-# This is a default group so that we install these even with bare `uv sync`
-build = []
 test = ["pytest", "pytest-cov", "pytest-subtests", "pytest-httpserver"]
 
 docs = [
