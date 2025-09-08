@@ -18,6 +18,7 @@ from unittest.mock import patch
 
 import pytest
 import requests
+
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.adapters.server import (
     AdapterServer,
