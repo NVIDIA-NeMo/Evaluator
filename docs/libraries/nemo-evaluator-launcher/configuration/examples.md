@@ -4,6 +4,110 @@
 
 Complete configuration examples for different deployment scenarios and use cases.
 
+## Quick Start Examples
+
+Ready-to-use configuration examples from the launcher package. Copy and modify these for your evaluations:
+
+### Local Execution Example
+
+```yaml
+# examples/local_llama_3_1_8b_instruct.yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: ./results
+
+target:
+  api_endpoint:
+    url: http://localhost:8080/v1/chat/completions
+    model_id: meta/llama-3.1-8b-instruct
+    
+evaluation:
+  tasks:
+    - name: hellaswag
+      params:
+        limit_samples: 100
+    - name: arc_challenge
+      params:
+        limit_samples: 100
+```
+
+**Usage:**
+
+```bash
+nv-eval run --config-dir examples \
+  --config-name local_llama_3_1_8b_instruct
+```
+
+### Slurm Execution Example
+
+```yaml
+# examples/slurm_llama_3_1_8b_instruct.yaml  
+defaults:
+  - execution: slurm
+  - deployment: vllm
+  - _self_
+
+execution:
+  output_dir: /shared/results
+  partition: gpu
+  nodes: 1
+  gpus_per_node: 8
+  time_limit: "04:00:00"
+
+deployment:
+  type: vllm
+  model_path: /shared/models/llama-3.1-8b-instruct
+  
+evaluation:
+  tasks:
+    - name: hellaswag
+    - name: arc_challenge
+    - name: winogrande
+```
+
+**Usage:**
+
+```bash
+nv-eval run --config-dir examples \
+  --config-name slurm_llama_3_1_8b_instruct
+```
+
+### Lepton Execution Example
+
+```yaml
+# examples/lepton_vllm_llama_3_1_8b_instruct.yaml
+defaults:
+  - execution: lepton
+  - deployment: vllm
+  - _self_
+
+execution:
+  output_dir: ./cloud_results
+
+deployment:
+  type: vllm
+  model_id: meta-llama/Llama-3.1-8B-Instruct
+  
+evaluation:
+  tasks:
+    - name: hellaswag
+    - name: arc_challenge
+    - name: winogrande
+```
+
+**Usage:**
+
+```bash
+nv-eval run --config-dir examples \
+  --config-name lepton_vllm_llama_3_1_8b_instruct
+```
+
+## Advanced Configuration Examples
+
 ## Local Development
 
 ```yaml

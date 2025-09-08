@@ -217,138 +217,50 @@ View available `AdapterConfig` options and defaults.
 
 ::::
 
-## Configuration Examples Gallery
+## Configuration Examples
 
-Ready-to-use configuration examples from the launcher package. Copy and modify these for your evaluations:
+Ready-to-use configuration examples to get you started quickly:
 
 ::::{grid} 1 2 2 2  
 :gutter: 1 1 1 2
 
-:::{grid-item-card} {octicon}`play;1.5em;sd-mr-1` Quick Start Local
-:link-type: url
-:link: #local-execution-example
+:::{grid-item-card} {octicon}`play;1.5em;sd-mr-1` Quick Start Examples
+:link: libraries/nemo-evaluator-launcher/configuration/examples
+:link-type: doc
 
-Basic local evaluation with Docker. Perfect for getting started and development testing.
+Local, Slurm, and Lepton execution examples with complete YAML configurations and usage commands.
 
-```bash
-nv-eval run --config-dir examples \
-  --config-name local_llama_3_1_8b_instruct
-```
-:::
-
-:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` HPC Cluster (Slurm)
-:link-type: url  
-:link: #slurm-execution-example
-
-Production evaluation on HPC clusters with automatic model deployment and resource management.
-
-```bash
-nv-eval run --config-dir examples \
-  --config-name slurm_llama_3_1_8b_instruct
-```
-:::
-
-:::{grid-item-card} {octicon}`cloud;1.5em;sd-mr-1` Cloud Execution (Lepton)
-:link-type: url
-:link: #lepton-execution-example
-
-Scalable cloud evaluation with on-demand GPU provisioning and automatic teardown.
-
-```bash
-nv-eval run --config-dir examples \
-  --config-name lepton_vllm_llama_3_1_8b_instruct
-```
+**Get Started**: Copy and modify these ready-to-use examples for your evaluations.
 :::
 
 :::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Advanced Patterns
-:link: libraries/nemo-evaluator-launcher/configuration
+:link: libraries/nemo-evaluator-launcher/configuration/advanced
 :link-type: doc
 
 Auto-export, custom metadata, sample limiting, and reasoning-specific configurations.
 
-**Examples**: `local_auto_export_*`, `local_with_user_provided_metadata`, `local_limit_samples`
+**Examples**: Multi-model evaluation, custom metrics, and production workflows.
+:::
+
+:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Configuration Reference
+:link: libraries/nemo-evaluator-launcher/configuration/index
+:link-type: doc
+
+Complete configuration structure, parameters, validation, and composition patterns.
+
+**Learn More**: Structure, overrides, and customization options.
+:::
+
+:::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Integration Patterns
+:link: get-started/integration-patterns
+:link-type: doc
+
+Best practices for integrating evaluations into your ML workflows and pipelines.
+
+**Explore**: CI/CD, monitoring, and automated evaluation patterns.
 :::
 
 ::::
-
-### Local Execution Example
-
-```yaml
-# examples/local_llama_3_1_8b_instruct.yaml
-defaults:
-  - execution: local
-  - deployment: none
-  - _self_
-
-execution:
-  output_dir: ./results
-
-target:
-  api_endpoint:
-    url: http://localhost:8080/v1/chat/completions
-    model_id: meta/llama-3.1-8b-instruct
-    
-evaluation:
-  tasks:
-    - name: hellaswag
-      params:
-        limit_samples: 100
-    - name: arc_challenge
-      params:
-        limit_samples: 100
-```
-
-### Slurm Execution Example
-
-```yaml
-# examples/slurm_llama_3_1_8b_instruct.yaml  
-defaults:
-  - execution: slurm
-  - deployment: vllm
-  - _self_
-
-execution:
-  output_dir: /shared/results
-  partition: gpu
-  nodes: 1
-  gpus_per_node: 8
-  time_limit: "04:00:00"
-
-deployment:
-  type: vllm
-  model_path: /shared/models/llama-3.1-8b-instruct
-  
-evaluation:
-  tasks:
-    - name: hellaswag
-    - name: arc_challenge
-    - name: winogrande
-```
-
-### Lepton Execution Example
-
-```yaml
-# examples/lepton_vllm_llama_3_1_8b_instruct.yaml
-defaults:
-  - execution: lepton
-  - deployment: vllm
-  - _self_
-
-execution:
-  output_dir: ./cloud_results
-
-deployment:
-  type: vllm
-  model_id: meta-llama/Llama-3.1-8B-Instruct
-  
-evaluation:
-  tasks:
-    - name: hellaswag
-    - name: arc_challenge
-    - name: winogrande
-```
-
-**More Examples**: See [Configuration Reference](libraries/nemo-evaluator-launcher/configuration/index.md) for advanced patterns including auto-export, metadata injection, and development testing configurations.
 
 :::{toctree}
 :hidden:
