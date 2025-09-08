@@ -16,8 +16,9 @@
 #!/usr/bin/env python3
 """Generates bunch of up-to-date configs for your inspection."""
 
-from nemo_evaluator_launcher.api import RunConfig
 from omegaconf import OmegaConf
+
+from nemo_evaluator_launcher.api import RunConfig
 
 
 def main() -> None:

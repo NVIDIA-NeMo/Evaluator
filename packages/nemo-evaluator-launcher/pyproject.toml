@@ -73,12 +73,11 @@ build-backend = "hatchling.build"
 line-length = 88
 target-version = ["py310"]
 
-[tool.isort]
-known_first_party = [
+[tool.ruff.lint.isort]
+known-first-party = [
   "nemo_evaluator_launcher",
   "nemo_evaluator_launcher_internal",
 ]
-profile = "black"
 
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
