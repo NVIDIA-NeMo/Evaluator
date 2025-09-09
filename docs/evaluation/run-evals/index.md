@@ -102,7 +102,7 @@ Use this section to choose recommended evaluations **by model type** or **by use
   - Recommended Evaluations
 * - Base Models (Pre-trained)
   -
-    -  [Log-Probability](log-probability/index.md) - No instruction following required
+    -  [Log-Probability](log-probability) - No instruction following required
     -  [Text Generation](text-gen.md) - With academic prompting
     -  Avoid chat-specific evaluations
 * - Instruction-Tuned Models
@@ -130,7 +130,7 @@ Use this section to choose recommended evaluations **by model type** or **by use
 * - Academic Research
   -
     - [Text Generation](text-gen.md) for MMLU, reasoning benchmarks
-    - [Log-Probability](log-probability/index.md) for baseline comparisons
+    - [Log-Probability](log-probability) for baseline comparisons
     - Specialized domains for research-specific metrics (documentation coming soon)
 * - Production Deployment
   -

@@ -1,6 +1,6 @@
 (config-overrides)=
 
-# Overrides & Composition
+# Overrides and Composition
 
 Learn how to customize configurations using command-line overrides, environment variables, and configuration composition patterns.
 

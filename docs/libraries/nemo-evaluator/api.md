@@ -1,10 +1,10 @@
 # API Reference
 
-This document provides a comprehensive reference for the NeMo Evaluator Python API.
+Access the complete NeMo Evaluator Python API through this comprehensive reference guide.
 
 ## Core API Functions
 
-The NeMo Evaluator provides multiple API layers for different use cases:
+Choose from multiple API layers based on your needs:
 
 ### API Layers
 
@@ -20,7 +20,7 @@ The NeMo Evaluator provides multiple API layers for different use cases:
 
 ### Available Dataclasses
 
-The API provides several dataclasses for configuration:
+Configure your evaluations using these dataclasses:
 
 ```python
 from nemo_evaluator.api.api_dataclasses import (
@@ -559,9 +559,9 @@ There are two primary ways to configure interceptors:
 1. **CLI Overrides**: Use the `--overrides` parameter for runtime configuration
 2. **YAML Configuration**: Define interceptor chains in configuration files
 
-### Configuring Interceptors
+### Configure Interceptors
 
-Refer to [Configuring Interceptors](interceptors/index.md) for details.
+Refer to [Configure Interceptors](interceptors/index.md) for details.
 
 ### Complete Configuration Example
 

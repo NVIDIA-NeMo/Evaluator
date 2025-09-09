@@ -171,7 +171,7 @@ section.subsection.parameter=value
 - `config.params.limit_samples=100`
 - `target.api_endpoint.adapter_config.use_caching=true`
 
-## Error Handling
+## Handle Errors
 
 
 

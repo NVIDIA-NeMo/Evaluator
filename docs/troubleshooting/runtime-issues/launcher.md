@@ -384,4 +384,4 @@ nv-eval ls runs
 4. **Monitor Resources**: Check available compute resources
 5. **Review Logs**: Examine detailed error messages and stack traces
 
-For complex issues, consider using the [Python API](../libraries/nemo-evaluator-launcher/api.md) for more granular control and debugging capabilities.
+For complex issues, consider using the [Python API](../../libraries/nemo-evaluator-launcher/api) for more granular control and debugging capabilities.

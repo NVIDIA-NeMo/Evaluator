@@ -26,7 +26,7 @@ Quickstart Evaluations
 
 ## Introduction to NeMo Evaluator
 
-Learn about the NeMo Evaluator, how it works at a high-level, and the key features.
+Discover how NeMo Evaluator works and explore its key features.
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
@@ -34,19 +34,19 @@ Learn about the NeMo Evaluator, how it works at a high-level, and the key featur
 :::{grid-item-card} {octicon}`info;1.5em;sd-mr-1` About NeMo Evaluator
 :link: about/index
 :link-type: doc
-Learn about the NeMo Evaluator Core and Launcher
+Explore the NeMo Evaluator Core and Launcher architecture
 :::
 
 :::{grid-item-card} {octicon}`star;1.5em;sd-mr-1` Key Features
 :link: about/key-features
 :link-type: doc
-Learn about the key features of the NeMo Evaluator.
+Discover NeMo Evaluator's powerful capabilities.
 :::
 
 :::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Concepts
 :link: about/concepts/index
 :link-type: doc
-Learn about the concepts used across the NeMo Evaluator.
+Master core concepts powering NeMo Evaluator.
 :::
 
 :::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Release Notes
@@ -67,7 +67,7 @@ Select the evaluation approach that best fits your workflow and technical requir
 :link: gs-quickstart-launcher
 :link-type: ref
 
-Run evaluations with automated container management with built-in orchestration using a CLI.
+Use the CLI to orchestrate evaluations with automated container management.
 +++
 {bdg-secondary}`cli`
 :::
@@ -118,7 +118,7 @@ Assess model confidence and uncertainty using log-probabilities for multiple-cho
 :::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Code Generation
 :link: code-generation
 :link-type: ref
-Evaluate programming capabilities through code generation, completion, and algorithmic problem solving.
+Evaluate programming capabilities through code generation, completion, and Algorithmic Problem Solving.
 
 :::
 

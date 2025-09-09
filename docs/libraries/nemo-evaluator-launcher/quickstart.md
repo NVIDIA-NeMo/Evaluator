@@ -99,7 +99,7 @@ nv-eval ls runs
 
 The NeMo Evaluator Launcher uses Hydra for configuration management. You can run evaluations using predefined configurations or create your own.
 
-#### Using Example Configurations
+#### Use Example Configurations
 
 The examples/ directory contains ready-to-use configurations:
 
@@ -156,7 +156,7 @@ For other backends:
 See executors/lepton.md for Lepton's parallel deployment strategy and examples.
 
 
-#### Creating Custom Configurations
+#### Create Custom Configurations
 
 1. Create your own configuration directory:
 ```bash

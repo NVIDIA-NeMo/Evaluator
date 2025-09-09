@@ -205,7 +205,7 @@ eval-factory run_eval --model_type completions --eval_type multiple_choice
 eval-factory run_eval --model_type vlm --eval_type vqa_benchmark
 ```
 
-##  **Extensibility & Customization**
+##  **Extensibility and Customization**
 
 ### Custom Framework Support
 Add your own evaluation frameworks using Framework Definition Files:
@@ -272,7 +272,7 @@ adapter_config = AdapterConfig(
 )
 ```
 
-##  **Security & Safety**
+##  **Security and Safety**
 
 ### Comprehensive Safety Evaluation
 Built-in safety assessment through specialized containers:
@@ -296,7 +296,7 @@ nv-eval run \
 - **Audit Logging**: Complete evaluation traceability
 - **Access Control**: Role-based permissions and API key management
 
-##  **Monitoring & Observability**
+##  **Monitoring and Observability**
 
 ### Real-Time Progress Tracking
 Monitor evaluation progress across all backends:

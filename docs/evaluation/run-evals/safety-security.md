@@ -1,6 +1,6 @@
 (safety-security)=
 
-# Safety & Security Evaluation
+# Safety and Security Evaluation
 
 Test AI safety, alignment, and security vulnerabilities using specialized safety harnesses and probing techniques to ensure responsible AI deployment.
 

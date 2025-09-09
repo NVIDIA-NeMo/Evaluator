@@ -164,7 +164,7 @@ This approach eliminates the need for complex instruction-following and provides
 
 ## Available Tasks
 
-### Reasoning & Knowledge Tasks
+### Reasoning and Knowledge Tasks
 
 | Task | Description | Samples | Metrics |
 |------|-------------|---------|---------|

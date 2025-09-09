@@ -1,12 +1,12 @@
 (deployment-overview)=
 
-# Model Serving & Deployment
+# Serve and Deploy Models
 
-Deploy and serve models for evaluation using NeMo Evaluator's flexible deployment options. Choose the deployment strategy that best fits your workflow, infrastructure, and requirements.
+Deploy and serve models with NeMo Evaluator's flexible deployment options. Select a deployment strategy that matches your workflow, infrastructure, and requirements.
 
 ## Overview
 
-NeMo Evaluator separates model serving from evaluation execution, enabling flexible architectures and scalable workflows. You can choose who handles the deployment responsibility based on your needs.
+NeMo Evaluator keeps model serving separate from evaluation execution, giving you flexible architectures and scalable workflows. Choose who manages deployment based on your needs.
 
 ### Key Concepts
 
@@ -188,7 +188,7 @@ evaluation:
 
 ## Bring-Your-Own-Endpoint Options
 
-When you manage deployment yourself, you can use any of these approaches:
+Choose from these approaches when managing your own deployment:
 
 ### Manual Deployment
 - **PyTriton**: High-performance serving with NVIDIA Triton Inference Server

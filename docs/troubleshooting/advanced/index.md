@@ -1,4 +1,4 @@
-# Advanced Troubleshooting & Debugging
+# Debug and Troubleshoot Advanced Issues
 
 Comprehensive debugging techniques, monitoring strategies, and common issue patterns for complex evaluation problems.
 

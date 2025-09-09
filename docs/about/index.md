@@ -15,13 +15,13 @@ NeMo Evaluator consists of two main libraries:
 * - Component
   - Key Capabilities
 * - **nemo-evaluator**  
-    (Core Evaluation Engine)
+    (*Core Evaluation Engine*)
   - • [Adapter/interceptor architecture](concepts/adapters-interceptors.md) for request and response processing  
     • Standardized evaluation workflows and containerized frameworks  
     • Deterministic configuration and reproducible results  
     • Consistent result schemas and artifact layouts
 * - **nemo-evaluator-launcher**  
-    (Orchestration Layer)
+    (*Orchestration Layer*)
   - • Unified CLI and programmatic entry points  
     • Multi-backend execution (local, Slurm, cloud)  
     • Job monitoring and lifecycle management  

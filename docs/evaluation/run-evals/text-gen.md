@@ -24,7 +24,7 @@ In text generation evaluation:
 4. **Metric Calculation**: Numerical scores are computed based on evaluation criteria
 
 This differs from **log-probability evaluation** where models assign confidence scores to predefined choices.
-For log-probability methods, refer to ["Log-Probability Evaluation"](logprobs.md).
+For log-probability methods, see the [Log-Probability Evaluation guide](../run-evals/log-probability).
 
 ## Choose Your Approach
 

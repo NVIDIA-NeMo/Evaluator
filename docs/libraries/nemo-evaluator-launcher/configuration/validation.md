@@ -1,6 +1,6 @@
 (config-validation)=
 
-# Validation & Debugging
+# Validation and Debugging
 
 Learn how to validate configurations, debug issues, and resolve common configuration errors.
 

@@ -2,7 +2,7 @@
 
 # Tutorials
 
-Learn NeMo Eval through hands-on tutorials and practical examples.
+Master NeMo Eval with hands-on tutorials and practical examples.
 
 ## Before You Start
 
@@ -17,7 +17,7 @@ Before starting the tutorials, ensure you have:
 
 ## Available Tutorials
 
-The tutorials are organized to build your knowledge progressively:
+Build your expertise with these progressive tutorials:
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
@@ -25,7 +25,7 @@ The tutorials are organized to build your knowledge progressively:
 :::{grid-item-card} {octicon}`play;1.5em;sd-mr-1` 1. MMLU Evaluation
 :link: https://github.com/NVIDIA-NeMo/Eval/tree/main/tutorials/mmlu.ipynb
 :link-type: url
-Learn the basics of deploying models and running evaluations using the MMLU benchmark for both completions and chat endpoints.
+Deploy models and run evaluations with the MMLU benchmark for both completions and chat endpoints.
 :::
 
 :::{grid-item-card} {octicon}`package;1.5em;sd-mr-1` 2. Simple Evals Framework
@@ -42,7 +42,7 @@ Master custom evaluation workflows by running WikiText benchmark with advanced c
 
 ::::
 
-## Running the Tutorials
+## Run the Tutorials
 
 1. Start NeMo Framework Container:
    ```bash

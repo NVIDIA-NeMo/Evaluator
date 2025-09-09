@@ -2,7 +2,7 @@
 
 # NeMo Evaluator Launcher
 
-The user-facing orchestration layer for running AI model evaluations at scale. Provides unified CLI and programmatic entry points to discover benchmarks, configure runs, submit jobs to different execution backends, monitor progress, and export results.
+The *Orchestration Layer* empowers you to run AI model evaluations at scale. Use the unified CLI and programmatic interfaces to discover benchmarks, configure runs, submit jobs, monitor progress, and export results.
 
 :::{tip}
 **New to evaluation?** Start with the [Quickstart Guide](quickstart.md) for a step-by-step walkthrough.
@@ -21,7 +21,7 @@ Step-by-step guide to install, configure, and run your first evaluation in minut
 :::
 
 :::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Configuration
-:link: configuration
+:link: configuration/index
 :link-type: doc
 
 Complete configuration schema, examples, and advanced patterns for all use cases.
@@ -29,20 +29,20 @@ Complete configuration schema, examples, and advanced patterns for all use cases
 
 ::::
 
-## Execution & Export
+## Execution and Export
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Executors
-:link: executors/overview
+:link: executors/index
 :link-type: doc
 
-Run evaluations on local machines, HPC clusters (Slurm), or cloud platforms (Lepton AI).
+Execute evaluations on your local machine, HPC cluster (Slurm), or cloud platform (Lepton AI).
 :::
 
 :::{grid-item-card} {octicon}`upload;1.5em;sd-mr-1` Exporters
-:link: exporters/overview
+:link: exporters/index
 :link-type: doc
 
 Export results to MLflow, Weights & Biases, Google Sheets, or local files with one command.

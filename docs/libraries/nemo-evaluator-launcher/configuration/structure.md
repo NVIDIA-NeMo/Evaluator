@@ -1,6 +1,6 @@
 (config-structure)=
 
-# Structure & Sections
+# Structure and Sections
 
 This page covers the core configuration sections that make up every NeMo Evaluator Launcher configuration file.
 

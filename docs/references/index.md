@@ -20,7 +20,7 @@ Comprehensive command-line interface reference with all commands, options, and e
 :::
 
 :::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Configuration Schema
-:link: ../libraries/nemo-evaluator-launcher/configuration
+:link: ../libraries/nemo-evaluator-launcher/configuration/index
 :link-type: doc
 Complete configuration reference with examples for all executors and deployment types.
 :::

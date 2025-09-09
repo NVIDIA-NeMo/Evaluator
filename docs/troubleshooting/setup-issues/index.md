@@ -1,4 +1,4 @@
-# Setup & Installation Issues
+# Setup and Installation Issues
 
 Solutions for getting NeMo Eval up and running, including installation problems, authentication setup, and model deployment issues.
 

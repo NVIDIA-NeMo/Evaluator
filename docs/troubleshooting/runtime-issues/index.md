@@ -1,4 +1,4 @@
-# Runtime & Execution Issues
+# Runtime and Execution Issues
 
 Solutions for problems that occur during evaluation execution, including configuration validation, launcher management, and performance optimization.
 

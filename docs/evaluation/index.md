@@ -17,7 +17,7 @@ Before you run evaluations, ensure you have:
 
 ## Evaluation Workflows
 
-Choose the workflow that matches your environment and preferred level of control.
+Select a workflow based on your environment and desired level of control.
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
@@ -50,7 +50,7 @@ Direct container access for specialized use cases and custom evaluation environm
 
 ## Configuration and Customization
 
-Use these guides to configure evaluations, define custom tasks, browse available benchmarks, and extend the framework.
+Configure your evaluations, create custom tasks, explore benchmarks, and extend the framework with these guides.
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
@@ -83,19 +83,19 @@ Add custom evaluation frameworks using Framework Definition Files for specialize
 
 ## Advanced Features
 
-Explore advanced capabilities to scale execution, export results, customize adapters, and troubleshoot issues.
+Scale your evaluations, export results, customize adapters, and resolve issues with these advanced features.
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`workflow;1.5em;sd-mr-1` Multi-Backend Execution
-:link: ../libraries/nemo-evaluator-launcher/executors/overview
+:link: ../libraries/nemo-evaluator-launcher/executors/index
 :link-type: doc
 Run evaluations on local machines, HPC clusters, or cloud platforms with unified configuration.
 :::
 
 :::{grid-item-card} {octicon}`database;1.5em;sd-mr-1` Result Export
-:link: ../libraries/nemo-evaluator-launcher/exporters/overview
+:link: ../libraries/nemo-evaluator-launcher/exporters/index
 :link-type: doc
 Export evaluation results to MLflow, Weights & Biases, Google Sheets, and other platforms.
 :::

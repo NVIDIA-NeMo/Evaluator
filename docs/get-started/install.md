@@ -144,13 +144,13 @@ docker run --rm -it --gpus all \
 # Or run evaluation directly
 docker run --rm --gpus all \
     -v $(pwd)/results:/workspace/results \
-    -e MY_API_KEY=your-api-key \
+    -e `MY_API_KEY`=your-api-key \
     nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 \
     eval-factory run_eval \
         --eval_type mmlu_pro \
         --model_url https://integrate.api.nvidia.com/v1/chat/completions \
         --model_id meta/llama-3.1-8b-instruct \
-        --api_key_name MY_API_KEY \
+        --api_key_name `MY_API_KEY` \
         --output_dir /workspace/results
 ```
 
@@ -192,14 +192,14 @@ Run the deployment in the background:
 python deploy.py
 ```
 
-Make sure to open two separate terminals within the same container for executing the deployment and evaluation.
+Open two separate terminals within the same container to execute the deployment and evaluation.
 
 3. (Optional) Export the required environment variables. 
 
 4. Run the evaluation of your choice.
 
 Below you can find examples for enabling and launching evaluations for different packages.
-Note that all examples use only a subset of samples.
+These examples demonstrate functionality using a subset of samples.
 To run the evaluation on the entire dataset, remove the `"limit_samples"` parameter.
 
 ::::{tab-set}
@@ -269,10 +269,10 @@ pip install nvidia-bfcl==25.7.1
 In the example below, we use the `AIME_2025` task, which follows the llm-as-a-judge approach for checking the output correctness.
 By default, [Llama 3.3 70B](https://build.nvidia.com/meta/llama-3_3-70b-instruct) NVIDIA NIM is used for judging.
 
-2. To run evaluation, set your [build.nvidia.com](https://build.nvidia.com/) API key as the `JUDGE_API_KEY` variable:
+2. To run evaluation, set your [build.nvidia.com](https://build.nvidia.com/) API key as the ``JUDGE_API_KEY`` variable:
 
 ```bash
-export JUDGE_API_KEY=...
+export `JUDGE_API_KEY`=...
 ```
 
 To customize the judge setting, see the instructions for [NVIDIA Eval Factory package](https://pypi.org/project/nvidia-simple-evals/). 
@@ -302,10 +302,10 @@ To customize the judge setting, see the instructions for [NVIDIA Eval Factory pa
    The model is available through NVIDIA NIM.
    See the [instructions](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/getting-started.html) on deploying the judge model.
 
-   If you set a gated judge endpoint up, you must export your API key as the `JUDGE_API_KEY` variable:
+   If you set a gated judge endpoint up, you must export your API key as the ``JUDGE_API_KEY`` variable:
 
    ```bash
-   export JUDGE_API_KEY=...
+   export `JUDGE_API_KEY`=...
    ```
 
 3. To access the evaluation dataset, you must authenticate with the [Hugging Face Hub](https://huggingface.co/docs/huggingface_hub/quick-start#authentication).

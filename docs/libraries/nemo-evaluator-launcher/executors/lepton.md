@@ -48,7 +48,7 @@ nv-eval run --config-dir examples --config-name lepton_none_llama_3_1_8b_instruc
 - Simple cleanup: Single command tears down endpoints and storage
 
 Mermaid overview:
-```mermaid
+```text
 graph TD
     A["nv-eval run"] --> B["Load Tasks"]
     B --> D["Endpoints Deployment"]

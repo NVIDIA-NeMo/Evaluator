@@ -30,7 +30,7 @@ The Python API is built on top of NeMo Evaluator and provides:
 
 ## Basic Usage
 
-### Running Evaluations
+### Run Evaluations
 
 Below is an example script to run evaluations through a Python script. Please ensure that the `nvidia-simple-evals` package is installed. If you haven't installed it yet, you can find the installation instructions [here](https://pypi.org/project/nvidia-simple-evals/).
 

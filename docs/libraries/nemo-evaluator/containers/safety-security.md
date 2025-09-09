@@ -1,4 +1,4 @@
-# Safety & Security Containers
+# Safety and Security Containers
 
 Containers specialized for evaluating AI model safety, security, and robustness against various threats and biases.
 

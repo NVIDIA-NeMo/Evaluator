@@ -45,7 +45,7 @@ os.environ["HF_TOKEN"] = "your_token_here"
 3. **Verify permissions**: Check that your token has access to required datasets
 4. **Token scope**: Ensure your token has appropriate read permissions
 
-### Troubleshooting Access Issues
+### Resolve Access Issues
 
 ```python
 # Test token validity

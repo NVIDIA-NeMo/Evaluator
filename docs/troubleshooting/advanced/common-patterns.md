@@ -1,4 +1,4 @@
-# Common Issues & Solutions
+# Common Issues and Solutions
 
 Practical troubleshooting guide based on frequent user issues and test patterns in NeMo Eval deployments and evaluations.
 

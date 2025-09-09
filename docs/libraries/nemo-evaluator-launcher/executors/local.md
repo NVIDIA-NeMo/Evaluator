@@ -2,7 +2,7 @@
 
 The Local executor runs evaluations on your machine using Docker. It provides a fast way to iterate when you have Docker installed and want fully reproducible runs.
 
-See common concepts and commands in the [executors overview](overview.md).
+See common concepts and commands in the [executors overview](index).
 
 ## Prerequisites
 - Docker installed and running

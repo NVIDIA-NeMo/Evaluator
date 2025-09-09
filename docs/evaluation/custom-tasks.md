@@ -75,7 +75,7 @@ pip install nvidia-lm-eval==25.6
 
 **Key Configuration Notes**:
 
-- Uses log-probabilities for evaluation (refer to [Log-Probability Evaluation](run-evals/logprobs.md))
+- Uses log-probabilities for evaluation (refer to [Log-Probability Evaluation](run-evals/log-probability))
 - Requires tokenizer configuration for proper probability calculation
 - `limit_samples=10` used for quick testing (remove for full evaluation)
 

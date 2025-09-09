@@ -2,7 +2,7 @@
 
 # NeMo Evaluator Libraries
 
-Choose the library that fits your evaluation workflow:
+Select a library for your evaluation workflow:
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
@@ -22,4 +22,4 @@ Choose the library that fits your evaluation workflow:
 :::
 ::::
 
-The launcher provides orchestration on top of the core evaluation engine. Both use the same containers and produce identical results.
+The Launcher orchestrates the Core Evaluation Engine, using identical containers to ensure consistent results.

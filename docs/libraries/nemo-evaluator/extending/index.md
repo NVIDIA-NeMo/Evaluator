@@ -34,7 +34,7 @@ The primary extension mechanism uses YAML configuration files to define:
 - **Compatibility**: Work seamlessly with existing launchers and exporters
 - **Community**: Share frameworks through the standard FDF format
 
-## Getting Started with Extensions
+## Start with Extensions
 
 1. **Review Existing Frameworks**: Study existing FDF files to understand the structure
 2. **Define Your Framework**: Create an FDF that describes your evaluation framework

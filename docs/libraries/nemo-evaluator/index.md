@@ -2,7 +2,7 @@
 
 # NeMo Evaluator
 
-The core evaluation engine that provides standardized, reproducible AI model evaluation through containerized benchmarks and a flexible adapter architecture.
+The *Core Evaluation Engine* delivers standardized, reproducible AI model evaluation through containerized benchmarks and a flexible adapter architecture.
 
 :::{tip}
 **Need orchestration?** For CLI and multi-backend execution, use the [NeMo Evaluator Launcher](../nemo-evaluator-launcher/index.md).
@@ -29,7 +29,7 @@ Ready-to-use evaluation containers with curated benchmarks and frameworks.
 
 ::::
 
-## Reference & Customization
+## Reference and Customization
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
@@ -38,7 +38,7 @@ Ready-to-use evaluation containers with curated benchmarks and frameworks.
 :link: interceptors/index
 :link-type: doc
 
-Configure request/response interceptors for logging, caching, and custom processing.
+Set up interceptors to handle requests, responses, logging, caching, and custom processing.
 :::
 
 :::{grid-item-card} {octicon}`log;1.5em;sd-mr-1` Logging

@@ -36,7 +36,7 @@ params = ConfigParams(
 )
 ```
 
-### Performance Monitoring
+### Monitor Performance
 
 ```python
 import time

@@ -43,7 +43,7 @@ target:
 | `use_system_prompt` | Enable system message injection | `False` | bool |
 | `custom_system_prompt` | Custom system message content | `None` | str |
 
-## Message Processing
+## Process Messages
 
 ### Chat API Format
 ```python
