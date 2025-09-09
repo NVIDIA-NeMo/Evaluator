@@ -56,62 +56,47 @@ Release notes for the NeMo Evaluator.
 :::
 ::::
 
-### Choose Your Entry Point
+## Choose a Quickstart
 
-NeMo Evaluator provides two primary paths for different user needs. Choose based on your workflow requirements:
-
-```{mermaid}
-flowchart LR
-    A[New to NeMo Evaluator?] --> B{What's your use case?}
-    
-    B -->|Quick evaluations<br/>CLI interface<br/>Multi-backend support| C[Launcher<br/>Recommended]
-    B -->|Custom workflows<br/>Programmatic control<br/>Integrations| D[Core<br/>Advanced]
-    
-    C --> E[Start with Launcher Quickstart]
-    D --> F[Start with Core API Guide]
-    
-    style C fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    style D fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-```
+Select the evaluation approach that best fits your workflow and technical requirements.
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
-:::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` NeMo Evaluator Launcher
-:link: libraries/nemo-evaluator-launcher/index
-:link-type: doc
-**Recommended for most users**: Unified CLI and orchestration for running evaluations across local, Slurm, and cloud backends with 100+ benchmarks.
-
-**Best for**: Researchers, ML engineers, teams wanting turnkey evaluation capabilities
-:::
-
-:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` NeMo Evaluator Core
-:link: libraries/nemo-evaluator/index
-:link-type: doc
-**For developers and integrations**: Core evaluation engine, adapter system, and containerized frameworks for programmatic access.
-
-**Best for**: Custom pipelines, system integrations, framework extensions
-:::
-
-:::{grid-item-card} {octicon}`info;1.5em;sd-mr-1` About & Concepts
-:link: about-concepts
+:::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` Launcher
+:link: gs-quickstart-launcher
 :link-type: ref
-Learn the core concepts: evaluation model, adapters, deployment patterns, and system architecture.
+
+Run evaluations with automated container management with built-in orchestration using a CLI.
++++
+{bdg-secondary}`cli`
 :::
 
-:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Quick Start
-:link: get-started-overview
+:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Core
+:link: gs-quickstart-core
 :link-type: ref
-Get up and running with your first evaluation in just a few minutes using either the launcher or core library.
+
+Get direct Python API access with full adapter features, custom configurations, and workflow integration capabilities.
+
++++
+{bdg-secondary}`api`
+:::
+
+:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Container
+:link: gs-quickstart-container
+:link-type: ref
+
+Gain full control over the container environment with volume mounting, environment variable management, and integration into Docker-based CI/CD pipelines.
+
++++
+{bdg-secondary}`Docker`
 :::
 
 ::::
 
 ## Evaluation Workflows
 
-```{note}
-You need access to a model endpoint to run evaluations. If you already have an OpenAI-compatible endpoint, continue with the guides below. Otherwise, first deploy an endpoint in {ref}`deployment-overview`.
-```
+Explore different evaluation methodologies tailored to specific model capabilities and use cases.
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
@@ -157,6 +142,8 @@ Assess tool use capabilities, API calling accuracy, and structured output genera
 
 ### Backend Options
 
+Deploy and serve models using high-performance inference backends optimized for evaluation workloads.
+
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
@@ -175,6 +162,8 @@ Multi-instance evaluation capabilities with single-node model parallelism and ho
 ::::
 
 ### Evaluation Adapters
+
+Customize model behavior during evaluation with interceptors for preprocessing, post-processing, and response modification.
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
@@ -217,47 +206,130 @@ View available `AdapterConfig` options and defaults.
 
 ::::
 
-## Configuration Examples
+## Libraries
 
-Ready-to-use configuration examples to get you started quickly:
+### Launcher
 
-::::{grid} 1 2 2 2  
+Orchestrate evaluations across different execution backends with unified CLI and programmatic interfaces.
+
+::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
-:::{grid-item-card} {octicon}`play;1.5em;sd-mr-1` Quick Start Examples
-:link: libraries/nemo-evaluator-launcher/configuration/examples
+:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Quickstart
+:link: libraries/nemo-evaluator-launcher/quickstart
 :link-type: doc
 
-Local, Slurm, and Lepton execution examples with complete YAML configurations and usage commands.
-
-**Get Started**: Copy and modify these ready-to-use examples for your evaluations.
+Step-by-step guide to install, configure, and run your first evaluation in minutes.
++++
+{bdg-secondary}`Getting Started`
 :::
 
-:::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Advanced Patterns
-:link: libraries/nemo-evaluator-launcher/configuration/advanced
-:link-type: doc
-
-Auto-export, custom metadata, sample limiting, and reasoning-specific configurations.
-
-**Examples**: Multi-model evaluation, custom metrics, and production workflows.
-:::
-
-:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Configuration Reference
+:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Configuration
 :link: libraries/nemo-evaluator-launcher/configuration/index
 :link-type: doc
 
-Complete configuration structure, parameters, validation, and composition patterns.
-
-**Learn More**: Structure, overrides, and customization options.
+Complete configuration schema, examples, and advanced patterns for all use cases.
++++
+{bdg-secondary}`Setup`
 :::
 
-:::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Integration Patterns
-:link: get-started/integration-patterns
+:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Executors
+:link: libraries/nemo-evaluator-launcher/executors/index
 :link-type: doc
 
-Best practices for integrating evaluations into your ML workflows and pipelines.
+Run evaluations on local machines, HPC clusters (Slurm), or cloud platforms (Lepton AI).
++++
+{bdg-secondary}`Execution`
+:::
 
-**Explore**: CI/CD, monitoring, and automated evaluation patterns.
+:::{grid-item-card} {octicon}`upload;1.5em;sd-mr-1` Exporters
+:link: libraries/nemo-evaluator-launcher/exporters/index
+:link-type: doc
+
+Export results to MLflow, Weights & Biases, Google Sheets, or local files with one command.
++++
+{bdg-secondary}`Export`
+:::
+
+:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Python API
+:link: libraries/nemo-evaluator-launcher/api
+:link-type: doc
+
+Programmatic access for notebooks, automation, and custom evaluation workflows.
++++
+{bdg-secondary}`API`
+:::
+
+:::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` CLI Reference
+:link: libraries/nemo-evaluator-launcher/cli
+:link-type: doc
+
+Complete command-line interface documentation with examples and usage patterns.
++++
+{bdg-secondary}`CLI`
+:::
+
+::::
+
+### Core
+
+Access the core evaluation engine directly with containerized benchmarks and flexible adapter architecture.
+
+::::{grid} 1 2 2 2
+:gutter: 1 1 1 2
+
+:::{grid-item-card} {octicon}`workflow;1.5em;sd-mr-1` Workflows
+:link: libraries/nemo-evaluator/workflows/index
+:link-type: doc
+
+Use the evaluation engine through Python API, containers, or programmatic workflows.
++++
+{bdg-secondary}`Integration`
+:::
+
+:::{grid-item-card} {octicon}`container;1.5em;sd-mr-1` Containers
+:link: libraries/nemo-evaluator/containers/index
+:link-type: doc
+
+Ready-to-use evaluation containers with curated benchmarks and frameworks.
++++
+{bdg-secondary}`Containers`
+:::
+
+:::{grid-item-card} {octicon}`plug;1.5em;sd-mr-1` Interceptors
+:link: libraries/nemo-evaluator/interceptors/index
+:link-type: doc
+
+Configure request/response interceptors for logging, caching, and custom processing.
++++
+{bdg-secondary}`Customization`
+:::
+
+:::{grid-item-card} {octicon}`log;1.5em;sd-mr-1` Logging
+:link: libraries/nemo-evaluator/logging
+:link-type: doc
+
+Comprehensive logging setup for evaluation runs, debugging, and audit trails.
++++
+{bdg-secondary}`Monitoring`
+:::
+
+:::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Extending
+:link: libraries/nemo-evaluator/extending/index
+:link-type: doc
+
+Add custom benchmarks and frameworks by defining configuration and interfaces.
++++
+{bdg-secondary}`Extension`
+:::
+
+:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` API Reference
+:link: libraries/nemo-evaluator/api
+:link-type: doc
+
+Python API documentation for programmatic evaluation control and integration.
++++
+{bdg-secondary}`API`
 :::
 
 ::::
