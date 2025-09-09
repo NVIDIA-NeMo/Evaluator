@@ -2,93 +2,141 @@
 
 # Model Serving & Deployment
 
-Deploy and serve models for evaluation using NeMo Evaluator's flexible deployment options. Choose from launcher-managed deployment, self-managed serving, or hosted endpoints based on your needs.
+Deploy and serve models for evaluation using NeMo Evaluator's flexible deployment options. Choose the deployment strategy that best fits your workflow, infrastructure, and requirements.
 
 ## Overview
 
-NeMo Evaluator provides multiple approaches to model deployment and serving, from fully managed orchestration to self-hosted endpoints. The platform separates model serving from evaluation execution, enabling flexible architectures and scalable workflows.
+NeMo Evaluator separates model serving from evaluation execution, enabling flexible architectures and scalable workflows. You can choose who handles the deployment responsibility based on your needs.
 
 ### Key Concepts
+
 - **Model-Evaluation Separation**: Models serve via OpenAI-compatible APIs, evaluations run in containers
+- **Deployment Responsibility**: Choose who manages the model serving infrastructure
 - **Multi-Backend Support**: Deploy locally, on HPC clusters, or in the cloud  
-- **Lifecycle Management**: Automatic deployment, scaling, and cleanup
-- **Resource Optimization**: Efficient GPU utilization and request batching
+- **Universal Adapters**: Request/response processing works across all deployment types
 
-## Deployment Approaches
+## Deployment Strategy Guide
 
-###  **Launcher-Managed Deployment** (Recommended)
-Let the launcher handle model deployment and evaluation orchestration:
+### **Launcher-Orchestrated Deployment** (Recommended)
+Let NeMo Evaluator Launcher handle both model deployment and evaluation orchestration:
 
 ```bash
 # Launcher deploys model AND runs evaluation
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name slurm_llama_3_1_8b_instruct \
     -o deployment.model_path=/shared/models/llama-3.1-8b \
     -o evaluation.tasks='["mmlu_pro", "gsm8k"]'
 ```
 
-**Benefits:**
--  Automatic deployment lifecycle management  
--  Multi-backend support (local, Slurm, Lepton)
--  Built-in cleanup and resource management
--  Integrated monitoring and logging
+**When to use:**
 
-###  **Self-Managed Deployment**
-Deploy your own model endpoint for use with evaluations:
+- You want automated deployment lifecycle management
+- You need multi-backend execution (local, Slurm, Lepton)
+- You prefer integrated monitoring and cleanup
+- You want the simplest path from model to results
+
+**Supported deployment types:** vLLM, NIM, SGLang, or no deployment (existing endpoints)
+
+### **Bring-Your-Own-Endpoint**
+You handle model deployment, NeMo Evaluator handles evaluation:
+
+**Launcher users with existing endpoints:**
+```bash
+# Point launcher to your deployed model
+nemo-evaluator-launcher run \
+    --config-dir examples \
+    --config-name local_llama_3_1_8b_instruct \
+    -o target.api_endpoint.url=http://localhost:8080/v1/completions
+```
+
+**Core library users:**
+```python
+from nemo_evaluator.core.evaluate import evaluate
+from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, EvaluationTarget
+
+api_endpoint = ApiEndpoint(url="http://localhost:8080/v1/completions")
+target = EvaluationTarget(api_endpoint=api_endpoint)
+evaluate(target_cfg=target, eval_cfg=config)
+```
+
+**When to use:**
+
+- You have existing model serving infrastructure
+- You need custom deployment configurations
+- You want to deploy once and run many evaluations
+- You have specific security or compliance requirements
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
-:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` PyTriton Backend
-:link: pytriton-deployment
-:link-type: ref
-High-performance inference through NVIDIA Triton Inference Server with multi-node model parallelism support.
+:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Manual Deployment
+:link: bring-your-own-endpoint/manual-deployment
+:link-type: doc
+Deploy using PyTriton, Ray Serve, vLLM, or other serving frameworks.
 :::
 
-:::{grid-item-card} {octicon}`organization;1.5em;sd-mr-1` Ray Serve
-:link: ray-serve  
-:link-type: ref
-Multi-instance evaluation with single-node model parallelism and horizontal scaling.
+:::{grid-item-card} {octicon}`globe;1.5em;sd-mr-1` Hosted Services
+:link: bring-your-own-endpoint/hosted-services
+:link-type: doc
+Use NVIDIA Build, OpenAI, or other hosted model APIs.
 :::
 
-:::{grid-item-card} {octicon}`cloud;1.5em;sd-mr-1` vLLM Serving
-:link: #vllm-serving
-:link-type: ref
-Fast inference serving with optimized attention mechanisms and continuous batching.
-:::
-
-:::{grid-item-card} {octicon}`globe;1.5em;sd-mr-1` Hosted Endpoints
-:link: #hosted-endpoints  
-:link-type: ref
-Use existing hosted models from NVIDIA Build, OpenAI, or other providers.
+:::{grid-item-card} {octicon}`organization;1.5em;sd-mr-1` Enterprise Infrastructure
+:link: bring-your-own-endpoint/enterprise-infrastructure
+:link-type: doc
+Integrate with Kubernetes, existing MLOps pipelines, or custom infrastructure.
 :::
 
 ::::
 
-###  **Container-Integrated Deployment**
-Deploy models within evaluation containers for isolated workflows:
+### Available Deployment Types
 
-```bash
-# Pull container with integrated model serving
-docker run --gpus all -v /models:/models \
-    nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 \
-    eval-factory run_eval \
-        --eval_type mmlu_pro \
-        --model_path /models/llama-3.1-8b \
-        --output_dir /results
-```
+Based on the deployment configurations from PR #108:
 
-## Integration with Launcher Backends
-
-### Local Backend Integration
+**vLLM Deployment (`deployment/vllm.yaml`)**
 ```yaml
-# examples/local_with_deployment.yaml
 deployment:
   type: vllm
   model_path: /path/to/model
   port: 8080
   gpu_memory_utilization: 0.9
+  max_model_len: 4096
+  served_model_name: my-model
+```
+
+**NIM Deployment (`deployment/nim.yaml`)**  
+```yaml
+deployment:
+  type: nim
+  model_path: /path/to/model
+  container_image: nvcr.io/nim/llama-3.1-8b-instruct
+  port: 8000
+```
+
+**SGLang Deployment (`deployment/sglang.yaml`)**
+```yaml
+deployment:
+  type: sglang
+  model_path: /path/to/model
+  port: 30000
+  tensor_parallel_size: 1
+```
+
+**No Deployment (`deployment/none.yaml`)**
+```yaml
+deployment:
+  type: none  # Use existing endpoint
+```
+
+### Execution Backend Integration
+
+**Local Backend**
+```yaml
+# examples/local_with_vllm_deployment.yaml
+deployment:
+  type: vllm
+  model_path: /models/llama-3.1-8b
   
 execution:
   backend: local
@@ -97,21 +145,14 @@ evaluation:
   tasks:
     - name: mmlu_pro
     - name: gsm8k
-
-target:
-  api_endpoint:
-    url: http://localhost:8080/v1/chat/completions
-    model_id: deployed-model
 ```
 
-### Slurm Backend Integration  
+**Slurm Backend**  
 ```yaml
-# examples/slurm_with_deployment.yaml
+# examples/slurm_with_nim_deployment.yaml
 deployment:
-  type: nemo_framework
+  type: nim
   model_path: /shared/models/llama-3.1-8b.nemo
-  tensor_parallelism: 4
-  pipeline_parallelism: 1
   
 execution:
   backend: slurm
@@ -127,9 +168,9 @@ evaluation:
         limit_samples: 1000
 ```
 
-### Lepton Backend Integration
+**Lepton Backend**
 ```yaml
-# examples/lepton_with_deployment.yaml
+# examples/lepton_with_vllm_deployment.yaml
 deployment:
   type: vllm
   model_path: meta-llama/Llama-3.1-8B-Instruct
@@ -145,56 +186,54 @@ evaluation:
     - name: humaneval
 ```
 
-## vLLM Serving
+## Bring-Your-Own-Endpoint Options
 
-Fast inference serving with optimized attention and continuous batching:
+When you manage deployment yourself, you can use any of these approaches:
 
+### Manual Deployment
+- **PyTriton**: High-performance serving with NVIDIA Triton Inference Server
+- **Ray Serve**: Multi-instance evaluation with horizontal scaling  
+- **vLLM**: Fast inference with optimized attention mechanisms
+- **Custom serving**: Any OpenAI-compatible endpoint
+
+### Hosted Services  
+- **NVIDIA Build**: Ready-to-use hosted models with OpenAI-compatible APIs
+- **OpenAI API**: Direct integration with OpenAI's models
+- **Other providers**: Any service providing OpenAI-compatible endpoints
+
+### Enterprise Integration
+- **Kubernetes deployments**: Container orchestration in production environments
+- **Existing MLOps pipelines**: Integration with current model serving infrastructure
+- **Custom infrastructure**: Specialized deployment requirements
+
+## Usage Examples
+
+### With Launcher
 ```bash
-# Install vLLM
-pip install vllm
-
-# Deploy model with vLLM
-vllm serve meta-llama/Llama-3.1-8B-Instruct \
-    --port 8080 \
-    --served-model-name llama-3.1-8b \
-    --gpu-memory-utilization 0.9 \
-    --max-model-len 4096
-```
-
-**Integration with NeMo Evaluator:**
-```bash
-# Run evaluation against vLLM endpoint
-nv-eval run \
+# Point to any existing endpoint
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
-    -o target.api_endpoint.url=http://localhost:8080/v1/chat/completions \
-    -o target.api_endpoint.model_id=llama-3.1-8b
+    -o target.api_endpoint.url=http://your-endpoint:8080/v1/completions \
+    -o target.api_endpoint.model_id=your-model-name
 ```
 
-## Hosted Endpoints
+### With Core Library
+```python
+from nemo_evaluator.core.evaluate import evaluate
+from nvidia_eval_commons.api.api_dataclasses import (
+    ApiEndpoint, EvaluationConfig, EvaluationTarget
+)
 
-Use existing hosted models without deployment:
+# Configure any endpoint
+api_endpoint = ApiEndpoint(
+    url="http://your-endpoint:8080/v1/completions",
+    model_id="your-model-name"
+)
+target = EvaluationTarget(api_endpoint=api_endpoint)
+config = EvaluationConfig(type="mmlu_pro", output_dir="results")
 
-### NVIDIA Build
-```bash
-# Run evaluation against NVIDIA Build endpoint
-nv-eval run \
-    --config-dir examples \
-    --config-name local_llama_3_1_8b_instruct \
-    -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
-    -o target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
-    -o target.api_endpoint.api_key=${NGC_API_KEY}
-```
-
-### OpenAI Compatible
-```bash
-# Run evaluation against OpenAI API
-nv-eval run \
-    --config-dir examples \
-    --config-name local_llama_3_1_8b_instruct \
-    -o target.api_endpoint.url=https://api.openai.com/v1/chat/completions \
-    -o target.api_endpoint.model_id=gpt-4 \
-    -o target.api_endpoint.api_key=${OPENAI_API_KEY}
+evaluate(target_cfg=target, eval_cfg=config)
 ```
 
 ## Evaluation Adapters

@@ -140,23 +140,21 @@ Assess tool use capabilities, API calling accuracy, and structured output genera
 
 ## Model Deployment
 
-### Backend Options
-
-Deploy and serve models using high-performance inference backends optimized for evaluation workloads.
+Choose your deployment strategy based on your infrastructure needs and operational preferences.
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
-:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` PyTriton Backend
-:link: pytriton-deployment
+:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Launcher-Orchestrated
+:link: launcher-orchestrated-deployment
 :link-type: ref
-High-performance inference through NVIDIA Triton Inference Server with multi-node model parallelism support for production deployments.
+Let the launcher handle model deployment and evaluation orchestration automatically. Recommended for most users.
 :::
 
-:::{grid-item-card} {octicon}`organization;1.5em;sd-mr-1` Ray Serve
-:link: ray-serve
+:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Bring-Your-Own-Endpoint
+:link: bring-your-own-endpoint
 :link-type: ref
-Multi-instance evaluation capabilities with single-node model parallelism and horizontal scaling for accelerated evaluations.
+Deploy and manage model serving yourself, then point NeMo Evaluator to your endpoint for full infrastructure control.
 :::
 
 ::::
@@ -380,8 +378,8 @@ Benchmark Catalog <evaluation/benchmarks>
 :hidden:
 
 About Model Deployment <deployment/index>
-PyTriton Backend <deployment/pytriton>
-Ray Serve Deployment <deployment/ray-serve>
+Launcher-Orchestrated <deployment/launcher-orchestrated/index>
+Bring-Your-Own-Endpoint <deployment/bring-your-own-endpoint/index>
 Evaluation Adapters <deployment/adapters/index>
 :::
 

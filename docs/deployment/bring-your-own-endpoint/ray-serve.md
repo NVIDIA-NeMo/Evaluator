@@ -1,8 +1,8 @@
 (ray-serve)=
 
-# Use Ray Serve for Multi-Instance Evaluations
+# Ray Serve Deployment
 
-This guide explains how to deploy and evaluate NeMo Framework models, trained with the Megatron-Core backend, using Ray Serve to enable multi-instance evaluation across available GPUs.
+Deploy NeMo Framework models using Ray Serve for multi-instance evaluation across available GPUs. This is a bring-your-own-endpoint approach where you manage the Ray Serve deployment and NeMo Evaluator connects to your endpoint.
 
 ## Introduction
 
@@ -76,3 +76,18 @@ if __name__ == "__main__":
 > **Note:** To evaluate the chat endpoint, update the url by replacing `/v1/completions/` with `/v1/chat/completions/`. Additionally, set the `type` field to `"chat"` in both `ApiEndpoint` and `EvaluationConfig` to indicate a chat benchmark.
 
 > **Tip:** To get a performance boost from multiple replicas in Ray, increase the parallelism value in your `EvaluationConfig`. You won't see any speed improvement if  `parallelism=1`. Try setting it to a higher value, such as 4 or 8.
+
+## Using with NeMo Evaluator Launcher
+
+Once your Ray Serve deployment is running, you can also use the launcher:
+
+```bash
+nemo-evaluator-launcher run \
+    --config-dir examples \
+    --config-name local_llama_3_1_8b_instruct \
+    -o target.api_endpoint.url=http://0.0.0.0:8080/v1/completions \
+    -o target.api_endpoint.model_id=deployed-model \
+    -o evaluation.params.parallelism=4  # Take advantage of multiple replicas
+```
+
+The launcher approach provides additional features like job management, result export, and configuration management while still leveraging your Ray Serve deployment.

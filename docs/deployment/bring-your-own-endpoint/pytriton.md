@@ -2,7 +2,7 @@
 
 # PyTriton Deployment
 
-Deploy NeMo Framework models using PyTriton backend for high-performance inference with multi-node model parallelism support.
+Deploy NeMo Framework models using PyTriton backend for high-performance inference with multi-node model parallelism support. This is a bring-your-own-endpoint approach where you manage the deployment and NeMo Evaluator connects to your endpoint.
 
 ## Overview
 
@@ -156,4 +156,34 @@ After successful deployment:
 3. **Monitor Performance**: Track inference latency and throughput
 4. **Scale as Needed**: Adjust parallelism based on workload requirements
 
-For evaluation instructions, see the [Model Evaluation](../evaluation/index.md) section.
+## Using with NeMo Evaluator
+
+Once your PyTriton deployment is running, you can evaluate it using either the launcher or core library:
+
+### With Launcher
+```bash
+nemo-evaluator-launcher run \
+    --config-dir examples \
+    --config-name local_llama_3_1_8b_instruct \
+    -o target.api_endpoint.url=http://localhost:8080/v1/completions \
+    -o target.api_endpoint.model_id=deployed-model
+```
+
+### With Core Library
+```python
+from nemo_evaluator.core.evaluate import evaluate
+from nvidia_eval_commons.api.api_dataclasses import (
+    ApiEndpoint, EvaluationConfig, EvaluationTarget
+)
+
+api_endpoint = ApiEndpoint(
+    url="http://localhost:8080/v1/completions",
+    model_id="deployed-model"
+)
+target = EvaluationTarget(api_endpoint=api_endpoint)
+config = EvaluationConfig(type="mmlu_pro", output_dir="results")
+
+evaluate(target_cfg=target, eval_cfg=config)
+```
+
+For more evaluation options, see the [Model Evaluation](../../evaluation/index.md) section.
