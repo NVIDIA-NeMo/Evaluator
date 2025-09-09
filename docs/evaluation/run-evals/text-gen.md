@@ -2,12 +2,17 @@
 
 # Text Generation Evaluation
 
-Understanding the core concepts and configuration for text generation evaluation in NeMo Eval.
-
-
-## Overview
+<!-- active person first intro sentence -->
 
 Text generation evaluation is the primary method for assessing LLM capabilities where models produce natural language responses to prompts. This approach evaluates the quality, accuracy, and appropriateness of generated text across various tasks and domains.
+
+## Before You Start
+
+Ensure you have:
+
+1. TODO
+
+---
 
 ## Evaluation Approach
 
@@ -131,54 +136,46 @@ nv-eval ls tasks --task mmlu_pro
 
 ## Text Generation Task Categories
 
-### Academic Benchmarks
+```{list-table} Text Generation Benchmarks Overview
+:header-rows: 1
+:widths: 25 25 25 25
 
-**Purpose**: Assess general knowledge and reasoning across academic domains
-
-**Key Tasks**:
-- `mmlu` - Massive Multitask Language Understanding (57 academic subjects)
-- `arc_challenge` - AI2 Reasoning Challenge (science questions)
-- `hellaswag` - Commonsense reasoning and situation modeling
-- `truthfulqa` - Factual accuracy and truthfulness
-
-**Evaluation Method**: Multiple-choice or short-answer text generation
-
-### Instruction Following
-
-**Purpose**: Evaluate ability to follow complex instructions and formatting requirements
-
-**Key Tasks**:
-- `ifeval` - Instruction Following Evaluation
-- `mmlu_instruct` - MMLU with instruction formatting
-- `gpqa_diamond_cot` - Graduate-level Q&A with chain-of-thought
-
-**Evaluation Method**: Generated responses assessed against specific instruction criteria
-
-### Mathematical Reasoning
-
-**Purpose**: Test mathematical problem-solving and multi-step reasoning
-
-**Key Tasks**:
-- `gsm8k` - Grade school math word problems
-- `mgsm` - Multilingual grade school math
-- `math` - Competition-level mathematics
-
-**Evaluation Method**: Final answer extraction and numerical comparison
-
-### Multilingual Evaluation
-
-**Purpose**: Assess capabilities across different languages
-
-**Key Tasks**:
-- `arc_multilingual` - ARC in multiple languages
-- `hellaswag_multilingual` - Cross-lingual commonsense reasoning
-- `mgsm` - Math problems in various languages
-
-**Evaluation Method**: Language-specific text generation and assessment
+* - Area
+  - Purpose
+  - Key Tasks
+  - Evaluation Method
+* - Academic Benchmarks
+  - Assess general knowledge and reasoning across academic domains
+  - - `mmlu`
+    - `arc_challenge`
+    - `hellaswag`
+    - `truthfulqa`
+  - Multiple-choice or short-answer text generation
+* - Instruction Following
+  - Evaluate ability to follow complex instructions and formatting requirements
+  - - `ifeval`
+    - `mmlu_instruct`
+    - `gpqa_diamond_cot`
+  - Generated responses assessed against instruction criteria
+* - Mathematical Reasoning
+  - Test mathematical problem-solving and multi-step reasoning
+  - - `gsm8k`
+    - `mgsm`
+    - `math`
+  - Final answer extraction and numerical comparison
+* - Multilingual Evaluation
+  - Assess capabilities across different languages
+  - - `arc_multilingual`
+    - `hellaswag_multilingual`
+    - `mgsm`
+  - Language-specific text generation and assessment
+```
 
 ## Task Naming and Framework Specification
 
-### Standard Task Names
+::::{tab-set}
+:::{tab-item} Standard Names
+:sync: standard
 
 Use simple task names when only one framework provides the task:
 
@@ -189,7 +186,12 @@ config = EvaluationConfig(type="gsm8k")
 config = EvaluationConfig(type="arc_challenge")
 ```
 
-### Framework-Qualified Names
+These tasks have unique names across all evaluation frameworks, so no qualification is needed.
+
+:::
+
+:::{tab-item} Framework-Qualified Names
+:sync: qualified
 
 When multiple frameworks provide the same task, specify the framework explicitly:
 
@@ -199,7 +201,15 @@ config = EvaluationConfig(type="lm-evaluation-harness.mmlu")
 config = EvaluationConfig(type="simple-evals.mmlu")
 ```
 
-### Finding Framework for Tasks
+Use this approach when:
+- Multiple frameworks implement the same benchmark
+- You need specific framework behavior or scoring
+- Avoiding ambiguity in task resolution
+
+:::
+
+:::{tab-item} Framework Discovery
+:sync: discovery
 
 Resolve task naming conflicts using the framework discovery utility:
 
@@ -210,6 +220,14 @@ from nemo_eval.utils.base import find_framework
 framework = find_framework("mmlu")
 print(f"MMLU provided by: {framework}")
 ```
+
+This utility helps you:
+- Identify which framework implements a task
+- Resolve naming conflicts programmatically
+- Understand available task sources
+
+:::
+::::
 
 ## Evaluation Configuration
 
@@ -271,12 +289,3 @@ For comprehensive parameter reference including all available settings, optimiza
 - `max_new_tokens` to control response length
 - `limit_samples` for subset evaluation during testing
 - `parallelism` to balance speed with server capacity
-
-## Prerequisites
-
-Before configuring text generation evaluations:
-
-1. **Deployed Model**: Model accessible via OpenAI-compatible API endpoints
-2. **Evaluation Framework**: `nvidia-lm-eval` or additional frameworks installed  
-3. **Authentication**: HuggingFace token for gated datasets (if required)
-4. **Resources**: Adequate compute for generation and evaluation processing

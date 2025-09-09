@@ -2,23 +2,21 @@
 
 # Run Evaluations
 
-Step-by-step guides for different evaluation scenarios and methodologies in NeMo Eval.
-
-## Overview
-
-This section provides practical guides for running different types of evaluations, each optimized for specific use cases and model capabilities. Choose the evaluation type that best matches your assessment needs.
+Follow step-by-step guides for different evaluation scenarios and methodologies in NeMo Evaluation.
 
 ## Before You Start
 
-1. Ensure you have completed the initial getting started guides for [installation](../../get-started/install.md) and [quickstart](../../get-started/quickstart.md).
-2. **Deploy your model**: Choose from [Launcher-Orchestrated Deployment](../../deployment/launcher-orchestrated/index.md) (recommended) or [Bring-Your-Own-Endpoint](../../deployment/bring-your-own-endpoint/index.md) with [PyTriton](../../deployment/bring-your-own-endpoint/pytriton.md) or [Ray Serve](../../deployment/bring-your-own-endpoint/ray-serve.md)
-3. Review the [evaluation parameters](eval-parameters) available for optimization.
+Ensure you have:
+
+1. Completed the initial getting started guides for [installation](../../get-started/install.md) and [quickstart](../../get-started/quickstart/index.md).
+2. Chosen a [Model Deployment](deployment-overview) option:
+   - [Launcher-Orchestrated Deployment](../../deployment/launcher-orchestrated/index.md) (recommended)
+   - [Bring-Your-Own-Endpoint](../../deployment/bring-your-own-endpoint/index.md) with [PyTriton](../../deployment/bring-your-own-endpoint/pytriton.md) or [Ray Serve](../../deployment/bring-your-own-endpoint/ray-serve.md)
+3. Reviewed the [evaluation parameters](eval-parameters) available for optimization.
 
 ::::{tab-set}
 
-:::{tab-item} Setup Requirements
-
-### Environment Requirements
+:::{tab-item} Environment Requirements
 
 ```bash
 # Core evaluation framework (pre-installed in NeMo container)
@@ -32,7 +30,9 @@ pip install nvidia-bfcl>=25.6              # Function calling
 pip install nvidia-eval-factory-garak>=25.6  # Security scanning
 ```
 
-### Authentication Setup
+:::
+
+:::{tab-item} Authentication Requirements
 
 Some evaluations require additional authentication:
 
@@ -50,13 +50,15 @@ export JUDGE_API_KEY="your_nvidia_api_key"
 
 ## Evaluations
 
+Select an evaluation type to measure capabilities such as text generation, log-probability scoring, code generation, safety and security, and function calling.
+
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`pencil;1.5em;sd-mr-1` Text Generation
 :link: text-gen
 :link-type: ref
-Evaluate models through natural language generation for academic benchmarks, reasoning tasks, and general knowledge assessment.
+Measure model performance through natural language generation for academic benchmarks, reasoning tasks, and general knowledge assessment.
 :::
 
 :::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` Log-Probability
@@ -68,7 +70,7 @@ Assess model confidence and uncertainty using log-probabilities for multiple-cho
 :::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Code Generation
 :link: code-generation
 :link-type: ref
-Evaluate programming capabilities through code generation, completion, and algorithmic problem solving.
+Measure programming capabilities through code generation, completion, and algorithmic problem solving.
 :::
 
 :::{grid-item-card} {octicon}`shield;1.5em;sd-mr-1` Safety & Security
@@ -86,6 +88,8 @@ Assess tool use capabilities, API calling accuracy, and structured output genera
 ::::
 
 ### Selection Guide
+
+Use this section to choose recommended evaluations **by model type** or **by use case**.
 
 ::::{tab-set}
 :::{tab-item} By Model Type
@@ -144,51 +148,12 @@ Assess tool use capabilities, API calling accuracy, and structured output genera
 
 ::::
 
-## Performance Considerations
-
-### Evaluation Speed Optimization
-
-- **Parallel Requests**: Configure `parallelism` based on server capacity
-- **Sample Limiting**: Use `limit_samples` for quick validation
-- **Endpoint Selection**: Match endpoint type to evaluation requirements
-- **Resource Planning**: Allocate sufficient compute for concurrent evaluations
-
-### Recommended Configurations
-
-::::{tab-set}
-
-:::{tab-item} Development & Testing
-```python
-ConfigParams(
-    limit_samples=10,    # Quick validation
-    parallelism=1,       # Conservative resources
-    temperature=0        # Deterministic results
-)
-```
-
-:::
-
-:::{tab-item} Production
-
-```python
-ConfigParams(
-    limit_samples=None,  # Full dataset
-    parallelism=8,       # High throughput
-    max_retries=3        # Robust execution
-)
-```
-
-:::
-
-::::
-
 :::{toctree}
 :hidden:
 
-Log Probability <log-probability/index>
+Log Probability <log-probability>
 Text Generation <text-gen>
 Code Generation <code-generation>
 Function Calling <function-calling>
 Safety & Security <safety-security>
-Log Probs <logprobs>
 :::

@@ -1,71 +1,23 @@
 (evaluation-overview)=
 
-# Model Evaluation
+# About Evaluation
 
-Comprehensive guide to AI model evaluation using the NeMo Evaluator platform. Choose from multiple approaches to assess model performance across 100+ benchmarks spanning LLMs, VLMs, agentic AI, and retrieval systems.
+Evaluate LLMs, VLMs, agentic systems, and retrieval models across 100+ benchmarks using unified workflows.
 
-## Overview
+## Before You Start
 
-NeMo Evaluator provides three main approaches for running evaluations:
+Before you run evaluations, ensure you have:
 
-### **NeMo Evaluator Launcher** (Recommended)
-Unified CLI and orchestration for most evaluation needs:
-- **100+ benchmarks** across 18 evaluation harnesses
-- **Multi-backend execution** (local, Slurm, cloud)
-- **Built-in result export** to MLflow, W&B, Google Sheets
-- **Configuration management** with reproducible runs
-
-### **NeMo Evaluator Core**
-Programmatic API for custom evaluation pipelines:
-- **Python API** for integration into ML workflows
-- **Direct container access** for specialized use cases
-- **Advanced adapter configuration** for request/response processing
-- **Custom framework support** via Framework Definition Files
-
-### **Container Direct**
-Direct access to NGC evaluation containers:
-- **Pre-built containers** for each evaluation framework
-- **Guaranteed reproducibility** across environments
-- **Isolated evaluation environments** with all dependencies
-- **Custom container workflows** for specialized needs
-
-## Choose Your Approach
-
-### For Most Users: Start with the Launcher
-```bash
-# Install and run your first evaluation
-pip install nemo-evaluator-launcher
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct
-```
-
-### For Developers: Use the Core API
-```python
-# Programmatic evaluation
-from nemo_evaluator.core.evaluate import evaluate
-result = evaluate(eval_cfg=config, target_cfg=target)
-```
-
-### For Container Workflows: Direct NGC Access
-```bash
-# Pull and run evaluation container
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
-```
-
-## Prerequisites
-
-### Required
-- **OpenAI-compatible endpoint**: Your model must expose a compatible API
-- **API credentials**: Access tokens for your model endpoint
-- **Docker** (for container-based workflows)
-
-### Optional
-- **GPU access**: For local model deployment
-- **HPC cluster access**: For Slurm-based execution
-- **Cloud credentials**: For hosted execution backends
+1. **Chosen your approach**: See [Get Started](../get-started/index.md) for installation and setup guidance
+2. **Deployed your model**: See [Model Deployment](../deployment/index.md) for deployment options
+3. **OpenAI-compatible endpoint**: Your model must expose a compatible API
+4. **API credentials**: Access tokens for your model endpoint
 
 ---
 
 ## Evaluation Workflows
+
+Choose the workflow that matches your environment and preferred level of control.
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
@@ -98,6 +50,8 @@ Direct container access for specialized use cases and custom evaluation environm
 
 ## Configuration and Customization
 
+Use these guides to configure evaluations, define custom tasks, browse available benchmarks, and extend the framework.
+
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
@@ -128,6 +82,8 @@ Add custom evaluation frameworks using Framework Definition Files for specialize
 ::::
 
 ## Advanced Features
+
+Explore advanced capabilities to scale execution, export results, customize adapters, and troubleshoot issues.
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
@@ -160,4 +116,5 @@ Resolve common evaluation issues, debug configuration problems, and optimize eva
 
 ## Core Evaluation Concepts
 
-For architectural details and core concepts, see {ref}`evaluation-model`. For container specifications, see the [Container Reference](../libraries/nemo-evaluator/containers/index.md).
+- For architectural details and core concepts, refer to {ref}`evaluation-model`.
+- For container specifications, refer to the [Container Reference](../libraries/nemo-evaluator/containers/index.md).

@@ -151,6 +151,21 @@ export JUDGE_API_KEY="your_nvidia_api_key"
 export HF_TOKEN="your_hf_token"
 ```
 
+## Discovering Available Tasks
+
+Use the launcher CLI to discover all available safety and security tasks:
+
+```bash
+# List all available benchmarks
+nv-eval ls tasks
+
+# Filter for safety and security tasks
+nv-eval ls tasks | grep -E "(safety|aegis|toxic|garak)"
+
+# Get detailed information about a specific task (if supported)
+nv-eval ls tasks --task aegis_v2
+```
+
 ## Available Safety Tasks
 
 ### Safety Harness Tasks

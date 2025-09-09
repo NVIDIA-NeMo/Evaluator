@@ -122,6 +122,21 @@ Install the BigCode evaluation package for local development:
 pip install nvidia-bigcode-eval==25.7.1
 ```
 
+## Discovering Available Tasks
+
+Use the launcher CLI to discover all available code generation tasks:
+
+```bash
+# List all available benchmarks
+nv-eval ls tasks
+
+# Filter for code generation tasks
+nv-eval ls tasks | grep -E "(mbpp|humaneval|apps|codegen)"
+
+# Get detailed information about a specific task (if supported)
+nv-eval ls tasks --task mbpp
+```
+
 ## Available Tasks
 
 The BigCode harness provides various programming benchmarks:

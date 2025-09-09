@@ -122,6 +122,21 @@ Install the BFCL evaluation package for local development:
 pip install nvidia-bfcl==25.7.1
 ```
 
+## Discovering Available Tasks
+
+Use the launcher CLI to discover all available function calling tasks:
+
+```bash
+# List all available benchmarks
+nv-eval ls tasks
+
+# Filter for function calling tasks
+nv-eval ls tasks | grep -E "(bfcl|function)"
+
+# Get detailed information about a specific task (if supported)
+nv-eval ls tasks --task bfclv3_ast_prompting
+```
+
 ## Available Function Calling Tasks
 
 BFCL provides comprehensive function calling benchmarks:
