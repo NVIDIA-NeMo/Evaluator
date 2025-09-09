@@ -11,7 +11,7 @@ This section provides practical guides for running different types of evaluation
 ## Before You Start
 
 1. Ensure you have completed the initial getting started guides for [installation](../../get-started/install.md) and [quickstart](../../get-started/quickstart.md).
-1. Select an existing OpenAI-compatible endpoint, or deploy one with [PyTriton](../../deployment/pytriton.md) or [Ray Serve](../../deployment/ray-serve.md)
+2. **Deploy your model**: Choose from [Launcher-Orchestrated Deployment](../../deployment/launcher-orchestrated/index.md) (recommended) or [Bring-Your-Own-Endpoint](../../deployment/bring-your-own-endpoint/index.md) with [PyTriton](../../deployment/bring-your-own-endpoint/pytriton.md) or [Ray Serve](../../deployment/bring-your-own-endpoint/ray-serve.md)
 3. Review the [evaluation parameters](eval-parameters) available for optimization.
 
 ::::{tab-set}

@@ -6,7 +6,7 @@ Log-probability evaluations assess model confidence and uncertainty by analyzing
 
 ## Prerequisites
 
-- Set up or select an existing evaluation target using either [PyTriton](../../deployment/pytriton.md) or [Ray Serve](../../deployment/ray-serve.md)
+- **Deploy your model**: Choose from [Launcher-Orchestrated Deployment](../../deployment/launcher-orchestrated/index.md) (recommended) or [Bring-Your-Own-Endpoint](../../deployment/bring-your-own-endpoint/index.md) with [PyTriton](../../deployment/bring-your-own-endpoint/pytriton.md) or [Ray Serve](../../deployment/bring-your-own-endpoint/ray-serve.md)
 - Access to model tokenizer files (required for client-side tokenization)
 - Hugging Face token for gated datasets and tokenizers
 - Completions endpoint deployment (log-probability tasks cannot use chat endpoints)
