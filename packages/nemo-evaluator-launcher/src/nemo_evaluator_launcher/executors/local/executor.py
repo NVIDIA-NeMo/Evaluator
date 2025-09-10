@@ -21,6 +21,7 @@ Handles running evaluation jobs locally using shell scripts and Docker container
 import copy
 import os
 import pathlib
+import platform
 import shlex
 import subprocess
 import time
@@ -91,6 +92,18 @@ class LocalExecutor(BaseExecutor):
             open(pathlib.Path(__file__).parent / "run.template.sh", "r").read()
         )
 
+        execution_mode = cfg.execution.get("mode", "parallel")
+        if execution_mode == "parallel":
+            is_execution_mode_sequential = False
+        elif execution_mode == "sequential":
+            is_execution_mode_sequential = True
+        else:
+            raise ValueError(
+                "unknown execution mode: {}. Choose one of {}".format(
+                    repr(execution_mode), ["parallel", "sequential"]
+                )
+            )
+
         for idx, task in enumerate(cfg.evaluation.tasks):
             task_definition = get_task_from_mapping(task.name, tasks_mapping)
 
@@ -119,7 +132,7 @@ class LocalExecutor(BaseExecutor):
                     raise ValueError(
                         f"{task.name} task requires environment variable {required_env_var}."
                         " Specify it in the task subconfig in the 'env_vars' dict as the following"
-                        f" key: value pair {required_env_var}: YOUR_ENV_VAR_NAME"
+                        f" pair {required_env_var}: YOUR_ENV_VAR_NAME"
                     )
 
             # format env_vars for a template
@@ -128,13 +141,14 @@ class LocalExecutor(BaseExecutor):
                 for env_var_dst, env_var_src in env_vars.items()
             ]
 
-            eval_image = task_definition["container"].replace(":5005", "")
+            eval_image = task_definition["container"]
             if "container" in task:
                 eval_image = task["container"]
 
             task_output_dir = output_dir / task.name
             task_output_dir.mkdir(parents=True, exist_ok=True)
             evaluation_task = {
+                "name": task.name,
                 "job_id": job_id,
                 "eval_image": eval_image,
                 "container_name": container_name,
@@ -145,38 +159,30 @@ class LocalExecutor(BaseExecutor):
                 ),
             }
             evaluation_tasks.append(evaluation_task)
-            # NOTE(dfridman): create a run.sh file for each task for quick relaunching of the failed tasks
 
             # Check if auto-export is enabled by presence of destination(s)
             auto_export_config = cfg.execution.get("auto_export", {})
             auto_export_destinations = auto_export_config.get("destinations", [])
 
-            # Template context with auto-export variables
-            template_context = {
-                "evaluation_tasks": evaluation_tasks,
-                "auto_export_destinations": auto_export_destinations,
-                "invocation_id": invocation_id,
-            }
-
-            (task_output_dir / "run.sh").write_text(
+            run_sh_content = (
                 eval_template.render(
                     evaluation_tasks=[evaluation_task],
                     auto_export_destinations=auto_export_destinations,
-                    invocation_id=invocation_id,
-                    job_id=job_id,
                 ).rstrip("\n")
                 + "\n"
             )
 
-        # Template context with auto-export variables
-        template_context = {
-            "evaluation_tasks": evaluation_tasks,
-            "auto_export_destinations": auto_export_destinations,
-            "invocation_id": invocation_id,
-        }
+            (task_output_dir / "run.sh").write_text(run_sh_content)
 
-        (output_dir / "run_all.sh").write_text(
-            eval_template.render(**template_context).rstrip("\n") + "\n"
+        run_all_sequentially_sh_content = (
+            eval_template.render(
+                evaluation_tasks=evaluation_tasks,
+                auto_export_destinations=auto_export_destinations,
+            ).rstrip("\n")
+            + "\n"
+        )
+        (output_dir / "run_all.sequential.sh").write_text(
+            run_all_sequentially_sh_content
         )
 
         # Save launched jobs metadata
@@ -202,27 +208,56 @@ class LocalExecutor(BaseExecutor):
         if dry_run:
             print("\n\n=============================================\n\n")
             print(f"DRY RUN: Scripts prepared and saved to {output_dir}")
-            print(f"   - Main script: {output_dir}/run_all.sh")
-            print(
-                "\n\n =========== Main script (run_all.sh) ===================== \n\n"
-            )
-            with open(output_dir / "run_all.sh", "r") as f:
-                print(f.read())
-            for idx, task in enumerate(cfg.evaluation.tasks):
-                task_output_dir = output_dir / task.name
+            if is_execution_mode_sequential:
                 print(
-                    f"\n\n =========== Task script ({task.name} run.sh) ===================== \n\n"
+                    "\n\n =========== Main script | run_all.sequential.sh ===================== \n\n"
                 )
-                with open(task_output_dir / "run.sh", "r") as f:
+                with open(output_dir / "run_all.sequential.sh", "r") as f:
                     print(f.read())
+            else:
+                for idx, task in enumerate(cfg.evaluation.tasks):
+                    task_output_dir = output_dir / task.name
+                    print(
+                        f"\n\n =========== Task script | {task.name}/run.sh ===================== \n\n"
+                    )
+                    with open(task_output_dir / "run.sh", "r") as f:
+                        print(f.read())
             print("\nTo execute, run without --dry-run")
             return invocation_id
 
-        completed_process = subprocess.run(
-            args=shlex.split("bash run_all.sh"), cwd=output_dir
-        )
-        if completed_process.returncode != 0:
-            raise RuntimeError("failed to execute run_all.sh successfully")
+        # Launch bash scripts with Popen for non-blocking execution.
+        # To ensure subprocess continues after python exits:
+        # - on Unix-like systems, to fully detach the subprocess
+        #   so it does not die when Python exits, pass start_new_session=True;
+        # - on Widnows use creationflags=subprocess.CREATE_NEW_PROCESS_GROUP flag.
+        os_name = platform.system()
+        if is_execution_mode_sequential:
+            if os_name == "Windows":
+                subprocess.Popen(
+                    shlex.split("bash run_all.sequential.sh"),
+                    cwd=output_dir,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                )
+            else:
+                subprocess.Popen(
+                    shlex.split("bash run_all.sequential.sh"),
+                    cwd=output_dir,
+                    start_new_session=True,
+                )
+        else:
+            for task in cfg.evaluation.tasks:
+                if os_name == "Windows":
+                    subprocess.Popen(
+                        shlex.split("bash run.sh"),
+                        cwd=output_dir / task.name,
+                        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                    )
+                else:
+                    subprocess.Popen(
+                        shlex.split("bash run.sh"),
+                        cwd=output_dir / task.name,
+                        start_new_session=True,
+                    )
 
         print("\nCommands for real-time monitoring:")
         for job_id, evaluation_task in zip(job_ids, evaluation_tasks):
@@ -250,7 +285,7 @@ class LocalExecutor(BaseExecutor):
         if len(id) == 8 and "." not in id:
             jobs = db.get_jobs(id)
             statuses: List[ExecutionStatus] = []
-            for job_id, job_data in jobs.items():
+            for job_id, _ in jobs.items():
                 statuses.extend(LocalExecutor.get_status(job_id))
             return statuses
 
@@ -263,7 +298,7 @@ class LocalExecutor(BaseExecutor):
 
         output_dir = pathlib.Path(job_data.data.get("output_dir", ""))
         if not output_dir.exists():
-            return [ExecutionStatus(id=id, state=ExecutionState.FAILED)]
+            return [ExecutionStatus(id=id, state=ExecutionState.PENDING)]
 
         artifacts_dir = output_dir / "artifacts"
         progress = _get_progress(artifacts_dir)
@@ -271,13 +306,19 @@ class LocalExecutor(BaseExecutor):
         logs_dir = output_dir / "logs"
         if not logs_dir.exists():
             return [
-                ExecutionStatus(id=id, state=ExecutionState.FAILED, progress=progress)
+                ExecutionStatus(
+                    id=id,
+                    state=ExecutionState.PENDING,
+                    progress=dict(progress=progress),
+                )
             ]
 
         # Check if job was killed
         if job_data.data.get("killed", False):
             return [
-                ExecutionStatus(id=id, state=ExecutionState.KILLED, progress=progress)
+                ExecutionStatus(
+                    id=id, state=ExecutionState.KILLED, progress=dict(progress=progress)
+                )
             ]
 
         stage_files = {
@@ -295,31 +336,57 @@ class LocalExecutor(BaseExecutor):
                     if exit_code == 0:
                         return [
                             ExecutionStatus(
-                                id=id, state=ExecutionState.SUCCESS, progress=progress
+                                id=id,
+                                state=ExecutionState.SUCCESS,
+                                progress=dict(progress=progress),
                             )
                         ]
                     else:
                         return [
                             ExecutionStatus(
-                                id=id, state=ExecutionState.FAILED, progress=progress
+                                id=id,
+                                state=ExecutionState.FAILED,
+                                progress=dict(progress=progress),
                             )
                         ]
+                else:
+                    return [
+                        ExecutionStatus(
+                            id=id,
+                            state=ExecutionState.FAILED,
+                            progress=dict(progress=progress),
+                        )
+                    ]
             except (ValueError, OSError):
                 return [
                     ExecutionStatus(
-                        id=id, state=ExecutionState.FAILED, progress=progress
+                        id=id,
+                        state=ExecutionState.FAILED,
+                        progress=dict(progress=progress),
                     )
                 ]
         elif stage_files["running"].exists():
             return [
-                ExecutionStatus(id=id, state=ExecutionState.RUNNING, progress=progress)
+                ExecutionStatus(
+                    id=id,
+                    state=ExecutionState.RUNNING,
+                    progress=dict(progress=progress),
+                )
             ]
         elif stage_files["pre_start"].exists():
             return [
-                ExecutionStatus(id=id, state=ExecutionState.FAILED, progress=progress)
+                ExecutionStatus(
+                    id=id,
+                    state=ExecutionState.PENDING,
+                    progress=dict(progress=progress),
+                )
             ]
 
-        return [ExecutionStatus(id=id, state=ExecutionState.FAILED, progress=progress)]
+        return [
+            ExecutionStatus(
+                id=id, state=ExecutionState.PENDING, progress=dict(progress=progress)
+            )
+        ]
 
     @staticmethod
     def kill_job(job_id: str) -> None:

@@ -1,12 +1,28 @@
-# Run this config with `nv-eval run --config-dir examples --config-name slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks`.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# How to use: copy this file locally into a directory, say `examples`, and run
+# Run this config with `nemo-evaluator-launcher run --config-dir examples --config-name slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks`.
 # For every benchmark to evaluate, it will create a Slurm job to evaluate an endpoint.
 # NOTE: in this example, we are evaluating an existing endpoint, so we don't need to deploy a model.
 
 # Commented out values show an example of how to override the config values from this file.
 
 # You can also override the values in this config from CLI using dot notation.
-# For example, `nv-eval run --config-dir examples --config-name slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks execution.walltime="1:00:00"`
-# To see the full config, run `nv-eval run --config-dir examples --config-name slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks --dry-run`
+# For example, `nemo-evaluator-launcher run --config-dir examples --config-name slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks execution.walltime="1:00:00"`
+# To see the full config, run `nemo-evaluator-launcher run --config-dir examples --config-name slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks --dry-run`
 
 # specify default configs for execution and deployment
 defaults:
@@ -16,8 +32,8 @@ defaults:
 
 # override default execution arguments
 execution:
-  account: coreai_dlalgo_llm
-  output_dir: /lustre/fsw/portfolios/coreai/projects/coreai_dlalgo_llm/users/dfridman/nv-eval-rundirs
+  account: ???
+  output_dir: /some/filesystem/path/available/to/slurm/node
   walltime: 02:00:00
   partition: cpu_short # no deployment -> no GPUs needed
   gpus_per_node: null # no deployment -> no GPUs needed
@@ -77,7 +93,5 @@ evaluation:
           >- # turn off thinking mode
           "detailed thinking off"
       env_vars:
-        OPENAI_TOKEN_URL: OPENAI_TOKEN_URL_FOR_ARENA_HARD_V0_1
         OPENAI_CLIENT_ID: OPENAI_CLIENT_ID_FOR_ARENA_HARD_V0_1
         OPENAI_CLIENT_SECRET: OPENAI_CLIENT_SECRET_FOR_ARENA_HARD_V0_1
-        OPENAI_SCOPE: OPENAI_SCOPE_FOR_ARENA_HARD_V0_1

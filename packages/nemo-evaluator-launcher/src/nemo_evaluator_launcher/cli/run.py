@@ -64,7 +64,7 @@ class Cmd:
         metadata={"help": "Do not run the evaluation, just print the config."},
     )
 
-    def execute(self):
+    def execute(self) -> None:
         # Load configuration either from Hydra or from a run config file
         if self.run_config_file:
             # Validate that run config file is not used with other config options
@@ -93,9 +93,9 @@ class Cmd:
 
         # Save the complete configuration to the raw_configs directory
         if not self.dry_run and invocation_id is not None:
-            # Create ~/.nv-eval/run_configs directory
+            # Create ~/.nemo-evaluator/run_configs directory
             home_dir = pathlib.Path.home()
-            run_configs_dir = home_dir / ".nv-eval" / "run_configs"
+            run_configs_dir = home_dir / ".nemo-evaluator" / "run_configs"
             run_configs_dir.mkdir(parents=True, exist_ok=True)
 
             # Convert DictConfig to dict and save as YAML

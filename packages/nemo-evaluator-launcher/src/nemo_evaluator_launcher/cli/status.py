@@ -35,36 +35,31 @@ class Cmd:
         help="Print output as JSON instead of table format",
     )
 
-    def execute(self):
+    def execute(self) -> None:
         res = get_status(self.job_ids)
         if self.json:
             print(json.dumps(res, indent=2))
         else:
             self._print_table(res)
 
-    def _print_table(self, jobs):
+    def _print_table(self, jobs: list[dict]) -> None:
         """Print job status as a table."""
         if not jobs:
             print("No jobs found.")
             return
 
         # Define executor-specific mappings
-        executor_mappings = {
-            "slurm_job_id": ("Slurm Job ID", "remote_rundir_path"),
-            "lepton_job_name": ("Lepton Job Name", "endpoint_name"),
-            "pipeline_id": ("Pipeline ID", None),
-            "container": ("Container", "output_dir"),
+        executor_headers = {
+            "slurm_job_id": "Slurm Job ID",
+            "lepton_job_name": "Lepton Job Name",
+            "pipeline_id": "Pipeline ID",
+            "container": "Container",
         }
 
         # Determine executor type and headers
         first_data = jobs[0].get("data", {}) if jobs else {}
-        executor_key = next((k for k in executor_mappings if k in first_data), None)
-
-        if executor_key:
-            info_header, _ = executor_mappings[executor_key]
-        else:
-            info_header = "Executor Info"
-
+        executor_key = next((k for k in executor_headers if k in first_data), None)
+        info_header = executor_headers.get(executor_key, "Executor Info")
         headers = ["Job ID", "Status", "Progress", info_header, "Location"]
 
         # Build rows
@@ -84,7 +79,7 @@ class Cmd:
             elif executor_key == "lepton_job_name":
                 location = data.get("endpoint_name") or "shared-endpoint"
             elif executor_key == "pipeline_id":
-                location = "gitlab-ci"
+                location = data.get("pipeline_web_url")
             elif executor_key == "container":
                 path = data.get("output_dir", "")
                 location = path.split("/")[-1] if path else ""

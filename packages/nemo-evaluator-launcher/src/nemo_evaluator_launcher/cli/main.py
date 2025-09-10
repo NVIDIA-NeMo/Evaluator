@@ -26,23 +26,23 @@ import nemo_evaluator_launcher.cli.status as status
 import nemo_evaluator_launcher.cli.version as version
 from nemo_evaluator_launcher.common.logging_utils import logger
 
+VERSION_HELP = "Show version information"
+
 
 def create_parser() -> ArgumentParser:
     """Create and configure the CLI argument parser with subcommands."""
     parser = ArgumentParser()
 
     # Add --version flag at the top level
-    parser.add_argument(
-        "--version", action="store_true", help="Show version information"
-    )
+    parser.add_argument("--version", action="store_true", help=VERSION_HELP)
 
     subparsers = parser.add_subparsers(dest="command", required=False)
 
     # Version subcommand
     version_parser = subparsers.add_parser(
         "version",
-        help="Show version information",
-        description="Show version information",
+        help=VERSION_HELP,
+        description=VERSION_HELP,
     )
     version_parser.add_arguments(version.Cmd, dest="version")
 

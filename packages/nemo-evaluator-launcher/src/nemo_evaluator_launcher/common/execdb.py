@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 # Configuration constants
-EXEC_DB_DIR = pathlib.Path.home() / ".nv-eval-platform" / "exec-db"
+EXEC_DB_DIR = pathlib.Path.home() / ".nemo-evaluator" / "exec-db"
 EXEC_DB_FILE = EXEC_DB_DIR / "exec.v1.jsonl"
 
 

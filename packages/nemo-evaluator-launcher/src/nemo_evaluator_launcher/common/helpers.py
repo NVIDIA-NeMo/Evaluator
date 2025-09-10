@@ -32,7 +32,7 @@ def get_eval_factory_command(
     overrides = {
         k: (v.strip("\n") if isinstance(v, str) else v) for k, v in overrides.items()
     }
-    overrides = ",".join([f"{k}={v}" for k, v in overrides.items()])
+    overrides_str = ",".join([f"{k}={v}" for k, v in overrides.items()])
     model_url = get_endpoint_url(cfg, user_task_config, task_definition)
     command = f"""nv_eval run_eval \
     --model_id {get_served_model_name(cfg)} \
@@ -41,8 +41,8 @@ def get_eval_factory_command(
     --model_url {model_url} \
     --api_key_name API_KEY \
     --output_dir /results"""
-    if overrides:
-        command = f"{command} --overrides {overrides}"
+    if overrides_str:
+        command = f"{command} --overrides {overrides_str}"
     return command
 
 
@@ -93,13 +93,14 @@ def get_health_url(cfg: DictConfig, endpoint_url: str) -> str:
 
 def get_served_model_name(cfg: DictConfig) -> str:
     if cfg.deployment.type == "none":
-        return cfg.target.api_endpoint.model_id
+        return str(cfg.target.api_endpoint.model_id)
     else:
-        return cfg.deployment.served_model_name
+        return str(cfg.deployment.served_model_name)
 
 
 def get_api_key_name(cfg: DictConfig) -> str | None:
-    return cfg.get("target", {}).get("api_endpoint", {}).get("api_key_name", None)
+    res = cfg.get("target", {}).get("api_endpoint", {}).get("api_key_name", None)
+    return str(res) if res else None
 
 
 def get_timestamp_string(include_microseconds: bool = True) -> str:
@@ -116,9 +117,9 @@ def get_eval_factory_dataset_size_from_run_config(run_config: dict) -> Optional[
     config = run_config["config"]
     limit_samples = config["params"].get("limit_samples", None)
     if limit_samples is not None:
-        return limit_samples
+        return int(limit_samples)
 
-    # NOTE(dfridman): Move `dataset_size` values to the corresponding `framework.yaml` in Eval Factory.
+    # TODO(dfridman): Move `dataset_size` values to the corresponding `framework.yaml` in Eval Factory.
     dataset_sizes = {
         ("lm-evaluation-harness", "ifeval"): 541,
         ("simple_evals", "gpqa_diamond"): 198,
@@ -142,6 +143,8 @@ def get_eval_factory_dataset_size_from_run_config(run_config: dict) -> Optional[
     dataset_size = dataset_sizes.get((run_config["framework_name"], config["type"]))
     if dataset_size is None:
         return None
+    else:
+        dataset_size = int(dataset_size)
 
     downsampling_ratio = (
         config["params"].get("extra", {}).get("downsampling_ratio", None)
@@ -149,6 +152,6 @@ def get_eval_factory_dataset_size_from_run_config(run_config: dict) -> Optional[
     if downsampling_ratio is not None:
         dataset_size = int(round(dataset_size * downsampling_ratio))
 
-    n_samples = config["params"].get("extra", {}).get("n_samples", 1)
+    n_samples = int(config["params"].get("extra", {}).get("n_samples", 1))
     dataset_size *= n_samples
     return dataset_size

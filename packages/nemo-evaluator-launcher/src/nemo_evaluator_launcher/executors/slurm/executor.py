@@ -106,7 +106,7 @@ class SlurmExecutor(BaseExecutor):
 
                 # resolve eval image and pass directly via task override
                 task_definition = get_task_from_mapping(task.name, tasks_mapping)
-                eval_image = task_definition["container"].replace(":5005", "")
+                eval_image = task_definition["container"]
                 if "container" in task:
                     eval_image = task["container"]
 
@@ -376,6 +376,45 @@ class SlurmExecutor(BaseExecutor):
         else:
             return ExecutionState.FAILED
 
+    @staticmethod
+    def kill_job(job_id: str) -> None:
+        """Kill a SLURM job.
+
+        Args:
+            job_id: The job ID to kill.
+        """
+        db = ExecutionDB()
+        job_data = db.get_job(job_id)
+
+        if job_data is None:
+            raise ValueError(f"Job {job_id} not found")
+
+        if job_data.executor != "slurm":
+            raise ValueError(
+                f"Job {job_id} is not a slurm job (executor: {job_data.executor})"
+            )
+
+        killed_something = False
+
+        result = _kill_slurm_job(
+            slurm_job_ids=[job_data.data.get("slurm_job_id")],
+            username=job_data.data.get("username"),
+            hostname=job_data.data.get("hostname"),
+            socket=job_data.data.get("socket"),
+        )
+
+        if result.returncode == 0:
+            killed_something = True
+
+        # Mark job as killed in database if we killed something
+        if killed_something:
+            job_data.data["killed"] = True
+            db.write_job(job_data)
+        else:
+            raise RuntimeError(
+                f"Could not find or kill job {job_id} (slurm_job_id: {job_data.data.get('slurm_job_id')})"
+            )
+
 
 def _create_slurm_sbatch_script(
     cfg: DictConfig,
@@ -444,7 +483,7 @@ def _create_slurm_sbatch_script(
             raise ValueError(
                 f"{task.name} task requires environment variable {required_env_var}."
                 " Specify it in the task subconfig in the 'env_vars' dict as the following"
-                f" key: value pair {required_env_var}: YOUR_ENV_VAR_NAME"
+                f" pair {required_env_var}: YOUR_ENV_VAR_NAME"
             )
 
     # save env vars:
@@ -754,6 +793,38 @@ def _query_slurm_jobs_status(
     return slurm_jobs_status
 
 
+def _kill_slurm_job(
+    slurm_job_ids: List[str], username: str, hostname: str, socket: str | None
+) -> None:
+    """Kill a SLURM job.
+
+    Args:
+        slurm_job_ids: List of SLURM job IDs to kill.
+        username: SSH username.
+        hostname: SSH hostname.
+        socket: control socket location or None
+    """
+    if len(slurm_job_ids) == 0:
+        return {}
+    kill_command = "scancel {}".format(",".join(slurm_job_ids))
+    ssh_command = ["ssh"]
+    if socket is not None:
+        ssh_command.append(f"-S {socket}")
+    ssh_command.append(f"{username}@{hostname}")
+    ssh_command.append(kill_command)
+    ssh_command = " ".join(ssh_command)
+    completed_process = subprocess.run(
+        args=shlex.split(ssh_command), capture_output=True
+    )
+    if completed_process.returncode != 0:
+        raise RuntimeError(
+            "failed to kill slurm job\n{}".format(
+                completed_process.stderr.decode("utf-8")
+            )
+        )
+    return completed_process
+
+
 def _parse_slurm_job_status(slurm_job_id: str, sacct_output_lines: List[str]) -> str:
     """Parse SLURM job status from sacct output for a specific job.
 
@@ -899,6 +970,6 @@ sbatch --dependency=afternotok:$SLURM_JOB_ID $_this_script $SLURM_JOB_ID
 _WAIT_FOR_SERVER_HANDLER = """
 date
 # wait for the server to initialize
-bash -c 'while [[ "$(curl -s -o /dev/null -w "%{{http_code}}" {health_url})" != "200" ]]; do sleep 5; done'
+bash -c 'while [[ "$(curl -s -o /dev/null -w "%{{http_code}}" {health_url})" != "200" ]]; do kill -0 '"$SERVER_PID"' 2>/dev/null || {{ echo "Server process '"$SERVER_PID"' died"; exit 1; }}; sleep 5; done'
 date
 """.strip()

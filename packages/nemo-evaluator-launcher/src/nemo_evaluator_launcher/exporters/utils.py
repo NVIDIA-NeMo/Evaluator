@@ -385,7 +385,7 @@ def download_gitlab_artifacts(
 
 
 # SSH connections directory
-CONNECTIONS_DIR = Path.home() / ".nv-eval-platform" / "connections"
+CONNECTIONS_DIR = Path.home() / ".nemo-evaluator" / "connections"
 
 
 def ssh_setup_masters(jobs: Dict[str, JobData]) -> Dict[Tuple[str, str], str]:

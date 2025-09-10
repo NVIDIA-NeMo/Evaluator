@@ -21,7 +21,7 @@ Handles Lepton job creation, management, and monitoring.
 import json
 import subprocess
 import time
-from typing import List
+from typing import Any, List, Union
 
 from leptonai.api.v1.types.affinity import LeptonResourceAffinity
 from leptonai.api.v1.types.common import LeptonVisibility, Metadata
@@ -30,6 +30,9 @@ from leptonai.api.v1.types.job import LeptonJob, LeptonJobUserSpec
 
 # Import lepton dependencies
 from leptonai.api.v2.client import APIClient
+from omegaconf import DictConfig
+
+from nemo_evaluator_launcher.common.logging_utils import logger
 
 # =============================================================================
 # LEPTON JOB MANAGEMENT FUNCTIONS
@@ -41,11 +44,11 @@ def create_lepton_job(
     container_image: str,
     command: List[str],
     resource_shape: str = "cpu.small",
-    env_vars: dict = None,
-    mounts: List[dict] = None,
+    env_vars: dict[Any, Any] | None = None,
+    mounts: List[Union[dict[Any, Any], DictConfig]] | None = None,
     timeout: int = 3600,
-    node_group: str = None,
-    image_pull_secrets: List[str] = None,
+    node_group: str | None = None,
+    image_pull_secrets: List[str] | None = None,
 ) -> tuple[bool, str]:
     """Create a Lepton batch job for evaluation using the API client.
 
@@ -81,12 +84,12 @@ def _create_lepton_job_api(
     container_image: str,
     command: List[str],
     resource_shape: str,
-    env_vars: dict = None,
-    mounts: List[dict] = None,
+    env_vars: dict[Any, Any] | None = None,
+    mounts: List[Union[dict[Any, Any], DictConfig]] | None = None,
     timeout: int = 3600,
-    node_group: str = None,
-    image_pull_secrets: List[str] = None,
-) -> bool:
+    node_group: str | None = None,
+    image_pull_secrets: List[str] | None = None,
+) -> tuple[bool, str]:
     """Create Lepton job using API client (preferred method)."""
     try:
         client = APIClient()
@@ -120,20 +123,16 @@ def _create_lepton_job_api(
         if mounts:
             for mount in mounts:
                 # Handle both regular dicts and OmegaConf DictConfig objects
-                from omegaconf import DictConfig
-
                 if isinstance(mount, (dict, DictConfig)):
                     try:
                         # Convert DictConfig to regular dict if needed
-                        mount_dict = (
-                            dict(mount) if isinstance(mount, DictConfig) else mount
-                        )
+                        mount_dict: dict[Any, Any] = dict(mount)
                         lepton_mount = Mount(**mount_dict)
                         lepton_mounts.append(lepton_mount)
                     except Exception as e:
                         return False, f"Invalid mount configuration: {e}"
                 else:
-                    return (
+                    return (  # type: ignore[unreachable]
                         False,
                         f"Mount must be a dictionary or DictConfig, got {type(mount)}",
                     )
@@ -176,18 +175,20 @@ def _create_lepton_job_api(
         )
 
         response = client.job.create(job)
-        print(
-            f"✅ Successfully created Lepton job: {job_name} (ID: {response.metadata.id_})"
+        logger.info(
+            "Successfully created Lepton job",
+            job_name=job_name,
+            id=response.metadata.id_,
         )
         return True, ""
 
     except Exception as e:
         error_msg = f"Error creating Lepton job via API: {e}"
-        print(f"❌ {error_msg}")
+        logger.error("Error creating Lepton job via API", err=str(e))
         return False, error_msg
 
 
-def get_lepton_job_status(job_name_or_id: str) -> dict:
+def get_lepton_job_status(job_name_or_id: str) -> dict[Any, Any] | None:
     """Get the status of a Lepton job using the API client.
 
     Args:
@@ -199,7 +200,7 @@ def get_lepton_job_status(job_name_or_id: str) -> dict:
     return _get_lepton_job_status_api(job_name_or_id)
 
 
-def _get_lepton_job_status_api(job_name_or_id: str) -> dict:
+def _get_lepton_job_status_api(job_name_or_id: str) -> dict[Any, Any] | None:
     """Get job status using API client (preferred method)."""
     try:
         client = APIClient()
@@ -223,6 +224,10 @@ def _get_lepton_job_status_api(job_name_or_id: str) -> dict:
                     break
 
         if not job:
+            logger.warn(
+                "Not found when getting job status via API",
+                job_name_or_id=job_name_or_id,
+            )
             return None
 
         # Extract status information
@@ -255,11 +260,11 @@ def _get_lepton_job_status_api(job_name_or_id: str) -> dict:
             }
 
     except Exception as e:
-        print(f"❌ Error getting job status via API: {e}")
+        logger.error("Error getting job status via API", err=str(e))
         return None
 
 
-def _get_lepton_job_status_cli(job_name: str) -> dict:
+def _get_lepton_job_status_cli(job_name: str) -> dict[Any, Any] | None:
     """Get job status using CLI (fallback method)."""
     try:
         result = subprocess.run(
@@ -270,7 +275,7 @@ def _get_lepton_job_status_cli(job_name: str) -> dict:
         )
 
         if result.returncode == 0:
-            job_info = json.loads(result.stdout)
+            job_info: dict[Any, Any] = json.loads(result.stdout)
             # Return the job info which contains status information
             return job_info
         else:
@@ -283,7 +288,7 @@ def _get_lepton_job_status_cli(job_name: str) -> dict:
         return None
 
 
-def list_lepton_jobs(prefix: str = None) -> List[dict]:
+def list_lepton_jobs(prefix: str | None = None) -> List[dict[Any, Any]]:
     """List Lepton jobs, optionally filtered by name prefix.
 
     Args:
@@ -298,8 +303,8 @@ def list_lepton_jobs(prefix: str = None) -> List[dict]:
         )
 
         if result.returncode == 0:
-            jobs_info = json.loads(result.stdout)
-            jobs = jobs_info.get("jobs", [])
+            jobs_info: dict[Any, Any] = json.loads(result.stdout)
+            jobs: List[dict[Any, Any]] = jobs_info.get("jobs", [])
 
             if prefix:
                 jobs = [job for job in jobs if job.get("name", "").startswith(prefix)]
@@ -350,7 +355,7 @@ def wait_for_lepton_jobs_completion(job_names: List[str], timeout: int = 3600) -
 
     start_time = time.time()
     job_statuses = {}
-    completed_jobs = set()
+    completed_jobs: set[str] = set()
 
     print(f"⏳ Monitoring {len(job_names)} evaluation jobs...")
 

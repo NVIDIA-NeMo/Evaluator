@@ -253,13 +253,7 @@ required_env_vars = []
 container = "nvcr.io/nvidia/eval-factory/hle:25.08"
 
 [hle.tasks.chat.hle]
-required_env_vars = [
-  "HF_TOKEN",
-  "OPENAI_TOKEN_URL",
-  "OPENAI_CLIENT_ID",
-  "OPENAI_CLIENT_SECRET",
-  "OPENAI_SCOPE",
-]
+required_env_vars = ["HF_TOKEN", "OPENAI_CLIENT_ID", "OPENAI_CLIENT_SECRET"]
 
 
 ###############################################################################
@@ -281,23 +275,13 @@ container = "nvcr.io/nvidia/eval-factory/vlmevalkit:25.08"
 required_env_vars = []
 
 [vlmevalkit.tasks.vlm.slidevqa]
-required_env_vars = [
-  "OPENAI_TOKEN_URL",
-  "OPENAI_CLIENT_ID",
-  "OPENAI_CLIENT_SECRET",
-  "OPENAI_SCOPE",
-]
+required_env_vars = ["OPENAI_CLIENT_ID", "OPENAI_CLIENT_SECRET"]
 
 [vlmevalkit.tasks.vlm.chartqa]
 required_env_vars = []
 
 [vlmevalkit.tasks.vlm.ai2d_judge]
-required_env_vars = [
-  "OPENAI_TOKEN_URL",
-  "OPENAI_CLIENT_ID",
-  "OPENAI_CLIENT_SECRET",
-  "OPENAI_SCOPE",
-]
+required_env_vars = ["OPENAI_CLIENT_ID", "OPENAI_CLIENT_SECRET"]
 
 
 ###############################################################################
