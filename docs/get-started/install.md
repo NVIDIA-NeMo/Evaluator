@@ -132,20 +132,20 @@ Use pre-built evaluation containers from NVIDIA NGC for guaranteed reproducibili
 
 ```bash
 # Pull evaluation containers (no local installation needed)
-docker pull nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
-docker pull nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.07.3
-docker pull nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.07.3
+docker pull nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
+docker pull nvcr.io/nvidia/eval-factory/lm-evaluation-harness:{{ docker_compose_latest }}
+docker pull nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_compose_latest }}
 
 # Run container interactively
 docker run --rm -it --gpus all \
     -v $(pwd)/results:/workspace/results \
-    nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 bash
+    nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} bash
 
 # Or run evaluation directly
 docker run --rm --gpus all \
     -v $(pwd)/results:/workspace/results \
     -e `MY_API_KEY`=your-api-key \
-    nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 \
+    nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
     eval-factory run_eval \
         --eval_type mmlu_pro \
         --model_url https://integrate.api.nvidia.com/v1/chat/completions \
@@ -157,7 +157,7 @@ docker run --rm --gpus all \
 Quick verification:
 ```bash
 # Test container access
-docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 \
+docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
     eval-factory ls | head -5
 echo " Container access verified"
 ```

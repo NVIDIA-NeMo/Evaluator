@@ -18,7 +18,7 @@ Container for Vision-Language Model evaluation toolkit.
 
 **Pull Command:**
 ```bash
-docker pull nvcr.io/nvidia/eval-factory/vlmevalkit:25.07.1
+docker pull nvcr.io/nvidia/eval-factory/vlmevalkit:{{ docker_compose_latest }}
 ```
 
 **Default Parameters:**

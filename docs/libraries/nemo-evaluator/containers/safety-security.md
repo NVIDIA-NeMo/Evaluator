@@ -18,7 +18,7 @@ Container for security and robustness evaluation of AI models.
 
 **Pull Command:**
 ```bash
-docker pull nvcr.io/nvidia/eval-factory/garak:25.07.1
+docker pull nvcr.io/nvidia/eval-factory/garak:{{ docker_compose_latest }}
 ```
 
 **Default Parameters:**
@@ -61,7 +61,7 @@ Container for comprehensive safety evaluation of AI models.
 
 **Pull Command:**
 ```bash
-docker pull nvcr.io/nvidia/eval-factory/safety-harness:25.07.3
+docker pull nvcr.io/nvidia/eval-factory/safety-harness:{{ docker_compose_latest }}
 ```
 
 **Default Parameters:**

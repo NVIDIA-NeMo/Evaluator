@@ -68,8 +68,8 @@ Pre-built NGC containers guarantee reproducible results across environments:
 
 ```bash
 # Pull and run any evaluation container
-docker pull nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
+docker pull nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
 ```
 
 ### Advanced Adapter System
@@ -127,16 +127,16 @@ Direct access to specialized evaluation containers:
 
 ```bash
 # Academic benchmarks
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
 
 # Code generation evaluation  
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.07.3
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_compose_latest }}
 
 # Safety and security testing
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/safety-harness:25.07.3
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/safety-harness:{{ docker_compose_latest }}
 
 # Vision-language model evaluation
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/vlmevalkit:25.07.1
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/vlmevalkit:{{ docker_compose_latest }}
 ```
 
 ### Reproducible Evaluation Environments

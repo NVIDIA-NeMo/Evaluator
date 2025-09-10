@@ -105,7 +105,7 @@ For specialized container workflows:
 
 ```bash
 # Pull and run Safety Harness container
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/safety-harness:25.07.3 bash
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/safety-harness:{{ docker_compose_latest }} bash
 
 # Inside container - set environment
 export MY_API_KEY=your_api_key_here
@@ -122,7 +122,7 @@ eval-factory run_eval \
     --overrides 'config.params.limit_samples=10,config.params.temperature=0.7'
 
 # For security testing with Garak
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/garak:25.07.1 bash
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/garak:{{ docker_compose_latest }} bash
 ```
 :::
 ::::

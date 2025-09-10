@@ -17,7 +17,7 @@ For a comprehensive list of all available Eval Factory containers with detailed 
 The system uses the `eval-factory` command with extensive configuration options:
 
 ```bash
-docker run --rm -it nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 bash
+docker run --rm -it nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} bash
 
 export HF_TOKEN=hf_xxx # Supply HF TOKEN
 export MY_API_KEY= nvapi-xxx # API_KEY for build.nvidia.com access

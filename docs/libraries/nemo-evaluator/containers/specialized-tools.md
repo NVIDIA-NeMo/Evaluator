@@ -18,7 +18,7 @@ Container for evaluating agentic AI models that can perform complex, multi-step 
 
 **Pull Command:**
 ```bash
-docker pull nvcr.io/nvidia/eval-factory/agentic_eval:25.07.3
+docker pull nvcr.io/nvidia/eval-factory/agentic_eval:{{ docker_compose_latest }}
 ```
 
 **Default Parameters:**

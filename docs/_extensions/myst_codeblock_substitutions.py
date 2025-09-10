@@ -49,6 +49,8 @@ def process_codeblock_substitutions(content: str, substitutions: dict) -> str:
     This finds code blocks (```...```) and replaces {{ variable }} patterns
     with their values from myst_substitutions, but skips languages that 
     commonly use {{ }} syntax natively.
+    
+    Uses a safer regex-based approach that specifically targets code blocks.
     """
     # Languages that commonly use {{ }} syntax and should be skipped
     TEMPLATE_LANGUAGES = {
@@ -57,36 +59,39 @@ def process_codeblock_substitutions(content: str, substitutions: dict) -> str:
         'django', 'twig', 'liquid', 'smarty', 'docker-compose'
     }
     
-    # Pattern to match code blocks: ```language\ncode\n```
-    # This pattern handles multiline code blocks with optional language specifier
-    code_block_pattern = r'```(\w*)\n(.*?)\n```'
+    # Use a very specific regex that only matches actual code blocks
+    # This pattern specifically looks for ```language (not ```{directive})
+    # and ensures the language is a simple word (not a directive)
+    import re
     
     def replace_in_code_block(match):
-        language = match.group(1).lower()
+        language = match.group(1).lower() if match.group(1) else ''
         code_content = match.group(2)
         
-        # For template languages, be more selective
-        if language in TEMPLATE_LANGUAGES:
-            # Still process MyST substitutions, but be very careful
-            processed_code = replace_substitutions_carefully(code_content, substitutions)
-            return f'```{language}\n{processed_code}\n```'
-        
-        # Skip if the content looks like template syntax (for non-template languages)
-        if is_likely_template_syntax(code_content):
-            logger.debug("Skipping substitutions for code block with template-like syntax")
-            return match.group(0)  # Return original unchanged
-        
-        # Replace substitutions in the code content
-        processed_code = replace_substitutions(code_content, substitutions)
-        
-        # Return the code block with processed content
-        return f'```{language}\n{processed_code}\n```'
+        # Skip template languages or template-like content
+        if (language not in TEMPLATE_LANGUAGES and 
+            not is_likely_template_syntax(code_content)):
+            # Replace substitutions in the code content
+            processed_code = replace_substitutions(code_content, substitutions)
+            return f'```{language}\n{processed_code}```'
+        else:
+            # For template languages, be more careful
+            if language in TEMPLATE_LANGUAGES:
+                processed_code = replace_substitutions_carefully(code_content, substitutions)
+                return f'```{language}\n{processed_code}```'
+            else:
+                return match.group(0)  # Return unchanged
     
-    # Process all code blocks
+    # Very specific pattern that only matches standard code blocks
+    # ```language followed by content followed by ```
+    # This excludes MyST directives like ```{button-ref} 
+    code_block_pattern = r'```([a-zA-Z][a-zA-Z0-9_-]*)\n(.*?)\n```'
+    
+    # Process the content
     processed_content = re.sub(
-        code_block_pattern, 
-        replace_in_code_block, 
-        content, 
+        code_block_pattern,
+        replace_in_code_block,
+        content,
         flags=re.DOTALL
     )
     

@@ -99,16 +99,16 @@ Pull and run any evaluation container directly:
 
 ```bash
 # Academic benchmarks
-docker pull nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
+docker pull nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
 
 # Code generation
-docker pull nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.07.3
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.07.3
+docker pull nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_compose_latest }}
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_compose_latest }}
 
 # Safety evaluation
-docker pull nvcr.io/nvidia/eval-factory/safety-harness:25.07.3
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/safety-harness:25.07.3
+docker pull nvcr.io/nvidia/eval-factory/safety-harness:{{ docker_compose_latest }}
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/safety-harness:{{ docker_compose_latest }}
 ```
 
 ### Available Tasks by Container
@@ -117,7 +117,7 @@ For a complete list of available tasks in each container:
 
 ```bash
 # List tasks in any container
-docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 eval-factory ls
+docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} eval-factory ls
 
 # Or use the launcher for unified access
 nv-eval ls tasks

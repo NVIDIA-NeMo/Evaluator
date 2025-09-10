@@ -120,7 +120,8 @@ myst_substitutions = {
     "docs_url": "https://docs.nvidia.com/nemo/eval/latest/index.html",
     "support_email": "update-me",
     "min_python_version": "3.8",
-    "recommended_cuda": "12.0+"
+    "recommended_cuda": "12.0+",
+    "docker_compose_latest": "25.08.0"
 }
 
 # Enable figure numbering

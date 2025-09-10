@@ -130,7 +130,7 @@ echo $NGC_API_KEY
 docker run --rm --gpus all nvidia/cuda:11.8-base-ubuntu20.04 nvidia-smi
 
 # Pull the latest container if you have issues
-docker pull nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
+docker pull nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
 ```
 :::
 

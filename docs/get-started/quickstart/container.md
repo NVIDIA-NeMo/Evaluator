@@ -14,10 +14,10 @@ The Container Direct approach gives you full control over the container environm
 
 ```bash
 # 1. Pull evaluation container
-docker pull nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
+docker pull nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
 
 # 2. Run container interactively
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 bash
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} bash
 
 # 3. Inside container - set up environment
 export MY_API_KEY=nvapi-your-key-here
@@ -49,7 +49,7 @@ docker run --rm -it --gpus all \
     -v $(pwd)/logs:/workspace/logs \
     -e MY_API_KEY=nvapi-your-key-here \
     -e HF_TOKEN=hf_your-token-here \
-    nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 bash
+    nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} bash
 
 # 3. Inside container - run evaluation with advanced features
 eval-factory run_eval \
@@ -74,7 +74,7 @@ For automated workflows, you can run everything in a single command:
 docker run --rm --gpus all \
     -v $(pwd)/results:/workspace/results \
     -e MY_API_KEY=nvapi-your-key-here \
-    nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 \
+    nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
     eval-factory run_eval \
         --eval_type mmlu_pro \
         --model_id meta/llama-3.1-8b-instruct \
@@ -124,7 +124,7 @@ docker run --rm --gpus all \
 version: '3.8'
 services:
   nemo-eval:
-    image: nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
+    image: nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
     deploy:
       resources:
         reservations:
@@ -163,7 +163,7 @@ for benchmark in "${BENCHMARKS[@]}"; do
     docker run --rm --gpus all \
         -v $(pwd)/results:/workspace/results \
         -e MY_API_KEY=$API_KEY \
-        nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 \
+        nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
         eval-factory run_eval \
             --eval_type $benchmark \
             --model_id meta/llama-3.1-8b-instruct \
@@ -187,7 +187,7 @@ docker run --rm --gpus all \
     -v $(pwd)/results:/workspace/results \
     -v $(pwd)/my-configs:/workspace/my-configs \
     -e MY_API_KEY=nvapi-your-key-here \
-    nvcr.io/nvidia/eval-factory/simple-evals:25.07.3 \
+    nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
     eval-factory run_eval \
         --config-dir /workspace/my-configs \
         --config-name custom_evaluation \

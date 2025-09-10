@@ -104,7 +104,7 @@ For specialized container workflows:
 
 ```bash
 # Pull and run LM Evaluation Harness container
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.07.3 bash
+docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/lm-evaluation-harness:{{ docker_compose_latest }} bash
 
 # Inside container - set environment
 export MY_API_KEY=your_api_key_here

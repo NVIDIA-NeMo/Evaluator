@@ -17,7 +17,7 @@ Container for lightweight evaluation tasks and simple model assessments.
 
 **Pull Command:**
 ```bash
-docker pull nvcr.io/nvidia/eval-factory/simple-evals:25.07.3
+docker pull nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
 ```
 
 **Default Parameters:**
@@ -51,7 +51,7 @@ Container based on the Language Model Evaluation Harness framework for comprehen
 
 **Pull Command:**
 ```bash
-docker pull nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.07.3
+docker pull nvcr.io/nvidia/eval-factory/lm-evaluation-harness:{{ docker_compose_latest }}
 ```
 
 **Default Parameters:**
@@ -86,7 +86,7 @@ Container for MT-Bench evaluation framework, designed for multi-turn conversatio
 
 **Pull Command:**
 ```bash
-docker pull nvcr.io/nvidia/eval-factory/mtbench:25.07.1
+docker pull nvcr.io/nvidia/eval-factory/mtbench:{{ docker_compose_latest }}
 ```
 
 **Default Parameters:**
@@ -117,7 +117,7 @@ Container for the Holistic Evaluation of Language Models (HELM) framework, with 
 
 **Pull Command:**
 ```bash
-docker pull nvcr.io/nvidia/eval-factory/helm:25.07.2
+docker pull nvcr.io/nvidia/eval-factory/helm:{{ docker_compose_latest }}
 ```
 
 **Default Parameters:**
@@ -153,5 +153,101 @@ Container for evaluating Retrieval-Augmented Generation (RAG) systems and their 
 
 **Pull Command:**
 ```bash
-docker pull nvcr.io/nvidia/eval-factory/rag_retriever_eval:25.07.3
+docker pull nvcr.io/nvidia/eval-factory/rag_retriever_eval:{{ docker_compose_latest }}
 ```
+
+---
+
+## HLE Container
+
+**NGC Catalog**: [hle](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/hle)
+
+Container for Humanity's Last Exam (HLE), a multi-modal benchmark at the frontier of human knowledge, designed to be the final closed-ended academic benchmark with broad subject coverage.
+
+**Use Cases:**
+- Academic knowledge and problem solving evaluation
+- Multi-modal benchmark testing
+- Frontier knowledge assessment
+- Subject-matter expertise evaluation
+
+**Pull Command:**
+```bash
+docker pull nvcr.io/nvidia/eval-factory/hle:{{ docker_compose_latest }}
+```
+
+**Default Parameters:**
+
+| Parameter | Value |
+|-----------|-------|
+| `limit_samples` | `None` |
+| `max_new_tokens` | `4096` |
+| `temperature` | `0.0` |
+| `top_p` | `1.0` |
+| `parallelism` | `100` |
+| `max_retries` | `30` |
+| `request_timeout` | `600.0` |
+
+---
+
+## IFBench Container
+
+**NGC Catalog**: [ifbench](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/ifbench)
+
+Container for challenging benchmark for precise instruction following evaluation.
+
+**Use Cases:**
+- Precise instruction following evaluation
+- Out-of-distribution constraint verification
+- Multiturn constraint isolation testing
+- Instruction following robustness assessment
+- Verifiable instruction compliance testing
+
+**Pull Command:**
+```bash
+docker pull nvcr.io/nvidia/eval-factory/ifbench:{{ docker_compose_latest }}
+```
+
+**Default Parameters:**
+
+| Parameter | Value |
+|-----------|-------|
+| `limit_samples` | `None` |
+| `max_new_tokens` | `4096` |
+| `temperature` | `0.01` |
+| `top_p` | `0.95` |
+| `parallelism` | `8` |
+| `max_retries` | `5` |
+
+---
+
+## MMATH Container
+
+**NGC Catalog**: [mmath](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mmath)
+
+Container for multilingual mathematical reasoning evaluation across multiple languages.
+
+**Use Cases:**
+- Multilingual mathematical reasoning evaluation
+- Cross-lingual mathematical problem solving assessment
+- Mathematical reasoning robustness across languages
+- Complex mathematical reasoning capability testing
+- Translation quality validation for mathematical content
+
+**Pull Command:**
+```bash
+docker pull nvcr.io/nvidia/eval-factory/mmath:{{ docker_compose_latest }}
+```
+
+**Default Parameters:**
+
+| Parameter | Value |
+|-----------|-------|
+| `limit_samples` | `None` |
+| `max_new_tokens` | `32768` |
+| `temperature` | `0.6` |
+| `top_p` | `0.95` |
+| `parallelism` | `8` |
+| `max_retries` | `5` |
+| `language` | `en` |
+
+**Supported Languages:** EN, ZH, AR, ES, FR, JA, KO, PT, TH, VI
