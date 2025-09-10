@@ -17,6 +17,7 @@ import re
 
 import pytest
 import requests
+
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.adapters.interceptors.logging_interceptor import (
     ResponseLoggingInterceptor,
@@ -27,7 +28,6 @@ from nemo_evaluator.adapters.types import (
     AdapterRequestContext,
     AdapterResponse,
 )
-
 from tests.unit_tests.adapters.testing_utils import (
     create_fake_endpoint_process,
 )

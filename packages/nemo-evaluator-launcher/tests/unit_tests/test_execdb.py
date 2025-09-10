@@ -1,3 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 """Tests for the execdb module."""
 
 import json
@@ -55,7 +70,7 @@ def test_ensure_db_dir_creation(tmpdir):
         "nemo_evaluator_launcher.common.execdb.EXEC_DB_DIR",
         pathlib.Path(tmpdir) / "test-db",
     ):
-        db = ExecutionDB()
+        _ = ExecutionDB()
         assert EXEC_DB_DIR.exists()
         assert EXEC_DB_DIR.is_dir()
 
@@ -206,7 +221,7 @@ def test_load_existing_jobs(tmpdir):
             for job in existing_jobs:
                 f.write(json.dumps(job) + "\n")
 
-        db = ExecutionDB()
+        _ = ExecutionDB()
 
         # Verify jobs are loaded
         result1 = get_job("job-22222222")
@@ -244,7 +259,7 @@ def test_load_existing_jobs_with_invalid_json(tmpdir):
                 '{"invocation_id": "inv-33333333", "job_id": "job-44444444", "timestamp": 1234567891, "executor": "gitlab", "data": {}}\n'
             )
 
-        db = ExecutionDB()
+        _ = ExecutionDB()
 
         assert get_job("job-22222222") is not None
         assert get_job("job-44444444") is not None
