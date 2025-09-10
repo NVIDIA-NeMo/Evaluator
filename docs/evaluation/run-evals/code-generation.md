@@ -40,7 +40,7 @@ nv-eval ls tasks | grep -E "(mbpp|humaneval|apps|codegen)"
 nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
-    -o evaluation.tasks='["mbpp"]' \
+    -o 'evaluation.tasks=["mbpp"]' \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o target.api_endpoint.api_key=${YOUR_API_KEY}
 
@@ -48,7 +48,7 @@ nv-eval run \
 nv-eval run \
     --config-dir examples \
     --config-name local_code_generation_suite \
-    -o evaluation.tasks='["mbpp", "humaneval", "apps"]'
+    -o 'evaluation.tasks=["mbpp", "humaneval", "apps"]'
 ```
 :::
 

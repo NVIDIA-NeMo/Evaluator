@@ -158,7 +158,7 @@ nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.model_id=meta/llama-3.1-405b-instruct \
-    -o evaluation.tasks='["mmlu_pro"]' \
+    -o 'evaluation.tasks=["mmlu_pro"]' \
     -o evaluation.params.limit_samples=50
 ```
 

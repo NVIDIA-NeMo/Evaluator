@@ -123,7 +123,7 @@ graph LR
 
 #### **Pattern 1: Complete Stack** (Recommended)
 
-```python
+:::{code-block} python
 # 1. Deploy model
 from nemo_eval.api import deploy
 deploy(nemo_checkpoint="/path/to/checkpoint", serving_backend="pytriton")
@@ -139,7 +139,7 @@ adapter_config = AdapterConfig(
 # 3. Run evaluation
 from nemo_evaluator.core.evaluate import evaluate
 results = evaluate(target_cfg=target, eval_cfg=config, adapter_cfg=adapter_config)
-```
+:::
 
 #### **Pattern 2: Orchestrated Workflow**
 
@@ -153,7 +153,7 @@ nv-eval run \
 
 #### **Pattern 3: Programmatic Integration**
 
-```python
+:::{code-block} python
 # Direct integration into ML pipelines
 from nemo_evaluator.api import run
 results = run(
@@ -161,4 +161,4 @@ results = run(
     eval_cfg=evaluation_config,
     adapter_cfg=adapter_config
 )
-```
+:::

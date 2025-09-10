@@ -42,7 +42,7 @@ nv-eval ls tasks
 nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
-    -o evaluation.tasks='["mmlu_pro"]' \
+    -o 'evaluation.tasks=["mmlu_pro"]' \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o target.api_endpoint.api_key=${YOUR_API_KEY}
 
@@ -50,7 +50,7 @@ nv-eval run \
 nv-eval run \
     --config-dir examples \
     --config-name local_text_generation_suite \
-    -o evaluation.tasks='["mmlu_pro", "arc_challenge", "hellaswag", "truthfulqa"]'
+    -o 'evaluation.tasks=["mmlu_pro", "arc_challenge", "hellaswag", "truthfulqa"]'
 ```
 
 :::

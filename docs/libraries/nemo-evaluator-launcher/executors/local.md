@@ -1,75 +1,101 @@
-# Local Executor
+### Local Executor
 
-The Local executor runs evaluations on your machine using Docker. It provides a fast way to iterate when you have Docker installed and want fully reproducible runs.
+The Local executor runs evaluations on your machine using Docker. It provides a fast way to iterate if you have Docker installed, evaluating existing endpoints.
 
-See common concepts and commands in the [executors overview](index).
+See common concepts and commands in the [executors overview](overview.md).
 
 ## Prerequisites
-- Docker installed and running
+- Docker
 - Python environment with the Nemo Evaluator Launcher CLI available (install the launcher by following the [Quickstart](../quickstart.md))
 
-## Quick Start (Local)
 
-Run a local evaluation using an example configuration:
+## Tutorials
 
+### [Local Evaluation of Existing Endpoint](tutorials/local_evaluation_of_existing_endpoint.md)
+Learn how to evaluate an existing API endpoint using the Local executor. This tutorial covers:
+- Choosing model
+- Choosing tasks
+- Setting up API keys
+  - For NVIDIA APIs, see [Setting up API Keys](https://docs.omniverse.nvidia.com/guide-sdg/latest/setup.html#preview-and-set-up-an-api-key)
+- Creating configuration file
+- Running evaluations
+
+
+## Quick Start
+
+For detailed step-by-step instructions, see the tutorials above. Here's a quick overview:
+
+### Evaluate existing endpoint
 ```bash
-# Using short alias (recommended)
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
-  --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
-
-# Or using full command name
+# Run evaluation
 nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
-  --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
+  -o target.api_endpoint.api_key=API_KEY
 ```
 
-The CLI prints an invocation ID and useful log commands.
+## Environment Variables
 
-### Live Log Monitoring
-Use `tail -f` to follow logs:
-```bash
-tail -f /path/to/output/<INVOCATION_ID>/*/logs/stdout.log
-```
+The Local executor supports passing environment variables from your local machine to evaluation containers:
 
-Create a custom configuration by copying an example and editing values:
-```bash
-mkdir -p my_configs
-cp examples/local_llama_3_1_8b_instruct.yaml my_configs/my_evaluation.yaml
-# edit my_configs/my_evaluation.yaml
-```
+### How It Works
+Environment variables are passed to Docker containers using `docker run -e KEY=VALUE` flags. The executor automatically adds `$` to your variable names from the config `env_vars` (e.g., `OPENAI_API_KEY` becomes `$OPENAI_API_KEY`).
 
-Run your custom configuration:
-```bash
-nv-eval run --config-dir my_configs --config-name my_evaluation
-```
-
-## Configuration Example
-
-Here's a complete local executor configuration:
-
+### Configuration
 ```yaml
-# examples/local_llama_3_1_8b_instruct.yaml
-defaults:
-  - execution: local
-  - deployment: none
-  - _self_
-
-execution:
-  output_dir: ./results
-
-target:
-  api_endpoint:
-    url: http://localhost:8080/v1/chat/completions
-    model_id: meta/llama-3.1-8b-instruct
-    
 evaluation:
+  env_vars:
+    API_KEY: YOUR_API_KEY_ENV_VAR_NAME
+    CUSTOM_VAR: YOUR_CUSTOM_ENV_VAR_NAME
   tasks:
-    - name: hellaswag
-    - name: arc_challenge
-    - name: winogrande
+    - name: my_task
+      env_vars:
+        TASK_SPECIFIC_VAR: TASK_ENV_VAR_NAME
 ```
 
-This configuration:
-- Uses the `local` execution backend
-- Sets no deployment (assumes your model is already running)
-- Points to a local model endpoint at `localhost:8080`
-- Runs three common benchmark tasks
+## Secrets and API Keys
+
+API keys are handled the same way as environment variables - store them as environment variables on your machine and reference them in the `env_vars` configuration.
+
+
+## Mounting and Storage
+
+The Local executor uses Docker volume mounts for data persistence:
+
+### Docker Volumes
+- **Results Mount**: The `output_dir` is mounted as `/results` in evaluation containers
+- **No Custom Mounts**: Local executor doesn't support custom volume mounts (unlike Slurm/Lepton)
+
+
+## Resuming
+
+The Local executor provides excellent resumption capabilities:
+
+### Script Generation
+The Local executor automatically generates scripts for easy resumption:
+- **`run_all.sh`**: Master script to run all evaluation tasks (in output directory)
+- **`run.sh`**: Individual scripts for each task (in each task subdirectory)
+- **Reproducible**: Scripts contain all necessary commands and configurations
+
+### Manual Resumption
+```bash
+# Resume all tasks
+cd /path/to/output_dir/2024-01-15-10-30-45-abc12345/
+bash run_all.sh
+
+# Resume specific task
+cd /path/to/output_dir/2024-01-15-10-30-45-abc12345/task1/
+bash run.sh
+```
+
+### Progress Preservation
+- **Checkpoint Support**: Evaluations can resume from where they left off
+- **No Data Loss**: Already processed samples are preserved
+
+## Key Features
+- **Docker-based execution**: Isolated, reproducible runs
+- **Existing endpoint evaluation**: Evaluate any OpenAI-compatible endpoint
+- **Easy resuming**: Continue interrupted evaluations without losing progress
+- **Comprehensive monitoring**: Real-time logs and status tracking
+
+## Monitoring and Job Management
+
+For monitoring jobs, checking status, and managing evaluations, see the [Executors Overview](overview.md#job-management) section.

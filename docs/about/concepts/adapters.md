@@ -40,7 +40,7 @@ The adapter system integrates seamlessly with:
 
 ## Usage Example
 
-```python
+:::{code-block} python
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 
 adapter_config = AdapterConfig(
@@ -50,7 +50,7 @@ adapter_config = AdapterConfig(
     use_request_logging=True,
     custom_system_prompt="You are a helpful assistant."
 )
-```
+:::
 
 For detailed usage and configuration examples, see [Adapters & Interceptors](adapters-interceptors.md).
 

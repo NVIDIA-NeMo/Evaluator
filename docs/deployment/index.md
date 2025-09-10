@@ -26,7 +26,7 @@ nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name slurm_llama_3_1_8b_instruct \
     -o deployment.model_path=/shared/models/llama-3.1-8b \
-    -o evaluation.tasks='["mmlu_pro", "gsm8k"]'
+    -o 'evaluation.tasks=["mmlu_pro", "gsm8k"]'
 ```
 
 **When to use:**
@@ -37,6 +37,10 @@ nemo-evaluator-launcher run \
 - You want the simplest path from model to results
 
 **Supported deployment types:** vLLM, NIM, SGLang, or no deployment (existing endpoints)
+
+:::{seealso}
+For detailed YAML configuration reference for each deployment type, see [Launcher Deployment Configuration](../libraries/nemo-evaluator-launcher/configuration/deployment/index.md).
+:::
 
 ### **Bring-Your-Own-Endpoint**
 You handle model deployment, NeMo Evaluator handles evaluation:

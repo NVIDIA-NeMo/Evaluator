@@ -26,7 +26,7 @@ Controls where and how evaluations run:
 ```yaml
 execution:
   output_dir: results         # Output directory (required)
-  # Executor-specific settings vary by type
+  # Executor specific settings vary by type
 ```
 
 **Local Executor:**

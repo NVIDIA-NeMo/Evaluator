@@ -35,7 +35,7 @@ nv-eval ls tasks --filter coding
 nv-eval run \
     --config-dir examples \
     --config-name academic_benchmark_suite \
-    -o evaluation.tasks='["mmlu_pro", "gsm8k", "arc_challenge"]'
+    -o 'evaluation.tasks=["mmlu_pro", "gsm8k", "arc_challenge"]'
 ```
 
 ###  **Code Generation**  
@@ -49,7 +49,7 @@ nv-eval run \
 nv-eval run \
     --config-dir examples \
     --config-name coding_evaluation \
-    -o evaluation.tasks='["humaneval", "mbpp"]'
+    -o 'evaluation.tasks=["humaneval", "mbpp"]'
 ```
 
 ###  **Safety and Security**
@@ -64,7 +64,7 @@ nv-eval run \
 nv-eval run \
     --config-dir examples \
     --config-name comprehensive_safety \
-    -o evaluation.tasks='["toxicity", "bias_detection", "jailbreak_resistance"]'
+    -o 'evaluation.tasks=["toxicity", "bias_detection", "jailbreak_resistance"]'
 ```
 
 ###  **Function Calling and Agentic AI**

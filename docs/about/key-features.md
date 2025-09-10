@@ -31,11 +31,11 @@ nv-eval ls tasks
 
 # Run academic benchmarks
 nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
-  -o evaluation.tasks='["mmlu_pro", "gsm8k", "arc_challenge"]'
+  -o 'evaluation.tasks=["mmlu_pro", "gsm8k", "arc_challenge"]'
 
 # Run safety evaluation
 nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
-  -o evaluation.tasks='["toxicity", "bias_detection", "jailbreak_resistance"]'
+  -o 'evaluation.tasks=["toxicity", "bias_detection", "jailbreak_resistance"]'
 ```
 
 ### Built-in Result Export
@@ -282,7 +282,7 @@ Built-in safety assessment through specialized containers:
 nv-eval run \
     --config-dir examples \
     --config-name comprehensive_safety \
-    -o evaluation.tasks='["toxicity", "bias_detection", "jailbreak_resistance", "privacy_leakage"]'
+    -o 'evaluation.tasks=["toxicity", "bias_detection", "jailbreak_resistance", "privacy_leakage"]'
 ```
 
 **Safety Containers Available:**

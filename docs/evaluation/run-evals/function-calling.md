@@ -40,7 +40,7 @@ nv-eval ls tasks | grep -E "(bfcl|function)"
 nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
-    -o evaluation.tasks='["bfclv3_ast_prompting"]' \
+    -o 'evaluation.tasks=["bfclv3_ast_prompting"]' \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o target.api_endpoint.api_key=${YOUR_API_KEY}
 
@@ -48,7 +48,7 @@ nv-eval run \
 nv-eval run \
     --config-dir examples \
     --config-name local_function_calling_suite \
-    -o evaluation.tasks='["bfclv3_simple", "bfclv3_ast_prompting", "bfclv3_parallel"]'
+    -o 'evaluation.tasks=["bfclv3_simple", "bfclv3_ast_prompting", "bfclv3_parallel"]'
 ```
 :::
 

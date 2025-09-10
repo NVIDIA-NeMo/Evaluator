@@ -37,11 +37,13 @@ NeMo Evaluator provides multiple installation paths depending on your needs. Cho
 ## Prerequisites
 
 ### System Requirements
+
 - Python 3.10 or higher (up to 3.13)
-- CUDA-compatible GPU(s) (tested on RTX A6000, A100, H100) 
+- CUDA-compatible GPU(s) (tested on RTX A6000, A100, H100)
 - Docker (for container-based workflows)
 
 ### Recommended Environment
+
 - Python 3.12
 - PyTorch 2.7
 - CUDA 12.9
@@ -85,6 +87,7 @@ nv-eval ls tasks
 ```
 
 Quick verification:
+
 ```bash
 # Test basic functionality
 nv-eval ls tasks | head -10
@@ -171,7 +174,9 @@ echo " Container access verified"
 (optional-packages)=
 
 ## Add New Evaluation Frameworks
+
 The NeMo Framework Docker image comes with [nvidia-lm-eval](https://pypi.org/project/nvidia-lm-eval/) pre-installed.
+
 However, you can add more evaluation methods by installing additional NVIDIA Eval Factory packages.
 
 For each package, follow these steps:
@@ -194,7 +199,7 @@ python deploy.py
 
 Open two separate terminals within the same container to execute the deployment and evaluation.
 
-3. (Optional) Export the required environment variables. 
+3. (Optional) Export the required environment variables.
 
 4. Run the evaluation of your choice.
 
@@ -226,17 +231,17 @@ pip install nvidia-bfcl==25.7.1
 
 1. Install the [nvidia-eval-factory-garak](https://pypi.org/project/nvidia-eval-factory-garak/) package:
 
-   ```bash
-   pip install nvidia-eval-factory-garak==25.6
-   ```
+```bash
+pip install nvidia-eval-factory-garak==25.6
+```
 
 2. Run the evaluation:
 
-   ```{literalinclude} ../scripts/snippets/garak.py
-   :language: python
-   :start-after: "## Run the evaluation"
-   :linenos:
-   ```
+```{literalinclude} ../scripts/snippets/garak.py
+:language: python
+:start-after: "## Run the evaluation"
+:linenos:
+```
 
 :::
 
@@ -244,17 +249,17 @@ pip install nvidia-bfcl==25.7.1
 
 1. Install the [nvidia-bigcode-eval](https://pypi.org/project/nvidia-bigcode-eval/) package:
 
-   ```bash
-   pip install nvidia-bigcode-eval==25.6
-   ```
+```bash
+pip install nvidia-bigcode-eval==25.6
+```
 
 2. Run the evaluation:
 
-   ```{literalinclude} ../scripts/snippets/bigcode.py
-   :language: python
-   :start-after: "## Run the evaluation"
-   :linenos:
-   ```
+```{literalinclude} ../scripts/snippets/bigcode.py
+:language: python
+:start-after: "## Run the evaluation"
+:linenos:
+```
 
 :::
 
@@ -262,9 +267,9 @@ pip install nvidia-bfcl==25.7.1
 
 1. Install the [nvidia-simple-evals](https://pypi.org/project/nvidia-simple-evals/) package:
 
-   ```bash
-   pip install nvidia-simple-evals==25.7.1
-   ```
+```bash
+pip install nvidia-simple-evals==25.7.1
+```
 
 In the example below, we use the `AIME_2025` task, which follows the llm-as-a-judge approach for checking the output correctness.
 By default, [Llama 3.3 70B](https://build.nvidia.com/meta/llama-3_3-70b-instruct) NVIDIA NIM is used for judging.
@@ -279,11 +284,11 @@ To customize the judge setting, see the instructions for [NVIDIA Eval Factory pa
 
 3. Run the evaluation:
 
-   ```{literalinclude} ../scripts/snippets/simple_evals.py
-   :language: python
-   :start-after: "## Run the evaluation"
-   :linenos:
-   ```
+```{literalinclude} ../scripts/snippets/simple_evals.py
+:language: python
+:start-after: "## Run the evaluation"
+:linenos:
+```
 
 :::
 
@@ -291,32 +296,32 @@ To customize the judge setting, see the instructions for [NVIDIA Eval Factory pa
 
 1. Install the [nvidia-safety-harness](https://pypi.org/project/nvidia-safety-harness/) package:
 
-   ```bash
-   pip install nvidia-safety-harness==25.6
-   ```
+```bash
+pip install nvidia-safety-harness==25.6
+```
 
 2. Deploy the judge model
 
-   In the example below, we use the `aegis_v2` task, which requires the [Llama 3.1 NemoGuard 8B ContentSafety](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/getting-started.html) model to assess your model's responses.
+In the example below, we use the `aegis_v2` task, which requires the [Llama 3.1 NemoGuard 8B ContentSafety](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/getting-started.html) model to assess your model's responses.
 
-   The model is available through NVIDIA NIM.
-   See the [instructions](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/getting-started.html) on deploying the judge model.
+The model is available through NVIDIA NIM.
+See the [instructions](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/getting-started.html) on deploying the judge model.
 
-   If you set a gated judge endpoint up, you must export your API key as the ``JUDGE_API_KEY`` variable:
+If you set a gated judge endpoint up, you must export your API key as the ``JUDGE_API_KEY`` variable:
 
-   ```bash
-   export `JUDGE_API_KEY`=...
-   ```
+```bash
+export JUDGE_API_KEY=...
+```
 
 3. To access the evaluation dataset, you must authenticate with the [Hugging Face Hub](https://huggingface.co/docs/huggingface_hub/quick-start#authentication).
 
 4. Run the evaluation:
 
-   ```{literalinclude} ../scripts/snippets/safety.py
-   :language: python
-   :start-after: "## Run the evaluation"
-   :linenos:
-   ```
+```{literalinclude} ../scripts/snippets/safety.py
+:language: python
+:start-after: "## Run the evaluation"
+:linenos:
+```
 
 Make sure to modify the judge configuration in the provided snippet to match your Llama 3.1 NemoGuard 8B ContentSafety endpoint:
 

@@ -62,8 +62,8 @@ Measure model performance through natural language generation for academic bench
 :::
 
 :::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` Log-Probability
-:link: log-probability
-:link-type: ref
+:link: log-probability.md
+:link-type: doc
 Assess model confidence and uncertainty using log-probabilities for multiple-choice scenarios without text generation.
 :::
 
@@ -102,7 +102,7 @@ Use this section to choose recommended evaluations **by model type** or **by use
   - Recommended Evaluations
 * - Base Models (Pre-trained)
   -
-    -  [Log-Probability](log-probability) - No instruction following required
+    -  [Log-Probability](log-probability.md) - No instruction following required
     -  [Text Generation](text-gen.md) - With academic prompting
     -  Avoid chat-specific evaluations
 * - Instruction-Tuned Models
@@ -130,7 +130,7 @@ Use this section to choose recommended evaluations **by model type** or **by use
 * - Academic Research
   -
     - [Text Generation](text-gen.md) for MMLU, reasoning benchmarks
-    - [Log-Probability](log-probability) for baseline comparisons
+    - [Log-Probability](log-probability.md) for baseline comparisons
     - Specialized domains for research-specific metrics (documentation coming soon)
 * - Production Deployment
   -
@@ -151,7 +151,7 @@ Use this section to choose recommended evaluations **by model type** or **by use
 :::{toctree}
 :hidden:
 
-Log Probability <log-probability>
+Log Probability <log-probability.md>
 Text Generation <text-gen>
 Code Generation <code-generation>
 Function Calling <function-calling>

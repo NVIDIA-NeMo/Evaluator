@@ -85,16 +85,16 @@ The adapter system follows a **configuration-over-code** philosophy:
 
 ### Simple Configuration
 Enable basic features with minimal configuration:
-```python
+:::{code-block} python
 adapter_config = AdapterConfig(
     use_caching=True,
     use_request_logging=True
 )
-```
+:::
 
 ### Advanced Configuration
 Full control over interceptor behavior:
-```python
+:::{code-block} python
 adapter_config = AdapterConfig(
     use_reasoning=True,
     start_reasoning_token="<think>",
@@ -102,7 +102,7 @@ adapter_config = AdapterConfig(
     caching_dir="./cache",
     max_logged_requests=1000
 )
-```
+:::
 
 ### YAML Configuration
 Declarative configuration for reproducibility:

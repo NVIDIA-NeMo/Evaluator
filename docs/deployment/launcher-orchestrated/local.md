@@ -235,7 +235,7 @@ nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o deployment.model_path=/path/to/my/model \
-    -o evaluation.tasks='["mmlu_pro", "gsm8k"]'
+    -o 'evaluation.tasks=["mmlu_pro", "gsm8k"]'
 ```
 
 ### Monitoring and Management

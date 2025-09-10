@@ -50,7 +50,7 @@ def process_codeblock_substitutions(content: str, substitutions: dict) -> str:
     with their values from myst_substitutions, but skips languages that 
     commonly use {{ }} syntax natively.
     
-    Uses a safer regex-based approach that specifically targets code blocks.
+    Uses a line-by-line approach to avoid regex backtracking issues.
     """
     # Languages that commonly use {{ }} syntax and should be skipped
     TEMPLATE_LANGUAGES = {
@@ -59,43 +59,69 @@ def process_codeblock_substitutions(content: str, substitutions: dict) -> str:
         'django', 'twig', 'liquid', 'smarty', 'docker-compose'
     }
     
-    # Use a very specific regex that only matches actual code blocks
-    # This pattern specifically looks for ```language (not ```{directive})
-    # and ensures the language is a simple word (not a directive)
-    import re
+    lines = content.split('\n')
+    result_lines = []
+    in_code_block = False
+    current_language = None
+    code_block_lines = []
     
-    def replace_in_code_block(match):
-        language = match.group(1).lower() if match.group(1) else ''
-        code_content = match.group(2)
-        
-        # Skip template languages or template-like content
-        if (language not in TEMPLATE_LANGUAGES and 
-            not is_likely_template_syntax(code_content)):
-            # Replace substitutions in the code content
-            processed_code = replace_substitutions(code_content, substitutions)
-            return f'```{language}\n{processed_code}```'
-        else:
-            # For template languages, be more careful
-            if language in TEMPLATE_LANGUAGES:
-                processed_code = replace_substitutions_carefully(code_content, substitutions)
-                return f'```{language}\n{processed_code}```'
+    for line in lines:
+        if line.startswith('```') and not in_code_block:
+            # Starting a code block
+            language_match = re.match(r'```([a-zA-Z][a-zA-Z0-9_-]*)', line)
+            if language_match:
+                in_code_block = True
+                current_language = language_match.group(1).lower()
+                code_block_lines = [line]
             else:
-                return match.group(0)  # Return unchanged
+                # Not a standard code block (might be a directive)
+                result_lines.append(line)
+        elif line == '```' and in_code_block:
+            # Ending a code block
+            code_block_lines.append(line)
+            
+            # Process the code block content
+            if len(code_block_lines) > 2:  # Has content between start and end
+                code_content = '\n'.join(code_block_lines[1:-1])  # Content without fences
+                
+                # Skip template languages or template-like content
+                if (current_language not in TEMPLATE_LANGUAGES and 
+                    not is_likely_template_syntax(code_content)):
+                    # Replace substitutions in the code content
+                    processed_code = replace_substitutions(code_content, substitutions)
+                    result_lines.append(code_block_lines[0])  # Opening fence
+                    result_lines.extend(processed_code.split('\n'))  # Processed content
+                    result_lines.append(line)  # Closing fence
+                else:
+                    # For template languages, be more careful or skip
+                    if current_language in TEMPLATE_LANGUAGES:
+                        processed_code = replace_substitutions_carefully(code_content, substitutions)
+                        result_lines.append(code_block_lines[0])  # Opening fence
+                        result_lines.extend(processed_code.split('\n'))  # Processed content
+                        result_lines.append(line)  # Closing fence
+                    else:
+                        # Add unchanged
+                        result_lines.extend(code_block_lines)
+            else:
+                # Empty code block, add unchanged
+                result_lines.extend(code_block_lines)
+            
+            # Reset state
+            in_code_block = False
+            current_language = None
+            code_block_lines = []
+        elif in_code_block:
+            # Inside a code block, collect lines
+            code_block_lines.append(line)
+        else:
+            # Regular content, add as-is
+            result_lines.append(line)
     
-    # Very specific pattern that only matches standard code blocks
-    # ```language followed by content followed by ```
-    # This excludes MyST directives like ```{button-ref} 
-    code_block_pattern = r'```([a-zA-Z][a-zA-Z0-9_-]*)\n(.*?)\n```'
+    # Handle case where file ends while in a code block (malformed)
+    if in_code_block and code_block_lines:
+        result_lines.extend(code_block_lines)
     
-    # Process the content
-    processed_content = re.sub(
-        code_block_pattern,
-        replace_in_code_block,
-        content,
-        flags=re.DOTALL
-    )
-    
-    return processed_content
+    return '\n'.join(result_lines)
 
 
 def is_likely_template_syntax(content: str) -> bool:

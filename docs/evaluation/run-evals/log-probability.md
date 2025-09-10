@@ -42,7 +42,7 @@ nv-eval ls tasks | grep -E "(arc_challenge|hellaswag|winogrande|truthfulqa)"
 nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
-    -o evaluation.tasks='["arc_challenge"]' \
+    -o 'evaluation.tasks=["arc_challenge"]' \
     -o target.api_endpoint.url=http://0.0.0.0:8080/v1/completions \
     -o target.api_endpoint.type=completions \
     -o target.api_endpoint.model_id=megatron_model
@@ -51,7 +51,7 @@ nv-eval run \
 nv-eval run \
     --config-dir examples \
     --config-name local_log_probability_suite \
-    -o evaluation.tasks='["arc_challenge", "hellaswag", "winogrande", "truthfulqa"]'
+    -o 'evaluation.tasks=["arc_challenge", "hellaswag", "winogrande", "truthfulqa"]'
 ```
 
 :::
