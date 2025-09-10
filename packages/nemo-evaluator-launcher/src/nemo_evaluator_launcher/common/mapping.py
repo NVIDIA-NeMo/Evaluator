@@ -19,7 +19,7 @@ import os
 import pathlib
 import sys
 from importlib import resources
-from typing import Optional
+from typing import Any, Optional
 
 import requests
 
@@ -33,8 +33,9 @@ from nemo_evaluator_launcher.common.logging_utils import logger
 # Configuration constants
 # For below, see docs: https://docs.gitlab.com/api/repository_files/
 MAPPING_URL = "https://gitlab-master.nvidia.com/api/v4/projects/155749/repository/files/nemo_evaluator_launcher%2Fsrc%2Fnemo_evaluator_launcher%2Fresources%2Fmapping.toml?ref=main"
-CACHE_DIR = pathlib.Path.home() / ".nv-eval-platform" / "cache"
+CACHE_DIR = pathlib.Path.home() / ".nemo-evaluator" / "cache"
 CACHE_FILENAME = "mapping.toml"
+INTERNAL_RESOURCES_PKG = "nemo_evaluator_launcher_internal.resources"
 
 
 def _ensure_cache_dir() -> None:
@@ -84,7 +85,7 @@ def _download_latest_mapping() -> Optional[bytes]:
         return None
 
 
-def _load_cached_mapping() -> Optional[dict]:
+def _load_cached_mapping() -> Optional[dict[Any, Any]]:
     """Load mapping from cache file.
 
     Returns:
@@ -98,7 +99,7 @@ def _load_cached_mapping() -> Optional[dict]:
         with open(cache_file, "rb") as f:
             mapping = tomllib.load(f)
         logger.debug("Loaded mapping from cache")
-        return mapping
+        return mapping  # type: ignore[no-any-return]
     except (OSError, tomllib.TOMLDecodeError) as e:
         logger.warning("Failed to load mapping from cache", error=str(e))
         return None
@@ -124,13 +125,14 @@ def _save_mapping_to_cache(mapping_bytes: bytes) -> None:
 
 def _load_packaged_resource(
     resource_name: str, pkg_name: str = "nemo_evaluator_launcher.resources"
-) -> dict:
+) -> dict[str, Any]:
     """Load a resource from the packaged resources.
 
     Args:
         resource_name: The name of the resource to load.
     """
     try:
+        resource_toml: dict[str, Any] = {}
         with resources.files(pkg_name).joinpath(resource_name).open("rb") as f:
             resource_toml = tomllib.load(f)
         logger.info(
@@ -205,13 +207,19 @@ def load_tasks_mapping(
             local_mapping = _process_mapping(
                 tomllib.loads(mapping_bytes.decode("utf-8"))
             )
-        raise RuntimeError("could not download latest mapping")
+        else:
+            # Fallback to cached mapping; raise only if cache is missing/invalid
+            cached = _load_cached_mapping()
+            if cached:
+                local_mapping = _process_mapping(cached)
+            else:
+                raise RuntimeError("could not download latest mapping")
 
     elif mapping_toml is not None:
         with open(mapping_toml, "rb") as f:
             local_mapping = _process_mapping(tomllib.load(f))
     else:
-        local_mapping = _process_mapping(_load_packaged_resource("mapping.toml"))
+        local_mapping = _process_mapping(_load_packaged_resource(CACHE_FILENAME))
 
     # TODO: make more elegant. We consider it ok to avoid a fully-blown plugin system.
     # Check if nemo_evaluator_launcher_internal is available and load its mapping.toml
@@ -221,10 +229,9 @@ def load_tasks_mapping(
         importlib.import_module("nemo_evaluator_launcher_internal")
         logger.debug("Internal package available, loading internal mapping")
         internal_mapping = _process_mapping(
-            _load_packaged_resource(
-                "mapping.toml", "nemo_evaluator_launcher_internal.resources"
-            )
+            _load_packaged_resource(CACHE_FILENAME, INTERNAL_RESOURCES_PKG)
         )
+
         # Merge internal mapping with local mapping (internal takes precedence)
         local_mapping.update(internal_mapping)
         logger.info(
@@ -238,7 +245,7 @@ def load_tasks_mapping(
     return local_mapping
 
 
-def get_task_from_mapping(query: str, mapping: dict) -> dict:
+def get_task_from_mapping(query: str, mapping: dict[Any, Any]) -> dict[Any, Any]:
     """Unambiguously selects one task from the mapping based on the query.
 
     Args:
@@ -257,7 +264,7 @@ def get_task_from_mapping(query: str, mapping: dict) -> dict:
         # if exactly one task matching the query has been found:
         if len(matching_keys) == 1:
             key = matching_keys[0]
-            return mapping[key]
+            return mapping[key]  # type: ignore[no-any-return]
         # if more than one task matching the query has been found:
         elif len(matching_keys) > 1:
             matching_queries = [
@@ -281,7 +288,7 @@ def get_task_from_mapping(query: str, mapping: dict) -> dict:
         # if exactly one task matching the query has been found:
         if len(matching_keys) == 1:
             key = matching_keys[0]
-            return mapping[key]
+            return mapping[key]  # type: ignore[no-any-return]
         # if more than one task matching the query has been found:
         elif len(matching_keys) >= 2:
             raise ValueError(

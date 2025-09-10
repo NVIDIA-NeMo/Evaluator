@@ -32,7 +32,7 @@ class Cmd:
         },
     )
 
-    def execute(self):
+    def execute(self) -> None:
         """Execute the kill command."""
         result = kill_job_or_invocation(self.id)
         # Output as JSON

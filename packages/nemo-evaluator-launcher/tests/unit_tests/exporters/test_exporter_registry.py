@@ -17,7 +17,7 @@
 
 import pytest
 
-from nemo_evaluator_launcher.exporters import create_exporter
+from nemo_evaluator_launcher.exporters import available_exporters, create_exporter
 from nemo_evaluator_launcher.exporters.gsheets import GSheetsExporter
 from nemo_evaluator_launcher.exporters.local import LocalExporter
 from nemo_evaluator_launcher.exporters.mlflow import MLflowExporter
@@ -44,6 +44,10 @@ class TestExporterRegistry:
     def test_create_exporter_invalid(self):
         with pytest.raises(ValueError, match="Unknown exporter"):
             create_exporter("invalid_exporter")
+
+    def test_available_exporters_keys(self):
+        keys = set(available_exporters())
+        assert {"local", "mlflow", "wandb", "gsheets"}.issubset(keys)
 
 
 class TestExporterConsistency:

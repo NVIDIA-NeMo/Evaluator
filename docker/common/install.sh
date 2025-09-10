@@ -91,7 +91,8 @@ main() {
         uv sync \
             --link-mode copy \
             --locked \
-            --all-groups
+            --all-groups \
+            --all-extras
 
         # Install the package
         uv pip install --no-deps -e .

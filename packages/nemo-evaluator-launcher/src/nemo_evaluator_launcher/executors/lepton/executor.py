@@ -31,6 +31,7 @@ from nemo_evaluator_launcher.common.execdb import (
     generate_job_id,
 )
 from nemo_evaluator_launcher.common.helpers import get_eval_factory_command
+from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.mapping import (
     get_task_from_mapping,
     load_tasks_mapping,
@@ -155,7 +156,9 @@ class LeptonExecutor(BaseExecutor):
                     endpoint_creation_tasks.append((idx, task, endpoint_name))
 
                 # Thread function to create a single endpoint
-                def create_endpoint_worker(task_info, result_queue):
+                def create_endpoint_worker(
+                    task_info: tuple[int, "DictConfig", str], result_queue: queue.Queue
+                ) -> None:
                     try:
                         idx, task, endpoint_name = task_info
                         print(f"🚀 Task {task.name}: Creating endpoint {endpoint_name}")
@@ -245,7 +248,7 @@ class LeptonExecutor(BaseExecutor):
                         )
 
                 # Create and start threads for parallel endpoint creation
-                result_queue = queue.Queue()
+                result_queue: queue.Queue = queue.Queue()
                 threads = []
 
                 for task_info in endpoint_creation_tasks:
@@ -341,7 +344,7 @@ class LeptonExecutor(BaseExecutor):
                 task_output_dir.mkdir(parents=True, exist_ok=True)
 
                 # Determine evaluation image
-                eval_image = task_definition["container"].replace(":5005", "")
+                eval_image = task_definition["container"]
                 if "container" in task:
                     eval_image = task["container"]
 
@@ -497,7 +500,7 @@ class LeptonExecutor(BaseExecutor):
                             "task_name": task.name,
                             "status": "submitted",
                         },
-                        config=OmegaConf.to_object(cfg),
+                        config=OmegaConf.to_object(cfg),  # type: ignore[arg-type]
                     )
                 )
 
@@ -557,75 +560,7 @@ class LeptonExecutor(BaseExecutor):
 
         # If id looks like an invocation_id (8 hex digits, no dot), get all jobs for it
         if len(id) == 8 and "." not in id:
-            jobs = db.get_jobs(id)
-            statuses: List[ExecutionStatus] = []
-
-            # Get status for all endpoints (each task may have its own)
-            endpoint_names = set()
-            for job_data in jobs.values():
-                endpoint_name = job_data.data.get("endpoint_name")
-                if endpoint_name:
-                    endpoint_names.add(endpoint_name)
-
-            # Show status for each unique endpoint
-            for endpoint_name in endpoint_names:
-                endpoint_status = get_lepton_endpoint_status(endpoint_name)
-                if endpoint_status:
-                    endpoint_state = endpoint_status.get("state", "Unknown")
-                    if endpoint_state == "Ready":
-                        state = ExecutionState.SUCCESS
-                    elif endpoint_state in ["Starting", "Pending"]:
-                        state = ExecutionState.RUNNING
-                    else:
-                        state = ExecutionState.FAILED
-
-                    # Find which task(s) use this endpoint
-                    using_tasks = [
-                        job_data.data.get("task_name", "unknown")
-                        for job_data in jobs.values()
-                        if job_data.data.get("endpoint_name") == endpoint_name
-                    ]
-
-                    statuses.append(
-                        ExecutionStatus(
-                            id=f"{id}-endpoint-{endpoint_name}",
-                            state=state,
-                            progress={
-                                "type": "endpoint",
-                                "name": endpoint_name,
-                                "state": endpoint_state,
-                                "url": endpoint_status.get("endpoint", {}).get(
-                                    "external_endpoint"
-                                ),
-                                "tasks": using_tasks,
-                            },
-                        )
-                    )
-
-            # If no dedicated endpoints, note that shared endpoint is being used
-            if not endpoint_names:
-                statuses.append(
-                    ExecutionStatus(
-                        id=f"{id}-endpoint-shared",
-                        state=ExecutionState.SUCCESS,
-                        progress={
-                            "type": "endpoint",
-                            "name": "shared",
-                            "state": "Using existing endpoint",
-                            "url": "external",
-                            "tasks": [
-                                job_data.data.get("task_name", "unknown")
-                                for job_data in jobs.values()
-                            ],
-                        },
-                    )
-                )
-
-            # Get individual job statuses
-            for job_id, job_data in jobs.items():
-                statuses.extend(LeptonExecutor.get_status(job_id))
-            return statuses
-
+            return _get_statuses_for_invocation_id(id=id, db=db)
         # Otherwise, treat as job_id
         job_data = db.get_job(id)
         if job_data is None:
@@ -713,23 +648,23 @@ class LeptonExecutor(BaseExecutor):
             lepton_job_names = []
 
             # Collect all Lepton jobs and endpoint info
-            for job_data in jobs.values():
-                if job_data.executor != "lepton":
+            for curr_job_data in jobs.values():
+                if curr_job_data.executor != "lepton":
                     continue
 
                 # Collect endpoint name for this job (each task may have its own)
-                endpoint_name = job_data.data.get("endpoint_name")
+                endpoint_name = curr_job_data.data.get("endpoint_name")
                 if endpoint_name:
                     endpoint_names.add(endpoint_name)
 
-                lepton_job_name = job_data.data.get("lepton_job_name")
+                lepton_job_name = curr_job_data.data.get("lepton_job_name")
                 if lepton_job_name:
                     lepton_job_names.append(lepton_job_name)
 
                 # Mark job as killed in database
-                job_data.data["status"] = "killed"
-                job_data.data["killed_time"] = time.time()
-                db.write_job(job_data)
+                curr_job_data.data["status"] = "killed"
+                curr_job_data.data["killed_time"] = time.time()
+                db.write_job(curr_job_data)
 
             print(
                 f"🛑 Killing {len(lepton_job_names)} Lepton jobs for invocation {job_id}"
@@ -892,3 +827,79 @@ exit 0
 """
 
     return script
+
+
+def _get_statuses_for_invocation_id(id: str, db: ExecutionDB) -> List[ExecutionStatus]:
+    """Helper method that returns statuses if id is the invocation id"""
+    jobs = db.get_jobs(id)
+    statuses: List[ExecutionStatus] = []
+
+    # Get status for all endpoints (each task may have its own)
+    endpoint_names = set()
+    for job_data in jobs.values():
+        endpoint_name = job_data.data.get("endpoint_name")
+        if endpoint_name:
+            endpoint_names.add(endpoint_name)
+
+    # Show status for each unique endpoint
+    for endpoint_name in endpoint_names:
+        endpoint_status = get_lepton_endpoint_status(endpoint_name)
+        if not endpoint_status:
+            logger.warning(
+                "Could not get Lepton endpoint statuses",
+                endpoint_name=endpoint_name,
+            )
+            return statuses
+
+        endpoint_state = endpoint_status.get("state", "Unknown")
+        if endpoint_state == "Ready":
+            state = ExecutionState.SUCCESS
+        elif endpoint_state in ["Starting", "Pending"]:
+            state = ExecutionState.RUNNING
+        else:
+            state = ExecutionState.FAILED
+
+        # Find which task(s) use this endpoint
+        using_tasks = [
+            job_data.data.get("task_name", "unknown")
+            for job_data in jobs.values()
+            if job_data.data.get("endpoint_name") == endpoint_name
+        ]
+
+        statuses.append(
+            ExecutionStatus(
+                id=f"{id}-endpoint-{endpoint_name}",
+                state=state,
+                progress={
+                    "type": "endpoint",
+                    "name": endpoint_name,
+                    "state": endpoint_state,
+                    "url": endpoint_status.get("endpoint", {}).get("external_endpoint"),
+                    "tasks": using_tasks,
+                },
+            )
+        )
+
+    # If no dedicated endpoints, note that shared endpoint is being used
+    if not endpoint_names:
+        statuses.append(
+            ExecutionStatus(
+                id=f"{id}-endpoint-shared",
+                state=ExecutionState.SUCCESS,
+                progress={
+                    "type": "endpoint",
+                    "name": "shared",
+                    "state": "Using existing endpoint",
+                    "url": "external",
+                    "tasks": [
+                        job_data.data.get("task_name", "unknown")
+                        for job_data in jobs.values()
+                    ],
+                },
+            )
+        )
+
+    # Get individual job statuses
+    for job_id, job_data in jobs.items():
+        statuses.extend(LeptonExecutor.get_status(job_id))
+    return statuses

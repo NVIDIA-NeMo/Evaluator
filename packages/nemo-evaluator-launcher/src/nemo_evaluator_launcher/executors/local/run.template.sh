@@ -12,29 +12,34 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
+
 # check if docker exists
 command -v docker >/dev/null 2>&1 || { echo 'docker not found'; exit 1; }
 
-set -eu
-
 {% for task in evaluation_tasks %}
+# {{ task.job_id }} {{ task.name }}
 
-artifacts_dir={{ task.output_dir }}/artifacts
-logs_dir={{ task.output_dir }}/logs
+task_dir="{{ task.output_dir }}"
+artifacts_dir="$task_dir/artifacts"
+logs_dir="$task_dir/logs"
 
+mkdir -m 777 -p "$task_dir"
 mkdir -m 777 -p "$artifacts_dir"
-mkdir -p "$logs_dir"
+mkdir -m 777 -p "$logs_dir"
 
 # Create pre-start stage file
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.pre-start"
 
-# Start docker container in background with proper exit code capture
+# Docker run with eval factory command
 (
-    set +e
-    docker run --rm --shm-size=100g --name {{ task.container_name }} \
+    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.running"
+    docker run --rm --shm-size=100g \
+      --name {{ task.container_name }} \
       --volume "$artifacts_dir":/results \
-      {% for env_var in task.env_vars %}-e {{ env_var }} {% endfor %} \
+      {% for env_var in task.env_vars -%}
+      -e {{ env_var }} \
+      {% endfor -%}
       {{ task.eval_image }} \
       bash -c '
         {{ task.eval_factory_command }} ;
@@ -49,19 +54,12 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.pre-start"
       ' > "$logs_dir/stdout.log" 2>&1
     exit_code=$?
     echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $exit_code" > "$logs_dir/stage.exit"
-) >> "$logs_dir/stdout.log" 2>&1 &
+) >> "$logs_dir/stdout.log" 2>&1
 
-# Create running stage file
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.running"
 
 {% if auto_export_destinations %}
 # Monitor job completion and auto-export
 (
-    # Wait for the Docker container to finish by monitoring the stage.exit file
-    while [ ! -f "$logs_dir/stage.exit" ]; do
-        sleep 2
-    done
-
     # Give it a moment to ensure file is fully written
     sleep 1
 
@@ -84,6 +82,7 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.running"
     else
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Job {{ task.job_id }} failed with exit code $exit_code. Skipping auto-export." >> "$logs_dir/stdout.log"
     fi
-) &
+)
+
 {% endif %}
 {% endfor %}

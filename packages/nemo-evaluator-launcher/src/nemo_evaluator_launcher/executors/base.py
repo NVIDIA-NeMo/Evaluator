@@ -21,7 +21,7 @@ Defines the abstract interface for all executor implementations and common statu
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 from omegaconf import DictConfig
 
@@ -42,7 +42,7 @@ class ExecutionStatus:
 
     id: str
     state: ExecutionState
-    progress: Optional[float] = None
+    progress: Optional[dict[str, Any]] = None
 
 
 class BaseExecutor(ABC):

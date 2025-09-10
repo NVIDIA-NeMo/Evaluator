@@ -48,7 +48,7 @@ def get_tasks_list() -> list[list[Any]]:
     return data
 
 
-def _validate_no_missing_values(cfg: RunConfig, path: str = "") -> None:
+def _validate_no_missing_values(cfg: Any, path: str = "") -> None:
     """Recursively validate that no MISSING values exist in the configuration.
 
     Args:
@@ -60,11 +60,11 @@ def _validate_no_missing_values(cfg: RunConfig, path: str = "") -> None:
     """
     if OmegaConf.is_dict(cfg):
         for key, value in cfg.items():
-            current_path = f"{path}.{key}" if path else key
+            current_path = f"{path}.{key!s}" if path else str(key)
             # Check if this specific key has a MISSING value
             if OmegaConf.is_missing(cfg, key):
                 raise ValueError(
-                    f"Configuration has MISSING value at path: {current_path}"
+                    f"Configuration has MISSING value at path: {current_path!s}"
                 )
             _validate_no_missing_values(value, current_path)
     elif OmegaConf.is_list(cfg):
@@ -110,7 +110,7 @@ def get_status(job_ids: list[str]) -> list[dict[str, Any]]:
             If an error occurs, status is 'error' and 'data' contains error details.
     """
     db = ExecutionDB()
-    results = []
+    results: List[dict[str, Any]] = []
 
     for job_id in job_ids:
         # If id looks like an invocation_id (8 hex digits, no dot), get all jobs for it
@@ -149,24 +149,24 @@ def get_status(job_ids: list[str]) -> list[dict[str, Any]]:
                 # Create a result for each job in the invocation
                 for job_id_in_invocation, job_data in jobs.items():
                     # Find the status for this specific job
-                    job_status = job_progress = None
+                    job_status: str | None = None
+                    job_progress: Optional[dict[str, Any]] = None
                     for status in status_list:
                         if status.id == job_id_in_invocation:
                             job_status = status.state.value
                             job_progress = status.progress
                             break
 
-                    if job_status is None:
-                        job_status = "unknown"
-                    if job_progress is None:
-                        job_progress = "unknown"
-
                     results.append(
                         {
                             "invocation": job_id,
                             "job_id": job_id_in_invocation,
-                            "status": job_status,
-                            "progress": job_progress,
+                            "status": (
+                                job_status if job_status is not None else "unknown"
+                            ),
+                            "progress": (
+                                job_progress if job_progress is not None else "unknown"
+                            ),
                             "data": job_data.data,
                         }
                     )
@@ -182,9 +182,9 @@ def get_status(job_ids: list[str]) -> list[dict[str, Any]]:
                 )
         else:
             # Otherwise, treat as job_id
-            job_data = db.get_job(job_id)
+            single_job_data: Optional[JobData] = db.get_job(job_id)
 
-            if job_data is None:
+            if single_job_data is None:
                 results.append(
                     {
                         "invocation": None,
@@ -197,7 +197,7 @@ def get_status(job_ids: list[str]) -> list[dict[str, Any]]:
 
             # Get the executor class
             try:
-                executor_cls = get_executor(job_data.executor)
+                executor_cls = get_executor(single_job_data.executor)
             except ValueError as e:
                 results.append(
                     {
@@ -216,34 +216,34 @@ def get_status(job_ids: list[str]) -> list[dict[str, Any]]:
                 if not status_list:
                     results.append(
                         {
-                            "invocation": job_data.invocation_id,
+                            "invocation": single_job_data.invocation_id,
                             "job_id": job_id,
                             "status": "unknown",
-                            "data": job_data.data,
+                            "data": single_job_data.data,
                         }
                     )
                 else:
                     # For individual job queries, return the first status
-                    status_value = (
-                        status_list[0].state.value if status_list else "unknown"
-                    )
-                    job_progress = status_list[0].progress if status_list else None
-                    if job_progress is None:
-                        job_progress = "unknown"
                     results.append(
                         {
-                            "invocation": job_data.invocation_id,
+                            "invocation": single_job_data.invocation_id,
                             "job_id": job_id,
-                            "status": status_value,
-                            "progress": job_progress,
-                            "data": job_data.data,
+                            "status": (
+                                status_list[0].state.value if status_list else "unknown"
+                            ),
+                            "progress": (
+                                status_list[0].progress if status_list else "unknown"
+                            ),
+                            "data": single_job_data.data,
                         }
                     )
 
             except Exception as e:
                 results.append(
                     {
-                        "invocation": job_data.invocation_id if job_data else None,
+                        "invocation": (
+                            single_job_data.invocation_id if single_job_data else None
+                        ),
                         "job_id": job_id,
                         "status": "error",
                         "data": {"error": str(e)},
@@ -409,7 +409,7 @@ def kill_job_or_invocation(id: str) -> list[dict[str, Any]]:
 def export_results(
     invocation_ids: Union[str, List[str]],
     dest: str = "local",
-    config: dict = None,
+    config: dict[Any, Any] | None = None,
 ) -> dict:
     """Export results for one or more IDs (jobs/invocations/pipeline IDs) to a destination.
 
@@ -482,11 +482,13 @@ def export_results(
                     for job_id, job_result in result["jobs"].items():
                         if "metadata" not in job_result:
                             job_result["metadata"] = {}
-                return result
+                return result  # type: ignore[no-any-return]
         else:
             # Multiple IDs - parse and group
             db = ExecutionDB()
-            grouped_jobs = {}  # invocation_id -> {job_id: job_data}
+            grouped_jobs: dict[
+                str, dict[str, Any]
+            ] = {}  # invocation_id -> {job_id: job_data}
             invocation_only = set()  # invocation_ids with no specific jobs
             all_jobs_for_consolidated = {}  # job_id -> job_data (for consolidated export)
 
@@ -544,7 +546,7 @@ def export_results(
                     consolidated_result = exporter.export_multiple_invocations(
                         all_invocation_ids
                     )
-                    return consolidated_result
+                    return consolidated_result  # type: ignore[no-any-return]
                 except Exception as e:
                     return {
                         "success": False,

@@ -21,6 +21,11 @@ from nemo_evaluator_launcher.common.logging_utils import logger
 
 DIST_NAME = "nemo-evaluator-launcher"
 
-__main_pkg_name__, __version__ = metadata(DIST_NAME).get("Name"), version(DIST_NAME)
+try:
+    __main_pkg_name__ = metadata(DIST_NAME)["Name"]
+except KeyError:
+    __main_pkg_name__ = "name_not_found"
+
+__version__ = version(DIST_NAME)
 
 logger.info("Version info", pkg=__main_pkg_name__, ver=__version__)

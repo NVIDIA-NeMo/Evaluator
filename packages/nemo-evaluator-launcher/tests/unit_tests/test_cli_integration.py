@@ -632,3 +632,46 @@ def test_cli_export_missing_metadata(monkeypatch, tmp_path):
     out = buf.getvalue()
     assert "Export completed for 2eaceed9" in out
     assert "2eaceed9.0: Updated Output" in out
+
+
+def test_info_basic(mock_execdb, capsys):
+    """Test info command basic functionality."""
+    from nemo_evaluator_launcher.cli.info import Cmd
+
+    cmd = Cmd()
+    cmd.execute()
+    out = capsys.readouterr().out
+    assert "invocation_id" in out
+    assert "earliest_job_ts" in out
+
+
+def test_info_with_filters(mock_execdb, capsys):
+    """Test info command with filters."""
+    from nemo_evaluator_launcher.cli.info import Cmd
+
+    cmd = Cmd(executor="local", limit=10)
+    cmd.execute()
+    out = capsys.readouterr().out
+    assert "invocation_id" in out
+
+
+def test_info_invalid_since(mock_execdb, capsys):
+    """Test info command with invalid since parameter."""
+    from nemo_evaluator_launcher.cli.info import Cmd
+
+    cmd = Cmd(since="invalid-date")
+    with pytest.raises(SystemExit):
+        cmd.execute()
+    err = capsys.readouterr().err
+    assert "Invalid --since value" in err
+
+
+def test_ls_runs_basic(mock_execdb, capsys):
+    """Test ls runs command basic functionality."""
+    from nemo_evaluator_launcher.cli.ls_runs import Cmd
+
+    cmd = Cmd()
+    cmd.execute()
+    out = capsys.readouterr().out
+    assert "invocation_id" in out
+    assert "earliest_job_ts" in out

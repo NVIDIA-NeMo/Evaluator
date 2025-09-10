@@ -36,7 +36,7 @@ def test_mapping_url_contains_main():
     )
 
 
-def test_mapping_url_is_reachable():
+def test_mapping_url_is_reachable(enable_network):
     """Test that MAPPING_URL is reachable and returns valid TOML."""
     # Get GitLab token from environment
     gitlab_token = os.environ.get("GITLAB_TOKEN", "")

@@ -13,18 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-_EXECUTOR_REGISTRY = {}
+from typing import Callable, Type
+
+from nemo_evaluator_launcher.executors.base import BaseExecutor
+
+_EXECUTOR_REGISTRY: dict[str, Type[BaseExecutor]] = {}
 
 
-def register_executor(executor_name: str):
-    def wrapper(executor_cls):
+def register_executor(
+    executor_name: str,
+) -> Callable[[Type[BaseExecutor]], Type[BaseExecutor]]:
+    def wrapper(executor_cls: Type[BaseExecutor]) -> Type[BaseExecutor]:
         _EXECUTOR_REGISTRY[executor_name] = executor_cls
         return executor_cls
 
     return wrapper
 
 
-def get_executor(executor_name: str):
+def get_executor(executor_name: str) -> Type[BaseExecutor]:
     if executor_name not in _EXECUTOR_REGISTRY:
         raise ValueError(
             f"Executor {executor_name} not found. Available executors: {list(_EXECUTOR_REGISTRY.keys())}"

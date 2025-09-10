@@ -1,0 +1,66 @@
+THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
+--------------------------------------------
+
+This product, nemo-evaluator-launcher, depends on third-party open source
+software. These components are not distributed as part of this package but
+will be automatically installed from the Python Package Index (PyPI) when
+this package is installed. Their license terms are provided below.
+
+If additional transitive dependencies are installed as a result of these
+packages, they are distributed separately under their own license terms.
+Their source code and licenses are available from PyPI or the respective
+project repositories.
+
+-------------------------------------------------------------------------------
+
+hydra-core
+License: MIT License
+Source: https://pypi.org/project/hydra-core/
+
+jinja2
+License: BSD-3-Clause
+Source: https://pypi.org/project/Jinja2/
+
+leptonai
+License: Apache License 2.0
+Source: https://pypi.org/project/leptonai/
+
+pyyaml
+License: MIT License
+Source: https://pypi.org/project/PyYAML/
+
+requests
+License: Apache License 2.0
+Source: https://pypi.org/project/requests/
+
+simple-parsing
+License: MIT License
+Source: https://pypi.org/project/simple-parsing/
+
+structlog
+License: MIT License OR Apache License 2.0
+Source: https://pypi.org/project/structlog/
+
+tabulate
+License: MIT License
+Source: https://pypi.org/project/tabulate/
+
+tomli
+License: MIT License
+Source: https://pypi.org/project/tomli/
+
+mlflow
+License: Apache License 2.0
+Source: https://pypi.org/project/mlflow/
+
+wandb
+License: MIT License
+Source: https://pypi.org/project/wandb/
+
+gsheets
+License: MIT License
+Source: https://pypi.org/project/gsheets/
+
+-------------------------------------------------------------------------------
+
+END OF THIRD-PARTY NOTICES
