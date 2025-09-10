@@ -315,3 +315,7 @@ Built-in analysis and visualization capabilities:
 - **Comparative Analysis**: Multi-model benchmarking
 - **Trend Analysis**: Performance over time tracking
 - **Export Integration**: Seamless data pipeline integration
+
+## **Key Parameters**
+
+NeMo Evaluator provides a rich set of configurable parameters that give you fine-grained control over your evaluation workflows. From model interaction settings to execution environment configuration, these parameters enable you to customize every aspect of the evaluation process while maintaining reproducibility and consistency across different deployment scenarios.
