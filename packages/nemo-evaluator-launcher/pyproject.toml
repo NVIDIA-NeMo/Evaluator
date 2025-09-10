@@ -58,24 +58,8 @@ include = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.black]
-line-length = 88
-target-version = ["py310"]
-
-[tool.isort]
-known_first_party = [
+[tool.ruff.lint.isort]
+known-first-party = [
   "nemo_evaluator_launcher",
   "nemo_evaluator_launcher_internal",
 ]
-profile = "black"
-
-[tool.semantic_release]
-version_toml = ["pyproject.toml:project.version"]
-commit_message = "chore(release): {version}"
-commit_author = "eval-platform-ci <eval-platform-ci@nvidia.com>"
-major_on_zero = false
-allow_zero_version = true
-
-[tool.semantic_release.branches.main]
-match = "main"
-prerelease = false
