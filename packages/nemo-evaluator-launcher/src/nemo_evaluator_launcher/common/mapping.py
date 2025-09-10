@@ -1,3 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import base64
 import importlib
 import os
@@ -119,12 +134,12 @@ def _load_packaged_resource(
         with resources.files(pkg_name).joinpath(resource_name).open("rb") as f:
             resource_toml = tomllib.load(f)
         logger.info(
-            f"Loaded resource from packaged file", resource=resource_name, pkg=pkg_name
+            "Loaded resource from packaged file", resource=resource_name, pkg=pkg_name
         )
         return resource_toml
     except (OSError, tomllib.TOMLDecodeError) as e:
         logger.error(
-            f"Failed to load from packaged file",
+            "Failed to load from packaged file",
             resource=resource_name,
             pkg=pkg_name,
             error=str(e),

@@ -15,6 +15,7 @@
 
 import pytest
 import requests
+
 from nemo_evaluator.adapters.interceptors import RaiseClientErrorInterceptor
 from nemo_evaluator.adapters.types import (
     AdapterGlobalContext,

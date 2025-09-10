@@ -1,3 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 """Public API functions for nemo-evaluator-launcher.
 
 This module provides the main functional entry points for running evaluations, querying job status, and listing available tasks. These functions are intended to be used by CLI commands and external integrations.
@@ -5,7 +20,7 @@ This module provides the main functional entry points for running evaluations, q
 
 from typing import Any, List, Optional, Union
 
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from nemo_evaluator_launcher.api.types import RunConfig
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
@@ -473,9 +488,7 @@ def export_results(
             db = ExecutionDB()
             grouped_jobs = {}  # invocation_id -> {job_id: job_data}
             invocation_only = set()  # invocation_ids with no specific jobs
-            all_jobs_for_consolidated = (
-                {}
-            )  # job_id -> job_data (for consolidated export)
+            all_jobs_for_consolidated = {}  # job_id -> job_data (for consolidated export)
 
             # Parse and group IDs
             for id_str in invocation_ids:

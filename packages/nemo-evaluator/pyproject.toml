@@ -43,8 +43,6 @@ classifiers = [
 ]
 
 [dependency-groups]
-# This is a default group so that we install these even with bare `uv sync`
-build = []
 test = ["pytest", "pytest-cov", "pytest-subtests", "pytest-httpserver"]
 
 docs = [
@@ -78,4 +76,10 @@ source = [
     ".",
     "/workspace/packages/nemo-evaluator/",
     "/home/runner/work/Eval/Eval/packages/nemo-evaluator/",
+]
+
+
+[tool.ruff.lint.isort]
+known-first-party = [
+  "nemo_evaluator",
 ]

@@ -52,8 +52,6 @@ jobs:
 
       - name: Check lint
         run: |
-          cd packages/nemo-evaluator
-
           pip install pre-commit==3.6.0
           pre-commit install
           pre-commit run --all-files --show-diff-on-failure --color=always
@@ -71,7 +69,7 @@ jobs:
         run: |
           echo "Running CI tests"
 
-  cicd-unit-tests:
+  cicd-unit-tests-nemo-evaluator:
     needs: [pre-flight, cicd-wait-in-queue]
     runs-on: ubuntu-latest
     name: unit-tests
@@ -100,8 +98,38 @@ jobs:
           PAT: ${{ secrets.PAT }}
           package: nemo-evaluator
 
-  cicd-e2e-tests:
-    needs: [pre-flight, cicd-unit-tests]
+
+  cicd-unit-tests-nemo-evaluator-launcher:
+    needs: [pre-flight, cicd-wait-in-queue]
+    runs-on: ubuntu-latest
+    name: unit-tests
+    environment: nemo-ci
+    if: |
+      (
+        success() 
+        || needs.pre-flight.outputs.is_ci_workload == 'true'
+        || needs.pre-flight.outputs.force_run_all == 'true'
+      )
+      && !cancelled()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: main
+        uses: ./.github/actions/test-template
+        with:
+          script: Launch_Unit_Tests
+          timeout: 10
+          is_unit_test: "true"
+          cpu-only: true
+          has-azure-credentials: "true"
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          PAT: ${{ secrets.PAT }}
+          package: nemo-evaluator-launcher
+
+  cicd-e2e-tests-nemo-evaluator:
+    needs: [pre-flight, cicd-unit-tests-nemo-evaluator]
     runs-on: ubuntu-latest
     name: functional-tests
     environment: nemo-ci
@@ -131,8 +159,9 @@ jobs:
   Nemo_CICD_Test:
     needs:
       - pre-flight
-      - cicd-unit-tests
-      - cicd-e2e-tests
+      - cicd-unit-tests-nemo-evaluator
+      - cicd-unit-tests-nemo-evaluator-launcher
+      - cicd-e2e-tests-nemo-evaluator
     if: |
       (
         needs.pre-flight.outputs.docs_only == 'true'

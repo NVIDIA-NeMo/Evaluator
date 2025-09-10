@@ -20,6 +20,7 @@ from typing import Any, Union
 
 import pytest
 from flask import Flask, jsonify, request
+
 from nemo_evaluator.adapters.registry import InterceptorRegistry
 from nemo_evaluator.adapters.server import AdapterServer, wait_for_server
 from nemo_evaluator.adapters.types import (
