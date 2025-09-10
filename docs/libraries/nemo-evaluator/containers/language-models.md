@@ -34,6 +34,7 @@ docker pull nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
 | `downsampling_ratio` | `None` |
 | `add_system_prompt` | `False` |
 | `custom_config` | `None` |
+| `judge` | `{'url': None, 'model_id': None, 'api_key': None, 'backend': 'openai', 'request_timeout': 600, 'max_retries': 16, 'temperature': 0.0, 'top_p': 0.0001, 'max_tokens': 1024, 'max_concurrent_requests': None}` |
 
 ---
 

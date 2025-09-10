@@ -4,25 +4,25 @@ NeMo Evaluator provides a collection of specialized containers for different eva
 
 ## NGC Container Catalog
 
-| Container | Description | NGC Catalog | Latest Tag |
-|-----------|-------------|-------------|------------|
-| **agentic_eval** | Agentic AI evaluation framework | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/agentic_eval) | `{{ docker_compose_latest }}` |
-| **bfcl** | Function calling evaluation | [Link](https://catalog.ngc.nvidia.com/teams/eval-factory/containers/bfcl) | `{{ docker_compose_latest }}` |
-| **bigcode-evaluation-harness** | Code generation evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bigcode-evaluation-harness) | `{{ docker_compose_latest }}` |
-| **garak** | Security and robustness testing | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/garak) | `{{ docker_compose_latest }}` |
-| **helm** | Holistic evaluation framework | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/helm) | `{{ docker_compose_latest }}` |
-| **hle** | Academic knowledge and problem solving | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/hle) | `{{ docker_compose_latest }}` |
-| **ifbench** | Instruction following evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/ifbench) | `{{ docker_compose_latest }}` |
-| **livecodebench** | Live coding evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/livecodebench) | `{{ docker_compose_latest }}` |
-| **lm-evaluation-harness** | Language model benchmarks | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/lm-evaluation-harness) | `{{ docker_compose_latest }}` |
-| **mmath** | Multilingual math reasoning | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mmath) | `{{ docker_compose_latest }}` |
-| **mtbench** | Multi-turn conversation evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench) | `{{ docker_compose_latest }}` |
-| **rag_retriever_eval** | RAG system evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/rag_retriever_eval) | `{{ docker_compose_latest }}` |
-| **safety-harness** | Safety and bias evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/safety-harness) | `{{ docker_compose_latest }}` |
-| **scicode** | Coding for scientific research | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/scicode) | `{{ docker_compose_latest }}` |
-| **simple-evals** | Basic evaluation tasks | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/simple-evals) | `{{ docker_compose_latest }}` |
-| **tooltalk** | Tool usage evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk) | `{{ docker_compose_latest }}` |
-| **vlmevalkit** | Vision-language model evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit) | `{{ docker_compose_latest }}` |
+| Container | Description | NGC Catalog | Latest Tag | Key Benchmarks |
+|-----------|-------------|-------------|------------|----------------|
+| **agentic_eval** | Agentic AI evaluation framework | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/agentic_eval) | `{{ docker_compose_latest }}` | agentic_eval_answer_accuracy, agentic_eval_goal_accuracy_with_reference, agentic_eval_tool_call_accuracy |
+| **bfcl** | Function calling evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl) | `{{ docker_compose_latest }}` | bfclv2, bfclv2_ast, bfclv3, bfclv3_ast |
+| **bigcode-evaluation-harness** | Code generation evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bigcode-evaluation-harness) | `{{ docker_compose_latest }}` | humaneval, humanevalplus, mbpp, mbppplus |
+| **garak** | Security and robustness testing | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/garak) | `{{ docker_compose_latest }}` | garak |
+| **helm** | Holistic evaluation framework | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/helm) | `{{ docker_compose_latest }}` | ci_bench, ehr_sql, head_qa, med_dialog_healthcaremagic |
+| **hle** | Academic knowledge and problem solving | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/hle) | `{{ docker_compose_latest }}` | hle |
+| **ifbench** | Instruction following evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/ifbench) | `{{ docker_compose_latest }}` | ifbench |
+| **livecodebench** | Live coding evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/livecodebench) | `{{ docker_compose_latest }}` | codegeneration, codeexecution_v2, livecodebench_0824_0225 |
+| **lm-evaluation-harness** | Language model benchmarks | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/lm-evaluation-harness) | `{{ docker_compose_latest }}` | mmlu, gsm8k, hellaswag, arc_challenge, truthfulqa |
+| **mmath** | Multilingual math reasoning | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mmath) | `{{ docker_compose_latest }}` | mmath_ar, mmath_en, mmath_es, mmath_fr, mmath_zh |
+| **mtbench** | Multi-turn conversation evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench) | `{{ docker_compose_latest }}` | mtbench, mtbench-cor1 |
+| **rag_retriever_eval** | RAG system evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/rag_retriever_eval) | `{{ docker_compose_latest }}` | RAG, Retriever |
+| **safety-harness** | Safety and bias evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/safety-harness) | `{{ docker_compose_latest }}` | aegis_v2, bbq_full, wildguard |
+| **scicode** | Coding for scientific research | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/scicode) | `{{ docker_compose_latest }}` | scicode, scicode_background |
+| **simple-evals** | Basic evaluation tasks | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/simple-evals) | `{{ docker_compose_latest }}` | mmlu, mmlu_pro, gpqa_diamond, humaneval, math_test_500 |
+| **tooltalk** | Tool usage evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk) | `{{ docker_compose_latest }}` | tooltalk |
+| **vlmevalkit** | Vision-language model evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit) | `{{ docker_compose_latest }}` | ai2d_judge, chartqa, ocrbench, slidevqa |
 
 ---
 

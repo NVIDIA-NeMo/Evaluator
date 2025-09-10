@@ -243,14 +243,14 @@ echo "All evaluations completed!"
 
 ```bash
 # Setup new framework
-nvidia-eval-commons-example my_custom_eval .
+nemo-evaluator-example my_custom_eval .
 
 # This creates the basic structure:
 # core_evals/my_custom_eval/
-#  framework.yml
-#  output.py
-#  framework_entrypoint.py
-#  __init__.py
+# ├── framework.yml
+# ├── framework_entrypoint.py
+# ├── output.py
+# └── __init__.py
 
 # Edit framework.yml to configure your evaluation
 # Edit output.py to implement result parsing
@@ -266,12 +266,12 @@ eval-factory run_eval \
 
 ## Framework Setup Command
 
-### `nvidia-eval-commons-example` - Setup Framework
+### `nemo-evaluator-example` - Setup Framework
 
 Set up NVIDIA framework files in a destination folder.
 
 ```bash
-nvidia-eval-commons-example [package_name] [destination]
+nemo-evaluator-example [package_name] [destination]
 ```
 
 **Arguments:**
@@ -281,10 +281,10 @@ nvidia-eval-commons-example [package_name] [destination]
 **Example Usage:**
 ```bash
 # Setup framework in current directory
-nvidia-eval-commons-example my_package
+nemo-evaluator-example my_package
 
 # Setup framework in specific directory
-nvidia-eval-commons-example my_package /path/to/destination
+nemo-evaluator-example my_package /path/to/destination
 ```
 
 **What it creates:**
@@ -330,6 +330,6 @@ export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
 - Validate all inputs and configurations
 
 ### 6. **Framework Development**
-- Use `nvidia-eval-commons-example` to bootstrap new frameworks
+- Use `nemo-evaluator-example` to bootstrap new frameworks
 - Follow the framework template structure
 - Test frameworks thoroughly before production use

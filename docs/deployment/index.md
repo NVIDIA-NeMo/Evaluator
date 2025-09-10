@@ -57,7 +57,7 @@ nemo-evaluator-launcher run \
 **Core library users:**
 ```python
 from nemo_evaluator.core.evaluate import evaluate
-from nvidia_eval_commons.api.api_dataclasses import ApiEndpoint, EvaluationTarget
+from nemo_evaluator.api.api_dataclasses import ApiEndpoint, EvaluationTarget
 
 api_endpoint = ApiEndpoint(url="http://localhost:8080/v1/completions")
 target = EvaluationTarget(api_endpoint=api_endpoint)
@@ -225,7 +225,7 @@ nemo-evaluator-launcher run \
 ### With Core Library
 ```python
 from nemo_evaluator.core.evaluate import evaluate
-from nvidia_eval_commons.api.api_dataclasses import (
+from nemo_evaluator.api.api_dataclasses import (
     ApiEndpoint, EvaluationConfig, EvaluationTarget
 )
 

@@ -28,6 +28,10 @@ nv-eval ls tasks --filter coding
 |-----------|------------|-------------|-------------|
 | **simple-evals** | MMLU Pro, GSM8K, ARC Challenge | Core academic benchmarks | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/simple-evals) |
 | **lm-evaluation-harness** | MMLU, HellaSwag, TruthfulQA, PIQA | Language model evaluation suite | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/lm-evaluation-harness) |
+| **hle** | Humanity's Last Exam | Multi-modal benchmark at the frontier of human knowledge | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/hle) |
+| **ifbench** | Instruction Following Benchmark | Precise instruction following evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/ifbench) |
+| **mmath** | Multilingual Mathematical Reasoning | Math reasoning across multiple languages | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mmath) |
+| **mtbench** | MT-Bench | Multi-turn conversation evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench) |
 
 **Example Usage:**
 ```bash
@@ -42,6 +46,8 @@ nv-eval run \
 | Container | Benchmarks | Description | NGC Catalog |
 |-----------|------------|-------------|-------------|
 | **bigcode-evaluation-harness** | HumanEval, MBPP, APPS | Code generation and completion | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bigcode-evaluation-harness) |
+| **livecodebench** | Live coding contests from LeetCode, AtCoder, CodeForces | Contamination-free coding evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/livecodebench) |
+| **scicode** | Scientific research code generation | Scientific computing and research | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/scicode) |
 
 **Example Usage:**
 ```bash

@@ -62,12 +62,33 @@ defaults:
     # ... additional parameters
 ```
 
+**Important Note**: `example_eval` is a placeholder representing your actual CLI command. When onboarding your harness, replace this with your real command (e.g., `lm-eval`, `bigcode-eval`, `gorilla-eval`, etc.).
+
 **Key Template Variables:**
+
+**Target API Endpoint Variables:**
+- **`{{target.api_endpoint.api_key}}`**: Name of the environment variable storing API key
 - **`{{target.api_endpoint.model_id}}`**: Target model identifier
-- **`{{config.params.task}}`**: Evaluation task type
+- **`{{target.api_endpoint.stream}}`**: Whether responses should be streamed
+- **`{{target.api_endpoint.type}}`**: The type of the target endpoint
+- **`{{target.api_endpoint.url}}`**: URL of the model
+- **`{{target.api_endpoint.adapter_config}}`**: Adapter configuration
+
+**Evaluation Configuration Variables:**
 - **`{{config.output_dir}}`**: Output directory for results
+- **`{{config.type}}`**: Type of the task
+- **`{{config.supported_endpoint_types}}`**: Supported endpoint types (chat/completions)
+
+**Configuration Parameters:**
+- **`{{config.params.task}}`**: Evaluation task type
 - **`{{config.params.temperature}}`**: Model temperature setting
 - **`{{config.params.limit_samples}}`**: Sample limit for evaluation
+- **`{{config.params.max_new_tokens}}`**: Maximum tokens to generate
+- **`{{config.params.max_retries}}`**: Number of REST request retries
+- **`{{config.params.parallelism}}`**: Parallelism to be used
+- **`{{config.params.request_timeout}}`**: REST response timeout
+- **`{{config.params.top_p}}`**: Top-p sampling parameter
+- **`{{config.params.extra}}`**: Framework-specific parameters
 
 #### Configuration Defaults
 
