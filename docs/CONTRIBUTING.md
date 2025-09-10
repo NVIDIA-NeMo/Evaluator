@@ -116,7 +116,7 @@ uv run pytest --disable-network
    ```bash
    uv run pre-commit run --all-files
    uv run pytest
-\   ```
+   ```
 
 ### PR Requirements
 

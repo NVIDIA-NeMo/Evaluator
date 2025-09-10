@@ -1,20 +1,12 @@
-# NeMo Evaluator Launcher Quickstart
+# NeMo Evaluator Launcher Tutorial and Quickstart
 
 Run reproducible evaluations against your own model endpoints. This guide shows the fastest path from a compatible endpoint to first results.
 
 ## 1) Install the launcher
 
-### Create Virtual Environment
-```bash
-# Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate
-```
-
-### Install Package
 ```bash
 # Install NeMo Evaluator launcher
-pip3 install nemo-evaluator-launcher
+pip install nemo-evaluator-launcher
 ```
 
 ## 2) Prerequisite: an OpenAI-compatible endpoint
@@ -40,6 +32,25 @@ Hosted endpoints (fastest):
 
   See examples for [build.nvidia.com](https://build.nvidia.com/) usage in the examples/ folder (TODO: link to examples/).
 
+Self-hosted options:
+
+- TRT-LLM:
+```bash
+trtllm-serve /path/to/your/model \
+  --backend pytorch \
+  --port 8000
+```
+
+- vLLM:
+```bash
+docker run --gpus all -p 8000:8000 vllm/vllm-openai:latest \
+  --model meta-llama/Llama-3.1-8B-Instruct
+```
+
+Optional: quick endpoint check
+```bash
+nemo-evaluator-launcher test-endpoint --url http://localhost:8000/v1
+```
   **Self-hosted options:**
 
   For detailed deployment instructions, see the [Deployment Frameworks Guide](tutorials/deployments/deployment_frameworks_guide.md).
