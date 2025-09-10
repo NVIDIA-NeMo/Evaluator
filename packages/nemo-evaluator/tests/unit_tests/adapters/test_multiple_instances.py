@@ -16,6 +16,7 @@
 """Tests for multiple instances of the same interceptor with different configurations."""
 
 import pytest
+
 from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
 
 # Import interceptors to register them

@@ -19,6 +19,7 @@ from typing import Any, Generator
 
 import pytest
 import requests
+
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.adapters.server import (
     AdapterServer,
@@ -26,7 +27,6 @@ from nemo_evaluator.adapters.server import (
     wait_for_server,
 )
 from nemo_evaluator.core.resources import get_token_usage_from_cache_db
-
 from tests.unit_tests.adapters.testing_utils import (
     DEFAULT_FAKE_RESPONSE,
     create_fake_endpoint_process,

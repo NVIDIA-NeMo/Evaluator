@@ -1,5 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,11 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# NOTE(dfridman): importing all executors will register them in the registry
+export CUDA_VISIBLE_DEVICES=""
+cd /workspace/packages/nemo-evaluator-launcher/
 
-from nemo_evaluator_launcher.executors.lepton.executor import LeptonExecutor
-from nemo_evaluator_launcher.executors.local.executor import LocalExecutor
-from nemo_evaluator_launcher.executors.slurm.executor import SlurmExecutor
-
-__all__ = ["LeptonExecutor", "LocalExecutor", "SlurmExecutor"]
+coverage run \
+    --data-file=.coverage \
+    --source=src/ \
+    -m pytest \
+    -o log_cli=true \
+    -o log_cli_level=INFO \
+    -m "not pleasefixme" \
+    tests/unit_tests
