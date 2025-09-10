@@ -13,12 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Dict, Type
+from typing import Callable, Dict
 
-_EXPORTER_REGISTRY: Dict[str, Type] = {}
+from nemo_evaluator_launcher.exporters.base import BaseExporter
+
+_EXPORTER_REGISTRY: Dict[str, BaseExporter] = {}
 
 
-def register_exporter(name: str):
+def register_exporter(name: str) -> Callable:
     def wrapper(cls):
         _EXPORTER_REGISTRY[name] = cls
         return cls
@@ -26,7 +28,7 @@ def register_exporter(name: str):
     return wrapper
 
 
-def get_exporter(name: str):
+def get_exporter(name: str) -> BaseExporter:
     if name not in _EXPORTER_REGISTRY:
         raise ValueError(
             f"Unknown exporter: {name}. Available: {list(_EXPORTER_REGISTRY.keys())}"

@@ -163,7 +163,7 @@ class WandBExporter(BaseExporter):
             return {"success": False, "error": f"W&B export failed: {str(e)}"}
 
     def _log_artifacts(
-        self, job_data: JobData, run, wandb_config: Dict[str, Any], artifact
+        self, job_data: JobData, wandb_config: Dict[str, Any], artifact
     ) -> List[str]:
         """Log evaluation artifacts to WandB using LocalExporter for transfer."""
         if not wandb_config.get("log_artifacts", True):
@@ -345,7 +345,7 @@ class WandBExporter(BaseExporter):
         artifact.add_file(cfg_path, name="config.yaml")
         os.unlink(cfg_path)
 
-        logged_artifacts = self._log_artifacts(job_data, run, config, artifact)
+        logged_artifacts = self._log_artifacts(job_data, config, artifact)
         run.log_artifact(artifact)
 
         # charts for each logged metric

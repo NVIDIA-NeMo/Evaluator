@@ -16,7 +16,7 @@
 """Export evaluation results to specified target."""
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from simple_parsing import field
 
@@ -75,9 +75,9 @@ class ExportCmd:
         help="Copy only required+optional artifacts (default: True). Set to False to copy all available artifacts.",
     )
 
-    def execute(self):
+    def execute(self) -> None:
         """Execute export."""
-        config = {
+        config: dict[str, Any] = {
             "copy_logs": self.copy_logs,
             "only_required": self.only_required,
         }

@@ -27,6 +27,8 @@ from typing import Any, Dict, Optional
 # Import lepton dependencies
 from omegaconf import DictConfig
 
+from nemo_evaluator_launcher.common.logging_utils import logger
+
 
 def deep_merge(base: Dict[Any, Any], override: Dict[Any, Any]) -> Dict[Any, Any]:
     """Deep merge two dictionaries, with override taking precedence."""
@@ -44,7 +46,7 @@ def deep_merge(base: Dict[Any, Any], override: Dict[Any, Any]) -> Dict[Any, Any]
 def replace_placeholders(data: Any, replacements: Dict[str, str]) -> Any:
     """Replace placeholders in the data structure."""
 
-    def replace_in_obj(obj):
+    def replace_in_obj(obj: Any) -> Any:
         if isinstance(obj, dict):
             return {k: replace_in_obj(v) for k, v in obj.items()}
         elif isinstance(obj, list):
@@ -138,7 +140,7 @@ def generate_lepton_spec(cfg: DictConfig) -> Dict[str, Any]:
         from omegaconf import DictConfig
 
         for key, value in lepton_config.envs.items():
-            env_var = {"name": key}
+            env_var: Dict[str, Any] = {"name": key}
 
             # Support both direct values and secret references
             if isinstance(value, (dict, DictConfig)) and "value_from" in value:
@@ -191,7 +193,7 @@ def generate_lepton_spec(cfg: DictConfig) -> Dict[str, Any]:
         api_tokens_list = []
 
         for token_config in lepton_config.api_tokens:
-            token_var = {}
+            token_var: Dict[str, Any] = {}
 
             # Support both direct values and secret references
             if isinstance(token_config, (dict, DictConfig)):
@@ -217,9 +219,11 @@ def generate_lepton_spec(cfg: DictConfig) -> Dict[str, Any]:
     replacements = {
         "MODEL_CACHE_NAME": _generate_model_cache_name(cfg.deployment.image)
     }
-    final_config = replace_placeholders(final_config, replacements)
+    final_config_with_replacements: Dict[str, Any] = replace_placeholders(
+        final_config, replacements
+    )
 
-    return final_config
+    return final_config_with_replacements
 
 
 def _create_inference_container_spec(deployment_cfg: DictConfig) -> Dict[str, Any]:
@@ -393,7 +397,7 @@ def create_lepton_endpoint(cfg: DictConfig, endpoint_name: str) -> bool:
     # Convert OmegaConf objects to regular Python objects for JSON serialization
     from omegaconf import DictConfig, ListConfig
 
-    def convert_to_json_serializable(obj):
+    def convert_to_json_serializable(obj: Any) -> Any:
         """Recursively convert OmegaConf objects to regular Python objects."""
         if isinstance(obj, (DictConfig, dict)):
             return {k: convert_to_json_serializable(v) for k, v in obj.items()}
@@ -460,28 +464,41 @@ def delete_lepton_endpoint(endpoint_name: str) -> bool:
         return False
 
 
-def get_lepton_endpoint_status(endpoint_name: str) -> Optional[str]:
+def get_lepton_endpoint_status(endpoint_name: str) -> Optional[dict[str, Any]]:
     """Get the status of a Lepton endpoint.
 
     Args:
         endpoint_name: Name of the endpoint.
 
     Returns:
-        Status string if endpoint exists, None otherwise.
+        Status dict if endpoint exists, None otherwise. See
+        https://github.com/leptonai/leptonai/blob/7de93b95357126da1e86fa99f54f9a769d5d2646/leptonai/api/v1/types/deployment.py#L338
+        for the definition.
     """
     try:
+        # TODO(agronskiy): why not use Python API?
+        cmd = ["lep", "endpoint", "get", "--name", endpoint_name]
         result = subprocess.run(
-            ["lep", "endpoint", "get", "--name", endpoint_name],
+            cmd,
             capture_output=True,
             text=True,
             timeout=30,
         )
 
-        if result.returncode == 0:
-            endpoint_info = json.loads(result.stdout)
-            return endpoint_info.get("status", "unknown")
-        else:
+        if result.returncode != 0:
             return None
+
+        endpoint_info = json.loads(result.stdout)
+        status = endpoint_info.get("status", {})
+        if isinstance(status, dict):
+            return status
+        logger.error(
+            "Result of running lep command returne non-dict status",
+            cmd=cmd,
+            status=status,
+        )
+        return None
+
     except (
         subprocess.TimeoutExpired,
         subprocess.CalledProcessError,
@@ -501,29 +518,37 @@ def wait_for_lepton_endpoint_ready(endpoint_name: str, timeout: int = 600) -> bo
         True if endpoint becomes ready, False if timeout.
     """
     start_time = time.time()
-
     while time.time() - start_time < timeout:
         status = get_lepton_endpoint_status(endpoint_name)
 
-        if status and isinstance(status, dict):
+        # `get_lepton_endpoint_status` might return `None` if
+        # e.g. there was a network error, see definition.
+        if status is not None:
             state = status.get("state", "").lower()
             if state == "ready":
-                print(f"✅ Endpoint {endpoint_name} is ready!")
+                logger.info(
+                    "Lepton endpoint is ready",
+                    endpoint_name=endpoint_name,
+                )
+
                 return True
             elif state in ["failed", "error"]:
-                print(f"❌ Lepton endpoint {endpoint_name} failed to start")
                 return False
-        elif isinstance(status, str) and status.lower() == "ready":
-            print(f"✅ Endpoint {endpoint_name} is ready!")
-            return True
-        elif isinstance(status, str) and status.lower() in ["failed", "error"]:
-            print(f"❌ Lepton endpoint {endpoint_name} failed to start")
-            return False
 
-        print(f"⏳ Waiting for endpoint {endpoint_name} to be ready (status: {status})")
+        logger.debug(
+            "Waiting for lepton endpoint",
+            endpoint_name=endpoint_name,
+            timeout=timeout,
+            time_delta=time.time() - start_time,
+            curr_status=status,
+        )
         time.sleep(10)
 
-    print(f"❌ Timeout waiting for endpoint {endpoint_name} to be ready")
+    logger.error(
+        "Timeout waiting for lepton endpoint",
+        endpoint_name=endpoint_name,
+        timeout=timeout,
+    )
     return False
 
 
@@ -548,7 +573,12 @@ def get_lepton_endpoint_url(endpoint_name: str) -> Optional[str]:
             endpoint_info = json.loads(result.stdout)
             status = endpoint_info.get("status", {})
             endpoint = status.get("endpoint", {})
-            return endpoint.get("external_endpoint")
+            external_endpoint = endpoint.get("external_endpoint")
+            # Ensure we return a proper string type or None
+            if isinstance(external_endpoint, str):
+                return external_endpoint
+            else:
+                return None
         else:
             return None
     except (

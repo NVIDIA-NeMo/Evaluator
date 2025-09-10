@@ -1,23 +1,42 @@
-# Run this config with `nv-eval run --config-dir examples --config-name slurm_llama_3_1_8b_instruct`.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# How to use: copy this file locally into a directory, say `examples`, and run
+# Run this config with `nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct`.
 # For every benchmark to evaluate, it will create a Slurm job with a dedicated
 # deployed model (vLLM, in this case) and the evaluation script.
 
 # Commented out values show an example of how to override the config values from this file.
 
 # You can also override the values in this config from CLI using dot notation.
-# For example, `nv-eval run --config-dir examples --config-name slurm_llama_3_1_8b_instruct execution.walltime="1:00:00"`
-# To see the full config, run `nv-eval run --config-dir examples --config-name slurm_ llama_3_1_8b_instruct --dry-run`
+# For example, `nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct execution.walltime="1:00:00"`
+# To see the full config, run `nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct --dry-run`
 
 # specify default configs for execution and deployment
 defaults:
-  - execution: internal/slurm/oci-ord
+  # Note that depending on the configuration of the slurm cluster, you might need different
+  # setup. Please run with `--dry-run` to see the full configuration available, or look under
+  # `configs/` folder of the installed package
+  - execution: slurm/default
   - deployment: vllm
   - _self_
 
 # override default execution arguments
 execution:
-  account: coreai_dlalgo_llm
-  output_dir: /lustre/fsw/portfolios/coreai/projects/coreai_dlalgo_llm/users/dfridman/nv-eval-rundirs
+  account: ???
+  output_dir: /some/filesystem/path/available/to/slurm/node
   walltime: 02:00:00
   # partition: backfill
   # New execution-level configuration options (preferred over deployment.env_vars)
@@ -31,15 +50,10 @@ execution:
 
 # override default deployment arguments
 deployment:
-  checkpoint_path: /lustre/fsw/portfolios/coreai/projects/coreai_dlalgo_llm/users/anowaczynski/checkpoints/meta-llama3.1-8B-instruct-hf
+  checkpoint_path: /some/filesystem/path/available/to/slurm/node
   served_model_name: meta-llama/Llama-3.1-8B-Instruct
   tensor_parallel_size: 1
   data_parallel_size: 8
-  # DEPRECATED: env_vars in deployment section will be deprecated in future versions.
-  # Use execution.env_vars.deployment instead for environment variables specific to deployment container
-  # env_vars:
-  #   SOME_ENV_VAR: "value"
-  #   SOME_VLLM_ENV_VAR: "value"
   # extra_args: "--max-model-len 32768"
 
 # specify the benchmarks to evaluate

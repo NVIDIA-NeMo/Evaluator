@@ -16,9 +16,11 @@
 """Test configuration and fixtures for nv-eval-platform tests."""
 
 import json
+import os
 import pathlib
 import re
 import time
+import types
 from typing import Dict
 from unittest.mock import patch
 
@@ -37,6 +39,23 @@ from nemo_evaluator_launcher.executors.base import (
     ExecutionStatus,
 )
 from nemo_evaluator_launcher.executors.registry import register_executor
+
+os.environ.setdefault("NV_EVAL_EXECDB_DIR", "/tmp/nv-eval-execdb-pytest")
+
+
+@pytest.fixture(autouse=True)
+def clear_execdb_state():
+    import nemo_evaluator_launcher.common.execdb as execdb
+
+    # reset singleton/in-memory state
+    execdb.ExecutionDB._instance = None
+    execdb.ExecutionDB._jobs = {}
+    execdb.ExecutionDB._invocations = {}
+    # optional: clear the JSONL file in the sandbox
+    try:
+        execdb.EXEC_DB_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
 
 
 @register_executor("dummy")
@@ -390,3 +409,71 @@ def extract_invocation_id(mock_print) -> str:
             if m:
                 return m.group(1)
     raise AssertionError("invocation id not found in output")
+
+
+@pytest.fixture
+def wandb_fake(monkeypatch):
+    class _Run:
+        def __init__(self, run_id="run123", url="http://wandb/run/123"):
+            self.id = run_id
+            self.url = url
+            self.config = types.SimpleNamespace(
+                get=lambda k, d=None: d, update=lambda *a, **k: None
+            )
+            self.summary = {}
+
+        def define_metric(self, *a, **k): ...
+        def log(self, *a, **k): ...
+        def log_artifact(self, *a, **k): ...
+
+    class _Artifact:
+        def __init__(self, *a, **k): ...
+        def add_file(self, *a, **k): ...
+
+    class _W:
+        @staticmethod
+        def Api():
+            return types.SimpleNamespace(runs=lambda *_: [])
+
+        init = staticmethod(lambda **kwargs: _Run())
+        Artifact = _Artifact
+
+    monkeypatch.setattr(
+        "nemo_evaluator_launcher.exporters.wandb.WANDB_AVAILABLE", True, raising=True
+    )
+    monkeypatch.setattr(
+        "nemo_evaluator_launcher.exporters.wandb.wandb", _W, raising=True
+    )
+    return _W, _Run
+
+
+@pytest.fixture
+def mlflow_fake(monkeypatch):
+    class _RunInfo:
+        experiment_id = "exp1"
+        run_id = "run1"
+
+    class _RunCtx:
+        def __enter__(self):
+            return types.SimpleNamespace(info=_RunInfo())
+
+        def __exit__(self, *a):
+            return False
+
+    class _ML:
+        set_tracking_uri = staticmethod(lambda *_: None)
+        set_experiment = staticmethod(lambda *_: None)
+        start_run = staticmethod(lambda: _RunCtx())
+        set_tags = staticmethod(lambda *_: None)
+        set_tag = staticmethod(lambda *_: None)
+        log_params = staticmethod(lambda *_: None)
+        log_metrics = staticmethod(lambda *_: None)
+        log_artifact = staticmethod(lambda *_: None)
+
+    monkeypatch.setattr(
+        "nemo_evaluator_launcher.exporters.mlflow.MLFLOW_AVAILABLE", True, raising=True
+    )
+    monkeypatch.setattr(
+        "nemo_evaluator_launcher.exporters.mlflow.mlflow", _ML, raising=True
+    )
+    return _ML, _RunCtx

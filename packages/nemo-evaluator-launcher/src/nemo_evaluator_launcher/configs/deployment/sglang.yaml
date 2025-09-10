@@ -29,7 +29,7 @@ endpoints:
   health: /health
 
 command: python3 -m sglang.launch_server
-  --model-path /checkpoint
+  --model-path ${oc.select:deployment.hf_model_handle,/checkpoint}
   --host 0.0.0.0
   --port ${deployment.port}
   --served-model-name ${deployment.served_model_name}

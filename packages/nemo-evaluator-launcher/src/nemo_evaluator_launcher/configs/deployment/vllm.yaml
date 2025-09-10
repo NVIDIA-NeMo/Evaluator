@@ -29,7 +29,7 @@ endpoints:
   completions: /v1/completions
   health: /health
 
-command: vllm serve /checkpoint
+command: vllm serve ${oc.select:deployment.hf_model_handle,/checkpoint}
   --tensor-parallel-size=${deployment.tensor_parallel_size}
   --pipeline-parallel-size=${deployment.pipeline_parallel_size}
   --data-parallel-size=${deployment.data_parallel_size}

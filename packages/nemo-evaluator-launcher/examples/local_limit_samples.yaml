@@ -1,4 +1,20 @@
-# Run this config with `nv-eval run --config-dir examples --config-name local_limit_samples`.
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# How to use: copy this file locally into a directory, say `examples`, and run
+# Run this config with `nemo-evaluator-launcher run --config-dir examples --config-name local_limit_samples`.
 
 # This is a TEST CONFIGURATION that limits all benchmarks to use only 10 samples total.
 # This allows you to test your setup end-to-end quickly without running full evaluations.
@@ -13,28 +29,25 @@ defaults:
   - deployment: none
   - _self_
 
-
 execution:
   output_dir: llama_3_1_8b_instruct_results
-
 
 target:
   api_endpoint:
     model_id: meta/llama-3.1-8b-instruct
     url: https://integrate.api.nvidia.com/v1/chat/completions
-    api_key_name: API_KEY  # API Key with access to build.nvidia.com
-
+    api_key_name: API_KEY # API Key with access to build.nvidia.com
 
 # specify the benchmarks to evaluate
 evaluation:
-  overrides:  # these overrides apply to all tasks; for task-specific overrides, use the `overrides` field
+  overrides: # these overrides apply to all tasks; for task-specific overrides, use the `overrides` field
     config.params.request_timeout: 3600
-    config.params.limit_samples: 10  # TEST ONLY: Limits all benchmarks to 10 samples total for quick testing
-    target.api_endpoint.adapter_config.use_reasoning: false  # if true, strips reasoning tokens
+    config.params.limit_samples: 10 # TEST ONLY: Limits all benchmarks to 10 samples total for quick testing
+    target.api_endpoint.adapter_config.use_reasoning: false # if true, strips reasoning tokens
     target.api_endpoint.adapter_config.use_system_prompt: true
     target.api_endpoint.adapter_config.custom_system_prompt: >-
       "Think step by step."
   tasks:
     - name: gpqa_diamond
       env_vars:
-        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND  # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
+        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
