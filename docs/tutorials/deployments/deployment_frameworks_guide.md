@@ -1,3 +1,5 @@
+(deployment-frameworks-guide)=
+
 # Deploying OpenAI-Compatible Endpoints
 
 
@@ -14,7 +16,7 @@ Models deployed with the frameworks listed below should work with nemo_evaluator
 :::
 
 **Tutorials:**
-- [Local Evaluation of Existing Endpoint](../local_evaluation_of_existing_endpoint.md)
+- {ref}`tutorials-overview`
 
 ## Quick Setup Options
 
@@ -67,5 +69,5 @@ NIM provides optimized inference microservices with OpenAI-compatible APIs.
 
 
 **Next Steps:**
-- [Local Evaluation of Existing Endpoint](../local_evaluation_of_existing_endpoint.md) - Learn how to run evaluations
-- [Testing Endpoint Compatibility](testing_endpoint_oai_compatibility.md) - Test your deployed endpoint with curl requests
+- {ref}`tutorials-overview` - Learn how to run evaluations
+- {ref}`testing-endpoint-compatibility` - Test your deployed endpoint with curl requests

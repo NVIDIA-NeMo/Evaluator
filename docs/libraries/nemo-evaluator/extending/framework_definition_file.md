@@ -1,3 +1,5 @@
+(framework-definition-file)=
+
 # Framework Definition File (FDF)
 
 The Framework Definition File (FDF) is a YAML configuration file that serves as the single source of truth for evaluation frameworks in the NeMo Evaluator ecosystem. It defines how evaluation frameworks are configured, executed, and integrated with the Eval Factory system.
@@ -45,7 +47,7 @@ framework:
 
 ### 2. Defaults Section
 
-The `defaults` section defines the default configuration and execution command that will be used across all evaluations unless overridden. Overriding is supported either through `--overrides` flag (see [Parameter Overrides](../cli.md#parameter-overrides)) or [Run Configuration file](../cli.md#run-configuration).
+The `defaults` section defines the default configuration and execution command that will be used across all evaluations unless overridden. Overriding is supported either through `--overrides` flag (see {ref}`parameter-overrides`) or {ref}`run-configuration`.
 
 #### Command Template
 
@@ -183,7 +185,7 @@ Parameters follow a hierarchical override system:
 3. **User configuration** (2nd priority)
 4. **CLI overrides** (1st priority)
 
-For more information on how to use these overrides, see the [CLI Reference](../cli.md#parameter-overrides) documentation.
+For more information on how to use these overrides, see {ref}`parameter-overrides` documentation.
 
 ### Dynamic Configuration
 

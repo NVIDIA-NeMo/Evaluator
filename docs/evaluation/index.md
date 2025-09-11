@@ -8,8 +8,8 @@ Evaluate LLMs, VLMs, agentic systems, and retrieval models across 100+ benchmark
 
 Before you run evaluations, ensure you have:
 
-1. **Chosen your approach**: See [Get Started](../get-started/index.md) for installation and setup guidance
-2. **Deployed your model**: See [Model Deployment](../deployment/index.md) for deployment options
+1. **Chosen your approach**: See {ref}`get-started-overview` for installation and setup guidance
+2. **Deployed your model**: See {ref}`deployment-overview` for deployment options
 3. **OpenAI-compatible endpoint**: Your model must expose a compatible API
 4. **API credentials**: Access tokens for your model endpoint
 
@@ -117,4 +117,4 @@ Resolve common evaluation issues, debug configuration problems, and optimize eva
 ## Core Evaluation Concepts
 
 - For architectural details and core concepts, refer to {ref}`evaluation-model`.
-- For container specifications, refer to the [Container Reference](../libraries/nemo-evaluator/containers/index.md).
+- For container specifications, refer to {ref}`nemo-evaluator-containers`.

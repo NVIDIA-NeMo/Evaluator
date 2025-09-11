@@ -125,7 +125,7 @@ When reporting issues, include:
 
 - **GitHub Issues**: [NeMo Eval Issues](https://github.com/NVIDIA-NeMo/Eval/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/NVIDIA-NeMo/Eval/discussions)
-- **Documentation**: [Complete Documentation](../index.md)
+- **Documentation**: {ref}`template-home`
 
 ### Professional Support
 

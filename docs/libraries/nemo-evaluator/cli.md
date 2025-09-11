@@ -1,10 +1,12 @@
+(nemo-evaluator-cli)=
+
 # CLI Reference
 
 This document provides a comprehensive reference for the `nemo-evaluator` command-line interface, which is the primary way to interact with NeMo Evaluator from the terminal.
 
 ## Prerequisites
 
-- **Container way**: Use simple-evals container mentioned in the [Container Reference](containers/index.md)
+- **Container way**: Use simple-evals container mentioned in {ref}`nemo-evaluator-containers`
 - **Python way**: 
   ```bash
   pip install nemo-evaluator nvidia-simple-evals
@@ -109,6 +111,8 @@ eval-factory run_eval \
 ```
 To check the structure of the run configuration, see the [Run Configuration](#run-configuration) section below.
 
+(run-configuration)=
+
 ## Run Configuration
 
 Run configurations are stored in YAML files with the following structure:
@@ -145,6 +149,8 @@ eval-factory run_eval \
     --run_config config.yml \
     --output_dir `mktemp -d`
 ```
+
+(parameter-overrides)=
 
 ## Parameter Overrides
 

@@ -5,7 +5,7 @@ This tutorial shows how to evaluate an existing API endpoint using the Local exe
 ## Prerequisites
 
 ### Installation
-First, install the NeMo Evaluator Launcher. See the [Quickstart Installation Guide](../get-started/install.md) for detailed setup instructions.
+First, install the NeMo Evaluator Launcher. See {ref}`gs-install` for detailed setup instructions.
 
 ### Requirements
 - Docker
@@ -24,7 +24,7 @@ You have two options:
   - For NVIDIA APIs, see [Setting up API Keys](https://docs.omniverse.nvidia.com/guide-sdg/latest/setup.html#preview-and-set-up-an-api-key)
 
 #### Option B: Deploy Your Own Endpoint
-Deploy an OpenAI-compatible endpoint using frameworks like vLLM, SGLang, NeMo, TRT-LLM, or NIM. See examples: [Deployment Frameworks Guide](deployments/deployment_frameworks_guide.md)
+Deploy an OpenAI-compatible endpoint using frameworks like vLLM, SGLang, NeMo, TRT-LLM, or NIM. See examples: {ref}`deployment-frameworks-guide`
 
 :::{note}
 For this tutorial we will use `meta/llama-3.1-8b-instruct` from [build.nvidia.com](https://build.nvidia.com/meta/llama-3_1-8b-instruct).
@@ -38,7 +38,7 @@ Choose which benchmarks to evaluate. Available tasks include:
 nv-eval ls tasks
 ```
 
-For a comprehensive list of supported tasks and descriptions, see the [NeMo Evaluator supported tasks](../libraries/nemo-evaluator/containers/index.md).
+For a comprehensive list of supported tasks and descriptions, see {ref}`nemo-evaluator-containers`.
 
 **Important**: Each task has a dedicated endpoint type (e.g., `/v1/chat/completions`, `/v1/completions`). Ensure that your model provides the correct endpoint type for the tasks you want to evaluate.
 
@@ -103,12 +103,12 @@ nv-eval run --config-dir configs --config-name local_endpoint \
   -o target.api_endpoint.api_key=API_KEY
 ```
 
-After the launch you can monitor lively logs, status and after finishing display results and optionally export them in a unified nemo evaluator launcher way. After the failure e.g. connection error you can resume the job without the data loss [resuming] See [Exporters Documentation](../libraries/nemo-evaluator-launcher/exporters/index.md) for available export options.
+After the launch you can monitor lively logs, status and after finishing display results and optionally export them in a unified nemo evaluator launcher way. After the failure e.g. connection error you can resume the job without the data loss [resuming] See {ref}`exporters-overview` for available export options.
 
 ## Next Steps
 
-- **[Advanced Task Configuration](../libraries/nemo-evaluator-launcher/configuration/evaluation/index.md)**: Customize evaluation parameters and prompts
-- **[Different Executors](../libraries/nemo-evaluator-launcher/executors/index.md)**: Try Slurm or Lepton for different environments
-- **[Deploy Your Own Models](deployments/deployment_frameworks_guide.md)**: Use vLLM, SGLang, or NIM
-- **[Test Endpoint Compatibility](deployments/testing_endpoint_oai_compatibility.md)**: Verify your endpoint with curl requests
-- **[Export Results](../libraries/nemo-evaluator-launcher/exporters/index.md)**: Send results to W&B, MLFlow, or other platforms
+- **{ref}`evaluation-configuration`**: Customize evaluation parameters and prompts
+- **{ref}`executors-overview`**: Try Slurm or Lepton for different environments
+- **{ref}`deployment-frameworks-guide`**: Use vLLM, SGLang, or NIM
+- **{ref}`testing-endpoint-compatibility`**: Verify your endpoint with curl requests
+- **{ref}`exporters-overview`**: Send results to W&B, MLFlow, or other platforms

@@ -1,3 +1,5 @@
+(nemo-evaluator-interceptors)=
+
 # Interceptors
 
 The interceptor system is the core innovation of NeMo Evaluator, providing sophisticated **adapter and interceptor architecture** for fine-grained control over request and response processing during model evaluation.

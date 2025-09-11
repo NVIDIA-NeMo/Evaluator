@@ -1,3 +1,5 @@
+(nemo-evaluator-api)=
+
 # API Reference
 
 Access the complete NeMo Evaluator Python API through this comprehensive reference guide.
@@ -163,7 +165,7 @@ def evaluate(
 ```
 
 **Prerequisites:**
-- **Container way**: Use simple-evals container mentioned in the [Container Reference](containers/index.md)
+- **Container way**: Use simple-evals container mentioned in {ref}`nemo-evaluator-containers`
 - **Python way**: 
   ```bash
   pip install nemo-evaluator nvidia-simple-evals
@@ -561,7 +563,7 @@ There are two primary ways to configure interceptors:
 
 ### Configure Interceptors
 
-Refer to [Configure Interceptors](interceptors/index.md) for details.
+Refer to {ref}`nemo-evaluator-interceptors` for details.
 
 ### Complete Configuration Example
 

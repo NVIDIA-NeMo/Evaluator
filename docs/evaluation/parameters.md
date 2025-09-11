@@ -302,7 +302,7 @@ params = ConfigParams(
 
 ## Next Steps
 
-- **Basic Usage**: See [Text Generation Evaluation](run-evals/text-gen.md) for getting started
-- **Custom Tasks**: Learn [Custom Task Configuration](custom-tasks.md) for specialized evaluations
-- **Troubleshooting**: Refer to [Evaluation Troubleshooting](../troubleshooting/index.md) for common issues
-- **Benchmarks**: Browse [Benchmark Catalog](benchmarks.md) for task-specific recommendations
+- **Basic Usage**: See {ref}`text-gen` for getting started
+- **Custom Tasks**: Learn {ref}`eval-custom-tasks` for specialized evaluations
+- **Troubleshooting**: Refer to {ref}`troubleshooting-index` for common issues
+- **Benchmarks**: Browse {ref}`eval-benchmarks` for task-specific recommendations

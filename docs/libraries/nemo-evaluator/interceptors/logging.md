@@ -1,3 +1,5 @@
+(interceptor-logging)=
+
 # Log Requests and Responses
 
 The logging interceptor captures detailed request and response data for debugging, analysis, and audit trails.

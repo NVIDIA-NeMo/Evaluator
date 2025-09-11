@@ -599,7 +599,7 @@ execution:
 
 ## Next Steps
 
-- **Compare costs**: Analyze costs vs [Slurm deployment](slurm.md) for your use case
+- **Compare costs**: Analyze costs vs {ref}`launcher-orchestrated-slurm` for your use case
 - **Optimize performance**: Fine-tune deployment configurations for your workloads
 - **Automate workflows**: Integrate Lepton deployments into your ML pipelines
 - **Scale globally**: Explore multi-region deployments for global access

@@ -1,3 +1,5 @@
+(executor-lepton)=
+
 # Lepton Executor
 
 The Lepton executor deploys endpoints and runs evaluations on Lepton AI. It's designed for fast, isolated, parallel evaluations using hosted or deployed endpoints.

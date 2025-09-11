@@ -1,3 +1,5 @@
+(launcher-quickstart)=
+
 # NeMo Evaluator Launcher Quickstart
 
 Run reproducible evaluations against your own model endpoints. This guide shows the fastest path from a compatible endpoint to first results.

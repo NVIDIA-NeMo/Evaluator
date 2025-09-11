@@ -8,10 +8,10 @@ Follow step-by-step guides for different evaluation scenarios and methodologies 
 
 Ensure you have:
 
-1. Completed the initial getting started guides for [installation](../../get-started/install.md) and [quickstart](../../get-started/quickstart/index.md).
+1. Completed the initial getting started guides for {ref}`gs-install` and {ref}`gs-quickstart`.
 2. Chosen a [Model Deployment](deployment-overview) option:
-   - [Launcher-Orchestrated Deployment](../../deployment/launcher-orchestrated/index.md) (recommended)
-   - [Bring-Your-Own-Endpoint](../../deployment/bring-your-own-endpoint/index.md) with [PyTriton](../../deployment/bring-your-own-endpoint/pytriton.md) or [Ray Serve](../../deployment/bring-your-own-endpoint/ray-serve.md)
+   - {ref}`launcher-orchestrated-deployment` (recommended)
+   - {ref}`bring-your-own-endpoint` with {ref}`pytriton-deployment` or {ref}`ray-serve`
 3. Reviewed the [evaluation parameters](eval-parameters) available for optimization.
 
 ::::{tab-set}
@@ -62,8 +62,8 @@ Measure model performance through natural language generation for academic bench
 :::
 
 :::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` Log-Probability
-:link: log-probability.md
-:link-type: doc
+:link: log-probability
+:link-type: ref
 Assess model confidence and uncertainty using log-probabilities for multiple-choice scenarios without text generation.
 :::
 
@@ -102,15 +102,15 @@ Use this section to choose recommended evaluations **by model type** or **by use
   - Recommended Evaluations
 * - Base Models (Pre-trained)
   -
-    -  [Log-Probability](log-probability.md) - No instruction following required
-    -  [Text Generation](text-gen.md) - With academic prompting
+    -  {ref}`log-probability` - No instruction following required
+    -  {ref}`text-gen` - With academic prompting
     -  Avoid chat-specific evaluations
 * - Instruction-Tuned Models
   -
-    -  [Text Generation](text-gen.md) - Instruction following tasks
-    -  [Code Generation](code-generation.md) - Programming tasks and algorithmic problem solving
-    -  [Safety & Security](safety-security.md) - Alignment testing and vulnerability scanning
-    -  [Function Calling](function-calling.md) - Tool use scenarios and API integration
+    -  {ref}`text-gen` - Instruction following tasks
+    -  {ref}`code-generation` - Programming tasks and algorithmic problem solving
+    -  {ref}`safety-security` - Alignment testing and vulnerability scanning
+    -  {ref}`function-calling` - Tool use scenarios and API integration
 * - Chat Models
   -
     -  All evaluation types with appropriate chat formatting
@@ -129,17 +129,17 @@ Use this section to choose recommended evaluations **by model type** or **by use
   - Recommended Evaluations
 * - Academic Research
   -
-    - [Text Generation](text-gen.md) for MMLU, reasoning benchmarks
-    - [Log-Probability](log-probability.md) for baseline comparisons
+    - {ref}`text-gen` for MMLU, reasoning benchmarks
+    - {ref}`log-probability` for baseline comparisons
     - Specialized domains for research-specific metrics (documentation coming soon)
 * - Production Deployment
   -
-    - [Safety & Security](safety-security.md) for alignment validation and vulnerability testing
-    - [Function Calling](function-calling.md) for agent capabilities and tool use
-    - [Code Generation](code-generation.md) for programming assistants and code completion
+    - {ref}`safety-security` for alignment validation and vulnerability testing
+    - {ref}`function-calling` for agent capabilities and tool use
+    - {ref}`code-generation` for programming assistants and code completion
 * - Model Development
   -
-    - [Text Generation](text-gen.md) for general capability assessment
+    - {ref}`text-gen` for general capability assessment
     - Multiple evaluation types for comprehensive analysis
     - Custom benchmarks for specific improvements
 ```

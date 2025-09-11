@@ -1,3 +1,5 @@
+(exporter-gsheets)=
+
 # Google Sheets Exporter (`gsheets`)
 
 Exports accuracy metrics to a Google Sheet. Dynamically creates/extends header columns based on observed metrics and appends one row per job.

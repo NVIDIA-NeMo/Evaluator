@@ -74,7 +74,7 @@ vllm serve meta-llama/Llama-3.1-8B-Instruct --port 8080
 # TRT-LLM, NeMo Framework, Ray Serve, etc.
 ```
 
-See [Model Serving & Deployment](../../deployment/index.md) for detailed deployment options.
+See {ref}`deployment-overview` for detailed deployment options.
 
 ## Validation and Troubleshooting
 

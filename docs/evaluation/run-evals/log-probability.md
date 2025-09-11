@@ -220,7 +220,7 @@ This approach eliminates the need for complex instruction-following and provides
 
 ### Step 1: Deploy Model
 
-**Deploy your model**: Choose from [Launcher-Orchestrated Deployment](../../deployment/launcher-orchestrated/index.md) (recommended) or [Bring-Your-Own-Endpoint](../../deployment/bring-your-own-endpoint/index.md) with [PyTriton](../../deployment/bring-your-own-endpoint/pytriton.md) or [Ray Serve](../../deployment/bring-your-own-endpoint/ray-serve.md).
+**Deploy your model**: Choose from {ref}`launcher-orchestrated-deployment` (recommended) or {ref}`bring-your-own-endpoint` with {ref}`pytriton-deployment` or {ref}`ray-serve`.
 
 For a quick deployment example:
 
@@ -537,4 +537,4 @@ api_endpoint = ApiEndpoint(
 
 ---
 
-*For comprehensive parameter documentation, see [Evaluation Configuration Parameters](../parameters.md). For custom task configuration, see [Custom Task Configuration](../custom-tasks.md).*
+*For comprehensive parameter documentation, see {ref}`eval-parameters`. For custom task configuration, see {ref}`eval-custom-tasks`.*

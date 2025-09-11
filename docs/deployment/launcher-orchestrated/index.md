@@ -131,7 +131,7 @@ target:
 
 ## Getting Started
 
-1. **Choose your backend**: Start with [local deployment](local.md) for development
+1. **Choose your backend**: Start with {ref}`launcher-orchestrated-local` for development
 2. **Configure your model**: Set deployment type and model path
 3. **Run evaluation**: Use the launcher to deploy and evaluate
 4. **Monitor progress**: Check status and logs during execution
@@ -139,10 +139,10 @@ target:
 
 ## Next Steps
 
-- **Local Development**: Start with [Local Deployment](local.md) for testing
-- **Scale Up**: Move to [Slurm Deployment](slurm.md) for production workloads  
-- **Cloud Native**: Try [Lepton Deployment](lepton.md) for managed infrastructure
-- **Configure Adapters**: Set up [Evaluation Adapters](../adapters/index.md) for custom processing
+- **Local Development**: Start with {ref}`launcher-orchestrated-local` for testing
+- **Scale Up**: Move to {ref}`launcher-orchestrated-slurm` for production workloads  
+- **Cloud Native**: Try {ref}`launcher-orchestrated-lepton` for managed infrastructure
+- **Configure Adapters**: Set up {ref}`adapters` for custom processing
 
 ```{toctree}
 :maxdepth: 1

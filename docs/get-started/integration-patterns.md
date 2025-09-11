@@ -1,3 +1,5 @@
+(integration-patterns)=
+
 # Integration Patterns
 
 This guide demonstrates how to combine the three tiers of NeMo Eval for complete evaluation workflows, from model deployment to result analysis.

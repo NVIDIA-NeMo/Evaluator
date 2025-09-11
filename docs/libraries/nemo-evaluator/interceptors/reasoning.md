@@ -1,3 +1,5 @@
+(interceptor-reasoning)=
+
 # Reasoning
 
 The reasoning interceptor extracts and processes chain-of-thought reasoning from model responses, enabling analysis of model reasoning patterns and supporting models that use thinking tokens.

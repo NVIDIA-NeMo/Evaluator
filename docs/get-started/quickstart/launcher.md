@@ -96,4 +96,4 @@ ls -la ./results/<invocation_id>/
 - Export results to your preferred tracking platform
 - Scale to cluster execution with Slurm or cloud providers
 
-For more advanced control, consider the [NeMo Evaluator Core](core.md) Python API or [Container Direct](container.md) approaches.
+For more advanced control, consider the {ref}`gs-quickstart-core` Python API or {ref}`gs-quickstart-container` approaches.

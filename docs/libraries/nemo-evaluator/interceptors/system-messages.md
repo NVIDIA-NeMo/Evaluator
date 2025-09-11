@@ -1,3 +1,5 @@
+(interceptor-system-messages)=
+
 # System Messages
 
 The system message interceptor injects custom system prompts into evaluation requests, enabling consistent prompting and role-specific behavior across evaluations.

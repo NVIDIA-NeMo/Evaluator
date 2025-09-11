@@ -1,3 +1,5 @@
+(exporter-wandb)=
+
 # Weights & Biases Exporter (`wandb`)
 
 Exports accuracy metrics and artifacts to W&B. Supports either per-task runs or a single multi-task run per invocation, with artifact logging and run metadata.
@@ -176,4 +178,3 @@ export_results(
   - Configuration source
   - None
 ```
-

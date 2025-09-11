@@ -400,7 +400,7 @@ nemo-evaluator-launcher run \
 
 ## Next Steps
 
-- **Scale up**: Move to [Slurm deployment](slurm.md) for larger evaluations
-- **Cloud deployment**: Try [Lepton deployment](lepton.md) for cloud resources
-- **Custom adapters**: Configure [evaluation adapters](../adapters/index.md)
-- **Result analysis**: Set up [result exporters](../../libraries/nemo-evaluator-launcher/exporters/index.md)
+- **Scale up**: Move to {ref}`launcher-orchestrated-slurm` for larger evaluations
+- **Cloud deployment**: Try {ref}`launcher-orchestrated-lepton` for cloud resources
+- **Custom adapters**: Configure {ref}`adapters`
+- **Result analysis**: Set up {ref}`exporters-overview`

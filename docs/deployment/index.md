@@ -39,7 +39,7 @@ nemo-evaluator-launcher run \
 **Supported deployment types:** vLLM, NIM, SGLang, or no deployment (existing endpoints)
 
 :::{seealso}
-For detailed YAML configuration reference for each deployment type, see [Launcher Deployment Configuration](../libraries/nemo-evaluator-launcher/configuration/deployment/index.md).
+For detailed YAML configuration reference for each deployment type, see {ref}`deployment-overview`.
 :::
 
 ### **Bring-Your-Own-Endpoint**

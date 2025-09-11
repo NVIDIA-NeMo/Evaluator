@@ -1,3 +1,5 @@
+(testing-endpoint-compatibility)=
+
 # Testing Endpoint Compatibility
 
 ## Table of Contents

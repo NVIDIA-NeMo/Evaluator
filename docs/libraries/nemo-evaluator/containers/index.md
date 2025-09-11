@@ -1,3 +1,5 @@
+(nemo-evaluator-containers)=
+
 # NeMo Evaluator Containers
 
 NeMo Evaluator provides a collection of specialized containers for different evaluation frameworks and tasks. Each container is optimized and tested to work seamlessly with NVIDIA hardware and software stack, providing consistent, reproducible environments for AI model evaluation.
@@ -84,7 +86,7 @@ docker run --gpus all -it nvcr.io/nvidia/eval-factory/<container-name>:<tag>
 - NVIDIA GPU (for GPU-accelerated evaluation)
 - Sufficient disk space for models and datasets
 
-For detailed usage instructions, see the [Container Workflows](../workflows/using_containers.md) guide.
+For detailed usage instructions, see {ref}`container-workflows` guide.
 
 :::{toctree}
 :caption: Container Reference

@@ -1,3 +1,5 @@
+(deployment-api-reference)=
+
 # Deployment API Reference
 
 Complete reference for the `deploy()` function and related deployment utilities in NeMo Eval.

@@ -1,3 +1,5 @@
+(interceptor-caching)=
+
 # Caching
 
 The caching interceptor stores and retrieves responses to improve performance, reduce API costs, and enable reproducible evaluations.

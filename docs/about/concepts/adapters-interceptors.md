@@ -1,3 +1,5 @@
+(adapters-interceptors-concepts)=
+
 # Adapters and Interceptors
 
 The **adapter and interceptor system** is a core architectural concept in NeMo Evaluator that enables sophisticated request and response processing during model evaluation.
@@ -159,10 +161,10 @@ The adapter system integrates seamlessly with evaluation frameworks:
 
 For detailed implementation information, see:
 
-- **[Interceptor Documentation](../../libraries/nemo-evaluator/interceptors/index.md)**: Individual interceptor guides with configuration examples
-- **[Request & Response Logging](../../libraries/nemo-evaluator/interceptors/logging.md)**: Detailed logging configuration
-- **[Caching](../../libraries/nemo-evaluator/interceptors/caching.md)**: Response caching setup and optimization
-- **[Reasoning](../../libraries/nemo-evaluator/interceptors/reasoning.md)**: Chain-of-thought processing configuration
-- **[Integration Patterns](../../get-started/integration-patterns.md)**: Real-world usage patterns
+- **{ref}`nemo-evaluator-interceptors`**: Individual interceptor guides with configuration examples
+- **{ref}`interceptor-logging`**: Detailed logging configuration
+- **{ref}`interceptor-caching`**: Response caching setup and optimization
+- **{ref}`interceptor-reasoning`**: Chain-of-thought processing configuration
+- **{ref}`integration-patterns`**: Real-world usage patterns
 
 The adapter and interceptor system represents a fundamental shift from simple API calls to sophisticated, configurable evaluation workflows that can adapt to diverse research and production needs.

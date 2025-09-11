@@ -1,3 +1,5 @@
+(about-overview)=
+
 # About NeMo Evaluator
 
 NeMo Evaluator is NVIDIA's comprehensive platform for AI model evaluation and benchmarking. It consists of two core libraries that work together to enable consistent, scalable, and reproducible evaluation of GenAI models spanning LLMs, VLMs, agentic AI, and retrieval systems.
@@ -16,7 +18,7 @@ NeMo Evaluator consists of two main libraries:
   - Key Capabilities
 * - **nemo-evaluator**  
     (*Core Evaluation Engine*)
-  - • [Adapter/interceptor architecture](concepts/adapters-interceptors.md) for request and response processing  
+  - • {ref}`adapters-interceptors-concepts` for request and response processing  
     • Standardized evaluation workflows and containerized frameworks  
     • Deterministic configuration and reproducible results  
     • Consistent result schemas and artifact layouts

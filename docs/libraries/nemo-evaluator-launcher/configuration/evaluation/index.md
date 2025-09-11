@@ -1,8 +1,10 @@
+(evaluation-configuration)=
+
 # Evaluation Configuration
 
 Evaluation configuration defines which benchmarks to run and their configuration. It is common for all executors and can be reused between them to launch the exact same tasks.
 
-**Important**: Each task has its own default values that you can override. For comprehensive override options, see [nemo-evaluator Parameter Overrides](../../nemo-evaluator/reference/cli.md#parameter-overrides).
+**Important**: Each task has its own default values that you can override. For comprehensive override options, see {ref}`parameter-overrides`.
 
 ## Configuration Structure
 
@@ -33,7 +35,7 @@ evaluation:
 - **`overrides`**: Task-specific parameter overrides
 - **`env_vars`**: Task-specific environment variables
 
-For a comprehensive list of available tasks, their descriptions, and task-specific parameters, see the [NeMo Evaluator supported tasks](../../nemo-evaluator/reference/containers.md).
+For a comprehensive list of available tasks, their descriptions, and task-specific parameters, see {ref}`nemo-evaluator-containers`.
 
 ## Advanced Task Configuration
 
@@ -86,10 +88,10 @@ evaluation:
 Use evaluation configuration when you want to:
 
 - **Change Default Sampling Parameters**: Adjust temperature, top_p, max_new_tokens for different tasks
-- **Set Custom System Prompts**: Add task-specific instructions or reasoning prompts (see [System Message Interceptor](../../nemo-evaluator/reference/configuring_interceptors.md#5-system-message-interceptor))
-- **Add/Remove/Rename Special Parameters**: Modify payload structure (e.g., add `"reasoning": "thinking"`) (see [Payload Modifier Interceptor](../../nemo-evaluator/reference/configuring_interceptors.md#6-payload-modifier-interceptor))
+- **Set Custom System Prompts**: Add task-specific instructions or reasoning prompts (see {ref}`interceptor-system-messages`)
+- **Add/Remove/Rename Special Parameters**: Modify payload structure (e.g., add `"reasoning": "thinking"`) (see {ref}`interceptor-payload-modification`)
 - **Change Default Task Values**: Override benchmark-specific default configurations
-- **Parametrize the Judge**: Configure evaluation judge models and their parameters for scoring (see [Parameter Overrides](../../nemo-evaluator/reference/cli.md#parameter-overrides))
+- **Parametrize the Judge**: Configure evaluation judge models and their parameters for scoring (see {ref}`parameter-overrides`)
 - **Debug and Test**: e.g. Launch with limited samples
 - **Adjust Endpoint Capabilities**: Configure request timeouts, max retries, and parallel request limits
 
@@ -107,7 +109,7 @@ This preserves formatting and allows for complex multi-line configurations.
 
 ## Reference
 
-- **Parameter Overrides**: [nemo-evaluator CLI Reference](../../nemo-evaluator/reference/cli.md#parameter-overrides) - Complete guide to available parameters and override syntax
-- **Troubleshooting**: See [Configuration Troubleshooting](../index.md#troubleshooting) for debug mode, testing, and common issues
-- **Interceptors Documentation**: [Configuring Interceptors](../../nemo-evaluator/reference/configuring_interceptors.md) - How to modify request/response payloads and add custom parameters
-- **Task Configuration**: [nemo-evaluator Reference](../../nemo-evaluator/reference/) - Complete nemo-evaluator documentation
+- **Parameter Overrides**: {ref}`parameter-overrides` - Complete guide to available parameters and override syntax
+- **Troubleshooting**: See {ref}`configuration-troubleshooting` for debug mode, testing, and common issues
+- **Interceptors Documentation**: {ref}`nemo-evaluator-interceptors` - How to modify request/response payloads and add custom parameters
+- **Task Configuration**: {ref}`lib-core` - Complete nemo-evaluator documentation

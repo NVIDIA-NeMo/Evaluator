@@ -1,3 +1,5 @@
+(evaluation-utils-reference)=
+
 # Evaluation Utilities Reference
 
 Complete reference for evaluation discovery and utility functions in NeMo Eval.

@@ -299,4 +299,4 @@ This demonstrates the power of NeMo Evaluator's three-tier architecture working 
 - Explore custom adapter development
 - Integrate with your machine learning operations pipeline
 - Scale to cluster deployment
-- Consider simpler approaches like [NeMo Evaluator Launcher](launcher.md) for standard workflows
+- Consider simpler approaches like {ref}`gs-quickstart-launcher` for standard workflows

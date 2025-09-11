@@ -1,13 +1,14 @@
-### Local Executor
+(executor-local)=
+
+# Local Executor
 
 The Local executor runs evaluations on your machine using Docker. It provides a fast way to iterate if you have Docker installed, evaluating existing endpoints.
 
-See common concepts and commands in the [executors overview](overview.md).
+See common concepts and commands in {ref}`executors-overview`.
 
 ## Prerequisites
 - Docker
-- Python environment with the Nemo Evaluator Launcher CLI available (install the launcher by following the [Quickstart](../quickstart.md))
-
+- Python environment with the Nemo Evaluator Launcher CLI available (install the launcher by following {ref}`launcher-quickstart`)
 
 ## Tutorials
 
@@ -19,7 +20,6 @@ Learn how to evaluate an existing API endpoint using the Local executor. This tu
   - For NVIDIA APIs, see [Setting up API Keys](https://docs.omniverse.nvidia.com/guide-sdg/latest/setup.html#preview-and-set-up-an-api-key)
 - Creating configuration file
 - Running evaluations
-
 
 ## Quick Start
 
@@ -98,4 +98,4 @@ bash run.sh
 
 ## Monitoring and Job Management
 
-For monitoring jobs, checking status, and managing evaluations, see the [Executors Overview](overview.md#job-management) section.
+For monitoring jobs, checking status, and managing evaluations, see {ref}`executors-overview`.

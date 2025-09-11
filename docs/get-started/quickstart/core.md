@@ -187,5 +187,5 @@ adapter_config = AdapterConfig(
 - Integrate into your existing Python workflows
 - Explore advanced adapter features
 - Build custom evaluation pipelines
-- Consider [NeMo Evaluator Launcher](launcher.md) for simpler CLI workflows
-- Try [Container Direct](container.md) for containerized environments
+- Consider {ref}`gs-quickstart-launcher` for simpler CLI workflows
+- Try {ref}`gs-quickstart-container` for containerized environments

@@ -1,3 +1,5 @@
+(container-workflows)=
+
 # Container Workflows
 
 This document explains how evaluation containers are used within NeMo Evaluator workflows, from selection and execution to integration with the CLI launcher and pipeline system.
@@ -8,7 +10,7 @@ Evaluation containers are the execution environments that run benchmarks and eva
 
 ## Available Container Types
 
-For a comprehensive list of all available Eval Factory containers with detailed descriptions, specifications, and usage examples, see the [Container Reference](../containers/index.md).
+For a comprehensive list of all available Eval Factory containers with detailed descriptions, specifications, and usage examples, see {ref}`nemo-evaluator-containers`.
 
 ## Evaluation Execution Workflow
 
@@ -43,8 +45,8 @@ NeMo Evaluator provides specialized containers for different evaluation domains 
 The system uses an interceptor-based architecture that processes requests and responses through a chain of adapters:
 
 **Configuration Methods:**
-- **CLI Overrides**: Use `--overrides` parameter for runtime configuration ([learn more](../api.md#interceptor-system))
-- **YAML Configuration**: Define interceptor chains in configuration files ([learn more](../api.md#interceptor-system))
+- **CLI Overrides**: Use `--overrides` parameter for runtime configuration ({ref}`nemo-evaluator-api`)
+- **YAML Configuration**: Define interceptor chains in configuration files ({ref}`nemo-evaluator-api`)
 
 
 ## Configuration and Overrides
@@ -98,7 +100,7 @@ eval-factory run_eval \
 # → Detailed logs are available for analysis
 ```
 
-For more details, see [CLI](../cli.md)
+For more details, see {ref}`nemo-evaluator-cli`
 
 ## Performance and Monitoring
 

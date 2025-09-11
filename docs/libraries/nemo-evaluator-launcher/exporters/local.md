@@ -1,3 +1,5 @@
+(exporter-local)=
+
 # Local Exporter (`local`)
 
 Exports artifacts and optional summaries to the local filesystem (and from remote executors via staging). It can also produce consolidated JSON or CSV summaries of metrics.

@@ -97,7 +97,7 @@ nv-eval run \
 
 ## Container Details
 
-For detailed specifications of each container, see the [Container Reference](../libraries/nemo-evaluator/containers/index.md).
+For detailed specifications of each container, see {ref}`nemo-evaluator-containers`.
 
 ### Quick Container Access
 
@@ -146,11 +146,11 @@ nv-eval ls tasks
 nv-eval run --config-dir examples --config-name local_mmlu_evaluation
 ```
 
-For detailed migration guidance, see the [Integration Patterns](../get-started/integration-patterns.md).
+For detailed migration guidance, see {ref}`integration-patterns`.
 
 ## Next Steps
 
-- **Start Evaluating**: Use the [Launcher Quickstart](../libraries/nemo-evaluator-launcher/quickstart.md) for immediate access to all benchmarks
-- **Container Details**: Browse the complete [Container Reference](../libraries/nemo-evaluator/containers/index.md) for specifications
-- **Custom Benchmarks**: Learn to [Extend with Custom Frameworks](../libraries/nemo-evaluator/extending/framework_definition_file.md)
+- **Start Evaluating**: Use {ref}`launcher-quickstart` for immediate access to all benchmarks
+- **Container Details**: Browse the complete {ref}`nemo-evaluator-containers` for specifications
+- **Custom Benchmarks**: Learn to {ref}`framework-definition-file`
 - **Advanced Usage**: Explore [Multi-Backend Execution](../libraries/nemo-evaluator-launcher/executors/index) for scale

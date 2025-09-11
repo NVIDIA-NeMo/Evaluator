@@ -199,5 +199,5 @@ docker run --rm --gpus all \
 - Integrate into your CI/CD pipelines
 - Explore Docker Compose for multi-service setups
 - Consider Kubernetes deployment for scale
-- Try [NeMo Evaluator Launcher](launcher.md) for simplified workflows
-- Explore [Complete Stack Integration](full-stack.md) for advanced use cases
+- Try {ref}`gs-quickstart-launcher` for simplified workflows
+- Explore {ref}`gs-quickstart-full-stack` for advanced use cases

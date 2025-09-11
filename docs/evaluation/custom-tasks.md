@@ -27,7 +27,7 @@ This guide demonstrates how to configure custom evaluations across multiple harn
 
 **Use Pre-Defined Tasks When**:
 
-- Standard benchmarks with optimal settings (refer to [Text Generation Evaluation](run-evals/text-gen.md))
+- Standard benchmarks with optimal settings (refer to {ref}`text-gen`)
 - Quick prototyping and baseline comparisons
 - Following established evaluation protocols
 
@@ -256,7 +256,7 @@ code_params = ConfigParams(
 
 ## Configuration Reference
 
-For comprehensive parameter documentation including universal settings, framework-specific options, and optimization patterns, refer to [Evaluation Configuration Parameters](parameters.md).
+For comprehensive parameter documentation including universal settings, framework-specific options, and optimization patterns, refer to {ref}`eval-parameters`.
 
 ### Key Custom Task Considerations
 

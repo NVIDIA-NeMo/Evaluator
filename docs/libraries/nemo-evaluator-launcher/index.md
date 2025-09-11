@@ -5,7 +5,7 @@
 The *Orchestration Layer* empowers you to run AI model evaluations at scale. Use the unified CLI and programmatic interfaces to discover benchmarks, configure runs, submit jobs, monitor progress, and export results.
 
 :::{tip}
-**New to evaluation?** Start with the [Quickstart Guide](quickstart.md) for a step-by-step walkthrough.
+**New to evaluation?** Start with {ref}`launcher-quickstart` for a step-by-step walkthrough.
 :::
 
 ## Get Started

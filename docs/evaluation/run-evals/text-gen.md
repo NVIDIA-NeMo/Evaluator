@@ -282,7 +282,7 @@ results = evaluate(target_cfg=target, eval_cfg=config)
 
 ### Configuration Parameters
 
-For comprehensive parameter reference including all available settings, optimization patterns, and framework-specific options, refer to [Evaluation Configuration Parameters](../parameters.md).
+For comprehensive parameter reference including all available settings, optimization patterns, and framework-specific options, refer to {ref}`eval-parameters`.
 
 **Key Parameters for Text Generation**:
 - `temperature=0` for deterministic, reproducible results

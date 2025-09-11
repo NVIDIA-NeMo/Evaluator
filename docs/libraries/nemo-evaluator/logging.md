@@ -1,3 +1,5 @@
+(nemo-evaluator-logging)=
+
 # Logging Configuration
 
 This document describes how to configure and use logging in the NVIDIA NeMo Evaluator framework.

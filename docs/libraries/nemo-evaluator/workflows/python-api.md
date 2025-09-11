@@ -1,3 +1,5 @@
+(python-api-workflows)=
+
 # Python API
 
 The NeMo Evaluator Python API provides programmatic access to evaluation capabilities through the `nemo-evaluator` package, allowing you to integrate evaluations into existing ML pipelines, automate workflows, and build custom evaluation applications.
