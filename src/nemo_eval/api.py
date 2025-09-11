@@ -48,6 +48,7 @@ def deploy(
     num_replicas: int = 1,
     num_cpus: Optional[int] = None,
     include_dashboard: bool = True,
+    **model_config_kwargs,
 ):
     """
     Deploys nemo model on either PyTriton server or Ray Serve.
@@ -84,6 +85,7 @@ def deploy(
         num_cpus (int): Number of CPUs to allocate for the Ray cluster. If None, will use all available CPUs.
         Default: None.
         include_dashboard (bool): Whether to include Ray dashboard. Default: True.
+        **model_config_kwargs: Additional keyword arguments for Megatron model config.
     """
     import torch
 
@@ -114,6 +116,7 @@ def deploy(
                 enable_flash_decode=enable_flash_decode,
                 legacy_ckpt=legacy_ckpt,
                 max_batch_size=max_batch_size,
+                **model_config_kwargs,
             )
         elif hf_model_id_path is not None:
             # Deploy huggingface checkpoint directly or via vllm backend on Ray
@@ -165,6 +168,7 @@ def deploy(
             enable_cuda_graphs=enable_cuda_graphs,
             max_batch_size=max_batch_size,
             legacy_ckpt=legacy_ckpt,
+            **model_config_kwargs,
         )
 
         if torch.distributed.is_initialized():
