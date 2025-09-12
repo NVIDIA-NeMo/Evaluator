@@ -48,7 +48,7 @@ def deploy(
     num_replicas: int = 1,
     num_cpus: Optional[int] = None,
     include_dashboard: bool = True,
-    **model_config_kwargs,
+    model_config_kwargs: dict = None,
 ):
     """
     Deploys nemo model on either PyTriton server or Ray Serve.
@@ -85,9 +85,12 @@ def deploy(
         num_cpus (int): Number of CPUs to allocate for the Ray cluster. If None, will use all available CPUs.
         Default: None.
         include_dashboard (bool): Whether to include Ray dashboard. Default: True.
-        **model_config_kwargs: Additional keyword arguments for Megatron model config.
+        model_config_kwargs (dict): Additional keyword arguments for Megatron model config.
     """
     import torch
+
+    if model_config_kwargs is None:
+        model_config_kwargs = {}
 
     if serving_backend == "ray":  # pragma: no cover
         from nemo_deploy.deploy_ray import DeployRay
