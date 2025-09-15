@@ -1713,7 +1713,6 @@ test = [
 
 [[package]]
 name = "nemo-evaluator-launcher"
-version = "0.0.0+dev.local"
 source = { editable = "packages/nemo-evaluator-launcher" }
 dependencies = [
     { name = "hydra-core" },
