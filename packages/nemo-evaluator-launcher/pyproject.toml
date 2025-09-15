@@ -40,27 +40,20 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
-[tool.hatch.version]
-path = "src/nemo_evaluator_launcher/package_info.py"
+[tool.setuptools]
+package-dir = { "" = "src" }
 
-[tool.hatch.build.targets.sdist]
-include = [
-  "src/nemo_evaluator_launcher",
-  "src/nemo_evaluator_launcher/resources/**",
-]
+[tool.setuptools.packages.find]
+where = ["src"]
 
-[tool.hatch.build.targets.wheel]
-include = [
-  "src/nemo_evaluator_launcher",
-  "src/nemo_evaluator_launcher/resources/**",
-]
+[tool.setuptools.package-data]
+"nemo_evaluator_launcher" = ["resources/**/*"]
 
-[tool.hatch.build.targets.wheel.sources]
-"src/nemo_evaluator_launcher" = "nemo_evaluator_launcher"
-
+[tool.setuptools.dynamic]
+version = { attr = "nemo_evaluator_launcher.package_info.__version__" }
 
 [tool.ruff.lint.isort]
 known-first-party = [
