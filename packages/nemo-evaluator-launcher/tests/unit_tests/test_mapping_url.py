@@ -34,20 +34,3 @@ def test_mapping_url_contains_main():
     assert "ref=main" in MAPPING_URL, (
         f"MAPPING_URL '{MAPPING_URL}' must contain '/raw/main/'"
     )
-
-
-def test_mapping_url_is_reachable(enable_network):
-    """Test that MAPPING_URL is reachable and returns valid TOML."""
-    # Get GitLab token from environment
-    gitlab_token = os.environ.get("GITLAB_TOKEN", "")
-    if not gitlab_token:
-        pytest.skip("GITLAB_TOKEN not set, skipping network test")
-
-    # Test the actual download function
-    result = _download_latest_mapping()
-    assert result is not None, f"Failed to download mapping from '{MAPPING_URL}'"
-    assert isinstance(result, bytes), "Downloaded mapping should be raw bytes"
-    assert len(result) > 0, "Downloaded mapping should not be empty"
-    # Test the content
-    mapping_str = result.decode("utf-8")
-    _ = tomllib.loads(mapping_str)

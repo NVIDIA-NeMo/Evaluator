@@ -105,12 +105,3 @@ def test_internal_package_import_error_logging(mock_import_module, caplog):
     assert "Internal package not available" in log_messages
     assert "nemo_evaluator_launcher_internal" in log_messages
     assert error_message in log_messages
-
-
-def test_version_consistency():
-    """Test that version from __init__.py matches version_utils."""
-    from nemo_evaluator_launcher.common.version_utils import (
-        __version__ as version_utils_version,
-    )
-
-    assert nemo_evaluator_launcher.__version__ == version_utils_version

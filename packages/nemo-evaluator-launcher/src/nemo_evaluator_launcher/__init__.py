@@ -22,7 +22,18 @@ It automatically initializes logging and conditionally loads internal components
 import importlib
 
 from nemo_evaluator_launcher.common.logging_utils import logger
-from nemo_evaluator_launcher.common.version_utils import __version__
+from nemo_evaluator_launcher.package_info import (
+    __contact_emails__,
+    __contact_names__,
+    __download_url__,
+    __homepage__,
+    __package_name__,
+    __repository_url__,
+    __version__,
+)
+
+logger.info("Version info", pkg=__package_name__, ver=__version__)
+
 
 try:
     importlib.import_module("nemo_evaluator_launcher_internal")
@@ -43,4 +54,12 @@ except Exception as e:
         error=str(e),
     )
 
-__all__ = ["__version__"]
+__all__ = [
+    "__version__",
+    "__package_name__",
+    "__contact_names__",
+    "__contact_emails__",
+    "__homepage__",
+    "__repository_url__",
+    "__download_url__",
+]
