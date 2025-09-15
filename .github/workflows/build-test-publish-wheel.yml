@@ -73,7 +73,7 @@ jobs:
     uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_build_test_publish_wheel.yml@v0.59.0
     with:
       dry-run: true
-      python-package: nemo_evaluator
+      python-package: nemo_evaluator_launcher
       python-version: "3.10"
       packaging: uv
       has-src-dir: true
