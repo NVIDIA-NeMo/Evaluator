@@ -91,10 +91,10 @@ def get_args() -> argparse.Namespace:
 
         logger = get_logger(__name__)
         logger.warning(
-            "This flag is deprecated and will be removed in the future, please set environment variable NV_EVAL_LOG_LEVEL=DEBUG instead!"
+            "This flag is deprecated and will be removed in the future, please set environment variable NEMO_EVALUATOR_LOG_LEVEL=DEBUG instead!"
         )
-        logger.warning("Setting NV_EVAL_LOG_LEVEL=DEBUG")
-        os.environ["NV_EVAL_LOG_LEVEL"] = "DEBUG"
+        logger.warning("Setting NEMO_EVALUATOR_LOG_LEVEL=DEBUG")
+        os.environ["NEMO_EVALUATOR_LOG_LEVEL"] = "DEBUG"
 
     if "command" not in args:
         parser.print_help()

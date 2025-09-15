@@ -51,11 +51,11 @@ def _setup_file_logging() -> None:
     """Set up centralized logging using NV_EVAL_LOG_DIR environment variable if set."""
     from nemo_evaluator.logging import configure_logging
 
-    # configure_logging will automatically use NV_EVAL_LOG_DIR if set
+    # configure_logging will automatically use NEMO_EVALUATOR_LOG_DIR if set
     configure_logging()
 
     logger.info(
-        "File logging setup completed (uses NV_EVAL_LOG_DIR environment variable if set)"
+        "File logging setup completed (uses NEMO_EVALUATOR_LOG_DIR environment variable if set)"
     )
 
 
@@ -110,7 +110,7 @@ def _run_adapter_server(
     adapter_config: AdapterConfig,
 ) -> None:
     """Internal function to run the adapter server."""
-    # Set up centralized logging using NV_EVAL_LOG_DIR environment variable if set
+    # Set up centralized logging using NEMO_EVALUATOR_LOG_DIR environment variable if set
     _setup_file_logging()
 
     adapter = AdapterServer(
@@ -137,7 +137,7 @@ def _run_adapter_server(
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
-    if os.environ.get("NV_EVAL_LOG_DIR") is not None:
+    if os.environ.get("NEMO_EVALUATOR_LOG_DIR") is not None:
         logger.info("Starting adapter server with centralized logging enabled")
     else:
         logger.info("Starting adapter server with default logging")
@@ -438,8 +438,10 @@ class AdapterServer:
         for interceptor_config in self.adapter_config.interceptors:
             if interceptor_config.enabled:
                 interceptor = self.registry._get_or_create_instance(
-                    interceptor_config.name, interceptor_config.config
+                    interceptor_config.name,
+                    interceptor_config.config,
                 )
+
                 self.interceptor_chain.append(interceptor)
 
         # Log the chain for debugging
@@ -452,12 +454,21 @@ class AdapterServer:
         """Build post-evaluation hooks from validated configuration"""
         # Build the hooks in the configured order
         self.post_eval_hooks = []
+
+        # Add configured post-eval hooks
         for hook_config in self.adapter_config.post_eval_hooks:
             if hook_config.enabled:
                 hook = self.registry._get_or_create_instance(
                     hook_config.name, hook_config.config
                 )
                 self.post_eval_hooks.append(hook)
+
+        # Also add interceptors that implement PostEvalHook
+        for interceptor in self.interceptor_chain:
+            if hasattr(interceptor, "post_eval_hook") and callable(
+                getattr(interceptor, "post_eval_hook")
+            ):
+                self.post_eval_hooks.append(interceptor)
 
         # Log the hooks for debugging
         logger.info(
@@ -506,7 +517,7 @@ class AdapterServer:
             from nemo_evaluator.logging import bind_request_id, get_logger
 
             # Bind the request ID to the current context so all loggers can access it
-            _ = bind_request_id()  # generates a new UUID
+            request_id = bind_request_id()  # generates a new UUID
 
             # Get a logger for this request - context variables are automatically included
             request_logger = get_logger()
@@ -528,7 +539,7 @@ class AdapterServer:
             # Create adapter request
             adapter_request = AdapterRequest(
                 r=flask.request,
-                rctx=AdapterRequestContext(),
+                rctx=AdapterRequestContext(request_id=request_id),
             )
 
             # Process through interceptor chain

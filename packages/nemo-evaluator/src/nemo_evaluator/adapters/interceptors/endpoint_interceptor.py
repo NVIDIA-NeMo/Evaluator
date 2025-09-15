@@ -15,6 +15,7 @@
 
 """Endpoint interceptor that makes actual requests to the upstream API."""
 
+import time
 from typing import final
 
 import requests
@@ -74,6 +75,9 @@ class EndpointInterceptor(RequestToResponseInterceptor):
             has_json=ar.r.json is not None,
         )
 
+        # Record start time for latency tracking
+        start_time = time.time()
+
         # This is a final interceptor, we'll need the flask_request and api
         resp = AdapterResponse(
             r=requests.request(
@@ -85,6 +89,9 @@ class EndpointInterceptor(RequestToResponseInterceptor):
                 allow_redirects=False,
             ),
             rctx=ar.rctx,
+            latency_ms=round(
+                (time.time() - start_time) * 1000, 2
+            ),  # Convert to milliseconds with 2 decimal places
         )
 
         self.logger.debug(
@@ -93,6 +100,7 @@ class EndpointInterceptor(RequestToResponseInterceptor):
             reason=resp.r.reason,
             response_headers_count=len(resp.r.headers),
             response_content_length=len(resp.r.content) if resp.r.content else 0,
+            latency_ms=resp.latency_ms,
         )
 
         return resp

@@ -23,5 +23,5 @@ class BaseLoggingParams(BaseModel):
 
     log_level: str = Field(
         default="INFO",
-        description="Log level for this interceptor. Can be overridden by NV_EVAL_LOG_LEVEL environment variable.",
+        description="Log level for this interceptor. Can be overridden by NEMO_EVALUATOR_LOG_LEVEL environment variable.",
     )

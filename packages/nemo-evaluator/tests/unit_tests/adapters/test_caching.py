@@ -114,7 +114,9 @@ def test_cache_hit(
     tmp_path, mock_requests, mock_context, test_data, cached_content, cached_headers
 ):
     interceptor = CachingInterceptor(
-        params=CachingInterceptor.Params(cache_dir=str(tmp_path))
+        params=CachingInterceptor.Params(
+            cache_dir=str(tmp_path), reuse_cached_responses=True
+        )
     )
 
     # Given: A cached response exists for a specific request
@@ -253,10 +255,14 @@ def test_request_caching(tmp_path, mock_context):
     assert result3.rctx.cache_key not in interceptor.requests_cache
 
 
-def test_response_caching(tmp_path, create_response, mock_context):
+def test_response_caching_with_limit(tmp_path, create_response, mock_context):
+    """Test that max_saved_responses limit works when reuse_cached_responses=False"""
     interceptor = CachingInterceptor(
         params=CachingInterceptor.Params(
-            cache_dir=str(tmp_path), save_responses=True, max_saved_responses=2
+            cache_dir=str(tmp_path),
+            save_responses=True,
+            max_saved_responses=2,
+            reuse_cached_responses=False,  # Explicitly set to False to test limit
         )
     )
 
@@ -311,7 +317,7 @@ def test_response_caching(tmp_path, create_response, mock_context):
         interceptor.responses_cache[result2.rctx.cache_key] == b'{"result": "success2"}'
     )
 
-    # Make third request - should not be cached due to max_saved_responses=2
+    # Make third request - should NOT be cached due to max_saved_responses=2
     test_data3 = {"prompt": "third prompt", "parameters": {"temperature": 0.9}}
     request3 = Request.from_values(
         method="POST",
@@ -330,5 +336,93 @@ def test_response_caching(tmp_path, create_response, mock_context):
     # Intercept third response
     interceptor.intercept_response(resp=adapter_response3, context=mock_context)
 
-    # Verify third response was not cached
+    # Verify third response was NOT cached (limit should be enforced)
     assert result3.rctx.cache_key not in interceptor.responses_cache
+
+
+def test_response_caching_with_reuse_enabled(tmp_path, create_response, mock_context):
+    """Test that max_saved_responses limit is overridden when reuse_cached_responses=True"""
+    interceptor = CachingInterceptor(
+        params=CachingInterceptor.Params(
+            cache_dir=str(tmp_path),
+            save_responses=True,
+            max_saved_responses=2,
+            reuse_cached_responses=True,  # Explicitly set to True to override limit
+        )
+    )
+
+    test_data = {"prompt": "test prompt", "parameters": {"temperature": 0.7}}
+
+    # Make request
+    request = Request.from_values(
+        method="POST",
+        headers={"Content-Type": "application/json"},
+        data=json.dumps(test_data),
+    )
+    adapter_request = AdapterRequest(r=request, rctx=AdapterRequestContext())
+    result = interceptor.intercept_request(req=adapter_request, context=mock_context)
+
+    # Create response
+    response = create_response(
+        200, b'{"result": "success"}', {"Content-Type": "application/json"}
+    )
+    adapter_response = AdapterResponse(r=response, rctx=result.rctx)
+
+    # Intercept response
+    interceptor.intercept_response(resp=adapter_response, context=mock_context)
+
+    # Verify response was cached
+    assert result.rctx.cache_key in interceptor.responses_cache
+    assert (
+        interceptor.responses_cache[result.rctx.cache_key] == b'{"result": "success"}'
+    )
+
+    # Make second request with different data
+    test_data2 = {"prompt": "another prompt", "parameters": {"temperature": 0.8}}
+    request2 = Request.from_values(
+        method="POST",
+        headers={"Content-Type": "application/json"},
+        data=json.dumps(test_data2),
+    )
+    adapter_request2 = AdapterRequest(r=request2, rctx=AdapterRequestContext())
+    result2 = interceptor.intercept_request(req=adapter_request2, context=mock_context)
+
+    # Create second response
+    response2 = create_response(
+        200, b'{"result": "success2"}', {"Content-Type": "application/json"}
+    )
+    adapter_response2 = AdapterResponse(r=response2, rctx=result2.rctx)
+
+    # Intercept second response
+    interceptor.intercept_response(resp=adapter_response2, context=mock_context)
+
+    # Verify second response was cached
+    assert result2.rctx.cache_key in interceptor.responses_cache
+    assert (
+        interceptor.responses_cache[result2.rctx.cache_key] == b'{"result": "success2"}'
+    )
+
+    # Make third request - SHOULD be cached since reuse_cached_responses=True overrides max_saved_responses
+    test_data3 = {"prompt": "third prompt", "parameters": {"temperature": 0.9}}
+    request3 = Request.from_values(
+        method="POST",
+        headers={"Content-Type": "application/json"},
+        data=json.dumps(test_data3),
+    )
+    adapter_request3 = AdapterRequest(r=request3, rctx=AdapterRequestContext())
+    result3 = interceptor.intercept_request(req=adapter_request3, context=mock_context)
+
+    # Create third response
+    response3 = create_response(
+        200, b'{"result": "success3"}', {"Content-Type": "application/json"}
+    )
+    adapter_response3 = AdapterResponse(r=response3, rctx=result3.rctx)
+
+    # Intercept third response
+    interceptor.intercept_response(resp=adapter_response3, context=mock_context)
+
+    # Verify third response WAS cached (limit should be overridden)
+    assert result3.rctx.cache_key in interceptor.responses_cache
+    assert (
+        interceptor.responses_cache[result3.rctx.cache_key] == b'{"result": "success3"}'
+    )

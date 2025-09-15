@@ -47,21 +47,26 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
     class Params(BaseLoggingParams):
         """Configuration parameters for caching."""
 
-        cache_dir: str = Field(..., description="Directory to store cache files")
+        cache_dir: str = Field(
+            default="/tmp", description="Directory to store cache files"
+        )
         reuse_cached_responses: bool = Field(
-            default=True, description="Whether to reuse cached responses"
+            default=False,
+            description="Whether to reuse cached responses. If True, this overrides save_responses (sets it to True) and max_saved_responses (sets it to None)",
         )
         save_requests: bool = Field(
             default=False, description="Whether to save requests to cache"
         )
         save_responses: bool = Field(
-            default=True, description="Whether to save responses to cache"
+            default=True,
+            description="Whether to save responses to cache. Note: This is automatically set to True if reuse_cached_responses is True",
         )
         max_saved_requests: int | None = Field(
             default=None, description="Maximum number of requests to save"
         )
         max_saved_responses: int | None = Field(
-            default=None, description="Maximum number of responses to cache"
+            default=None,
+            description="Maximum number of responses to cache. Note: This is automatically set to None if reuse_cached_responses is True",
         )
 
     responses_cache: Cache
@@ -82,9 +87,16 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
         self.headers_cache = Cache(directory=f"{params.cache_dir}/headers")
         self.reuse_cached_responses = params.reuse_cached_responses
         self.save_requests = params.save_requests
-        self.save_responses = params.save_responses or params.reuse_cached_responses
+
+        # If reuse_cached_responses is True, override save_responses and max_saved_responses
+        if params.reuse_cached_responses:
+            self.save_responses = True
+            self.max_saved_responses = None
+        else:
+            self.save_responses = params.save_responses
+            self.max_saved_responses = params.max_saved_responses
+
         self.max_saved_requests = params.max_saved_requests
-        self.max_saved_responses = params.max_saved_responses
 
         # Counters for cache management
         self._cached_requests_count = 0
@@ -102,6 +114,8 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
             reuse_cached_responses=self.reuse_cached_responses,
             save_requests=self.save_requests,
             save_responses=self.save_responses,
+            max_saved_requests=self.max_saved_requests,
+            max_saved_responses=self.max_saved_responses,
         )
 
     @staticmethod

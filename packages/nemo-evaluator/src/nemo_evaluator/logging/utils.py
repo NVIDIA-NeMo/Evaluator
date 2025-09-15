@@ -74,12 +74,12 @@ def _ensure_log_dir(log_dir: str = None) -> pathlib.Path:
 
 
 def _get_env_log_dir() -> str | None:
-    """Get log directory from environment variable NV_EVAL_LOG_DIR.
+    """Get log directory from environment variable NEMO_EVALUATOR_LOG_DIR.
 
     Returns:
-        Log directory path if NV_EVAL_LOG_DIR is set, None otherwise.
+        Log directory path if NEMO_EVALUATOR_LOG_DIR is set, None otherwise.
     """
-    return os.getenv("NV_EVAL_LOG_DIR")
+    return os.getenv("NEMO_EVALUATOR_LOG_DIR")
 
 
 def _get_env_log_level() -> str:
@@ -97,8 +97,8 @@ def _get_env_log_level() -> str:
     Returns:
         Uppercase log level string, defaults to INFO if not set or invalid.
     """
-    # Support both LOG_LEVEL (new) and NV_EVAL_LOG_LEVEL (legacy) for backward compatibility
-    env_level = os.getenv("LOG_LEVEL") or os.getenv("NV_EVAL_LOG_LEVEL", "INFO")
+    # Support both LOG_LEVEL (new) and NEMO_EVALUATOR_LOG_LEVEL (legacy) for backward compatibility
+    env_level = os.getenv("LOG_LEVEL") or os.getenv("NEMO_EVALUATOR_LOG_LEVEL", "INFO")
 
     # Define valid log levels (case-insensitive)
     valid_levels = ["DEBUG", "INFO", "WARNING", "WARN", "ERROR", "CRITICAL", "FATAL"]
@@ -320,7 +320,7 @@ def _configure_structlog(log_dir: str = None) -> None:
         structlog.get_logger().info(
             "Centralized logging configured (console only)",
             console_level=console_level,
-            log_dir="none (NV_EVAL_LOG_DIR not set)",
+            log_dir="none (NEMO_EVALUATOR_LOG_DIR not set)",
         )
 
 
@@ -332,7 +332,7 @@ def configure_logging(log_dir: str = None) -> None:
     """Configure logging with a custom log directory.
 
     Args:
-        log_dir: Custom log directory path. If None, uses NV_EVAL_LOG_DIR environment variable.
+        log_dir: Custom log directory path. If None, uses NEMO_EVALUATOR_LOG_DIR environment variable.
                  If neither is set, only console logging is configured.
     """
     _configure_structlog(log_dir)

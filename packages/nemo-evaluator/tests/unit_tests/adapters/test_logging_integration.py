@@ -91,12 +91,12 @@ class TestNewLoggingSystem:
 
     def test_environment_variable_logging(self):
         """Test that environment variables still work for logging configuration."""
-        # Test NV_EVAL_LOG_LEVEL environment variable
-        original_log_level = os.environ.get("NV_EVAL_LOG_LEVEL")
+        # Test NEMO_EVALUATOR_LOG_LEVEL environment variable
+        original_log_level = os.environ.get("NEMO_EVALUATOR_LOG_LEVEL")
 
         try:
             # Set environment variable
-            os.environ["NV_EVAL_LOG_LEVEL"] = "DEBUG"
+            os.environ["NEMO_EVALUATOR_LOG_LEVEL"] = "DEBUG"
 
             # Create interceptor - should respect environment variable
             request_interceptor = RequestLoggingInterceptor(
@@ -107,9 +107,9 @@ class TestNewLoggingSystem:
         finally:
             # Restore original environment variable
             if original_log_level:
-                os.environ["NV_EVAL_LOG_LEVEL"] = original_log_level
-            elif "NV_EVAL_LOG_LEVEL" in os.environ:
-                del os.environ["NV_EVAL_LOG_LEVEL"]
+                os.environ["NEMO_EVALUATOR_LOG_LEVEL"] = original_log_level
+            elif "NEMO_EVALUATOR_LOG_LEVEL" in os.environ:
+                del os.environ["NEMO_EVALUATOR_LOG_LEVEL"]
 
 
 class TestLoggingIntegration:
