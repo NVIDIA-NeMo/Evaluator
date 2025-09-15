@@ -250,7 +250,7 @@ runs:
       shell: bash
       run: |
         echo ::group::Check result
-        docker cp nemo_container_${{ github.run_id }}:/workspace/packages/${{ inputs.package }}/.coverage .coverage-${{ inputs.package }}
+        docker cp nemo_container_${{ github.run_id }}:/workspace/packages/${{ inputs.package }}/.coverage .coverage.${{ inputs.package }}
 
         coverage_report=coverage-${{ steps.create.outputs.coverage-prefix }}-${{ github.run_id }}-$(uuidgen)
         echo "coverage_report=$coverage_report" >> "$GITHUB_OUTPUT"
@@ -284,5 +284,5 @@ runs:
       with:
         name: ${{ steps.check.outputs.coverage_report }}
         path: |
-          .coverage-${{ inputs.package }}
+          .coverage.${{ inputs.package }}
         include-hidden-files: true
