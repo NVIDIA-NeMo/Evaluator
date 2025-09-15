@@ -11,29 +11,3 @@ docs = [
     "myst_parser",         # For our markdown docs
     "nvidia-sphinx-theme", # Our NVIDIA theme
 ]
-
-[tool.coverage.run]
-concurrency = ["thread", "multiprocessing"]
-omit = [
-    "/tmp/*",
-    "/workspace/packages/nemo-evaluator/tests/*",
-    "/workspace/packages/nemo-evaluator/*.py",
-    "/workspace/packages/nemo-evaluator-launcher/tests/*",
-    "/workspace/packages/nemo-evaluator-launcher/scripts/*",
-    "/workspace/packages/nemo-evaluator-launcher/*.py",
-    "*_ray.py",
-    "*package_info.py",
-]
-parallel = true
-sigterm = true
-
-[tool.coverage.paths]
-source = [
-    ".",
-    "/workspace/packages/nemo-evaluator/",
-    "/home/runner/work/Eval/Eval/packages/nemo-evaluator/",
-    "/workspace/",
-    "/home/runner/work/Eval/Eval/",
-    "/workspace/packages/nemo-evaluator-launcher/",
-    "/home/runner/work/Eval/Eval/packages/nemo-evaluator-launcher/",
-]
