@@ -1,6 +1,5 @@
 [project]
 name = "nemo-evaluator-launcher"
-version = "0.0.0+dev.local"
 description = "NeMo Evaluator Launcher - Public API"
 requires-python = ">=3.10,<3.14"
 readme = "README.md"
@@ -15,6 +14,7 @@ dependencies = [
   "tabulate>=0.9.0,<0.10.0",
   "tomli>=2.0.0,<3.0.0; python_version < '3.11'",
 ]
+dynamic = ["version"]
 
 [project.optional-dependencies]
 mlflow = ["mlflow>=2.8.0"]
@@ -39,6 +39,13 @@ dev = [
   "types-pyyaml>=6.0.12.20250822",
 ]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/nemo_evaluator_launcher/package_info.py"
+
 [tool.hatch.build.targets.sdist]
 include = [
   "src/nemo_evaluator_launcher",
@@ -54,9 +61,6 @@ include = [
 [tool.hatch.build.targets.wheel.sources]
 "src/nemo_evaluator_launcher" = "nemo_evaluator_launcher"
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
 
 [tool.ruff.lint.isort]
 known-first-party = [
