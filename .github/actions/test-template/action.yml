@@ -275,7 +275,7 @@ runs:
       shell: bash -x -e -u -o pipefail {0}
       run: |
         echo ::group::Test coverage
-        docker exec -t nemo_container_${{ github.run_id }} /opt/venv/bin/coverage report -i --rcfile=.github/config/.coveragerc
+        docker exec -t nemo_container_${{ github.run_id }} bash -c 'cd /workspace/packages/${{ inputs.package }} && /opt/venv/bin/coverage report -i'
         echo ::endgroup::
 
     - name: Upload artifacts
