@@ -50,50 +50,6 @@ In other words, interceptors are pieces of independent logic which should be
 relatively easy to add separately.
 
 
-The arch is as follows:
-
-
-         ┌─────────────────────┐
-         │                     │
-         │  NeMo Evaluator     │
-         │  harness            │
-         └───▲──────┬──────────┘
-             │      │
-     returns │      │
-             │      │ calls
-             │      │
-             │      │
-         ┌───┼──────┼──────────────────────────────────────────────────┐
-         │   │      ▼                                                  │
-         │ AdapterServer (@ localhost:3825)                            │
-         │                                                             │
-         │   ▲      │       chain of RequestInterceptors:              │
-         │   │      │       flask.Request                              │
-         │   │      │       is passed on the way up                    │
-         │   │      │                                                  │   ┌──────────────────────┐
-         │   │ ┌────▼───────────────────────────────────────────────┐  │   │                      │
-         │   │ │intcptr_1─────►intcptr_2───►...───►intcptr_N────────┼──┼───►                      │
-         │   │ │                                                    │  │   │                      │
-         │   │ └─────────────────────-──────────────────────────────┘  │   │   deployed           │
-         │   │                                                         │   │   OAI-compatible     │
-         │   │                                                         │   │   model endpoint     │
-         │   │                                                         │   │                      │
-         │   │                                                         │   │                      │
-         │   │                                                         │   │                      │
-         │ ┌─┼──────────────────────────────────────────┐              │   │                      │
-         │ │intcptr'_M◄──intcptr'_2◄──...◄───intcptr'_1 ◄──────────────┼───┤                      │
-         │ └────────────────────────────────────────────┘              │   └──────────────────────┘
-         │                                                             │
-         │              Chain of ResponseInterceptors:                 │
-         │              requests.Response is passed on the way down    │
-         │                                                             │
-         │                                                             │
-         └─────────────────────────────────────────────────────────────┘
-
-In other words, interceptors are pieces of independent logic which should be
-relatively easy to add separately.
-
-
 NeMo Evaluator is the core, open-source evaluation engine that powers standardized, reproducible AI model evaluation across benchmarks. It provides the adapter/interceptor architecture, evaluation workflows, and the set of ready-to-use evaluation containers that ensure consistent results across environments and over time.
 
 ## How it differs from the Launcher
