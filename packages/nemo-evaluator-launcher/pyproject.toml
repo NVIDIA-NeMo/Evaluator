@@ -60,3 +60,24 @@ known-first-party = [
   "nemo_evaluator_launcher",
   "nemo_evaluator_launcher_internal",
 ]
+
+
+[tool.coverage.run]
+concurrency = ["thread", "multiprocessing"]
+omit = [
+  "/tmp/*",
+  "/workspace/packages/nemo-evaluator-launcher/tests/*",
+  "/workspace/packages/nemo-evaluator-launcher/scripts/*",
+  "/workspace/packages/nemo-evaluator-launcher/*.py",
+  "*_ray.py",
+  "*package_info.py",
+]
+parallel = true
+sigterm = true
+
+[tool.coverage.paths]
+source = [
+  ".",
+  "/workspace/packages/nemo-evaluator-launcher/",
+  "/home/runner/work/Eval/Eval/packages/nemo-evaluator-launcher/",
+]

@@ -80,6 +80,4 @@ source = [
 
 
 [tool.ruff.lint.isort]
-known-first-party = [
-  "nemo_evaluator",
-]
+known-first-party = ["nemo_evaluator"]
