@@ -15,8 +15,6 @@
 #
 """Tests for mapping URL validation."""
 
-import sys
-
 from nemo_evaluator_launcher.common.mapping import MAPPING_URL
 
 
