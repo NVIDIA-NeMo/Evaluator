@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 export CUDA_VISIBLE_DEVICES=""
-cd /workspace/packages/nemo-evaluator-launcher/
 
 coverage run \
-    --data-file=.coverage \
-    --source=src/ \
+    --data-file=/workspace/.coverage.unit_tests \
+    --source=/workspace/packages/nemo-evaluator-launcher/src/ \
     -m pytest \
     -o log_cli=true \
     -o log_cli_level=INFO \
     -m "not pleasefixme" \
-    tests/unit_tests
+    /workspace/packages/nemo-evaluator-launcher/tests/unit_tests
+coverage combine -q 
