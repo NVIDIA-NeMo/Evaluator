@@ -1510,7 +1510,6 @@ wheels = [
 
 [[package]]
 name = "nemo-evaluator-launcher"
-version = "0.0.0+dev.local"
 source = { editable = "." }
 dependencies = [
     { name = "hydra-core" },
