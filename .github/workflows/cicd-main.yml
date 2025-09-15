@@ -316,6 +316,7 @@ jobs:
           pip install coverage
 
           ls -al .
+          coverage combine --rcfile .github/config/.coveragerc
           coverage report -i --rcfile .github/config/.coveragerc
           coverage xml --rcfile .github/config/.coveragerc
           rm -rf coverage-*
