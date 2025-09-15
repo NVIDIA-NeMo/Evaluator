@@ -19,6 +19,7 @@ omit = [
     "/workspace/packages/nemo-evaluator/tests/*",
     "/workspace/packages/nemo-evaluator/*.py",
     "/workspace/packages/nemo-evaluator-launcher/tests/*",
+    "/workspace/packages/nemo-evaluator-launcher/scripts/*",
     "/workspace/packages/nemo-evaluator-launcher/*.py",
     "*_ray.py",
     "*package_info.py",
