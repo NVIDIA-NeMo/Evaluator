@@ -284,5 +284,5 @@ runs:
       with:
         name: ${{ steps.check.outputs.coverage_report }}
         path: |
-          .coverage
+          .coverage-${{ inputs.package }}
         include-hidden-files: true
