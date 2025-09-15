@@ -1,6 +1,6 @@
 
 [tool.uv.workspace]
-members = ["packages/nemo-evaluator"]
+members = ["packages/nemo-evaluator", "packages/nemo-evaluator-launcher"]
 
 [dependency-groups]
 docs = [
@@ -18,6 +18,8 @@ omit = [
     "/tmp/*",
     "/workspace/packages/nemo-evaluator/tests/*",
     "/workspace/packages/nemo-evaluator/*.py",
+    "/workspace/packages/nemo-evaluator-launcher/tests/*",
+    "/workspace/packages/nemo-evaluator-launcher/*.py",
     "*_ray.py",
     "*package_info.py",
 ]
@@ -31,4 +33,6 @@ source = [
     "/home/runner/work/Eval/Eval/packages/nemo-evaluator/",
     "/workspace/",
     "/home/runner/work/Eval/Eval/",
+    "/workspace/packages/nemo-evaluator-launcher/",
+    "/home/runner/work/Eval/Eval/packages/nemo-evaluator-launcher/",
 ]
