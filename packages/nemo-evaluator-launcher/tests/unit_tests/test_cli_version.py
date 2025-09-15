@@ -21,7 +21,7 @@ from unittest.mock import MagicMock, patch
 
 from nemo_evaluator_launcher.cli.main import create_parser, main
 from nemo_evaluator_launcher.cli.version import Cmd as VersionCmd
-from nemo_evaluator_launcher.common.version_utils import __main_pkg_name__, __version__
+from nemo_evaluator_launcher.package_info import __package_name__, __version__
 
 
 class TestVersionCommand:
@@ -39,7 +39,7 @@ class TestVersionCommand:
         result = output.getvalue().strip()
 
         # Should contain the main package version
-        assert f"{__main_pkg_name__}: {__version__}" in result
+        assert f"{__package_name__}: {__version__}" in result
 
     @patch("importlib.import_module")
     def test_version_cmd_with_internal_package_available(self, mock_import_module):
@@ -60,7 +60,7 @@ class TestVersionCommand:
         lines = result.split("\n")
 
         # Should contain main package version
-        assert f"{__main_pkg_name__}: {__version__}" in lines[0]
+        assert f"{__package_name__}: {__version__}" in lines[0]
 
         # Should contain internal package version
         assert "nemo-evaluator-launcher-internal: 1.2.3-internal" in lines[1]
@@ -87,7 +87,7 @@ class TestVersionCommand:
         lines = result.split("\n")
 
         # Should contain main package version
-        assert f"{__main_pkg_name__}: {__version__}" in lines[0]
+        assert f"{__package_name__}: {__version__}" in lines[0]
 
         # Should indicate internal package is available but version unknown
         assert (
@@ -112,7 +112,7 @@ class TestVersionCommand:
         result = output.getvalue().strip()
 
         # Should only contain main package version (no internal package line)
-        assert f"{__main_pkg_name__}: {__version__}" in result
+        assert f"{__package_name__}: {__version__}" in result
         assert "nemo-evaluator-launcher-internal" not in result
 
     @patch("importlib.import_module")
@@ -132,7 +132,7 @@ class TestVersionCommand:
         lines = result.split("\n")
 
         # Should contain main package version
-        assert f"{__main_pkg_name__}: {__version__}" in lines[0]
+        assert f"{__package_name__}: {__version__}" in lines[0]
 
         # Should indicate internal package error
         assert (
@@ -183,7 +183,7 @@ class TestVersionCLIIntegration:
         result = output.getvalue().strip()
 
         # Should contain version information
-        assert f"{__main_pkg_name__}: {__version__}" in result
+        assert f"{__package_name__}: {__version__}" in result
 
     @patch("sys.argv", ["nemo-evaluator-launcher"])
     def test_main_without_command_shows_help(self):
@@ -216,28 +216,3 @@ class TestVersionCLIIntegration:
 
         # Both should produce the same output
         assert subcommand_result == flag_result
-
-
-class TestVersionUtils:
-    """Test version utility functions used by the CLI."""
-
-    def test_version_utils_imports(self):
-        """Test that version utils can be imported correctly."""
-        from nemo_evaluator_launcher.common.version_utils import (
-            __main_pkg_name__,
-            __version__,
-        )
-
-        assert isinstance(__main_pkg_name__, str)
-        assert len(__main_pkg_name__) > 0
-        assert isinstance(__version__, str)
-        assert len(__version__) > 0
-
-    def test_version_matches_package_version(self):
-        """Test that CLI version matches package version."""
-        import nemo_evaluator_launcher
-        from nemo_evaluator_launcher.common.version_utils import (
-            __version__ as utils_version,
-        )
-
-        assert nemo_evaluator_launcher.__version__ == utils_version

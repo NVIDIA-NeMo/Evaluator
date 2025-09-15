@@ -18,7 +18,7 @@
 import importlib
 from dataclasses import dataclass
 
-from nemo_evaluator_launcher.common.version_utils import __main_pkg_name__, __version__
+from nemo_evaluator_launcher import __package_name__, __version__
 
 
 @dataclass
@@ -27,7 +27,7 @@ class Cmd:
 
     def execute(self) -> None:
         """Execute the version command."""
-        print(f"{__main_pkg_name__}: {__version__}")
+        print(f"{__package_name__}: {__version__}")
 
         # Check for internal package
         try:
