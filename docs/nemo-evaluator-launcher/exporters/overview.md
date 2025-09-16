@@ -74,25 +74,43 @@ execution:
       gsheets:
         spreadsheet_name: "LLM Evaluation Results"
 
-# Ensure credentials available to job/auto-export
-evaluation:
+  # Ensure credentials available to job/auto-export
   env_vars:
-    WANDB_API_KEY: WANDB_API_KEY
-    # Optional for on-prem W&B:
-    # WANDB_BASE_URL: WANDB_BASE_URL
-    # Optional GSheets env alternative:
-    # GOOGLE_APPLICATION_CREDENTIALS: GOOGLE_APPLICATION_CREDENTIALS
+    evaluation:
+      WANDB_API_KEY: WANDB_API_KEY
+      # Optional for on-prem W&B:
+      # WANDB_BASE_URL: WANDB_BASE_URL
+      # Optional GSheets env alternative:
+      # GOOGLE_APPLICATION_CREDENTIALS: GOOGLE_APPLICATION_CREDENTIALS
 ```
-
 
 ## Tip: Remote Auto-Export (Slurm)
 
-**Prerequisites on cluster:**
-- Install `nemo-evaluator-launcher[exporters]` and ensure it's in `$PATH`
-- **Credentials:**
-  - **WandB**: run `wandb login` (shared HOME) OR pass `WANDB_API_KEY` via `evaluation.env_vars`
-  - **GSheets**: `service_account_file` must be valid cluster path OR pass `GOOGLE_APPLICATION_CREDENTIALS` via `evaluation.env_vars`
-  - **MLflow**: set `tracking_uri` in config; ensure server is reachable from cluster
+**Prerequisites on the cluster:**
+
+- Install `nemo-evaluator-launcher[all]` in an env visible to compute nodes (on shared FS such as Lustre).
+- Ensure binaries are resolvable at export time. Example YAML override:
+
+  ```yaml
+  execution:
+    env_vars:
+      evaluation:
+        PATH: "/shared/envs/nemo/bin:$PATH"
+  ```
+- Credentials:
+  - WandB: either `wandb login` on shared HOME or pass `WANDB_API_KEY` via `execution.env_vars.evaluation`
+  - MLflow: set `tracking_uri` in exporter config and ensure it's reachable from compute nodes (open firewall/ACL)
+  - GSheets: `service_account_file` must be a valid cluster path or pass `GOOGLE_APPLICATION_CREDENTIALS` via `execution.env_vars.evaluation`
+
+
+**Notes:**
+- Avoid “local” export paths that point to your laptop when running on Slurm; use cluster paths, or run a post‑hoc export from your laptop:
+  - `nemo-evaluator-launcher export <invocation_id> --dest local --config '{"output_dir": "/your/local/path","format":"json"}'`
+
+  ```bash
+  nemo-evaluator-launcher export <invocation_id> --dest local --format json
+  ```
+
 
 ## Add your own exporter
 It’s straightforward to add a custom exporter to fit your tools:
