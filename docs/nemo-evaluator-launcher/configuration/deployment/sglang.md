@@ -4,7 +4,7 @@ SGLang is a fast serving framework for large language models and vision language
 
 ## Configuration
 
-See the complete configuration structure in the [SGLang Config File](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/src/nemo_evaluator_launcher/configs/deployment/sglang.yaml?ref_type=heads).
+See the complete configuration structure in the [SGLang Config File](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/deployment/sglang.yaml).
 
 ## Key Settings
 
@@ -30,4 +30,4 @@ Tips:
 ## Reference
 
 - [SGLang Documentation](https://docs.sglang.ai/)
-- [SGLang Config File](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/src/nemo_evaluator_launcher/configs/deployment/sglang.yaml?ref_type=heads)
+- [SGLang Config File](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/deployment/sglang.yaml)

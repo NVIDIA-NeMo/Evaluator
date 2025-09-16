@@ -1,4 +1,4 @@
-### Local Executor
+# Local Executor
 
 The Local executor runs evaluations on your machine using Docker. It provides a fast way to iterate if you have Docker installed, evaluating existing endpoints.
 
@@ -11,7 +11,7 @@ See common concepts and commands in the [executors overview](overview.md).
 
 ## Tutorials
 
-### [Local Evaluation of Existing Endpoint](tutorials/local-evaluation-of-existing-endpoint.md)
+### [Local Evaluation of Existing Endpoint](../tutorials/local-evaluation-of-existing-endpoint.md)
 Learn how to evaluate an existing API endpoint using the Local executor. This tutorial covers:
 - Choosing model
 - Choosing tasks
