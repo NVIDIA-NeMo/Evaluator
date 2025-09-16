@@ -473,7 +473,7 @@ docker pull nvcr.io/nvidia/eval-factory/scicode:25.08
 
 ## Execution and API Usage
 
-For detailed information on how to execute tasks and use the NeMo Evaluator API to run evaluations with these containers, see the [Using Containers](../workflows/using_containers.md).
+For detailed information on how to execute tasks and use the NeMo Evaluator API to run evaluations with these containers, see the [Using Containers](../workflows/using-containers.md).
 
 ## General Usage
 

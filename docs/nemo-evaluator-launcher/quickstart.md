@@ -53,9 +53,9 @@ nemo-evaluator-launcher test-endpoint --url http://localhost:8000/v1
 ```
   **Self-hosted options:**
 
-  For detailed deployment instructions, see the [Deployment Frameworks Guide](tutorials/deployments/deployment_frameworks_guide.md).
+  For detailed deployment instructions, see the [Deployment Frameworks Guide](tutorials/deployments/deployment-frameworks-guide.md).
 
-  To test your endpoint compatibility, see [Testing Endpoint Compatibility](tutorials/deployments/testing_endpoint_oai_compatibility.md).
+  To test your endpoint compatibility, see [Testing Endpoint Compatibility](tutorials/deployments/testing-endpoint-oai-compatibility.md).
 
 ## Quick Start
 

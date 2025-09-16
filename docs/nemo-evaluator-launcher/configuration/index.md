@@ -9,7 +9,7 @@ The configuration is organized into these predefined sections:
 - **`defaults`** - Specifies default execution and deployment methods
 - **`execution`** - Additional setup for execution configuration ([Execution Overview](execution/index.md) | [Local](execution/local.md), [Slurm](execution/slurm.md), [Lepton](execution/lepton.md))
 - **`deployment`** - Additional setup for deployment configuration ([Deployment Overview](deployment/index.md) | [vLLM](deployment/vllm.md), [SGLang](deployment/sglang.md), [NIM](deployment/nim.md), [None](deployment/none.md))
-- **`target`** - API endpoint configuration ([Target Overview](target/index.md))
+- **`target`** - API endpoint configuration ({doc}`Target Overview <target/index>`)
 - **`evaluation`** - Evaluation tasks from nemo-evaluator-launcher with additional setup like overriding default values ([Evaluation Overview](evaluation/index.md))
 
 ```yaml
@@ -68,7 +68,7 @@ Defines how to deploy and serve your model. See [Deployment Overview](deployment
 - **[None](deployment/none.md)**: Use existing endpoint (no deployment)
 
 ### 4. Target
-Defines the model endpoint to evaluate. See [Target Overview](target/index.md) for details.
+Defines the model endpoint to evaluate. See {doc}`Target Overview <target/index>` for details.
 
 Used when `deployment: none` is specified. For evaluations with deployment, this is filled automatically.
 
@@ -128,7 +128,7 @@ evaluation:
 ### Check Endpoint Availability
 Verify your endpoint is working before running full evaluations:
 
-- **Test endpoint compatibility**: See [Testing Endpoint OAI Compatibility](../tutorials/deployments/testing_endpoint_oai_compatibility.md)
+- **Test endpoint compatibility**: See [Testing Endpoint OAI Compatibility](../tutorials/deployments/testing-endpoint-oai-compatibility.md)
 - **Check API keys**: Ensure environment variables are set correctly
 
 ### Common Issues

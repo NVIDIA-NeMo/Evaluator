@@ -24,7 +24,7 @@ Executors run the evaluation for you by taking the appropriate Docker image (whi
 | **Autoscaling** | ❌ | ❌ | ✅ |
 | **Best For** | Development, Testing | HPC Clusters | Cloud Scale |
 
-Tip: The simplest way to get started is the Local executor. It pulls the evaluation container to your machine and runs it locally. Your model can live anywhere—as long as it exposes an OpenAI‑compatible endpoint, the local run can call it. See the [Local Evaluation Tutorial](../tutorials/local_evaluation_of_existing_endpoint.md) for a step-by-step guide.
+Tip: The simplest way to get started is the Local executor. It pulls the evaluation container to your machine and runs it locally. Your model can live anywhere—as long as it exposes an OpenAI‑compatible endpoint, the local run can call it. See the [Local Evaluation Tutorial](../tutorials/local-evaluation-of-existing-endpoint.md) for a step-by-step guide.
 
 Some executors (e.g., Slurm, Lepton) can optionally host the model on‑the‑fly for the duration of the evaluation. In these cases, two containers are used:
 - one for the containerized evaluation (benchmark harness), and
@@ -34,7 +34,7 @@ When on‑the‑fly hosting is enabled, the evaluation configuration also includ
 
 #### Common workflow
 1. [Choose an executor and example config](../configuration/index.md)
-2. [Point the target to your model endpoint](../configuration/target/index.md)
+2. {doc}`Point the target to your model endpoint <../configuration/target/index>`
 3. [Run and monitor logs](#job-management)
 4. [Optionally export results to dashboards or files](../exporters/overview.md)
 

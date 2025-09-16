@@ -24,7 +24,7 @@ You have two options:
   - For NVIDIA APIs, see [Setting up API Keys](https://docs.omniverse.nvidia.com/guide-sdg/latest/setup.html#preview-and-set-up-an-api-key)
 
 #### Option B: Deploy Your Own Endpoint
-Deploy an OpenAI-compatible endpoint using frameworks like vLLM, SGLang, NeMo, TRT-LLM, or NIM. See examples: [Deployment Frameworks Guide](deployments/deployment_frameworks_guide.md)
+Deploy an OpenAI-compatible endpoint using frameworks like vLLM, SGLang, NeMo, TRT-LLM, or NIM. See examples: [Deployment Frameworks Guide](deployments/deployment-frameworks-guide.md)
 
 /// note | Tutorial Example
 For this tutorial we will use `meta/llama-3.1-8b-instruct` from [build.nvidia.com](https://build.nvidia.com/meta/llama-3_1-8b-instruct).
@@ -103,12 +103,12 @@ nemo-evaluator-launcher run --config-dir configs --config-name local_endpoint \
   -o target.api_endpoint.api_key=API_KEY
 ```
 
-After the launch you can monitor lively logs, status and after finishing display results and optionally export them in a unified nemo evaluator launcher way. After the failure e.g. connection error you can resume the job without the data loss [resuming] See [Exporters Documentation](../../exporters/overview.md) for available export options.
+After the launch you can monitor lively logs, status and after finishing display results and optionally export them in a unified nemo evaluator launcher way. After the failure e.g. connection error you can resume the job without the data loss [resuming] See {doc}`Exporters Documentation <../../exporters/overview>` for available export options.
 
 ## Next Steps
 
-- **[Advanced Task Configuration](../../configuration/evaluation/index.md)**: Customize evaluation parameters and prompts
-- **[Different Executors](../../executors/overview.md)**: Try Slurm or Lepton for different environments
+- **{doc}`Advanced Task Configuration <../../configuration/evaluation/index>`**: Customize evaluation parameters and prompts
+- **{doc}`Different Executors <../../executors/overview>`**: Try Slurm or Lepton for different environments
 - **[Deploy Your Own Models](deployments/deployment_frameworks_guide.md)**: Use vLLM, SGLang, or NIM
-- **[Test Endpoint Compatibility](deployments/testing_endpoint_oai_compatibility.md)**: Verify your endpoint with curl requests
-- **[Export Results](../../exporters/overview.md)**: Send results to W&B, MLFlow, or other platforms 
+- **[Test Endpoint Compatibility](deployments/testing-endpoint-oai-compatibility.md)**: Verify your endpoint with curl requests
+- **{doc}`Export Results <../../exporters/overview>`**: Send results to W&B, MLFlow, or other platforms 
