@@ -13,12 +13,16 @@
 # limitations under the License.
 export CUDA_VISIBLE_DEVICES=""
 
+SCRIPT_DIR=$(dirname "$0")
+PROJECT_DIR=$SCRIPT_DIR/../../
+cd $PROJECT_DIR
+
 coverage run \
-    --data-file=/workspace/.coverage.unit_tests \
-    --source=/workspace/packages/nemo-evaluator/src/ \
+    --data-file=.coverage.unit_tests \
+    --source=src/ \
     -m pytest \
     -o log_cli=true \
     -o log_cli_level=INFO \
     -m "not pleasefixme" \
-    /workspace/packages/nemo-evaluator/tests/unit_tests
-coverage combine -q 
+   tests/unit_tests
+coverage combine -q

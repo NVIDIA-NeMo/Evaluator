@@ -1,0 +1,85 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# How to use: copy this file locally into a directory, say `examples`, and run
+# Run this config with `nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct`.
+# For every benchmark to evaluate, it will create a Slurm job with a dedicated
+# deployed model (vLLM, in this case) and the evaluation script.
+
+# Commented out values show an example of how to override the config values from this file.
+
+# You can also override the values in this config from CLI using dot notation.
+# For example, `nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct execution.walltime="1:00:00"`
+# To see the full config, run `nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct --dry-run`
+
+# specify default configs for execution and deployment
+defaults:
+  # Note that depending on the configuration of the slurm cluster, you might need different
+  # setup. Please run with `--dry-run` to see the full configuration available, or look under
+  # `configs/` folder of the installed package
+  - execution: slurm/default
+  - deployment: vllm
+  - _self_
+
+# override default execution arguments
+execution:
+  account: ???
+  output_dir: /some/filesystem/path/available/to/slurm/node
+  walltime: 02:00:00
+  # partition: backfill
+  # New execution-level configuration options (preferred over deployment.env_vars)
+  env_vars:
+    deployment: {} # Environment variables for deployment container
+    evaluation: {} # Environment variables for evaluation container
+  mounts:
+    deployment: {} # Mount points for deployment container (source:target format)
+    evaluation: {} # Mount points for evaluation container (source:target format)
+    mount_home: true # Whether to mount home directory (default: true)
+
+# override default deployment arguments
+deployment:
+  checkpoint_path: /some/filesystem/path/available/to/slurm/node
+  served_model_name: meta-llama/Llama-3.1-8B-Instruct
+  tensor_parallel_size: 1
+  data_parallel_size: 8
+  # extra_args: "--max-model-len 32768"
+
+# specify the benchmarks to evaluate
+evaluation:
+  overrides: # these overrides apply to all tasks; for task-specific overrides, use the `overrides` field
+    config.params.request_timeout: 3600
+    target.api_endpoint.adapter_config.use_reasoning: false # if true, strips reasoning tokens
+    target.api_endpoint.adapter_config.use_system_prompt: true
+    target.api_endpoint.adapter_config.custom_system_prompt: >-
+      "Think step by step."
+  tasks:
+    - name: ifeval # use the default benchmark configuration
+    - name: gpqa_diamond
+      overrides: # task-specific overrides
+        config.params.temperature: 0.6
+        config.params.top_p: 0.95
+        config.params.max_new_tokens: 8192
+        config.params.parallelism: 32
+      env_vars:
+        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
+    - name: mbpp
+      overrides: # task-specific overrides
+        config.params.temperature: 0.2
+        config.params.top_p: 0.95
+        config.params.max_new_tokens: 2048
+        config.params.extra.n_samples: 5 # sample 5 predictions per prompt
+        config.params.parallelism: 32
+        target.api_endpoint.adapter_config.custom_system_prompt: >-
+          "You must only provide the code implementation"

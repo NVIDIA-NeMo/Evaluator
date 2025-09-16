@@ -1,0 +1,88 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This example shows how to use local executor with an EXISTING endpoint.
+# How to use: copy this file locally into a directory, say `examples`, and run
+# Run this config with `nemo-evaluator-launcher run --config-dir examples --config-name local_aa_llama-4 --dry-run`
+# in order to see it generated.
+
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: ??? # Set the output directory for your experiments; each `nemo-evaluator-launcher run` invocation will create a subdirectory
+
+  # OPTIONAL: export results to mlflow; comment out if not needed
+  # install mlflow with `.[mlflow]` extra
+  auto_export:
+    destinations: ["mlflow"]
+    configs:
+      mlflow:
+        tracking_uri: http://10.64.49.50:5003
+        experiment_name: seminalysis_${target.api_endpoint.model_id}
+        description: "Evaluation for semianalysis"
+        tags:
+          framework: "vLLM"
+          precision: "bf16"
+          tags: "test"
+
+target:
+  api_endpoint:
+    model_id: meta-llama/Llama-4-Scout-17B-16E
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    api_key_name: NGC_API_KEY
+
+evaluation:
+  overrides: # these overrides apply to all tasks; for task-specific overrides, use the `overrides` field
+    config.params.parallelism: 4 # Number of concurrent requests per each benchmark
+    config.params.request_timeout: 3600
+    config.params.max_retries: 10
+    config.params.max_new_tokens: 4096
+    config.params.temperature: 0
+    config.params.top_p: 1e-5
+    # Uncomment below overrides if using Llama Nemotron family of models - turns off thinking
+    # target.api_endpoint.adapter_config.use_system_prompt: true
+    # target.api_endpoint.adapter_config.custom_system_prompt: >-
+    #   "detailed thinking off"
+  tasks:
+    - name: livecodebench_0724_0125
+      overrides:
+        config.params.extra.num_process_evaluate: 10 # number of processes for the code evaluation phase; memory heavy
+
+    - name: aa_scicode
+
+    - name: AA_math_test_500
+      env_vars:
+        JUDGE_API_KEY: JUDGE_API_KEY_AA_MATH_TEST_500 # An api key for https://build.nvidia.com/meta/llama-3_3-70b-instruct
+
+    - name: AA_AIME_2024
+      env_vars:
+        JUDGE_API_KEY: JUDGE_API_KEY_FOR_AA_AIME_2024 # An api key for https://build.nvidia.com/meta/llama-3_3-70b-instruct
+
+    - name: mmlu_pro_llama_4
+
+    - name: hle
+      env_vars:
+        HF_TOKEN: HF_TOKEN_FOR_HLE # Click request access for HLE: https://huggingface.co/datasets/cais/hle
+        OPENAI_CLIENT_ID: OPENAI_CLIENT_ID_FOR_HLE # the key must have access to gpt-4o
+        OPENAI_CLIENT_SECRET: OPENAI_CLIENT_SECRET_FOR_HLE # the key must have access to gpt-4o
+
+    - name: gpqa_diamond_aa_v2_llama_4
+      env_vars:
+        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
+
+    - name: mmlu_llama_4

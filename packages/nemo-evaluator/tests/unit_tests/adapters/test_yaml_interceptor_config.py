@@ -20,13 +20,14 @@ from pathlib import Path
 
 import pytest
 import yaml
+from pydantic import BaseModel, Field, ValidationError
+
 from nemo_evaluator.adapters.decorators import register_for_adapter
 from nemo_evaluator.adapters.types import (
     AdapterGlobalContext,
     AdapterRequest,
     RequestInterceptor,
 )
-from pydantic import BaseModel, Field, ValidationError
 
 from .testing_utils import get_request_interceptors, reset_registry
 

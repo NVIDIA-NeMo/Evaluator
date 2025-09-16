@@ -1,0 +1,103 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# How to use: copy this file locally into a directory, say `examples`, and run
+# Run this config with `nemo-evaluator-launcher run --config-dir examples --config-name local_auto_export_llama_3_1_8b_instruct`.
+# After successful evaluation, results will be automatically exported to W&B, MLFlow, and GSheets, depending on
+# which exporters you have enabled.
+
+# specify default configs for execution and deployment
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: llama_3_1_8b_instruct_results
+
+  # Export results to W&B, MLFlow, GSheets and S3 automatically
+  auto_export:
+    destinations: ["wandb", "mlflow", "gsheets", "s3"]
+    configs:
+      s3:
+        # default: posts whole run directory to s3
+        bucket: "nemo-evaluator-launcher-test"
+        endpoint_url: "https://pdx.s8k.io"
+        region_name: "us-east-1"
+        access_key_id: ${oc.env:AWS_ACCESS_KEY_ID}
+        secret_access_key: ${oc.env:NV_CSS_S3_TOKEN}
+
+      wandb:
+        # Special wandb parameters
+        entity: "nvidia"
+        project: "nv-eval-test"
+        name: "llama-3.1-8b-instruct_experiment-v1.12"
+        group: "eval-formatting"
+        job_type: "evaluation"
+        tags: ["llama-3.1", "experiment-v1.12", "latest"]
+        description: "Evaluation of Llama 3.1 with prompts formatting"
+        log_metrics: ["accuracy", "pass@1"] # pattern to filter metrics
+        log_mode: "multi_task" # or `per_task` per run
+
+        # EVERYTHING ELSE goes into wandb.config()
+        extra_metadata:
+          checkpoint_dir: "path/to/checkpoint"
+          experiment_phase: "baseline"
+          hardware: "H100"
+          custom_param: "any_value"
+
+        # we support automatically logging eval artifacts to wandb
+        # disable by setting log_artifacts: false
+
+      mlflow:
+        # MLflow specific parameters
+        tracking_uri: "http://mlflow.nvidia.com:5000"
+        experiment_name: "AIME-2024_v2"
+        description: "Evaluation of Llama 3.1 with prompts formatting"
+        log_metrics: ["accuracy", "pass@1"] # pattern to filter metrics
+
+        # MLflow tags (key-value pairs) examples
+        tags:
+          framework: "vLLM"
+          precision: "bf16"
+
+        # EVERYTHING ELSE goes into mlflow.log_param()
+        extra_metadata:
+          checkpoint_dir: "path/to/checkpoint"
+          experiment_phase: "baseline"
+          hardware: "H100"
+          custom_param: "any_value"
+
+        # we support automatically logging eval artifacts to mlflow
+        # disable by setting log_artifacts: false
+
+      gsheets:
+        spreadsheet_name: "LLM Evaluation Results Random"
+        log_metrics: ["accuracy", "pass@1"] # pattern to filter metrics
+        log_mode: "multi_task" # or `per_task` per sheet
+
+target:
+  api_endpoint:
+    model_id: meta/llama-3.1-8b-instruct
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    api_key_name: API_KEY # API Key with access to build.nvidia.com
+
+deployment:
+  checkpoint_path: /path/to/checkpoint
+  served_model_name: meta-llama/Llama-3.1-8B-Instruct # or any other model name
+
+evaluation:
+  tasks:
+    - name: simple_evals.gpqa_diamond
