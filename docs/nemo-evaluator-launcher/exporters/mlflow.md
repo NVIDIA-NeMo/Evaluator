@@ -1,4 +1,4 @@
-### MLflow Exporter (`mlflow`)
+# MLflow Exporter (`mlflow`)
 
 Export metrics and artifacts to MLflow for experiment tracking and run management. Inherits all core features from the [Local](local.md) exporter (artifact staging, multi-run, auto-export), and adds MLflow tracking.
 

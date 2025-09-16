@@ -4,7 +4,7 @@ NIM (NVIDIA Inference Microservices) provides optimized inference microservices 
 
 ## Configuration
 
-See the complete configuration structure in the [NIM Config File](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/src/nemo_evaluator_launcher/configs/deployment/nim.yaml?ref_type=heads).
+See the complete configuration structure in the [NIM Config File](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/deployment/nim.yaml).
 
 ## Key Settings
 
@@ -17,10 +17,10 @@ Tips:
 - You do  not need to adjust params like tensor/data parallelism NIM should pick the best set up based on your hardware.
 
 Examples:
-- [Lepton NIM Example](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml?ref_type=heads) - NIM deployment on Lepton platform
+- [Lepton NIM Example](../../../../packages/nemo-evaluator-launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml) - NIM deployment on Lepton platform
 
 ## Reference
 
 - [NIM Documentation](https://docs.nvidia.com/nim/)
 - [NIM Deployment Guide](https://docs.nvidia.com/nim/large-language-models/latest/deployment-guide.html#)
-- [NIM Config File](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/src/nemo_evaluator_launcher/configs/deployment/nim.yaml?ref_type=heads)
+- [NIM Config File](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/deployment/nim.yaml)

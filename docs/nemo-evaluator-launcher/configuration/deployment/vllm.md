@@ -4,7 +4,7 @@ vLLM is a fast and easy-to-use library for LLM inference and serving.
 
 ## Configuration
 
-See the complete configuration structure in the [vLLM Config File](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/src/nemo_evaluator_launcher/configs/deployment/vllm.yaml?ref_type=heads).
+See the complete configuration structure in the [vLLM Config File](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/deployment/vllm.yaml).
 
 ## Key Settings
 
@@ -27,13 +27,13 @@ Tips:
   - If `checkpoint_path` is provided instead, use that local path
 
 Examples:
-- [Lepton vLLM Example](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/examples/lepton_vllm_llama_3_1_8b_instruct.yaml?ref_type=heads) - vLLM deployment on Lepton platform
-- [Slurm vLLM Example](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/examples/slurm_llama_3_1_8b_instruct.yaml?ref_type=heads) - vLLM deployment on Slurm cluster
-- [Slurm vLLM HF Example](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/examples/slurm_llama_3_1_8b_instruct_hf.yaml?ref_type=heads) - vLLM with Hugging Face model
-- [Notebook API Example](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/examples/notebooks/nv-eval-api.ipynb?ref_type=heads) - Python API usage with vLLM
+- [Lepton vLLM Example](../../../../packages/nemo-evaluator-launcher/examples/lepton_vllm_llama_3_1_8b_instruct.yaml) - vLLM deployment on Lepton platform
+- [Slurm vLLM Example](../../../../packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml) - vLLM deployment on Slurm cluster
+- [Slurm vLLM HF Example](../../../../packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct_hf.yaml) - vLLM with Hugging Face model
+- [Notebook API Example](../../../../packages/nemo-evaluator-launcher/examples/notebooks/nv-eval-api.ipynb) - Python API usage with vLLM
 
 
 ## Reference
 
 - [vLLM Documentation](https://docs.vllm.ai/en/latest/)
-- [vLLM Config File](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/src/nemo_evaluator_launcher/configs/deployment/vllm.yaml?ref_type=heads)
+- [vLLM Config File](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/deployment/vllm.yaml)

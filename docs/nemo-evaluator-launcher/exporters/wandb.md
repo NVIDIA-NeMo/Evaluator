@@ -1,4 +1,4 @@
-### Weights & Biases Exporter (`wandb`)
+# Weights & Biases Exporter (`wandb`)
 
 Export metrics and artifacts to W&B for experiment tracking. Inherits all core features from the [Local](local.md) exporter (artifact staging, multi-run, auto-export), and adds W&B run management.
 

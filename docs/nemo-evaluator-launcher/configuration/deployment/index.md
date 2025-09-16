@@ -25,4 +25,4 @@ deployment:
 
 ## Configuration Files
 
-See all available deployment configurations: [Deployment Configs](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/tree/main/nemo_evaluator_launcher/src/nemo_evaluator_launcher/configs/deployment?ref_type=heads)
+See all available deployment configurations: [Deployment Configs](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/deployment)

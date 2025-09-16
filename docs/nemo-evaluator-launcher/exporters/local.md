@@ -1,4 +1,4 @@
-### Local Exporter (`local`)
+# Local Exporter (`local`)
 
 Exports artifacts and optional summaries to the local filesystem (and stages from remote jobs when needed). Also supports consolidated JSON/CSV summaries.
 
