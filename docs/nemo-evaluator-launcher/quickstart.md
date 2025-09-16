@@ -13,6 +13,8 @@ pip install nemo-evaluator-launcher
 
 NeMo Evaluator sends OpenAI-compatible requests to your model during evaluation. You must have an endpoint that accepts either chat or completions API calls and can handle the evaluation load.
 
+**Configuration Examples**: Explore ready-to-use configuration files in [`packages/nemo-evaluator-launcher/examples/`](./packages/nemo-evaluator-launcher/examples/) for local, Lepton, and Slurm deployments with various model hosting options (vLLM, NIM, hosted endpoints).
+
 Hosted endpoints (fastest):
 
 - [build.nvidia.com](https://build.nvidia.com) (ready-to-use hosted models):
