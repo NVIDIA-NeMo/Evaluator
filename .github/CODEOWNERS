@@ -3,10 +3,12 @@ docker/ @nvidia-nemo/automation
 pyproject.toml @nvidia-nemo/automation
 uv.lock @nvidia-nemo/automation
 
-/docs/ @nvidia-nemo/eval_maintainers @nvidia-nemo/eval_team
-tutorials @nvidia-nemo/eval_maintainers
-README.md @nvidia-nemo/eval_maintainers
-CONTRIBUTING.md @nvidia-nemo/eval_maintainers
+# Docs: eng team is an extended owner
+docs/ @nvidia-nemo/eval_maintainers @nvidia-nemo/eval_team
+tutorials/ @nvidia-nemo/eval_maintainers @nvidia-nemo/eval_team
+README.md @nvidia-nemo/eval_maintainers @nvidia-nemo/eval_team
+CONTRIBUTING.md @nvidia-nemo/eval_maintainers @nvidia-nemo/eval_team
+
 LICENSE @nvidia-nemo/eval_maintainers
 
 # Per-package ownership: eng teams extension
