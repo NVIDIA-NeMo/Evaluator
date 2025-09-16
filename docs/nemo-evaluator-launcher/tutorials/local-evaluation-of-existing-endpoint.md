@@ -103,12 +103,12 @@ nemo-evaluator-launcher run --config-dir configs --config-name local_endpoint \
   -o target.api_endpoint.api_key=API_KEY
 ```
 
-After the launch you can monitor lively logs, status and after finishing display results and optionally export them in a unified nemo evaluator launcher way. After the failure e.g. connection error you can resume the job without the data loss [resuming] See [Exporters Documentation](../../exporters/overview.md) for available export options.
+After the launch you can monitor lively logs, status and after finishing display results and optionally export them in a unified nemo evaluator launcher way. After the failure e.g. connection error you can resume the job without the data loss [resuming] See [Exporters Documentation](nemo-evaluator-launcher/exporters/overview.md) for available export options.
 
 ## Next Steps
 
-- **[Advanced Task Configuration](../../configuration/evaluation/index.md)**: Customize evaluation parameters and prompts
-- **[Different Executors](../../executors/overview.md)**: Try Slurm or Lepton for different environments
+- **[Advanced Task Configuration](nemo-evaluator-launcher/configuration/evaluation/index.md)**: Customize evaluation parameters and prompts
+- **[Different Executors](nemo-evaluator-launcher/executors/overview.md)**: Try Slurm or Lepton for different environments
 - **[Deploy Your Own Models](deployments/deployment_frameworks_guide.md)**: Use vLLM, SGLang, or NIM
 - **[Test Endpoint Compatibility](deployments/testing-endpoint-oai-compatibility.md)**: Verify your endpoint with curl requests
-- **[Export Results](../../exporters/overview.md)**: Send results to W&B, MLFlow, or other platforms 
+- **[Export Results](nemo-evaluator-launcher/exporters/overview.md)**: Send results to W&B, MLFlow, or other platforms 

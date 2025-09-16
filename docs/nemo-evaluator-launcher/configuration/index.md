@@ -9,7 +9,7 @@ The configuration is organized into these predefined sections:
 - **`defaults`** - Specifies default execution and deployment methods
 - **`execution`** - Additional setup for execution configuration ([Execution Overview](execution/index.md) | [Local](execution/local.md), [Slurm](execution/slurm.md), [Lepton](execution/lepton.md))
 - **`deployment`** - Additional setup for deployment configuration ([Deployment Overview](deployment/index.md) | [vLLM](deployment/vllm.md), [SGLang](deployment/sglang.md), [NIM](deployment/nim.md), [None](deployment/none.md))
-- **`target`** - API endpoint configuration ([Target Overview](target/index.md))
+- **`target`** - API endpoint configuration ([Target Overview](nemo-evaluator-launcher/configuration/target/index.md))
 - **`evaluation`** - Evaluation tasks from nemo-evaluator-launcher with additional setup like overriding default values ([Evaluation Overview](evaluation/index.md))
 
 ```yaml
@@ -68,7 +68,7 @@ Defines how to deploy and serve your model. See [Deployment Overview](deployment
 - **[None](deployment/none.md)**: Use existing endpoint (no deployment)
 
 # 4. Target
-Defines the model endpoint to evaluate. See [Target Overview](target/index.md) for details.
+Defines the model endpoint to evaluate. See [Target Overview](nemo-evaluator-launcher/configuration/target/index.md) for details.
 
 Used when `deployment: none` is specified. For evaluations with deployment, this is filled automatically.
 
