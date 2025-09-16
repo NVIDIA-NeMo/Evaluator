@@ -117,4 +117,6 @@ suppress_warnings = [
 linkcheck_ignore = [
     ".*github\\.com.*",
     ".*githubusercontent\\.com.*",
+    ".*catalog\\.ngc\\.nvidia\\.com.*",  # Temporary: NGC catalog links that may not be publicly accessible
+    ".*platform\\.openai\\.com.*",  # To diagnose: OpenAI platform links that may require authentication
 ]
