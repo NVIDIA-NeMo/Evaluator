@@ -13,6 +13,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_evaluator.core.entrypoint import run_eval
+"""Logging module for nemo-evaluator.
 
-__all__ = ["run_eval"]
+This module provides centralized logging configuration, utilities, and request context
+management for the nemo-evaluator package.
+"""
+
+from .config import BaseLoggingParams
+from .context import (
+    bind_request_id,
+    get_bound_logger,
+    get_current_request_id,
+    request_context,
+)
+from .utils import configure_logging, get_logger
+
+__all__ = [
+    "BaseLoggingParams",
+    "get_logger",
+    "configure_logging",
+    "bind_request_id",
+    "request_context",
+    "get_current_request_id",
+    "get_bound_logger",
+]

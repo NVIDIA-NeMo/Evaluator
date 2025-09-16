@@ -19,11 +19,11 @@ import subprocess
 import tempfile
 from typing import Any, TypeVar
 
-import structlog
 import yaml
 
-logger = structlog.get_logger(__name__)
-structlog.stdlib.recreate_defaults()
+from nemo_evaluator.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class MisconfigurationError(Exception):

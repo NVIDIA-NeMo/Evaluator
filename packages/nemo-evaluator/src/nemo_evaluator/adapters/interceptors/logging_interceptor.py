@@ -15,10 +15,10 @@
 
 """Logging interceptors with registry support."""
 
+import threading
 from typing import Optional, final
 
-import structlog
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from nemo_evaluator.adapters.decorators import register_for_adapter
 from nemo_evaluator.adapters.types import (
@@ -28,8 +28,7 @@ from nemo_evaluator.adapters.types import (
     RequestInterceptor,
     ResponseInterceptor,
 )
-
-logger = structlog.get_logger(__name__)
+from nemo_evaluator.logging import BaseLoggingParams, get_logger
 
 
 def _get_safe_headers(headers: dict[str, str]) -> dict[str, str]:
@@ -49,22 +48,24 @@ def _get_safe_headers(headers: dict[str, str]) -> dict[str, str]:
 class RequestLoggingInterceptor(RequestInterceptor):
     """Logs incoming requests."""
 
-    class Params(BaseModel):
+    class Params(BaseLoggingParams):
         """Configuration parameters for request logging."""
 
-        log_level: str = Field(
-            default="INFO", description="Log level for request logging"
-        )
         log_request_body: bool = Field(
             default=True, description="Whether to log request body"
         )
         log_request_headers: bool = Field(
             default=True, description="Whether to log request headers"
         )
+        max_requests: Optional[int] = Field(
+            default=2,
+            description="Maximum number of requests to log (None for unlimited)",
+        )
 
-    log_level: str
     log_request_body: bool
     log_request_headers: bool
+    max_requests: Optional[int]
+    _request_count: int
 
     def __init__(self, params: Params):
         """
@@ -73,15 +74,43 @@ class RequestLoggingInterceptor(RequestInterceptor):
         Args:
             params: Configuration parameters
         """
-        self.log_level = params.log_level
         self.log_request_body = params.log_request_body
         self.log_request_headers = params.log_request_headers
+        self.max_requests = params.max_requests
+        self._lock = threading.Lock()
+        self._request_count = 0
+
+        # Get logger for this interceptor with interceptor context
+        self.logger = get_logger(self.__class__.__name__)
+
+        self.logger.info(
+            "Request logging interceptor initialized",
+            log_request_body=self.log_request_body,
+            log_request_headers=self.log_request_headers,
+        )
 
     @final
     def intercept_request(
         self, ar: AdapterRequest, context: AdapterGlobalContext
     ) -> AdapterRequest:
         """Log the incoming request."""
+
+        # NOTE(agronskiy): to reduce lock contention, stop locking after the
+        # count is reached.
+        with self._lock:
+            if (
+                self.max_requests is not None
+                and self._request_count >= self.max_requests
+            ):
+                self.logger.debug(
+                    "Request logging limit reached, skipping log",
+                    max_requests=self.max_requests,
+                    current_count=self._request_count,
+                )
+                return ar
+
+            self._request_count += 1
+
         log_data = {
             "method": ar.r.method,
             "url": ar.r.url,
@@ -97,28 +126,23 @@ class RequestLoggingInterceptor(RequestInterceptor):
             except Exception:
                 log_data["body"] = ar.r.get_data().decode("utf-8", errors="ignore")
 
-        getattr(logger, self.log_level.lower())(
-            "Incoming request",
-            **log_data,
-        )
+        # Use standard logging (request_id is automatically included from context)
+        self.logger.info("Incoming request", **log_data)
 
         return ar
 
 
 @register_for_adapter(
     name="response_logging",
-    description="Logs outgoing responses",
+    description="Logs responses",
 )
 @final
 class ResponseLoggingInterceptor(ResponseInterceptor):
-    """Logs outgoing responses."""
+    """Logs responses."""
 
-    class Params(BaseModel):
+    class Params(BaseLoggingParams):
         """Configuration parameters for response logging."""
 
-        log_level: str = Field(
-            default="INFO", description="Log level for response logging"
-        )
         log_response_body: bool = Field(
             default=True, description="Whether to log response body"
         )
@@ -130,7 +154,6 @@ class ResponseLoggingInterceptor(ResponseInterceptor):
             description="Maximum number of responses to log (None for unlimited)",
         )
 
-    log_level: str
     log_response_body: bool
     log_response_headers: bool
     max_responses: Optional[int]
@@ -143,11 +166,21 @@ class ResponseLoggingInterceptor(ResponseInterceptor):
         Args:
             params: Configuration parameters
         """
-        self.log_level = params.log_level
         self.log_response_body = params.log_response_body
         self.log_response_headers = params.log_response_headers
         self.max_responses = params.max_responses
         self._response_count = 0
+        self._lock = threading.Lock()
+
+        # Get logger for this interceptor with interceptor context
+        self.logger = get_logger(self.__class__.__name__)
+
+        self.logger.info(
+            "Response logging interceptor initialized",
+            log_response_body=self.log_response_body,
+            log_response_headers=self.log_response_headers,
+            max_responses=self.max_responses,
+        )
 
     @final
     def intercept_response(
@@ -155,13 +188,21 @@ class ResponseLoggingInterceptor(ResponseInterceptor):
     ) -> AdapterResponse:
         """Log the outgoing response."""
         # Check if we should log this response based on max_responses limit
-        if (
-            self.max_responses is not None
-            and self._response_count >= self.max_responses
-        ):
-            return resp
+        # NOTE(agronskiy): to reduce lock contention, stop locking after the
+        # count is reached.
+        with self._lock:
+            if (
+                self.max_responses is not None
+                and self._response_count >= self.max_responses
+            ):
+                self.logger.debug(
+                    "Response logging limit reached, skipping log",
+                    max_responses=self.max_responses,
+                    current_count=self._response_count,
+                )
+                return resp
 
-        self._response_count += 1
+            self._response_count += 1
 
         log_data = {
             "status_code": resp.r.status_code,
@@ -177,9 +218,7 @@ class ResponseLoggingInterceptor(ResponseInterceptor):
             except Exception:
                 log_data["body"] = resp.r.text
 
-        getattr(logger, self.log_level.lower())(
-            "Outgoing response",
-            **log_data,
-        )
+        # Use standard logging (request_id is automatically included from context)
+        self.logger.info("Outgoing response", **log_data)
 
         return resp

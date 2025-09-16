@@ -15,6 +15,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 
 import flask
 import requests
@@ -31,6 +32,11 @@ class AdapterGlobalContext:
     output_dir: str  # Directory for output files
     url: str  # The upstream API URL to forward requests to
 
+    @property
+    def metrics_path(self) -> Path:
+        """Path to the eval_factory_metrics.json file."""
+        return Path(self.output_dir) / "eval_factory_metrics.json"
+
 
 @dataclass
 class AdapterRequestContext:
@@ -41,6 +47,7 @@ class AdapterRequestContext:
 
     cache_hit: bool = False  # Whether there was a cache hit
     cache_key: str | None = None  # Cache key
+    request_id: str | None = None  # Request ID for identification
 
 
 @dataclass
@@ -53,6 +60,7 @@ class AdapterRequest:
 class AdapterResponse:
     r: requests.Response
     rctx: AdapterRequestContext
+    latency_ms: float | None = None
 
 
 class RequestInterceptor(ABC):
