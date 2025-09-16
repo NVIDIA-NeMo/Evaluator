@@ -11,7 +11,7 @@ See common concepts and commands in the [executors overview](overview.md).
 
 ## Tutorials
 
-### {doc}`Local Evaluation of Existing Endpoint <../tutorials/local_evaluation_of_existing_endpoint>`
+### [Local Evaluation of Existing Endpoint](../tutorials/local-evaluation-of-existing-endpoint.md)
 Learn how to evaluate an existing API endpoint using the Local executor. This tutorial covers:
 - Choosing model
 - Choosing tasks
