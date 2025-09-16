@@ -38,7 +38,6 @@ extensions = [
     "sphinx.ext.doctest",  # Allows testing in docstrings
     "sphinx.ext.napoleon",  # For google style docstrings
     "sphinx_copybutton",  # For copy button in code blocks
-    "sphinx_design",  # For enhanced markdown features including mermaid
 ]
 
 templates_path = ["_templates"]
