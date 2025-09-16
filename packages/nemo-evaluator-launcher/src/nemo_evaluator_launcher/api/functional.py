@@ -18,10 +18,10 @@
 This module provides the main functional entry points for running evaluations, querying job status, and listing available tasks. These functions are intended to be used by CLI commands and external integrations.
 """
 
-import yaml
 from pathlib import Path
 from typing import Any, List, Optional, Union
 
+import yaml
 from omegaconf import DictConfig, OmegaConf
 
 from nemo_evaluator_launcher.api.types import RunConfig
@@ -464,7 +464,7 @@ def export_results(
                             invocation_id=single_id.split(".")[0],
                             job_id=single_id,
                             timestamp=0.0,
-                            executor="local", # 
+                            executor="local",  #
                             data={"output_dir": str(Path.cwd().parent)},
                             config=cfg_yaml,
                         )
