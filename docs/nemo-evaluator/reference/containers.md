@@ -115,7 +115,7 @@ docker pull nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.07.3
 | `tokenized_requests` | `False` |
 
 # 5. BigCode Evaluation Harness Container
-**NGC Catalog**: [bigcode-evaluation-harness](https://catalog.ngc.nvidia.com/orgs/nvidia/eval-factory/containers/bigcode-evaluation-harness)
+**NGC Catalog**: [bigcode-evaluation-harness](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bigcode-evaluation-harness)
 
 **Description**: Container specialized for evaluating code generation models and programming language models.
 
@@ -228,7 +228,7 @@ docker pull nvcr.io/nvidia/eval-factory/tooltalk:25.07.1
 | `limit_samples` | `None` |
 
 # 9. BFCL Container
-**NGC Catalog**: [bfcl](https://catalog.ngc.nvidia.com/teams/eval-factory/containers/bfcl)
+**NGC Catalog**: [bfcl](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl)
 
 **Description**: Container for Berkeley Function-Calling Leaderboard evaluation harness.
 
@@ -308,7 +308,7 @@ docker pull nvcr.io/nvidia/eval-factory/safety-harness:25.07.3
 | `judge` | `{'url': None, 'model_id': None, 'api_key': None, 'parallelism': 32, 'request_timeout': 60, 'max_retries': 16}` |
 
 # 12. VLMEvalKit Container
-**NGC Catalog**: [vlmevalkit](https://catalog.ngc.nvidia.com/orgs/nvidia/eval-factory/containers/vlmevalkit)
+**NGC Catalog**: [vlmevalkit](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit)
 
 **Description**: Container for Vision-Language Model evaluation toolkit.
 
@@ -336,7 +336,7 @@ docker pull nvcr.io/nvidia/eval-factory/vlmevalkit:25.07.1
 | `request_timeout` | `60` |
 
 # 13. IFBench Container
-**NGC Catalog**: [ifbench](https://catalog.ngc.nvidia.com/orgs/nvidia/eval-factory/containers/ifbench)
+**NGC Catalog**: [ifbench](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/ifbench)
 
 **Description**: Container for challenging benchmark for precise instruction following.
 
@@ -364,7 +364,7 @@ docker pull nvcr.io/nvidia/eval-factory/ifbench:25.08
 | `max_retries` | `5` |
 
 # 14. MMATH Container
-**NGC Catalog**: [mmath](https://catalog.ngc.nvidia.com/orgs/nvidia/eval-factory/containers/mmath)
+**NGC Catalog**: [mmath](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mmath)
 
 **Description**: Container for challenging benchmark for precise instruction following.
 
@@ -394,7 +394,7 @@ docker pull nvcr.io/nvidia/eval-factory/mmath:25.08
 | `language`    | `en` |
 
 # 15. HLE Container
-**NGC Catalog**: [hle](https://catalog.ngc.nvidia.com/orgs/nvidia/eval-factory/containers/hle)
+**NGC Catalog**: [hle](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/hle)
 
 **Description**: Container for Humanity's Last Exam (HLE), a multi-modal benchmark at the frontier of human knowledge, designed to be the final closed-ended academic benchmark of its kind with broad subject coverage. Humanity's Last Exam consists of 2,500 questions across dozens of subjects, including mathematics, humanities, and the natural sciences. HLE is developed globally by subject-matter experts and consists of multiple-choice and short-answer questions suitable for automated grading.
 
@@ -416,7 +416,7 @@ docker pull nvcr.io/nvidia/eval-factory/hle:25.08
 | `request_timeout`    | `600.0` |
 
 # 16. LiveCodeBench Container
-**NGC Catalog**: [LiveCodeBench](https://catalog.ngc.nvidia.com/orgs/nvidia/eval-factory/containers/livecodebench)
+**NGC Catalog**: [LiveCodeBench](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/livecodebench)
 
 **Description**: LiveCodeBench provides holistic and contamination-free evaluation of coding capabilities of LLMs. Particularly, LiveCodeBench continuously collects new problems over time from contests across three competition platforms -- LeetCode, AtCoder, and CodeForces. Next, LiveCodeBench also focuses on a broader range of code-related capabilities, such as self-repair, code execution, and test output prediction, beyond just code generation. Currently, LiveCodeBench hosts four hundred high-quality coding problems that were published between May 2023 and March 2024. Original source code at [LiveCodeBench GH](https://github.com/LiveCodeBench/LiveCodeBench).
 
@@ -446,7 +446,7 @@ docker pull nvcr.io/nvidia/eval-factory/livecodebench:25.08
 
 
 # 17. SciCode Container
-**NGC Catalog**: [SciCode](https://catalog.ngc.nvidia.com/orgs/nvidia/eval-factory/containers/scicode)
+**NGC Catalog**: [SciCode](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/scicode)
 
 **Description**: SciCode is a challenging benchmark designed to evaluate the capabilities of language models (LMs) in generating code for solving realistic scientific research problems. It has a diverse coverage of 16 subdomains from 6 domains: Physics, Math, Material Science, Biology, and Chemistry. Original code available at [SciCode repo](https://github.com/scicode-bench/SciCode).
 
