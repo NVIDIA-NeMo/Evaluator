@@ -22,6 +22,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 import requests
+
 from nemo_evaluator.adapters.interceptors.response_stats_interceptor import (
     ResponseStatsInterceptor,
 )

@@ -16,6 +16,7 @@
 """Tests for AdapterConfig class."""
 
 import pytest
+
 from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
 
 
