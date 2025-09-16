@@ -91,7 +91,7 @@ nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_
 ## Configuration Sources
 
 All configuration files are available in the nemo-evaluator-launcher repository:
-- [Main Config Directory](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/tree/main/nemo_evaluator_launcher/src/nemo_evaluator_launcher/configs?ref_type=heads)
+- [Main Config Directory](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs)
 
 ## Troubleshooting
 

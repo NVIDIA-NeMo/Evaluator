@@ -67,7 +67,7 @@ curl -X POST <YOUR_ENDPOINT_URL> \
 
 # VLM chat endpoint testing
 
-We support the **OpenAI Images API** ([docs](https://platform.openai.com/docs/guides/images-vision#giving-a-model-images-as-input)) and **vLLM** ([docs](https://docs.vllm.ai/en/stable/features/multimodal_inputs.html#id2)) with the image provided as **base64-encoded image**, and the following content types:
+We support the **OpenAI Images API** ([docs](https://platform.openai.com/docs/guides/images-vision)) and **vLLM** ([docs](https://docs.vllm.ai/en/stable/features/multimodal_inputs.html)) with the image provided as **base64-encoded image**, and the following content types:
 
 - `image_url`
 - `text`
@@ -105,7 +105,7 @@ curl -X POST <YOUR_ENDPOINT_URL>  \
 
 # Function calling testing
 
-We support OpenAI-compatible function calling ([docs](https://platform.openai.com/docs/guides/function-calling?api-mode=responses)):
+We support OpenAI-compatible function calling ([docs](https://platform.openai.com/docs/guides/function-calling)):
 
 Function calling request:
 

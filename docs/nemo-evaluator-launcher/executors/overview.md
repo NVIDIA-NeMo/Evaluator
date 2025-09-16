@@ -126,9 +126,9 @@ output_dir/
 - **Local**: `run.sh` (per task) and `run_all.sh` (all tasks) for manual execution
 - **Slurm**: `sbatch_*.sh` scripts with HPC job metadata
 
-For detailed output structure and executor-specific details, see the [nemo-evaluator-launcher documentation](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/tree/main/nemo_evaluator_launcher).
+For detailed output structure and executor-specific details, see the [nemo-evaluator-launcher documentation](../../../../packages/nemo-evaluator-launcher).
 
 ## Configuration Files
 
-See all available execution configurations: [Execution Configs](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/tree/main/nemo_evaluator_launcher/src/nemo_evaluator_launcher/configs/execution?ref_type=heads)
+See all available execution configurations: [Execution Configs](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/execution)
 
