@@ -625,11 +625,15 @@ def _generate_auto_export_section(
     s += "EVAL_EXIT_CODE=$?\n"
     s += "if [ $EVAL_EXIT_CODE -eq 0 ]; then\n"
     s += "    echo 'Evaluation completed successfully. Starting auto-export...'\n"
-    s += "    set +e\n" # per exporter failure allowed
-    s += "    set +x\n" 
-    s += "    cd \"$TASK_DIR/artifacts\"\n"
-    auto_export_cfg = OmegaConf.to_container(cfg.execution.get("auto_export", {}), resolve=True)
-    yaml_str = yaml.safe_dump({"execution": {"auto_export": auto_export_cfg}}, sort_keys=False)
+    s += "    set +e\n"  # per exporter failure allowed
+    s += "    set +x\n"
+    s += '    cd "$TASK_DIR/artifacts"\n'
+    auto_export_cfg = OmegaConf.to_container(
+        cfg.execution.get("auto_export", {}), resolve=True
+    )
+    yaml_str = yaml.safe_dump(
+        {"execution": {"auto_export": auto_export_cfg}}, sort_keys=False
+    )
     s += "    cat > export_config.yml << 'EOF'\n"
     s += yaml_str
     s += "EOF\n"
