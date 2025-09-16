@@ -86,8 +86,8 @@ evaluation:
 Use evaluation configuration when you want to:
 
 - **Change Default Sampling Parameters**: Adjust temperature, top_p, max_new_tokens for different tasks
-- **Set Custom System Prompts**: Add task-specific instructions or reasoning prompts (see [System Message Interceptor](../../nemo-evaluator/reference/configuring_interceptors.md#5-system-message-interceptor))
-- **Add/Remove/Rename Special Parameters**: Modify payload structure (e.g., add `"reasoning": "thinking"`) (see [Payload Modifier Interceptor](../../nemo-evaluator/reference/configuring_interceptors.md#6-payload-modifier-interceptor))
+- **Set Custom System Prompts**: Add task-specific instructions or reasoning prompts (see [System Message Interceptor](../../nemo-evaluator/reference/configuring-interceptors.md#5-system-message-interceptor))
+- **Add/Remove/Rename Special Parameters**: Modify payload structure (e.g., add `"reasoning": "thinking"`) (see [Payload Modifier Interceptor](../../nemo-evaluator/reference/configuring-interceptors.md#6-payload-modifier-interceptor))
 - **Change Default Task Values**: Override benchmark-specific default configurations
 - **Parametrize the Judge**: Configure evaluation judge models and their parameters for scoring (see [Parameter Overrides](../../nemo-evaluator/reference/cli.md#parameter-overrides))
 - **Debug and Test**: e.g. Launch with limited samples
@@ -109,5 +109,5 @@ This preserves formatting and allows for complex multi-line configurations.
 
 - **Parameter Overrides**: [nemo-evaluator CLI Reference](../../nemo-evaluator/reference/cli.md#parameter-overrides) - Complete guide to available parameters and override syntax
 - **Troubleshooting**: See [Configuration Troubleshooting](../index.md#troubleshooting) for debug mode, testing, and common issues
-- **Interceptors Documentation**: [Configuring Interceptors](../../nemo-evaluator/reference/configuring_interceptors.md) - How to modify request/response payloads and add custom parameters
+- **Interceptors Documentation**: [Configuring Interceptors](../../nemo-evaluator/reference/configuring-interceptors.md) - How to modify request/response payloads and add custom parameters
 - **Task Configuration**: [nemo-evaluator Reference](../../nemo-evaluator/reference/) - Complete nemo-evaluator documentation
