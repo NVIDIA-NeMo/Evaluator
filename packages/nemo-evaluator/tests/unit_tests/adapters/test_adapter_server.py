@@ -497,8 +497,6 @@ def test_adapter_server_process_uses_original_url_in_args():
         ) as mock_context,
         patch("nemo_evaluator.adapters.server.wait_for_server", return_value=True),
     ):
-        # Mock the Process to capture the arguments
-
         adapter_process = AdapterServerProcess(evaluation)
 
         with adapter_process:

@@ -20,10 +20,7 @@ from typing import Type
 
 from pydantic import BaseModel
 
-from nemo_evaluator.adapters.registry import (
-    InterceptorMetadata,
-    InterceptorRegistry,
-)
+from nemo_evaluator.adapters.registry import InterceptorMetadata, InterceptorRegistry
 from nemo_evaluator.adapters.types import (
     PostEvalHook,
     RequestInterceptor,

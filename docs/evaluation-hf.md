@@ -31,6 +31,7 @@ The `hf_model_id_path` can refer to either a local checkpoint path or a Hugging 
 
 > **Note:** Ensure that `ray` is specified as the `serving_backend`, as Automodel checkpoint evaluation is supported only with the Ray backend. To speed up evaluation using multiple instances, increase the `num_replicas` parameter.
 For additional guidance, refer to ["Use Ray Serve for Multi-Instance Evaluations"](evaluation-with-ray.md).
+
 ## Evaluate Automodel Checkpoints
 
 This section outlines the steps to evaluate Automodel checkpoints using Python commands. This method is quick and easy, making it ideal for interactive evaluations.

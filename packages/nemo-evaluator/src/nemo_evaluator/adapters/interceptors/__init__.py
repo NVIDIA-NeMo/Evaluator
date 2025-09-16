@@ -20,16 +20,18 @@ from .payload_modifier_interceptor import PayloadParamsModifierInterceptor
 from .progress_tracking_interceptor import ProgressTrackingInterceptor
 from .raise_client_error_interceptor import RaiseClientErrorInterceptor
 from .reasoning_interceptor import ResponseReasoningInterceptor
+from .response_stats_interceptor import ResponseStatsInterceptor
 from .system_message_interceptor import SystemMessageInterceptor
 
 __all__ = [
     "CachingInterceptor",
     "EndpointInterceptor",
     "PayloadParamsModifierInterceptor",
+    "ProgressTrackingInterceptor",
     "RaiseClientErrorInterceptor",
     "RequestLoggingInterceptor",
     "ResponseLoggingInterceptor",
     "ResponseReasoningInterceptor",
+    "ResponseStatsInterceptor",
     "SystemMessageInterceptor",
-    "ProgressTrackingInterceptor",
 ]

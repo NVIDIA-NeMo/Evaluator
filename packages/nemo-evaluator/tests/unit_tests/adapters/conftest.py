@@ -17,9 +17,7 @@ from typing import Any, Generator
 
 import pytest
 
-from tests.unit_tests.adapters.testing_utils import (
-    create_fake_endpoint_process,
-)
+from tests.unit_tests.adapters.testing_utils import create_fake_endpoint_process
 
 
 @pytest.fixture
