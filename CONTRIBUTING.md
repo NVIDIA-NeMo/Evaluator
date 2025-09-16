@@ -13,24 +13,28 @@ We welcome contributions to the NeMo Evaluator projects! This document provides 
 ### Setup
 
 1. **Install UV**
+
    ```bash
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
 
 2. **Clone the repository**
+
    ```bash
    git clone <repository-url>
    ```
 
 3. **Set up development environment**
-   
+
    For example for **nemo-evaluator-launcher**:
+
    ```bash
    cd nemo_evaluator_launcher
    uv sync --all-extras
    ```
 
 4. **Install pre-commit hooks**
+
    ```bash
    uv run pre-commit install
    ```
@@ -113,6 +117,7 @@ uv run pytest --disable-network
 1. **Create an issue**: For significant changes, create an issue first to discuss the approach
 2. **Branch naming**: Use descriptive branch names (e.g., `feature/add-new-exporter`, `fix/memory-leak`)
 3. **Code quality**: Ensure all checks pass:
+
    ```bash
    uv run pre-commit run --all-files
    uv run pytest
@@ -136,7 +141,6 @@ uv run pytest --disable-network
 6. **Submit PR**: Create a pull request from your fork's branch to the main repository
 7. **Address feedback**: Respond to review comments
 8. **Squash commits**: Clean up commit history before merging
-
 
 ## Adding New Features
 
@@ -162,7 +166,6 @@ To add a new result exporter:
 5. Write tests with mocked external services
 6. Update documentation
 
-
 ### CLI Commands
 
 To add new CLI commands:
@@ -184,6 +187,7 @@ To add new CLI commands:
 ```
 
 **Types:**
+
 - `feat`: New features
 - `fix`: Bug fixes
 - `docs`: Documentation changes
@@ -193,6 +197,7 @@ To add new CLI commands:
 - `chore`: Maintenance tasks
 
 **Examples:**
+
 ```bash
 feat(exporters): add S3 exporter support
 feat(tasks): add new MMLU evaluation task
@@ -201,7 +206,6 @@ fix(evaluation): resolve memory leak in batch processing
 docs: update installation instructions
 test(executors): add tests for Slurm executor
 ```
-
 
 ### Getting Help
 
@@ -218,20 +222,23 @@ test(executors): add tests for Slurm executor
 
 ## Signing Your Work
 
-* We require that all contributors "sign-off" on their commits. This certifies that the contribution is your original work, or you have rights to submit it under the same license, or a compatible license.
+- We require that all contributors "sign-off" on their commits. This certifies that the contribution is your original work, or you have rights to submit it under the same license, or a compatible license.
 
-  * Any contribution which contains commits that are not Signed-Off will not be accepted.
+  - Any contribution which contains commits that are not Signed-Off will not be accepted.
 
-* To sign off on a commit you simply use the `--signoff` (or `-s`) option when committing your changes:
+- To sign off on a commit you simply use the `--signoff` (or `-s`) option when committing your changes:
+
   ```bash
-  $ git commit -s -m "Add cool feature."
+  git commit -s -m "Add cool feature."
   ```
+
   This will append the following to your commit message:
+
   ```
   Signed-off-by: Your Name <your@email.com>
   ```
 
-* Full text of the DCO:
+- Full text of the DCO:
 
   ```
     Developer Certificate of Origin
@@ -258,3 +265,37 @@ test(executors): add tests for Slurm executor
 
     (d) I understand and agree that this project and the contribution are public and that a record of the contribution (including all personal information I submit with it, including my sign-off) is maintained indefinitely and may be redistributed consistent with this project or the open source license(s) involved.
   ```
+
+## 🚀 Running GitHub CI
+
+There are two ways to trigger CI tests on your pull request:
+
+### Automatic CI Triggering
+
+If your GitHub user is configured to use [signed commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification), CI tests will run automatically when you push commits to your pull request.
+
+> **Note**: Signed commits are different from signing-off on commits (which uses the `-s` flag mentioned in the [Signing Your Work](#signing-your-work) section).
+
+### Manual CI Triggering
+
+If you don't have signed commits set up, you can still trigger CI tests manually by commenting on your pull request:
+
+```
+/ok to test <commit-SHA>
+```
+
+For example:
+
+```
+/ok to test a1b2c3d4e5f6
+```
+
+**Important**: You'll need to add this comment for each new commit you push to ensure CI tests run on the latest changes.
+
+#### Finding Your Commit SHA
+
+You can find the commit SHA in several ways:
+
+- View your pull request's commit history on GitHub
+- Run `git log --oneline -1` in your local repository
+- Check the commit details in your Git client
