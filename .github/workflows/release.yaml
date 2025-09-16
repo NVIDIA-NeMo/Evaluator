@@ -43,7 +43,7 @@ permissions:
 
 jobs:
   release:
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@agronskiy/chore/ci/release-to-tag-with-package
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.61.0
     with:
       release-ref: ${{ inputs.release-ref || github.sha }}
       python-package: nemo_evaluator
@@ -68,7 +68,7 @@ jobs:
       BOT_KEY: ${{ secrets.BOT_KEY }}
 
   release-launcher:
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@agronskiy/chore/ci/release-to-tag-with-package
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.61.0
     with:
       release-ref: ${{ inputs.release-ref || github.sha }}
       python-package: nemo_evaluator_launcher
