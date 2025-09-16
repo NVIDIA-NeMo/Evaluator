@@ -72,7 +72,7 @@ To use out-of-the-box build.nvidia.com APIs, you need an API key:
 Run a small evaluation on your local machine. The launcher automatically pulls the correct container and executes the benchmark. The list of benchmarks is directly configured in the yaml file.
 
 ```bash
-nemo-evaluator-launcher run --config-dir examples --config-name nvidia-nemotron-nano-9b-v2 --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
+nemo-evaluator-launcher run --config-dir examples --config-name local_nvidia_nemotron_nano_9b_v2 --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
 ```
 
 Upon running this command, you will be able to see a job_id, which can then be used for tracking the job.
