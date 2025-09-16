@@ -105,6 +105,9 @@ html_extra_path = ["project.json", "versions1.json"]
 nitpicky = False
 suppress_warnings = [
     "ref.python",  # Suppress ambiguous cross-reference warnings
+    "toc.not_included",  # Suppress toctree warnings for myst-based docs
+    "myst.header",  # Suppress header level warnings
+    "myst.directive_unknown",  # Suppress unknown directive warnings
 ]
 
 # Github links are now getting rate limited from the Github Actions
