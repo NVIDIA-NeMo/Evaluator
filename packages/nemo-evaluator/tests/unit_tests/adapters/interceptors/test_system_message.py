@@ -16,6 +16,7 @@
 import json
 
 from flask import Request
+
 from nemo_evaluator.adapters.interceptors.system_message_interceptor import (
     SystemMessageInterceptor,
 )

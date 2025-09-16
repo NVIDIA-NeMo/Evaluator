@@ -1,0 +1,161 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# How to use: copy this file locally into a directory, say `examples`, and run
+# Run this config with `nemo-evaluator-launcher run --config-dir examples --config-name lepton_nim_llama_3_1_8b_instruct`.
+
+# This example shows how to use Lepton as an execution platform with NIM containers.
+# Execution flow:
+# 1. Deploy the specified NIM container to a Lepton endpoint
+# 2. Wait for the endpoint to be ready
+# 3. Run evaluation tasks as parallel Lepton jobs that connect to the deployed NIM
+# 4. Clean up the endpoint when done (on failure) or remind you to clean up (on success)
+
+# Prerequisites:
+# 1. Install leptonai: pip install leptonai
+# 2. Configure your Lepton credentials: lep login
+# 3. Have NGC API key configured for NIM access
+# 4. Have HuggingFace token configured for model access
+
+defaults:
+  - execution: lepton/default
+  - deployment: nim
+  - _self_
+
+# =============================================================================
+# EXECUTION CONFIGURATION
+# =============================================================================
+execution:
+  output_dir: lepton_nim_llama_3_1_8b_results
+
+  # Environment variables passed to evaluation containers
+  env_var_names:
+    - HF_TOKEN
+    - API_KEY
+
+  # Optional: Override evaluation task execution settings
+  # evaluation_tasks:
+  #   resource_shape: "gpu.small"  # Override default CPU with GPU for tasks
+  #   timeout: 7200  # Override default 3600s timeout to 2 hours
+
+  lepton_platform:
+    tasks:
+      env_vars:
+        # For HuggingFace model access
+        HF_TOKEN:
+          value_from:
+            secret_name_ref: "HUGGING_FACE_HUB_TOKEN_read"
+        API_KEY: "UNIQUE_ENDPOINT_TOKEN"
+
+      # Node group for evaluation tasks
+      node_group: "nv-int-multiteam-nebius-h200-01"
+      # Storage mounts for task execution
+      mounts:
+        # Main workspace mount
+        - from: "node-nfs:lepton-shared-fs"
+          path: "/EU-Model-Builder-SAs/user_homes/<username>/nv-eval-workspace"
+          mount_path: "/workspace"
+
+      # Image pull secrets for task containers
+      image_pull_secrets:
+        - "lepton-nvidia-ansjindal"
+# =============================================================================
+# DEPLOYMENT CONFIGURATION (NIM-specific)
+# =============================================================================
+deployment:
+  # NIM container configuration
+  image: nvcr.io/nim/meta/llama-3.1-8b-instruct:1.8.6
+  served_model_name: meta/llama-3.1-8b-instruct
+
+  # Lepton-specific deployment settings
+  lepton_config:
+    endpoint_name: nim-llama-3-1-8b-eval # Base name for Lepton endpoint
+    resource_shape: gpu.1xh200
+    min_replicas: 1
+    max_replicas: 3
+
+    api_tokens:
+      - value: "UNIQUE_ENDPOINT_TOKEN"
+
+    # Auto-scaling settings
+    auto_scaler:
+      scale_down:
+        no_traffic_timeout: 3600
+        scale_from_zero: false
+      target_gpu_utilization_percentage: 0
+      target_throughput:
+        qpm: 2.5
+        paths: []
+        methods: []
+
+    # Environment variables for NIM container
+    envs:
+      # Direct values
+      OMPI_ALLOW_RUN_AS_ROOT: "1"
+      OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: "1"
+
+      # Secret references (recommended for sensitive data)
+      NGC_API_KEY:
+        value_from:
+          secret_name_ref: "NGC_API_KEY"
+
+      # Environment variable from user's environment (alternative approach)
+      HF_TOKEN:
+        value_from:
+          secret_name_ref: "HUGGING_FACE_HUB_TOKEN_read"
+
+      # Additional deployment-derived environment variables are auto-populated:
+      # - SERVED_MODEL_NAME: meta/llama-3.1-8b-instruct (from deployment.served_model_name)
+      # - NIM_MODEL_NAME: meta/llama-3.1-8b-instruct (from deployment.served_model_name for NIM)
+      # - MODEL_PORT: 8000 (from deployment.port)
+
+    # Storage mounts for model caching
+    mounts:
+      enabled: true
+      cache_path: "/EU-Model-Builder-SAs/user_homes/<username>/llama-3.1-8b-instruct"
+      mount_path: "/opt/nim/.cache"
+
+# =============================================================================
+# EVALUATION CONFIGURATION
+# =============================================================================
+evaluation:
+  # Optional: Global evaluation overrides
+  # overrides:
+  #   config.params.request_timeout: 3600
+  #   target.api_endpoint.adapter_config.use_reasoning: false
+  #   target.api_endpoint.adapter_config.use_system_prompt: true
+  #   target.api_endpoint.adapter_config.custom_system_prompt: '"Think step by step."'
+
+  # Evaluation tasks to run
+  tasks:
+    # - name: ifeval
+
+    - name: gpqa_diamond
+    - name: math_test_500_nemo
+    - name: gpqa_diamond_nemo
+      # overrides:
+      #   config.params.temperature: 0.6
+      #   config.params.top_p: 0.95
+      #   config.params.max_new_tokens: 8192
+      #   config.params.parallelism: 32
+
+    # - name: mbpp
+    #   overrides:
+    #     config.params.temperature: 0.2
+    #     config.params.top_p: 0.95
+    #     config.params.max_new_tokens: 2048
+    #     config.params.extra.n_samples: 5
+    #     config.params.parallelism: 32
+    #     target.api_endpoint.adapter_config.custom_system_prompt: '"You must only provide the code implementation" '

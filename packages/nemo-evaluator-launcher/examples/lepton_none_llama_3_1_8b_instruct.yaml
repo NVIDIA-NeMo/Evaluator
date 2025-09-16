@@ -1,0 +1,108 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# How to use: copy this file locally into a directory, say `examples`, and run
+# Run this config with `nemo-evaluator-launcher run --config-dir examples --config-name lepton_none_llama_3_1_8b_instruct`.
+
+# This example shows how to use Lepton as an execution platform with an EXISTING endpoint.
+# Execution flow:
+# 1. Use the pre-deployed endpoint (no deployment step)
+# 2. Run evaluation tasks as parallel Lepton jobs that connect to the existing endpoint
+# 3. No cleanup needed for the endpoint (since we didn't create it)
+
+# Prerequisites:
+# 1. Install leptonai: pip install leptonai
+# 2. Configure your Lepton credentials: lep login
+# 3. Have an existing endpoint already deployed (provided in target.api_endpoint.url)
+
+defaults:
+  - execution: lepton/default
+  - deployment: none
+  - _self_
+
+# =============================================================================
+# EXECUTION CONFIGURATION
+# =============================================================================
+execution:
+  output_dir: lepton_none_llama_3_1_8b_results
+
+  # Optional: Override evaluation task execution settings
+  # evaluation_tasks:
+  #   resource_shape: "gpu.small"  # Override default CPU with GPU for tasks
+  #   timeout: 7200  # Override default 3600s timeout to 2 hours
+
+  lepton_platform:
+    tasks:
+      env_vars:
+        # For HuggingFace model access
+        HF_TOKEN:
+          value_from:
+            secret_name_ref: "HUGGING_FACE_HUB_TOKEN_read"
+
+        # For endpoint authentication (direct value from environment)
+        API_KEY: "UNIQUE_ENDPOINT_TOKEN"
+      # Node group for evaluation tasks
+      node_group: "nv-int-multiteam-nebius-h200-01"
+      # Storage mounts for task execution
+      mounts:
+        # Main workspace mount
+        - from: "node-nfs:lepton-shared-fs"
+          path: "/EU-Model-Builder-SAs/user_homes/<username>/nv-eval-none-workspace"
+          mount_path: "/workspace"
+
+      # Image pull secrets for task containers
+      image_pull_secrets:
+        - "lepton-nvidia"
+
+# =============================================================================
+# TARGET ENDPOINT CONFIGURATION (for deployment: none)
+# =============================================================================
+target:
+  api_endpoint:
+    model_id: meta/llama-3.1-8b-instruct
+    url: https://xfre17eu-nim-gpqa-d-2-f110e0.xenon.lepton.run/v1/chat/completions
+    api_key_name: API_KEY # API Key with access to build.nvidia.com
+    # Note: For Lepton endpoints, authentication is typically handled via the platform
+    # If needed, you can add api_key_name for external endpoints
+
+# =============================================================================
+# EVALUATION CONFIGURATION
+# =============================================================================
+evaluation:
+  # overrides:  # these overrides apply to all tasks; for task-specific overrides, use the `overrides` field
+  #   config.params.request_timeout: 3600
+  #   target.api_endpoint.adapter_config.use_reasoning: false  # if true, strips reasoning tokens
+  #   target.api_endpoint.adapter_config.use_system_prompt: true
+  #   target.api_endpoint.adapter_config.custom_system_prompt: >-
+  #     "Think step by step."
+
+  tasks:
+    # - name: ifeval
+
+    - name: gpqa_diamond
+      # overrides:
+      #   config.params.temperature: 0.6
+      #   config.params.top_p: 0.95
+      #   config.params.max_new_tokens: 8192
+      #   config.params.parallelism: 32
+
+    # - name: mbpp
+    #   overrides:
+    #     config.params.temperature: 0.2
+    #     config.params.top_p: 0.95
+    #     config.params.max_new_tokens: 2048
+    #     config.params.extra.n_samples: 5
+    #     config.params.parallelism: 32
+    #     target.api_endpoint.adapter_config.custom_system_prompt: '"You must only provide the code implementation" '
