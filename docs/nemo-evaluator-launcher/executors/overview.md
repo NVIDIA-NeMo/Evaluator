@@ -53,7 +53,7 @@ nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_
 nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct
 ```
 
-**Job Management:**
+## Job Management
 ```bash
 # List runs and monitor
 nemo-evaluator-launcher ls runs
