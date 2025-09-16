@@ -18,20 +18,17 @@
 import json
 
 from nemo_evaluator.adapters.caching.diskcaching import Cache
-from nemo_evaluator.adapters.reports.post_eval_report_hook import (
-    PostEvalReportHook,
-    ReportType,
-)
+from nemo_evaluator.adapters.reports.post_eval_report_hook import PostEvalReportHook
 from nemo_evaluator.adapters.types import AdapterGlobalContext
 
 
 def test_post_eval_report_hook_creation():
     """Test that PostEvalReportHook can be created with minimal configuration."""
-    params = PostEvalReportHook.Params(report_types=[ReportType.HTML, ReportType.JSON])
+    params = PostEvalReportHook.Params(report_types=["html", "json"])
 
     hook = PostEvalReportHook(params)
-    assert ReportType.HTML in hook.report_types
-    assert ReportType.JSON in hook.report_types
+    assert "html" in hook.report_types
+    assert "json" in hook.report_types
 
 
 def test_post_eval_report_hook_post_eval_hook(tmpdir):
@@ -66,7 +63,7 @@ def test_post_eval_report_hook_post_eval_hook(tmpdir):
     headers_cache[cache_key] = test_headers
 
     # Create hook
-    params = PostEvalReportHook.Params(report_types=[ReportType.HTML, ReportType.JSON])
+    params = PostEvalReportHook.Params(report_types=["html", "json"])
     hook = PostEvalReportHook(params)
 
     # Create context
@@ -99,6 +96,67 @@ def test_post_eval_report_hook_post_eval_hook(tmpdir):
     assert json_content[0]["endpoint"] == "http://test.example.com/api"
 
 
+def test_post_eval_report_hook_html_report_size_limit(tmpdir):
+    """Test that PostEvalReportHook respects html_report_size parameter."""
+    # Create test cache data with multiple entries
+    cache_dir = tmpdir / "cache"
+    cache_dir.mkdir()
+    responses_dir = cache_dir / "responses"
+    requests_dir = cache_dir / "requests"
+    headers_dir = cache_dir / "headers"
+
+    responses_dir.mkdir()
+    requests_dir.mkdir()
+    headers_dir.mkdir()
+
+    # Create cache instances and add test data
+    responses_cache = Cache(directory=str(responses_dir))
+    requests_cache = Cache(directory=str(requests_dir))
+    headers_cache = Cache(directory=str(headers_dir))
+
+    # Add multiple test entries
+    for i in range(5):
+        cache_key = f"test_key_{i}"
+        test_request = {
+            "model": f"test-model-{i}",
+            "messages": [{"role": "user", "content": f"test {i}"}],
+        }
+        test_response = {"choices": [{"message": {"content": f"test response {i}"}}]}
+        test_headers = {"content-type": "application/json"}
+
+        requests_cache[cache_key] = test_request
+        responses_cache[cache_key] = json.dumps(test_response).encode("utf-8")
+        headers_cache[cache_key] = test_headers
+
+    # Create hook with html_report_size limit
+    params = PostEvalReportHook.Params(report_types=["html"], html_report_size=3)
+    hook = PostEvalReportHook(params)
+
+    # Create context
+    context = AdapterGlobalContext(
+        output_dir=str(tmpdir), url="http://test.example.com/api"
+    )
+
+    # Run the hook
+    hook.post_eval_hook(context)
+
+    # Verify HTML report was created
+    html_file = tmpdir / "report.html"
+    assert html_file.exists()
+
+    # Check HTML content - should only contain 3 entries due to html_report_size limit
+    html_content = html_file.read()
+
+    # Should contain entries for test_key_0, test_key_1, test_key_2 (sorted by cache key)
+    assert "test-model-0" in html_content
+    assert "test-model-1" in html_content
+    assert "test-model-2" in html_content
+
+    # Should NOT contain entries for test_key_3 and test_key_4
+    assert "test-model-3" not in html_content
+    assert "test-model-4" not in html_content
+
+
 def test_post_eval_report_hook_html_only(tmpdir):
     """Test that PostEvalReportHook generates only HTML when configured."""
     # Create test cache data
@@ -126,7 +184,7 @@ def test_post_eval_report_hook_html_only(tmpdir):
     responses_cache[cache_key] = json.dumps(test_response).encode("utf-8")
 
     # Create hook with HTML only
-    params = PostEvalReportHook.Params(report_types=[ReportType.HTML])
+    params = PostEvalReportHook.Params(report_types=["html"])
     hook = PostEvalReportHook(params)
 
     # Create context
@@ -173,7 +231,7 @@ def test_post_eval_report_hook_json_only(tmpdir):
     responses_cache[cache_key] = json.dumps(test_response).encode("utf-8")
 
     # Create hook with JSON only
-    params = PostEvalReportHook.Params(report_types=[ReportType.JSON])
+    params = PostEvalReportHook.Params(report_types=["json"])
     hook = PostEvalReportHook(params)
 
     # Create context
@@ -201,7 +259,7 @@ def test_post_eval_report_hook_json_only(tmpdir):
 def test_post_eval_report_hook_no_cache_data(tmpdir):
     """Test that PostEvalReportHook handles empty cache gracefully."""
     # Create hook
-    params = PostEvalReportHook.Params(report_types=[ReportType.HTML, ReportType.JSON])
+    params = PostEvalReportHook.Params(report_types=["html", "json"])
     hook = PostEvalReportHook(params)
 
     # Create context

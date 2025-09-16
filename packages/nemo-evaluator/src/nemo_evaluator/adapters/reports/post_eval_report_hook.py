@@ -16,26 +16,17 @@
 """Post-evaluation report generation hook."""
 
 import json
-from enum import Enum
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Literal
 
 from jinja2 import Environment, StrictUndefined, select_autoescape
 from pydantic import BaseModel, Field
 
 from nemo_evaluator.adapters.caching.diskcaching import Cache
 from nemo_evaluator.adapters.decorators import register_for_adapter
-from nemo_evaluator.adapters.reports.templates.simple_template import (
-    SIMPLE_TEMPLATE,
-)
+from nemo_evaluator.adapters.reports.templates.simple_template import SIMPLE_TEMPLATE
 from nemo_evaluator.adapters.types import AdapterGlobalContext, PostEvalHook
-
-
-class ReportType(str, Enum):
-    """Supported report types."""
-
-    HTML = "html"
-    JSON = "json"
+from nemo_evaluator.logging import get_logger
 
 
 @register_for_adapter(
@@ -48,10 +39,17 @@ class PostEvalReportHook(PostEvalHook):
     class Params(BaseModel):
         """Configuration parameters for post-evaluation report generation."""
 
-        report_types: List[ReportType] = Field(
-            default=[ReportType.HTML],
+        report_types: List[Literal["html", "json"]] = Field(
+            default=["html"],
             description="List of report types to generate (html, json)",
         )
+        html_report_size: int | None = Field(
+            default=None,
+            description="Maximum number of request-response pairs to include in HTML report. If None, includes all available pairs.",
+        )
+
+        class Config:
+            use_enum_values = True
 
     def __init__(self, params: Params):
         """
@@ -60,10 +58,19 @@ class PostEvalReportHook(PostEvalHook):
         Args:
             params: Configuration parameters
         """
+        # Validate report types
+        for report_type in params.report_types:
+            if report_type not in ["html", "json"]:
+                raise ValueError(
+                    f"Invalid report type: {report_type}. Must be one of: ['html', 'json']"
+                )
+
+        # Store report types as strings for internal use
         self.report_types = params.report_types
+        self.html_report_size = params.html_report_size
 
         # Initialize Jinja2 environment for HTML reports
-        if ReportType.HTML in self.report_types:
+        if "html" in self.report_types:
             self.env = Environment(
                 undefined=StrictUndefined,
                 autoescape=select_autoescape(["html", "xml"]),
@@ -125,7 +132,7 @@ class PostEvalReportHook(PostEvalHook):
         # Initialize caches with directory paths
         responses_cache = Cache(directory=str(responses_dir))
         requests_cache = Cache(directory=str(requests_dir))
-        Cache(directory=str(headers_dir))
+        _ = Cache(directory=str(headers_dir))
 
         # Get all cache keys from both caches
         response_keys = [key for key in responses_cache.iterkeys()]
@@ -133,6 +140,15 @@ class PostEvalReportHook(PostEvalHook):
 
         # Use request keys as primary since they should match response keys
         cache_keys = request_keys if request_keys else response_keys
+
+        get_logger().debug(
+            "Cache keys collected for the report",
+            types=self.report_types,
+            request_keys_len=len(request_keys),
+            response_keys_len=len(response_keys),
+            cache_keys_len=len(cache_keys),
+            dirs=(responses_dir, requests_dir),
+        )
 
         if not cache_keys:
             return []
@@ -167,6 +183,19 @@ class PostEvalReportHook(PostEvalHook):
             except Exception:
                 continue
 
+        get_logger().debug("Entries collected", num_entries=len(entries))
+
+        # Apply html_report_size limit if specified
+        if self.html_report_size is not None and len(entries) > self.html_report_size:
+            # Sort by cache key to ensure consistent ordering
+            entries.sort(key=lambda x: x["cache_key"])
+            entries = entries[: self.html_report_size]
+            get_logger().info(
+                "Limited HTML report entries",
+                total_available=len(cache_keys),
+                limited_to=self.html_report_size,
+            )
+
         return entries
 
     def _generate_html_report(self, entries: list, output_path: Path) -> None:
@@ -195,9 +224,11 @@ class PostEvalReportHook(PostEvalHook):
 
         # Generate reports based on configured types
         for report_type in self.report_types:
-            if report_type == ReportType.HTML:
+            if report_type == "html":
                 output_path = Path(context.output_dir) / "report.html"
                 self._generate_html_report(entries, output_path)
-            elif report_type == ReportType.JSON:
+                get_logger().info("Generated HTML report", path=output_path)
+            elif report_type == "json":
                 output_path = Path(context.output_dir) / "report.json"
                 self._generate_json_report(entries, output_path)
+                get_logger().info("Generated JSON report", path=output_path)

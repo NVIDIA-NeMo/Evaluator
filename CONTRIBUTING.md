@@ -1,156 +1,224 @@
-# Contributing To NeMo Eval
+# Contributing to NeMo Evaluator & NeMo Evaluator Launcher
 
-Thanks for your interest in contributing to NeMo Eval!
+We welcome contributions to the NeMo Evaluator projects! This document provides guidelines for contributing to both the `nemo-evaluator` core framework and `nemo-evaluator-launcher` orchestration tool.
 
-## 🛠️ Setting Up Your Environment
+## Development Environment
 
-### Local workstation
+### Prerequisites
 
-NeMo Eval uses [uv](https://docs.astral.sh/uv/) for package management.
+- Python 3.10 or higher (up to 3.13)
+- [UV](https://github.com/astral-sh/uv) for fast Python package management
+- Git for version control
 
-You can configure uv with the following commands:
+### Setup
 
-```bash
-uv sync --only-group build  # Installs build dependencies required by TransformerEngine
-uv sync
-```
-
-On a machine with CUDA, you can additionally sync TransformerEngine:
-
-```bash
-uv sync --extra te
-```
-
-### Alternative: Development Container
-
-For containerized development, use our Dockerfile for building your own container:
-
-```bash
-docker build \
-    -f docker/Dockerfile.ci \
-    -t nemo-eval \
-    --build-arg INFERENCE_FRAMEWORK=inframework \
-    .
-```
-
-Start your container:
-
-```bash
-docker run --rm -it -w /workdir -v $(pwd):/workdir \
-  --entrypoint bash \
-  --gpus all \
-  nemo-eval
-```
-
-## 📦 Dependencies management
-
-We use [uv](https://docs.astral.sh/uv/) for managing dependencies. For reproducible builds, our project tracks the generated `uv.lock` file in the repository.  
-On a weekly basis, the CI attemps an update of the lock file to test against upstream dependencies.
-
-New required dependencies can be added by `uv add $DEPENDENCY`.
-
-New optional dependencies can be added by `uv add --optional --extra $EXTRA $DEPENDENCY`.
-
-`EXTRA` refers to the subgroup of extra-dependencies to which you're adding the new dependency.
-Example: For adding a TE specific dependency, run `uv add --optional --extra te $DEPENDENCY`.
-
-Alternatively, the `pyproject.toml` file can also be modified directly.
-
-Adding a new dependency will update UV's lock-file. Please check this into your branch:
-
-```bash
-git add uv.lock pyproject.toml
-git commit -m "build: Adding dependencies"
-git push
-```
-
-## Development Setup
-
-1. Fork or clone the repository
-2. Create a feature branch
-3. Install development dependencies [using uv](#local-workstation) or [using pip](https://github.com/NVIDIA-NeMo/Eval/blob/main/README.md#using-pip) if outside of [docker](#alternative-development-container)
-4. Run pre-commit hooks:
+1. **Install UV**
 
    ```bash
-   pre-commit install
+   curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
 
-5. Make your changes and add tests
-6. Submit a pull request
+2. **Clone the repository**
 
-### Testing
+   ```bash
+   git clone <repository-url>
+   ```
 
-#### Running Tests
+3. **Set up development environment**
+
+   For example for **nemo-evaluator-launcher**:
+
+   ```bash
+   cd nemo_evaluator_launcher
+   uv sync --all-extras
+   ```
+
+4. **Install pre-commit hooks**
+
+   ```bash
+   uv run pre-commit install
+   ```
+
+### Development Tools
+
+The project uses the following tools for development:
+
+- **UV**: Fast Python package installer and resolver
+- **Ruff**: Code formatting and linting
+- **MyPy**: Static type checking
+- **pytest**: Testing framework
+- **pre-commit**: Git hooks for code quality
+
+## Code Style and Quality
+
+### Formatting
+
+We use Ruff for consistent code formatting and linting:
+
+```bash
+# Format code manually
+uv run ruff format .
+uv run ruff check . --fix
+
+# Or run pre-commit to format and check everything
+uv run pre-commit run --all-files
+```
+
+### Type Checking
+
+We enforce strict type checking with MyPy. All public functions and methods must have type annotations.
+
+### Code Quality Guidelines
+
+1. **Follow Python conventions**: Use PEP 8 style guidelines (enforced by the linting tool above)
+2. **Type annotations**: All public APIs must have complete type annotations
+3. **Documentation**: Add docstrings for all public classes and methods
+4. **Error handling**: Use explicit error handling with appropriate exception types
+5. **Testing**: Write tests for new functionality and bug fixes
+6. **Logging**: Use structured logging via `structlog` instead of print statements
+
+## Testing
+
+### Running Tests
 
 ```bash
 # Run all tests
-pytest tests
+uv run pytest
 
-# Run unit tests only
-pytest tests/unit_tests/
+# Run tests with coverage
+uv run pytest --cov=src --cov-report=term-missing
 
-# Run functional tests only
-pytest tests/functional_tests/
+# Run specific test file
+uv run pytest tests/test_specific_module.py
 
-# Run with coverage
-pytest --cov=nemo_eval tests
+# Run tests without network access (default)
+uv run pytest --disable-network
 ```
 
-#### Test Scripts
+### Test Structure
+
+- Unit tests are located in the `tests/` directory
+- Test files should follow the naming pattern `test_*.py`
+- Use descriptive test names that explain what is being tested
+- Group related tests in classes when appropriate
+- Mock external dependencies and network calls
+
+### Writing Tests
+
+1. **Test coverage**: Aim for high test coverage, especially for core functionality
+2. **Test isolation**: Each test should be independent and not rely on others
+3. **Clear assertions**: Use descriptive assertion messages
+4. **Mock external dependencies**: Use `pytest` fixtures and mocking for external services
+
+## Pull Request Guidelines
+
+### Before Submitting
+
+1. **Create an issue**: For significant changes, create an issue first to discuss the approach
+2. **Branch naming**: Use descriptive branch names (e.g., `feature/add-new-exporter`, `fix/memory-leak`)
+3. **Code quality**: Ensure all checks pass:
+
+   ```bash
+   uv run pre-commit run --all-files
+   uv run pytest
+   ```
+
+### PR Requirements
+
+1. **Clear description**: Explain what the PR does and why
+2. **Tests**: Include tests for new functionality or bug fixes
+3. **Documentation**: Update documentation if needed
+4. **Type safety**: Ensure MyPy passes without errors
+5. **Backwards compatibility**: Avoid breaking changes unless necessary
+
+### PR Process
+
+1. **Fork the repository**: External contributors should fork the repository to their GitHub account
+2. **Clone and branch**: Clone your fork and create a feature branch from `main`
+3. **Make changes**: Implement your changes with tests
+4. **Test thoroughly**: Run the full test suite
+5. **Push to fork**: Push your branch to your forked repository
+6. **Submit PR**: Create a pull request from your fork's branch to the main repository
+7. **Address feedback**: Respond to review comments
+8. **Squash commits**: Clean up commit history before merging
+
+## Adding New Features
+
+### Executors (NeMo Evaluator Launcher)
+
+To add a new execution backend:
+
+1. Create a new module in `src/nemo_evaluator_launcher/executors/`
+2. Implement the `BaseExecutor` interface
+3. Register the executor in the registry
+4. Add configuration schema
+5. Write comprehensive tests
+6. Update documentation
+
+### Exporters (NeMo Evaluator Launcher)
+
+To add a new result exporter:
+
+1. Create a new module in `src/nemo_evaluator_launcher/exporters/`
+2. Implement the `BaseExporter` interface
+3. Register the exporter in the registry
+4. Add optional dependencies to `pyproject.toml`
+5. Write tests with mocked external services
+6. Update documentation
+
+### CLI Commands
+
+To add new CLI commands:
+
+1. Create a new module in the appropriate `cli/` directory
+2. Use `simple-parsing` for argument parsing
+3. Follow existing patterns for error handling and logging
+4. Add tests for the CLI interface
+5. Update help documentation
+
+### Commit Message Format
+
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+**Types:**
+
+- `feat`: New features
+- `fix`: Bug fixes
+- `docs`: Documentation changes
+- `style`: Code style changes (formatting, etc.)
+- `refactor`: Code refactoring
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks
+
+**Examples:**
 
 ```bash
-# Unit tests on CPU
-bash tests/unit_tests/L0_Unit_Tests_CPU.sh
-
-# Unit tests on GPU
-bash tests/unit_tests/L0_Unit_Tests_GPU.sh
-
-# Functional tests on GPU
-bash tests/functional_tests/L2_Functional_Tests_GPU.sh
+feat(exporters): add S3 exporter support
+feat(tasks): add new MMLU evaluation task
+fix(cli): handle missing configuration files gracefully
+fix(evaluation): resolve memory leak in batch processing
+docs: update installation instructions
+test(executors): add tests for Slurm executor
 ```
 
-#### Testing Guidelines
+### Getting Help
 
-- Write unit tests and functional tests for new functionality
-- Ensure all tests pass before submitting
-- Add integration tests for complex features
-- Follow existing test patterns
+- **Documentation**: Check the README and inline documentation
+- **Issues**: Search existing issues before creating new ones
+- **Discussions**: Use GitHub discussions for questions
+- **Code Review**: Ask for help in pull request comments
 
-### 🧹 Linting and Formatting
+## Communication
 
-We use [ruff](https://docs.astral.sh/ruff/) for linting and formatting. CI does not auto-fix linting and formatting issues, but most issues can be fixed by running the following command:
-
-```bash
-uv run ruff check --fix .
-uv run ruff format .
-```
-
-Note: If `ruff` is missing, please follow the [installation](#local-workstation) guide.
-
-### 📝 Documentation
-
-**Important**: All new key features (ex: enabling a new inference optimized library, enabling a new deployment option) must include documentation update (either a new doc or updating an existing one). This document update should:
-
-- Explain the motivation and purpose of the feature
-- Outline the technical approach and architecture
-- Provide clear usage examples and instructions for users
-- Document internal implementation details where appropriate
-
-This ensures that all significant changes are well-thought-out and properly documented for future reference. Comprehensive documentation serves two critical purposes:
-
-1. **User Adoption**: Helps users understand how to effectively use the library's features in their projects
-2. **Developer Extensibility**: Enables developers to understand the internal architecture and implementation details, making it easier to modify, extend, or adapt the code for their specific use cases
-
-Quality documentation is essential for both the usability of NeMo Eval and its ability to be customized by the community.
-
-### Local development
-
-Make sure to have [uv](https://docs.astral.sh/uv/) installed. You can build and inspect the documentation locally with the following commands:
-
-```bash
-cd docs/
-uv run --only-group docs sphinx-autobuild . _build/html
-```
+- **Issues**: Use GitHub issues for bug reports and feature requests
+- **Discussions**: Use GitHub discussions for questions and general discussion
+- **Pull Requests**: Use PRs for code contributions with clear descriptions
 
 ## Signing Your Work
 
@@ -173,40 +241,29 @@ uv run --only-group docs sphinx-autobuild . _build/html
 - Full text of the DCO:
 
   ```
-  Developer Certificate of Origin
-  Version 1.1
+    Developer Certificate of Origin
+    Version 1.1
 
-  Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
+    Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
+    1 Letterman Drive
+    Suite D4700
+    San Francisco, CA, 94129
 
-  Everyone is permitted to copy and distribute verbatim copies of this
-  license document, but changing it is not allowed.
+    Everyone is permitted to copy and distribute verbatim copies of this license document, but changing it is not allowed.
+  ```
 
+  ```
+    Developer's Certificate of Origin 1.1
 
-  Developer's Certificate of Origin 1.1
+    By making a contribution to this project, I certify that:
 
-  By making a contribution to this project, I certify that:
+    (a) The contribution was created in whole or in part by me and I have the right to submit it under the open source license indicated in the file; or
 
-  (a) The contribution was created in whole or in part by me and I
-      have the right to submit it under the open source license
-      indicated in the file; or
+    (b) The contribution is based upon previous work that, to the best of my knowledge, is covered under an appropriate open source license and I have the right under that license to submit that work with modifications, whether created in whole or in part by me, under the same open source license (unless I am permitted to submit under a different license), as indicated in the file; or
 
-  (b) The contribution is based upon previous work that, to the best
-      of my knowledge, is covered under an appropriate open source
-      license and I have the right under that license to submit that
-      work with modifications, whether created in whole or in part
-      by me, under the same open source license (unless I am
-      permitted to submit under a different license), as indicated
-      in the file; or
+    (c) The contribution was provided directly to me by some other person who certified (a), (b) or (c) and I have not modified it.
 
-  (c) The contribution was provided directly to me by some other
-      person who certified (a), (b) or (c) and I have not modified
-      it.
-
-  (d) I understand and agree that this project and the contribution
-      are public and that a record of the contribution (including all
-      personal information I submit with it, including my sign-off) is
-      maintained indefinitely and may be redistributed consistent with
-      this project or the open source license(s) involved.
+    (d) I understand and agree that this project and the contribution are public and that a record of the contribution (including all personal information I submit with it, including my sign-off) is maintained indefinitely and may be redistributed consistent with this project or the open source license(s) involved.
   ```
 
 ## 🚀 Running GitHub CI

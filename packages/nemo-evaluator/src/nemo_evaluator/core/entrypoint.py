@@ -14,14 +14,14 @@
 # limitations under the License.
 
 import argparse
-import logging
 import os
 import pkgutil
 import sys
 
-import structlog
 import yaml
 
+# Import logging to ensure centralized logging is configured
+from nemo_evaluator import logging  # noqa: F401
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.api.api_dataclasses import EvaluationConfig, EvaluationTarget
 from nemo_evaluator.core.evaluate import evaluate
@@ -33,11 +33,6 @@ from nemo_evaluator.core.input import (
 )
 
 from .utils import deep_update
-
-logging.basicConfig(level=logging.INFO)
-structlog.configure(
-    wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
-)
 
 
 def get_args() -> argparse.Namespace:
@@ -91,10 +86,15 @@ def get_args() -> argparse.Namespace:
     args = parser.parse_args()
 
     if args.debug:
-        logging.basicConfig(level=logging.DEBUG)
-        structlog.configure(
-            wrapper_class=structlog.make_filtering_bound_logger(logging.DEBUG)
+        # Override with debug level if --debug flag is used
+        from nemo_evaluator.logging import get_logger
+
+        logger = get_logger(__name__)
+        logger.warning(
+            "This flag is deprecated and will be removed in the future, please set environment variable NEMO_EVALUATOR_LOG_LEVEL=DEBUG instead!"
         )
+        logger.warning("Setting NEMO_EVALUATOR_LOG_LEVEL=DEBUG")
+        os.environ["NEMO_EVALUATOR_LOG_LEVEL"] = "DEBUG"
 
     if "command" not in args:
         parser.print_help()

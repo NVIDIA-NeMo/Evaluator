@@ -24,11 +24,14 @@ target:
       discovery:
         modules: ["mod.a.b.c", ...]
         dirs: ["/some/path"]
-      use_response_logging: true
-      use_reasoning: true
-      use_nvcf: true
-      use_request_caching: true
-      caching_dir: /some/dir
+      interceptors: []
+      post_eval_hooks: []
+      endpoint_type: "chat"  # default: "chat"
+      caching_dir: "/some/dir"  # default: null
+      generate_html_report: true  # default: true
+      log_failed_requests: false  # default: false
+      tracking_requests_stats: true  # default: true
+      html_report_size: 5  # default: 5
 ```
 
 This module merely takes such a dict and translates it into a typed dataclass.
@@ -75,6 +78,9 @@ class PostEvalHookConfig(BaseModel):
         description="Configuration for the post-evaluation hook", default_factory=dict
     )
 
+    class Config:
+        use_enum_values = True
+
 
 class AdapterConfig(BaseModel):
     """Adapter configuration with registry-based interceptor support"""
@@ -101,12 +107,62 @@ class AdapterConfig(BaseModel):
     )
     generate_html_report: bool = Field(
         description="Whether to generate HTML report (legacy field)",
-        default=False,
+        default=True,
     )
     log_failed_requests: bool = Field(
         description="Whether to log failed requests (legacy field)",
         default=False,
     )
+    tracking_requests_stats: bool = Field(
+        description="Whether to enable request statistics tracking. When enabled, response statistics including token usage, status codes, finish reasons, tool calls, and latency metrics will be collected and added to eval_factory_metrics.json for comprehensive evaluation analysis.",
+        default=True,
+    )
+    html_report_size: int | None = Field(
+        description="Number of request-response pairs to track in HTML report. If this is larger than max_saved_responses or max_saved_requests, it will override those values.",
+        default=5,
+    )
+
+    @classmethod
+    def get_legacy_defaults(cls) -> dict[str, Any]:
+        """Get default values for legacy configuration parameters."""
+        return {
+            "generate_html_report": cls.model_fields["generate_html_report"].default,
+            "html_report_size": cls.model_fields["html_report_size"].default,
+            "tracking_requests_stats": cls.model_fields[
+                "tracking_requests_stats"
+            ].default,
+            "log_failed_requests": cls.model_fields["log_failed_requests"].default,
+            "endpoint_type": cls.model_fields["endpoint_type"].default,
+            # Boolean defaults for optional features
+            "use_caching": True,
+            "save_responses": False,
+            "save_requests": False,
+            "use_system_prompt": False,
+            "use_omni_info": False,
+            "use_request_logging": False,
+            "use_nvcf": False,
+            "use_response_logging": False,
+            "use_reasoning": False,
+            "use_progress_tracking": False,
+            "include_json": True,
+            "custom_system_prompt": None,
+            "caching_dir": None,
+            "output_dir": None,
+            "params_to_add": None,
+            "params_to_remove": None,
+            "params_to_rename": None,
+            "max_logged_requests": None,
+            "max_logged_responses": None,
+            "max_saved_requests": None,
+            "max_saved_responses": None,
+            "start_reasoning_token": None,
+            "include_if_reasoning_not_finished": None,
+            "track_reasoning": None,
+            "end_reasoning_token": "</think>",
+            "progress_tracking_url": None,
+            "progress_tracking_interval": 1,
+            "logging_aggregated_stats_interval": 100,
+        }
 
     @classmethod
     def get_validated_config(cls, run_config: dict[str, Any]) -> "AdapterConfig | None":
@@ -140,7 +196,8 @@ class AdapterConfig(BaseModel):
         )
 
         if not global_cfg and not local_cfg:
-            return None
+            # Create default adapter config with caching enabled by default
+            return cls.from_legacy_config({}, run_config)
 
         merged = dict(global_cfg) if global_cfg else {}
         if local_cfg:
@@ -175,67 +232,99 @@ class AdapterConfig(BaseModel):
 
             # If no interceptors are configured, try to convert from legacy format
             if not config.interceptors:
-                config = cls.from_legacy_config(merged)
+                config = cls.from_legacy_config(merged, run_config)
 
             return config
         except Exception as e:
             raise ValueError(f"Invalid adapter configuration: {e}") from e
 
+    @staticmethod
+    def _get_default_output_dir(
+        legacy_config: dict[str, Any], run_config: dict[str, Any] | None = None
+    ) -> str | None:
+        """Get default output directory based on configuration priority.
+
+        Args:
+            legacy_config: Legacy configuration dictionary
+            run_config: Full run configuration dictionary (optional)
+
+        Returns:
+            output directory path based on priority: legacy_config.output_dir > run_config.config.output_dir > None
+        """
+        # First try legacy_config, but handle KeyError if not present
+        output_dir = legacy_config.get("output_dir")
+        if output_dir is None and run_config:
+            output_dir = run_config.get("config", {}).get("output_dir")
+        return output_dir
+
+    @staticmethod
+    def _get_default_cache_dir(
+        legacy_config: dict[str, Any],
+        run_config: dict[str, Any] | None = None,
+        subdir: str = "cache",
+    ) -> str:
+        """Get default cache directory based on configuration priority.
+
+        Args:
+            legacy_config: Legacy configuration dictionary
+            run_config: Full run configuration dictionary (optional)
+            subdir: Subdirectory name to append to output_dir (default: "cache")
+
+        Returns:
+            cache directory path based on priority: caching_dir > output_dir/{subdir} > /tmp/{subdir}
+        """
+        # First try caching_dir from legacy config
+        cache_dir = legacy_config["caching_dir"]
+        if cache_dir is not None:
+            return f"{cache_dir}/{subdir}"
+
+        # Fallback to output_dir/{subdir}
+        output_dir = AdapterConfig._get_default_output_dir(legacy_config, run_config)
+        if output_dir:
+            return f"{output_dir}/{subdir}"
+
+        # Final fallback to /tmp/{subdir}
+        return f"/tmp/{subdir}"
+
     @classmethod
-    def from_legacy_config(cls, legacy_config: dict[str, Any]) -> "AdapterConfig":
+    def from_legacy_config(
+        cls, legacy_config: dict[str, Any], run_config: dict[str, Any] | None = None
+    ) -> "AdapterConfig":
         """Convert legacy configuration to new interceptor-based format.
 
         Args:
             legacy_config: Legacy configuration dictionary
+            run_config: Full run configuration dictionary (optional, used to extract output_dir)
 
         Returns:
             AdapterConfig instance with interceptors based on legacy config
         """
+        # Merge legacy config with defaults to avoid repeated .get() calls
+        defaults = cls.get_legacy_defaults()
+        legacy_config = {**defaults, **legacy_config}
+
         interceptors = []
         post_eval_hooks = []
 
         # Add system message interceptor if custom system prompt is specified (Request)
-        if legacy_config.get("use_system_prompt") and legacy_config.get(
-            "custom_system_prompt"
+        if (
+            legacy_config["use_system_prompt"]
+            and legacy_config["custom_system_prompt"] is not None
         ):
             interceptors.append(
                 InterceptorConfig(
                     name="system_message",
                     enabled=True,
                     config={
-                        "system_message": legacy_config.get("custom_system_prompt"),
+                        "system_message": legacy_config["custom_system_prompt"],
                     },
-                )
-            )
-
-        # Add omni info interceptor if specified (Request)
-        if legacy_config.get("use_omni_info"):
-            interceptors.append(
-                InterceptorConfig(
-                    name="omni_info",
-                    enabled=True,
-                    config={
-                        "output_dir": legacy_config.get("output_dir"),
-                    },
-                )
-            )
-
-        # Convert legacy fields to interceptors (Request)
-        if legacy_config.get("use_request_logging"):
-            config = {"output_dir": legacy_config.get("output_dir")}
-            if legacy_config.get("max_logged_requests"):
-                config["max_requests"] = legacy_config.get("max_logged_requests")
-            interceptors.append(
-                InterceptorConfig(
-                    name="request_logging",
-                    config=config,
                 )
             )
 
         # Add payload modifier interceptor if any payload modification parameters are specified (RequestToResponse)
-        params_to_add = legacy_config.get("params_to_add")
-        params_to_remove = legacy_config.get("params_to_remove")
-        params_to_rename = legacy_config.get("params_to_rename")
+        params_to_add = legacy_config["params_to_add"]
+        params_to_remove = legacy_config["params_to_remove"]
+        params_to_rename = legacy_config["params_to_rename"]
 
         if params_to_add or params_to_remove or params_to_rename:
             config = {}
@@ -254,23 +343,105 @@ class AdapterConfig(BaseModel):
                 )
             )
 
+        # Add omni info interceptor if specified (Request)
+        if legacy_config["use_omni_info"]:
+            interceptors.append(
+                InterceptorConfig(
+                    name="omni_info",
+                    enabled=True,
+                    config={
+                        "output_dir": cls._get_default_output_dir(
+                            legacy_config, run_config
+                        ),
+                    },
+                )
+            )
+
+        # Convert legacy fields to interceptors (Request)
+        if legacy_config["use_request_logging"]:
+            config = {
+                "output_dir": cls._get_default_output_dir(legacy_config, run_config)
+            }
+            if legacy_config["max_logged_requests"] is not None:
+                config["max_requests"] = legacy_config["max_logged_requests"]
+            interceptors.append(
+                InterceptorConfig(
+                    name="request_logging",
+                    config=config,
+                )
+            )
+
         # Add caching interceptor (RequestToResponse)
-        if legacy_config.get("use_caching"):
-            # Use caching_dir if provided, otherwise it will be set by server.py logic
-            cache_dir = legacy_config.get("caching_dir")
+        # Activate if ANY of these are set: reuse_cached, save_responses, save_requests, generate_html_report
+        # For caching interceptor, use caching_dir directly if provided, otherwise use output_dir/cache
+        if legacy_config["caching_dir"] is not None:
+            cache_dir = legacy_config["caching_dir"]
+        else:
+            # Use output_dir/cache if output_dir exists, otherwise /tmp/cache
+            output_dir = AdapterConfig._get_default_output_dir(
+                legacy_config, run_config
+            )
+            if output_dir:
+                cache_dir = f"{output_dir}/cache"
+            else:
+                cache_dir = "/tmp/cache"
+
+        # Values are now available directly from legacy_config (merged with defaults)
+        generate_html_report = legacy_config["generate_html_report"]
+        max_html_report_size = legacy_config["html_report_size"]
+
+        # Check if caching should be activated
+        should_activate = any(
+            [
+                legacy_config["use_caching"],
+                legacy_config["save_responses"],
+                legacy_config["save_requests"],
+                generate_html_report,
+            ]
+        )
+
+        if should_activate:
+            # Determine save settings based on generate_html_report
+            if generate_html_report:
+                save_requests = True
+                save_responses = True
+                if max_html_report_size is not None:
+                    # Handle None values in max() by filtering them out
+                    max_saved_requests_values = [max_html_report_size]
+                    max_saved_responses_values = [max_html_report_size]
+
+                    if legacy_config["max_saved_requests"] is not None:
+                        max_saved_requests_values.append(
+                            legacy_config["max_saved_requests"]
+                        )
+                    if legacy_config["max_saved_responses"] is not None:
+                        max_saved_responses_values.append(
+                            legacy_config["max_saved_responses"]
+                        )
+
+                    max_saved_requests = max(max_saved_requests_values)
+                    max_saved_responses = max(max_saved_responses_values)
+                else:
+                    max_saved_requests = legacy_config["max_saved_requests"]
+                    max_saved_responses = legacy_config["max_saved_responses"]
+            else:
+                save_requests = legacy_config["save_requests"]
+                save_responses = legacy_config["save_responses"]
+                max_saved_requests = legacy_config["max_saved_requests"]
+                max_saved_responses = legacy_config["max_saved_responses"]
+
             config = {
                 "cache_dir": cache_dir,
-                "reuse_cached_responses": legacy_config.get(
-                    "reuse_cached_responses", True
-                ),
-                "save_responses": legacy_config.get("save_responses", True),
+                "reuse_cached_responses": legacy_config["use_caching"],
+                "save_requests": save_requests,
+                "save_responses": save_responses,
             }
-            if legacy_config.get("save_requests"):
-                config["save_requests"] = legacy_config.get("save_requests")
-            if legacy_config.get("max_saved_requests"):
-                config["max_saved_requests"] = legacy_config.get("max_saved_requests")
-            if legacy_config.get("max_saved_responses"):
-                config["max_saved_responses"] = legacy_config.get("max_saved_responses")
+
+            if max_saved_requests is not None:
+                config["max_saved_requests"] = max_saved_requests
+            if max_saved_responses is not None:
+                config["max_saved_responses"] = max_saved_responses
+
             interceptors.append(
                 InterceptorConfig(
                     name="caching",
@@ -280,7 +451,7 @@ class AdapterConfig(BaseModel):
             )
 
         # Add the final request interceptor - either nvcf or endpoint
-        if legacy_config.get("use_nvcf"):
+        if legacy_config["use_nvcf"]:
             interceptors.append(
                 InterceptorConfig(
                     name="nvcf",
@@ -292,10 +463,33 @@ class AdapterConfig(BaseModel):
             # Only add endpoint if nvcf is not used
             interceptors.append(InterceptorConfig(name="endpoint"))
 
-        if legacy_config.get("use_response_logging"):
-            config = {"output_dir": legacy_config.get("output_dir")}
-            if legacy_config.get("max_logged_responses"):
-                config["max_responses"] = legacy_config.get("max_logged_responses")
+        # Add response stats interceptor right after endpoint if tracking is enabled
+        # Default to True if not explicitly set in legacy config
+        if legacy_config["tracking_requests_stats"]:
+            # Use caching_dir if provided, otherwise use output_dir/response_stats_cache
+            cache_dir = cls._get_default_cache_dir(
+                legacy_config, run_config, "response_stats_cache"
+            )
+            config = {
+                "cache_dir": cache_dir,
+                "logging_aggregated_stats_interval": legacy_config[
+                    "logging_aggregated_stats_interval"
+                ],
+            }
+            interceptors.append(
+                InterceptorConfig(
+                    name="response_stats",
+                    enabled=True,
+                    config=config,
+                )
+            )
+
+        if legacy_config["use_response_logging"]:
+            config = {
+                "output_dir": cls._get_default_output_dir(legacy_config, run_config)
+            }
+            if legacy_config["max_logged_responses"] is not None:
+                config["max_responses"] = legacy_config["max_logged_responses"]
             interceptors.append(
                 InterceptorConfig(
                     name="response_logging",
@@ -303,66 +497,63 @@ class AdapterConfig(BaseModel):
                 )
             )
 
-        if legacy_config.get("use_reasoning"):
+        if legacy_config["use_reasoning"]:
             config = {
-                "end_reasoning_token": legacy_config.get(
-                    "end_reasoning_token", "</think>"
-                ),
+                "end_reasoning_token": legacy_config["end_reasoning_token"],
             }
-            if legacy_config.get("start_reasoning_token") is not None:
-                config["start_reasoning_token"] = legacy_config.get(
-                    "start_reasoning_token"
-                )
-            if legacy_config.get("include_if_reasoning_not_finished") is not None:
-                config["include_if_not_finished"] = legacy_config.get(
+            if legacy_config["start_reasoning_token"] is not None:
+                config["start_reasoning_token"] = legacy_config["start_reasoning_token"]
+            if legacy_config["include_if_reasoning_not_finished"] is not None:
+                config["include_if_not_finished"] = legacy_config[
                     "include_if_reasoning_not_finished"
+                ]
+            if legacy_config["track_reasoning"] is not None:
+                config["enable_reasoning_tracking"] = legacy_config["track_reasoning"]
+
+            # Enable caching for reasoning interceptor when tracking requests stats
+            # Default to True if not explicitly set in legacy config
+            if legacy_config["tracking_requests_stats"]:
+                config["save_individuals"] = True
+                # Use caching_dir if provided, otherwise use output_dir/reasoning_stats_cache
+                cache_dir = cls._get_default_cache_dir(
+                    legacy_config, run_config, "reasoning_stats_cache"
                 )
-            if legacy_config.get("track_reasoning") is not None:
-                config["enable_reasoning_tracking"] = legacy_config.get(
-                    "track_reasoning"
-                )
+                config["cache_dir"] = cache_dir
+
+            # Add logging interval for aggregated stats
+            config["logging_aggregated_stats_interval"] = legacy_config[
+                "logging_aggregated_stats_interval"
+            ]
+
             interceptors.append(
                 InterceptorConfig(
                     name="reasoning",
                     config=config,
                 )
             )
-        if legacy_config.get("use_progress_tracking") or legacy_config.get(
-            "output_dir"
-        ):
+        if legacy_config["use_progress_tracking"] or legacy_config["output_dir"]:
+            config = {
+                "progress_tracking_interval": legacy_config[
+                    "progress_tracking_interval"
+                ],
+                "output_dir": cls._get_default_output_dir(legacy_config, run_config),
+            }
+            if legacy_config["progress_tracking_url"] is not None:
+                config["progress_tracking_url"] = legacy_config["progress_tracking_url"]
+
             interceptors.append(
                 InterceptorConfig(
                     name="progress_tracking",
-                    config={
-                        "progress_tracking_url": legacy_config.get(
-                            "progress_tracking_url"
-                        ),
-                        "progress_tracking_interval": legacy_config.get(
-                            "progress_tracking_interval", 1
-                        ),
-                        "output_dir": legacy_config.get("output_dir"),
-                    },
-                )
-            )
-            post_eval_hooks.append(
-                PostEvalHookConfig(
-                    name="progress_tracking",
-                    config={
-                        "progress_tracking_url": legacy_config.get(
-                            "progress_tracking_url"
-                        ),
-                        "progress_tracking_interval": legacy_config.get(
-                            "progress_tracking_interval", 1
-                        ),
-                        "output_dir": legacy_config.get("output_dir"),
-                    },
+                    config=config,
                 )
             )
 
         # Convert legacy HTML report generation to post-eval hook
-        if legacy_config.get("generate_html_report"):
+        # Value is now available directly from legacy_config (merged with defaults)
+        generate_html_report = legacy_config["generate_html_report"]
+        if generate_html_report:
             report_types = ["html"]
-            if legacy_config.get("include_json", True):
+            if legacy_config["include_json"]:
                 report_types.append("json")
 
             post_eval_hooks.append(
@@ -371,6 +562,7 @@ class AdapterConfig(BaseModel):
                     enabled=True,
                     config={
                         "report_types": report_types,
+                        "html_report_size": legacy_config["html_report_size"],
                     },
                 )
             )
@@ -378,10 +570,12 @@ class AdapterConfig(BaseModel):
         return cls(
             interceptors=interceptors,
             post_eval_hooks=post_eval_hooks,
-            endpoint_type=legacy_config.get("endpoint_type", "chat"),
-            caching_dir=legacy_config.get("caching_dir"),
-            generate_html_report=legacy_config.get("generate_html_report", False),
-            log_failed_requests=legacy_config.get("log_failed_requests", False),
+            endpoint_type=legacy_config["endpoint_type"],
+            caching_dir=legacy_config["caching_dir"],
+            generate_html_report=legacy_config["generate_html_report"],
+            log_failed_requests=legacy_config["log_failed_requests"],
+            tracking_requests_stats=legacy_config["tracking_requests_stats"],
+            html_report_size=legacy_config["html_report_size"],
         )
 
     def get_interceptor_configs(self) -> dict[str, dict[str, Any]]:
