@@ -2,7 +2,7 @@
 
 NeMo Evaluator is an open-source evaluation engine that provides standardized, reproducible AI model evaluation through a containerized architecture and adapter system. It enables you to run evaluations across multiple specialized evaluation harnesses (17+ containers including LM-Eval, HELM, MT-Bench, and more) against any OpenAI-compatible model API. The platform's core strength lies in its interceptor-based adapter architecture that standardizes request/response flow, optional logging/caching layers, and its collection of ready-to-use evaluation containers published through NVIDIA's NGC catalog.
 
-[Container Reference](./reference/containers.md) | [Using Containers](./workflows/using_containers.md) | [CLI Reference](./reference/cli.md) | [Configuration Guide](./reference/configuring_interceptors.md) | [Python API](./workflows/python-api.md)
+[Container Reference](./reference/containers.md) | [Using Containers](./workflows/using-containers.md) | [CLI Reference](./reference/cli.md) | [Configuration Guide](./reference/configuring-interceptors.md) | [Python API](./workflows/python-api.md)
 
 ---
 
@@ -79,7 +79,7 @@ For end-to-end CLI and multi-backend orchestration, use the Launcher: [nemo-eval
 
 ## Extending
 Add your own benchmark or framework by defining its configuration and interfaces:
-- Extension guide: [Framework Definition File](./extending/framework_definition_file.md)
+- Extension guide: [Framework Definition File](./extending/framework-definition-file.md)
 
 ## Next steps
 - Read the architecture details and glossary in the main docs
