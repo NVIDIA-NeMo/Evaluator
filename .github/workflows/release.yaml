@@ -43,19 +43,45 @@ permissions:
 
 jobs:
   release:
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.59.0
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@agronskiy/chore/ci/release-to-tag-with-package
     with:
       release-ref: ${{ inputs.release-ref || github.sha }}
-      python-package: nemo_eval
+      python-package: nemo_evaluator
       library-name: NeMo-Eval
       dry-run: ${{ inputs.dry-run || false }}
       version-bump-branch: ${{ inputs.version-bump-branch || github.ref_name }}
       create-gh-release: ${{ inputs.create-gh-release || true }}
+      gh-release-tag-prefix: nemo-evaluator-
       packaging: uv
       skip-test-wheel: true
       app-id: ${{ vars.BOT_ID }}
       has-src-dir: true
       root-dir: packages/nemo-evaluator
+    secrets:
+      TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
+      TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+      SLACK_WEBHOOK_ADMIN: ${{ secrets.SLACK_WEBHOOK_ADMIN }}
+      SLACK_WEBHOOK: ${{ secrets.SLACK_RELEASE_ENDPOINT }}
+      PAT: ${{ secrets.PAT }}
+      SSH_KEY: ${{ secrets.SSH_KEY }}
+      SSH_PWD: ${{ secrets.SSH_PWD }}
+      BOT_KEY: ${{ secrets.BOT_KEY }}
+
+  release-launcher:
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@agronskiy/chore/ci/release-to-tag-with-package
+    with:
+      release-ref: ${{ inputs.release-ref || github.sha }}
+      python-package: nemo_evaluator_launcher
+      library-name: NeMo-Eval
+      dry-run: ${{ inputs.dry-run || false }}
+      version-bump-branch: ${{ inputs.version-bump-branch || github.ref_name }}
+      create-gh-release: ${{ inputs.create-gh-release || true }}
+      gh-release-tag-prefix: nemo-evaluator-launcher-
+      packaging: uv
+      skip-test-wheel: true
+      app-id: ${{ vars.BOT_ID }}
+      has-src-dir: true
+      root-dir: packages/nemo-evaluator-launcher
     secrets:
       TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
       TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
