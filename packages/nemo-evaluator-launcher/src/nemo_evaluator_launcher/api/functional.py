@@ -18,6 +18,8 @@
 This module provides the main functional entry points for running evaluations, querying job status, and listing available tasks. These functions are intended to be used by CLI commands and external integrations.
 """
 
+import yaml
+from pathlib import Path
 from typing import Any, List, Optional, Union
 
 from omegaconf import DictConfig, OmegaConf
@@ -434,7 +436,42 @@ def export_results(
             single_id = invocation_ids[0]
 
             if "." in single_id:  # job_id
-                job_data = ExecutionDB().get_job(single_id)
+                md_job_data = None
+                # Use artifacts/run_config.yml if present
+                ypath_artifacts = Path("run_config.yml")
+                if ypath_artifacts.exists():
+                    try:
+                        cfg_yaml = (
+                            yaml.safe_load(ypath_artifacts.read_text(encoding="utf-8"))
+                            or {}
+                        )
+                        # merge exporter config if present
+                        ypath_export = Path("export_config.yml")
+                        if ypath_export.exists():
+                            exp_yaml = (
+                                yaml.safe_load(ypath_export.read_text(encoding="utf-8"))
+                                or {}
+                            )
+                            exec_cfg = cfg_yaml.get("execution") or {}
+                            auto_exp = (exp_yaml.get("execution") or {}).get(
+                                "auto_export"
+                            )
+                            if auto_exp is not None:
+                                exec_cfg["auto_export"] = auto_exp
+                                cfg_yaml["execution"] = exec_cfg
+                        # metadata
+                        md_job_data = JobData(
+                            invocation_id=single_id.split(".")[0],
+                            job_id=single_id,
+                            timestamp=0.0,
+                            executor="local", # 
+                            data={"output_dir": str(Path.cwd().parent)},
+                            config=cfg_yaml,
+                        )
+                    except Exception:
+                        md_job_data = None
+                # fallback to execDB only
+                job_data = md_job_data or ExecutionDB().get_job(single_id)
                 if job_data is None:
                     return {
                         "success": False,
