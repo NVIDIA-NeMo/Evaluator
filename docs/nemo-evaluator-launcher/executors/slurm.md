@@ -1,4 +1,4 @@
-### Slurm Executor
+# Slurm Executor
 
 The Slurm executor runs evaluations on high‑performance computing (HPC) clusters managed by Slurm, an open‑source workload manager widely used in research and enterprise environments. It schedules and executes jobs across cluster nodes, enabling parallel, large‑scale evaluation runs while preserving reproducibility via containerized benchmarks.
 
@@ -9,6 +9,7 @@ Slurm can optionally host your model for the scope of an evaluation by deploying
 If you do not require deployment on Slurm, simply omit the deployment section from your configuration and set the model’s endpoint URL directly (any OpenAI‑compatible endpoint that you host elsewhere).
 
 ## Prerequisites
+
 - Access to a Slurm cluster (with appropriate partitions/queues)
 - Docker or container runtime available on worker nodes (per your environment)
 - Slurm cluster configuration must be defined in the executors configuration before running evaluations
@@ -18,6 +19,7 @@ If you do not require deployment on Slurm, simply omit the deployment section fr
 The Slurm executor supports environment variables through `execution.env_vars`:
 
 ### Configuration
+
 ```yaml
 execution:
   env_vars:
@@ -36,6 +38,7 @@ evaluation:
 ```
 
 ### Key Points
+
 - **Deployment Variables**: Use `execution.env_vars.deployment` for model serving containers
 - **Evaluation Variables**: Use `execution.env_vars.evaluation` for evaluation containers
 - **Direct Values**: Use quoted strings for direct values
@@ -58,6 +61,7 @@ API keys are handled the same way as environment variables - store them as envir
 The Slurm executor provides sophisticated mounting capabilities:
 
 ### Mount Configuration
+
 ```yaml
 execution:
   mounts:
@@ -71,6 +75,7 @@ execution:
 ```
 
 ### Mount Types
+
 - **Deployment Mounts**: For model checkpoints, cache directories, and model data
 - **Evaluation Mounts**: For input data, results, and evaluation-specific files
 - **Home Mount**: Optional mounting of user home directory (enabled by default)
@@ -80,12 +85,14 @@ execution:
 The Slurm executor includes advanced auto-resume capabilities:
 
 ### Automatic Resumption
+
 - **Timeout Handling**: Jobs automatically resume after timeout
 - **Preemption Recovery**: Automatic resumption after job preemption
 - **Node Failure Recovery**: Jobs resume after node failures
 - **Dependency Management**: Uses Slurm job dependencies for resumption
 
 ### How It Works
+
 1. **Initial Submission**: Job is submitted with auto-resume handler
 2. **Failure Detection**: Script detects timeout/preemption/failure
 3. **Automatic Resubmission**: New job is submitted with dependency on previous job
@@ -94,5 +101,3 @@ The Slurm executor includes advanced auto-resume capabilities:
 ## Monitoring and Job Management
 
 For monitoring jobs, checking status, and managing evaluations, see the [Executors Overview](overview.md#job-management) section.
-
-

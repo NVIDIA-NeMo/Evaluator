@@ -1,21 +1,24 @@
-### Lepton Executor
+# Lepton Executor
 
 The Lepton executor deploys endpoints and runs evaluations on Lepton AI. It’s designed for fast, isolated, parallel evaluations using hosted or deployed endpoints. To learn more, visit [Lepton Page](https://www.nvidia.com/en-us/data-center/dgx-cloud-lepton/).
-
 
 See common concepts and commands in the executors overview.
 
 ## Prerequisites
+
 - Lepton account and credentials configured
 - Appropriate container images and permissions (for deployment flows)
 
 ## Authenticate with Your Lepton Workspace
+
 Generate an API token and log in:
+
 1. Open your Lepton AI dashboard.
 2. Go to Settings → Tokens.
 3. Create a new token.
 4. Copy and securely save the token. It starts with "nvapi-".
 5. Log in from your terminal:
+
 ```bash
 lep login -c <workspace_id>:<your_token>
 ```
@@ -25,7 +28,9 @@ It is actually workspace ID, not workspace name. It is important as it will not 
 ///
 
 ## Quick Start
+
 Run a Lepton evaluation using the provided examples:
+
 ```bash
 # Deploy NIM model and run evaluation
 nemo-evaluator-launcher run --config-dir examples --config-name lepton_nim_llama_3_1_8b_instruct
@@ -40,6 +45,7 @@ nemo-evaluator-launcher run --config-dir examples --config-name lepton_none_llam
 Please note some additional steps might be necessary, such as creating registry keys in Lepton.
 
 ## Parallel Deployment Strategy
+
 - Dedicated endpoints: Each task gets its own endpoint of the same model
 - Parallel deployment: All endpoints are created simultaneously (~3x faster)
 - Resource isolation: Independent tasks avoid mutual interference
@@ -47,6 +53,7 @@ Please note some additional steps might be necessary, such as creating registry 
 - Simple cleanup: Single command tears down endpoints and storage
 
 Mermaid overview:
+
 ```mermaid
 graph TD
     A["nemo-evaluator-launcher run"] --> B["Load Tasks"]
@@ -69,6 +76,7 @@ graph TD
 ```
 
 ## Example Configuration
+
 ```yaml
 evaluation:
   tasks:
@@ -78,10 +86,12 @@ evaluation:
 ```
 
 ## Configuration Notes
+
 - Supports Hydra overrides for endpoint URLs, API keys, and execution output paths
 - Environment variables can be passed to deployment containers via `deployment.envs`
 
 ## Troubleshooting
+
 - Ensure Lepton credentials are valid and images are accessible
 - Check that endpoints reach Ready state before jobs start
 - Use launcher status commands to inspect job progress
