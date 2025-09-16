@@ -15,15 +15,12 @@
 #
 """Tests for exporters utilities: artifacts, metrics, SSH, GitLab."""
 
-import io
 import tempfile
-import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-import requests
 from omegaconf import OmegaConf
 
 import nemo_evaluator_launcher.api.functional as F
@@ -39,7 +36,6 @@ from nemo_evaluator_launcher.exporters.utils import (
     REQUIRED_ARTIFACTS,
     MetricConflictError,
     _safe_update_metrics,
-    download_gitlab_artifacts,
     extract_accuracy_metrics,
     get_available_artifacts,
     get_benchmark_info,
@@ -215,199 +211,6 @@ class TestMappingHelpers:
         )
         assert get_pipeline_id(jd) == 123
         assert get_model_name(jd) == "x"
-
-
-class TestGitLabDownload:
-    def test_missing_token(self, tmp_path: Path, monkeypatch):
-        monkeypatch.delenv("GITLAB_TOKEN", raising=False)
-        with pytest.raises(RuntimeError):
-            download_gitlab_artifacts(
-                {"pipeline_id": 1, "project_id": 2}, tmp_path, True
-            )
-
-    def test_extract_specific(self, tmp_path: Path, monkeypatch):
-        monkeypatch.setenv("GITLAB_TOKEN", "t")
-
-        class R:
-            def __init__(self, status=200, content=b"", json=None):
-                self.status_code = status
-                self._content = content
-                self._json = json
-
-            def raise_for_status(self):
-                if self.status_code >= 400:
-                    raise RuntimeError("bad")
-
-            def json(self):
-                return self._json
-
-            @property
-            def content(self):
-                return self._content
-
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w") as z:
-            z.writestr("nested/path/results.yml", "results: {}")
-            z.writestr("nested/other.txt", "ignore")
-        buf.seek(0)
-
-        def fake_get(url, headers=None, timeout=None):
-            if "/pipelines/" in url and url.endswith("/jobs"):
-                return R(
-                    json=[
-                        {
-                            "id": 101,
-                            "name": "evaluate_task",
-                            "artifacts_file": {"filename": "a"},
-                        }
-                    ]
-                )
-            elif "/jobs/101/artifacts" in url:
-                return R(content=buf.getvalue())
-            else:
-                return R(status=404)
-
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.utils.requests.get",
-            fake_get,
-            raising=True,
-        )
-
-        out = download_gitlab_artifacts(
-            {"pipeline_id": 5, "project_id": 7}, tmp_path, extract_specific=True
-        )
-        assert "results.yml" in out
-        assert (tmp_path / "artifacts" / "results.yml").exists()
-
-    def test_save_as_zip_default(self, tmp_path: Path, monkeypatch):
-        monkeypatch.setenv("GITLAB_TOKEN", "t")
-
-        class R:
-            def __init__(self, status=200, content=b"", js=None):
-                self.status_code = status
-                self._content = content
-                self._json = js
-
-            def raise_for_status(self):
-                if self.status_code >= 400:
-                    raise RuntimeError("bad")
-
-            def json(self):
-                return self._json
-
-            @property
-            def content(self):
-                return self._content
-
-        def fake_get(url, headers=None, timeout=None):
-            if "/pipelines/" in url and url.endswith("/jobs"):
-                return R(
-                    js=[
-                        {
-                            "id": 101,
-                            "name": "evaluate_task",
-                            "artifacts_file": {"filename": "a"},
-                        }
-                    ]
-                )
-            elif "/jobs/101/artifacts" in url:
-                return R(content=b"zip-binary-data")
-            return R(status=404)
-
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.utils.requests.get",
-            fake_get,
-            raising=True,
-        )
-
-        out = download_gitlab_artifacts(
-            {"pipeline_id": 5, "project_id": 7}, tmp_path, extract_specific=False
-        )
-        key = "job_101_artifacts.zip"
-        assert key in out
-        assert out[key].exists()
-        assert out[key].name == key
-
-    def test_request_exception_converted_to_runtime(self, tmp_path: Path, monkeypatch):
-        monkeypatch.setenv("GITLAB_TOKEN", "t")
-
-        def boom(*a, **k):
-            raise requests.RequestException("net down")
-
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.utils.requests.get", boom, raising=True
-        )
-        with pytest.raises(RuntimeError) as ei:
-            download_gitlab_artifacts(
-                {"pipeline_id": 1, "project_id": 2}, tmp_path, True
-            )
-        assert "GitLab API request failed" in str(ei.value)
-
-    def test_generic_exception_converted_to_runtime(self, tmp_path: Path, monkeypatch):
-        monkeypatch.setenv("GITLAB_TOKEN", "t")
-
-        class R:
-            def __init__(self, status=200, content=b"", js=None):
-                self.status_code = status
-                self._content = content
-                self._json = js
-
-            def raise_for_status(self):
-                if self.status_code >= 400:
-                    raise RuntimeError("bad")
-
-            def json(self):
-                return self._json
-
-            @property
-            def content(self):
-                return self._content
-
-        # Return valid jobs, valid artifact content
-        def fake_get(url, headers=None, timeout=None):
-            if "/pipelines/" in url and url.endswith("/jobs"):
-                return R(
-                    js=[
-                        {
-                            "id": 101,
-                            "name": "evaluate_task",
-                            "artifacts_file": {"filename": "a"},
-                        }
-                    ]
-                )
-            elif "/jobs/101/artifacts" in url:
-                # Create a real zip so we reach the extraction, then blow up ZipFile
-                buf = io.BytesIO()
-                with zipfile.ZipFile(buf, "w") as z:
-                    z.writestr("nested/file.txt", "x")
-                buf.seek(0)
-                return R(content=buf.getvalue())
-            return R(status=404)
-
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.utils.requests.get",
-            fake_get,
-            raising=True,
-        )
-
-        # Make ZipFile raise to trigger the generic exception path
-        class BoomZip:
-            def __init__(self, *a, **k):
-                raise RuntimeError("zip broken")
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                return False
-
-        monkeypatch.setattr("zipfile.ZipFile", BoomZip, raising=True)
-
-        with pytest.raises(RuntimeError) as ei:
-            download_gitlab_artifacts(
-                {"pipeline_id": 5, "project_id": 7}, tmp_path, extract_specific=True
-            )
-        assert "GitLab remote download failed" in str(ei.value)
 
 
 class TestSSHHelpers:
