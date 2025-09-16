@@ -18,7 +18,7 @@ The platform consists of two main components:
 - **`nemo-evaluator` ([The Evaluation Core Engine](./docs/nemo-evaluator/index.md))**: A Python library that manages the interaction between an evaluation harness and the model being tested.
 - **`nemo-evaluator-launcher` ([The CLI and Orchestration](./docs/nemo-evaluator-launcher/index.md))**: The primary user interface and orchestration layer. It handles configuration, selects the execution environment, and launches the appropriate container to run the evaluation.
 
-Most users only need to interact with the `nemo-evaluator-launcher` as universal gateway to different benchmarks and harnesses. It is however possible to interact directly with `nemo-evaluator` by following this [guide](./docs/nemo-evaluator/workflows/using_containers.md).
+Most users only need to interact with the `nemo-evaluator-launcher` as universal gateway to different benchmarks and harnesses. It is however possible to interact directly with `nemo-evaluator` by following this [guide](./docs/nemo-evaluator/workflows/using-containers.md).
 
 ```mermaid
 graph TD
@@ -95,7 +95,7 @@ nemo-evaluator-launcher ls tasks
 - Explore the [Supported Benchmarks](#supported-benchmarks-and-evaluation-harnesses) to see all available harnesses and benchmarks.
 - Scale up your evaluations using the [Slurm Executor] or [Lepton Executor](./docs/nemo-evaluator-launcher/executors/slurm.md).
 - Learn to evaluate self-hosted models in the extended [Tutorial and quickstart guide](./docs/nemo-evaluator-launcher/quickstart.md) for nemo-evaluator-launcher.
-- Customize your workflow with [Custom Exporters](./docs/nemo-evaluator-launcher/exporters/overview.md) or by evaluating with [proprietary data](./docs/nemo-evaluator/extending/framework_definition_file.md).
+- Customize your workflow with [Custom Exporters](./docs/nemo-evaluator-launcher/exporters/overview.md) or by evaluating with [proprietary data](./docs/nemo-evaluator/extending/framework-definition-file.md).
 
 
 ### Supported Benchmarks and Evaluation Harnesses
