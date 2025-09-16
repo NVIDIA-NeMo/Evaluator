@@ -70,9 +70,11 @@ git push
 2. Create a feature branch
 3. Install development dependencies [using uv](#local-workstation) or [using pip](https://github.com/NVIDIA-NeMo/Eval/blob/main/README.md#using-pip) if outside of [docker](#alternative-development-container)
 4. Run pre-commit hooks:
+
    ```bash
    pre-commit install
    ```
+
 5. Make your changes and add tests
 6. Submit a pull request
 
@@ -207,5 +209,36 @@ uv run --only-group docs sphinx-autobuild . _build/html
       this project or the open source license(s) involved.
   ```
 
+## 🚀 Running GitHub CI
 
+There are two ways to trigger CI tests on your pull request:
 
+### Automatic CI Triggering
+
+If your GitHub user is configured to use [signed commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification), CI tests will run automatically when you push commits to your pull request.
+
+> **Note**: Signed commits are different from signing-off on commits (which uses the `-s` flag mentioned in the [Signing Your Work](#signing-your-work) section).
+
+### Manual CI Triggering
+
+If you don't have signed commits set up, you can still trigger CI tests manually by commenting on your pull request:
+
+```
+/ok to test <commit-SHA>
+```
+
+For example:
+
+```
+/ok to test a1b2c3d4e5f6
+```
+
+**Important**: You'll need to add this comment for each new commit you push to ensure CI tests run on the latest changes.
+
+#### Finding Your Commit SHA
+
+You can find the commit SHA in several ways:
+
+- View your pull request's commit history on GitHub
+- Run `git log --oneline -1` in your local repository
+- Check the commit details in your Git client
