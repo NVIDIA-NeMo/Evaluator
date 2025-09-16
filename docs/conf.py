@@ -55,6 +55,8 @@ myst_enable_extensions = [
     "html_image",  # Enables HTML image tags
 ]
 myst_heading_anchors = 5  # Generates anchor links for headings up to level 5
+myst_auto_link_extensions = []  # Disable automatic link conversion
+myst_url_schemes = ["http", "https", "mailto"]  # Only convert these URL schemes
 
 # -- Options for Autodoc2 ---------------------------------------------------
 sys.path.insert(0, os.path.abspath(".."))
@@ -107,6 +109,8 @@ suppress_warnings = [
     "toc.not_included",  # Suppress toctree warnings for myst-based docs
     "myst.header",  # Suppress header level warnings
     "myst.directive_unknown",  # Suppress unknown directive warnings
+    "myst.xref_missing",  # Suppress missing cross-reference warnings
+    "ref.doc",  # Suppress document reference warnings
 ]
 
 # Github links are now getting rate limited from the Github Actions
