@@ -19,9 +19,9 @@ from contextlib import redirect_stdout
 from io import StringIO
 from unittest.mock import MagicMock, patch
 
+from nemo_evaluator_launcher import __package_name__, __version__
 from nemo_evaluator_launcher.cli.main import create_parser, main
 from nemo_evaluator_launcher.cli.version import Cmd as VersionCmd
-from nemo_evaluator_launcher.package_info import __package_name__, __version__
 
 
 class TestVersionCommand:

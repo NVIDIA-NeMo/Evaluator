@@ -118,6 +118,7 @@ class TestCachingFunctionality:
                 assert result is None
 
 
+@pytest.mark.skip(reason="TODO: Reenable after switching to GH")
 class TestDownloadFunctionality:
     """Test download functions."""
 

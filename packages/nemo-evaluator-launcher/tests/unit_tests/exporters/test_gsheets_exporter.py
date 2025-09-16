@@ -120,7 +120,7 @@ class TestGSheetsExporter:
         assert "accuracy" in headers
         assert len(rows) == 1
 
-    def test_export_invocation_ok(self, monkeypatch, tmp_path: Path):
+    def test_export_invocation_ok(self, mock_execdb, monkeypatch, tmp_path: Path):
         rows = []
         headers = ["Model Name", "Task Name", "Invocation ID", "Job ID", "Executor"]
 
@@ -382,7 +382,7 @@ class TestGSheetsExporter:
         assert "No accuracy metrics found" in res.message
 
     def test_export_invocation_open_existing_and_headers_update(
-        self, monkeypatch, tmp_path: Path
+        self, mock_execdb, monkeypatch, tmp_path: Path
     ):
         rows = []
         headers = [
@@ -489,7 +489,9 @@ class TestGSheetsExporter:
         assert res["metadata"]["total_invocations"] == 2
         assert res["metadata"]["total_rows_added"] == 4
 
-    def test_export_invocation_exception_path(self, monkeypatch, tmp_path: Path):
+    def test_export_invocation_exception_path(
+        self, mock_execdb, monkeypatch, tmp_path: Path
+    ):
         # Enable gspread
         monkeypatch.setattr(
             "nemo_evaluator_launcher.exporters.gsheets.GSPREAD_AVAILABLE",
@@ -765,7 +767,7 @@ class TestGSheetsExporter:
         assert res["invocations"]["failed"]["success"] is False
 
     def test_export_invocation_metric_extraction_exception(
-        self, monkeypatch, tmp_path: Path
+        self, mock_execdb, monkeypatch, tmp_path: Path
     ):
         # Enable gspread
         monkeypatch.setattr(

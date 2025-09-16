@@ -186,7 +186,7 @@ class TestWandBExporter:
         assert "No jobs found" in res["error"]
 
     def test_export_invocation_exception_path_wandb(
-        self, monkeypatch, wandb_fake, tmp_path: Path
+        self, mock_execdb, monkeypatch, wandb_fake, tmp_path: Path
     ):
         _W, _Run = wandb_fake
         inv = "cafebabe"

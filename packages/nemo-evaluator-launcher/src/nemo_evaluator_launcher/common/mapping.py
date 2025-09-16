@@ -32,7 +32,7 @@ from nemo_evaluator_launcher.common.logging_utils import logger
 
 # Configuration constants
 # For below, see docs: https://docs.gitlab.com/api/repository_files/
-MAPPING_URL = "https://gitlab-master.nvidia.com/api/v4/projects/155749/repository/files/nemo_evaluator_launcher%2Fsrc%2Fnemo_evaluator_launcher%2Fresources%2Fmapping.toml?ref=main"
+MAPPING_URL = "TODO: set to github actual one"
 CACHE_DIR = pathlib.Path.home() / ".nemo-evaluator" / "cache"
 CACHE_FILENAME = "mapping.toml"
 INTERNAL_RESOURCES_PKG = "nemo_evaluator_launcher_internal.resources"
@@ -58,6 +58,7 @@ def _download_latest_mapping() -> Optional[bytes]:
     Returns:
         Optional[bytes]: Downloaded mapping bytes, or None if download fails.
     """
+    raise NotImplementedError("This logic is still not implemented")
     try:
         # Get GitLab token from environment
         gitlab_token = os.environ.get("GITLAB_TOKEN", "")

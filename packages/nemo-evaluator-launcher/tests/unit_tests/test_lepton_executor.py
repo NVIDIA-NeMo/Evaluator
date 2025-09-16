@@ -797,7 +797,7 @@ class TestLeptonExecutorHelperFunctions:
         assert "exit_code=$?" in script
         assert "chmod 777 -R" in script
 
-    def test_get_statuses_for_invocation_id_with_shared_endpoint(self):
+    def test_get_statuses_for_invocation_id_with_shared_endpoint(self, mock_execdb):
         """Test _get_statuses_for_invocation_id with shared endpoint (no dedicated endpoints)."""
         from nemo_evaluator_launcher.executors.lepton.executor import (
             _get_statuses_for_invocation_id,
@@ -844,7 +844,7 @@ class TestLeptonExecutorHelperFunctions:
             assert shared_endpoint_status.progress["name"] == "shared"
             assert shared_endpoint_status.progress["state"] == "Using existing endpoint"
 
-    def test_get_statuses_for_invocation_id_with_dedicated_endpoints(self):
+    def test_get_statuses_for_invocation_id_with_dedicated_endpoints(self, mock_execdb):
         """Test _get_statuses_for_invocation_id with dedicated endpoints."""
         from nemo_evaluator_launcher.executors.lepton.executor import (
             _get_statuses_for_invocation_id,
@@ -1101,7 +1101,7 @@ class TestLeptonExecutorExecuteEval:
 
 
 class TestLeptonExecutorGetStatus:
-    def test_job_with_lepton_job_name_uses_live_status(self, monkeypatch):
+    def test_job_with_lepton_job_name_uses_live_status(self, mock_execdb, monkeypatch):
         db = ExecutionDB()
         inv = "a1b2c3d4"
         jid = f"{inv}.0"
@@ -1133,7 +1133,7 @@ class TestLeptonExecutorGetStatus:
         assert s.progress["lepton_job_name"] == "job1"
         assert s.progress["type"] == "evaluation_job"
 
-    def test_job_fallback_to_stored_status(self):
+    def test_job_fallback_to_stored_status(self, mock_execdb):
         db = ExecutionDB()
         inv = "feedbeef"
         jid = f"{inv}.1"
@@ -1156,7 +1156,9 @@ class TestLeptonExecutorGetStatus:
         assert statuses[0].state.name == "RUNNING"
         assert statuses[0].progress["status"] == "running"
 
-    def test_invocation_status_includes_endpoint_and_jobs(self, monkeypatch):
+    def test_invocation_status_includes_endpoint_and_jobs(
+        self, mock_execdb, monkeypatch
+    ):
         db = ExecutionDB()
         inv = "beadf00d"
         # Two jobs under same endpoint
@@ -1201,7 +1203,7 @@ class TestLeptonExecutorGetStatus:
         assert any(s.progress.get("type") == "endpoint" for s in statuses)
         assert any(s.progress.get("type") == "evaluation_job" for s in statuses)
 
-    def test_lepton_job_state_mapping(self, monkeypatch):
+    def test_lepton_job_state_mapping(self, mock_execdb, monkeypatch):
         """Test mapping of Lepton job states to ExecutionState."""
         db = ExecutionDB()
         inv = "statetest"
@@ -1246,7 +1248,9 @@ class TestLeptonExecutorGetStatus:
 
 
 class TestLeptonExecutorKillJob:
-    def test_kill_invocation_cancels_jobs_and_cleans_endpoints(self, monkeypatch):
+    def test_kill_invocation_cancels_jobs_and_cleans_endpoints(
+        self, mock_execdb, monkeypatch
+    ):
         db = ExecutionDB()
         inv = "cafebabe"
         # Two lepton jobs on same endpoint
@@ -1308,7 +1312,7 @@ class TestLeptonExecutorKillJob:
             assert jd.data["status"] == "killed"
             assert "killed_time" in jd.data
 
-    def test_kill_single_job_errors(self):
+    def test_kill_single_job_errors(self, mock_execdb):
         with pytest.raises(ValueError, match="not found"):
             LeptonExecutor.kill_job("unknown.0")
 
@@ -1319,7 +1323,9 @@ class TestLeptonExecutorKillJob:
         with pytest.raises(ValueError, match="is not a Lepton job"):
             LeptonExecutor.kill_job(jid)
 
-    def test_kill_single_job_endpoint_cleanup_only_when_last(self, monkeypatch):
+    def test_kill_single_job_endpoint_cleanup_only_when_last(
+        self, mock_execdb, monkeypatch
+    ):
         db = ExecutionDB()
         inv = "aa55aa55"
         j0 = f"{inv}.0"

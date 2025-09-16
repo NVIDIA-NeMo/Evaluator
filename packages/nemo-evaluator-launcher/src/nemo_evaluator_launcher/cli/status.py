@@ -38,7 +38,13 @@ class Cmd:
     def execute(self) -> None:
         res = get_status(self.job_ids)
         if self.json:
-            print(json.dumps(res, indent=2))
+            # Remove progress field from JSON output as it's a WIP feature
+            filtered_res = []
+            for job in res:
+                job_copy = job.copy()
+                job_copy.pop("progress", None)
+                filtered_res.append(job_copy)
+            print(json.dumps(filtered_res, indent=2))
         else:
             self._print_table(res)
 
@@ -60,7 +66,7 @@ class Cmd:
         first_data = jobs[0].get("data", {}) if jobs else {}
         executor_key = next((k for k in executor_headers if k in first_data), None)
         info_header = executor_headers.get(executor_key, "Executor Info")
-        headers = ["Job ID", "Status", "Progress", info_header, "Location"]
+        headers = ["Job ID", "Status", info_header, "Location"]
 
         # Build rows
         rows = []
@@ -90,7 +96,7 @@ class Cmd:
                 [
                     job.get("job_id", ""),
                     job.get("status", ""),
-                    job.get("progress", ""),
+                    # job.get("progress", ""), temporarily disabled as this is a WIP feature
                     executor_info,
                     location,
                 ]

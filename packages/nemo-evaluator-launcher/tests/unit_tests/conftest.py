@@ -16,7 +16,6 @@
 """Test configuration and fixtures for nv-eval-platform tests."""
 
 import json
-import os
 import pathlib
 import re
 import time
@@ -39,23 +38,6 @@ from nemo_evaluator_launcher.executors.base import (
     ExecutionStatus,
 )
 from nemo_evaluator_launcher.executors.registry import register_executor
-
-os.environ.setdefault("NV_EVAL_EXECDB_DIR", "/tmp/nv-eval-execdb-pytest")
-
-
-@pytest.fixture(autouse=True)
-def clear_execdb_state():
-    import nemo_evaluator_launcher.common.execdb as execdb
-
-    # reset singleton/in-memory state
-    execdb.ExecutionDB._instance = None
-    execdb.ExecutionDB._jobs = {}
-    execdb.ExecutionDB._invocations = {}
-    # optional: clear the JSONL file in the sandbox
-    try:
-        execdb.EXEC_DB_FILE.unlink(missing_ok=True)
-    except Exception:
-        pass
 
 
 @register_executor("dummy")
@@ -181,12 +163,22 @@ def tmp_execdb_dir(tmpdir):
     return pathlib.Path(tmpdir) / "execdb"
 
 
-@pytest.fixture
+# `autouse` to avoid accidental messing with the user's one if not explicitly
+# requested.
+@pytest.fixture(autouse=True)
 def mock_execdb(tmp_execdb_dir):
     """Mock the execution database to use a temporary directory."""
-    with patch("nemo_evaluator_launcher.common.execdb.EXEC_DB_DIR", tmp_execdb_dir):
+    with (
+        patch("nemo_evaluator_launcher.common.execdb.EXEC_DB_DIR", tmp_execdb_dir),
+        patch(
+            "nemo_evaluator_launcher.common.execdb.EXEC_DB_FILE",
+            tmp_execdb_dir / "exec.v1.jsonl",
+        ),
+    ):
         # Reset singleton instance
         ExecutionDB._instance = None
+        ExecutionDB._jobs = {}
+        ExecutionDB._invocations = {}
         yield tmp_execdb_dir
 
 

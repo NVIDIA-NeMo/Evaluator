@@ -844,7 +844,7 @@ class TestSlurmExecutorGetStatus:
             config={},
         )
 
-    def test_get_status_invocation_id(self, sample_job_data):
+    def test_get_status_invocation_id(self, mock_execdb, sample_job_data):
         """Test get_status with invocation ID (multiple jobs)."""
         # Create second job data
         job_data2 = JobData(
@@ -897,7 +897,7 @@ class TestSlurmExecutorGetStatus:
         statuses = SlurmExecutor.get_status("nonexistent.0")
         assert statuses == []
 
-    def test_get_status_wrong_executor(self, sample_job_data):
+    def test_get_status_wrong_executor(self, mock_execdb, sample_job_data):
         """Test get_status with job from different executor."""
         # Change executor to something else
         sample_job_data.executor = "local"
@@ -908,7 +908,7 @@ class TestSlurmExecutorGetStatus:
         statuses = SlurmExecutor.get_status("def67890.0")
         assert statuses == []
 
-    def test_get_status_missing_slurm_job_id(self, sample_job_data):
+    def test_get_status_missing_slurm_job_id(self, mock_execdb, sample_job_data):
         """Test get_status when SLURM job ID is missing."""
         # Remove slurm_job_id from data
         del sample_job_data.data["slurm_job_id"]
@@ -920,7 +920,7 @@ class TestSlurmExecutorGetStatus:
         assert len(statuses) == 1
         assert statuses[0].state == ExecutionState.FAILED
 
-    def test_get_status_query_exception(self, sample_job_data):
+    def test_get_status_query_exception(self, mock_execdb, sample_job_data):
         """Test get_status when SLURM query raises exception."""
         db = ExecutionDB()
         db.write_job(sample_job_data)
@@ -934,7 +934,7 @@ class TestSlurmExecutorGetStatus:
             assert len(statuses) == 1
             assert statuses[0].state == ExecutionState.FAILED
 
-    def test_get_status_invocation_missing_data(self):
+    def test_get_status_invocation_missing_data(self, mock_execdb):
         """Test get_status for invocation with missing required data."""
         # Create job with missing required fields
         job_data = JobData(
@@ -1222,7 +1222,7 @@ class TestSlurmExecutorSystemCalls:
         }
 
     def test_execute_eval_non_dry_run_success(
-        self, sample_config, mock_tasks_mapping, tmpdir
+        self, mock_execdb, sample_config, mock_tasks_mapping, tmpdir
     ):
         """Test successful non-dry-run execution by patching subprocess.run."""
         # Set up environment variables
@@ -1910,7 +1910,7 @@ class TestSlurmExecutorSystemCalls:
 
 
 class TestSlurmExecutorKillJob:
-    def test_kill_job_success(self, monkeypatch):
+    def test_kill_job_success(sel, mock_execdb, monkeypatch):
         """Test successful job killing."""
         # Create job in DB
         job_data = JobData(
@@ -1948,7 +1948,7 @@ class TestSlurmExecutorKillJob:
         with pytest.raises(ValueError, match="Job nonexistent.0 not found"):
             SlurmExecutor.kill_job("nonexistent.0")
 
-    def test_kill_job_wrong_executor(self, monkeypatch):
+    def test_kill_job_wrong_executor(sel, mock_execdb, monkeypatch):
         """Test kill_job with job from different executor."""
         job_data = JobData(
             invocation_id="wrong123",
@@ -1963,7 +1963,7 @@ class TestSlurmExecutorKillJob:
         with pytest.raises(ValueError, match="Job wrong123.0 is not a slurm job"):
             SlurmExecutor.kill_job("wrong123.0")
 
-    def test_kill_job_kill_command_failed(self, monkeypatch):
+    def test_kill_job_kill_command_failed(sel, mock_execdb, monkeypatch):
         """Test kill_job when scancel command fails."""
         job_data = JobData(
             invocation_id="fail123",

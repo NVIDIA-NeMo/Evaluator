@@ -109,7 +109,7 @@ echo "Invocation ID: {{ invocation_id }}"
 """.strip()
 
     def test_execute_eval_dry_run_basic(
-        self, sample_config, mock_tasks_mapping, mock_run_template, tmpdir
+        self, mock_execdb, sample_config, mock_tasks_mapping, mock_run_template, tmpdir
     ):
         """Test basic dry run execution."""
         # Set up environment variable that the config references
@@ -287,7 +287,7 @@ echo "Invocation ID: {{ invocation_id }}"
                     del os.environ[env_var]
 
     def test_execute_eval_dry_run_custom_container(
-        self, sample_config, mock_tasks_mapping, mock_run_template, tmpdir
+        self, mock_execdb, sample_config, mock_tasks_mapping, mock_run_template, tmpdir
     ):
         """Test that custom container images are handled correctly."""
         # Set up all required environment variables
@@ -474,7 +474,9 @@ class TestLocalExecutorGetStatus:
 
         return _setup
 
-    def test_get_status_invocation_id(self, sample_job_data, setup_job_filesystem):
+    def test_get_status_invocation_id(
+        self, mock_execdb, sample_job_data, setup_job_filesystem
+    ):
         """Test get_status with invocation ID (multiple jobs)."""
         # Set up filesystem for first job
         setup_job_filesystem(
@@ -528,7 +530,7 @@ class TestLocalExecutorGetStatus:
         statuses = LocalExecutor.get_status("nonexistent.0")
         assert statuses == []
 
-    def test_get_status_wrong_executor(self, sample_job_data):
+    def test_get_status_wrong_executor(self, mock_execdb, sample_job_data):
         """Test get_status with job from different executor."""
         # Change executor to something else
         sample_job_data.executor = "slurm"
@@ -539,7 +541,7 @@ class TestLocalExecutorGetStatus:
         statuses = LocalExecutor.get_status("abc12345.0")
         assert statuses == []
 
-    def test_get_status_output_dir_missing(self, sample_job_data):
+    def test_get_status_output_dir_missing(self, mock_execdb, sample_job_data):
         """Test get_status when output directory doesn't exist."""
         # Set output_dir to non-existent path
         sample_job_data.data["output_dir"] = "/nonexistent/path"
@@ -551,7 +553,9 @@ class TestLocalExecutorGetStatus:
         assert len(statuses) == 1
         assert statuses[0].state == ExecutionState.PENDING
 
-    def test_get_status_logs_dir_missing(self, sample_job_data, setup_job_filesystem):
+    def test_get_status_logs_dir_missing(
+        self, mock_execdb, sample_job_data, setup_job_filesystem
+    ):
         """Test get_status when logs directory doesn't exist."""
         output_dir, artifacts_dir, _ = setup_job_filesystem(progress_value=25)
 
@@ -570,7 +574,9 @@ class TestLocalExecutorGetStatus:
         assert statuses[0].state == ExecutionState.PENDING
         assert statuses[0].progress["progress"] == 25
 
-    def test_get_status_killed_job(self, sample_job_data, setup_job_filesystem):
+    def test_get_status_killed_job(
+        self, mock_execdb, sample_job_data, setup_job_filesystem
+    ):
         """Test get_status for a killed job."""
         setup_job_filesystem(
             stage_files={"running": "2025-01-01T12:00:00Z"},
@@ -587,7 +593,7 @@ class TestLocalExecutorGetStatus:
         assert statuses[0].progress["progress"] == 30
 
     def test_get_status_success_with_exit_code_0(
-        self, sample_job_data, setup_job_filesystem
+        self, mock_execdb, sample_job_data, setup_job_filesystem
     ):
         """Test get_status for successfully completed job."""
         setup_job_filesystem(
@@ -605,7 +611,7 @@ class TestLocalExecutorGetStatus:
         assert statuses[0].progress["progress"] == 1.0
 
     def test_get_status_failed_with_nonzero_exit_code(
-        self, sample_job_data, setup_job_filesystem
+        self, mock_execdb, sample_job_data, setup_job_filesystem
     ):
         """Test get_status for job that failed with non-zero exit code."""
         setup_job_filesystem(
@@ -623,7 +629,7 @@ class TestLocalExecutorGetStatus:
         assert statuses[0].progress["progress"] == 0.75
 
     def test_get_status_malformed_exit_file(
-        self, sample_job_data, setup_job_filesystem
+        self, mock_execdb, sample_job_data, setup_job_filesystem
     ):
         """Test get_status with malformed exit file content."""
         setup_job_filesystem(stage_files={"exit": "invalid content"}, progress_value=40)
@@ -636,7 +642,9 @@ class TestLocalExecutorGetStatus:
         assert statuses[0].state == ExecutionState.FAILED
         assert statuses[0].progress["progress"] == 40
 
-    def test_get_status_exit_file_no_space(self, sample_job_data, setup_job_filesystem):
+    def test_get_status_exit_file_no_space(
+        self, mock_execdb, sample_job_data, setup_job_filesystem
+    ):
         """Test get_status with exit file content without space separator."""
         setup_job_filesystem(stage_files={"exit": "nospace"}, progress_value=60)
 
@@ -648,7 +656,9 @@ class TestLocalExecutorGetStatus:
         assert statuses[0].state == ExecutionState.FAILED
         assert statuses[0].progress["progress"] == 60
 
-    def test_get_status_running(self, sample_job_data, setup_job_filesystem):
+    def test_get_status_running(
+        self, mock_execdb, sample_job_data, setup_job_filesystem
+    ):
         """Test get_status for a running job."""
         setup_job_filesystem(
             stage_files={"running": "2025-01-01T12:00:00Z"},
@@ -664,7 +674,9 @@ class TestLocalExecutorGetStatus:
         assert statuses[0].state == ExecutionState.RUNNING
         assert statuses[0].progress["progress"] == 0.175  # 35/200
 
-    def test_get_status_after_pre_start(self, sample_job_data, setup_job_filesystem):
+    def test_get_status_after_pre_start(
+        self, mock_execdb, sample_job_data, setup_job_filesystem
+    ):
         """Test get_status for job after pre_start stage and before running stage."""
         setup_job_filesystem(
             stage_files={"pre-start": "2025-01-01T12:00:00Z"}, progress_value=0
@@ -678,7 +690,9 @@ class TestLocalExecutorGetStatus:
         assert statuses[0].state == ExecutionState.PENDING
         assert statuses[0].progress["progress"] == 0
 
-    def test_get_status_no_stage_files(self, sample_job_data, setup_job_filesystem):
+    def test_get_status_no_stage_files(
+        self, mock_execdb, sample_job_data, setup_job_filesystem
+    ):
         """Test get_status when no stage files exist."""
         setup_job_filesystem(progress_value=10)
 
@@ -690,7 +704,9 @@ class TestLocalExecutorGetStatus:
         assert statuses[0].state == ExecutionState.PENDING
         assert statuses[0].progress["progress"] == 10
 
-    def test_get_status_no_progress_file(self, sample_job_data, setup_job_filesystem):
+    def test_get_status_no_progress_file(
+        self, mock_execdb, sample_job_data, setup_job_filesystem
+    ):
         """Test get_status when progress file doesn't exist."""
         setup_job_filesystem(stage_files={"running": "2025-01-01T12:00:00Z"})
 
@@ -703,7 +719,7 @@ class TestLocalExecutorGetStatus:
         assert statuses[0].progress["progress"] is None
 
     def test_get_status_invalid_progress_file(
-        self, sample_job_data, setup_job_filesystem
+        self, mock_execdb, sample_job_data, setup_job_filesystem
     ):
         """Test get_status with invalid progress file content."""
         output_dir, artifacts_dir, logs_dir = setup_job_filesystem(
@@ -723,7 +739,7 @@ class TestLocalExecutorGetStatus:
         assert statuses[0].progress["progress"] is None
 
     def test_get_status_progress_without_dataset_size(
-        self, sample_job_data, setup_job_filesystem
+        self, mock_execdb, sample_job_data, setup_job_filesystem
     ):
         """Test get_status with progress but no dataset size."""
         setup_job_filesystem(

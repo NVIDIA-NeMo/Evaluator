@@ -63,7 +63,9 @@ class TestMLflowExporter:
         assert not res.success
         assert "tracking_uri" in res.message
 
-    def test_export_invocation_connection_failure(self, monkeypatch, tmp_path: Path):
+    def test_export_invocation_connection_failure(
+        self, mock_execdb, monkeypatch, tmp_path: Path
+    ):
         # Create a job in the DB with metrics
         inv = "ab12cd34"
         ExecutionDB().write_job(
@@ -99,7 +101,7 @@ class TestMLflowExporter:
         assert "MLflow export failed" in res["error"]
 
     def test_export_invocation_success_with_webhook_tags_and_artifacts(
-        self, monkeypatch, mlflow_fake, tmp_path: Path
+        self, mock_execdb, monkeypatch, mlflow_fake, tmp_path: Path
     ):
         _ML, _RunCtx = mlflow_fake
         inv = "deadbeef"
@@ -194,7 +196,7 @@ class TestMLflowExporter:
         assert "run_url" in res["metadata"]
 
     def test_export_invocation_skip_existing(
-        self, monkeypatch, mlflow_fake, tmp_path: Path
+        self, mock_execdb, monkeypatch, mlflow_fake, tmp_path: Path
     ):
         _ML, _RunCtx = mlflow_fake
         inv = "ivc0ffee"

@@ -363,9 +363,16 @@ class SlurmExecutor(BaseExecutor):
         """
         if slurm_status in ["COMPLETED"]:
             return ExecutionState.SUCCESS
-        elif slurm_status in ["PENDING"]:
+        elif slurm_status in [
+            "PENDING",
+            "RESV_DEL_HOLD",
+            "REQUEUE_FED",
+            "REQUEUE_HOLD",
+            "REQUEUED",
+            "REVOKED",
+        ]:
             return ExecutionState.PENDING
-        elif slurm_status in ["RUNNING", "CONFIGURING", "SUSPENDED"]:
+        elif slurm_status in ["RUNNING", "CONFIGURING", "SUSPENDED", "COMPLETING"]:
             return ExecutionState.RUNNING
         elif slurm_status in ["PREEMPTED", "TIMEOUT", "NODE_FAIL"]:
             return ExecutionState.PENDING  # autoresume

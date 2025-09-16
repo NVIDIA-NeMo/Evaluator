@@ -562,7 +562,7 @@ class TestConfigMissingValidation:
 
 
 class TestGetStatusErrorBranches:
-    def test_invocation_executor_valueerror(self, monkeypatch):
+    def test_invocation_executor_valueerror(self, mock_execdb, monkeypatch):
         db = ExecutionDB()
         inv = "deadbeef"
         db.write_job(JobData(inv, f"{inv}.0", 0.0, "bogus", {"k": "v"}))
@@ -578,7 +578,7 @@ class TestGetStatusErrorBranches:
         assert out[0]["status"] == "error"
         assert "unknown exec" in out[0]["data"]["error"]
 
-    def test_invocation_executor_get_status_exception(self, monkeypatch):
+    def test_invocation_executor_get_status_exception(self, mock_execdb, monkeypatch):
         db = ExecutionDB()
         inv = "feedfa11"
         db.write_job(JobData(inv, f"{inv}.0", 0.0, "local", {"k": "v"}))
@@ -594,7 +594,7 @@ class TestGetStatusErrorBranches:
         assert out[0]["status"] == "error"
         assert "boom" in out[0]["data"]["error"]
 
-    def test_job_executor_get_status_exception(self, monkeypatch):
+    def test_job_executor_get_status_exception(self, mock_execdb, monkeypatch):
         db = ExecutionDB()
         inv = "c0ffee00"
         job_id = f"{inv}.0"
@@ -612,7 +612,7 @@ class TestGetStatusErrorBranches:
         assert out[0]["status"] == "error"
         assert "kaboom" in out[0]["data"]["error"]
 
-    def test_job_executor_returns_empty_list_unknown(self, monkeypatch):
+    def test_job_executor_returns_empty_list_unknown(self, mock_execdb, monkeypatch):
         db = ExecutionDB()
         inv = "a1b2c3d4"
         job_id = f"{inv}.1"
@@ -629,7 +629,7 @@ class TestGetStatusErrorBranches:
 
 
 class TestKillJobOrInvocation:
-    def test_kill_single_job_success(self, monkeypatch):
+    def test_kill_single_job_success(self, mock_execdb, monkeypatch):
         db = ExecutionDB()
         inv = "deafbead"
         job_id = f"{inv}.0"
@@ -645,7 +645,7 @@ class TestKillJobOrInvocation:
         assert out[0]["status"] == "killed"
         assert out[0]["data"]["result"] == "Successfully killed job"
 
-    def test_kill_single_job_no_kill_support(self, monkeypatch):
+    def test_kill_single_job_no_kill_support(self, mock_execdb, monkeypatch):
         db = ExecutionDB()
         inv = "beadfeed"
         job_id = f"{inv}.0"
@@ -659,7 +659,7 @@ class TestKillJobOrInvocation:
         assert out[0]["status"] == "error"
         assert "does not support" in out[0]["data"]["error"]
 
-    def test_kill_single_job_expected_error(self, monkeypatch):
+    def test_kill_single_job_expected_error(self, mock_execdb, monkeypatch):
         db = ExecutionDB()
         inv = "fadedcab"
         job_id = f"{inv}.0"
@@ -675,7 +675,7 @@ class TestKillJobOrInvocation:
         assert out[0]["status"] == "error"
         assert out[0]["data"]["error"] == "expected"
 
-    def test_kill_single_job_unexpected_error(self, monkeypatch):
+    def test_kill_single_job_unexpected_error(self, mock_execdb, monkeypatch):
         db = ExecutionDB()
         inv = "cabfabed"
         job_id = f"{inv}.0"
@@ -708,7 +708,7 @@ class TestKillJobOrInvocation:
         out = kill_job_or_invocation("1234ffff")
         assert out[0]["status"] == "not_found"
 
-    def test_kill_invocation_multiple_jobs(self, monkeypatch):
+    def test_kill_invocation_multiple_jobs(self, mock_execdb, monkeypatch):
         db = ExecutionDB()
         inv = "aa11bb22"
         db.write_job(JobData(inv, f"{inv}.0", 0.0, "local", {}))

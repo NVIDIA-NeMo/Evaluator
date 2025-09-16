@@ -81,7 +81,7 @@ def _execdb_add_job(inv: str, idx: int) -> JobData:
     return jd
 
 
-def test_single_invocation_calls_exporter(monkeypatch):
+def test_single_invocation_calls_exporter(mock_execdb, monkeypatch):
     _register_dummy(monkeypatch)
     inv = "a1b2c3d4"
     _execdb_add_job(inv, 0)
@@ -95,7 +95,7 @@ def test_single_invocation_calls_exporter(monkeypatch):
     assert res["invocation_id"] == inv
 
 
-def test_single_job_calls_exporter(monkeypatch):
+def test_single_job_calls_exporter(mock_execdb, monkeypatch):
     _register_dummy(monkeypatch)
     inv = "d4c3b2a1"
     jd = _execdb_add_job(inv, 0)
@@ -110,7 +110,7 @@ def test_single_job_calls_exporter(monkeypatch):
     assert jr["metadata"] == {"jid": jd.job_id}
 
 
-def test_pipeline_id_resolution(monkeypatch):
+def test_pipeline_id_resolution(mock_execdb, monkeypatch):
     _register_dummy(monkeypatch)
     inv = "11223344"
     jd = _execdb_add_job(inv, 0)
@@ -126,7 +126,7 @@ def test_pipeline_id_resolution(monkeypatch):
     assert list(res["jobs"].keys()) == [jd.job_id]
 
 
-def test_mixed_ids_no_consolidation(monkeypatch):
+def test_mixed_ids_no_consolidation(mock_execdb, monkeypatch):
     # Mixed IDs but dest != local → do not use consolidated path
     flags = {"inv": 0, "job": 0}
 
