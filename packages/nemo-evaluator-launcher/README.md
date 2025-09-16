@@ -2,10 +2,6 @@
 
 A comprehensive evaluation platform for large language models (LLMs) that supports multiple benchmarks and execution environments.
 
-> **Submit bugs**: please help us improve by submitting bugs and improvements http://nv/eval.issue!
-
-> Below applies to version `0.3.0+`
-
 ## Installation
 
 Install both `internal` and public the package using pip:
