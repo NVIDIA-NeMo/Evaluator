@@ -30,7 +30,7 @@ on:
         required: true
         type: string
       dry-run:
-        description: Do not publish a wheel and GitHub release.
+        description: "Dry Run: only publish to test PyPI"
         required: true
         default: true
         type: boolean
@@ -57,7 +57,7 @@ jobs:
     with:
       release-ref: ${{ inputs.release-ref || github.sha }}
       python-package: nemo_evaluator
-      library-name: NeMo-Eval
+      library-name: NeMo Evaluator
       dry-run: ${{ inputs.dry-run || false }}
       version-bump-branch: ${{ inputs.version-bump-branch || github.ref_name }}
       create-gh-release: ${{ inputs.create-gh-release || true }}
@@ -83,7 +83,7 @@ jobs:
     with:
       release-ref: ${{ inputs.release-ref || github.sha }}
       python-package: nemo_evaluator_launcher
-      library-name: NeMo-Eval
+      library-name: NeMo Evaluator Launcher
       dry-run: ${{ inputs.dry-run || false }}
       version-bump-branch: ${{ inputs.version-bump-branch || github.ref_name }}
       create-gh-release: ${{ inputs.create-gh-release || true }}
