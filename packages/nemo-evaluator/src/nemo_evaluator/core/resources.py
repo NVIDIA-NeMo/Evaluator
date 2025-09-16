@@ -14,7 +14,6 @@
 # limitations under the License.
 
 
-import logging
 import os
 import sqlite3
 import threading
@@ -25,6 +24,7 @@ from typing import Any
 import psutil
 
 from nemo_evaluator.api.api_dataclasses import EvaluationResult
+from nemo_evaluator.logging.utils import logger
 
 
 def get_token_usage_from_cache_db(cache_db_path: str | Path) -> dict:
@@ -67,7 +67,7 @@ def get_token_usage_from_cache_db(cache_db_path: str | Path) -> dict:
                     "total_cached_requests": row[3],
                 }
     except Exception as e:
-        logging.warning(f"Failed to read token usage from cache: {e}")
+        logger.warning(f"Failed to read token usage from cache: {e}")
 
     return {}
 
@@ -82,7 +82,7 @@ def get_token_usage_from_cache(cache_dir: str) -> dict:
 
 
 def monitor_memory_usage(
-    func, *args, interval_ms, **kwargs
+    func, *args, interval_ms, cache_dir: str | None = None, **kwargs
 ) -> tuple[EvaluationResult, dict[str, Any]]:
     """
     Run func(*args, **kwargs) while polling RSS via psutil.
@@ -128,18 +128,29 @@ def monitor_memory_usage(
     start_time = time.time()
 
     try:
-        ret = func(*args, **kwargs)
+        # Filter out cache_dir from kwargs since the target function doesn't expect it
+        func_kwargs = {k: v for k, v in kwargs.items() if k != "cache_dir"}
+        ret = func(*args, **func_kwargs)
     finally:
         stop = True  # thread safe
         th.join()
     end_time = time.time()
 
     runtime_seconds = end_time - start_time
+
+    # Get token usage from cache if cache_dir is provided
+    token_usage = None
+    if cache_dir:
+        try:
+            token_usage = get_token_usage_from_cache(cache_dir)
+        except Exception as e:
+            logger.warning(f"Failed to get token usage from cache: {e}")
+
     metrics = {
         "runtime_seconds": runtime_seconds,
         "start_time": time.strftime("%Y-%m-%dT%H:%M:%S.%fZ", time.gmtime(start_time)),
         "end_time": time.strftime("%Y-%m-%dT%H:%M:%S.%fZ", time.gmtime(end_time)),
-        "token_usage": None,  # Default to None
+        "token_usage": token_usage,
         "peak_memory_bytes": peak,  # Memory of main process
         "peak_tree_memory_bytes": peak_tree,  # Memory of entire process tree
     }

@@ -13,11 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Payload modifier interceptor that modifies request payloads."""
+
 import json
 from typing import Any, Dict, List, Optional, cast, final
 
 from flask import Request
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from nemo_evaluator.adapters.decorators import register_for_adapter
 from nemo_evaluator.adapters.types import (
@@ -26,6 +28,7 @@ from nemo_evaluator.adapters.types import (
     AdapterResponse,
     RequestInterceptor,
 )
+from nemo_evaluator.logging import BaseLoggingParams, get_logger
 
 
 @register_for_adapter(
@@ -36,7 +39,7 @@ from nemo_evaluator.adapters.types import (
 class PayloadParamsModifierInterceptor(RequestInterceptor):
     """Adapter for modifying request payload by removing, adding, and renaming parameters"""
 
-    class Params(BaseModel):
+    class Params(BaseLoggingParams):
         """Configuration parameters for payload modifier interceptor."""
 
         params_to_remove: Optional[List[str]] = Field(
@@ -65,12 +68,42 @@ class PayloadParamsModifierInterceptor(RequestInterceptor):
         self._params_to_add = params.params_to_add or {}
         self._params_to_rename = params.params_to_rename or {}
 
+        # Get logger for this interceptor with interceptor context
+        self.logger = get_logger(self.__class__.__name__)
+
+        self.logger.info(
+            "Payload modifier interceptor initialized",
+            params_to_remove=self._params_to_remove,
+            params_to_add=(
+                list(self._params_to_add.keys()) if self._params_to_add else []
+            ),
+            params_to_rename=(
+                list(self._params_to_rename.keys()) if self._params_to_rename else []
+            ),
+        )
+
     @final
     def intercept_request(
         self, ar: AdapterRequest, context: AdapterGlobalContext
     ) -> AdapterRequest | AdapterResponse:
         # Parse the original request data
         original_data = json.loads(ar.r.get_data())
+
+        self.logger.debug(
+            "Processing request payload",
+            original_keys=(
+                list(original_data.keys())
+                if isinstance(original_data, dict)
+                else "unknown"
+            ),
+            params_to_remove=self._params_to_remove,
+            params_to_add=(
+                list(self._params_to_add.keys()) if self._params_to_add else []
+            ),
+            params_to_rename=(
+                list(self._params_to_rename.keys()) if self._params_to_rename else []
+            ),
+        )
 
         # Create a new payload starting with the original
         new_data = original_data.copy()
@@ -79,14 +112,20 @@ class PayloadParamsModifierInterceptor(RequestInterceptor):
         for param in self._params_to_remove:
             if param in new_data:
                 del new_data[param]
+                self.logger.debug("Removed parameter", parameter=param)
 
         # Add new parameters
         new_data.update(self._params_to_add)
+        if self._params_to_add:
+            self.logger.debug(
+                "Added parameters", parameters=list(self._params_to_add.keys())
+            )
 
         # Rename parameters
         for old_key, new_key in self._params_to_rename.items():
             if old_key in new_data:
                 new_data[new_key] = new_data.pop(old_key)
+                self.logger.debug("Renamed parameter", old_key=old_key, new_key=new_key)
 
         # Create new request with modified data
         new_request = cast(
@@ -96,6 +135,19 @@ class PayloadParamsModifierInterceptor(RequestInterceptor):
                 headers=dict(ar.r.headers),
                 data=json.dumps(new_data),
             ),
+        )
+
+        self.logger.info(
+            "Request payload modified",
+            original_keys_count=(
+                len(original_data.keys()) if isinstance(original_data, dict) else 0
+            ),
+            modified_keys_count=(
+                len(new_data.keys()) if isinstance(new_data, dict) else 0
+            ),
+            modifications_made=len(self._params_to_remove)
+            + len(self._params_to_add)
+            + len(self._params_to_rename),
         )
 
         return AdapterRequest(

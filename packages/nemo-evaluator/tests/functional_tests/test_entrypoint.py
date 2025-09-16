@@ -34,8 +34,32 @@ def n():
 @pytest.fixture(autouse=True)
 def installed_modules(n: int):
     if not n:
+        # Temporarily uninstall nvidia-simple-evals to make it unavailable
+        import subprocess
+
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "pip", "uninstall", "-y", "nvidia-simple-evals"],
+                capture_output=True,
+                check=False,
+            )
+        except Exception:
+            pass  # Ignore any errors during uninstall
+
         yield
+
+        # Reinstall the package
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "nvidia-simple-evals"],
+                capture_output=True,
+                check=False,
+            )
+        except Exception:
+            pass  # Ignore any errors during reinstall
+
         return
+
     pkg = "core_evals"
 
     spec = importlib.machinery.PathFinder().find_spec(

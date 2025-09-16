@@ -19,7 +19,7 @@ import json
 from typing import final
 
 from flask import Request
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from nemo_evaluator.adapters.decorators import register_for_adapter
 from nemo_evaluator.adapters.types import (
@@ -27,6 +27,7 @@ from nemo_evaluator.adapters.types import (
     AdapterRequest,
     RequestInterceptor,
 )
+from nemo_evaluator.logging import BaseLoggingParams, get_logger
 
 
 @register_for_adapter(
@@ -37,7 +38,7 @@ from nemo_evaluator.adapters.types import (
 class SystemMessageInterceptor(RequestInterceptor):
     """Adds system message to requests."""
 
-    class Params(BaseModel):
+    class Params(BaseLoggingParams):
         """Configuration parameters for system message interceptor."""
 
         system_message: str = Field(
@@ -55,15 +56,41 @@ class SystemMessageInterceptor(RequestInterceptor):
         """
         self.system_message = params.system_message
 
+        # Get logger for this interceptor with interceptor context
+        self.logger = get_logger(self.__class__.__name__)
+
+        self.logger.info(
+            "System message interceptor initialized",
+            system_message_preview=(
+                self.system_message[:100] + "..."
+                if len(self.system_message) > 100
+                else self.system_message
+            ),
+        )
+
     @final
     def intercept_request(
         self, ar: AdapterRequest, context: AdapterGlobalContext
     ) -> AdapterRequest:
+        original_data = json.loads(ar.r.get_data())
+
+        self.logger.debug(
+            "Processing request for system message addition",
+            original_messages_count=len(original_data.get("messages", [])),
+            has_system_message=any(
+                msg.get("role") == "system" for msg in original_data.get("messages", [])
+            ),
+        )
+
         new_data = json.dumps(
             {
                 "messages": [
                     {"role": "system", "content": self.system_message},
-                    *json.loads(ar.r.get_data())["messages"],
+                    *[
+                        msg
+                        for msg in json.loads(ar.r.get_data())["messages"]
+                        if msg["role"] != "system"
+                    ],
                 ],
                 **{
                     k: v
@@ -79,6 +106,14 @@ class SystemMessageInterceptor(RequestInterceptor):
             data=new_data,
             method=ar.r.method,
         )
+
+        self.logger.debug(
+            "System message added to request",
+            original_messages_count=len(original_data.get("messages", [])),
+            new_messages_count=len(original_data.get("messages", [])) + 1,
+            system_message_length=len(self.system_message),
+        )
+
         return AdapterRequest(
             r=new_request,
             rctx=ar.rctx,

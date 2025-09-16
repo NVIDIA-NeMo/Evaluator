@@ -268,7 +268,6 @@ def test_integration_post_eval_hooks_flow(tmpdir):
         )
         adapter.run()
 
-    # Start server in background process
     server_process = multiprocessing.Process(target=run_server, daemon=True)
     server_process.start()
 
