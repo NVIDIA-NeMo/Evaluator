@@ -138,6 +138,7 @@ class TestProgressTrackingInterceptor:
             params = ProgressTrackingInterceptor.Params(
                 progress_tracking_url="http://localhost:8002",
                 progress_tracking_interval=3,
+                output_dir=None,
             )
             interceptor = ProgressTrackingInterceptor(params)
 

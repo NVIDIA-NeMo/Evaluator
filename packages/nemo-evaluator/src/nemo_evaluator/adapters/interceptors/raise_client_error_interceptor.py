@@ -60,7 +60,7 @@ class RaiseClientErrorInterceptor(ResponseInterceptor):
 
     def __init__(self, params: Params):
         """
-        Initialize the reasoning interceptor.
+        Initialize the raise client error interceptor.
 
         Args:
             params: Configuration parameters

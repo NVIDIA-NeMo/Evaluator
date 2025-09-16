@@ -22,7 +22,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Type
 
-import structlog
 from pydantic import BaseModel
 
 from nemo_evaluator.adapters.types import (
@@ -31,8 +30,9 @@ from nemo_evaluator.adapters.types import (
     RequestToResponseInterceptor,
     ResponseInterceptor,
 )
+from nemo_evaluator.logging import get_logger
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
