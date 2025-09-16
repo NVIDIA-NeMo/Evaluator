@@ -84,6 +84,8 @@ Results, logs, and run configurations are saved locally. Inspect the status of t
 nemo-evaluator-launcher status <job_id_or_invocation_id>
 ```
 
+**Configuration Examples**: Explore ready-to-use configuration files in [`packages/nemo-evaluator-launcher/examples/`](./packages/nemo-evaluator-launcher/examples/) for local, Lepton, and Slurm deployments with various model hosting options (vLLM, NIM, hosted endpoints).
+
 #### Next Steps
 
 - List all supported benchmarks:
