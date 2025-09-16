@@ -499,7 +499,7 @@ There are two primary ways to configure interceptors:
 
 ### Configuring Interceptors
 
-Refer to [Configuring Interceptors](./configuring_interceptors.md) for details.
+Refer to [Configuring Interceptors](./configuring-interceptors.md) for details.
 
 ### Complete Configuration Example
 

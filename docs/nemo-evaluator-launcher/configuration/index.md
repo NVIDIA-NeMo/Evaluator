@@ -128,7 +128,7 @@ evaluation:
 ### Check Endpoint Availability
 Verify your endpoint is working before running full evaluations:
 
-- **Test endpoint compatibility**: See [Testing Endpoint OAI Compatibility](../tutorials/deployments/testing_endpoint_oai_compatibility.md)
+- **Test endpoint compatibility**: See [Testing Endpoint OAI Compatibility](../tutorials/deployments/testing-endpoint-oai-compatibility.md)
 - **Check API keys**: Ensure environment variables are set correctly
 
 ### Common Issues
