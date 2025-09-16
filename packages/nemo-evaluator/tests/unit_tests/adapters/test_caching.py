@@ -19,6 +19,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 from flask import Request
+from requests.utils import CaseInsensitiveDict
 
 # Import to register interceptors
 from nemo_evaluator.adapters.interceptors import CachingInterceptor
@@ -28,7 +29,6 @@ from nemo_evaluator.adapters.types import (
     AdapterRequestContext,
     AdapterResponse,
 )
-from requests.utils import CaseInsensitiveDict
 
 
 @pytest.fixture

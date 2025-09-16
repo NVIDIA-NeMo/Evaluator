@@ -20,6 +20,7 @@ from unittest.mock import patch
 
 import requests
 from flask import Flask, request
+
 from nemo_evaluator.adapters.interceptors.progress_tracking_interceptor import (
     ProgressTrackingInterceptor,
 )

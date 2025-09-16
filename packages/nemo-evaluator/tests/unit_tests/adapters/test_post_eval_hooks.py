@@ -17,12 +17,13 @@
 
 import pytest
 import requests
+from pydantic import BaseModel, Field
+
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.adapters.decorators import register_for_adapter
 from nemo_evaluator.adapters.registry import InterceptorRegistry
 from nemo_evaluator.adapters.server import AdapterServer
 from nemo_evaluator.adapters.types import AdapterGlobalContext, PostEvalHook
-from pydantic import BaseModel, Field
 
 
 @register_for_adapter(

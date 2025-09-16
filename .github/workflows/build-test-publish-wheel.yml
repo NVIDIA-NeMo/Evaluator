@@ -35,7 +35,7 @@ jobs:
     if: |
       !(needs.pre-flight.outputs.docs_only == 'true'
       || needs.pre-flight.outputs.is_deployment_workflow == 'true')
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_build_test_publish_wheel.yml@v0.59.0
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_build_test_publish_wheel.yml@v0.60.0
     with:
       dry-run: true
       python-package: nemo_evaluator
@@ -53,6 +53,41 @@ jobs:
 
   build-test-publish-wheel-summary:
     needs: [pre-flight, build-test-publish-wheel]
+    if: |
+      (
+        needs.pre-flight.outputs.docs_only == 'true'
+        || needs.pre-flight.outputs.is_deployment_workflow == 'true'
+        || success()
+      )
+      && !cancelled()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Result
+        run: echo Build test publish wheel successful
+
+  build-test-publish-wheel-launcher:
+    needs: [pre-flight]
+    if: |
+      !(needs.pre-flight.outputs.docs_only == 'true'
+      || needs.pre-flight.outputs.is_deployment_workflow == 'true')
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_build_test_publish_wheel.yml@v0.60.0
+    with:
+      dry-run: true
+      python-package: nemo_evaluator_launcher
+      python-version: "3.10"
+      packaging: uv
+      has-src-dir: true
+      no-publish: ${{ !(github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/r')) }}
+      root-dir: packages/nemo-evaluator-launcher
+    secrets:
+      TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
+      TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+      SLACK_WEBHOOK: ${{ secrets.SLACK_RELEASE_ENDPOINT }}
+      SLACK_WEBHOOK_ADMIN: ${{ secrets.SLACK_WEBHOOK_ADMIN }}
+      GH_TOKEN: ${{ secrets.PAT }}
+
+  build-test-publish-wheel-summary-launcher:
+    needs: [pre-flight, build-test-publish-wheel-launcher]
     if: |
       (
         needs.pre-flight.outputs.docs_only == 'true'

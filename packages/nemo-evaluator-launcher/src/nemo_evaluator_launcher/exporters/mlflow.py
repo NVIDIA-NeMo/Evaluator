@@ -1,0 +1,444 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+"""Evaluation results exporter for MLflow tracking."""
+
+import shutil
+import tempfile
+from pathlib import Path
+from typing import Any, Dict, List
+
+import yaml
+
+try:
+    import mlflow
+
+    MLFLOW_AVAILABLE = True
+except ImportError:
+    MLFLOW_AVAILABLE = False
+
+from nemo_evaluator_launcher.common.execdb import JobData
+from nemo_evaluator_launcher.common.logging_utils import logger
+from nemo_evaluator_launcher.exporters.base import BaseExporter, ExportResult
+from nemo_evaluator_launcher.exporters.local import LocalExporter
+from nemo_evaluator_launcher.exporters.registry import register_exporter
+from nemo_evaluator_launcher.exporters.utils import (
+    extract_accuracy_metrics,
+    extract_exporter_config,
+    get_available_artifacts,
+    get_benchmark_info,
+    get_task_name,
+)
+
+
+@register_exporter("mlflow")
+class MLflowExporter(BaseExporter):
+    """Export accuracy metrics to MLflow tracking server."""
+
+    def supports_executor(self, executor_type: str) -> bool:
+        return True
+
+    def is_available(self) -> bool:
+        return MLFLOW_AVAILABLE
+
+    def _get_existing_run_info(
+        self, job_data: JobData, config: Dict[str, Any]
+    ) -> tuple[bool, str]:
+        """Check if MLflow run exists for this invocation/job."""
+        try:
+            import mlflow
+
+            tracking_uri = config.get("tracking_uri")
+            if not tracking_uri:
+                return False, None
+
+            mlflow.set_tracking_uri(tracking_uri)
+            experiment_name = config.get("experiment_name", "nv-eval")
+
+            try:
+                experiment = mlflow.get_experiment_by_name(experiment_name)
+                if not experiment:
+                    return False, None
+
+                # Search for runs with matching invocation_id tag
+                runs = mlflow.search_runs(
+                    experiment_ids=[experiment.experiment_id],
+                    filter_string=f"tags.invocation_id = '{job_data.invocation_id}'",
+                )
+
+                if not runs.empty:
+                    existing_run = runs.iloc[0]
+                    return True, existing_run.run_id
+
+            except Exception:
+                pass
+
+            return False, None
+        except ImportError:
+            return False, None
+
+    def export_job(self, job_data: JobData) -> ExportResult:
+        """Export job to MLflow."""
+        if not self.is_available():
+            return ExportResult(
+                success=False, dest="mlflow", message="mlflow package not installed"
+            )
+
+        try:
+            # Extract config using common utility
+            mlflow_config = extract_exporter_config(job_data, "mlflow", self.config)
+
+            # Extract metrics
+            log_metrics = mlflow_config.get("log_metrics", [])
+            accuracy_metrics = extract_accuracy_metrics(
+                job_data, self.get_job_paths, log_metrics
+            )
+
+            if not accuracy_metrics:
+                return ExportResult(
+                    success=False, dest="mlflow", message="No accuracy metrics found"
+                )
+
+            # Set up MLflow
+            tracking_uri = mlflow_config.get("tracking_uri")
+            if not tracking_uri:
+                return ExportResult(
+                    success=False, dest="mlflow", message="tracking_uri is required"
+                )
+
+            tracking_uri = tracking_uri.rstrip("/")
+            mlflow.set_tracking_uri(tracking_uri)
+
+            # Set experiment
+            experiment_name = mlflow_config.get("experiment_name", "nv-eval")
+            mlflow.set_experiment(experiment_name)
+
+            # Prepare parameters
+            all_params = {
+                "invocation_id": job_data.invocation_id,
+                "executor": job_data.executor,
+                "timestamp": str(job_data.timestamp),
+            }
+
+            # Add extra metadata if provided
+            if mlflow_config.get("extra_metadata"):
+                all_params.update(mlflow_config["extra_metadata"])
+
+            # Add webhook info if available
+            if mlflow_config.get("triggered_by_webhook"):
+                all_params.update(
+                    {
+                        "webhook_triggered": "true",
+                        "webhook_source": mlflow_config.get("webhook_source"),
+                        "source_artifact": mlflow_config.get("source_artifact"),
+                        "config_source": mlflow_config.get("config_source"),
+                    }
+                )
+
+            # Truncate params
+            safe_params = {
+                str(k)[:250]: str(v)[:250] for k, v in all_params.items() if v
+            }
+            # Prepare tags
+            tags = {}
+            if mlflow_config.get("tags"):
+                tags.update({k: v for k, v in mlflow_config["tags"].items() if v})
+
+            bench_info = get_benchmark_info(job_data)
+            benchmark = bench_info.get("benchmark", get_task_name(job_data))
+            harness = bench_info.get("harness", "unknown")
+
+            # Tag the run with invocation_id and task metadata (task_name is benchmark-only)
+            tags.update(
+                {
+                    "invocation_id": job_data.invocation_id,
+                    "job_id": job_data.job_id,
+                    "task_name": benchmark,
+                    "benchmark": benchmark,
+                    "harness": harness,
+                    "executor": job_data.executor,
+                }
+            )
+            # Truncate tags
+            safe_tags = {str(k)[:250]: str(v)[:5000] for k, v in tags.items() if v}
+
+            # skip run if it already exists
+            exists, existing_run_id = self._get_existing_run_info(
+                job_data, mlflow_config
+            )
+            if exists and mlflow_config.get("skip_existing"):
+                return ExportResult(
+                    success=True,
+                    dest="mlflow",
+                    message=f"Run already exists: {existing_run_id}, skipped",
+                )
+
+            # run
+            with mlflow.start_run() as run:
+                # Set tags
+                if safe_tags:
+                    mlflow.set_tags(safe_tags)
+
+                # Set run name)
+                run_name = (
+                    mlflow_config.get("run_name")
+                    or f"eval-{job_data.invocation_id}-{benchmark}"
+                )
+                mlflow.set_tag("mlflow.runName", run_name)
+
+                # Set description only if provided
+                description = mlflow_config.get("description")
+                if description:
+                    mlflow.set_tag("mlflow.note.content", str(description)[:5000])
+
+                # Log parameters
+                mlflow.log_params(safe_params)
+
+                # Log metrics
+                mlflow.log_metrics(accuracy_metrics)
+
+                # Log artifacts
+                artifacts_logged = self._log_artifacts(job_data, mlflow_config)
+
+                # Build run URL
+                run_url = None
+                if tracking_uri.startswith(("http://", "https://")):
+                    run_url = f"{tracking_uri}/#/experiments/{run.info.experiment_id}/runs/{run.info.run_id}"
+
+                return ExportResult(
+                    success=True,
+                    dest="mlflow",
+                    message=f"Logged {len(accuracy_metrics)} metrics to MLflow",
+                    metadata={
+                        "run_id": run.info.run_id,
+                        "experiment_id": run.info.experiment_id,
+                        "tracking_uri": tracking_uri,
+                        "run_url": run_url,
+                        "invocation_id": job_data.invocation_id,
+                        "metrics_logged": len(accuracy_metrics),
+                        "params_logged": len(safe_params),
+                        "artifacts_logged": len(artifacts_logged),
+                    },
+                )
+
+        except Exception as e:
+            logger.error(f"MLflow export failed: {e}")
+            return ExportResult(
+                success=False, dest="mlflow", message=f"Failed: {str(e)}"
+            )
+
+    def _log_artifacts(
+        self, job_data: JobData, mlflow_config: Dict[str, Any]
+    ) -> List[str]:
+        """Log evaluation artifacts to MLflow using LocalExporter for transfer."""
+
+        # Check if artifacts should be logged (default: True)
+        if not mlflow_config.get("log_artifacts", True):
+            return []
+
+        try:
+            # Use LocalExporter to get files locally first
+            temp_dir = tempfile.mkdtemp(prefix="mlflow_artifacts_")
+            local_exporter = LocalExporter({"output_dir": temp_dir})
+            local_result = local_exporter.export_job(job_data)
+
+            if not local_result.success:
+                logger.error(f"Failed to download artifacts: {local_result.message}")
+                return []
+
+            artifacts_dir = Path(local_result.dest) / "artifacts"
+            logged_names = []
+
+            task_name = get_task_name(job_data)
+            artifact_path = task_name
+
+            # Log config at root level
+            with tempfile.TemporaryDirectory() as tmpdir:
+                cfg_file = Path(tmpdir) / "config.yaml"
+                with cfg_file.open("w") as f:
+                    yaml.dump(
+                        job_data.config or {},
+                        f,
+                        default_flow_style=False,
+                        sort_keys=False,
+                    )
+                mlflow.log_artifact(str(cfg_file))
+
+            # Then log results files
+            for fname in get_available_artifacts(artifacts_dir):
+                file_path = artifacts_dir / fname
+                if file_path.exists():
+                    mlflow.log_artifact(str(file_path), artifact_path=artifact_path)
+                    logged_names.append(fname)
+
+            # cleanup temp
+            shutil.rmtree(temp_dir)
+            return logged_names
+
+        except Exception as e:
+            logger.error(f"Error logging artifacts: {e}")
+            return []
+
+    def export_invocation(self, invocation_id: str) -> Dict[str, Any]:
+        """Export all jobs in invocation as one MLflow run."""
+        if not self.is_available():
+            return {"success": False, "error": "mlflow package not installed"}
+
+        jobs = self.db.get_jobs(invocation_id)
+        if not jobs:
+            return {
+                "success": False,
+                "error": f"No jobs found for invocation {invocation_id}",
+            }
+
+        try:
+            # Get first job for config access
+            first_job = list(jobs.values())[0]
+
+            # Extract config using common utility
+            mlflow_config = extract_exporter_config(first_job, "mlflow", self.config)
+
+            # Collect metrics from ALL jobs
+            all_metrics = {}
+            for job_id, job_data in jobs.items():
+                log_metrics = mlflow_config.get("log_metrics", [])
+                job_metrics = extract_accuracy_metrics(
+                    job_data, self.get_job_paths, log_metrics
+                )
+                all_metrics.update(job_metrics)
+
+            if not all_metrics:
+                return {
+                    "success": False,
+                    "error": "No accuracy metrics found in any job",
+                }
+
+            # Set up MLflow
+            tracking_uri = mlflow_config.get("tracking_uri")
+            if not tracking_uri:
+                return {"success": False, "error": "tracking_uri is required"}
+
+            tracking_uri = tracking_uri.rstrip("/")
+            mlflow.set_tracking_uri(tracking_uri)
+
+            experiment_name = mlflow_config.get("experiment_name", "nv-eval")
+            mlflow.set_experiment(experiment_name)
+
+            # Prepare parameters for invocation
+            all_params = {
+                "invocation_id": invocation_id,
+                "executor": first_job.executor,
+                "timestamp": str(first_job.timestamp),
+                "jobs_count": str(len(jobs)),
+            }
+
+            # Add webhook info if available
+            if mlflow_config.get("triggered_by_webhook"):
+                all_params.update(
+                    {
+                        "webhook_triggered": "true",
+                        "webhook_source": mlflow_config.get("webhook_source"),
+                        "source_artifact": mlflow_config.get("source_artifact"),
+                        "config_source": mlflow_config.get("config_source"),
+                    }
+                )
+
+            if mlflow_config.get("extra_metadata"):
+                all_params.update(mlflow_config["extra_metadata"])
+
+            # Prepare tags
+            tags = {"invocation_id": invocation_id}
+            if mlflow_config.get("tags"):
+                tags.update({k: v for k, v in mlflow_config["tags"].items() if v})
+
+            # Truncate
+            safe_params = {
+                str(k)[:250]: str(v)[:250] for k, v in all_params.items() if v
+            }
+            safe_tags = {str(k)[:250]: str(v)[:5000] for k, v in tags.items() if v}
+
+            # Check for existing run
+            exists, existing_run_id = self._get_existing_run_info(
+                first_job, mlflow_config
+            )
+            if exists and mlflow_config.get("skip_existing"):
+                return {
+                    "success": True,
+                    "invocation_id": invocation_id,
+                    "jobs": {
+                        job_id: {
+                            "success": True,
+                            "message": f"Run already exists: {existing_run_id}, skipped",
+                        }
+                        for job_id in jobs.keys()
+                    },
+                    "metadata": {"run_id": existing_run_id, "skipped": True},
+                }
+
+            # Create MLflow run with ALL metrics
+            with mlflow.start_run() as run:
+                # Set tags
+                if safe_tags:
+                    mlflow.set_tags(safe_tags)
+
+                # Set run name
+                run_name = mlflow_config.get("run_name") or f"eval-{invocation_id}"
+                mlflow.set_tag("mlflow.runName", run_name)
+
+                # Set description
+                description = mlflow_config.get("description")
+                if description:
+                    mlflow.set_tag("mlflow.note.content", str(description)[:5000])
+
+                # Log parameters
+                mlflow.log_params(safe_params)
+
+                # Log ALL metrics
+                mlflow.log_metrics(all_metrics)
+
+                # Log artifacts from all jobs
+                total_artifacts = 0
+                for job_data in jobs.values():
+                    artifacts_logged = self._log_artifacts(job_data, mlflow_config)
+                    total_artifacts += len(artifacts_logged)
+
+                # Build run URL
+                run_url = None
+                if tracking_uri.startswith(("http://", "https://")):
+                    run_url = f"{tracking_uri}/#/experiments/{run.info.experiment_id}/runs/{run.info.run_id}"
+
+                return {
+                    "success": True,
+                    "invocation_id": invocation_id,
+                    "jobs": {
+                        job_id: {
+                            "success": True,
+                            "message": "Contributed to invocation run",
+                        }
+                        for job_id in jobs.keys()
+                    },
+                    "metadata": {
+                        "run_id": run.info.run_id,
+                        "experiment_id": run.info.experiment_id,
+                        "tracking_uri": tracking_uri,
+                        "run_url": run_url,
+                        "metrics_logged": len(all_metrics),
+                        "params_logged": len(safe_params),
+                        "artifacts_logged": total_artifacts,
+                    },
+                }
+        except Exception as e:
+            logger.error(f"MLflow export failed for invocation {invocation_id}: {e}")
+            return {"success": False, "error": f"MLflow export failed: {str(e)}"}

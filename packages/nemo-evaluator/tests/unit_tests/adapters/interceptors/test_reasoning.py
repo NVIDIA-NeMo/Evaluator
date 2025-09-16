@@ -20,6 +20,7 @@ from unittest.mock import Mock, PropertyMock
 
 import pytest
 import requests
+
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.adapters.interceptors.reasoning_interceptor import (
     ResponseReasoningInterceptor,
@@ -34,8 +35,9 @@ from nemo_evaluator.adapters.types import (
     AdapterRequestContext,
     AdapterResponse,
 )
-
-from tests.unit_tests.adapters.testing_utils import create_fake_endpoint_process
+from tests.unit_tests.adapters.testing_utils import (
+    create_fake_endpoint_process,
+)
 
 
 @pytest.fixture
