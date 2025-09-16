@@ -17,6 +17,7 @@ import json
 
 import pytest
 from flask import Request
+
 from nemo_evaluator.adapters.interceptors.payload_modifier_interceptor import (
     PayloadParamsModifierInterceptor,
 )
