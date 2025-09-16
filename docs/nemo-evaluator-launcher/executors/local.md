@@ -1,4 +1,4 @@
-### Local Executor
+# Local Executor
 
 The Local executor runs evaluations on your machine using Docker. It provides a fast way to iterate if you have Docker installed, evaluating existing endpoints.
 

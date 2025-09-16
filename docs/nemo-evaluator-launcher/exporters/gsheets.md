@@ -1,4 +1,4 @@
-### Google Sheets Exporter (`gsheets`)
+# Google Sheets Exporter (`gsheets`)
 
 Export metrics to Google Sheets for collaborative sharing and analysis. Inherits all core features from the [Local](local.md) exporter (artifact staging, multi-run, auto-export), and adds Google Sheets integration.
 

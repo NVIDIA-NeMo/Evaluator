@@ -4,33 +4,33 @@ This tutorial shows how to evaluate an existing API endpoint using the Local exe
 
 ## Prerequisites
 
-### Installation
+# Installation
 First, install the NeMo Evaluator Launcher. See the [Quickstart Installation Guide](../quickstart.md#1-install-the-launcher) for detailed setup instructions.
 
-### Requirements
+# Requirements
 - Docker
 - Python environment with the Nemo Evaluator Launcher CLI available
 
 ## Step-by-Step Guide
 
-### 1. Select Model
+# 1. Select Model
 
 You have two options:
 
-#### Option A: Use NVIDIA Build API or another hosted endpoint
+## Option A: Use NVIDIA Build API or another hosted endpoint
 - **URL**: `https://integrate.api.nvidia.com/v1/chat/completions` (or your hosted endpoint)
 - **Models**: You can select any OpenAI‑compatible endpoint, including those from the extensive catalog on NVIDIA Build
 - **API Key**: Get from [build.nvidia.com](https://build.nvidia.com/meta/llama-3_1-8b-instruct) (or your provider)
   - For NVIDIA APIs, see [Setting up API Keys](https://docs.omniverse.nvidia.com/guide-sdg/latest/setup.html#preview-and-set-up-an-api-key)
 
-#### Option B: Deploy Your Own Endpoint
+## Option B: Deploy Your Own Endpoint
 Deploy an OpenAI-compatible endpoint using frameworks like vLLM, SGLang, NeMo, TRT-LLM, or NIM. See examples: [Deployment Frameworks Guide](deployments/deployment-frameworks-guide.md)
 
 /// note | Tutorial Example
 For this tutorial we will use `meta/llama-3.1-8b-instruct` from [build.nvidia.com](https://build.nvidia.com/meta/llama-3_1-8b-instruct).
 ///
 
-### 2. Select Tasks
+# 2. Select Tasks
 
 Choose which benchmarks to evaluate. Available tasks include:
 
@@ -47,7 +47,7 @@ For this tutorial we will pick: `ifeval` and `humaneval_instruct` as these are r
 ///
 
 
-### 3. Create configuration file
+# 3. Create configuration file
 
 Create a `configs` directory and your first configuration file:
 
@@ -83,14 +83,14 @@ evaluation:
     - name: humaneval_instruct
 ```
 
-### 4. Run evaluation
+# 4. Run evaluation
 
 ```bash
 nemo-evaluator-launcher run --config-dir configs --config-name local_endpoint \
   -o target.api_endpoint.api_key=API_KEY
 ```
 
-### 5. Run  the same evaluation for a different model (using CLI overrides)
+# 5. Run  the same evaluation for a different model (using CLI overrides)
 
 ```bash
 export API_KEY=<YOUR MODEL API KEY>

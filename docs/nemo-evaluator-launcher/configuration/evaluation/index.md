@@ -23,11 +23,11 @@ evaluation:
 
 ## Key Components
 
-### Global Overrides
+# Global Overrides
 - **`overrides`**: Parameter overrides that apply to all tasks
 - **`env_vars`**: Environment variables that apply to all tasks
 
-### Task Configuration
+# Task Configuration
 - **`tasks`**: List of evaluation tasks to run
 - **`name`**: Name of the benchmark task
 - **`overrides`**: Task-specific parameter overrides
@@ -37,10 +37,10 @@ For a comprehensive list of available tasks, their descriptions, and task-specif
 
 ## Advanced Task Configuration
 
-### Parameter Overrides
+# Parameter Overrides
 The overrides system is crucial for leveraging the full flexibility of the common endpoint interceptors and task configuration layer. This is where nemo-evaluator intersects with nemo-evaluator-launcher, providing a unified configuration interface.
 
-#### Global Overrides
+## Global Overrides
 ```yaml
 evaluation:
   overrides:
@@ -50,7 +50,7 @@ evaluation:
     target.api_endpoint.adapter_config.custom_system_prompt: "Think step by step."
 ```
 
-#### Task-Specific Overrides
+## Task-Specific Overrides
 ```yaml
 evaluation:
   tasks:
@@ -69,7 +69,7 @@ evaluation:
         target.api_endpoint.adapter_config.custom_system_prompt: "You must only provide the code implementation"
 ```
 
-### Environment Variables
+# Environment Variables
 ```yaml
 evaluation:
   overrides:

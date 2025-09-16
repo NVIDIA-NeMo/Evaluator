@@ -1,4 +1,4 @@
-### Lepton Executor
+# Lepton Executor
 
 The Lepton executor deploys endpoints and runs evaluations on Lepton AI. It’s designed for fast, isolated, parallel evaluations using hosted or deployed endpoints. To learn more, visit [Lepton Page](https://www.nvidia.com/en-us/data-center/dgx-cloud-lepton/).
 

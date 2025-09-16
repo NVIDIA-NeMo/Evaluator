@@ -1,4 +1,4 @@
-### Executors Overview
+# Executors Overview
 
 Executors run the evaluation for you by taking the appropriate Docker image (which contains the evaluation harness) and executing the selected benchmark in your environment. They orchestrate containerized runs, manage resources and IO paths, and ensure evaluations are reproducible across machines and clusters. Optionally, an executor can also provision and host the model endpoint as part of the workflow.
 
