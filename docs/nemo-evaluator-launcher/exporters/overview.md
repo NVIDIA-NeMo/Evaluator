@@ -104,8 +104,7 @@ execution:
 
 
 **Notes:**
-- Avoid “local” export paths that point to your laptop when running on Slurm; use cluster paths, or run a post‑hoc export from your laptop:
-  - `nemo-evaluator-launcher export <invocation_id> --dest local --config '{"output_dir": "/your/local/path","format":"json"}'`
+- Avoid “local” export paths that point to local machine when running on Slurm; use cluster paths, or run a post‑hoc export from local machine:
 
   ```bash
   nemo-evaluator-launcher export <invocation_id> --dest local --format json
