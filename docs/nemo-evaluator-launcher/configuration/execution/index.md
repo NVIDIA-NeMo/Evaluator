@@ -33,7 +33,7 @@ On the executor level, we can define results export methods. The `auto_export` f
 - **GSheets**: Google Sheets integration
 - **S3**: AWS S3 storage
 
-For detailed configuration options, see the [Exporters Documentation](../../exporters/index.md).
+For detailed configuration options, see the {doc}`Exporters Documentation <../../exporters/overview>`.
 
 For detailed executor information, see the [Executors Overview](../../executors/overview.md).
 
