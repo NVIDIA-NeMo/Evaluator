@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Logging configuration module for nv-eval-platform.
+"""Logging configuration module for nemo-evaluator-launcher.
 
 This module provides a centralized logging configuration using structlog that outputs
 to both stderr and a log file. All modules should import and use the logger from this

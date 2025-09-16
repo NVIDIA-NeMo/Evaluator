@@ -105,7 +105,7 @@ For detailed configuration options, see the [Configuration Documentation](../con
 All executors generate standardized output with timestamped directories. The `output_dir` you specify is mounted as `/results` inside the evaluation container.
 
 **Common across all executors:**
-- Configuration saved to `$HOME/.nv-eval/run_configs`
+- Configuration saved to `$HOME/.nemo-evaluator-launcher/run_configs`
 - Timestamped run directories: `output_dir/2024-01-15-10-30-45-abc12345/`
 - **Artifacts**: Evaluation results, metrics, predictions, and task-specific outputs
 - **Logs**: Execution logs, error messages, and status information

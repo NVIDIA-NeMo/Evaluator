@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Base exporter interface for nv-eval-platform results."""
+"""Base exporter interface for nemo-evaluator-launcher results."""
 
 import os
 from abc import ABC, abstractmethod

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Local executor implementation for nv-eval-platform.
+"""Local executor implementation for nemo-evaluator-launcher.
 
 Handles running evaluation jobs locally using shell scripts and Docker containers.
 """

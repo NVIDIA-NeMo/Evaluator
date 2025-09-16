@@ -91,7 +91,7 @@ class GSheetsExporter(BaseExporter):
         try:
             # Connect to Google Sheets
             service_account_file = self.config.get("service_account_file")
-            spreadsheet_name = self.config.get("spreadsheet_name", "NV-Eval Results")
+            spreadsheet_name = self.config.get("spreadsheet_name", "NeMo Evaluator Launcher Results")
 
             if service_account_file:
                 gc = gspread.service_account(filename=service_account_file)
@@ -220,7 +220,7 @@ class GSheetsExporter(BaseExporter):
                 # Connect to Google Sheets
                 service_account_file = gsheets_config.get("service_account_file")
                 spreadsheet_name = gsheets_config.get(
-                    "spreadsheet_name", "NV-Eval Results"
+                    "spreadsheet_name", "NeMo Evaluator Launcher Results"
                 )
 
                 if service_account_file:
@@ -311,7 +311,7 @@ class GSheetsExporter(BaseExporter):
                 "total_rows_added": total_rows_added,
                 "spreadsheet_url": spreadsheet_url,
                 "spreadsheet_name": self.config.get(
-                    "spreadsheet_name", "NV-Eval Results"
+                    "spreadsheet_name", "NeMo Evaluator Launcher Results"
                 ),
             },
         }

@@ -33,7 +33,7 @@ execution:
     configs:
       wandb:
         entity: "nvidia"
-        project: "nv-eval-test"
+        project: "nemo-evaluator-launcher-test"
         group: "exporter-testing"
         job_type: "evaluation"
         tags: ["Nemotron-H", "multi-task", "exporter-test"]

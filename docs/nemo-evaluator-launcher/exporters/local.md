@@ -9,7 +9,7 @@ Exports artifacts and optional summaries to the local filesystem (and stages fro
   - Use with auto-export to collect results automatically after runs finish
 
 - Options:
-  - `output_dir` (alias `-o`): where results go (default: `./nv-eval-results`)
+  - `output_dir` (alias `-o`): where results go (default: `./nemo-evaluator-launcher-results`)
   - `format`: `json` or `csv` to produce summaries (omit for artifacts-only)
   - `log_metrics`: select which metrics to include
   - `only_required`: copy minimal, relevant files (default: true)
