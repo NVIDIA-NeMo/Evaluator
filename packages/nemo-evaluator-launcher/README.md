@@ -11,7 +11,7 @@ A comprehensive evaluation platform for large language models (LLMs) that suppor
 Install both `internal` and public the package using pip:
 
 ```bash
-pip install nemo-evaluator-launcher --index-url https://gitlab-master.nvidia.com/api/v4/projects/155749/packages/pypi/simple
+pip install nemo-evaluator-launcher --index-url <TODO: add URL>
 ```
 
 ### Optional Exporters
@@ -20,16 +20,16 @@ To use the result exporters, install the optional dependencies separately:
 
 ```bash
 # Install with MLflow exporter
-pip install nemo-evaluator-launcher-internal[mlflow] --index-url https://gitlab-master.nvidia.com/api/v4/projects/155749/packages/pypi/simple
+pip install nemo-evaluator-launcher-internal[mlflow] --index-url <TODO: add URL>
 
 # Install with Weights & Biases exporter
-pip install nemo-evaluator-launcher-internal[wandb] --index-url https://gitlab-master.nvidia.com/api/v4/projects/155749/packages/pypi/simple
+pip install nemo-evaluator-launcher-internal[wandb] --index-url <TODO: add URL>
 
 # Install with Google Sheets exporter
-pip install nemo-evaluator-launcher-internal[gsheets] --index-url https://gitlab-master.nvidia.com/api/v4/projects/155749/packages/pypi/simple
+pip install nemo-evaluator-launcher-internal[gsheets] --index-url <TODO: add URL>
 
 # Install with multiple exporters
-pip install nemo-evaluator-launcher-internal[mlflow,wandb,gsheets] --index-url https://gitlab-master.nvidia.com/api/v4/projects/155749/packages/pypi/simple
+pip install nemo-evaluator-launcher-internal[mlflow,wandb,gsheets] --index-url <TODO: add URL>
 ```
 
 **Supported Exporters:**

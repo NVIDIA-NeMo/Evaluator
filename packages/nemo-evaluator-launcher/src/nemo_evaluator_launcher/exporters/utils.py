@@ -16,14 +16,10 @@
 """Shared utilities for metrics and configuration handling."""
 
 import json
-import os
 import subprocess
-import tempfile
-import zipfile
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple
 
-import requests
 import yaml
 
 from nemo_evaluator_launcher.common.execdb import JobData
@@ -291,92 +287,92 @@ def download_gitlab_artifacts(
     Returns:
         Dictionary mapping artifact names to local file paths
     """
-    pipeline_id = paths["pipeline_id"]
-    project_id = paths["project_id"]
-    gitlab_token = os.getenv("GITLAB_TOKEN")
-
-    if not gitlab_token:
-        raise RuntimeError(
-            "GITLAB_TOKEN environment variable required for GitLab remote downloads"
-        )
-
-    # GitLab API endpoint for artifacts
-    base_url = "https://gitlab-master.nvidia.com"
-    artifacts_url = (
-        f"{base_url}/api/v4/projects/{project_id}/pipelines/{pipeline_id}/jobs"
-    )
-
-    headers = {"Private-Token": gitlab_token}
-    downloaded_artifacts = {}
-
-    try:
-        # Get pipeline jobs
-        response = requests.get(artifacts_url, headers=headers, timeout=30)
-        response.raise_for_status()
-        jobs = response.json()
-
-        for job in jobs:
-            if job.get("artifacts_file"):
-                job_id = job["id"]
-                job_name = job.get("name", f"job_{job_id}")
-                artifacts_download_url = (
-                    f"{base_url}/api/v4/projects/{project_id}/jobs/{job_id}/artifacts"
-                )
-
-                logger.info(f"Downloading artifacts from job: {job_name}")
-
-                # Download job artifacts
-                response = requests.get(
-                    artifacts_download_url, headers=headers, timeout=300
-                )
-                response.raise_for_status()
-
-                if extract_specific:
-                    # Extract specific files from ZIP
-                    with tempfile.NamedTemporaryFile(
-                        suffix=".zip", delete=False
-                    ) as temp_zip:
-                        temp_zip.write(response.content)
-                        temp_zip_path = temp_zip.name
-
-                    try:
-                        with zipfile.ZipFile(temp_zip_path, "r") as zip_ref:
-                            # Create artifacts directory
-                            artifacts_dir = export_dir / "artifacts"
-                            artifacts_dir.mkdir(parents=True, exist_ok=True)
-
-                            # Extract to be logged artifacts
-                            for member in zip_ref.namelist():
-                                filename = Path(member).name
-                                if filename in get_relevant_artifacts():
-                                    # Extract the file
-                                    source = zip_ref.open(member)
-                                    target_path = artifacts_dir / filename
-                                    with open(target_path, "wb") as f:
-                                        f.write(source.read())
-                                    source.close()
-
-                                    downloaded_artifacts[filename] = target_path
-                                    logger.info(f"Extracted: {filename}")
-                    finally:
-                        os.unlink(temp_zip_path)
-                else:
-                    # Save as ZIP files (original behavior)
-                    artifacts_zip = export_dir / f"job_{job_id}_artifacts.zip"
-                    with open(artifacts_zip, "wb") as f:
-                        f.write(response.content)
-
-                    downloaded_artifacts[f"job_{job_id}_artifacts.zip"] = artifacts_zip
-                    logger.info(f"Downloaded: {artifacts_zip.name}")
-
-    except requests.RequestException as e:
-        logger.error(f"GitLab API request failed: {e}")
-        raise RuntimeError(f"GitLab API request failed: {e}")
-    except Exception as e:
-        logger.error(f"GitLab remote download failed: {e}")
-        raise RuntimeError(f"GitLab remote download failed: {e}")
-
-    return downloaded_artifacts
+    raise NotImplementedError("Downloading from gitlab is not implemented")
+    # TODO: rework this logic
+    # pipeline_id = paths["pipeline_id"]
+    # project_id = paths["project_id"]
+    # gitlab_token = os.getenv("GITLAB_TOKEN")
+    #
+    # if not gitlab_token:
+    #     raise RuntimeError(
+    #         "GITLAB_TOKEN environment variable required for GitLab remote downloads"
+    #     )
+    #
+    # # GitLab API endpoint for artifacts
+    # base_url = "TODO: replace"
+    # artifacts_url = "TODO: replace"
+    #
+    # headers = {"Private-Token": gitlab_token}
+    # downloaded_artifacts = {}
+    #
+    # try:
+    #     # Get pipeline jobs
+    #     response = requests.get(artifacts_url, headers=headers, timeout=30)
+    #     response.raise_for_status()
+    #     jobs = response.json()
+    #
+    #     for job in jobs:
+    #         if job.get("artifacts_file"):
+    #             job_id = job["id"]
+    #             job_name = job.get("name", f"job_{job_id}")
+    #             artifacts_download_url = (
+    #                 f"{base_url}/api/v4/projects/{project_id}/jobs/{job_id}/artifacts"
+    #             )
+    #
+    #             logger.info(f"Downloading artifacts from job: {job_name}")
+    #
+    #             # Download job artifacts
+    #             response = requests.get(
+    #                 artifacts_download_url, headers=headers, timeout=300
+    #             )
+    #             response.raise_for_status()
+    #
+    #             if extract_specific:
+    #                 # Extract specific files from ZIP
+    #                 with tempfile.NamedTemporaryFile(
+    #                     suffix=".zip", delete=False
+    #                 ) as temp_zip:
+    #                     temp_zip.write(response.content)
+    #                     temp_zip_path = temp_zip.name
+    #
+    #                 try:
+    #                     with zipfile.ZipFile(temp_zip_path, "r") as zip_ref:
+    #                         # Create artifacts directory
+    #                         artifacts_dir = export_dir / "artifacts"
+    #                         artifacts_dir.mkdir(parents=True, exist_ok=True)
+    #
+    #                         # Extract to be logged artifacts
+    #                         for member in zip_ref.namelist():
+    #                             filename = Path(member).name
+    #                             if filename in get_relevant_artifacts():
+    #                                 # Extract the file
+    #                                 source = zip_ref.open(member)
+    #                                 target_path = artifacts_dir / filename
+    #                                 with open(target_path, "wb") as f:
+    #                                     f.write(source.read())
+    #                                 source.close()
+    #
+    #                                 downloaded_artifacts[filename] = target_path
+    #                                 logger.info(f"Extracted: {filename}")
+    #                 finally:
+    #                     os.unlink(temp_zip_path)
+    #             else:
+    #                 # Save as ZIP files (original behavior)
+    #                 artifacts_zip = export_dir / f"job_{job_id}_artifacts.zip"
+    #                 with open(artifacts_zip, "wb") as f:
+    #                     f.write(response.content)
+    #
+    #                 downloaded_artifacts[f"job_{job_id}_artifacts.zip"] = artifacts_zip
+    #                 logger.info(f"Downloaded: {artifacts_zip.name}")
+    #
+    # except requests.RequestException as e:
+    #     logger.error(f"GitLab API request failed: {e}")
+    #     raise RuntimeError(f"GitLab API request failed: {e}")
+    # except Exception as e:
+    #     logger.error(f"GitLab remote download failed: {e}")
+    #     raise RuntimeError(f"GitLab remote download failed: {e}")
+    #
+    # return downloaded_artifacts
 
 
 # =============================================================================

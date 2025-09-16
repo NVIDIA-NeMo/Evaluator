@@ -81,9 +81,10 @@ class LocalExporter(BaseExporter):
             elif paths["storage_type"] == "gitlab_ci_local":
                 exported_files = self._copy_local_artifacts(paths, job_export_dir, cfg)
             elif paths["storage_type"] == "gitlab_remote":
-                exported_files = self._download_gitlab_remote_artifacts(
-                    paths, job_export_dir
-                )
+                raise NotImplementedError("Unsupported storage type")
+                # exported_files = self._download_gitlab_remote_artifacts(
+                #     paths, job_export_dir
+                # )
             else:
                 raise ValueError(
                     f"Cannot export from storage type: {paths['storage_type']}"
