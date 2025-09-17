@@ -470,6 +470,8 @@ def _create_slurm_sbatch_script(
     s += "#SBATCH --exclusive\n"
     s += "#SBATCH --output {}\n".format(remote_task_subdir / "logs" / "slurm-%A.out")
     s += "\n"
+    s += f'TASK_DIR="{str(remote_task_subdir)}"\n'
+    s += "\n"
 
     # collect all env vars
     env_vars = copy.deepcopy(dict(cfg.evaluation.get("env_vars", {})))
@@ -620,11 +622,22 @@ def _generate_auto_export_section(
     if not destinations:
         return ""
 
-    s = "\n# AUTO-EXPORT ON SUCCESS\n"
+    s = "\n# Auto-export on success\n"
     s += "EVAL_EXIT_CODE=$?\n"
     s += "if [ $EVAL_EXIT_CODE -eq 0 ]; then\n"
     s += "    echo 'Evaluation completed successfully. Starting auto-export...'\n"
-
+    s += "    set +e\n"  # per exporter failure allowed
+    s += "    set +x\n"
+    s += '    cd "$TASK_DIR/artifacts"\n'
+    auto_export_cfg = OmegaConf.to_container(
+        cfg.execution.get("auto_export", {}), resolve=True
+    )
+    yaml_str = yaml.safe_dump(
+        {"execution": {"auto_export": auto_export_cfg}}, sort_keys=False
+    )
+    s += "    cat > export_config.yml << 'EOF'\n"
+    s += yaml_str
+    s += "EOF\n"
     for dest in destinations:
         s += f"    echo 'Exporting to {dest}...'\n"
         s += f"    nemo-evaluator-launcher export {job_id} --dest {dest} || echo 'Export to {dest} failed'\n"
