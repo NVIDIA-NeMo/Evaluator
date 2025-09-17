@@ -105,7 +105,9 @@ class TestSlurmExecutorFeatures:
             }
             mock_get_health.return_value = "http://localhost:8000/health"
             mock_get_endpoint.return_value = "http://localhost:8000/v1"
-            mock_get_eval_command.return_value = "nv_eval run_eval --test"
+            mock_get_eval_command.return_value = (
+                "nemo_evaluator_launcher run_eval --test"
+            )
             mock_get_model_name.return_value = "test-model"
 
             yield {
@@ -609,9 +611,7 @@ class TestSlurmExecutorDryRun:
                     raise KeyError(f"Task {task_name} not found")
 
                 mock_get_task.side_effect = mock_get_task_side_effect
-                mock_get_command.return_value = (
-                    "nv-eval --model llama-3.1-8b-instruct --task {task_name}"
-                )
+                mock_get_command.return_value = "nemo-evaluator-launcher --model llama-3.1-8b-instruct --task {task_name}"
                 mock_get_health.return_value = "http://localhost:8000/health"
                 mock_get_endpoint.return_value = "http://localhost:8000/v1"
 
@@ -748,7 +748,9 @@ class TestSlurmExecutorDryRun:
                     raise KeyError(f"Task {task_name} not found")
 
                 mock_get_task.side_effect = mock_get_task_side_effect
-                mock_get_command.return_value = "nv-eval --task test_command"
+                mock_get_command.return_value = (
+                    "nemo-evaluator-launcher --task test_command"
+                )
                 mock_get_health.return_value = "http://localhost:8000/health"
                 mock_get_endpoint.return_value = "http://localhost:8000/v1"
 
@@ -805,7 +807,9 @@ class TestSlurmExecutorDryRun:
                     raise KeyError(f"Task {task_name} not found")
 
                 mock_get_task.side_effect = mock_get_task_side_effect
-                mock_get_command.return_value = "nv-eval --task test_command"
+                mock_get_command.return_value = (
+                    "nemo-evaluator-launcher --task test_command"
+                )
                 mock_get_health.return_value = "http://localhost:8000/health"
                 mock_get_endpoint.return_value = "http://localhost:8000/v1"
 
@@ -1297,7 +1301,9 @@ class TestSlurmExecutorSystemCalls:
                     raise KeyError(f"Task {task_name} not found")
 
                 mock_get_task.side_effect = mock_get_task_side_effect
-                mock_get_command.return_value = "nv-eval --task mmlu_pro"
+                mock_get_command.return_value = (
+                    "nemo-evaluator-launcher --task mmlu_pro"
+                )
                 mock_get_health.return_value = "http://127.0.0.1:8000/health"
                 mock_get_endpoint.return_value = "http://127.0.0.1:8000/v1"
 
@@ -1388,7 +1394,9 @@ class TestSlurmExecutorSystemCalls:
                     raise KeyError(f"Task {task_name} not found")
 
                 mock_get_task.side_effect = mock_get_task_side_effect
-                mock_get_command.return_value = "nv-eval --task mmlu_pro"
+                mock_get_command.return_value = (
+                    "nemo-evaluator-launcher --task mmlu_pro"
+                )
                 mock_get_health.return_value = "http://127.0.0.1:8000/health"
                 mock_get_endpoint.return_value = "http://127.0.0.1:8000/v1"
 
@@ -1476,7 +1484,9 @@ class TestSlurmExecutorSystemCalls:
                     raise KeyError(f"Task {task_name} not found")
 
                 mock_get_task.side_effect = mock_get_task_side_effect
-                mock_get_command.return_value = "nv-eval --task mmlu_pro"
+                mock_get_command.return_value = (
+                    "nemo-evaluator-launcher --task mmlu_pro"
+                )
                 mock_get_health.return_value = "http://127.0.0.1:8000/health"
                 mock_get_endpoint.return_value = "http://127.0.0.1:8000/v1"
 

@@ -16,7 +16,7 @@ See the complete configuration structure in the [Slurm Config File](../../../../
 - **`ntasks_per_node`**: Number of tasks per node (default: 1)
 - **`gres`**: GPU resources (default: gpu:8)
 - **`walltime`**: Maximum job runtime in HH:MM:SS format (default: 01:00:00)
-- **`subproject`**: Subproject identifier (default: nv-eval)
+- **`subproject`**: Subproject identifier (default: nemo-evaluator-launcher)
 - **`output_dir`**: Directory where evaluation results will be saved (use `???` for required values)
 - **`env_vars.deployment`**: Environment variables for deployment container
 - **`env_vars.evaluation`**: Environment variables for evaluation container

@@ -65,7 +65,7 @@ execution:
       mounts:
         # Main workspace mount
         - from: "node-nfs:lepton-shared-fs"
-          path: "/EU-Model-Builder-SAs/user_homes/<username>/nv-eval-workspace"
+          path: "/EU-Model-Builder-SAs/user_homes/<username>/nemo-evaluator-launcher-workspace"
           mount_path: "/workspace"
 
       # Image pull secrets for task containers

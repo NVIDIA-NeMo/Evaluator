@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Test configuration and fixtures for nv-eval-platform tests."""
+"""Test configuration and fixtures for nemo-evaluator-launcher tests."""
 
 import json
 import pathlib
@@ -392,7 +392,7 @@ def extract_invocation_id(mock_print) -> str:
     for c in mock_print.mock_calls:
         if c.args:
             s = str(c.args[0])
-            m = re.search(r"nv-eval status\s+([0-9a-f]{8})\b", s)
+            m = re.search(r"nemo-evaluator-launcher status\s+([0-9a-f]{8})\b", s)
             if m:
                 return m.group(1)
     for c in mock_print.mock_calls:

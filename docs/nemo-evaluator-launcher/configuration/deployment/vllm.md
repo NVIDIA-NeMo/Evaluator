@@ -30,7 +30,7 @@ Examples:
 - [Lepton vLLM Example](../../../../packages/nemo-evaluator-launcher/examples/lepton_vllm_llama_3_1_8b_instruct.yaml) - vLLM deployment on Lepton platform
 - [Slurm vLLM Example](../../../../packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml) - vLLM deployment on Slurm cluster
 - [Slurm vLLM HF Example](../../../../packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct_hf.yaml) - vLLM with Hugging Face model
-- [Notebook API Example](../../../../packages/nemo-evaluator-launcher/examples/notebooks/nv-eval-api.ipynb) - Python API usage with vLLM
+- [Notebook API Example](../../../../packages/nemo-evaluator-launcher/examples/notebooks/nemo-evaluator-launcher-api.ipynb) - Python API usage with vLLM
 
 
 ## Reference
