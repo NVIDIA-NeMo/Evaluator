@@ -126,10 +126,6 @@ class Cmd:
             print(f"Complete run config saved to: {config_path}")
 
         if invocation_id is not None:
-            # TODO(public release): remove in public
-            print(
-                "#########################\n  !! Submit bugs and improvements: http://nv/eval.issue\n#########################\n  "
-            )
             print(f"to check status: nemo-evaluator-launcher status {invocation_id}")
             print(f"to kill all jobs: nemo-evaluator-launcher kill {invocation_id}")
             print(
