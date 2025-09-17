@@ -70,9 +70,9 @@ def create_parser() -> ArgumentParser:
     ls_parser = subparsers.add_parser(
         "ls", help="List resources", description="List tasks or runs"
     )
-    ls_sub = ls_parser.add_subparsers(dest="ls_command", required=True)
+    ls_sub = ls_parser.add_subparsers(dest="ls_command", required=False)
 
-    # ls tasks
+    # ls tasks (default)
     ls_tasks_parser = ls_sub.add_parser(
         "tasks", help="List available tasks", description="List available tasks"
     )
@@ -124,9 +124,15 @@ def main() -> None:
         args.kill.execute()
     elif args.command == "ls":
         # Dispatch nested ls subcommands
-        if hasattr(args, "tasks"):
-            args.tasks.execute()
-        elif hasattr(args, "runs"):
+        if args.ls_command is None or args.ls_command == "tasks":
+            # Default to tasks when no subcommand specified
+            if hasattr(args, "tasks"):
+                args.tasks.execute()
+            else:
+                # Create default tasks command if not specified
+                tasks_cmd = ls_tasks.Cmd()
+                tasks_cmd.execute()
+        elif args.ls_command == "runs":
             args.runs.execute()
     elif args.command == "export":
         args.export.execute()
