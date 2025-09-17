@@ -38,6 +38,7 @@ extensions = [
     "sphinx.ext.doctest",  # Allows testing in docstrings
     "sphinx.ext.napoleon",  # For google style docstrings
     "sphinx_copybutton",  # For copy button in code blocks
+    "sphinxcontrib.mermaid",  # For mermaid diagrams
 ]
 
 templates_path = ["_templates"]
@@ -111,6 +112,7 @@ suppress_warnings = [
     "myst.directive_unknown",  # Suppress unknown directive warnings
     "myst.xref_missing",  # Suppress missing cross-reference warnings
     "ref.doc",  # Suppress document reference warnings
+    "misc.highlighting_failure",  # Suppress Pygments highlighting warnings
 ]
 
 # Github links are now getting rate limited from the Github Actions

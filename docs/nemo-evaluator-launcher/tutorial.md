@@ -32,7 +32,7 @@ Hosted endpoints (fastest):
 
   For NVIDIA APIs, see [Setting up API Keys](https://docs.omniverse.nvidia.com/guide-sdg/latest/setup.html#preview-and-set-up-an-api-key).
 
-  See examples for [build.nvidia.com](https://build.nvidia.com/) usage in the examples/ folder (TODO: link to examples/).
+  See examples for [build.nvidia.com](https://build.nvidia.com/) usage in the [local evaluation tutorial](tutorials/local-evaluation-of-existing-endpoint.md).
 
 Self-hosted options:
 
