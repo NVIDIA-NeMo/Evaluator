@@ -43,8 +43,8 @@ NeMo Evaluator Launcher provides specialized containers for different evaluation
 The system uses an interceptor-based architecture that processes requests and responses through a chain of adapters:
 
 **Configuration Methods:**
-- **CLI Overrides**: Use `--overrides` parameter for runtime configuration ([learn more](nemo-evaluator/reference/api.md#interceptor-system))
-- **YAML Configuration**: Define interceptor chains in configuration files ([learn more](nemo-evaluator/reference/api.md#interceptor-system))
+- **CLI Overrides**: Use `--overrides` parameter for runtime configuration ([learn more](../reference/api.md#interceptor-system))
+- **YAML Configuration**: Define interceptor chains in configuration files ([learn more](../reference/api.md#interceptor-system))
 
 
 ## Configuration and Overrides
