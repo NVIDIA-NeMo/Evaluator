@@ -122,7 +122,9 @@ class MLflowExporter(BaseExporter):
             mlflow.set_tracking_uri(tracking_uri)
 
             # Set experiment
-            experiment_name = mlflow_config.get("experiment_name", "nemo-evaluator-launcher")
+            experiment_name = mlflow_config.get(
+                "experiment_name", "nemo-evaluator-launcher"
+            )
             mlflow.set_experiment(experiment_name)
 
             # Prepare parameters
@@ -333,7 +335,9 @@ class MLflowExporter(BaseExporter):
             tracking_uri = tracking_uri.rstrip("/")
             mlflow.set_tracking_uri(tracking_uri)
 
-            experiment_name = mlflow_config.get("experiment_name", "nemo-evaluator-launcher")
+            experiment_name = mlflow_config.get(
+                "experiment_name", "nemo-evaluator-launcher"
+            )
             mlflow.set_experiment(experiment_name)
 
             # Prepare parameters for invocation

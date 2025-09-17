@@ -180,7 +180,9 @@ class LocalExporter(BaseExporter):
             first = next(iter(db_jobs.values()))
             cfg = extract_exporter_config(first, "local", self.config)
             fmt = cfg.get("format")
-            output_dir = Path(cfg.get("output_dir", "./nemo-evaluator-launcher-results"))
+            output_dir = Path(
+                cfg.get("output_dir", "./nemo-evaluator-launcher-results")
+            )
             filename = cfg.get("output_filename", f"processed_results.{fmt}")
             out_path = output_dir / filename  # consolidated file at output_dir
 

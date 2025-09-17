@@ -119,7 +119,9 @@ class Cmd:
                 f.write("# This is the complete raw configuration\n")
                 f.write("#\n")
                 f.write("# To rerun this exact configuration:\n")
-                f.write(f"# nemo-evaluator-launcher run --run-config-file {config_path}\n")
+                f.write(
+                    f"# nemo-evaluator-launcher run --run-config-file {config_path}\n"
+                )
                 f.write("#\n")
                 f.write(config_yaml)
 

@@ -91,7 +91,9 @@ class GSheetsExporter(BaseExporter):
         try:
             # Connect to Google Sheets
             service_account_file = self.config.get("service_account_file")
-            spreadsheet_name = self.config.get("spreadsheet_name", "NeMo Evaluator Launcher Results")
+            spreadsheet_name = self.config.get(
+                "spreadsheet_name", "NeMo Evaluator Launcher Results"
+            )
 
             if service_account_file:
                 gc = gspread.service_account(filename=service_account_file)
