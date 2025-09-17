@@ -46,7 +46,7 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.pre-start"
         exit_code=$?
         chmod 777 -R /results;
         if [ "$exit_code" -ne 0 ]; then
-            echo "nemo-evaluator-launcher failed with exit code $exit_code" >&2;
+            echo "The evaluation container failed with exit code $exit_code" >&2;
             exit "$exit_code";
         fi;
         echo "Container completed successfully" >&2;

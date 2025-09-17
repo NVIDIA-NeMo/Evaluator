@@ -34,7 +34,7 @@ def get_eval_factory_command(
     }
     overrides_str = ",".join([f"{k}={v}" for k, v in overrides.items()])
     model_url = get_endpoint_url(cfg, user_task_config, task_definition)
-    command = f"""nemo-evaluator-launcher run_eval \
+    command = f"""nv_eval run_eval \
     --model_id {get_served_model_name(cfg)} \
     --model_type {task_definition["endpoint_type"]} \
     --eval_type {task_definition["task"]} \
