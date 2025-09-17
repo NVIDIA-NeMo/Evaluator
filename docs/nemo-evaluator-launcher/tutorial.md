@@ -13,7 +13,7 @@ pip install nemo-evaluator-launcher
 
 NeMo Evaluator sends OpenAI-compatible requests to your model during evaluation. You must have an endpoint that accepts either chat or completions API calls and can handle the evaluation load.
 
-**Configuration Examples**: Explore ready-to-use configuration files in [`packages/nemo-evaluator-launcher/examples/`](./packages/nemo-evaluator-launcher/examples/) for local, Lepton, and Slurm deployments with various model hosting options (vLLM, NIM, hosted endpoints).
+**Configuration Examples**: Explore ready-to-use configuration files in [`packages/nemo-evaluator-launcher/examples/`](../../packages/nemo-evaluator-launcher/examples/) for local, Lepton, and Slurm deployments with various model hosting options (vLLM, NIM, hosted endpoints).
 
 Hosted endpoints (fastest):
 
@@ -75,24 +75,20 @@ The NeMo Evaluator Launcher uses [Hydra](https://hydra.cc/docs/intro/) for confi
 
 #### Using Example Configurations
 
-The examples/ directory contains ready-to-use configurations:
+The `examples/` directory contains ready-to-use configurations:
 
-- Local execution: examples/local_llama_3_1_8b_instruct.yaml
-- Slurm execution: see executors guide (executors/slurm.md)
-- Lepton AI execution: see executors guide (executors/lepton.md)
+- Local execution: [examples/local_llama_3_1_8b_instruct.yaml](../../packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml)
+- Slurm execution: [examples/slurm_llama_3_1_8b_instruct.yaml](../../packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml)
+- Lepton AI execution: [examples/lepton_nim_llama_3_1_8b_instruct.yaml](../../packages/nemo-evaluator-launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml)
 
 Run a local evaluation (requires [Docker](https://www.docker.com/)):
 ```bash
 nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
 ```
 
-For other backends:
-- Slurm: see executors/slurm.md
-- Lepton: see executors/lepton.md
-
-#### Lepton Execution Strategy
-See executors/lepton.md for Lepton’s parallel deployment strategy and examples.
-
+See guides for other backends:
+- [Slurm](executors/slurm.md)
+- [Lepton](executors/lepton.md)
 
 #### Creating Custom Configurations
 
