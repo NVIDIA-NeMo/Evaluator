@@ -594,8 +594,9 @@ def _create_slurm_sbatch_script(
         s += "--no-container-mount-home "
     s += "--container-mounts {} ".format(",".join(evaluation_mounts_list))
     s += "--output {} ".format(remote_task_subdir / "logs" / "client-%A.out")
+    s += "bash -c '"
     s += get_eval_factory_command(cfg, task, task_definition)
-    s += "\n\n"
+    s += "'\n\n"
 
     # terminate the server after all evaluation clients finish
     if cfg.deployment.type != "none":

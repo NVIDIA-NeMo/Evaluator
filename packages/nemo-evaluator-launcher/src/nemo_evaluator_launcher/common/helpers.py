@@ -13,18 +13,51 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import base64
 import copy
 import datetime
 from typing import Optional
 
+import yaml
 from omegaconf import DictConfig, OmegaConf
 
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 
+def _yaml_to_echo_command(yaml_str: str, filename: str = "config_ef.yaml") -> str:
+    yaml_str_b64 = base64.b64encode(yaml_str.encode("utf-8")).decode("utf-8")
+    return f'echo "{yaml_str_b64}" | base64 -d > {filename}'
+
+
+def get_eval_factory_config(
+    cfg: DictConfig, user_task_config: DictConfig, task_definition: dict
+) -> dict:
+    """Extract config fields for eval factory.
+
+    This function extracts the config field similar to how overrides are handled.
+    """
+    # Extract config fields similar to overrides - convert to basic Python types first
+    cfg_config = cfg.evaluation.get("config", {})
+    user_config = user_task_config.get("config", {})
+
+    # Convert OmegaConf objects to basic Python types
+    if cfg_config:
+        cfg_config = OmegaConf.to_container(cfg_config, resolve=True)
+    if user_config:
+        user_config = OmegaConf.to_container(user_config, resolve=True)
+
+    # Merge the configs
+    config_fields = copy.deepcopy(cfg_config or {})
+    config_fields.update(user_config or {})
+
+    return config_fields
+
+
 def get_eval_factory_command(
     cfg: DictConfig, user_task_config: DictConfig, task_definition: dict
 ) -> str:
+    config_fields = get_eval_factory_config(cfg, user_task_config, task_definition)
+
     overrides = copy.deepcopy(dict(cfg.evaluation.get("overrides", {})))
     overrides.update(dict(user_task_config.get("overrides", {})))
     # NOTE(dfridman): Temporary fix to make sure that the overrides arg is not split into multiple lines.
@@ -34,16 +67,20 @@ def get_eval_factory_command(
     }
     overrides_str = ",".join([f"{k}={v}" for k, v in overrides.items()])
     model_url = get_endpoint_url(cfg, user_task_config, task_definition)
-    command = f"""nv_eval run_eval \
-    --model_id {get_served_model_name(cfg)} \
-    --model_type {task_definition["endpoint_type"]} \
-    --eval_type {task_definition["task"]} \
-    --model_url {model_url} \
-    --api_key_name API_KEY \
-    --output_dir /results"""
-    if overrides_str:
-        command = f"{command} --overrides {overrides_str}"
-    return command
+
+    model_id = get_served_model_name(cfg)
+    model_type = task_definition["endpoint_type"]
+    eval_type = task_definition["task"]
+
+    create_file_cmd = _yaml_to_echo_command(
+        yaml.safe_dump(config_fields), "config_ef.yaml"
+    )
+    nv_eval_command = f"""nv_eval run_eval --model_id {model_id} --model_type {model_type} --eval_type {eval_type} --model_url {model_url} --api_key_name API_KEY --output_dir /results --run_config config_ef.yaml"""
+
+    if overrides:
+        nv_eval_command = f"{nv_eval_command} --overrides {overrides_str}"
+
+    return create_file_cmd + " && " + "cat config_ef.yaml && " + nv_eval_command
 
 
 def get_endpoint_url(

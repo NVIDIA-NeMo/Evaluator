@@ -91,7 +91,9 @@ docs/_build
 docs/apidocs
 
 # PyBuilder
+# Ignore build/target directory, but not the configuration docs target
 target/
+!docs/nemo-evaluator-launcher/configuration/target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
