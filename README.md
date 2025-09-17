@@ -1,4 +1,4 @@
-# NeMo Evaluator: The Universal Platform for LLM Evaluation
+# NeMo Evaluator
 
 NeMo Evaluator is an open-source platform for robust, reproducible, and scalable evaluation of Large Language Models. It enables you to run hundreds of benchmarks across popular evaluation harnesses against any OpenAI-compatible model API. Evaluations execute in open-source Docker containers for auditable and trustworthy results. The platform's containerized architecture allows for the rapid integration of public benchmarks and private datasets.
 
