@@ -528,6 +528,7 @@ class TestCLICommandLineInterface:
                 (),
                 {
                     "command": "ls",
+                    "ls_command": "tasks",
                     "tasks": type("LsTasksCmd", (), {"execute": lambda self: None})(),
                 },
             )()

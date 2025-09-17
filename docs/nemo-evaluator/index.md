@@ -84,7 +84,7 @@ Add your own benchmark or framework by defining its configuration and interfaces
 ## Next steps
 - Read the architecture details and glossary in the main docs
 - Explore containers and pick the benchmarks you need: [Container Reference](./reference/containers.md)
-- If you want a turnkey CLI, start with the Launcher Quickstart: [Quickstart](../nemo-evaluator-launcher/quickstart.md)
+- If you want a turnkey CLI, start with the Launcher Tutorial: [Tutorial](../nemo-evaluator-launcher/tutorial.md)
 
 ## NGC Containers
 

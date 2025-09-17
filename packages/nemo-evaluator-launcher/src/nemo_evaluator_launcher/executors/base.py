@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Base executor interface and execution status types for nv-eval-platform.
+"""Base executor interface and execution status types for nemo-evaluator-launcher.
 
 Defines the abstract interface for all executor implementations and common status types.
 """

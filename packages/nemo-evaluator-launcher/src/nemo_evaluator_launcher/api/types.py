@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Type definitions for the nv-eval-platform public API.
+"""Type definitions for the nemo-evaluator-launcher public API.
 
 This module defines data structures and helpers for configuration and type safety in the API layer.
 """

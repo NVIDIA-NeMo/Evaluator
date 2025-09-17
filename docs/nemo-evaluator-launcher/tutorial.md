@@ -13,7 +13,7 @@ pip install nemo-evaluator-launcher
 
 NeMo Evaluator sends OpenAI-compatible requests to your model during evaluation. You must have an endpoint that accepts either chat or completions API calls and can handle the evaluation load.
 
-**Configuration Examples**: Explore ready-to-use configuration files in [`packages/nemo-evaluator-launcher/examples/`](./packages/nemo-evaluator-launcher/examples/) for local, Lepton, and Slurm deployments with various model hosting options (vLLM, NIM, hosted endpoints).
+**Configuration Examples**: Explore ready-to-use configuration files in [`packages/nemo-evaluator-launcher/examples/`](../../packages/nemo-evaluator-launcher/examples/) for local, Lepton, and Slurm deployments with various model hosting options (vLLM, NIM, hosted endpoints).
 
 Hosted endpoints (fastest):
 
@@ -32,7 +32,7 @@ Hosted endpoints (fastest):
 
   For NVIDIA APIs, see [Setting up API Keys](https://docs.omniverse.nvidia.com/guide-sdg/latest/setup.html#preview-and-set-up-an-api-key).
 
-  See examples for [build.nvidia.com](https://build.nvidia.com/) usage in the examples/ folder (TODO: link to examples/).
+  See examples for [build.nvidia.com](https://build.nvidia.com/) usage in the [local evaluation tutorial](tutorials/local-evaluation-of-existing-endpoint.md).
 
 Self-hosted options:
 
@@ -75,24 +75,20 @@ The NeMo Evaluator Launcher uses [Hydra](https://hydra.cc/docs/intro/) for confi
 
 #### Using Example Configurations
 
-The examples/ directory contains ready-to-use configurations:
+The `examples/` directory contains ready-to-use configurations:
 
-- Local execution: examples/local_llama_3_1_8b_instruct.yaml
-- Slurm execution: see executors guide (executors/slurm.md)
-- Lepton AI execution: see executors guide (executors/lepton.md)
+- Local execution: [examples/local_llama_3_1_8b_instruct.yaml](../../packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml)
+- Slurm execution: [examples/slurm_llama_3_1_8b_instruct.yaml](../../packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml)
+- Lepton AI execution: [examples/lepton_nim_llama_3_1_8b_instruct.yaml](../../packages/nemo-evaluator-launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml)
 
 Run a local evaluation (requires [Docker](https://www.docker.com/)):
 ```bash
 nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
 ```
 
-For other backends:
-- Slurm: see executors/slurm.md
-- Lepton: see executors/lepton.md
-
-#### Lepton Execution Strategy
-See executors/lepton.md for Lepton’s parallel deployment strategy and examples.
-
+See guides for other backends:
+- [Slurm](executors/slurm.md)
+- [Lepton](executors/lepton.md)
 
 #### Creating Custom Configurations
 
@@ -106,11 +102,11 @@ mkdir my_configs
 cp examples/local_llama_3_1_8b_instruct.yaml my_configs/my_evaluation.yaml
 ```
 
-3. Modify the configuration to suit your needs:
-   - Change the model endpoint
-   - Adjust evaluation parameters
-   - Select different benchmarks
-   - Configure execution settings
+3. Modify the [configuration](configuration/index.md) to suit your needs:
+   - [Change the model endpoint](configuration/target/index.md)
+   - [Adjust evaluation parameters and select different benchmarks](configuration/evaluation/index.md)
+   - [Configure deployment settings](configuration/deployment/index.md)
+   - [Configure execution settings](configuration/execution/index.md)
 
 4. Run your custom configuration:
 ```bash

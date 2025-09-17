@@ -22,7 +22,7 @@ num_nodes: 1
 ntasks_per_node: 1
 gres: gpu:8
 walltime: 01:00:00
-subproject: nv-eval
+subproject: nemo-evaluator-launcher
 output_dir: ???
 env_vars:
   deployment: {}

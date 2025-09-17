@@ -47,7 +47,7 @@ Please note some additional steps might be necessary, such as creating registry 
 - Simple cleanup: Single command tears down endpoints and storage
 
 Mermaid overview:
-```{mermaid}
+```mermaid
 graph TD
     A["nemo-evaluator-launcher run"] --> B["Load Tasks"]
     B --> D["Endpoints Deployment"]

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""nv-eval-platform public API package.
+"""nemo-evaluator-launcher public API package.
 
 Exposes main API entry points and types for running evaluations and querying status.
 """

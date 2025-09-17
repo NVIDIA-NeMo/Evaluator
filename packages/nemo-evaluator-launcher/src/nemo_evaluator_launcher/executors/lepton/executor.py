@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Lepton executor implementation for nv-eval-platform.
+"""Lepton executor implementation for nemo-evaluator-launcher.
 
 Handles deployment and evaluation using Lepton endpoints with NIM containers.
 """
@@ -449,7 +449,7 @@ class LeptonExecutor(BaseExecutor):
                     # Add invocation ID to the path for evaluation isolation
                     if "path" in mount_dict:
                         original_path = mount_dict["path"]
-                        # Add invocation ID subdirectory: /shared/nv-eval-workspace/abc12345
+                        # Add invocation ID subdirectory: /shared/nemo-evaluator-launcher-workspace/abc12345
                         mount_dict["path"] = (
                             f"{original_path.rstrip('/')}/{invocation_id}"
                         )
@@ -515,8 +515,8 @@ class LeptonExecutor(BaseExecutor):
             )
 
             print(f"\n📋 Invocation ID: {invocation_id}")
-            print(f"🔍 Check status: nv-eval status {invocation_id}")
-            print(f"📋 Monitor logs: nv-eval logs {invocation_id}")
+            print(f"🔍 Check status: nemo-evaluator-launcher status {invocation_id}")
+            print(f"📋 Monitor logs: nemo-evaluator-launcher logs {invocation_id}")
 
             if cfg.deployment.type != "none":
                 print(f"🔗 Deployed {len(endpoint_names)} dedicated endpoints:")
@@ -524,7 +524,7 @@ class LeptonExecutor(BaseExecutor):
                     task_name = cfg.evaluation.tasks[i].name
                     print(f"   - {task_name}: {endpoint_name}")
                 print(
-                    f"⚠️  Remember to clean up endpoints when done: nv-eval kill {invocation_id}"
+                    f"⚠️  Remember to clean up endpoints when done: nemo-evaluator-launcher kill {invocation_id}"
                 )
             else:
                 print(f"📌 All tasks using shared endpoint: {shared_endpoint_url}")
@@ -532,7 +532,7 @@ class LeptonExecutor(BaseExecutor):
             print(f"📊 Evaluation results will be saved to: {output_dir}")
 
             # Note: Jobs will continue running on Lepton infrastructure
-            # Status can be checked using nv-eval status command
+            # Status can be checked using nemo-evaluator-launcher status command
 
             return invocation_id
 

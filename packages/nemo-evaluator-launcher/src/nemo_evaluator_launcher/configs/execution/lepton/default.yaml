@@ -84,7 +84,7 @@ lepton_platform:
     mounts:
       # Main workspace mount
       - from: "node-nfs:lepton-shared-fs"
-        path: "/shared/nv-eval-workspace"
+        path: "/shared/nemo-evaluator-launcher-workspace"
         mount_path: "/workspace"
 
     # Image pull secrets for task containers

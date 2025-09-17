@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""SLURM executor implementation for nv-eval-platform.
+"""SLURM executor implementation for nemo-evaluator-launcher.
 
 Handles submitting evaluation jobs to a SLURM cluster via SSH and sbatch scripts.
 """
@@ -596,8 +596,9 @@ def _create_slurm_sbatch_script(
         s += "--no-container-mount-home "
     s += "--container-mounts {} ".format(",".join(evaluation_mounts_list))
     s += "--output {} ".format(remote_task_subdir / "logs" / "client-%A.out")
+    s += "bash -c '"
     s += get_eval_factory_command(cfg, task, task_definition)
-    s += "\n\n"
+    s += "'\n\n"
 
     # terminate the server after all evaluation clients finish
     if cfg.deployment.type != "none":
@@ -639,7 +640,8 @@ def _generate_auto_export_section(
     s += "EOF\n"
     for dest in destinations:
         s += f"    echo 'Exporting to {dest}...'\n"
-        s += f"    nemo-evaluator-launcher export {job_id} --dest \"{dest}\" || echo 'Export to {dest} failed'\n"
+        s += f"    nemo-evaluator-launcher export {job_id} --dest {dest} || echo 'Export to {dest} failed'\n"
+
     s += "    echo 'Auto-export completed.'\n"
     s += "else\n"
     s += "    echo 'Evaluation failed with exit code $EVAL_EXIT_CODE. Skipping auto-export.'\n"

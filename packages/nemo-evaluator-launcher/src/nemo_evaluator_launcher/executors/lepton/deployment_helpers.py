@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Lepton deployment helper functions for nv-eval-platform.
+"""Lepton deployment helper functions for nemo-evaluator-launcher.
 
 Handles Lepton endpoint creation, management, and health checks.
 """
@@ -63,7 +63,7 @@ def replace_placeholders(data: Any, replacements: Dict[str, str]) -> Any:
 
 
 def generate_lepton_spec(cfg: DictConfig) -> Dict[str, Any]:
-    """Generate a Lepton endpoint specification from nv-eval configuration.
+    """Generate a Lepton endpoint specification from nemo-evaluator-launcher configuration.
 
     This function creates a layered configuration by merging:
     1. Platform defaults (from execution.lepton_platform.platform_defaults)
@@ -72,7 +72,7 @@ def generate_lepton_spec(cfg: DictConfig) -> Dict[str, Any]:
     4. Lepton platform config (from deployment.lepton_config - Lepton-specific settings)
 
     Args:
-        cfg: The nv-eval configuration object containing all settings.
+        cfg: The nemo-evaluator-launcher configuration object containing all settings.
 
     Returns:
         Dict containing the Lepton endpoint specification.
@@ -386,7 +386,7 @@ def create_lepton_endpoint(cfg: DictConfig, endpoint_name: str) -> bool:
     """Create a Lepton endpoint using the lep CLI.
 
     Args:
-        cfg: The nv-eval configuration object.
+        cfg: The nemo-evaluator-launcher configuration object.
         endpoint_name: Name for the endpoint.
 
     Returns:

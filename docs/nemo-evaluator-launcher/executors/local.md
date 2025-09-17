@@ -6,7 +6,7 @@ See common concepts and commands in the [executors overview](overview.md).
 
 ## Prerequisites
 - Docker
-- Python environment with the Nemo Evaluator Launcher CLI available (install the launcher by following the [Quickstart](../quickstart.md))
+- Python environment with the Nemo Evaluator Launcher CLI available (install the launcher by following the [Tutorial](../tutorial.md))
 
 
 ## Tutorials

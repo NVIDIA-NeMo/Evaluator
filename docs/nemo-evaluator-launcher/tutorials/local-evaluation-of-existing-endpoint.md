@@ -5,7 +5,7 @@ This tutorial shows how to evaluate an existing API endpoint using the Local exe
 ## Prerequisites
 
 # Installation
-First, install the NeMo Evaluator Launcher. See the [Quickstart Installation Guide](../quickstart.md#1-install-the-launcher) for detailed setup instructions.
+First, install the NeMo Evaluator Launcher. See the [Tutorial Installation Guide](../tutorial.md#1-install-the-launcher) for detailed setup instructions.
 
 # Requirements
 - Docker
