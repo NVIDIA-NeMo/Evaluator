@@ -28,16 +28,14 @@ else:
 from nemo_evaluator_launcher.common.mapping import MAPPING_URL, _download_latest_mapping
 
 
-@pytest.mark.skip(reason="TODO: Reenable after switching to GH")
 def test_mapping_url_contains_main():
     """Test that MAPPING_URL contains 'main' substring in the branch path."""
-    # Check that the URL contains 'main' in the branch part (after /raw/)
-    assert "ref=main" in MAPPING_URL, (
-        f"MAPPING_URL '{MAPPING_URL}' must contain '/raw/main/'"
+    # Check that the URL contains 'main' in the branch part
+    assert "NVIDIA-NeMo/Eval/main" in MAPPING_URL, (
+        f"MAPPING_URL '{MAPPING_URL}' must contain 'NVIDIA-NeMo/Eval/main'"
     )
 
 
-@pytest.mark.skip(reason="TODO: Reenable after switching to GH")
 def test_mapping_url_is_reachable(enable_network):
     """Test that MAPPING_URL is reachable and returns valid TOML."""
     # Get GitLab token from environment
@@ -48,7 +46,6 @@ def test_mapping_url_is_reachable(enable_network):
     # Test the actual download function
     result = _download_latest_mapping()
     assert result is not None, f"Failed to download mapping from '{MAPPING_URL}'"
-    assert isinstance(result, bytes), "Downloaded mapping should be raw bytes"
     assert len(result) > 0, "Downloaded mapping should not be empty"
     # Test the content
     mapping_str = result.decode("utf-8")
