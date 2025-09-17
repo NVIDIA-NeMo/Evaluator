@@ -15,8 +15,6 @@
 #
 """Extended tests for the mapping module to increase coverage."""
 
-import base64
-import os
 import pathlib
 import sys
 from unittest.mock import Mock, patch
@@ -118,7 +116,6 @@ class TestCachingFunctionality:
                 assert result is None
 
 
-@pytest.mark.skip(reason="TODO: Reenable after switching to GH")
 class TestDownloadFunctionality:
     """Test download functions."""
 
@@ -126,65 +123,44 @@ class TestDownloadFunctionality:
         """Test successful download of mapping."""
         mock_response = Mock()
         mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = {
-            "content": base64.b64encode(b"[test]\nkey = 'value'\n").decode()
-        }
-
-        with patch.dict(os.environ, {"GITLAB_TOKEN": "test_token"}):
-            with patch("requests.get", return_value=mock_response):
-                result = _download_latest_mapping()
-                assert result == b"[test]\nkey = 'value'\n"
-
-    def test_download_latest_mapping_no_token(self):
-        """Test download without GitLab token."""
-        mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = {
-            "content": base64.b64encode(b"[test]\nkey = 'value'\n").decode()
-        }
-
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("requests.get", return_value=mock_response):
-                result = _download_latest_mapping()
-                assert result == b"[test]\nkey = 'value'\n"
-
-    def test_download_latest_mapping_fallback_content(self):
-        """Test download with fallback to response.content."""
-        mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = {}  # No 'content' key
         mock_response.content = b"[test]\nkey = 'value'\n"
 
-        with patch.dict(os.environ, {"GITLAB_TOKEN": "test_token"}):
-            with patch("requests.get", return_value=mock_response):
-                result = _download_latest_mapping()
-                assert result == b"[test]\nkey = 'value'\n"
+        with patch("requests.get", return_value=mock_response):
+            result = _download_latest_mapping()
+            assert result == b"[test]\nkey = 'value'\n"
+
+    def test_download_latest_mapping_direct_content(self):
+        """Test download using response.content directly."""
+        mock_response = Mock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.content = b"[test]\nkey = 'value'\n"
+
+        with patch("requests.get", return_value=mock_response):
+            result = _download_latest_mapping()
+            assert result == b"[test]\nkey = 'value'\n"
 
     def test_download_latest_mapping_request_error(self):
         """Test download with request error."""
-        with patch.dict(os.environ, {"GITLAB_TOKEN": "test_token"}):
-            with patch(
-                "requests.get", side_effect=requests.RequestException("Network error")
-            ):
-                result = _download_latest_mapping()
-                assert result is None
+        with patch(
+            "requests.get", side_effect=requests.RequestException("Network error")
+        ):
+            result = _download_latest_mapping()
+            assert result is None
 
     def test_download_latest_mapping_timeout_error(self):
         """Test download with timeout error."""
-        with patch.dict(os.environ, {"GITLAB_TOKEN": "test_token"}):
-            with patch("requests.get", side_effect=OSError("Timeout")):
-                result = _download_latest_mapping()
-                assert result is None
+        with patch("requests.get", side_effect=OSError("Timeout")):
+            result = _download_latest_mapping()
+            assert result is None
 
     def test_download_latest_mapping_http_error(self):
         """Test download with HTTP error."""
         mock_response = Mock()
         mock_response.raise_for_status.side_effect = requests.HTTPError("404 Not Found")
 
-        with patch.dict(os.environ, {"GITLAB_TOKEN": "test_token"}):
-            with patch("requests.get", return_value=mock_response):
-                result = _download_latest_mapping()
-                assert result is None
+        with patch("requests.get", return_value=mock_response):
+            result = _download_latest_mapping()
+            assert result is None
 
 
 class TestPackagedResourceFunctionality:
