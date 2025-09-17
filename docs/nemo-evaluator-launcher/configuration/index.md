@@ -95,7 +95,7 @@ All configuration files are available in the nemo-evaluator-launcher repository:
 
 ## Troubleshooting
 
-# Validate Configuration with Dry Run
+### Validate Configuration with Dry Run
 Always test your configuration before running evaluations:
 
 ```bash
@@ -116,7 +116,38 @@ export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
 nemo-evaluator-launcher run --config-name your_config
 ```
 
-# Test with Limited Samples
+### Log failed requests responses pair 
+
+```yaml
+evaluation:
+  overrides:
+    target.api_endpoint.adapter_config.log_failed_requests: true
+```
+
+### Log requests
+You can set limit by default `max_logged_requests` is None (all requests will be logged)
+
+```yaml
+evaluation:
+  overrides:
+    target.api_endpoint.adapter_config.max_logged_requests: null 
+    target.api_endpoint.adapter_config.use_request_logging: true 
+```
+
+
+### Log responses
+
+You can set limit by default `max_logged_responses` is None (all requests will be logged)
+
+```yaml
+evaluation:
+  overrides:
+    target.api_endpoint.adapter_config.max_logged_responses: null 
+    target.api_endpoint.adapter_config.use_response_logging: true 
+```
+
+
+### Test with Limited Samples
 Start with a small sample size to verify your configuration works:
 
 ```yaml
@@ -125,13 +156,13 @@ evaluation:
     config.params.limit_samples: 10  # Test with only 10 samples
 ```
 
-# Check Endpoint Availability
+### Check Endpoint Availability
 Verify your endpoint is working before running full evaluations:
 
 - **Test endpoint compatibility**: See [Testing Endpoint OAI Compatibility](../tutorials/deployments/testing-endpoint-oai-compatibility.md)
 - **Check API keys**: Ensure environment variables are set correctly
 
-# Common Issues
+### Common Issues
 - **Configuration errors**: Use `--dry-run` to validate before execution
 - **Endpoint timeouts**: Increase `request_timeout` in your configuration
 - **Memory issues**: Reduce `parallelism` or `limit_samples` for testing
