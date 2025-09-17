@@ -2,7 +2,7 @@
 
 NeMo Evaluator is an open-source platform for robust, reproducible, and scalable evaluation of Large Language Models. It enables you to run hundreds of benchmarks across popular evaluation harnesses against any OpenAI-compatible model API. Evaluations execute in open-source Docker containers for auditable and trustworthy results. The platform's containerized architecture allows for the rapid integration of public benchmarks and private datasets.
 
-[Tutorial](./docs/nemo-evaluator-launcher/quickstart.md) | [Supported Benchmarks](#supported-benchmarks-and-evaluation-harnesses) | [Configuration Examples](./docs/nemo-evaluator/reference/containers.md) | [Contribution Guide](https://github.com/NVIDIA-NeMo/Eval/blob/main/CONTRIBUTING.md)
+[Tutorial](./docs/nemo-evaluator-launcher/quickstart.md) | [Supported Benchmarks](#supported-benchmarks-and-evaluation-harnesses) | [Configuration Examples](https://github.com/NVIDIA-NeMo/Eval/blob/main/packages/nemo-evaluator-launcher/examples) | [Contribution Guide](https://github.com/NVIDIA-NeMo/Eval/blob/main/CONTRIBUTING.md)
 
 ### Key Pillars
 NeMo Evaluator is built on four core principles to provide a reliable and versatile evaluation experience.
@@ -71,11 +71,15 @@ To use out-of-the-box build.nvidia.com APIs, you need an API key:
 #### 3. Run Your First Evaluation
 Run a small evaluation on your local machine. The launcher automatically pulls the correct container and executes the benchmark. The list of benchmarks is directly configured in the yaml file.
 
+**Configuration Examples**: Explore ready-to-use configuration files in [`packages/nemo-evaluator-launcher/examples/`](./packages/nemo-evaluator-launcher/examples/) for local, Lepton, and Slurm deployments with various model hosting options (vLLM, NIM, hosted endpoints).
+
+Once you have the example configuration file (either by cloning this repository or downloading e.g. the `local_nvidia_nemotron_nano_9b_v2.yaml` file directly), you can run the following command:
+
 ```bash
-nemo-evaluator-launcher run --config-dir examples --config-name local_nvidia_nemotron_nano_9b_v2 --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_nvidia_nemotron_nano_9b_v2 --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
 ```
 
-Upon running this command, you will be able to see a job_id, which can then be used for tracking the job.
+Upon running this command, you will be able to see a job_id, which can then be used for tracking the job and the reults with all the logs will be available in your `<YOUR_OUTPUT_LOCAL_DIR>`.
 
 #### 4. Check Your Results
 Results, logs, and run configurations are saved locally. Inspect the status of the evaluation job by using the corresponding job id:
@@ -83,8 +87,6 @@ Results, logs, and run configurations are saved locally. Inspect the status of t
 ```bash
 nemo-evaluator-launcher status <job_id_or_invocation_id>
 ```
-
-**Configuration Examples**: Explore ready-to-use configuration files in [`packages/nemo-evaluator-launcher/examples/`](./packages/nemo-evaluator-launcher/examples/) for local, Lepton, and Slurm deployments with various model hosting options (vLLM, NIM, hosted endpoints).
 
 #### Next Steps
 
