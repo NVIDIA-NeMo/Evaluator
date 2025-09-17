@@ -24,7 +24,6 @@ on:
         options:
           - nemo-evaluator
           - nemo-evaluator-launcher
-          - all
       release-ref:
         description: Ref (SHA or branch name) to release
         required: true
@@ -50,7 +49,7 @@ permissions:
 
 jobs:
   release:
-    if: ${{ inputs.component == 'nemo-evaluator' || inputs.component == 'all' }}
+    if: ${{ inputs.component == 'nemo-evaluator' }}
     uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.61.0
     with:
       release-ref: ${{ inputs.release-ref || github.sha }}
@@ -76,7 +75,7 @@ jobs:
       BOT_KEY: ${{ secrets.BOT_KEY }}
 
   release-launcher:
-    if: ${{ inputs.component == 'nemo-evaluator-launcher' || inputs.component == 'all' }}
+    if: ${{ inputs.component == 'nemo-evaluator-launcher' }}
     uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.61.0
     with:
       release-ref: ${{ inputs.release-ref || github.sha }}
