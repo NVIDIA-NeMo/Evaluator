@@ -34,7 +34,7 @@ eval-factory run_eval \
 
 
 **Quick Overview:**
-NeMo Evaluator provides specialized containers for different evaluation domains including language models, code generation, vision-language models, agentic AI, retrieval systems, and safety evaluation. Each container is optimized for specific use cases and comes with pre-configured evaluation harnesses.
+NeMo Evaluator Launcher provides specialized containers for different evaluation domains including language models, code generation, vision-language models, agentic AI, retrieval systems, and safety evaluation. Each container is optimized for specific use cases and comes with pre-configured evaluation harnesses.
 
 ## Adapter-Based Execution
 
