@@ -47,7 +47,7 @@ class LocalExporter(BaseExporter):
     """Export all artifacts to local/remote filesystem with optional JSON/CSV summaries.
 
     Config keys:
-      output_dir (str): Output directory for exported results (default: "./nv-eval-results")
+      output_dir (str): Output directory for exported results (default: "./nemo-evaluator-launcher-results")
       copy_logs (bool): Whether to copy logs with artifacts (default: False)
       only_required (bool): Copy only required+optional artifacts (default: True)
       format (str or None): Summary format, one of None, "json", or "csv" (default: None; no summary, only original artifacts)
@@ -63,7 +63,7 @@ class LocalExporter(BaseExporter):
         # Merge auto-export + CLI config
         cfg = extract_exporter_config(job_data, "local", self.config)
 
-        output_dir = Path(cfg.get("output_dir", "./nv-eval-results"))
+        output_dir = Path(cfg.get("output_dir", "./nemo-evaluator-launcher-results"))
         job_export_dir = output_dir / job_data.invocation_id / job_data.job_id
         job_export_dir.mkdir(parents=True, exist_ok=True)
 
@@ -180,7 +180,9 @@ class LocalExporter(BaseExporter):
             first = next(iter(db_jobs.values()))
             cfg = extract_exporter_config(first, "local", self.config)
             fmt = cfg.get("format")
-            output_dir = Path(cfg.get("output_dir", "./nv-eval-results"))
+            output_dir = Path(
+                cfg.get("output_dir", "./nemo-evaluator-launcher-results")
+            )
             filename = cfg.get("output_filename", f"processed_results.{fmt}")
             out_path = output_dir / filename  # consolidated file at output_dir
 
@@ -323,7 +325,7 @@ class LocalExporter(BaseExporter):
     # Summary JSON/CSV helpers
     def _write_summary(self, job_data: JobData, cfg: Dict[str, Any]) -> Path:
         """Read per-job artifacts, extract metrics, and update invocation-level summary."""
-        output_dir = Path(cfg.get("output_dir", "./nv-eval-results"))
+        output_dir = Path(cfg.get("output_dir", "./nemo-evaluator-launcher-results"))
         artifacts_dir = (
             output_dir / job_data.invocation_id / job_data.job_id / "artifacts"
         )

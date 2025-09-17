@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""SLURM executor implementation for nv-eval-platform.
+"""SLURM executor implementation for nemo-evaluator-launcher.
 
 Handles submitting evaluation jobs to a SLURM cluster via SSH and sbatch scripts.
 """
@@ -626,7 +626,7 @@ def _generate_auto_export_section(
 
     for dest in destinations:
         s += f"    echo 'Exporting to {dest}...'\n"
-        s += f"    nv-eval export {job_id} --dest {dest} || echo 'Export to {dest} failed'\n"
+        s += f"    nemo-evaluator-launcher export {job_id} --dest {dest} || echo 'Export to {dest} failed'\n"
 
     s += "    echo 'Auto-export completed.'\n"
     s += "else\n"

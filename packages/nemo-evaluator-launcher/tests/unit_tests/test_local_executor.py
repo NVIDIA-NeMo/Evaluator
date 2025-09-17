@@ -142,7 +142,9 @@ echo "Invocation ID: {{ invocation_id }}"
                     raise KeyError(f"Task {task_name} not found")
 
                 mock_get_task.side_effect = mock_get_task_side_effect
-                mock_get_command.return_value = "nv-eval --task test_command"
+                mock_get_command.return_value = (
+                    "nemo-evaluator-launcher --task test_command"
+                )
 
                 # Execute dry run
                 invocation_id = LocalExecutor.execute_eval(sample_config, dry_run=True)
@@ -318,7 +320,9 @@ echo "Invocation ID: {{ invocation_id }}"
                     raise KeyError(f"Task {task_name} not found")
 
                 mock_get_task.side_effect = mock_get_task_side_effect
-                mock_get_command.return_value = "nv-eval --task test_command"
+                mock_get_command.return_value = (
+                    "nemo-evaluator-launcher --task test_command"
+                )
 
                 # Execute dry run
                 invocation_id = LocalExecutor.execute_eval(sample_config, dry_run=True)
@@ -394,7 +398,9 @@ echo "Invocation ID: {{ invocation_id }}"
                     raise KeyError(f"Task {task_name} not found")
 
                 mock_get_task.side_effect = mock_get_task_side_effect
-                mock_get_command.return_value = "nv-eval --task test_command"
+                mock_get_command.return_value = (
+                    "nemo-evaluator-launcher --task test_command"
+                )
 
                 # Should execute successfully without auto-export
                 invocation_id = LocalExecutor.execute_eval(sample_config, dry_run=True)
