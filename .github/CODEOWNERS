@@ -1,7 +1,7 @@
-.github/ @nvidia-nemo/automation
-docker/ @nvidia-nemo/automation
-pyproject.toml @nvidia-nemo/automation
-uv.lock @nvidia-nemo/automation
+.github/ @nvidia-nemo/automation @agronskiy
+docker/ @nvidia-nemo/automation @agronskiy
+pyproject.toml @nvidia-nemo/automation @agronskiy
+uv.lock @nvidia-nemo/automation @agronskiy
 
 # Docs: eng team is an extended owner
 docs/ @nvidia-nemo/eval_maintainers @nvidia-nemo/eval_team
