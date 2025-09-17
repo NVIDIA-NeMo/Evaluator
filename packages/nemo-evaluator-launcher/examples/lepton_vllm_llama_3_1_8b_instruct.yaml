@@ -84,7 +84,7 @@ execution:
         # Main workspace mount
         - from: "node-nfs:lepton-shared-fs"
           path: "/EU-Model-Builder-SAs/user_homes/${oc.env:USER}/nemo-evaluator-launcher-workspace" # TODO: set it to your lepton storage path (see UI/Utilities/Storage)
-          mount_path: "/workspace" # TODO: change to your own path
+          mount_path: "/workspace"
 
 # =============================================================================
 # DEPLOYMENT CONFIGURATION (vLLM-specific)
