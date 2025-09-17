@@ -20,7 +20,7 @@ The platform consists of two main components:
 
 Most users only need to interact with the `nemo-evaluator-launcher` as universal gateway to different benchmarks and harnesses. It is however possible to interact directly with `nemo-evaluator` by following this [guide](./docs/nemo-evaluator/workflows/using-containers.md).
 
-```{mermaid}
+```mermaid
 graph TD
     A[User] --> B{NeMo Evaluator Launcher};
     B -- " " --> C{Local};
