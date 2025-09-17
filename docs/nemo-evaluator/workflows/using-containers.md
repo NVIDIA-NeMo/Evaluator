@@ -8,11 +8,11 @@ Evaluation containers are the execution environments that run benchmarks and eva
 
 ## Available Container Types
 
-For a comprehensive list of all available Eval Factory containers with detailed descriptions, specifications, and usage examples, see the [Container Reference](../../reference/containers.md).
+For a comprehensive list of all available Eval Factory containers with detailed descriptions, specifications, and usage examples, see the [Container Reference](nemo-evaluator/reference/containers.md).
 
 ## Evaluation Execution Workflow
 
-### Command Structure
+# Command Structure
 
 The system uses the `eval-factory` command with extensive configuration options:
 
@@ -34,22 +34,22 @@ eval-factory run_eval \
 
 
 **Quick Overview:**
-NeMo Evaluator provides specialized containers for different evaluation domains including language models, code generation, vision-language models, agentic AI, retrieval systems, and safety evaluation. Each container is optimized for specific use cases and comes with pre-configured evaluation harnesses.
+NeMo Evaluator Launcher provides specialized containers for different evaluation domains including language models, code generation, vision-language models, agentic AI, retrieval systems, and safety evaluation. Each container is optimized for specific use cases and comes with pre-configured evaluation harnesses.
 
 ## Adapter-Based Execution
 
-### Adapter System Architecture
+# Adapter System Architecture
 
 The system uses an interceptor-based architecture that processes requests and responses through a chain of adapters:
 
 **Configuration Methods:**
-- **CLI Overrides**: Use `--overrides` parameter for runtime configuration ([learn more](../../reference/api.md#interceptor-system))
-- **YAML Configuration**: Define interceptor chains in configuration files ([learn more](../../reference/api.md#interceptor-system))
+- **CLI Overrides**: Use `--overrides` parameter for runtime configuration ([learn more](../reference/api.md#interceptor-system))
+- **YAML Configuration**: Define interceptor chains in configuration files ([learn more](../reference/api.md#interceptor-system))
 
 
 ## Configuration and Overrides
 
-### CLI Parameter Overrides
+# CLI Parameter Overrides
 
 The system supports extensive configuration through the `--overrides` parameter:
 
@@ -66,7 +66,7 @@ eval-factory run_eval \
 
 ## Workflow Examples
 
-### Basic Evaluation Workflow
+# Basic Evaluation Workflow
 
 ```bash
 Run evaluation with eval-factory
@@ -79,7 +79,7 @@ eval-factory run_eval \
     --output_dir ./results
 ```
 
-### Advanced Configuration Workflow
+# Advanced Configuration Workflow
 
 ```bash
 # 1. Enable comprehensive logging and caching
@@ -102,7 +102,7 @@ For more details, see [CLI](../reference/cli.md)
 
 ## Performance and Monitoring
 
-### Caching and Performance
+# Caching and Performance
 
 The system provides built-in performance optimization through caching:
 
@@ -111,7 +111,7 @@ The system provides built-in performance optimization through caching:
 - **Disk Storage**: Persistent caching with configurable directories
 - **Performance Monitoring**: Track request/response patterns
 
-### Logging and Debugging
+# Logging and Debugging
 
 Comprehensive logging capabilities for monitoring and troubleshooting:
 
@@ -122,7 +122,7 @@ Comprehensive logging capabilities for monitoring and troubleshooting:
 
 ## Troubleshooting
 
-### Common Issues
+# Common Issues
 
 **Port Conflicts**
 If you encounter port conflicts, you can change the adapter server port:
@@ -147,34 +147,34 @@ export MY_API_KEY=your_api_key_here
 
 ## Best Practices
 
-### 1. **Use Environment Variables**
+# 1. **Use Environment Variables**
 - Store sensitive information like API keys in environment variables
 - Use consistent naming conventions for environment variables
 - Document required environment variables for your team
 
-### 2. **Test Configurations**
+# 2. **Test Configurations**
 - Start with small sample sizes for testing (i.e `config.params.limit_samples=10`)
 - Verify configurations work before running large evaluations
 - Use the `--overrides` parameter to test different settings
 
-### 3. **Enable Logging and Caching**
+# 3. **Enable Logging and Caching**
 - Use request and response logging for debugging
 - Enable caching to improve performance and reduce costs
 - Generate HTML reports for detailed analysis
 
-### 4. **Monitor Progress**
+# 4. **Monitor Progress**
 - Use progress tracking for long-running evaluations
 - Check logs regularly for any issues
 - Monitor cache usage and performance
 
-### 5. **Configuration Management**
+# 5. **Configuration Management**
 - Use consistent configuration patterns across evaluations
 - Document your configuration overrides
 - Version control your configuration files
 
 ## Environment Variables
 
-### Adapter Server Configuration
+# Adapter Server Configuration
 
 You can configure the adapter server using environment variables:
 
@@ -183,7 +183,7 @@ export ADAPTER_PORT=3828
 export ADAPTER_HOST=localhost
 ```
 
-### API Key Management
+# API Key Management
 
 Store your API keys securely in environment variables:
 

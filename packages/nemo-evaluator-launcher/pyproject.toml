@@ -50,7 +50,7 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-"nemo_evaluator_launcher" = ["resources/**/*"]
+"nemo_evaluator_launcher" = ["resources/**/*", "configs/**/*", "executors/**/*.sh"]
 
 [tool.setuptools.dynamic]
 version = { attr = "nemo_evaluator_launcher.package_info.__version__" }

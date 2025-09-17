@@ -1,4 +1,4 @@
-### Google Sheets Exporter (`gsheets`)
+# Google Sheets Exporter (`gsheets`)
 
 Export metrics to Google Sheets for collaborative sharing and analysis. Inherits all core features from the [Local](local.md) exporter (artifact staging, multi-run, auto-export), and adds Google Sheets integration.
 
@@ -9,7 +9,7 @@ Export metrics to Google Sheets for collaborative sharing and analysis. Inherits
 - Auto-export after evaluations finish (local or cluster)
 
 **Key configuration:**
-- `spreadsheet_name`: target spreadsheet name (default: "NV-Eval Results")
+- `spreadsheet_name`: target spreadsheet name (default: "NeMo Evaluator Launcher Results")
 - `service_account_file`: path to Google service account JSON file (optional; see credentials setup below)
 - `log_metrics`: filter specific metrics (default: all available metrics for single-job export)
 

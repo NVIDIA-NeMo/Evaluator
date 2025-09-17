@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Configuration validation utilities for nv-eval-platform.
+"""Configuration validation utilities for nemo-evaluator-launcher.
 
 This module provides helper functions to validate configuration objects.
 """

@@ -10,7 +10,7 @@ Switch to the documentation source folder and generate the HTML output.
 
 ```sh
 cd docs/
-uv run --group docs sphinx-build . _build/html
+uv run --project ../packages/nemo-evaluator --group docs sphinx-build . _build/html
 ```
 
 * The resulting HTML files are generated in a `_build/html` folder that is created under the project `docs/` folder.
@@ -24,7 +24,7 @@ To do so, run:
 
 ```sh
 cd docs/
-uv run --group docs sphinx-autobuild . _build/html --port 12345 --host 0.0.0.0
+uv run --project ../packages/nemo-evaluator --group docs sphinx-autobuild . _build/html --port 12345 --host 0.0.0.0
 ```
 
 Open a web browser and go to `http://${HOST_WHERE_SPHINX_COMMAND_RUN}:12345` to view the output.
@@ -36,7 +36,7 @@ We also run tests in our Python docstrings. You can run them with:
 
 ```sh
 cd docs/
-uv run --group docs sphinx-build -b doctest . _build/doctest
+uv run --project ../packages/nemo-evaluator --group docs sphinx-build -b doctest . _build/doctest
 ```
 
 ## Write Tests in Python Docstrings

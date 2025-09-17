@@ -1,6 +1,6 @@
 # Configuring Interceptors
 
-##### 1. **Request Logging Interceptor**
+### 1. **Request Logging Interceptor**
 Logs incoming requests for debugging and analysis.
 
 **CLI Configuration:**
@@ -18,7 +18,7 @@ interceptors:
       log_failed_requests: true
 ```
 
-##### 2. **Response Logging Interceptor**
+### 2. **Response Logging Interceptor**
 Logs outgoing responses for analysis.
 
 **CLI Configuration:**
@@ -35,7 +35,7 @@ interceptors:
       max_responses: 1000
 ```
 
-##### 3. **Caching Interceptor**
+### 3. **Caching Interceptor**
 Caches requests and responses to improve performance and reduce API calls.
 
 **CLI Configuration:**
@@ -57,7 +57,7 @@ interceptors:
       max_saved_responses: 1000
 ```
 
-##### 4. **Endpoint Interceptor**
+### 4. **Endpoint Interceptor**
 The final interceptor that sends requests to the actual API endpoint.
 
 **YAML Configuration:**
@@ -68,9 +68,9 @@ interceptors:
     config: {}
 ```
 
-#### Specialized Interceptors
+## Specialized Interceptors
 
-##### 5. **System Message Interceptor**
+### 5. **System Message Interceptor**
 Modifies the system message in requests.
 
 **CLI Configuration:**
@@ -87,7 +87,7 @@ interceptors:
       system_message: "You are a helpful assistant."
 ```
 
-##### 6. **Payload Modifier Interceptor**
+### 6. **Payload Modifier Interceptor**
 Modifies request parameters.
 
 **CLI Configuration:**
@@ -110,7 +110,7 @@ interceptors:
         "old_param": "new_param"
 ```
 
-##### 7. **Reasoning Interceptor**
+### 7. **Reasoning Interceptor**
 Handles reasoning tokens in responses and tracks reasoning metrics.
 
 **CLI Configuration:**
@@ -131,7 +131,7 @@ interceptors:
       include_if_not_finished: true
 ```
 
-##### 8. **Progress Tracking Interceptor**
+### 8. **Progress Tracking Interceptor**
 Tracks evaluation progress.
 
 **CLI Configuration:**
@@ -150,11 +150,11 @@ interceptors:
       output_dir: "/tmp/output"
 ```
 
-### Post-Evaluation Hooks
+# Post-Evaluation Hooks
 
 Post-evaluation hooks run after the evaluation is complete and can perform additional processing, reporting, or cleanup tasks.
 
-#### HTML Report Generation
+## HTML Report Generation
 
 **CLI Configuration:**
 ```bash

@@ -42,7 +42,7 @@ execution:
       wandb:
         # Special wandb parameters
         entity: "nvidia"
-        project: "nv-eval-test"
+        project: "nemo-evaluator-launcher-test"
         name: "llama-3.1-8b-instruct_experiment-v1.12"
         group: "eval-formatting"
         job_type: "evaluation"

@@ -46,7 +46,7 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.pre-start"
         exit_code=$?
         chmod 777 -R /results;
         if [ "$exit_code" -ne 0 ]; then
-            echo "nv_eval failed with exit code $exit_code" >&2;
+            echo "The evaluation container failed with exit code $exit_code" >&2;
             exit "$exit_code";
         fi;
         echo "Container completed successfully" >&2;
@@ -70,7 +70,7 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.pre-start"
 
         {% for dest in auto_export_destinations %}
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Exporting job {{ task.job_id }} to {{ dest }}..." >> "$logs_dir/stdout.log"
-        nv-eval export {{ task.job_id }} --dest {{ dest }} >> "$logs_dir/stdout.log" 2>&1
+        nemo-evaluator-launcher export {{ task.job_id }} --dest {{ dest }} >> "$logs_dir/stdout.log" 2>&1
         if [ $? -eq 0 ]; then
             echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Export to {{ dest }} completed successfully" >> "$logs_dir/stdout.log"
         else

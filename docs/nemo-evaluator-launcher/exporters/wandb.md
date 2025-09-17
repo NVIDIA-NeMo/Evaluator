@@ -1,4 +1,4 @@
-### Weights & Biases Exporter (`wandb`)
+# Weights & Biases Exporter (`wandb`)
 
 Export metrics and artifacts to W&B for experiment tracking. Inherits all core features from the [Local](local.md) exporter (artifact staging, multi-run, auto-export), and adds W&B run management.
 
@@ -33,7 +33,7 @@ execution:
     configs:
       wandb:
         entity: "nvidia"
-        project: "nv-eval-test"
+        project: "nemo-evaluator-launcher-test"
         group: "exporter-testing"
         job_type: "evaluation"
         tags: ["Nemotron-H", "multi-task", "exporter-test"]
