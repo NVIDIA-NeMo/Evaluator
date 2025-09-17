@@ -43,8 +43,6 @@ on:
         description: Branch for version bump
         required: true
         type: string
-  schedule:
-    - cron: "0 6 * * 1"
 
 permissions:
   contents: write # To read repository content
