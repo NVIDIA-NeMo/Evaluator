@@ -91,11 +91,6 @@ jobs:
           timeout: 10
           is_unit_test: "true"
           cpu-only: true
-          has-azure-credentials: "true"
-          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          PAT: ${{ secrets.PAT }}
           package: nemo-evaluator
 
   cicd-unit-tests-nemo-evaluator-launcher:
@@ -120,11 +115,6 @@ jobs:
           timeout: 10
           is_unit_test: "true"
           cpu-only: true
-          has-azure-credentials: "true"
-          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          PAT: ${{ secrets.PAT }}
           package: nemo-evaluator-launcher
 
   cicd-e2e-tests-nemo-evaluator:
@@ -147,12 +137,8 @@ jobs:
         with:
           script: Launch_Functional_Tests
           timeout: ${{ matrix.timeout || 10 }}
+          is_unit_test: "false"
           cpu-only: true
-          has-azure-credentials: "true"
-          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          PAT: ${{ secrets.PAT }}
           package: nemo-evaluator
 
   Nemo_CICD_Test:
