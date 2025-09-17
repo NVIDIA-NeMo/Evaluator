@@ -29,9 +29,9 @@ class ExportCmd:
 
     # Short usage examples will show up in -h as the class docstring:
     # Examples:
-    #   nv-eval export 8abcd123 --dest local --format json -o .
-    #   nv-eval export 8abcd123.0 9ef01234 --dest local --format csv -o results/ -fname processed_results.csv
-    #   nv-eval export 8abcd123 --dest jet
+    #   nemo-evaluator-launcher export 8abcd123 --dest local --format json -o .
+    #   nemo-evaluator-launcher export 8abcd123.0 9ef01234 --dest local --format csv -o results/ -fname processed_results.csv
+    #   nemo-evaluator-launcher export 8abcd123 --dest jet
 
     invocation_ids: List[str] = field(
         positional=True,

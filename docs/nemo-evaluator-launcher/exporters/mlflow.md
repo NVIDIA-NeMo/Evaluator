@@ -1,4 +1,4 @@
-### MLflow Exporter (`mlflow`)
+# MLflow Exporter (`mlflow`)
 
 Export metrics and artifacts to MLflow for experiment tracking and run management. Inherits all core features from the [Local](local.md) exporter (artifact staging, multi-run, auto-export), and adds MLflow tracking.
 
@@ -9,7 +9,7 @@ Export metrics and artifacts to MLflow for experiment tracking and run managemen
 
 **Key configuration:**
 - Required: `tracking_uri`
-- `experiment_name`: MLflow experiment name (default: `nv-eval`)
+- `experiment_name`: MLflow experiment name (default: `nemo-evaluator-launcher`)
 - `run_name`: custom run name (default: `eval-<invocation>-<benchmark>`)
 - `description`: run description text
 - `skip_existing`: safety check to prevent duplicate runs for same invocation (default: false). MLflow runs are immutable, so this prevents creating duplicates when re-exporting

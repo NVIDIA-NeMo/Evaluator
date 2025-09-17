@@ -4,7 +4,7 @@ The Slurm executor submits evaluation jobs to an HPC cluster managed by Slurm.
 
 ## Configuration
 
-See the complete configuration structure in the [Slurm Config File](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/src/nemo_evaluator_launcher/configs/execution/slurm/default.yaml?ref_type=heads).
+See the complete configuration structure in the [Slurm Config File](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/execution/slurm/default.yaml).
 
 ## Key Settings
 
@@ -16,7 +16,7 @@ See the complete configuration structure in the [Slurm Config File](https://gitl
 - **`ntasks_per_node`**: Number of tasks per node (default: 1)
 - **`gres`**: GPU resources (default: gpu:8)
 - **`walltime`**: Maximum job runtime in HH:MM:SS format (default: 01:00:00)
-- **`subproject`**: Subproject identifier (default: nv-eval)
+- **`subproject`**: Subproject identifier (default: nemo-evaluator-launcher)
 - **`output_dir`**: Directory where evaluation results will be saved (use `???` for required values)
 - **`env_vars.deployment`**: Environment variables for deployment container
 - **`env_vars.evaluation`**: Environment variables for evaluation container
@@ -33,11 +33,11 @@ Tips:
 - set appropriate `walltime` for your evaluation jobs
 
 Examples:
-- [Slurm vLLM Example](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/examples/slurm_llama_3_1_8b_instruct.yaml?ref_type=heads) - Slurm execution with vLLM deployment and model loaded from local checkpoint
-- [Slurm vLLM HF Example](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/examples/slurm_llama_3_1_8b_instruct_hf.yaml?ref_type=heads) - Slurm execution with vLLM and model loaded from Hugging Face
-- [Slurm None Example](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/examples/slurm_no_deployment_llama_3_1_8b_instruct.yaml?ref_type=heads) - Slurm execution with existing endpoint
-- [Slurm Nemotron Example](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/examples/slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks.yaml?ref_type=heads) - Slurm execution with Nemotron model
+- [Slurm vLLM Example](../../../../packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml) - Slurm execution with vLLM deployment and model loaded from local checkpoint
+- [Slurm vLLM HF Example](../../../../packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct_hf.yaml) - Slurm execution with vLLM and model loaded from Hugging Face
+- [Slurm None Example](../../../../packages/nemo-evaluator-launcher/examples/slurm_no_deployment_llama_3_1_8b_instruct.yaml) - Slurm execution with existing endpoint
+- [Slurm Nemotron Example](../../../../packages/nemo-evaluator-launcher/examples/slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks.yaml) - Slurm execution with Nemotron model
 
 ## Reference
 
-- [Slurm Config Directory](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/tree/main/nemo_evaluator_launcher/src/nemo_evaluator_launcher/configs/execution/slurm?ref_type=heads)
+- [Slurm Config Directory](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/execution/slurm)

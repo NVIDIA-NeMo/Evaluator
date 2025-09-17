@@ -13,9 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import base64
 import importlib
-import os
 import pathlib
 import sys
 from importlib import resources
@@ -31,8 +29,8 @@ else:
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 # Configuration constants
-# For below, see docs: https://docs.gitlab.com/api/repository_files/
-MAPPING_URL = "TODO: set to github actual one"
+# For below, see docs: https://docs.github.com/en/rest/repos/contents
+MAPPING_URL = "https://raw.githubusercontent.com/NVIDIA-NeMo/Eval/main/packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/resources/mapping.toml"
 CACHE_DIR = pathlib.Path.home() / ".nemo-evaluator" / "cache"
 CACHE_FILENAME = "mapping.toml"
 INTERNAL_RESOURCES_PKG = "nemo_evaluator_launcher_internal.resources"
@@ -58,25 +56,12 @@ def _download_latest_mapping() -> Optional[bytes]:
     Returns:
         Optional[bytes]: Downloaded mapping bytes, or None if download fails.
     """
-    raise NotImplementedError("This logic is still not implemented")
     try:
-        # Get GitLab token from environment
-        gitlab_token = os.environ.get("GITLAB_TOKEN", "")
-        if not gitlab_token:
-            logger.warning(
-                "GITLAB_TOKEN not set, download may fail due to authentication"
-            )
-        headers = {"PRIVATE-TOKEN": gitlab_token, "Content-Type": "application/json"}
-
-        response = requests.get(MAPPING_URL, headers=headers, timeout=10)
+        response = requests.get(MAPPING_URL, timeout=10)
         response.raise_for_status()
 
-        # GitLab API returns JSON with content in base64
-        response_data = response.json()
-        if "content" in response_data:
-            mapping_bytes = base64.b64decode(response_data["content"])
-        else:
-            mapping_bytes = response.content
+        # For GitHub raw URLs, the response content is the file content directly
+        mapping_bytes = response.content
         assert isinstance(mapping_bytes, bytes)
 
         logger.debug("Successfully downloaded mapping from remote URL")

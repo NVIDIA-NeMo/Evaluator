@@ -38,6 +38,7 @@ extensions = [
     "sphinx.ext.doctest",  # Allows testing in docstrings
     "sphinx.ext.napoleon",  # For google style docstrings
     "sphinx_copybutton",  # For copy button in code blocks
+    "sphinxcontrib.mermaid",  # For mermaid diagrams
 ]
 
 templates_path = ["_templates"]
@@ -52,8 +53,11 @@ myst_enable_extensions = [
     "deflist",  # Supports definition lists with term: definition format
     "fieldlist",  # Enables field lists for metadata like :author: Name
     "tasklist",  # Adds support for GitHub-style task lists with [ ] and [x]
+    "html_image",  # Enables HTML image tags
 ]
 myst_heading_anchors = 5  # Generates anchor links for headings up to level 5
+myst_auto_link_extensions = []  # Disable automatic link conversion
+myst_url_schemes = ["http", "https", "mailto"]  # Only convert these URL schemes
 
 # -- Options for Autodoc2 ---------------------------------------------------
 sys.path.insert(0, os.path.abspath(".."))
@@ -103,10 +107,18 @@ html_extra_path = ["project.json", "versions1.json"]
 nitpicky = False
 suppress_warnings = [
     "ref.python",  # Suppress ambiguous cross-reference warnings
+    "toc.not_included",  # Suppress toctree warnings for myst-based docs
+    "myst.header",  # Suppress header level warnings
+    "myst.directive_unknown",  # Suppress unknown directive warnings
+    "myst.xref_missing",  # Suppress missing cross-reference warnings
+    "ref.doc",  # Suppress document reference warnings
+    "misc.highlighting_failure",  # Suppress Pygments highlighting warnings
 ]
 
 # Github links are now getting rate limited from the Github Actions
 linkcheck_ignore = [
     ".*github\\.com.*",
     ".*githubusercontent\\.com.*",
+    ".*catalog\\.ngc\\.nvidia\\.com.*",  # Temporary: NGC catalog links that may not be publicly accessible
+    ".*platform\\.openai\\.com.*",  # To diagnose: OpenAI platform links that may require authentication
 ]

@@ -27,11 +27,11 @@ target:
 - If your model does not require an API key, you can skip the `api_key` field entirely
 
 Examples:
-- [Local None Example](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/examples/local_llama_3_1_8b_instruct.yaml?ref_type=heads) - Local evaluation with existing endpoint
-- [Lepton None Example](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/examples/lepton_none_llama_3_1_8b_instruct.yaml?ref_type=heads) - Lepton evaluation with existing endpoint
-- [Slurm None Example](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/examples/slurm_no_deployment_llama_3_1_8b_instruct.yaml?ref_type=heads) - Slurm evaluation with existing endpoint
-- [Local with Metadata](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/examples/local_with_user_provided_metadata.yaml?ref_type=heads) - Local evaluation with custom metadata
-- [Auto Export Example](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/examples/local_auto_export_llama_3_1_8b_instruct.yaml?ref_type=heads) - Local evaluation with automatic result export
+- [Local None Example](../../../../packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml) - Local evaluation with existing endpoint
+- [Lepton None Example](../../../../packages/nemo-evaluator-launcher/examples/lepton_none_llama_3_1_8b_instruct.yaml) - Lepton evaluation with existing endpoint
+- [Slurm None Example](../../../../packages/nemo-evaluator-launcher/examples/slurm_no_deployment_llama_3_1_8b_instruct.yaml) - Slurm evaluation with existing endpoint
+- [Local with Metadata](../../../../packages/nemo-evaluator-launcher/examples/local_with_user_provided_metadata.yaml) - Local evaluation with custom metadata
+- [Auto Export Example](../../../../packages/nemo-evaluator-launcher/examples/local_auto_export_llama_3_1_8b_instruct.yaml) - Local evaluation with automatic result export
 
 ## Use Cases
 
@@ -43,4 +43,4 @@ This deployment option is useful when:
 
 ## Reference
 
-- [None Config File](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/src/nemo_evaluator_launcher/configs/deployment/none.yaml?ref_type=heads)
+- [None Config File](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/deployment/none.yaml)

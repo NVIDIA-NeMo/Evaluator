@@ -4,7 +4,7 @@ The Lepton executor deploys endpoints and runs evaluations on Lepton AI platform
 
 ## Configuration
 
-See the complete configuration structure in the [Lepton Config File](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/src/nemo_evaluator_launcher/configs/execution/lepton/default.yaml?ref_type=heads).
+See the complete configuration structure in the [Lepton Config File](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/execution/lepton/default.yaml).
 
 ## Key Settings
 
@@ -27,11 +27,11 @@ Tips:
 - use `env_var_names` to pass environment variables to evaluation containers
 
 Examples:
-- [Lepton vLLM Example](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/examples/lepton_vllm_llama_3_1_8b_instruct.yaml?ref_type=heads) - Lepton execution with vLLM deployment
-- [Lepton NIM Example](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml?ref_type=heads) - Lepton execution with NIM deployment
-- [Lepton None Example](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/blob/main/nemo_evaluator_launcher/examples/lepton_none_llama_3_1_8b_instruct.yaml?ref_type=heads) - Lepton execution with already deployed in Lepton endpoint
+- [Lepton vLLM Example](../../../../packages/nemo-evaluator-launcher/examples/lepton_vllm_llama_3_1_8b_instruct.yaml) - Lepton execution with vLLM deployment
+- [Lepton NIM Example](../../../../packages/nemo-evaluator-launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml) - Lepton execution with NIM deployment
+- [Lepton None Example](../../../../packages/nemo-evaluator-launcher/examples/lepton_none_llama_3_1_8b_instruct.yaml) - Lepton execution with already deployed in Lepton endpoint
 
 ## Reference
 
 - [Lepton Documentation](https://lepton.ai/docs)
-- [Lepton Config Directory](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/tree/main/nemo_evaluator_launcher/src/nemo_evaluator_launcher/configs/execution/lepton?ref_type=heads)
+- [Lepton Config Directory](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/execution/lepton)

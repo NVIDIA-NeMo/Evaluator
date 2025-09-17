@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Lepton job helper functions for nv-eval-platform.
+"""Lepton job helper functions for nemo-evaluator-launcher.
 
 Handles Lepton job creation, management, and monitoring.
 """

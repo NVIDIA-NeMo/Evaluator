@@ -16,7 +16,7 @@
 This guide helps you test your hosted endpoint to verify OpenAI-compatible API compatibility using curl requests for different task types. Models deployed using nemo-evaluator-launcher should be compatible with these tests.
 
 
-### Endpoint Requirements
+# Endpoint Requirements
 
 Your endpoint should support the following parameters:
 
@@ -28,7 +28,7 @@ Your endpoint should support the following parameters:
 
 To test if your endpoint is compatible with OpenAI API, you can try the following curl command (replacing `<YOUR_ENDPOINT_URL>`, `<YOUR_API_KEY>` and `<YOUR_MODEL_NAME>` with your own values):
 
-### Chat endpoint testing
+# Chat endpoint testing
 
 ```bash
 curl -X POST <YOUR_ENDPOINT_URL> \
@@ -49,7 +49,7 @@ curl -X POST <YOUR_ENDPOINT_URL> \
 }'
 ```
 
-### Completion endpoint testing
+# Completion endpoint testing
 
 ```bash
 curl -X POST <YOUR_ENDPOINT_URL> \
@@ -65,9 +65,9 @@ curl -X POST <YOUR_ENDPOINT_URL> \
 }'
 ```
 
-### VLM chat endpoint testing
+# VLM chat endpoint testing
 
-We support the **OpenAI Images API** ([docs](https://platform.openai.com/docs/guides/images-vision#giving-a-model-images-as-input)) and **vLLM** ([docs](https://docs.vllm.ai/en/stable/features/multimodal_inputs.html#id2)) with the image provided as **base64-encoded image**, and the following content types:
+We support the **OpenAI Images API** ([docs](https://platform.openai.com/docs/guides/images-vision#giving-a-model-images-as-input)) and **vLLM** ([docs](https://docs.vllm.ai/en/stable/features/multimodal_inputs.html)) with the image provided as **base64-encoded image**, and the following content types:
 
 - `image_url`
 - `text`
@@ -103,7 +103,7 @@ curl -X POST <YOUR_ENDPOINT_URL>  \
 }'
 ```
 
-### Function calling testing
+# Function calling testing
 
 We support OpenAI-compatible function calling ([docs](https://platform.openai.com/docs/guides/function-calling?api-mode=responses)):
 
@@ -160,7 +160,7 @@ curl -X POST <YOUR_ENDPOINT_URL> \
 
 ```
 
-### Audio endpoint testing
+# Audio endpoint testing
 
 We support audio input with the following content types:
 

@@ -1,4 +1,4 @@
-### Executors Overview
+# Executors Overview
 
 Executors run the evaluation for you by taking the appropriate Docker image (which contains the evaluation harness) and executing the selected benchmark in your environment. They orchestrate containerized runs, manage resources and IO paths, and ensure evaluations are reproducible across machines and clusters. Optionally, an executor can also provision and host the model endpoint as part of the workflow.
 
@@ -34,7 +34,7 @@ When on‑the‑fly hosting is enabled, the evaluation configuration also includ
 
 #### Common workflow
 1. [Choose an executor and example config](../configuration/index.md)
-2. [Point the target to your model endpoint](../configuration/target/index.md)
+2. [Point the target to your model endpoint](nemo-evaluator-launcher/configuration/target/index.md)
 3. [Run and monitor logs](#job-management)
 4. [Optionally export results to dashboards or files](../exporters/overview.md)
 
@@ -53,7 +53,7 @@ nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_
 nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct
 ```
 
-**Job Management:**
+## Job Management
 ```bash
 # List runs and monitor
 nemo-evaluator-launcher ls runs
@@ -105,7 +105,7 @@ For detailed configuration options, see the [Configuration Documentation](../con
 All executors generate standardized output with timestamped directories. The `output_dir` you specify is mounted as `/results` inside the evaluation container.
 
 **Common across all executors:**
-- Configuration saved to `$HOME/.nv-eval/run_configs`
+- Configuration saved to `$HOME/.nemo-evaluator-launcher/run_configs`
 - Timestamped run directories: `output_dir/2024-01-15-10-30-45-abc12345/`
 - **Artifacts**: Evaluation results, metrics, predictions, and task-specific outputs
 - **Logs**: Execution logs, error messages, and status information
@@ -126,9 +126,9 @@ output_dir/
 - **Local**: `run.sh` (per task) and `run_all.sh` (all tasks) for manual execution
 - **Slurm**: `sbatch_*.sh` scripts with HPC job metadata
 
-For detailed output structure and executor-specific details, see the [nemo-evaluator-launcher documentation](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/tree/main/nemo_evaluator_launcher).
+For detailed output structure and executor-specific details, see the [nemo-evaluator-launcher documentation](../../../../packages/nemo-evaluator-launcher).
 
 ## Configuration Files
 
-See all available execution configurations: [Execution Configs](https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nv-eval-platform/-/tree/main/nemo_evaluator_launcher/src/nemo_evaluator_launcher/configs/execution?ref_type=heads)
+See all available execution configurations: [Execution Configs](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/execution)
 

@@ -110,7 +110,7 @@ class Cmd:
 
             # Save the complete Hydra configuration
             with open(config_path, "w") as f:
-                f.write("# Complete configuration from nv-eval\n")
+                f.write("# Complete configuration from nemo-evaluator-launcher\n")
                 f.write(
                     f"# Generated at: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n"
                 )
@@ -119,19 +119,17 @@ class Cmd:
                 f.write("# This is the complete raw configuration\n")
                 f.write("#\n")
                 f.write("# To rerun this exact configuration:\n")
-                f.write(f"# nv-eval run --run-config-file {config_path}\n")
+                f.write(
+                    f"# nemo-evaluator-launcher run --run-config-file {config_path}\n"
+                )
                 f.write("#\n")
                 f.write(config_yaml)
 
             print(f"Complete run config saved to: {config_path}")
 
         if invocation_id is not None:
-            # TODO(public release): remove in public
+            print(f"to check status: nemo-evaluator-launcher status {invocation_id}")
+            print(f"to kill all jobs: nemo-evaluator-launcher kill {invocation_id}")
             print(
-                "#########################\n  !! Submit bugs and improvements: http://nv/eval.issue\n#########################\n  "
-            )
-            print(f"to check status: nv-eval status {invocation_id}")
-            print(f"to kill all jobs: nv-eval kill {invocation_id}")
-            print(
-                f"to kill individual jobs: nv-eval kill <job_id> (e.g., {invocation_id}.0)"
+                f"to kill individual jobs: nemo-evaluator-launcher kill <job_id> (e.g., {invocation_id}.0)"
             )
