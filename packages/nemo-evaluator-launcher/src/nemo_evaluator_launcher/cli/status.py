@@ -88,7 +88,9 @@ class Cmd:
                 location = data.get("pipeline_web_url")
             elif executor_key == "container":
                 path = data.get("output_dir", "")
-                location = path.split("/")[-1] if path else ""
+                location = (
+                    "<output_dir>/" + "/".join(path.split("/")[-2:]) if path else ""
+                )
             else:
                 location = ""
 
