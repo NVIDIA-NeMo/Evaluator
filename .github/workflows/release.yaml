@@ -57,7 +57,7 @@ jobs:
       library-name: NeMo Evaluator
       dry-run: ${{ inputs.dry-run || false }}
       version-bump-branch: ${{ inputs.version-bump-branch || github.ref_name }}
-      create-gh-release: ${{ inputs.create-gh-release || true }}
+      create-gh-release: ${{ inputs.create-gh-release }}
       gh-release-tag-prefix: nemo-evaluator-
       packaging: uv
       skip-test-wheel: true
