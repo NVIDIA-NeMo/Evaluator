@@ -54,6 +54,7 @@ myst_enable_extensions = [
     "fieldlist",  # Enables field lists for metadata like :author: Name
     "tasklist",  # Adds support for GitHub-style task lists with [ ] and [x]
     "html_image",  # Enables HTML image tags
+    "mermaid",  # Enables Mermaid diagram support
 ]
 myst_heading_anchors = 5  # Generates anchor links for headings up to level 5
 myst_auto_link_extensions = []  # Disable automatic link conversion
