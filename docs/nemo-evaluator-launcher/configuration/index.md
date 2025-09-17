@@ -68,7 +68,7 @@ Defines how to deploy and serve your model. See [Deployment Overview](deployment
 - **[None](deployment/none.md)**: Use existing endpoint (no deployment)
 
 # 4. Target
-Defines the model endpoint to evaluate. See [Target Overview](configuration/target/index.md) for details.
+Defines the model endpoint to evaluate. See [Target Overview](target/index.md) for details.
 
 Used when `deployment: none` is specified. For evaluations with deployment, this is filled automatically.
 
