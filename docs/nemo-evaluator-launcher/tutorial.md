@@ -49,10 +49,6 @@ docker run --gpus all -p 8000:8000 vllm/vllm-openai:latest \
   --model meta-llama/Llama-3.1-8B-Instruct
 ```
 
-Optional: quick endpoint check
-```bash
-nemo-evaluator-launcher test-endpoint --url http://localhost:8000/v1
-```
   **Self-hosted options:**
 
   For detailed deployment instructions, see the [Deployment Frameworks Guide](tutorials/deployments/deployment-frameworks-guide.md).
