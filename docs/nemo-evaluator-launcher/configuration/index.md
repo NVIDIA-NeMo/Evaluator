@@ -91,7 +91,7 @@ nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_
 ## Configuration Sources
 
 All configuration files are available in the nemo-evaluator-launcher repository:
-- [Main Config Directory](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs)
+- [Main Config Directory](../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs)
 
 ## Troubleshooting
 
