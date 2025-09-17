@@ -102,11 +102,11 @@ mkdir my_configs
 cp examples/local_llama_3_1_8b_instruct.yaml my_configs/my_evaluation.yaml
 ```
 
-3. Modify the configuration to suit your needs:
-   - Change the model endpoint
-   - Adjust evaluation parameters
-   - Select different benchmarks
-   - Configure execution settings
+3. Modify the [configuration](configuration/index.md) to suit your needs:
+   - [Change the model endpoint](configuration/target/index.md)
+   - [Adjust evaluation parameters and select different benchmarks](configuration/evaluation/index.md)
+   - [Configure deployment settings](configuration/deployment/index.md)
+   - [Configure execution settings](configuration/execution/index.md)
 
 4. Run your custom configuration:
 ```bash
