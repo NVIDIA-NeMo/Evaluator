@@ -123,46 +123,23 @@ nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_
   -o target.api_endpoint.model_id=my_model
 ```
 
-#### Environment Variables in Deployment
+#### Environment Variables
 
-The platform supports passing environment variables to deployment containers in a [Hydra](https://hydra.cc/docs/intro/)-extensible way:
+Environment variables can be specified for all tasks or for specific tasks. In the below example, the `JUDGE_API_KEY_FOR_ALL_TASKS` environment variable is mapped to the `JUDGE_API_KEY` environment variable for all tasks, and the `HF_TOKEN_FOR_GPQA_DIAMOND` environment variable is mapped to the `HF_TOKEN` environment variable for the `gpqa_diamond` task.
 
-Direct Values:
 ```yaml
-deployment:
-  type: vllm
-  envs:
-    CUDA_VISIBLE_DEVICES: "0,1,2,3,4,5,6,7"
-    OMP_NUM_THREADS: "1"
-    VLLM_USE_FLASH_ATTN: "1"
+evaluation:
+  env_vars:
+    JUDGE_API_KEY: JUDGE_API_KEY_FOR_ALL_TASKS
+  tasks:
+    - name: AA_AIME_2024
+    - name: AA_math_test_500
+    - name: gpqa_diamond
+      env_vars:
+        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND
 ```
 
-Environment Variable References:
-```yaml
-deployment:
-  type: sglang
-  envs:
-    HF_TOKEN: ${oc.env:HF_TOKEN}  # References host environment variable
-    NGC_API_KEY: ${oc.env:NGC_API_KEY}
-```
-
-Supported Executors:
-- SLURM: Environment variables are exported in the sbatch script before running deployment commands
-- Lepton: Environment variables are passed to the container specification
-- Local: Environment variables are passed to [Docker](https://www.docker.com/) containers (when deployment support is added)
-
-Example with SLURM:
-```yaml
-deployment:
-  type: vllm
-  envs:
-    CUDA_VISIBLE_DEVICES: "0,1,2,3,4,5,6,7"
-    HF_TOKEN: ${oc.env:HF_TOKEN}
-    VLLM_USE_V2_BLOCK_MANAGER: "1"
-  command: vllm serve /checkpoint --port 8000
-```
-
-This will generate a sbatch script that exports these variables before running the deployment command.
+For [Slurm](executors/slurm.md#environment-variables) and [Lepton](executors/lepton.md#configuration-notes), there are also ways to pass environment variables to the execution (like deployment containers).
 
 ### 3. Check Evaluation Status
 
