@@ -140,5 +140,3 @@ evaluation:
   # Evaluation tasks to run
   tasks:
     - name: ifeval
-      overrides:
-        config.params.limit_samples: 5
