@@ -1,8 +1,8 @@
-# NeMo Evaluator: The Universal Platform for LLM Evaluation
+# NeMo Evaluator
 
 NeMo Evaluator is an open-source platform for robust, reproducible, and scalable evaluation of Large Language Models. It enables you to run hundreds of benchmarks across popular evaluation harnesses against any OpenAI-compatible model API. Evaluations execute in open-source Docker containers for auditable and trustworthy results. The platform's containerized architecture allows for the rapid integration of public benchmarks and private datasets.
 
-[Tutorial](./docs/nemo-evaluator-launcher/quickstart.md) | [Supported Benchmarks](#supported-benchmarks-and-evaluation-harnesses) | [Configuration Examples](https://github.com/NVIDIA-NeMo/Eval/blob/main/packages/nemo-evaluator-launcher/examples) | [Contribution Guide](https://github.com/NVIDIA-NeMo/Eval/blob/main/CONTRIBUTING.md)
+[Tutorial](./docs/nemo-evaluator-launcher/tutorial.md) | [Supported Benchmarks](#supported-benchmarks-and-evaluation-harnesses) | [Configuration Examples](https://github.com/NVIDIA-NeMo/Eval/blob/main/packages/nemo-evaluator-launcher/examples) | [Contribution Guide](https://github.com/NVIDIA-NeMo/Eval/blob/main/CONTRIBUTING.md)
 
 ### Key Pillars
 NeMo Evaluator is built on four core principles to provide a reliable and versatile evaluation experience.
@@ -20,7 +20,7 @@ The platform consists of two main components:
 
 Most users only need to interact with the `nemo-evaluator-launcher` as universal gateway to different benchmarks and harnesses. It is however possible to interact directly with `nemo-evaluator` by following this [guide](./docs/nemo-evaluator/workflows/using-containers.md).
 
-```{mermaid}
+```mermaid
 graph TD
     A[User] --> B{NeMo Evaluator Launcher};
     B -- " " --> C{Local};
@@ -59,7 +59,7 @@ NeMo Evaluator works with any model that exposes an OpenAI-compatible endpoint. 
 - **Hosted endpoints** (fastest): Use ready-to-use hosted models from providers like build.nvidia.com that expose OpenAI-compatible APIs with no hosting required.
 - **Self-hosted options**: Host your own models using tools like NVIDIA NIM, vLLM, or TensorRT-LLM for full control over your evaluation environment.
 
-For detailed setup instructions including self-hosted configurations, see the [quickstart guide](./docs/nemo-evaluator-launcher/quickstart.md).
+For detailed setup instructions including self-hosted configurations, see the [tutorial guide](./docs/nemo-evaluator-launcher/tutorial.md).
 
 **Getting an NGC API Key for build.nvidia.com:**
 To use out-of-the-box build.nvidia.com APIs, you need an API key:
@@ -96,7 +96,7 @@ nemo-evaluator-launcher ls tasks
 ```
 - Explore the [Supported Benchmarks](#supported-benchmarks-and-evaluation-harnesses) to see all available harnesses and benchmarks.
 - Scale up your evaluations using the [Slurm Executor] or [Lepton Executor](./docs/nemo-evaluator-launcher/executors/slurm.md).
-- Learn to evaluate self-hosted models in the extended [Tutorial and quickstart guide](./docs/nemo-evaluator-launcher/quickstart.md) for nemo-evaluator-launcher.
+- Learn to evaluate self-hosted models in the extended [Tutorial guide](./docs/nemo-evaluator-launcher/tutorial.md) for nemo-evaluator-launcher.
 - Customize your workflow with [Custom Exporters](./docs/nemo-evaluator-launcher/exporters/overview.md) or by evaluating with [proprietary data](./docs/nemo-evaluator/extending/framework-definition-file.md).
 
 

@@ -2,7 +2,7 @@
 
 NeMo Evaluator Launcher is the user-facing orchestration layer for running AI model evaluations at scale. It provides a unified CLI and programmatic entry points to discover benchmarks, configure runs, submit jobs to different execution backends, monitor progress, and export results.
 
-[Quickstart](quickstart.md) | [Executors Overview](executors/overview.md) | [Exporters Overview](exporters/overview.md)
+[Tutorial](tutorial.md) | [Executors Overview](executors/overview.md) | [Exporters Overview](exporters/overview.md)
 
 ## How it relates to NeMo Evaluator
 
@@ -36,7 +36,7 @@ Use the launcher whenever you want:
 - Turnkey reproducibility and run bookkeeping 
 - Built-in export to popular ML tools (W&B, MLflow, Google Sheets)
 
-For a guided setup, start with the [Quickstart](quickstart.md).
+For a guided setup, start with the [Tutorial](tutorial.md).
 
 Curious about where and how evaluations run? Explore the available backends in the [Executors Overview](executors/overview.md). Ready to publish results to files, W&B, MLflow, or Sheets? See the [Exporters Overview](exporters/overview.md).
 
