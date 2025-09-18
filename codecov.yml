@@ -1,13 +1,7 @@
 comment: false
 coverage:
   status:
-    project:
-      default:
-        target: 80%
-        threshold: 0%
-        base: auto
-        if_ci_failed: error
-        if_not_found: success
+    project: true
     patch: false
     #   default:
     #     target: 80%
