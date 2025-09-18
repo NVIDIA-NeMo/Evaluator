@@ -40,7 +40,7 @@ class Cmd:
         for task_data in data:
             assert len(task_data) == len(headers)
             supported_benchmarks.append(dict(zip(headers, task_data)))
-        
+
         if self.json:
             print(json.dumps({"tasks": supported_benchmarks}, indent=2))
         else:
@@ -63,67 +63,72 @@ class Cmd:
         for i, (harness, containers) in enumerate(grouped.items()):
             if i > 0:
                 print()  # Extra spacing between harnesses
-            
+
             for j, (container, container_tasks) in enumerate(containers.items()):
                 if j > 0:
                     print()  # Spacing between containers
-                
+
                 # Prepare task table first to get column widths
                 task_headers = ["task", "endpoint_type"]
                 rows = []
                 for task in container_tasks:
                     rows.append([task["task"], task["endpoint_type"]])
-                
+
                 # Sort tasks alphabetically for better readability
                 rows.sort(key=lambda x: x[0])
-                
+
                 # Calculate column widths with some padding
                 widths = [
                     max(len(task_headers[i]), max(len(str(row[i])) for row in rows)) + 2
                     for i in range(len(task_headers))
                 ]
-                
+
                 # Calculate minimum table width based on task columns
                 min_table_width = sum(widths) + len(widths) + 1
-                
+
                 # Calculate required width for header content
                 harness_line = f"harness: {harness}"
                 container_line = f"container: {container}"
-                header_content_width = max(len(harness_line), len(container_line)) + 4  # +4 for "| " and " |"
-                
+                header_content_width = (
+                    max(len(harness_line), len(container_line)) + 4
+                )  # +4 for "| " and " |"
+
                 # Use the larger of the two widths
                 table_width = max(min_table_width, header_content_width)
-                
+
                 # Print combined header with harness and container info
-                # Use the table width for the header to ensure alignment
-                
-                print("+" + "-" * (table_width - 2) + "+")
-                print(f"| {harness_line:<{table_width - 4}} |")
-                print(f"| {container_line:<{table_width - 4}} |")
-                
+                print("=" * table_width)
+                print(f"{harness_line}")
+                print(f"{container_line}")
+
                 # Adjust column widths to fill the full table width
-                available_width = table_width - 3  # -3 for "| | |" separators
+                available_width = table_width
                 # Give more space to the first column (task names can be long)
                 adjusted_widths = [
-                    max(widths[0] - 1, available_width * 2 // 3),  # 2/3 of available width for task
-                    0  # Will be calculated as remainder
+                    max(
+                        widths[0], available_width * 2 // 3
+                    ),  # 2/3 of available width for task
+                    0,  # Will be calculated as remainder
                 ]
-                adjusted_widths[1] = available_width - adjusted_widths[0]  # Remainder for endpoint_type
-                
-                # Print task table header
-                print("+" + "-" * adjusted_widths[0] + "+" + "-" * adjusted_widths[1] + "+")
-                header_row = f"| {task_headers[0]:<{adjusted_widths[0]-1}}| {task_headers[1]:<{adjusted_widths[1]-1}}|"
+                adjusted_widths[1] = (
+                    available_width - adjusted_widths[0]
+                )  # Remainder for endpoint_type
+
+                # Print task table header separator
+                print(" " * table_width)
+                header_row = f"{task_headers[0]:<{adjusted_widths[0]}}{task_headers[1]:<{adjusted_widths[1]}}"
                 print(header_row)
-                print("+" + "-" * adjusted_widths[0] + "+" + "-" * adjusted_widths[1] + "+")
-                
+                print("-" * table_width)
+
                 # Print task rows
                 for row in rows:
-                    data_row = f"| {str(row[0]):<{adjusted_widths[0]-1}}| {str(row[1]):<{adjusted_widths[1]-1}}|"
+                    data_row = f"{str(row[0]):<{adjusted_widths[0]}}{str(row[1]):<{adjusted_widths[1]}}"
                     print(data_row)
-                
-                print("+" + "-" * adjusted_widths[0] + "+" + "-" * adjusted_widths[1] + "+")
-                
+
+                print("-" * table_width)
                 # Show task count
                 task_count = len(rows)
                 print(f"  {task_count} task{'s' if task_count != 1 else ''} available")
+                print("=" * table_width)
+
                 print()
