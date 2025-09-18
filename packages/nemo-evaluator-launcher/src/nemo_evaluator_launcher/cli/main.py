@@ -15,6 +15,7 @@
 #
 """Main CLI module using simple-parsing with subcommands."""
 
+import sys
 from simple_parsing import ArgumentParser
 
 import nemo_evaluator_launcher.cli.export as export
@@ -69,6 +70,13 @@ def create_parser() -> ArgumentParser:
     # Ls subcommand (with nested subcommands)
     ls_parser = subparsers.add_parser(
         "ls", help="List resources", description="List tasks or runs"
+    )
+    # Add --json flag to the main ls parser so it works with `nv-eval ls --json`
+    ls_parser.add_argument(
+        "--json",
+        action="store_true",
+        default=False,
+        help="Print output as JSON instead of table format",
     )
     ls_sub = ls_parser.add_subparsers(dest="ls_command", required=False)
 
@@ -129,8 +137,10 @@ def main() -> None:
             if hasattr(args, "tasks"):
                 args.tasks.execute()
             else:
-                # Create default tasks command if not specified
-                tasks_cmd = ls_tasks.Cmd()
+                # Create default tasks command if not specified, preserving any flags
+                # Use the --json flag from the main ls parser
+                json_flag = getattr(args, "json", False)
+                tasks_cmd = ls_tasks.Cmd(json=json_flag)
                 tasks_cmd.execute()
         elif args.ls_command == "runs":
             args.runs.execute()
