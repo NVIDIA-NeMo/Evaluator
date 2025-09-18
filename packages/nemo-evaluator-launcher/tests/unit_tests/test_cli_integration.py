@@ -150,8 +150,16 @@ class TestCLIWorkflowIntegration:
                 ls_cmd.execute()
 
                 # Verify ls output (table format printed includes both tasks)
-                assert mock_ls_print.call_count > 1  # Table format uses multiple print calls
-                all_printed = " ".join([str(call[0][0]) for call in mock_ls_print.call_args_list if call[0]])
+                assert (
+                    mock_ls_print.call_count > 1
+                )  # Table format uses multiple print calls
+                all_printed = " ".join(
+                    [
+                        str(call[0][0])
+                        for call in mock_ls_print.call_args_list
+                        if call[0]
+                    ]
+                )
                 assert "test_task_1" in all_printed
                 assert "test_task_2" in all_printed
                 assert "harness: lm-eval" in all_printed

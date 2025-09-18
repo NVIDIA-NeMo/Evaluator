@@ -41,8 +41,11 @@ class TestLsCommandIntegration:
         """Test 'nv-eval ls tasks' command."""
         parser = create_parser()
         args = parser.parse_args(["ls", "tasks"])
-        
-        with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=sample_tasks_data):
+
+        with patch(
+            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            return_value=sample_tasks_data,
+        ):
             output = StringIO()
             with redirect_stdout(output):
                 if args.command == "ls" and args.ls_command == "tasks":
@@ -56,8 +59,11 @@ class TestLsCommandIntegration:
         """Test 'nv-eval ls tasks --json' command."""
         parser = create_parser()
         args = parser.parse_args(["ls", "tasks", "--json"])
-        
-        with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=sample_tasks_data):
+
+        with patch(
+            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            return_value=sample_tasks_data,
+        ):
             output = StringIO()
             with redirect_stdout(output):
                 if args.command == "ls" and args.ls_command == "tasks":
@@ -72,8 +78,11 @@ class TestLsCommandIntegration:
         """Test 'nv-eval ls' command (default alias to tasks)."""
         parser = create_parser()
         args = parser.parse_args(["ls"])
-        
-        with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=sample_tasks_data):
+
+        with patch(
+            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            return_value=sample_tasks_data,
+        ):
             output = StringIO()
             with redirect_stdout(output):
                 if args.command == "ls":
@@ -91,8 +100,11 @@ class TestLsCommandIntegration:
         """Test 'nv-eval ls --json' command (alias with argument propagation)."""
         parser = create_parser()
         args = parser.parse_args(["ls", "--json"])
-        
-        with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=sample_tasks_data):
+
+        with patch(
+            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            return_value=sample_tasks_data,
+        ):
             output = StringIO()
             with redirect_stdout(output):
                 if args.command == "ls":
@@ -110,12 +122,14 @@ class TestLsCommandIntegration:
     def test_parser_structure_for_ls_command(self):
         """Test that the parser is correctly structured for ls commands."""
         parser = create_parser()
-        
+
         # Test ls without subcommand
         args = parser.parse_args(["ls"])
         assert args.command == "ls"
         assert args.ls_command is None
-        assert hasattr(args, "tasks_alias")  # Should have tasks_alias from main ls parser
+        assert hasattr(
+            args, "tasks_alias"
+        )  # Should have tasks_alias from main ls parser
 
         # Test ls tasks
         args = parser.parse_args(["ls", "tasks"])
@@ -145,11 +159,14 @@ class TestLsCommandIntegration:
         try:
             # Test ls without subcommand
             sys.argv = ["nv-eval", "ls"]
-            
-            with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=sample_tasks_data):
+
+            with patch(
+                "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+                return_value=sample_tasks_data,
+            ):
                 output = StringIO()
                 with redirect_stdout(output):
-                    with patch('sys.exit'):  # Prevent actual exit
+                    with patch("sys.exit"):  # Prevent actual exit
                         main()
 
                 result = output.getvalue()
@@ -166,11 +183,14 @@ class TestLsCommandIntegration:
         try:
             # Test ls with json flag
             sys.argv = ["nv-eval", "ls", "--json"]
-            
-            with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=sample_tasks_data):
+
+            with patch(
+                "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+                return_value=sample_tasks_data,
+            ):
                 output = StringIO()
                 with redirect_stdout(output):
-                    with patch('sys.exit'):  # Prevent actual exit
+                    with patch("sys.exit"):  # Prevent actual exit
                         main()
 
                 result = output.getvalue().strip()
@@ -185,12 +205,12 @@ class TestLsCommandIntegration:
     def test_help_output_includes_ls_options(self):
         """Test that help output includes ls command options."""
         parser = create_parser()
-        
+
         # Get help for ls command
         with pytest.raises(SystemExit):
-            with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
                 parser.parse_args(["ls", "--help"])
-        
+
         # The help should mention the json option
         help_output = mock_stdout.getvalue()
         assert "--json" in help_output or "json" in help_output.lower()
@@ -199,7 +219,7 @@ class TestLsCommandIntegration:
         """Test that ls runs subcommand is not affected by our changes."""
         parser = create_parser()
         args = parser.parse_args(["ls", "runs"])
-        
+
         assert args.command == "ls"
         assert args.ls_command == "runs"
         assert hasattr(args, "runs")
@@ -207,12 +227,12 @@ class TestLsCommandIntegration:
     def test_argument_namespace_isolation(self):
         """Test that tasks_alias and tasks arguments don't interfere."""
         parser = create_parser()
-        
+
         # ls without subcommand should have tasks_alias
         args1 = parser.parse_args(["ls"])
         assert hasattr(args1, "tasks_alias")
         assert not hasattr(args1, "tasks")  # Should not have tasks when no subcommand
-        
+
         # ls tasks should have tasks
         args2 = parser.parse_args(["ls", "tasks"])
         assert hasattr(args2, "tasks")
@@ -221,17 +241,17 @@ class TestLsCommandIntegration:
     def test_json_flag_values_consistency(self):
         """Test that json flag values are consistent between alias and explicit command."""
         parser = create_parser()
-        
+
         # Test with json flag
         args1 = parser.parse_args(["ls", "--json"])
         args2 = parser.parse_args(["ls", "tasks", "--json"])
-        
+
         assert args1.tasks_alias.json is True
         assert args2.tasks.json is True
-        
+
         # Test without json flag
         args3 = parser.parse_args(["ls"])
         args4 = parser.parse_args(["ls", "tasks"])
-        
+
         assert args3.tasks_alias.json is False
-        assert args4.tasks.json is False 
+        assert args4.tasks.json is False

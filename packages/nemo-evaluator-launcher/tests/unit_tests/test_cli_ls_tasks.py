@@ -34,8 +34,18 @@ class TestLsTasksCommand:
         return [
             ["garak", "chat", "garak", "nvcr.io/nvidia/eval-factory/garak:25.08.1"],
             ["mmlu", "chat", "lm-eval", "nvcr.io/nvidia/eval-factory/lm-eval:25.08.1"],
-            ["arc", "completions", "lm-eval", "nvcr.io/nvidia/eval-factory/lm-eval:25.08.1"],
-            ["truthfulqa", "chat", "lm-eval", "nvcr.io/nvidia/eval-factory/lm-eval:25.08.1"],
+            [
+                "arc",
+                "completions",
+                "lm-eval",
+                "nvcr.io/nvidia/eval-factory/lm-eval:25.08.1",
+            ],
+            [
+                "truthfulqa",
+                "chat",
+                "lm-eval",
+                "nvcr.io/nvidia/eval-factory/lm-eval:25.08.1",
+            ],
             ["ifeval", "chat", "helm", "nvcr.io/nvidia/eval-factory/helm:25.08.1"],
         ]
 
@@ -55,7 +65,10 @@ class TestLsTasksCommand:
         """Test basic JSON output format."""
         cmd = LsTasksCmd(json=True)
 
-        with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=sample_tasks_data):
+        with patch(
+            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            return_value=sample_tasks_data,
+        ):
             output = StringIO()
             with redirect_stdout(output):
                 cmd.execute()
@@ -75,13 +88,18 @@ class TestLsTasksCommand:
             assert first_task["task"] == "garak"
             assert first_task["endpoint_type"] == "chat"
             assert first_task["harness"] == "garak"
-            assert first_task["container"] == "nvcr.io/nvidia/eval-factory/garak:25.08.1"
+            assert (
+                first_task["container"] == "nvcr.io/nvidia/eval-factory/garak:25.08.1"
+            )
 
     def test_json_output_empty_data(self, empty_tasks_data):
         """Test JSON output with empty data."""
         cmd = LsTasksCmd(json=True)
 
-        with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=empty_tasks_data):
+        with patch(
+            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            return_value=empty_tasks_data,
+        ):
             output = StringIO()
             with redirect_stdout(output):
                 cmd.execute()
@@ -96,7 +114,10 @@ class TestLsTasksCommand:
         """Test JSON output with single task."""
         cmd = LsTasksCmd(json=True)
 
-        with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=single_task_data):
+        with patch(
+            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            return_value=single_task_data,
+        ):
             output = StringIO()
             with redirect_stdout(output):
                 cmd.execute()
@@ -112,7 +133,10 @@ class TestLsTasksCommand:
         """Test basic table output format."""
         cmd = LsTasksCmd(json=False)
 
-        with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=sample_tasks_data):
+        with patch(
+            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            return_value=sample_tasks_data,
+        ):
             output = StringIO()
             with redirect_stdout(output):
                 cmd.execute()
@@ -145,16 +169,23 @@ class TestLsTasksCommand:
         """Test table formatting details."""
         cmd = LsTasksCmd(json=False)
 
-        with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=sample_tasks_data):
+        with patch(
+            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            return_value=sample_tasks_data,
+        ):
             output = StringIO()
             with redirect_stdout(output):
                 cmd.execute()
 
             result = output.getvalue()
-            lines = result.split('\n')
+            lines = result.split("\n")
 
             # Check for equals signs (top and bottom borders)
-            equals_lines = [line for line in lines if line.strip() and all(c in '=' for c in line.strip())]
+            equals_lines = [
+                line
+                for line in lines
+                if line.strip() and all(c in "=" for c in line.strip())
+            ]
             assert len(equals_lines) >= 2  # At least top and bottom borders
 
             # Check for header structure
@@ -167,7 +198,10 @@ class TestLsTasksCommand:
         """Test table output with empty data."""
         cmd = LsTasksCmd(json=False)
 
-        with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=empty_tasks_data):
+        with patch(
+            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            return_value=empty_tasks_data,
+        ):
             output = StringIO()
             with redirect_stdout(output):
                 cmd.execute()
@@ -179,7 +213,10 @@ class TestLsTasksCommand:
         """Test table output with single task."""
         cmd = LsTasksCmd(json=False)
 
-        with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=single_task_data):
+        with patch(
+            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            return_value=single_task_data,
+        ):
             output = StringIO()
             with redirect_stdout(output):
                 cmd.execute()
@@ -205,7 +242,10 @@ class TestLsTasksCommand:
 
         cmd = LsTasksCmd(json=False)
 
-        with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=test_data):
+        with patch(
+            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            return_value=test_data,
+        ):
             output = StringIO()
             with redirect_stdout(output):
                 cmd.execute()
@@ -226,29 +266,43 @@ class TestLsTasksCommand:
     def test_table_width_calculation(self):
         """Test that table width is calculated correctly for long container names."""
         test_data = [
-            ["short", "chat", "harness", "very-long-container-name-that-should-determine-table-width"],
+            [
+                "short",
+                "chat",
+                "harness",
+                "very-long-container-name-that-should-determine-table-width",
+            ],
         ]
 
         cmd = LsTasksCmd(json=False)
 
-        with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=test_data):
+        with patch(
+            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            return_value=test_data,
+        ):
             output = StringIO()
             with redirect_stdout(output):
                 cmd.execute()
 
             result = output.getvalue()
-            lines = result.split('\n')
+            lines = result.split("\n")
 
             # Find the equals lines (borders)
-            equals_lines = [line for line in lines if line.strip() and all(c in '=' for c in line.strip())]
-            
+            equals_lines = [
+                line
+                for line in lines
+                if line.strip() and all(c in "=" for c in line.strip())
+            ]
+
             if equals_lines:
                 # All equals lines should have the same length
                 first_length = len(equals_lines[0])
                 assert all(len(line) == first_length for line in equals_lines)
-                
+
                 # Width should be at least as long as the container name
-                assert first_length >= len("container: very-long-container-name-that-should-determine-table-width")
+                assert first_length >= len(
+                    "container: very-long-container-name-that-should-determine-table-width"
+                )
 
     def test_cmd_default_values(self):
         """Test that Cmd has correct default values."""
@@ -269,7 +323,10 @@ class TestLsTasksCommand:
             ["task1", "chat", "harness1"],  # Missing container field
         ]
 
-        with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=malformed_data):
+        with patch(
+            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            return_value=malformed_data,
+        ):
             with pytest.raises(AssertionError):
                 cmd.execute()
 
@@ -282,31 +339,39 @@ class TestLsTasksCommand:
 
         cmd = LsTasksCmd(json=False)
 
-        with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=test_data):
+        with patch(
+            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            return_value=test_data,
+        ):
             output = StringIO()
             with redirect_stdout(output):
                 cmd.execute()
 
             result = output.getvalue()
-            lines = result.split('\n')
+            lines = result.split("\n")
 
             # Find lines with task data
-            task_lines = [line for line in lines if "very-long-task-name-here" in line or ("short" in line and "completions" in line)]
-            
+            task_lines = [
+                line
+                for line in lines
+                if "very-long-task-name-here" in line
+                or ("short" in line and "completions" in line)
+            ]
+
             # Should have proper spacing and alignment
             assert len(task_lines) >= 2
 
-    @patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list')
+    @patch("nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list")
     def test_api_function_called(self, mock_get_tasks):
         """Test that the API function is called correctly."""
         mock_get_tasks.return_value = []
-        
+
         cmd = LsTasksCmd(json=True)
-        
+
         output = StringIO()
         with redirect_stdout(output):
             cmd.execute()
-        
+
         mock_get_tasks.assert_called_once()
 
     def test_task_count_messages(self):
@@ -315,7 +380,10 @@ class TestLsTasksCommand:
         single_data = [["task1", "chat", "harness", "container"]]
         cmd = LsTasksCmd(json=False)
 
-        with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=single_data):
+        with patch(
+            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            return_value=single_data,
+        ):
             output = StringIO()
             with redirect_stdout(output):
                 cmd.execute()
@@ -329,10 +397,13 @@ class TestLsTasksCommand:
             ["task2", "completions", "harness", "container"],
         ]
 
-        with patch('nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list', return_value=multi_data):
+        with patch(
+            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            return_value=multi_data,
+        ):
             output = StringIO()
             with redirect_stdout(output):
                 cmd.execute()
 
             result = output.getvalue()
-            assert "2 tasks available" in result 
+            assert "2 tasks available" in result
