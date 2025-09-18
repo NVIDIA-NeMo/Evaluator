@@ -35,11 +35,6 @@ class EndpointType(str, Enum):
     EMBEDDING = "embedding"
 
 
-class Hello(BaseModel):
-    name: str = Field(description="Name of the person")
-    age: int = Field(description="Age of the person")
-
-
 class ApiEndpoint(BaseModel):
     model_config = ConfigDict(use_enum_values=True)
 
