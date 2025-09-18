@@ -27,11 +27,11 @@ target:
 - If your model does not require an API key, you can skip the `api_key` field entirely
 
 Examples:
-- [Local None Example](../../../../packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml) - Local evaluation with existing endpoint
-- [Lepton None Example](../../../../packages/nemo-evaluator-launcher/examples/lepton_none_llama_3_1_8b_instruct.yaml) - Lepton evaluation with existing endpoint
-- [Slurm None Example](../../../../packages/nemo-evaluator-launcher/examples/slurm_no_deployment_llama_3_1_8b_instruct.yaml) - Slurm evaluation with existing endpoint
-- [Local with Metadata](../../../../packages/nemo-evaluator-launcher/examples/local_with_user_provided_metadata.yaml) - Local evaluation with custom metadata
-- [Auto Export Example](../../../../packages/nemo-evaluator-launcher/examples/local_auto_export_llama_3_1_8b_instruct.yaml) - Local evaluation with automatic result export
+- [Local None Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml) - Local evaluation with existing endpoint
+- [Lepton None Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/lepton_none_llama_3_1_8b_instruct.yaml) - Lepton evaluation with existing endpoint
+- [Slurm None Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/slurm_no_deployment_llama_3_1_8b_instruct.yaml) - Slurm evaluation with existing endpoint
+- [Local with Metadata](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/local_with_user_provided_metadata.yaml) - Local evaluation with custom metadata
+- [Auto Export Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/local_auto_export_llama_3_1_8b_instruct.yaml) - Local evaluation with automatic result export
 
 ## Use Cases
 
