@@ -25,7 +25,7 @@ on:
           - nemo-evaluator
           - nemo-evaluator-launcher
       release-ref:
-        description: Ref (SHA or branch name) to release
+        description: Tag or SHA to release from
         required: true
         type: string
       dry-run:
@@ -39,7 +39,7 @@ on:
         default: true
         type: boolean
       version-bump-branch:
-        description: Branch for version bump
+        description: Branch to push the version bump
         required: true
         type: string
 
@@ -48,8 +48,22 @@ permissions:
   pull-requests: write # To create PRs
 
 jobs:
+  validate-inputs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate inputs
+        run: |
+          if [ "${{ inputs.version-bump-branch }}" == "${{ inputs.release-ref }}" ]; then
+            echo "Error: version-bump-branch cannot be the same as release-ref"
+            echo "version-bump-branch: ${{ inputs.version-bump-branch }}"
+            echo "release-ref: ${{ inputs.release-ref }}"
+            exit 1
+          fi
+          echo "Input validation passed"
+
   release:
     if: ${{ inputs.component == 'nemo-evaluator' }}
+    needs: validate-inputs
     uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.61.0
     with:
       release-ref: ${{ inputs.release-ref || github.sha }}
@@ -76,6 +90,7 @@ jobs:
 
   release-launcher:
     if: ${{ inputs.component == 'nemo-evaluator-launcher' }}
+    needs: validate-inputs
     uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.61.0
     with:
       release-ref: ${{ inputs.release-ref || github.sha }}
