@@ -33,6 +33,8 @@ Examples:
 - [Local with Metadata](../../../../packages/nemo-evaluator-launcher/examples/local_with_user_provided_metadata.yaml) - Local evaluation with custom metadata
 - [Auto Export Example](../../../../packages/nemo-evaluator-launcher/examples/local_auto_export_llama_3_1_8b_instruct.yaml) - Local evaluation with automatic result export
 
+- [Local with advanced configuration](../../../../packages/nemo-evaluator-launcher/examples/local_custom_config_seed_oss_36b_instruct.yaml) - Local evaluation with custom configuration
+
 ## Use Cases
 
 This deployment option is useful when:
