@@ -33,10 +33,10 @@ Tips:
 - set appropriate `walltime` for your evaluation jobs
 
 Examples:
-- [Slurm vLLM Example](../../../../packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml) - Slurm execution with vLLM deployment and model loaded from local checkpoint
-- [Slurm vLLM HF Example](../../../../packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct_hf.yaml) - Slurm execution with vLLM and model loaded from Hugging Face
-- [Slurm None Example](../../../../packages/nemo-evaluator-launcher/examples/slurm_no_deployment_llama_3_1_8b_instruct.yaml) - Slurm execution with existing endpoint
-- [Slurm Nemotron Example](../../../../packages/nemo-evaluator-launcher/examples/slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks.yaml) - Slurm execution with Nemotron model
+- [Slurm vLLM Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml) - Slurm execution with vLLM deployment and model loaded from local checkpoint
+- [Slurm vLLM HF Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct_hf.yaml) - Slurm execution with vLLM and model loaded from Hugging Face
+- [Slurm None Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/slurm_no_deployment_llama_3_1_8b_instruct.yaml) - Slurm execution with existing endpoint
+- [Slurm Nemotron Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks.yaml) - Slurm execution with Nemotron model
 
 ## Reference
 
