@@ -25,12 +25,11 @@ dependencies = [
     "requests",
     "structlog",
     "typing-extensions>=4.0.0",
-    "psutil",
     "pyyaml",
     "werkzeug",
     "yq",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10,<3.14"
 readme = "README.md"
 
 classifiers = [
