@@ -25,4 +25,5 @@ target:
     model_id: ???
     api_key_name: "<YOUR_API_KEY_NAME>" # NOTE: the name of the env var
 
-evaluation: []
+evaluation:
+  tasks: []

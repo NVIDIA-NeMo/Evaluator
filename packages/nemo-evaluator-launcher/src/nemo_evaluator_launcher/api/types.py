@@ -76,7 +76,11 @@ class RunConfig(DictConfig):
 
         # Merge dict_overrides if provided
         if dict_overrides:
+            # The logic with tmp disabling "struct_mode": see e.g. https://github.com/omry/omegaconf/issues/441,
+            # the `dict_overrides` might actually _extend_ the `cfg`.
+            OmegaConf.set_struct(cfg, False)
             cfg = OmegaConf.merge(cfg, dict_overrides)
+            OmegaConf.set_struct(cfg, True)
 
         logger.debug(
             "Loaded run config from hydra",
