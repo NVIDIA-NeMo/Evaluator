@@ -95,7 +95,7 @@ class TestCLIWorkflowIntegration:
                 assert status_data[1]["job_id"] == job_ids[1]
                 assert status_data[1]["status"] == "success"
 
-            # Step 3: List tasks
+            # Step 3a: List tasks (JSON format)
             with (
                 patch(
                     "nemo_evaluator_launcher.api.functional.load_tasks_mapping"
@@ -116,7 +116,7 @@ class TestCLIWorkflowIntegration:
                         "container": "test-container:latest",
                     },
                 }
-                ls_cmd = LsCmd()
+                ls_cmd = LsCmd(json=True)
                 ls_cmd.execute()
 
                 # Verify ls output (JSON printed includes both tasks)
@@ -124,6 +124,38 @@ class TestCLIWorkflowIntegration:
                 printed = mock_ls_print.call_args[0][0]
                 assert "test_task_1" in printed
                 assert "test_task_2" in printed
+
+            # Step 3b: List tasks (table format)
+            with (
+                patch(
+                    "nemo_evaluator_launcher.api.functional.load_tasks_mapping"
+                ) as mock_load_tasks,
+                patch("builtins.print") as mock_ls_print,
+            ):
+                mock_load_tasks.return_value = {
+                    ("lm-eval", "test_task_1"): {
+                        "task": "test_task_1",
+                        "endpoint_type": "openai",
+                        "harness": "lm-eval",
+                        "container": "test-container:latest",
+                    },
+                    ("helm", "test_task_2"): {
+                        "task": "test_task_2",
+                        "endpoint_type": "anthropic",
+                        "harness": "helm",
+                        "container": "test-container:latest",
+                    },
+                }
+                ls_cmd = LsCmd(json=False)
+                ls_cmd.execute()
+
+                # Verify ls output (table format printed includes both tasks)
+                assert mock_ls_print.call_count > 1  # Table format uses multiple print calls
+                all_printed = " ".join([str(call[0][0]) for call in mock_ls_print.call_args_list if call[0]])
+                assert "test_task_1" in all_printed
+                assert "test_task_2" in all_printed
+                assert "harness: lm-eval" in all_printed
+                assert "harness: helm" in all_printed
 
     def test_workflow_with_multiple_evaluations(
         self, mock_execdb, mock_api_endpoint_check, mock_print
