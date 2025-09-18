@@ -75,7 +75,7 @@ Used when `deployment: none` is specified. For evaluations with deployment, this
 # 5. Evaluation
 Defines which benchmarks to run and their configuration. See [Evaluation Overview](evaluation/index.md) for details.
 
-Common for all executors and can be reused between them.
+Common for all executors and can be reused between them. Supports both parameter overrides and custom `config` objects for advanced configuration.
 
 
 ## Command Line Overrides 

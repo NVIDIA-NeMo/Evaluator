@@ -32,10 +32,12 @@ evaluation:
 - **`name`**: Name of the benchmark task
 - **`overrides`**: Task-specific parameter overrides
 - **`env_vars`**: Task-specific environment variables
+- **`config`**: Custom configuration object for advanced task setup
 
 For a comprehensive list of available tasks, their descriptions, and task-specific parameters, see the [NeMo Evaluator supported tasks](nemo-evaluator/reference/containers.md).
 
 ## Advanced Task Configuration
+
 
 # Parameter Overrides
 The overrides system is crucial for leveraging the full flexibility of the common endpoint interceptors and task configuration layer. This is where nemo-evaluator intersects with nemo-evaluator-launcher, providing a unified configuration interface.
@@ -92,6 +94,7 @@ Use evaluation configuration when you want to:
 - **Parametrize the Judge**: Configure evaluation judge models and their parameters for scoring (see [Parameter Overrides](nemo-evaluator/reference/cli.md#parameter-overrides))
 - **Debug and Test**: e.g. Launch with limited samples
 - **Adjust Endpoint Capabilities**: Configure request timeouts, max retries, and parallel request limits
+- **Advanced Configuration**: Use the `config` field for complex interceptor chains, custom adapter configurations, and fine-grained control over the evaluation setup
 
 /// tip | Long String Overrides
 For overriding long strings (e.g., system prompts), use YAML multiline syntax with `>-`:
@@ -103,6 +106,49 @@ target.api_endpoint.adapter_config.params_to_add: >-
 
 This preserves formatting and allows for complex multi-line configurations.
 ///
+
+
+# Custom Configuration
+For advanced use cases, you can use the `config` field to provide a complete configuration object that directly maps to the [nemo-evaluator config structure](nemo-evaluator/reference/api.md#evaluationconfig). This allows for fine-grained control over:
+
+- Complex configurations that are difficult to pass via CLI arguments (e.g. long system propmts)
+- Custom interceptor chains and adapter settings
+
+```yaml
+evaluation:
+  tasks:
+    - name: mgsm
+      config:
+        target:
+          api_endpoint:
+            adapter_config:
+              caching_dir: /results/cache
+              endpoint_type: chat
+              interceptors:
+                - name: system_message
+                  enabled: true
+                  config:
+                    system_message: |
+                      You are an expert mathematician and problem solver.
+                      Always think step by step and be thorough in your explanations.
+                - name: endpoint
+                  enabled: true
+```
+
+/// note | Important Configuration Notes
+- **Results Path**: You can use `/results/` as the output path since this directory is always mounted in containers
+- **Endpoint Adapter**: Always include the `endpoint` interceptor with `enabled: true` - without it, the configuration will fail
+///
+
+The `config` field provides direct access to the underlying nemo-evaluator configuration structure, allowing you to:
+- Configure complex interceptor chains
+- Set up custom adapter configurations
+- Define target-specific settings
+- Override framework-specific parameters
+
+For more details on the configuration structure, see the [nemo-evaluator API documentation](nemo-evaluator/reference/api.md#evaluationconfig).
+
+**Example**: See [local_custom_config_seed_oss_36b_instruct.yaml](../../../packages/nemo-evaluator-launcher/examples/local_custom_config_seed_oss_36b_instruct.yaml) for a complete example using custom configuration.
 
 
 ## Reference
