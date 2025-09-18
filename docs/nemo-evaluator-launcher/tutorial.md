@@ -13,7 +13,7 @@ pip install nemo-evaluator-launcher
 
 NeMo Evaluator sends OpenAI-compatible requests to your model during evaluation. You must have an endpoint that accepts either chat or completions API calls and can handle the evaluation load.
 
-**Configuration Examples**: Explore ready-to-use configuration files in [`packages/nemo-evaluator-launcher/examples/`](./packages/nemo-evaluator-launcher/examples/) for local, Lepton, and Slurm deployments with various model hosting options (vLLM, NIM, hosted endpoints).
+**Configuration Examples**: Explore ready-to-use configuration files in [`packages/nemo-evaluator-launcher/examples/`](../../packages/nemo-evaluator-launcher/examples/) for local, Lepton, and Slurm deployments with various model hosting options (vLLM, NIM, hosted endpoints).
 
 Hosted endpoints (fastest):
 
@@ -32,7 +32,7 @@ Hosted endpoints (fastest):
 
   For NVIDIA APIs, see [Setting up API Keys](https://docs.omniverse.nvidia.com/guide-sdg/latest/setup.html#preview-and-set-up-an-api-key).
 
-  See examples for [build.nvidia.com](https://build.nvidia.com/) usage in the examples/ folder (TODO: link to examples/).
+  See examples for [build.nvidia.com](https://build.nvidia.com/) usage in the [local evaluation tutorial](tutorials/local-evaluation-of-existing-endpoint.md).
 
 Self-hosted options:
 
@@ -49,10 +49,6 @@ docker run --gpus all -p 8000:8000 vllm/vllm-openai:latest \
   --model meta-llama/Llama-3.1-8B-Instruct
 ```
 
-Optional: quick endpoint check
-```bash
-nemo-evaluator-launcher test-endpoint --url http://localhost:8000/v1
-```
   **Self-hosted options:**
 
   For detailed deployment instructions, see the [Deployment Frameworks Guide](tutorials/deployments/deployment-frameworks-guide.md).
@@ -75,24 +71,20 @@ The NeMo Evaluator Launcher uses [Hydra](https://hydra.cc/docs/intro/) for confi
 
 #### Using Example Configurations
 
-The examples/ directory contains ready-to-use configurations:
+The `examples/` directory contains ready-to-use configurations:
 
-- Local execution: examples/local_llama_3_1_8b_instruct.yaml
-- Slurm execution: see executors guide (executors/slurm.md)
-- Lepton AI execution: see executors guide (executors/lepton.md)
+- Local execution: [examples/local_llama_3_1_8b_instruct.yaml](../../packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml)
+- Slurm execution: [examples/slurm_llama_3_1_8b_instruct.yaml](../../packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml)
+- Lepton AI execution: [examples/lepton_nim_llama_3_1_8b_instruct.yaml](../../packages/nemo-evaluator-launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml)
 
 Run a local evaluation (requires [Docker](https://www.docker.com/)):
 ```bash
 nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
 ```
 
-For other backends:
-- Slurm: see executors/slurm.md
-- Lepton: see executors/lepton.md
-
-#### Lepton Execution Strategy
-See executors/lepton.md for Lepton’s parallel deployment strategy and examples.
-
+See guides for other backends:
+- [Slurm](executors/slurm.md)
+- [Lepton](executors/lepton.md)
 
 #### Creating Custom Configurations
 
@@ -106,11 +98,11 @@ mkdir my_configs
 cp examples/local_llama_3_1_8b_instruct.yaml my_configs/my_evaluation.yaml
 ```
 
-3. Modify the configuration to suit your needs:
-   - Change the model endpoint
-   - Adjust evaluation parameters
-   - Select different benchmarks
-   - Configure execution settings
+3. Modify the [configuration](configuration/index.md) to suit your needs:
+   - [Change the model endpoint](configuration/target/index.md)
+   - [Adjust evaluation parameters and select different benchmarks](configuration/evaluation/index.md)
+   - [Configure deployment settings](configuration/deployment/index.md)
+   - [Configure execution settings](configuration/execution/index.md)
 
 4. Run your custom configuration:
 ```bash
@@ -127,46 +119,23 @@ nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_
   -o target.api_endpoint.model_id=my_model
 ```
 
-#### Environment Variables in Deployment
+#### Environment Variables
 
-The platform supports passing environment variables to deployment containers in a [Hydra](https://hydra.cc/docs/intro/)-extensible way:
+Environment variables can be specified for all tasks or for specific tasks. In the below example, the `JUDGE_API_KEY_FOR_ALL_TASKS` environment variable is mapped to the `JUDGE_API_KEY` environment variable for all tasks, and the `HF_TOKEN_FOR_GPQA_DIAMOND` environment variable is mapped to the `HF_TOKEN` environment variable for the `gpqa_diamond` task.
 
-Direct Values:
 ```yaml
-deployment:
-  type: vllm
-  envs:
-    CUDA_VISIBLE_DEVICES: "0,1,2,3,4,5,6,7"
-    OMP_NUM_THREADS: "1"
-    VLLM_USE_FLASH_ATTN: "1"
+evaluation:
+  env_vars:
+    JUDGE_API_KEY: JUDGE_API_KEY_FOR_ALL_TASKS
+  tasks:
+    - name: AA_AIME_2024
+    - name: AA_math_test_500
+    - name: gpqa_diamond
+      env_vars:
+        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND
 ```
 
-Environment Variable References:
-```yaml
-deployment:
-  type: sglang
-  envs:
-    HF_TOKEN: ${oc.env:HF_TOKEN}  # References host environment variable
-    NGC_API_KEY: ${oc.env:NGC_API_KEY}
-```
-
-Supported Executors:
-- SLURM: Environment variables are exported in the sbatch script before running deployment commands
-- Lepton: Environment variables are passed to the container specification
-- Local: Environment variables are passed to [Docker](https://www.docker.com/) containers (when deployment support is added)
-
-Example with SLURM:
-```yaml
-deployment:
-  type: vllm
-  envs:
-    CUDA_VISIBLE_DEVICES: "0,1,2,3,4,5,6,7"
-    HF_TOKEN: ${oc.env:HF_TOKEN}
-    VLLM_USE_V2_BLOCK_MANAGER: "1"
-  command: vllm serve /checkpoint --port 8000
-```
-
-This will generate a sbatch script that exports these variables before running the deployment command.
+For [Slurm](executors/slurm.md#environment-variables) and [Lepton](executors/lepton.md#configuration-notes), there are also ways to pass environment variables to the execution (like deployment containers).
 
 ### 3. Check Evaluation Status
 

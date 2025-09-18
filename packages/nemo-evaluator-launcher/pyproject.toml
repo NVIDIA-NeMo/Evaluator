@@ -1,8 +1,5 @@
 [project]
 name = "nemo-evaluator-launcher"
-description = "NeMo Evaluator Launcher - Public API"
-requires-python = ">=3.10,<3.14"
-readme = "README.md"
 dependencies = [
   "hydra-core>=1.3.2,<2.0.0",
   "jinja2>=3.1.6,<4.0.0",
@@ -15,6 +12,30 @@ dependencies = [
   "tomli>=2.0.0,<3.0.0; python_version < '3.11'",
 ]
 dynamic = ["version"]
+readme = "README.md"
+description = "Launcher for the evaluations provided by NeMo Evaluator containers with different runtime backends"
+requires-python = ">=3.10,<3.14"
+
+# BEGIN(if-changed): check package_info.py, too
+authors = [{ name = "NVIDIA" }, { email = "nemo-toolkit@nvidia.com" }]
+maintainers = [{ name = "NVIDIA" }, { email = "nemo-toolkit@nvidia.com" }]
+license = { file = "LICENSE" }
+keywords = [
+  "deep learning",
+  "evaluations",
+  "machine learning",
+  "gpu",
+  "NLP",
+  "pytorch",
+  "torch",
+]
+# END(if-changed)
+
+[project.urls]
+# BEGIN(if-changed): check package_info.py
+homepage = "https://github.com/NVIDIA-NeMo/Eval"
+repository = "https://github.com/NVIDIA-NeMo/Eval/packages/nemo-evaluator-launcher"
+# END(if-changed)
 
 [project.optional-dependencies]
 mlflow = ["mlflow>=2.8.0"]
@@ -50,7 +71,11 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-"nemo_evaluator_launcher" = ["resources/**/*", "configs/**/*", "executors/**/*.sh"]
+"nemo_evaluator_launcher" = [
+  "resources/**/*",
+  "configs/**/*",
+  "executors/**/*.sh",
+]
 
 [tool.setuptools.dynamic]
 version = { attr = "nemo_evaluator_launcher.package_info.__version__" }

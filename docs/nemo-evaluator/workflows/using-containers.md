@@ -32,26 +32,42 @@ eval-factory run_eval \
     --overrides 'config.params.limit_samples=3'
 ```
 
+The example above will evaluate `meta/llama-3.1-8b-instruct` model on `mmlu_pro` benchmark from `simple-evals` framework. The parameter `limit_samples` will do that only 3 samples will be used for evaluation, instead of the entire dataset.
+
 
 **Quick Overview:**
-NeMo Evaluator provides specialized containers for different evaluation domains including language models, code generation, vision-language models, agentic AI, retrieval systems, and safety evaluation. Each container is optimized for specific use cases and comes with pre-configured evaluation harnesses.
+NeMo Evaluator Launcher provides specialized containers for different evaluation domains including language models, code generation, vision-language models, agentic AI, retrieval systems, and safety evaluation. Each container is optimized for specific use cases and comes with pre-configured evaluation harnesses.
 
 ## Adapter-Based Execution
 
 # Adapter System Architecture
 
-The system uses an interceptor-based architecture that processes requests and responses through a chain of adapters:
+The system uses an interceptor-based architecture that processes requests and 
+responses through a chain of adapters. There are three primary types of interceptors:
+- **RequestInterceptor**: Captures and modifies requests sent to the endpoint, allowing for customization of system messages, request parameters, and more.
+- **ResponseInterceptor**: Captures and processes responses received from the endpoint, enabling functionalities such as token usage tracking, removal of reasoning tokens, and more.
+- **Post-eval hook**: Runs after the evaluation completes, allowing for cleanup, report generation, or other post-processing tasks.
 
-**Configuration Methods:**
-- **CLI Overrides**: Use `--overrides` parameter for runtime configuration ([learn more](nemo-evaluator/reference/api.md#interceptor-system))
-- **YAML Configuration**: Define interceptor chains in configuration files ([learn more](nemo-evaluator/reference/api.md#interceptor-system))
+_Example_: You decide to benchmark `nvidia/llama-3.3-nemotron-super-49b-v1.5` model, so you use `system_message` interceptor to include the `/think` system message to turn on reasoning mode, and `reasoning` interceptor to remove reasoning tokens before judging the model's responses.
+
+Interceptors enable straightforward evaluation of endpoints that:
+- require additional parameters,
+- do not support certain parameters,
+- need custom system messages,
+- require reasoning handling,
+and more, making the workflow highly adaptable.
+
+**Configuration Methods**  
+You have two options for specifying the adapters to be used:
+- **CLI Overrides**: Use `--overrides` parameter for runtime configuration ([learn more](../reference/api.md#interceptor-system))
+- **YAML Configuration**: Define interceptor chains in configuration files ([learn more](../reference/api.md#interceptor-system))
 
 
 ## Configuration and Overrides
 
 # CLI Parameter Overrides
 
-The system supports extensive configuration through the `--overrides` parameter:
+Each benchmark supported by NeMo-Evaluator comes with its own set of pre-defined, default parameters. However, the system supports extensive configuration through the `--overrides` parameter:
 
 ```bash
 eval-factory run_eval \
@@ -61,15 +77,22 @@ eval-factory run_eval \
     --model_type chat \
     --api_key_name MY_API_KEY \
     --output_dir `mktemp -d` \
-    --overrides 'config.params.limit_samples=3,target.api_endpoint.adapter_config.use_request_logging=True,target.api_endpoint.adapter_config.use_caching=True'
+    --overrides 'config.params.limit_samples=3,config.params.temperature=0.5,target.api_endpoint.adapter_config.use_request_logging=True,target.api_endpoint.adapter_config.use_caching=True'
 ```
+
+In this example, several parameter overrides are used to customize the evaluation:
+- The `temperature` parameter is set to 0.5, overriding the default value
+- The `limit_samples` parameter restricts the evaluation to just 3 samples rather than the full dataset
+- Two adapters are enabled:
+  - `use_request_logging` to capture and log the requests sent to the model (or to the next adapter)
+  - `use_caching` to cache model's responses
 
 ## Workflow Examples
 
 # Basic Evaluation Workflow
 
 ```bash
-Run evaluation with eval-factory
+# Run evaluation with eval-factory
 eval-factory run_eval \
     --eval_type mmlu_pro \
     --model_id meta/llama-3.1-8b-instruct \
@@ -106,7 +129,6 @@ For more details, see [CLI](../reference/cli.md)
 
 The system provides built-in performance optimization through caching:
 
-- **Request Caching**: Stores requests to avoid duplicate API calls
 - **Response Caching**: Caches model responses for reuse
 - **Disk Storage**: Persistent caching with configurable directories
 - **Performance Monitoring**: Track request/response patterns
@@ -115,7 +137,7 @@ The system provides built-in performance optimization through caching:
 
 Comprehensive logging capabilities for monitoring and troubleshooting:
 
-- **Request Logging**: Capture all requests sent to models
+- **Request Logging**: Log all requests sent to models
 - **Response Logging**: Log all model responses
 - **Failed Request Logging**: Track and debug failed requests
 - **HTML Report Generation**: Generate detailed reports of cached data
@@ -159,11 +181,10 @@ export MY_API_KEY=your_api_key_here
 
 # 3. **Enable Logging and Caching**
 - Use request and response logging for debugging
-- Enable caching to improve performance and reduce costs
+- Enable caching to resume failed evaluations
 - Generate HTML reports for detailed analysis
 
 # 4. **Monitor Progress**
-- Use progress tracking for long-running evaluations
 - Check logs regularly for any issues
 - Monitor cache usage and performance
 
@@ -191,4 +212,3 @@ Store your API keys securely in environment variables:
 export MY_API_KEY=your_api_key_here
 export HF_TOKEN=your_hf_token_here
 ```
-

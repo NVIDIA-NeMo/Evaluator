@@ -126,7 +126,7 @@ target_config = EvaluationTarget(
         url="https://integrate.api.nvidia.com/v1/chat/completions",
         model_id="meta/llama-3.1-8b-instruct",
         type="chat",
-        api_key="your_api_key_here"
+        api_key="MY_API_KEY" # Name of the environemnt variable that stores api_key
     )
 )
 
@@ -145,15 +145,9 @@ from nemo_evaluator.api.api_dataclasses import EvaluationConfig
 
 class EvaluationConfig:
     """Configuration for evaluation runs."""
-    eval_type: str                    # Type of evaluation
-    model_id: str                     # Model identifier
-    model_url: str                    # API endpoint URL
-    model_type: str                   # Endpoint type
-    api_key_name: str                 # Environment variable for API key
-    output_dir: str                   # Output directory
-    run_config: str                   # Path to YAML config file
-    overrides: str                    # Parameter overrides
-    dry_run: bool                     # Dry run mode
+    type: str                    # Type of evaluation - benchmark to be run
+    output_dir: str              # Output directory
+    params: str                  # parameter overrides
 ```
 
 # `EvaluationTarget`
@@ -161,17 +155,25 @@ class EvaluationConfig:
 Target configuration for API endpoints, defined in `api_dataclasses.py`.
 
 ```python
-from nemo_evaluator.api.api_dataclasses import EvaluationTarget
+from nemo_evaluator.api.api_dataclasses import EvaluationTarget, EndpointType
 
 class EvaluationTarget:
     """Target configuration for API endpoints."""
-    
+    api_endpoint: ApiEndpoint  # API endpoint to be used for evaluation
+ 
+class ApiEndpoint:
     url: str                          # API endpoint URL
-    model_id: str                     # Model identifier
-    type: str                         # Endpoint type
-    api_key: str                      # API key
+    model_id: str                     # Model name or identifier
+    type: str                         # Endpoint type (chat, completions, vlm, or embedding)
+    api_key: str                      # Name of the env variable that stores API key
     adapter_config: AdapterConfig     # Adapter configuration
 ```
+
+In the ApiEndpoint dataclass, `type` should be one of: `EndpointType.CHAT`, `EndpointType.COMPLETIONS`, `EndpointType.VLM`, `EndpointType.EMBEDDING`:
+    - `CHAT` endpoint accepts structured input as a sequence of messages (e.g., system, user, assistant roles) and returns a model-generated message, enabling controlled multi-turn interactions.
+    - `COMPLETIONS` endpoint takes a single prompt string and returns a text continuation, typically used for one-shot or single-turn tasks without conversational structure. 
+    - `VLM` endpoint hosts a model that has vision capabilities, 
+    - `EMBEDDING` endpoint hosts an embedding model.
 
 ## Adapter System
 
@@ -345,31 +347,7 @@ interceptor_config = {
 - Request timeout configuration
 - Endpoint validation
 
-# 6. Progress Tracking Interceptor
-
-```python
-from nemo_evaluator.adapters.interceptors.progress_tracking_interceptor import ProgressTrackingInterceptor
-
-# Configuration
-interceptor_config = {
-    "name": "progress_tracking",
-    "enabled": True,
-    "config": {
-        "tracking_url": "http://localhost:3828/progress",
-        "interval": 1,
-        "track_requests": True,
-        "track_responses": True
-    }
-}
-```
-
-**Features:**
-- Real-time progress monitoring
-- Configurable tracking intervals
-- Request/response tracking
-- External progress endpoints
-
-# 7. Payload Modifier Interceptor
+# 6. Payload Modifier Interceptor
 
 ```python
 from nemo_evaluator.adapters.interceptors.payload_modifier_interceptor import PayloadModifierInterceptor
@@ -398,7 +376,7 @@ This interceptor is particularly useful when custom behavior is needed. In this 
 - Custom parameter injection
 - Flexible configuration options
 
-# 8. Client Error Interceptor
+# 7. Client Error Interceptor
 
 ```python
 from nemo_evaluator.adapters.interceptors.raise_client_error_interceptor import RaiseClientErrorInterceptor
@@ -565,11 +543,10 @@ Interceptors are executed in the order they appear in the configuration. A typic
 
 1. `system_message` (add/modify system prompts)
 2. `payload_modifier` (modify request parameters)
-3. `request_logging` (capture final request)
+3. `request_logging` (log the request sent to the model)
 4. `caching` (check cache before making request)
 5. `endpoint` or `nvcf` (make the actual API call)
 6. `response_logging` (log the response)
 7. `reasoning` (add/process reasoning tokens)
-8. `progress_tracking` (track evaluation progress)
 
 If the interceptors are configured from the CLI, the chain will be configured in the above order.
