@@ -70,6 +70,9 @@ def create_parser() -> ArgumentParser:
     ls_parser = subparsers.add_parser(
         "ls", help="List resources", description="List tasks or runs"
     )
+    # Add arguments from `ls tasks` so that they work with `ls` as default alias
+    ls_parser.add_arguments(ls_tasks.Cmd, dest="tasks_alias")
+
     ls_sub = ls_parser.add_subparsers(dest="ls_command", required=False)
 
     # ls tasks (default)
@@ -126,12 +129,10 @@ def main() -> None:
         # Dispatch nested ls subcommands
         if args.ls_command is None or args.ls_command == "tasks":
             # Default to tasks when no subcommand specified
-            if hasattr(args, "tasks"):
-                args.tasks.execute()
+            if hasattr(args, "tasks_alias"):
+                args.tasks_alias.execute()
             else:
-                # Create default tasks command if not specified
-                tasks_cmd = ls_tasks.Cmd()
-                tasks_cmd.execute()
+                args.tasks.execute()
         elif args.ls_command == "runs":
             args.runs.execute()
     elif args.command == "export":
