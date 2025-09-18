@@ -57,9 +57,9 @@ def add_example_files(package_name: str, destination_folder: str | None = None) 
     resources_dir = files("nemo_evaluator.resources")
 
     template_files = {
-        "framework.tpl.yml": "framework.yml",
-        "output.tpl.py": "output.py",
-        "init.tpl.py": "__init__.py",
+        "framework_tpl.yml": "framework.yml",
+        "output_tpl.py": "output.py",
+        "init_tpl.py": "__init__.py",
     }
 
     for template_name, target_name in template_files.items():
