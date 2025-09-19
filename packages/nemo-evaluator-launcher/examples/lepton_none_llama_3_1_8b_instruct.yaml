@@ -23,9 +23,17 @@
 # 3. No cleanup needed for the endpoint (since we didn't create it)
 
 # Prerequisites:
-# 1. Install leptonai: pip install leptonai
-# 2. Configure your Lepton credentials: lep login
-# 3. Have an existing endpoint already deployed (provided in target.api_endpoint.url)
+# 1. Configure your Lepton credentials: lep login
+# 2. Have HuggingFace token configured for model access (UI/settings/secrets, Hugging Face)
+# 3. Have ENDPOINT_API_KEY configured for the endpoint (UI/settings/secrets, Custom Secret)
+# 4. Have an existing endpoint already deployed (provided in target.api_endpoint.url)
+# 5. Configure storage paths in UI/Utilities/Storage and update the paths in this config
+
+# Monitoring:
+# Once the evaluation starts, you can monitor it in the Lepton UI:
+# - Evaluation jobs: UI/Batch Jobs
+
+name: lepton_none_llama_3_1_8b_instruct
 
 defaults:
   - execution: lepton/default
@@ -39,27 +47,33 @@ execution:
   output_dir: lepton_none_llama_3_1_8b_results
 
   # Optional: Override evaluation task execution settings
-  # evaluation_tasks:
-  #   resource_shape: "gpu.small"  # Override default CPU with GPU for tasks
-  #   timeout: 7200  # Override default 3600s timeout to 2 hours
+  evaluation_tasks:
+    # resource_shape: "gpu.small"  # Override default CPU with GPU for tasks (Optional)
+    timeout: 3600  # Override default 3600 timeout (this is how long we wait for the endpoint to be ready)
 
   lepton_platform:
     tasks:
+      api_tokens:
+        - value_from:
+            token_name_ref: "ENDPOINT_API_KEY"
+
       env_vars:
-        # For HuggingFace model access
         HF_TOKEN:
           value_from:
-            secret_name_ref: "HUGGING_FACE_HUB_TOKEN_read"
+            # TODO: the name of a HF secret created via UI/settings/secrets
+            secret_name_ref: "HUGGING_FACE_HUB_TOKEN"
+        API_KEY:
+          value_from:
+            # TODO: the name of a secret created via UI/settings/secrets (custom secret), API key for your lepton deployed endpoint
+            secret_name_ref: "ENDPOINT_API_KEY"
 
-        # For endpoint authentication (direct value from environment)
-        API_KEY: "UNIQUE_ENDPOINT_TOKEN"
       # Node group for evaluation tasks
       node_group: "nv-int-multiteam-nebius-h200-01"
       # Storage mounts for task execution
       mounts:
         # Main workspace mount
         - from: "node-nfs:lepton-shared-fs"
-          path: "/EU-Model-Builder-SAs/user_homes/<username>/nemo-evaluator-launcher-none-workspace"
+          path: "/EU-Model-Builder-SAs/user_homes/${oc.env:USER}/nemo-evaluator-launcher-workspace" # TODO: set it to your lepton storage path (see UI/Utilities/Storage)
           mount_path: "/workspace"
 
       # Image pull secrets for task containers
@@ -81,28 +95,6 @@ target:
 # EVALUATION CONFIGURATION
 # =============================================================================
 evaluation:
-  # overrides:  # these overrides apply to all tasks; for task-specific overrides, use the `overrides` field
-  #   config.params.request_timeout: 3600
-  #   target.api_endpoint.adapter_config.use_reasoning: false  # if true, strips reasoning tokens
-  #   target.api_endpoint.adapter_config.use_system_prompt: true
-  #   target.api_endpoint.adapter_config.custom_system_prompt: >-
-  #     "Think step by step."
-
+  # Evaluation tasks to run
   tasks:
-    # - name: ifeval
-
-    - name: gpqa_diamond
-      # overrides:
-      #   config.params.temperature: 0.6
-      #   config.params.top_p: 0.95
-      #   config.params.max_new_tokens: 8192
-      #   config.params.parallelism: 32
-
-    # - name: mbpp
-    #   overrides:
-    #     config.params.temperature: 0.2
-    #     config.params.top_p: 0.95
-    #     config.params.max_new_tokens: 2048
-    #     config.params.extra.n_samples: 5
-    #     config.params.parallelism: 32
-    #     target.api_endpoint.adapter_config.custom_system_prompt: '"You must only provide the code implementation" '
+    - name: ifeval

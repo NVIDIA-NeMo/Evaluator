@@ -16,8 +16,8 @@
 # Below is the _next_ version that will be published, not the currently published one.
 MAJOR = 0
 MINOR = 1
-PATCH = 0
-PRE_RELEASE = "rc10"
+PATCH = 1
+PRE_RELEASE = ""
 
 # Use the following formatting: (major, minor, patch, pre-release)
 VERSION = (MAJOR, MINOR, PATCH, PRE_RELEASE)
