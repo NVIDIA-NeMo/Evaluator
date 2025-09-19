@@ -14,6 +14,7 @@
 # limitations under the License.
 
 
+import json
 import os
 import sqlite3
 import threading
@@ -81,8 +82,40 @@ def get_token_usage_from_cache(cache_dir: str) -> dict:
     return get_token_usage_from_cache_db(cache_db_path)
 
 
+def _update_persistent_metrics(
+    output_dir: str, start_time: float, peak_memory: int, peak_tree_memory: int
+) -> None:
+    """Update persistent metrics file with current runtime and peak memory."""
+    try:
+        persistent_file = Path(output_dir) / "eval_runtime_metrics.json"
+        current_time = time.time()
+        runtime_seconds = current_time - start_time
+
+        metrics = {
+            "start_time": time.strftime(
+                "%Y-%m-%dT%H:%M:%S.%fZ", time.gmtime(start_time)
+            ),
+            "runtime_seconds": runtime_seconds,
+            "peak_memory_bytes": peak_memory,
+            "peak_tree_memory_bytes": peak_tree_memory,
+        }
+
+        # Write atomically
+        temp_file = persistent_file.with_suffix(".tmp")
+        with open(temp_file, "w") as f:
+            json.dump(metrics, f)
+        temp_file.rename(persistent_file)
+    except Exception:
+        pass  # Ignore errors to avoid disrupting evaluation
+
+
 def monitor_memory_usage(
-    func, *args, interval_ms, cache_dir: str | None = None, **kwargs
+    func,
+    *args,
+    interval_ms,
+    cache_dir: str | None = None,
+    output_dir: str | None = None,
+    **kwargs,
 ) -> tuple[EvaluationResult, dict[str, Any]]:
     """
     Run func(*args, **kwargs) while polling RSS via psutil.
@@ -111,6 +144,9 @@ def monitor_memory_usage(
 
     def sampler():
         nonlocal peak, peak_tree
+        last_save_time = 0
+        save_interval = 5.0  # Save every 5 seconds
+
         while not stop:
             # Get memory for current process
             rss = proc.memory_info().rss
@@ -119,6 +155,13 @@ def monitor_memory_usage(
             # Get memory for entire process tree
             tree_rss = get_tree_memory(proc)
             peak_tree = max(peak_tree, tree_rss)
+
+            # Update persistent metrics file if output_dir is provided and enough time has passed
+            if output_dir:
+                current_time = time.time()
+                if current_time - last_save_time >= save_interval:
+                    _update_persistent_metrics(output_dir, start_time, peak, peak_tree)
+                    last_save_time = current_time
 
             time.sleep(interval_ms / 1000.0)
 
