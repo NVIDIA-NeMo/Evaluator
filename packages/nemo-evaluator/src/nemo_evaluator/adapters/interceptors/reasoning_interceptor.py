@@ -140,6 +140,10 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
             "avg_original_content_words": None,
             "avg_updated_content_words": None,
             "max_reasoning_words": None,
+            "max_reasoning_tokens": None,
+            "avg_reasoning_tokens": None,
+            "max_updated_content_tokens": None,
+            "avg_updated_content_tokens": None,
         }
 
         # Initialize cache if enabled
@@ -223,6 +227,10 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
             reasoning_words = reasoning_info.get("reasoning_words", 0)
             original_words = reasoning_info.get("original_content_words", 0)
             updated_words = reasoning_info.get("updated_content_words", 0)
+            reasoning_tokens = reasoning_info.get("reasoning_tokens", "unknown")
+            updated_content_tokens = reasoning_info.get(
+                "updated_content_tokens", "unknown"
+            )
 
             # Increment counters
             if reasoning_words > 0:
@@ -237,8 +245,10 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
                 ("avg_reasoning_words", reasoning_words),
                 ("avg_original_content_words", original_words),
                 ("avg_updated_content_words", updated_words),
+                ("avg_reasoning_tokens", reasoning_tokens),
+                ("avg_updated_content_tokens", updated_content_tokens),
             ]:
-                if value > 0:
+                if value != "unknown" and value > 0:
                     if self._reasoning_stats[stat_key] is None:
                         self._reasoning_stats[stat_key] = value
                     else:
@@ -253,13 +263,20 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
                         )
 
             # Update max reasoning words
-            if reasoning_words > 0:
-                if (
-                    self._reasoning_stats["max_reasoning_words"] is None
-                    or reasoning_words > self._reasoning_stats["max_reasoning_words"]
-                ):
-                    self._reasoning_stats["max_reasoning_words"] = reasoning_words
-
+            for key in [
+                "reasoning_words",
+                "original_content_words",
+                "updated_content_words",
+                "reasoning_tokens",
+                "updated_content_tokens",
+            ]:
+                value = reasoning_info.get(key, None)
+                if value is not None and value != "unknown" and value > 0:
+                    if (
+                        self._reasoning_stats[f"max_{key}"] is None
+                        or value > self._reasoning_stats[f"max_{key}"]
+                    ):
+                        self._reasoning_stats[f"max_{key}"] = value
             # Log aggregated stats at specified interval
             if (
                 self._reasoning_stats["total_responses"]
@@ -281,20 +298,27 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
         """
         modified_msg = msg.copy()
         content = msg.get("content", "")
+        updated_content_tokens = "unknown"
+        reasoning_tokens = "unknown"
 
         # Check if reasoning_content exists in the message and is not empty
-        if (
-            "reasoning_content" in msg
-            and msg["reasoning_content"]
-            and msg["reasoning_content"].strip()
-        ):
+        if "reasoning_content" in msg:
             reasoning_content = msg["reasoning_content"]
             updated_message_content = content
-            reasoning_started = True
+            reasoning_started = (
+                True
+                if reasoning_content is not None and reasoning_content.strip() != ""
+                else False
+            )
             if content.strip() == "":
                 reasoning_finished = False
             else:
                 reasoning_finished = True
+            if "usage" in msg:
+                usage = msg["usage"]
+                reasoning_tokens = usage.get("reasoning_tokens", "unknown")
+                updated_content_tokens = usage.get("content_tokens", "unknown")
+
         else:
             reasoning_finished = False
             if self.start_reasoning_token is not None:
@@ -343,6 +367,8 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
             ),
             "reasoning_finished": reasoning_finished,
             "reasoning_started": reasoning_started,
+            "reasoning_tokens": reasoning_tokens,
+            "updated_content_tokens": updated_content_tokens,
         }
 
         return modified_msg, reasoning_info
@@ -403,6 +429,9 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
                 self.logger.debug(
                     "Reasoning processing disabled, returning response as-is"
                 )
+            return resp
+        if resp.rctx.cache_hit:
+            self.logger.debug("Response was from cache, skipping reasoning processing")
             return resp
 
         try:

@@ -405,6 +405,11 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
     ) -> AdapterResponse:
         """Collect aggregated statistics from the response."""
         # Get status code once and reuse it
+        if resp.rctx.cache_hit:
+            self.logger.debug(
+                "Response was from cache, skipping response stats collection"
+            )
+            return resp
         status_code = resp.r.status_code
 
         # Update time tracking with current timestamp
