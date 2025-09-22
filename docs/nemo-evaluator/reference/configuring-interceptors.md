@@ -1,8 +1,28 @@
 # Configuring Interceptors
 
-## 1. Request Logging Interceptor
+Interceptors are components that process API requests and responses during evaluation. They provide capabilities for logging, caching, request modification, and response processing. Interceptors execute in a specific order within the evaluation pipeline, allowing you to customize and track the behavior of your evaluations.
 
-Logs incoming requests for debugging and analysis.
+## Overview
+
+The NeMo Evaluator supports several types of interceptors:
+
+- **Core Interceptors**: Essential components for logging and caching
+- **Specialized Interceptors**: Advanced features for request modification and reasoning
+- **Post-Evaluation Hooks**: Processing that occurs after evaluation completion
+
+You can configure interceptors using either CLI overrides or YAML configuration files. The examples below show both approaches for each interceptor type.
+
+## Core Interceptors
+
+### Request Logging Interceptor
+
+Captures and logs incoming API requests for debugging, analysis, and audit purposes. This interceptor is essential for troubleshooting evaluation issues and understanding request patterns.
+
+**Key Features:**
+
+- Logs request payloads and metadata
+- Configurable request limits
+- Logging of failed requests
 
 **CLI Configuration:**
 
@@ -21,9 +41,15 @@ interceptors:
       log_failed_requests: true
 ```
 
-## 2. Response Logging Interceptor
+### Response Logging Interceptor
 
-Logs outgoing responses for analysis.
+Captures and logs API responses for analysis and debugging. Use this interceptor to examine model outputs and identify response patterns.
+
+**Key Features:**
+
+- Logs response payloads and metadata
+- Configurable response limits
+- Supports filtering by response status
 
 **CLI Configuration:**
 
@@ -41,9 +67,16 @@ interceptors:
       max_responses: 1000
 ```
 
-## 3. Caching Interceptor
+### Caching Interceptor
 
-Caches requests and responses to improve performance and reduce API calls.
+Implements intelligent caching of API requests and responses to improve evaluation performance and reduce API costs. The caching interceptor can speed up repeated evaluations.
+
+**Key Features:**
+
+- Persistent disk-based caching
+- Configurable cache directory
+- Separate limits for cached requests and responses
+- Reuse of cached responses
 
 **CLI Configuration:**
 
@@ -66,9 +99,17 @@ interceptors:
       max_saved_responses: 1000
 ```
 
-## 4. Endpoint Interceptor
+### Endpoint Interceptor
 
-The final interceptor that sends requests to the actual API endpoint.
+**Required interceptor** that handles the actual API communication. This interceptor must be present in every configuration as it performs the final request to the target API endpoint.
+
+**Important**: This interceptor should always be the last in the interceptor chain.
+
+**CLI Configuration:**
+
+```bash
+# The endpoint interceptor is automatically enabled and requires no additional CLI configuration
+```
 
 **YAML Configuration:**
 
@@ -81,9 +122,15 @@ interceptors:
 
 ## Specialized Interceptors
 
-### 5. System Message Interceptor
+### System Message Interceptor
 
-Modifies the system message in requests.
+Modifies or injects system messages into API requests. This interceptor is useful for standardizing prompts across evaluations or adding specific instructions to model requests.
+
+**Key Features:**
+
+- Custom system message injection
+- Overrides existing system messages
+- Supports dynamic message templates
 
 **CLI Configuration:**
 
@@ -101,9 +148,16 @@ interceptors:
       system_message: "You are a helpful assistant."
 ```
 
-### 6. Payload Modifier Interceptor
+### Payload Modifier Interceptor
 
-Modifies request parameters.
+Provides comprehensive request payload modification capabilities. Use this interceptor to standardize request parameters, add missing fields, or remove unwanted parameters.
+
+**Key Features:**
+
+- Add new parameters to requests
+- Remove existing parameters
+- Rename parameter keys
+- Supports complex parameter transformations
 
 **CLI Configuration:**
 
@@ -127,9 +181,16 @@ interceptors:
         "old_param": "new_param"
 ```
 
-### 7. Reasoning Interceptor
+### Reasoning Interceptor
 
-Handles reasoning tokens in responses and tracks reasoning metrics.
+Specialized interceptor for handling reasoning tokens in model responses. This interceptor is useful for evaluating models that support chain-of-thought reasoning or explicit thinking processes.
+
+**Key Features:**
+
+- Configurable reasoning token delimiters
+- Reasoning metrics tracking
+- Reasoning token injection
+- Support for incomplete reasoning sequences
 
 **CLI Configuration:**
 
@@ -151,9 +212,16 @@ interceptors:
       include_if_not_finished: true
 ```
 
-### 8. Progress Tracking Interceptor
+### Progress Tracking Interceptor
 
-Tracks evaluation progress.
+Monitors and reports evaluation progress in real-time. This interceptor is valuable for long-running evaluations and integration with monitoring systems.
+
+**Key Features:**
+
+- Real-time progress reporting
+- Configurable reporting intervals
+- HTTP endpoint integration
+- Output directory tracking
 
 **CLI Configuration:**
 
@@ -175,9 +243,23 @@ interceptors:
 
 ## Post-Evaluation Hooks
 
-Post-evaluation hooks run after the evaluation is complete and can perform additional processing, reporting, or cleanup tasks.
+Post-evaluation hooks execute after the main evaluation process completes. These hooks enable processing, custom reporting, data export, and cleanup operations.
 
-## HTML Report Generation
+**Common Use Cases:**
+
+- Generate custom reports
+- Export results to external systems
+- Perform data cleanup
+- Send notifications
+
+### HTML Report Generation
+
+Generates comprehensive HTML reports from evaluation results. This hook creates user-friendly, visual reports that you can share with stakeholders or archive for future reference.
+
+**Supported Report Types:**
+
+- HTML: Interactive web-based reports
+- JSON: Machine-readable structured data
 
 **CLI Configuration:**
 
@@ -193,4 +275,6 @@ post_eval_hooks:
     enabled: true
     config:
       report_types: ["html", "json"]
+      output_dir: "./reports"
+      include_raw_data: true
 ```
