@@ -12,7 +12,7 @@ To learn more, please refer to ["Evaluate LLMs Using Log-Probabilities"](logprob
 Use the `show_available_tasks` function to list the evaluation configs available in your environment:
 
 ```python
-from nvidia_eval_commons.core.entrypoint import show_available_tasks
+from nemo_evaluator import show_available_tasks
 
 show_available_tasks()
 ```
@@ -100,27 +100,25 @@ To evaluate your model on a task without a pre-defined config, see ["Run Evaluat
 
 This section outlines the steps to deploy and evaluate a checkpoint trained by Nemo Framework directly using Python commands. This method is quick and easy, making it ideal for evaluation on a local workstation with GPUs, as it facilitates easier debugging. However, for running evaluations on clusters, it is recommended to use NeMo Run for its ease of use (see next section).
 
-The entry point for deployment is the `deploy` method defined in `nemo_eval/api.py`. Below is an example command for deployment. It uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to NeMo format. To evaluate a checkpoint saved during [pretraining](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#pretraining) or [fine-tuning](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#fine-tuning), provide the path to the saved checkpoint using the `nemo_checkpoint` argument in the `deploy` command below.
+The deployment scripts are available inside [`/opt/Export-Deploy/scripts/deploy/nlp/`](https://github.com/NVIDIA-NeMo/Export-Deploy/tree/main/scripts/deploy/nlp) directory. Below is an example command for deployment. It uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to NeMo format. To evaluate a checkpoint saved during [pretraining](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#pretraining) or [fine-tuning](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#fine-tuning), provide the path to the saved checkpoint using the `--nemo_checkpoint` flag in the command below.
 
-```python
-from nemo_eval.api import deploy
-
-if __name__ == "__main__":
-    deploy(
-        nemo_checkpoint='/workspace/llama3_8b_nemo2',
-        max_input_len=4096,
-        max_batch_size=4,
-        server_port=8080,
-        num_gpus=1,)
+```shell
+python \
+  /opt/Export-Deploy/scripts/deploy/nlp/deploy_inframework_triton.py \
+  --nemo_checkpoint "/workspace/llama3_8b_nemo2" \
+  --triton_model_name "megatron_model" \
+  --server_port 8080 \
+  --num_gpus 1 \
+  --max_batch_size 4 \
+  --inference_max_seq_length 4096
 ```
 
-The entry point for evaluation is the `evaluate` method defined in `nvidia_eval_commons/core/evaluate.py`. To run evaluations on the deployed model, use the following command. Make sure to open a new terminal within the same container to execute it. For longer evaluations, it is advisable to run both the deploy and evaluate commands in tmux sessions to prevent the processes from being terminated unexpectedly and aborting the runs.
-It is recommended to use [`check_endpoint`](https://github.com/NVIDIA-NeMo/Eval/blob/main/src/nemo_eval/utils/base.py) function to verify that the endpoint is responsive and ready to accept requests before starting the evaluation.
+The entry point for evaluation is the [`evaluate`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/core/evaluate.py) function. To run evaluations on the deployed model, use the following command. Make sure to open a new terminal within the same container to execute it. For longer evaluations, it is advisable to run both the deploy and evaluate commands in tmux sessions to prevent the processes from being terminated unexpectedly and aborting the runs.
+It is recommended to use [`check_endpoint`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/core/utils.py) function to verify that the endpoint is responsive and ready to accept requests before starting the evaluation.
 
 ```python
-from nemo_eval.utils.base import check_endpoint
-from nvidia_eval_commons.core.evaluate import evaluate
-from nvidia_eval_commons.api.api_dataclasses import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
+from nemo_evaluator.api import check_endpoint, evaluate
+from nemo_evaluator.api.api_dataclasses import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
 
 # Configure the evaluation target
 api_endpoint = ApiEndpoint(
@@ -143,7 +141,7 @@ if __name__ == "__main__":
 
 > **Note:** To evaluate the chat endpoint, update the url by replacing `/v1/completions/` with `/v1/chat/completions/`. Additionally, set the `type` field to `"chat"` in both `ApiEndpoint` and `EvaluationConfig` to indicate a chat benchmark. A list of available chat benchmarks can be found in the [Deploy and Evaluate NeMo Checkpoints](#deploy-and-evaluate-nemo-checkpoints) section above.
 
-> **Note:** Please refer to `deploy` function in `nemo_eval/api.py` and `evaluate` function in `nvidia_eval_commons/core/evaluate.py` to review all available argument options, as the provided commands are only examples and do not include all arguments or their default values. For more detailed information on the arguments used in the ApiEndpoint and ConfigParams classes for evaluation, see `nvidia_eval_commons/api/api_dataclasses.py`.
+> **Note:** Please refer to [`deploy_inframework_triton.py`](https://github.com/NVIDIA-NeMo/Export-Deploy/blob/main/scripts/deploy/nlp/deploy_inframework_triton.py) script and [`evaluate`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/core/evaluate.py) function to review all available argument options, as the provided commands are only examples and do not include all arguments or their default values. For more detailed information on the arguments used in the ApiEndpoint and ConfigParams classes for evaluation, see [`api_dataclasses`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/api/api_dataclasses.py) submodule.
 
 > **Tip:** If you encounter a TimeoutError on the eval client side, please increase the `request_timeout` parameter in `ConfigParams` class to a larger value like `1000` or `1200` seconds (the default is 300).
 
@@ -151,9 +149,9 @@ if __name__ == "__main__":
 
 This section explains how to run evaluations with NeMo Run. For detailed information about [NeMo Run](https://github.com/NVIDIA/NeMo-Run), please refer to its documentation. Below is a concise guide focused on using NeMo Run to perform evaluations in NeMo.
 
-The [evaluation_with_nemo_run.py](https://github.com/NVIDIA-NeMo/Eval/blob/main/scripts/evaluation_with_nemo_run.py) script serves as a reference for launching evaluations with NeMo Run. This script demonstrates how to use NeMo Run with both local executors (your local workstation) and Slurm-based executors like clusters. In this setup, the deploy and evaluate processes are launched as two separate jobs with NeMo Run. The evaluate method waits until the PyTriton server is accessible and the model is deployed before starting the evaluations.
+The [evaluation_with_nemo_run.py](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/scripts/evaluation_with_nemo_run.py) script serves as a reference for launching evaluations with NeMo Run. This script demonstrates how to use NeMo Run with both local executors (your local workstation) and Slurm-based executors like clusters. In this setup, the deploy and evaluate processes are launched as two separate jobs with NeMo Run. The evaluate method waits until the PyTriton server is accessible and the model is deployed before starting the evaluations.
 
-> **Note:** Please make sure to update HF_TOKEN in the NeMo Run script's [local_executor env_vars](https://github.com/NVIDIA-NeMo/Eval/blob/main/scripts/evaluation_with_nemo_run.py#L197) with your HF_TOKEN if using local executor or in the [slurm_executor's env_vars](https://github.com/NVIDIA-NeMo/Eval/blob/main/scripts/evaluation_with_nemo_run.py#L164) if using slurm_executor.
+> **Note:** Please make sure to update HF_TOKEN in the NeMo Run script's [local_executor env_vars](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/scripts/evaluation_with_nemo_run.py#L267) with your HF_TOKEN if using local executor or in the [slurm_executor's env_vars](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/scripts/evaluation_with_nemo_run.py#L232) if using slurm_executor.
 
 ### Run Locally with NeMo Run
 
