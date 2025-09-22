@@ -38,10 +38,10 @@ jobs:
       is_deployment_workflow: false
       is_ci_workload: true
       docs_only: false
-  runs-on: ubuntu-latest
-  steps:
-    - name: noop
-      run: echo "noop"
+    runs-on: ubuntu-latest
+    steps:
+      - name: noop
+        run: echo "noop"
 
   linting:
     runs-on: ubuntu-latest
