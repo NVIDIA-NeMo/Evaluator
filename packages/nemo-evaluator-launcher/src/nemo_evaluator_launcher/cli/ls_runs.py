@@ -20,11 +20,6 @@ from typing import Optional
 
 from simple_parsing import field
 
-from nemo_evaluator_launcher.api.functional import (
-    get_invocation_benchmarks,
-    list_all_invocations_summary,
-)
-
 
 @dataclass
 class Cmd:
@@ -41,6 +36,12 @@ class Cmd:
     )
 
     def execute(self) -> None:
+        # Import heavy dependencies only when needed
+        from nemo_evaluator_launcher.api.functional import (
+            get_invocation_benchmarks,
+            list_all_invocations_summary,
+        )
+
         rows = list_all_invocations_summary()
 
         if self.executor:
