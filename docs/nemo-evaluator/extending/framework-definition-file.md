@@ -13,7 +13,7 @@ An FDF defines:
 
 ## File Structure
 
-The FDF follows a hierarchical structure with three main sections:
+The FDF follows a hierarchical structure with 3 main sections:
 
 ```yaml
 framework:          # Framework identification and metadata
@@ -45,7 +45,7 @@ framework:
 
 ### 2. Defaults Section
 
-The `defaults` section defines the default configuration and execution command that will be used across all evaluations unless overridden. Overriding is supported either through `--overrides` flag (see [Parameter Overrides](../reference/cli.md#parameter-overrides)) or [Run Configuration file](../reference/cli.md#run-configuration).
+The `defaults` section defines the default configuration and execution command that will be used across all evaluations unless overridden. You can override through `--overrides` flag (see [Parameter Overrides](../reference/cli.md#parameter-overrides)) or [Run Configuration file](../reference/cli.md#run-configuration).
 
 ### Command Template
 
@@ -65,6 +65,7 @@ defaults:
 ```
 
 **What this does:**
+
 - **`example_eval`**: Your harness's actual CLI command (replace with your command)
 - **Template variables**: Dynamically insert values from the evaluation configuration
 - **Conditional logic**: Include parameters only when they have values
@@ -73,6 +74,7 @@ defaults:
 **Key Template Variables:**
 
 **Target API Endpoint Variables:**
+
 - **`{{target.api_endpoint.api_key}}`**: Name of the environment variable storing API key
 - **`{{target.api_endpoint.model_id}}`**: Target model identifier
 - **`{{target.api_endpoint.stream}}`**: Whether responses should be streamed
@@ -81,11 +83,13 @@ defaults:
 - **`{{target.api_endpoint.adapter_config}}`**: Adapter configuration
 
 **Evaluation Configuration Variables:**
+
 - **`{{config.output_dir}}`**: Output directory for results
 - **`{{config.type}}`**: Type of the task
 - **`{{config.supported_endpoint_types}}`**: Supported endpoint types (chat/completions)
 
 **Configuration Parameters:**
+
 - **`{{config.params.task}}`**: Evaluation task type
 - **`{{config.params.temperature}}`**: Model temperature setting
 - **`{{config.params.limit_samples}}`**: Sample limit for evaluation
@@ -117,6 +121,7 @@ defaults:
 ```
 
 **Parameter Categories:**
+
 - **Core Parameters**: Basic evaluation settings (temperature, max_tokens)
 - **Performance Parameters**: Parallelism and timeout settings
 - **Framework Parameters**: Task-specific configuration options
@@ -135,6 +140,7 @@ defaults:
 ```
 
 **Endpoint Types:**
+
 - **`chat`**: Multi-turn conversation format (OpenAI chat completions)
 - **`completion`**: Single-turn text completion format
 
@@ -161,6 +167,7 @@ evaluations:
 ```
 
 **Evaluation Configuration:**
+
 - **`name`**: Unique identifier for the evaluation type
 - **`description`**: Clear description of what the evaluation measures
 - **`type`**: Internal type identifier used by the framework
@@ -171,7 +178,7 @@ evaluations:
 
 ### Conditional Parameter Handling
 
-Use Jinja2 conditionals to handle optional parameters. This ensures your CLI command only includes parameters when they have values, preventing errors from undefined or null parameters:
+Use Jinja2 conditionals to handle optional parameters. This ensures that your CLI command includes parameters only when they have values, preventing errors from undefined or null parameters:
 
 ```yaml
 command: >-
@@ -184,12 +191,13 @@ command: >-
 ### Parameter Inheritance
 
 Parameters follow a hierarchical override system:
-1. **Framework defaults** (4th priority)
-2. **Evaluation defaults** (3rd priority)
-3. **User configuration** (2nd priority)
-4. **CLI overrides** (1st priority)
 
-For more information on how to use these overrides, see the [CLI Reference](../reference/cli.md#parameter-overrides) documentation.
+1. **Framework defaults** (fourth priority)
+2. **Evaluation defaults** (third priority)
+3. **User configuration** (second priority)
+4. **CLI overrides** (first priority)
+
+For more information about using these overrides, see the [CLI Reference](../reference/cli.md#parameter-overrides) documentation.
 
 ### Dynamic Configuration
 
@@ -206,12 +214,12 @@ command: >-
 
 Place your FDF in the `core_evals/<framework_name>/` directory of your framework package:
 
-```
+```bash
 your-framework/
 ├── core_evals/
 │   └── your_framework/
 │       ├── framework.yml           # This is your FDF
-|       ├── framework_entrypoint.py # This is an entrypoint to execute evaluation (usually pre-defined)
+│       ├── framework_entrypoint.py # This is an entrypoint to execute evaluation (usually pre-defined)
 │       ├── output.py               # Output parser (custom)
 │       └── __init__.py             # Empty init file
 ├── setup.py                        # Package configuration
