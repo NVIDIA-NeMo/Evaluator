@@ -43,7 +43,7 @@ class TestLsCommandIntegration:
         args = parser.parse_args(["ls", "tasks"])
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=sample_tasks_data,
         ):
             output = StringIO()
@@ -61,7 +61,7 @@ class TestLsCommandIntegration:
         args = parser.parse_args(["ls", "tasks", "--json"])
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=sample_tasks_data,
         ):
             output = StringIO()
@@ -80,7 +80,7 @@ class TestLsCommandIntegration:
         args = parser.parse_args(["ls"])
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=sample_tasks_data,
         ):
             output = StringIO()
@@ -102,7 +102,7 @@ class TestLsCommandIntegration:
         args = parser.parse_args(["ls", "--json"])
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=sample_tasks_data,
         ):
             output = StringIO()
@@ -161,7 +161,7 @@ class TestLsCommandIntegration:
             sys.argv = ["nv-eval", "ls"]
 
             with patch(
-                "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+                "nemo_evaluator_launcher.api.functional.get_tasks_list",
                 return_value=sample_tasks_data,
             ):
                 output = StringIO()
@@ -185,7 +185,7 @@ class TestLsCommandIntegration:
             sys.argv = ["nv-eval", "ls", "--json"]
 
             with patch(
-                "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+                "nemo_evaluator_launcher.api.functional.get_tasks_list",
                 return_value=sample_tasks_data,
             ):
                 output = StringIO()

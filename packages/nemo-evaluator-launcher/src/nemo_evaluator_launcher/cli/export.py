@@ -20,8 +20,6 @@ from typing import Any, List, Optional
 
 from simple_parsing import field
 
-from nemo_evaluator_launcher.api.functional import export_results
-
 
 @dataclass
 class ExportCmd:
@@ -77,6 +75,9 @@ class ExportCmd:
 
     def execute(self) -> None:
         """Execute export."""
+        # Import heavy dependencies only when needed
+        from nemo_evaluator_launcher.api.functional import export_results
+
         config: dict[str, Any] = {
             "copy_logs": self.copy_logs,
             "only_required": self.only_required,

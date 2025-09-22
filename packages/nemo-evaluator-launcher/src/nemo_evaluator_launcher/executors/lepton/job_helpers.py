@@ -23,13 +23,6 @@ import subprocess
 import time
 from typing import Any, List, Union
 
-from leptonai.api.v1.types.affinity import LeptonResourceAffinity
-from leptonai.api.v1.types.common import LeptonVisibility, Metadata
-from leptonai.api.v1.types.deployment import EnvVar, LeptonContainer, Mount
-from leptonai.api.v1.types.job import LeptonJob, LeptonJobUserSpec
-
-# Import lepton dependencies
-from leptonai.api.v2.client import APIClient
 from omegaconf import DictConfig
 
 from nemo_evaluator_launcher.common.logging_utils import logger
@@ -92,6 +85,18 @@ def _create_lepton_job_api(
 ) -> tuple[bool, str]:
     """Create Lepton job using API client (preferred method)."""
     try:
+        # Import leptonai dependencies locally
+        from leptonai.api.v1.types.affinity import LeptonResourceAffinity
+        from leptonai.api.v1.types.common import LeptonVisibility, Metadata
+        from leptonai.api.v1.types.deployment import (
+            EnvValue,
+            EnvVar,
+            LeptonContainer,
+            Mount,
+        )
+        from leptonai.api.v1.types.job import LeptonJob, LeptonJobUserSpec
+        from leptonai.api.v2.client import APIClient
+
         client = APIClient()
 
         # Prepare environment variables (support both direct values and secret references)
@@ -99,12 +104,8 @@ def _create_lepton_job_api(
         if env_vars:
             for key, value in env_vars.items():
                 # Handle both regular dicts and OmegaConf objects
-                from omegaconf import DictConfig
-
                 if isinstance(value, (dict, DictConfig)) and "value_from" in value:
                     # Secret reference: {value_from: {secret_name_ref: "secret_name"}}
-                    from leptonai.api.v1.types.deployment import EnvValue
-
                     # Convert OmegaConf to dict if needed
                     value_dict = dict(value) if isinstance(value, DictConfig) else value
                     env_var = EnvVar(
@@ -203,6 +204,9 @@ def get_lepton_job_status(job_name_or_id: str) -> dict[Any, Any] | None:
 def _get_lepton_job_status_api(job_name_or_id: str) -> dict[Any, Any] | None:
     """Get job status using API client (preferred method)."""
     try:
+        # Import leptonai dependencies locally
+        from leptonai.api.v2.client import APIClient
+
         client = APIClient()
 
         # Try to get job by ID first, then by name

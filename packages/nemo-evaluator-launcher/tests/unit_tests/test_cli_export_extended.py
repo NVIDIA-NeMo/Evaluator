@@ -31,7 +31,7 @@ class TestExportCmdConfiguration:
         }
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(invocation_ids=["test123"], dest="local")
@@ -43,7 +43,9 @@ class TestExportCmdConfiguration:
     def test_all_config_options(self, capsys):
         """Test configuration with all options set."""
 
-        with patch("nemo_evaluator_launcher.cli.export.export_results") as mock_export:
+        with patch(
+            "nemo_evaluator_launcher.api.functional.export_results"
+        ) as mock_export:
             cmd = ExportCmd(
                 invocation_ids=["test123"],
                 dest="local",
@@ -71,7 +73,9 @@ class TestExportCmdConfiguration:
     def test_config_with_none_values(self, capsys):
         """Test configuration when optional values are None."""
 
-        with patch("nemo_evaluator_launcher.cli.export.export_results") as mock_export:
+        with patch(
+            "nemo_evaluator_launcher.api.functional.export_results"
+        ) as mock_export:
             cmd = ExportCmd(
                 invocation_ids=["test123"],
                 dest="local",
@@ -107,7 +111,7 @@ class TestExportCmdOutputMessages:
         }
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(
@@ -129,7 +133,7 @@ class TestExportCmdOutputMessages:
         }
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(
@@ -150,7 +154,7 @@ class TestExportCmdOutputMessages:
         }
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(invocation_ids=["test123"], dest="local")
@@ -164,7 +168,7 @@ class TestExportCmdOutputMessages:
         mock_result = {"success": True, "invocations": {}}
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(invocation_ids=["test123", "test456"], dest="local")
@@ -182,7 +186,7 @@ class TestExportCmdFailureHandling:
         mock_result = {"success": False, "error": "Network connection failed"}
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(invocation_ids=["test123"], dest="wandb")
@@ -196,7 +200,7 @@ class TestExportCmdFailureHandling:
         mock_result = {"success": False}
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(invocation_ids=["test123"], dest="wandb")
@@ -226,7 +230,7 @@ class TestExportCmdSingleInvocationResults:
         }
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(invocation_ids=["test123"], dest="wandb")
@@ -248,7 +252,7 @@ class TestExportCmdSingleInvocationResults:
         }
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(invocation_ids=["test123"], dest="local")
@@ -268,7 +272,7 @@ class TestExportCmdSingleInvocationResults:
         }
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(invocation_ids=["test123"], dest="wandb")
@@ -294,7 +298,7 @@ class TestExportCmdSingleInvocationResults:
         }
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(invocation_ids=["test123"], dest="wandb")
@@ -327,7 +331,7 @@ class TestExportCmdMultipleInvocationsResults:
         }
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(invocation_ids=["test123", "test456"], dest="local")
@@ -357,7 +361,7 @@ class TestExportCmdMultipleInvocationsResults:
         }
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(invocation_ids=["test123", "test456"], dest="local")
@@ -379,7 +383,7 @@ class TestExportCmdMultipleInvocationsResults:
         }
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(
@@ -400,7 +404,7 @@ class TestExportCmdMultipleInvocationsResults:
         }
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(
@@ -425,7 +429,7 @@ class TestExportCmdMultipleInvocationsResults:
         }
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(
@@ -446,7 +450,7 @@ class TestExportCmdEdgeCases:
         mock_result = {"success": True, "invocations": {}}
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(invocation_ids=[], dest="local")
@@ -461,7 +465,7 @@ class TestExportCmdEdgeCases:
         mock_result = {"success": True, "jobs": {}}
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(invocation_ids=["test123"], dest="local")
@@ -478,7 +482,7 @@ class TestExportCmdEdgeCases:
         }  # Missing some jobs but has jobs key
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(invocation_ids=["test123"], dest="local")
@@ -505,7 +509,7 @@ class TestExportCmdEdgeCases:
         }
 
         with patch(
-            "nemo_evaluator_launcher.cli.export.export_results",
+            "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
         ):
             cmd = ExportCmd(invocation_ids=["test123"], dest="wandb")
