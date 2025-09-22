@@ -74,6 +74,44 @@ def adapter_server(tmp_path) -> Generator[AdapterConfig, Any, Any]:
     p.join(timeout=5)
 
 
+@pytest.fixture
+def adapter_server_migration(tmp_path) -> Generator[AdapterConfig, Any, Any]:
+    api_url = "http://localhost:3300/v1/chat/completions"
+    output_dir = tmp_path
+    adapter_config = AdapterConfig(
+        interceptors=[
+            dict(
+                name="caching",
+                enabled=True,
+                config={
+                    "cache_dir": str(tmp_path / "cache"),
+                    "reuse_cached_responses": False,
+                    "save_requests": False,
+                    "save_responses": True,
+                },
+            ),
+            dict(
+                name="endpoint",
+                enabled=True,
+                config={},
+            ),
+            dict(
+                name="reasoning",
+                enabled=True,
+                config={
+                    "end_reasoning_token": "</think>",
+                    "add_reasoning": False,
+                    "migrate_reasoning_content": True,
+                },
+            ),
+        ]
+    )
+    p = spawn_adapter_server(api_url, output_dir, adapter_config)
+    yield adapter_config
+    p.terminate()
+    p.join(timeout=5)
+
+
 @pytest.mark.parametrize(
     "input_content,expected_content",
     [
@@ -109,6 +147,55 @@ def test_reasoning_responses(
                 "message": {
                     "role": "assistant",
                     "content": input_content,
+                }
+            }
+        ]
+    }
+    data = {
+        "prompt": "This is a test prompt",
+        "max_tokens": 100,
+        "temperature": 0.5,
+        "fake_response": response_data,
+    }
+    response = requests.post(url, json=data)
+
+    assert response.status_code == 200
+    cleaned_data = response.json()
+    cleaned_content = cleaned_data["choices"][0]["message"]["content"]
+    assert cleaned_content == expected_content
+
+
+@pytest.mark.parametrize(
+    "reasoning_content,content,expected_content",
+    [
+        (
+            "This is my reasoning process that should be migrated",
+            "Here's my final answer.",
+            "<think>This is my reasoning process that should be migrated</think>Here's my final answer.",
+        ),
+        ("", "Here's my final answer.", "Here's my final answer."),
+    ],
+)
+def test_migration(
+    adapter_server_migration,
+    fake_openai_endpoint,
+    reasoning_content,
+    content,
+    expected_content,
+):
+    url = f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{AdapterServer.DEFAULT_ADAPTER_PORT}"
+
+    # Wait for server to be ready
+    wait_for_server("localhost", 3825)
+
+    # We parametrize the response of the openai fake server.
+    response_data = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": content,
+                    "reasoning_content": reasoning_content,
                 }
             }
         ]
