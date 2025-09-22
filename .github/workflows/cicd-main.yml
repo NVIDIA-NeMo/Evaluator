@@ -37,7 +37,7 @@ jobs:
     outputs:
       is_deployment_workflow: false
       is_ci_workload: true
-      docs_only: false
+      docs_only: true
     runs-on: ubuntu-latest
     steps:
       - name: noop
