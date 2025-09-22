@@ -35,8 +35,8 @@ jobs:
 
   pre-flight:
     outputs:
-      is_deployment_workflow: false
-      is_ci_workload: true
+      is_deployment_workflow: true
+      is_ci_workload: false
       docs_only: true
     runs-on: ubuntu-latest
     steps:
