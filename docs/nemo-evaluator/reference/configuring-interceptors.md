@@ -275,6 +275,5 @@ post_eval_hooks:
     enabled: true
     config:
       report_types: ["html", "json"]
-      output_dir: "./reports"
-      include_raw_data: true
+      html_report_size: 15  # Optional: limit number of entries
 ```
