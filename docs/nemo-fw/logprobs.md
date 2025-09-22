@@ -50,19 +50,14 @@ pip install nvidia-lm-eval
 
 1. Deploy your model:
 
-```{literalinclude} ../scripts/snippets/deploy.py
-:language: python
+```{literalinclude} ../scripts/snippets/deploy.sh
+:language: shell
 :start-after: "## Deploy"
-:linenos:
-```
-
-```bash
-python deploy.py
 ```
 
 You can verify if the server is ready for accepting requests with the following function:
 ```python
-from nemo_eval.utils.base import check_endpoint
+from nemo_evaluator.api import check_endpoint
 
 check_endpoint(
     endpoint_url="http://0.0.0.0:8080/v1/completions/",

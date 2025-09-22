@@ -40,21 +40,14 @@ For each package, follow these steps:
 
 2. Deploy your model:
 
-```{literalinclude} ../scripts/snippets/deploy.py
-:language: python
+```{literalinclude} ../scripts/snippets/deploy.sh
+:language: shell
 :start-after: "## Deploy"
-:linenos:
-```
-
-Run the deployment in the background:
-
-```bash
-python deploy.py
 ```
 
 Wait for the server to get started and ready for accepting requests:
 ```python
-from nemo_eval.utils.base import check_endpoint
+from nemo_evaluator.api import check_endpoint
 check_endpoint(
     endpoint_url="http://0.0.0.0:8080/v1/completions/",
     endpoint_type="completions",
