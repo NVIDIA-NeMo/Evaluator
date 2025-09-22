@@ -229,7 +229,6 @@ jobs:
       (
         needs.pre-flight.outputs.docs_only == 'false'
         && needs.pre-flight.outputs.is_deployment_workflow == 'false'
-        && needs.pre-flight.outputs.is_ci_workload == 'false'
       )
       && success()
       && !cancelled()
