@@ -33,7 +33,7 @@ class TestLeptonJobHelpers:
         )
 
         with patch(
-            "nemo_evaluator_launcher.executors.lepton.job_helpers.APIClient",
+            "leptonai.api.v2.client.APIClient",
             return_value=mock_client,
         ):
             from nemo_evaluator_launcher.executors.lepton.job_helpers import (
@@ -59,7 +59,7 @@ class TestLeptonJobHelpers:
         mock_client.job.create.side_effect = Exception("API Error")
 
         with patch(
-            "nemo_evaluator_launcher.executors.lepton.job_helpers.APIClient",
+            "leptonai.api.v2.client.APIClient",
             return_value=mock_client,
         ):
             from nemo_evaluator_launcher.executors.lepton.job_helpers import (
@@ -83,7 +83,7 @@ class TestLeptonJobHelpers:
         )
 
         with patch(
-            "nemo_evaluator_launcher.executors.lepton.job_helpers.APIClient",
+            "leptonai.api.v2.client.APIClient",
             return_value=mock_client,
         ):
             from nemo_evaluator_launcher.executors.lepton.job_helpers import (
@@ -114,7 +114,7 @@ class TestLeptonJobHelpers:
         )
 
         with patch(
-            "nemo_evaluator_launcher.executors.lepton.job_helpers.APIClient",
+            "leptonai.api.v2.client.APIClient",
             return_value=mock_client,
         ):
             from nemo_evaluator_launcher.executors.lepton.job_helpers import (
@@ -144,7 +144,7 @@ class TestLeptonJobHelpers:
         mock_client = Mock()
 
         with patch(
-            "nemo_evaluator_launcher.executors.lepton.job_helpers.APIClient",
+            "leptonai.api.v2.client.APIClient",
             return_value=mock_client,
         ):
             from nemo_evaluator_launcher.executors.lepton.job_helpers import (
@@ -162,8 +162,7 @@ class TestLeptonJobHelpers:
             )
 
             assert success is False
-            # The error may vary based on implementation, so just check that it failed
-            assert "Error creating Lepton job via API" in error
+            assert "Mount must be a dictionary or DictConfig" in error
 
     def test_create_lepton_job_with_invalid_mount_config(self):
         """Test job creation with mount that raises exception during creation."""
@@ -171,11 +170,11 @@ class TestLeptonJobHelpers:
 
         with (
             patch(
-                "nemo_evaluator_launcher.executors.lepton.job_helpers.APIClient",
+                "leptonai.api.v2.client.APIClient",
                 return_value=mock_client,
             ),
             patch(
-                "nemo_evaluator_launcher.executors.lepton.job_helpers.Mount",
+                "leptonai.api.v1.types.deployment.Mount",
                 side_effect=Exception("Invalid mount config"),
             ),
         ):
@@ -193,8 +192,7 @@ class TestLeptonJobHelpers:
             )
 
             assert success is False
-            # The error may vary based on implementation, so just check that it failed
-            assert "Error creating Lepton job via API" in error
+            assert "Invalid mount configuration" in error
 
     def test_create_lepton_job_with_node_group(self):
         """Test job creation with node group affinity."""
@@ -213,7 +211,7 @@ class TestLeptonJobHelpers:
         mock_client.nodegroup.list_nodes.return_value = [mock_node]
 
         with patch(
-            "nemo_evaluator_launcher.executors.lepton.job_helpers.APIClient",
+            "leptonai.api.v2.client.APIClient",
             return_value=mock_client,
         ):
             from nemo_evaluator_launcher.executors.lepton.job_helpers import (
@@ -238,7 +236,7 @@ class TestLeptonJobHelpers:
         )
 
         with patch(
-            "nemo_evaluator_launcher.executors.lepton.job_helpers.APIClient",
+            "leptonai.api.v2.client.APIClient",
             return_value=mock_client,
         ):
             from nemo_evaluator_launcher.executors.lepton.job_helpers import (
@@ -272,7 +270,7 @@ class TestLeptonJobHelpers:
         mock_client.job.get.return_value = mock_job
 
         with patch(
-            "nemo_evaluator_launcher.executors.lepton.job_helpers.APIClient",
+            "leptonai.api.v2.client.APIClient",
             return_value=mock_client,
         ):
             from nemo_evaluator_launcher.executors.lepton.job_helpers import (
@@ -296,7 +294,7 @@ class TestLeptonJobHelpers:
         mock_client.job.list_all.return_value = [mock_job]
 
         with patch(
-            "nemo_evaluator_launcher.executors.lepton.job_helpers.APIClient",
+            "leptonai.api.v2.client.APIClient",
             return_value=mock_client,
         ):
             from nemo_evaluator_launcher.executors.lepton.job_helpers import (
@@ -315,7 +313,7 @@ class TestLeptonJobHelpers:
         mock_client.job.list_all.return_value = []
 
         with patch(
-            "nemo_evaluator_launcher.executors.lepton.job_helpers.APIClient",
+            "leptonai.api.v2.client.APIClient",
             return_value=mock_client,
         ):
             from nemo_evaluator_launcher.executors.lepton.job_helpers import (
@@ -335,7 +333,7 @@ class TestLeptonJobHelpers:
         mock_client.job.get.return_value = mock_job
 
         with patch(
-            "nemo_evaluator_launcher.executors.lepton.job_helpers.APIClient",
+            "leptonai.api.v2.client.APIClient",
             return_value=mock_client,
         ):
             from nemo_evaluator_launcher.executors.lepton.job_helpers import (
@@ -355,7 +353,7 @@ class TestLeptonJobHelpers:
         mock_client.job.list_all.side_effect = Exception("API Error")
 
         with patch(
-            "nemo_evaluator_launcher.executors.lepton.job_helpers.APIClient",
+            "leptonai.api.v2.client.APIClient",
             return_value=mock_client,
         ):
             from nemo_evaluator_launcher.executors.lepton.job_helpers import (
@@ -375,7 +373,7 @@ class TestLeptonJobHelpers:
         mock_client.job.get.return_value = mock_job
 
         with patch(
-            "nemo_evaluator_launcher.executors.lepton.job_helpers.APIClient",
+            "leptonai.api.v2.client.APIClient",
             return_value=mock_client,
         ):
             from nemo_evaluator_launcher.executors.lepton.job_helpers import (
