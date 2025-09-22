@@ -21,16 +21,18 @@ export NEMO_EVALUATOR_LOG_DIR=DEBUG
 
 ## Log Output
 
-## Console Output
+### Console Output
+
 Logs appear in the console (stderr) with color coding:
+
 - **Green**: INFO messages
 - **Yellow**: WARNING messages
 - **Red**: ERROR messages
 - **Red Background**: CRITICAL messages
 - **Grey**: DEBUG messages
 
+### Custom Log Directory
 
-## Custom Log Directory
 Specify a custom log directory using the `NEMO_EVALUATOR_LOG_DIR` environment variable:
 
 ```bash
@@ -42,7 +44,6 @@ eval-factory run_eval ...
 ```
 
 If `NEMO_EVALUATOR_LOG_DIR` is not set, logs will only appear in the console (stderr) and no files will be created.
-
 
 ## Using Logging Interceptors
 
@@ -64,6 +65,7 @@ target:
 ```
 
 or use CLI overrides:
+
 ```bash
 --overrides "target.api_endpoint.adapter_config.use_request_logging=true,target.api_endpoint.adapter_config.use_response_logging=true"
 ```
@@ -74,25 +76,30 @@ Each request automatically gets a unique UUID that appears in all related log me
 
 ## Troubleshooting
 
-## No Logs Appearing
+### No Logs Appearing
+
 - Check that logging interceptors are enabled in your configuration
 - Verify log level with `NEMO_EVALUATOR_LOG_LEVEL=INFO`
 
-## Missing DEBUG Logs
+### Missing DEBUG Logs
+
 - Set `NEMO_EVALUATOR_LOG_LEVEL=DEBUG`
 
-## Logs Not Going to Files
+### Logs Not Going to Files
+
 - Check directory permissions
 - Verify log directory path
 
-## Debug Mode
+### Debug Mode
+
 ```bash
 export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
 ```
 
 ## Examples
 
-## Basic Logging
+### Basic Logging
+
 ```bash
 # Enable DEBUG logging
 export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
@@ -101,7 +108,8 @@ export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
 eval-factory run_eval --eval_type mmlu_pro --model_id gpt-4 ...
 ```
 
-## Custom Log Directory
+### Custom Log Directory
+
 ```bash
 # Specify custom log location using environment variable
 export NEMO_EVALUATOR_LOG_DIR=./my_logs/
@@ -110,7 +118,8 @@ export NEMO_EVALUATOR_LOG_DIR=./my_logs/
 eval-factory run_eval --eval_type mmlu_pro ...
 ```
 
-## Environment Verification
+### Environment Verification
+
 ```bash
 echo "NEMO_EVALUATOR_LOG_LEVEL: $NEMO_EVALUATOR_LOG_LEVEL"
 echo "NEMO_EVALUATOR_LOG_DIR: $NEMO_EVALUATOR_LOG_DIR"

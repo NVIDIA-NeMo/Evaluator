@@ -23,7 +23,7 @@ evaluations:        # Available evaluation types
 
 ## Section Details
 
-## 1. Framework Section
+### 1. Framework Section
 
 The `framework` section contains basic identification and metadata for your evaluation harness.
 
@@ -43,11 +43,11 @@ framework:
 - **`description`**: Comprehensive description of the framework's purpose
 - **`url`**: Link to the original benchmark repository
 
-## 2. Defaults Section
+### 2. Defaults Section
 
 The `defaults` section defines the default configuration and execution command that will be used across all evaluations unless overridden. Overriding is supported either through `--overrides` flag (see [Parameter Overrides](../reference/cli.md#parameter-overrides)) or [Run Configuration file](../reference/cli.md#run-configuration).
 
-## Command Template
+### Command Template
 
 The `command` field uses Jinja2 templating to dynamically generate execution commands based on configuration parameters. This is where you define how your evaluation harness's CLI interface will be called.
 
@@ -96,8 +96,7 @@ defaults:
 - **`{{config.params.top_p}}`**: Top-p sampling parameter
 - **`{{config.params.extra}}`**: Framework-specific parameters
 
-
-## Configuration Defaults
+#### Configuration Defaults
 
 ```yaml
 defaults:
@@ -123,7 +122,7 @@ defaults:
 - **Framework Parameters**: Task-specific configuration options
 - **Extra Parameters**: Custom parameters specific to your framework
 
-## Target Configuration
+#### Target Configuration
 
 ```yaml
 defaults:
@@ -139,7 +138,7 @@ defaults:
 - **`chat`**: Multi-turn conversation format (OpenAI chat completions)
 - **`completion`**: Single-turn text completion format
 
-## 3. Evaluations Section
+### 3. Evaluations Section
 
 The `evaluations` section defines the specific evaluation types available in your framework, each with its own configuration defaults.
 
@@ -170,7 +169,7 @@ evaluations:
 
 ## Advanced Features
 
-## Conditional Parameter Handling
+### Conditional Parameter Handling
 
 Use Jinja2 conditionals to handle optional parameters. This ensures your CLI command only includes parameters when they have values, preventing errors from undefined or null parameters:
 
@@ -182,7 +181,7 @@ command: >-
   {% if config.params.extra.args is defined %} {{ config.params.extra.args }} {% endif %}
 ```
 
-## Parameter Inheritance
+### Parameter Inheritance
 
 Parameters follow a hierarchical override system:
 1. **Framework defaults** (4th priority)
@@ -192,7 +191,7 @@ Parameters follow a hierarchical override system:
 
 For more information on how to use these overrides, see the [CLI Reference](../reference/cli.md#parameter-overrides) documentation.
 
-## Dynamic Configuration
+### Dynamic Configuration
 
 Use template variables to reference other configuration sections. For example, reuse `config.output_dir` for `--cache` input argument:
 
@@ -229,14 +228,14 @@ The FDF is validated by the NeMo Evaluator system to ensure:
 
 ## Troubleshooting
 
-## Common Issues
+### Common Issues
 
 1. **Template Errors**: Check Jinja2 syntax and variable references
 2. **Parameter Conflicts**: Ensure parameter names don't conflict between sections
 3. **Type Mismatches**: Verify parameter types match expected values
 4. **Missing Fields**: Ensure all required fields are defined
 
-## Debug Mode
+### Debug Mode
 
 Enable debug logging to see how your FDF is processed:
 

@@ -1,14 +1,17 @@
 # Configuring Interceptors
 
-### 1. **Request Logging Interceptor**
+## 1. Request Logging Interceptor
+
 Logs incoming requests for debugging and analysis.
 
 **CLI Configuration:**
+
 ```bash
 --overrides 'target.api_endpoint.adapter_config.use_request_logging=True,target.api_endpoint.adapter_config.max_saved_requests=1000'
 ```
 
 **YAML Configuration:**
+
 ```yaml
 interceptors:
   - name: "request_logging"
@@ -18,15 +21,18 @@ interceptors:
       log_failed_requests: true
 ```
 
-### 2. **Response Logging Interceptor**
+## 2. Response Logging Interceptor
+
 Logs outgoing responses for analysis.
 
 **CLI Configuration:**
+
 ```bash
 --overrides 'target.api_endpoint.adapter_config.use_response_logging=True,target.api_endpoint.adapter_config.max_saved_responses=1000'
 ```
 
 **YAML Configuration:**
+
 ```yaml
 interceptors:
   - name: "response_logging"
@@ -35,15 +41,18 @@ interceptors:
       max_responses: 1000
 ```
 
-### 3. **Caching Interceptor**
+## 3. Caching Interceptor
+
 Caches requests and responses to improve performance and reduce API calls.
 
 **CLI Configuration:**
+
 ```bash
 --overrides 'target.api_endpoint.adapter_config.use_caching=True,target.api_endpoint.adapter_config.caching_dir=./cache,target.api_endpoint.adapter_config.reuse_cached_responses=True'
 ```
 
 **YAML Configuration:**
+
 ```yaml
 interceptors:
   - name: "caching"
@@ -57,10 +66,12 @@ interceptors:
       max_saved_responses: 1000
 ```
 
-### 4. **Endpoint Interceptor**
+## 4. Endpoint Interceptor
+
 The final interceptor that sends requests to the actual API endpoint.
 
 **YAML Configuration:**
+
 ```yaml
 interceptors:
   - name: "endpoint"
@@ -70,15 +81,18 @@ interceptors:
 
 ## Specialized Interceptors
 
-### 5. **System Message Interceptor**
+### 5. System Message Interceptor
+
 Modifies the system message in requests.
 
 **CLI Configuration:**
+
 ```bash
 --overrides 'target.api_endpoint.adapter_config.use_system_prompt=True,target.api_endpoint.adapter_config.custom_system_prompt="You are a helpful assistant."'
 ```
 
 **YAML Configuration:**
+
 ```yaml
 interceptors:
   - name: "system_message"
@@ -87,15 +101,18 @@ interceptors:
       system_message: "You are a helpful assistant."
 ```
 
-### 6. **Payload Modifier Interceptor**
+### 6. Payload Modifier Interceptor
+
 Modifies request parameters.
 
 **CLI Configuration:**
+
 ```bash
 --overrides 'target.api_endpoint.adapter_config.params_to_add={"temperature": 0.7},target.api_endpoint.adapter_config.params_to_remove=["max_tokens"]'
 ```
 
 **YAML Configuration:**
+
 ```yaml
 interceptors:
   - name: "payload_modifier"
@@ -110,15 +127,18 @@ interceptors:
         "old_param": "new_param"
 ```
 
-### 7. **Reasoning Interceptor**
+### 7. Reasoning Interceptor
+
 Handles reasoning tokens in responses and tracks reasoning metrics.
 
 **CLI Configuration:**
+
 ```bash
 --overrides 'target.api_endpoint.adapter_config.use_reasoning=True,target.api_endpoint.adapter_config.end_reasoning_token="</think>",target.api_endpoint.adapter_config.start_reasoning_token="<think>"'
 ```
 
 **YAML Configuration:**
+
 ```yaml
 interceptors:
   - name: "reasoning"
@@ -131,15 +151,18 @@ interceptors:
       include_if_not_finished: true
 ```
 
-### 8. **Progress Tracking Interceptor**
+### 8. Progress Tracking Interceptor
+
 Tracks evaluation progress.
 
 **CLI Configuration:**
+
 ```bash
 --overrides 'target.api_endpoint.adapter_config.use_progress_tracking=True,target.api_endpoint.adapter_config.progress_tracking_url=http://localhost:3828/progress'
 ```
 
 **YAML Configuration:**
+
 ```yaml
 interceptors:
   - name: "progress_tracking"
@@ -157,11 +180,13 @@ Post-evaluation hooks run after the evaluation is complete and can perform addit
 ## HTML Report Generation
 
 **CLI Configuration:**
+
 ```bash
 --overrides 'target.api_endpoint.adapter_config.generate_html_report=True'
 ```
 
 **YAML Configuration:**
+
 ```yaml
 post_eval_hooks:
   - name: "post_eval_report"

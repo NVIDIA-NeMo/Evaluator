@@ -187,7 +187,7 @@ eval-factory run_eval --debug [options]
 
 ## Examples
 
-## Complete Evaluation Workflow
+### Complete Evaluation Workflow
 
 ```bash
 # 1. List available evaluations
@@ -207,7 +207,7 @@ eval-factory run_eval \
 ls -la ./results/
 ```
 
-## Batch Evaluation Script
+### Batch Evaluation Script
 
 ```bash
 #!/bin/bash
@@ -237,7 +237,7 @@ echo "All evaluations completed!"
 ```
 
 
-## Framework Development
+### Framework Development
 
 ```bash
 # Setup new framework
@@ -273,10 +273,12 @@ nemo-evaluator-example [package_name] [destination]
 ```
 
 **Arguments:**
+
 - `package_name`: Python package-like name for the framework
 - `destination`: Destination folder where to create framework files
 
 **Example Usage:**
+
 ```bash
 # Setup framework in current directory
 nemo-evaluator-example my_package
@@ -286,6 +288,7 @@ nemo-evaluator-example my_package /path/to/destination
 ```
 
 **What it creates:**
+
 - `core_evals/my_package/framework.yml` - Framework configuration
 - `core_evals/my_package/framework_entrypoint.py` - Running `run_eval()`
 - `core_evals/my_package/output.py` - Output parsing logic
@@ -302,32 +305,38 @@ export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
 
 ## Best Practices
 
-## 1. **Configuration Management**
+### 1. Configuration Management
+
 - Use YAML configuration files for complex setups
 - Use environment variables for sensitive data
 - Validate configurations before running evaluations
 
-## 2. **Parameter Overrides**
+### 2. Parameter Overrides
+
 - Use dot notation for clear parameter paths
 - Test overrides with `--dry_run` first
 - Keep overrides simple and readable
 
-## 3. **Error Handling**
+### 3. Error Handling
+
 - Check command exit codes
 - Use `NEMO_EVALUATOR_LOG_LEVEL=DEBUG` for troubleshooting
 - Monitor evaluation progress
 
-## 4. **Performance**
+### 4. Performance
+
 - Use appropriate sample sizes for testing
 - Enable caching through adapter configuration
 - Monitor resource usage
 
-## 5. **Security**
+### 5. Security
+
 - Store API keys in environment variables
 - Use secure communication channels
 - Validate all inputs and configurations
 
-## 6. **Framework Development**
+### 6. Framework Development
+
 - Use `nemo-evaluator-example` to bootstrap new frameworks
 - Follow the framework template structure
 - Test frameworks thoroughly before production use

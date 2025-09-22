@@ -12,7 +12,7 @@ The Python API is built on top of NeMo Evaluator and provides:
 - **Result Processing**: Programmatic access to evaluation results
 - **Pipeline Integration**: Seamless integration with existing ML workflows
 
-## Supported PyPi Wheels:
+## Supported PyPi Wheels
 
 | Package Name | PyPI URL |
 |--------------|----------|
@@ -27,10 +27,9 @@ The Python API is built on top of NeMo Evaluator and provides:
 | nvidia-tooltalk | https://pypi.org/project/nvidia-tooltalk/ |
 | nvidia-vlmeval | https://pypi.org/project/nvidia-vlmeval/ |
 
-
 ## Basic Usage
 
-## Running Evaluations
+### Running Evaluations
 
 Below is an example script to run evaluations through a Python script. Please ensure that the `nvidia-simple-evals` package is installed. If you have not installed it yet, you can find the installation instructions [here](https://pypi.org/project/nvidia-simple-evals/).
 
@@ -47,7 +46,7 @@ from nemo_evaluator.api.api_dataclasses import (
     AdapterConfig
 )
 ```
-## Minimal Example
+### Minimal Example
 You can use `EvaluationConfig` dataclass to provide your evaluation setup. 
 - `type` specifies the type of evaluation to be used (for example, `mmlu_pro`, `ifeval`, and so on)
 - `output_dir` indicates where the results, cache and other files should be stored
@@ -97,7 +96,9 @@ except Exception as e:
     print("Note: This is expected if the model endpoint is not accessible")
 ```
 
-## Advanced Usage, Method 1: Direct Configuration in Dataclasses
+## Advanced Usage
+
+### Direct Configuration in Dataclasses
 
 You can use the `params` field in `EvaluationConfig` dataclass to override the default parameters, such as `temperature` or `max_new_tokens`: 
 
@@ -157,7 +158,8 @@ except Exception as e:
     print("Note: This is expected if the model endpoint is not accessible")
 ```
 
-## Advanced Usage, Method 2: Using Overrides (Similar to CLI --overrides)
+### Using Overrides
+
 Another way to customize your evaluation setup is through the `overrides` field. First, create a `base_config` by converting your existing EvaluationConfig and EvaluationTarget configurations into a dictionary format:
 
 ```python
@@ -215,7 +217,8 @@ except Exception as e:
     print("Note: This is expected if the model endpoint is not accessible")
 ```
 
-## Advanced Usage, Method 3: Environment Variable Overrides
+### Environment Variable Overrides
+
 You can also set environment variables for dynamic configuration:
 
 ```python

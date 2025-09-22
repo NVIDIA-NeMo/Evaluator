@@ -12,7 +12,7 @@ For a comprehensive list of all available Eval Factory containers with detailed 
 
 ## Evaluation Execution Workflow
 
-## Command Structure
+### Command Structure
 
 The system uses the `eval-factory` command with extensive configuration options:
 
@@ -34,7 +34,6 @@ eval-factory run_eval \
 
 The example above will evaluate `meta/llama-3.1-8b-instruct` model on `mmlu_pro` benchmark from `simple-evals` framework. The parameter `limit_samples` will do that only 3 samples will be used for evaluation, instead of the entire dataset.
 
-
 **Quick Overview:**
 NeMo Evaluator Launcher provides specialized containers for different evaluation domains including language models, code generation, vision-language models, agentic AI, retrieval systems, and safety evaluation. Each container is optimized for specific use cases and comes with pre-configured evaluation harnesses.
 
@@ -44,6 +43,7 @@ NeMo Evaluator Launcher provides specialized containers for different evaluation
 
 The system uses an interceptor-based architecture that processes requests and 
 responses through a chain of adapters. There are three primary types of interceptors:
+
 - **RequestInterceptor**: Captures and modifies requests sent to the endpoint, allowing for customization of system messages, request parameters, and more.
 - **ResponseInterceptor**: Captures and processes responses received from the endpoint, enabling functionalities such as token usage tracking, removal of reasoning tokens, and more.
 - **Post-eval hook**: Runs after the evaluation completes, allowing for cleanup, report generation, or other post-processing tasks.
@@ -51,6 +51,7 @@ responses through a chain of adapters. There are three primary types of intercep
 _Example_: You decide to benchmark `nvidia/llama-3.3-nemotron-super-49b-v1.5` model, so you use `system_message` interceptor to include the `/think` system message to turn on reasoning mode, and `reasoning` interceptor to remove reasoning tokens before judging the model's responses.
 
 Interceptors enable straightforward evaluation of endpoints that:
+
 - require additional parameters,
 - do not support certain parameters,
 - need custom system messages,
@@ -59,9 +60,9 @@ and more, making the workflow highly adaptable.
 
 **Configuration Methods**  
 You have two options for specifying the adapters to be used:
+
 - **CLI Overrides**: Use `--overrides` parameter for runtime configuration ([learn more](../reference/api.md#interceptor-system))
 - **YAML Configuration**: Define interceptor chains in configuration files ([learn more](../reference/api.md#interceptor-system))
-
 
 ## Configuration and Overrides
 
@@ -81,6 +82,7 @@ eval-factory run_eval \
 ```
 
 In this example, several parameter overrides are used to customize the evaluation:
+
 - The `temperature` parameter is set to 0.5, overriding the default value
 - The `limit_samples` parameter restricts the evaluation to just 3 samples rather than the full dataset
 - Two adapters are enabled:
@@ -89,7 +91,7 @@ In this example, several parameter overrides are used to customize the evaluatio
 
 ## Workflow Examples
 
-## Basic Evaluation Workflow
+### Basic Evaluation Workflow
 
 ```bash
 # Run evaluation with eval-factory
@@ -102,7 +104,7 @@ eval-factory run_eval \
     --output_dir ./results
 ```
 
-## Advanced Configuration Workflow
+### Advanced Configuration Workflow
 
 ```bash
 # 1. Enable comprehensive logging and caching
@@ -125,7 +127,7 @@ For more details, refer to [CLI](../reference/cli.md)
 
 ## Performance and Monitoring
 
-## Caching and Performance
+### Caching and Performance
 
 The system provides built-in performance optimization through caching:
 
@@ -133,7 +135,7 @@ The system provides built-in performance optimization through caching:
 - **Disk Storage**: Persistent caching with configurable directories
 - **Performance Monitoring**: Track request/response patterns
 
-## Logging and Debugging
+### Logging and Debugging
 
 Comprehensive logging capabilities for monitoring and troubleshooting:
 
@@ -144,23 +146,24 @@ Comprehensive logging capabilities for monitoring and troubleshooting:
 
 ## Troubleshooting
 
-## Common Issues
+### Port Conflicts
 
-**Port Conflicts**
 If you encounter port conflicts, you can change the adapter server port:
 
 ```bash
 export ADAPTER_PORT=3828
 ```
 
-**Configuration Issues**
+### Configuration Issues
+
 Enable verbose logging to debug configuration issues:
 
 ```bash
 --overrides 'target.api_endpoint.adapter_config.use_request_logging=True,target.api_endpoint.adapter_config.log_failed_requests=True'
 ```
 
-**API Key Issues**
+### API Key Issues
+
 Verify your API key is correctly set in the environment:
 
 ```bash
@@ -169,33 +172,38 @@ export MY_API_KEY=your_api_key_here
 
 ## Best Practices
 
-## 1. **Use Environment Variables**
+### 1. Use Environment Variables
+
 - Store sensitive information like API keys in environment variables
 - Use consistent naming conventions for environment variables
 - Document required environment variables for your team
 
-## 2. **Test Configurations**
+### 2. Test Configurations
+
 - Start with small sample sizes for testing (that is, `config.params.limit_samples=10`)
 - Verify configurations work before running large evaluations
 - Use the `--overrides` parameter to test different settings
 
-## 3. **Enable Logging and Caching**
+### 3. Enable Logging and Caching
+
 - Use request and response logging for debugging
 - Enable caching to resume failed evaluations
 - Generate HTML reports for detailed analysis
 
-## 4. **Monitor Progress**
+### 4. Monitor Progress
+
 - Check logs regularly for any issues
 - Monitor cache usage and performance
 
-## 5. **Configuration Management**
+### 5. Configuration Management
+
 - Use consistent configuration patterns across evaluations
 - Document your configuration overrides
 - Version control your configuration files
 
 ## Environment Variables
 
-## Adapter Server Configuration
+### Adapter Server Configuration
 
 You can configure the adapter server using environment variables:
 
@@ -204,7 +212,7 @@ export ADAPTER_PORT=3828
 export ADAPTER_HOST=localhost
 ```
 
-## API Key Management
+### API Key Management
 
 Store your API keys securely in environment variables:
 
