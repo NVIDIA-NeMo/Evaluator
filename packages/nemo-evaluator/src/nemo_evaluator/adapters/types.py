@@ -63,6 +63,12 @@ class AdapterResponse:
     latency_ms: float | None = None
 
 
+class FatalErrorException(Exception):
+    """Exception raised when an interceptor encounters a fatal error that should kill the process."""
+
+    pass
+
+
 class RequestInterceptor(ABC):
     """Interface for providing interception of requests."""
 
