@@ -19,7 +19,7 @@ import pytest
 import requests
 
 from nemo_evaluator.adapters.types import AdapterGlobalContext, AdapterRequestContext
-from tests.nemo_evaluator.adapters.testing_utils import create_fake_endpoint_process
+from tests.unit_tests.adapters.testing_utils import create_fake_endpoint_process
 
 
 @pytest.fixture
