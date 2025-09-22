@@ -23,7 +23,6 @@ from typing import Any, Dict, List
 import pytest
 import requests
 from flask import Flask, jsonify, request
-from nemo_evaluator.adapters.types import AdapterGlobalContext, AdapterRequestContext
 from nemo_evaluator.logging.utils import logger
 
 
@@ -265,31 +264,3 @@ def fake_endpoint():
 def fake_url(fake_endpoint):
     """Fixture that provides the URL for the fake endpoint."""
     return fake_endpoint.get_url()
-
-
-@pytest.fixture
-def create_response():
-    """Fixture to create parameterized response objects for testing."""
-
-    def _create_response(status_code: int, content: bytes = None, headers: dict = None):
-        response = requests.Response()
-        response.status_code = status_code
-        response.url = "http://test.com"
-        response._content = content or b'{"error": "test error"}'
-        if headers:
-            response.headers = requests.utils.CaseInsensitiveDict(headers)
-        return response
-
-    return _create_response
-
-
-@pytest.fixture
-def adapter_global_context():
-    """Fixture to create a mock adapter global context for testing."""
-    return AdapterGlobalContext(output_dir="/tmp", url="http://test.com")
-
-
-@pytest.fixture
-def adapter_request_context():
-    """Fixture to create a mock adapter request context for testing."""
-    return AdapterRequestContext()
