@@ -4,7 +4,7 @@ This document provides a comprehensive reference for the NeMo Evaluator Python A
 
 ## Core API Functions
 
-### CLI vs Programmatic Usage
+### CLI vs. Programmatic Usage
 
 The NeMo Evaluator API supports two usage patterns:
 
@@ -12,10 +12,11 @@ The NeMo Evaluator API supports two usage patterns:
 2. **Programmatic Usage**: Use `evaluate()` function with configuration objects
 
 **When to Use Which:**
+
 - **CLI**: For command-line tools, scripts, and simple automation
 - **Programmatic**: For building custom applications, workflows, and integration with other systems
 
-### Available Dataclasses
+### Available Data Classes
 
 The API provides several dataclasses for configuration:
 
@@ -48,12 +49,12 @@ def run_eval() -> None:
     CLI entry point for running evaluations.
     
     This function parses command line arguments and executes evaluations.
-    It does not take parameters directly - all configuration is passed via CLI arguments.
+    It does not take parameters directly - all configuration is passed through CLI arguments.
     
     CLI Arguments:
-        --eval_type: Type of evaluation to run (e.g., "mmlu_pro", "gsm8k")
-        --model_id: Model identifier (e.g "meta/llama-3.1-8b-instruct")
-        --model_url: API endpoint URL (e.g "https://integrate.api.nvidia.com/v1/chat/completions" for chat endpoint type)
+        --eval_type: Type of evaluation to run (such as "mmlu_pro", "gsm8k")
+        --model_id: Model identifier (such as "meta/llama-3.1-8b-instruct")
+        --model_url: API endpoint URL (such as "https://integrate.api.NVIDIA.com/v1/chat/completions" for chat endpoint type)
         --model_type: Endpoint type ("chat", "completions", "vlm", "embedding")
         --api_key_name: Environment variable name for API key integration with endpoints (optional)
         --output_dir: Output directory for results
@@ -67,7 +68,7 @@ def run_eval() -> None:
     """
 ```
 
-**Note**: The `run_eval()` function is designed as a CLI entry point. For programmatic usage, you should use the underlying configuration objects and the `evaluate()` function directly.
+**Note**: The `run_eval()` function is designed as a CLI entry point. For programmatic usage, use the underlying configuration objects and the `evaluate()` function directly.
 
 ## `evaluate`
 
@@ -94,13 +95,16 @@ def evaluate(
 ```
 
 **Prerequisites:**
+
 - **Container way**: Use simple-evals container mentioned in the [Container Reference](containers.md)
-- **Python way**: 
+- **Python way**:
+
   ```bash
-  pip install nemo-evaluator nvidia-simple-evals
+  pip install nemo-evaluator NVIDIA-simple-evals
   ```
 
 **Example Programmatic Usage:**
+
 ```python
 from nemo_evaluator.core.evaluate import evaluate
 from nemo_evaluator.api.api_dataclasses import (
@@ -123,10 +127,10 @@ eval_config = EvaluationConfig(
 # Create target configuration
 target_config = EvaluationTarget(
     api_endpoint=ApiEndpoint(
-        url="https://integrate.api.nvidia.com/v1/chat/completions",
+        url="https://integrate.api.NVIDIA.com/v1/chat/completions",
         model_id="meta/llama-3.1-8b-instruct",
         type="chat",
-        api_key="MY_API_KEY" # Name of the environemnt variable that stores api_key
+        api_key="MY_API_KEY" # Name of the environment variable that stores api_key
     )
 )
 
@@ -170,9 +174,9 @@ class ApiEndpoint:
 ```
 
 In the ApiEndpoint dataclass, `type` should be one of: `EndpointType.CHAT`, `EndpointType.COMPLETIONS`, `EndpointType.VLM`, `EndpointType.EMBEDDING`:
-    - `CHAT` endpoint accepts structured input as a sequence of messages (e.g., system, user, assistant roles) and returns a model-generated message, enabling controlled multi-turn interactions.
-    - `COMPLETIONS` endpoint takes a single prompt string and returns a text continuation, typically used for one-shot or single-turn tasks without conversational structure. 
-    - `VLM` endpoint hosts a model that has vision capabilities, 
+    - `CHAT` endpoint accepts structured input as a sequence of messages (such as system, user, assistant roles). It returns a model-generated message, enabling controlled multi-turn interactions.
+    - `COMPLETIONS` endpoint takes a single prompt string and returns a text continuation, typically used for one-shot or single-turn tasks without conversational structure.
+    - `VLM` endpoint hosts a model that has vision capabilities.
     - `EMBEDDING` endpoint hosts an embedding model.
 
 ## Adapter System
@@ -243,6 +247,7 @@ interceptor_config = {
 ```
 
 **Features:**
+
 - Logs all API requests and responses
 - Configurable output directory
 - Request/response count limits
@@ -269,6 +274,7 @@ interceptor_config = {
 ```
 
 **Features:**
+
 - Response caching for performance
 - Persistent storage - responses are saved to disk, allowing resumption after process termination
 - Configurable cache directory
@@ -294,6 +300,7 @@ interceptor_config = {
 ```
 
 **Features:**
+
 - Reasoning chain support
 - Custom reasoning tokens
 - Reasoning tracking and analysis
@@ -476,7 +483,7 @@ The NeMo Evaluator uses an interceptor-based architecture that processes request
 
 ### Configuration Methods
 
-There are two primary ways to configure interceptors:
+Two primary methods exist to configure interceptors:
 
 1. **CLI Overrides**: Use the `--overrides` parameter for runtime configuration
 2. **YAML Configuration**: Define interceptor chains in configuration files
@@ -487,9 +494,10 @@ Refer to [Configuring Interceptors](./configuring-interceptors.md) for details.
 
 ### Complete Configuration Example
 
-Here's a complete example combining multiple interceptors:
+Here is a complete example combining multiple interceptors:
 
 **CLI Configuration:**
+
 ```bash
 eval-factory run_eval \
     --eval_type mmlu_pro \
@@ -502,6 +510,7 @@ eval-factory run_eval \
 ```
 
 **YAML Configuration:**
+
 ```yaml
 target:
   api_endpoint:
