@@ -205,7 +205,6 @@ jobs:
         needs.pre-flight.outputs.docs_only == 'true'
         || needs.pre-flight.outputs.is_deployment_workflow == 'true'
       )
-      && success()
       && !cancelled()
     environment: nemo-ci
     steps:
@@ -228,10 +227,9 @@ jobs:
     needs: [Nemo_CICD_Test, pre-flight]
     if: |
       (
-        needs.pre-flight.outputs.docs_only == 'false'
-        && needs.pre-flight.outputs.is_deployment_workflow == 'false'
+        (needs.pre-flight.outputs.is_ci_workload == 'true' && !failure())
+        || success()
       )
-      && success()
       && !cancelled()
     strategy:
       matrix:
