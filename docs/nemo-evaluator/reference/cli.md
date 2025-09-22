@@ -1,18 +1,19 @@
 # CLI Reference
 
-This document provides a comprehensive reference for the `nemo-evaluator` command-line interface, which is the primary way to interact with NeMo Evaluator from the terminal.
+This document provides a comprehensive reference for the `nemo-evaluator` command-line interface that is the primary way to interact with NeMo Evaluator from the terminal.
 
 ## Prerequisites
 
-- **Container way**: Use simple-evals container mentioned in the [Container Reference](containers.md)
-- **Python way**: 
+- **container way**: Use simple-evals container mentioned in the [Container Reference](containers.md)
+- **Python way**:
+
   ```bash
   pip install nemo-evaluator nvidia-simple-evals
   ```
 
 ## Overview
 
-The CLI provides a unified interface for managing evaluations and frameworks. It's built on top of the Python API and provides both interactive and non-interactive modes.
+The CLI provides a unified interface for managing evaluations and frameworks. It is built on top of the Python API and provides both interactive and non-interactive modes.
 
 ## Command Structure
 
@@ -22,7 +23,7 @@ eval-factory [command] [options]
 
 ## Available Commands
 
-## `ls` - List Available Evaluations
+## `ls`: List Available Evaluations
 
 List all available evaluation types and frameworks.
 
@@ -31,6 +32,7 @@ eval-factory ls
 ```
 
 **Output Example:**
+
 ```
 mmlu_pro: 
   * mmlu_pro
@@ -40,7 +42,7 @@ human_eval:
   * human_eval
 ```
 
-## `run_eval` - Run Evaluation
+## `run_eval`: Run Evaluation
 
 Execute an evaluation with the specified configuration.
 
@@ -48,12 +50,14 @@ Execute an evaluation with the specified configuration.
 eval-factory run_eval [options]
 ```
 
-To see the list of options, run:
+To view the list of options, run:
+
 ```bash
 eval-factory run_eval --help
 ```
 
 **Required Options:**
+
 - `--eval_type`: Type of evaluation to run
 - `--model_id`: Model identifier
 - `--model_url`: API endpoint URL
@@ -61,13 +65,15 @@ eval-factory run_eval --help
 - `--output_dir`: Output directory for results
 
 **Optional Options:**
+
 - `--api_key_name`: Environment variable name for API key
 - `--run_config`: Path to YAML configuration file
 - `--overrides`: Comma-separated parameter overrides
 - `--dry_run`: Show configuration without running
-- `--debug`: Enable debug mode (deprecated, use NEMO_EVALUATOR_LOG_LEVEL)
+- `--debug`: Enable debug mode (deprecated; use NEMO_EVALUATOR_LOG_LEVEL instead)
 
 **Example Usage:**
+
 ```bash
 # Basic evaluation
 eval-factory run_eval \
@@ -100,6 +106,7 @@ eval-factory run_eval \
 ```
 
 For execution with run configuration:
+
 ```bash
 # Using YAML configuration file
 eval-factory run_eval \
@@ -107,7 +114,8 @@ eval-factory run_eval \
   --output_dir ./results \
   --run_config ./config/eval_config.yml
 ```
-To check the structure of the run configuration, see the [Run Configuration](#run-configuration) section below.
+
+To refer to the structure of the run configuration, refer to the [Run Configuration](#run-configuration) section below.
 
 ## Run Configuration
 
@@ -136,7 +144,7 @@ target:
           enabled: true
 ```
 
-Run configurations can be specified in YAML files and executed with following syntax:
+Run configurations can be specified in YAML files and executed with the following syntax:
 
 ```bash
 eval-factory run_eval \
@@ -161,17 +169,14 @@ Parameter overrides use a dot-notation format to specify configuration paths:
 
 ## Override Format
 
-```
+```bash
 section.subsection.parameter=value
 ```
 
 **Examples:**
+
 - `config.params.limit_samples=100`
 - `target.api_endpoint.adapter_config.use_caching=true`
-
-## Error Handling
-
-
 
 ## Debug Mode
 
@@ -236,7 +241,6 @@ done
 echo "All evaluations completed!"
 ```
 
-
 ### Framework Development
 
 ```bash
@@ -264,7 +268,7 @@ eval-factory run_eval \
 
 ## Framework Setup Command
 
-## `nemo-evaluator-example` - Setup Framework
+### `nemo-evaluator-example`: Set Up Framework
 
 Set up NVIDIA framework files in a destination folder.
 
@@ -293,8 +297,6 @@ nemo-evaluator-example my_package /path/to/destination
 - `core_evals/my_package/framework_entrypoint.py` - Running `run_eval()`
 - `core_evals/my_package/output.py` - Output parsing logic
 - `core_evals/my_package/__init__.py` - Package initialization
-
-## Environment Variables
 
 ## Logging Configuration
 
