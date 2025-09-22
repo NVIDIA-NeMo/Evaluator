@@ -21,7 +21,7 @@ export NEMO_EVALUATOR_LOG_DIR=DEBUG
 
 ## Log Output
 
-# Console Output
+## Console Output
 Logs appear in the console (stderr) with color coding:
 - **Green**: INFO messages
 - **Yellow**: WARNING messages
@@ -30,7 +30,7 @@ Logs appear in the console (stderr) with color coding:
 - **Grey**: DEBUG messages
 
 
-# Custom Log Directory
+## Custom Log Directory
 Specify a custom log directory using the `NEMO_EVALUATOR_LOG_DIR` environment variable:
 
 ```bash
@@ -74,25 +74,25 @@ Each request automatically gets a unique UUID that appears in all related log me
 
 ## Troubleshooting
 
-# No logs appearing
+## No Logs Appearing
 - Check that logging interceptors are enabled in your configuration
 - Verify log level with `NEMO_EVALUATOR_LOG_LEVEL=INFO`
 
-# Missing DEBUG logs
+## Missing DEBUG Logs
 - Set `NEMO_EVALUATOR_LOG_LEVEL=DEBUG`
 
-# Logs not going to files
+## Logs Not Going to Files
 - Check directory permissions
 - Verify log directory path
 
-# Debug mode
+## Debug Mode
 ```bash
 export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
 ```
 
 ## Examples
 
-# Basic logging
+## Basic Logging
 ```bash
 # Enable DEBUG logging
 export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
@@ -101,7 +101,7 @@ export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
 eval-factory run_eval --eval_type mmlu_pro --model_id gpt-4 ...
 ```
 
-# Custom log directory
+## Custom Log Directory
 ```bash
 # Specify custom log location using environment variable
 export NEMO_EVALUATOR_LOG_DIR=./my_logs/
@@ -110,7 +110,7 @@ export NEMO_EVALUATOR_LOG_DIR=./my_logs/
 eval-factory run_eval --eval_type mmlu_pro ...
 ```
 
-# Environment verification
+## Environment Verification
 ```bash
 echo "NEMO_EVALUATOR_LOG_LEVEL: $NEMO_EVALUATOR_LOG_LEVEL"
 echo "NEMO_EVALUATOR_LOG_DIR: $NEMO_EVALUATOR_LOG_DIR"

@@ -1,12 +1,12 @@
 # NeMo Evaluator: The Universal Platform for LLM Evaluation
 
-NeMo Evaluator is an open-source evaluation engine that provides standardized, reproducible AI model evaluation through a containerized architecture and adapter system. It enables you to run evaluations across multiple specialized evaluation harnesses (17+ containers including LM-Eval, HELM, MT-Bench, and more) against any OpenAI-compatible model API. The platform's core strength lies in its interceptor-based adapter architecture that standardizes request/response flow, optional logging/caching layers, and its collection of ready-to-use evaluation containers published through NVIDIA's NGC catalog.
+NeMo Evaluator is an open-source evaluation engine that provides standardized, reproducible AI model evaluation through a containerized architecture and adapter system. It enables you to run evaluations across multiple specialized evaluation harnesses (17+ containers including LM-Eval, HELM, MT-Bench, and so on) against any OpenAI-compatible model API. The platform's core strength lies in its interceptor-based adapter architecture that standardizes request/response flow, optional logging/caching layers, and its collection of ready-to-use evaluation containers published through NVIDIA's NGC catalog.
 
 [Container Reference](./reference/containers.md) | [Using Containers](./workflows/using-containers.md) | [CLI Reference](./reference/cli.md) | [Configuration Guide](./reference/configuring-interceptors.md) | [Python API](./workflows/python-api.md)
 
 ---
 
-The arch is as follows:
+The architecture is as follows:
 
 
          ┌─────────────────────┐
@@ -46,30 +46,30 @@ The arch is as follows:
          │                                                             │
          └─────────────────────────────────────────────────────────────┘
 
-In other words, interceptors are pieces of independent logic which should be
+In other words, interceptors are pieces of independent logic that should be
 relatively easy to add separately.
 
 
 NeMo Evaluator is the core, open-source evaluation engine that powers standardized, reproducible AI model evaluation across benchmarks. It provides the adapter/interceptor architecture, evaluation workflows, and the set of ready-to-use evaluation containers that ensure consistent results across environments and over time.
 
-## How it differs from the Launcher
+## How It Differs from the Launcher
 - **nemo-evaluator**: Core evaluation engine, adapter system, and evaluation containers. Focused on correctness, repeatability, and benchmark definitions.
-- **nemo-evaluator-launcher**: Orchestration on top of the core engine. Adds a unified CLI, multi-backend execution (local/Slurm/hosted), job monitoring, and exporters. See the launcher intro: [nemo-evaluator-launcher](../nemo-evaluator-launcher/index.md)
+- **nemo-evaluator-launcher**: Orchestration on top of the core engine. Adds a unified CLI, multi-backend execution (local/Slurm/hosted), job monitoring, and exporters. Refer to the launcher intro: [nemo-evaluator-launcher](../nemo-evaluator-launcher/index.md)
 
-## Key capabilities
+## Key Capabilities
 - **Adapter/Interceptor architecture**: Standardizes how requests and responses flow to your endpoint (OpenAI-compatible) and through optional logging/caching layers
 - **Benchmarks and containers**: Curated evaluation harnesses packaged as reproducible containers
   - Browse available containers: [Container Reference](./reference/containers.md)
 - **Flexible configuration**: Fully resolved configs per run enable exact replays and comparisons
 - **Metrics and artifacts**: Consistent result schemas and artifact layouts for downstream analysis
 
-## Architecture overview
+## Architecture Overview
 - Targets an OpenAI-compatible endpoint for the model under test
-- Applies optional interceptors (request/response logging, caching, etc.)
+- Applies optional interceptors (request/response logging, caching, and so on)
 - Executes benchmark tasks using the corresponding containerized framework
 - Produces metrics, logs, and artifacts in a standard directory structure
 
-## Using the core library
+## Using the Core Library
 - **Python API**: Programmatic access to core evaluation functionality
   - API reference: [API Reference](./reference/api.md)
 - **Containers**: Run evaluations using the published containers for each framework
@@ -81,7 +81,7 @@ For end-to-end CLI and multi-backend orchestration, use the Launcher: [nemo-eval
 Add your own benchmark or framework by defining its configuration and interfaces:
 - Extension guide: [Framework Definition File](./extending/framework-definition-file.md)
 
-## Next steps
+## Next Steps
 - Read the architecture details and glossary in the main docs
 - Explore containers and pick the benchmarks you need: [Container Reference](./reference/containers.md)
 - If you want a turnkey CLI, start with the Launcher Tutorial: [Tutorial](../nemo-evaluator-launcher/tutorial.md)

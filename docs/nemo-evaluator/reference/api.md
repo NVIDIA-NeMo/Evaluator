@@ -4,18 +4,18 @@ This document provides a comprehensive reference for the NeMo Evaluator Python A
 
 ## Core API Functions
 
-# CLI vs Programmatic Usage
+## CLI vs Programmatic Usage
 
 The NeMo Evaluator API supports two usage patterns:
 
 1. **CLI Usage** (Recommended): Use `eval-factory run_eval` function which parses command line arguments
 2. **Programmatic Usage**: Use `evaluate()` function with configuration objects
 
-**When to use which:**
+**When to Use Which:**
 - **CLI**: For command-line tools, scripts, and simple automation
 - **Programmatic**: For building custom applications, workflows, and integration with other systems
 
-# Available Dataclasses
+## Available Dataclasses
 
 The API provides several dataclasses for configuration:
 
@@ -36,7 +36,7 @@ from nemo_evaluator.api.api_dataclasses import (
 )
 ```
 
-# `run_eval`
+## `run_eval`
 
 The main entry point for running evaluations. This is a CLI entry point that parses command line arguments.
 
@@ -69,7 +69,7 @@ def run_eval() -> None:
 
 **Note**: The `run_eval()` function is designed as a CLI entry point. For programmatic usage, you should use the underlying configuration objects and the `evaluate()` function directly.
 
-# `evaluate`
+## `evaluate`
 
 The core evaluation function for programmatic usage.
 
@@ -136,7 +136,7 @@ result = evaluate(eval_config, target_config)
 
 ## Data Structures
 
-# `EvaluationConfig`
+## `EvaluationConfig`
 
 Configuration for evaluation runs, defined in `api_dataclasses.py`.
 
@@ -150,7 +150,7 @@ class EvaluationConfig:
     params: str                  # parameter overrides
 ```
 
-# `EvaluationTarget`
+## `EvaluationTarget`
 
 Target configuration for API endpoints, defined in `api_dataclasses.py`.
 
@@ -177,7 +177,7 @@ In the ApiEndpoint dataclass, `type` should be one of: `EndpointType.CHAT`, `End
 
 ## Adapter System
 
-# `AdapterConfig`
+## `AdapterConfig`
 
 Configuration for the adapter system, defined in `adapter_config.py`.
 
@@ -194,7 +194,7 @@ class AdapterConfig:
     caching_dir: str | None                      # Legacy caching directory
 ```
 
-# `InterceptorConfig`
+## `InterceptorConfig`
 
 Configuration for individual interceptors.
 
@@ -209,7 +209,7 @@ class InterceptorConfig:
     config: dict[str, Any]          # Interceptor-specific configuration
 ```
 
-# `DiscoveryConfig`
+## `DiscoveryConfig`
 
 Configuration for discovering third-party modules and directories.
 
@@ -225,7 +225,7 @@ class DiscoveryConfig:
 
 ## Available Interceptors
 
-# 1. Request Logging Interceptor
+## 1. Request Logging Interceptor
 
 ```python
 from nemo_evaluator.adapters.interceptors.logging_interceptor import LoggingInterceptor
@@ -248,7 +248,7 @@ interceptor_config = {
 - Request/response count limits
 - Failed request logging
 
-# 2. Caching Interceptor
+## 2. Caching Interceptor
 
 ```python
 from nemo_evaluator.adapters.interceptors.caching_interceptor import CachingInterceptor
@@ -275,7 +275,7 @@ interceptor_config = {
 - Request/response persistence
 - Cache size limits
 
-# 3. Reasoning Interceptor
+## 3. Reasoning Interceptor
 
 ```python
 from nemo_evaluator.adapters.interceptors.reasoning_interceptor import ReasoningInterceptor
@@ -299,7 +299,7 @@ interceptor_config = {
 - Reasoning tracking and analysis
 - Chain-of-thought prompting
 
-# 4. System Message Interceptor
+## 4. System Message Interceptor
 
 ```python
 from nemo_evaluator.adapters.interceptors.system_message_interceptor import SystemMessageInterceptor
@@ -326,7 +326,7 @@ interceptor_config = {
 - Override existing system messages for consistent behavior
 - A/B testing of different prompt strategies
 
-# 5. Endpoint Interceptor
+## 5. Endpoint Interceptor
 
 ```python
 from nemo_evaluator.adapters.interceptors.endpoint_interceptor import EndpointInterceptor
@@ -347,7 +347,7 @@ interceptor_config = {
 - Request timeout configuration
 - Endpoint validation
 
-# 6. Payload Modifier Interceptor
+## 6. Payload Modifier Interceptor
 
 ```python
 from nemo_evaluator.adapters.interceptors.payload_modifier_interceptor import PayloadModifierInterceptor
@@ -376,7 +376,7 @@ This interceptor is particularly useful when custom behavior is needed. In this 
 - Custom parameter injection
 - Flexible configuration options
 
-# 7. Client Error Interceptor
+## 7. Client Error Interceptor
 
 ```python
 from nemo_evaluator.adapters.interceptors.raise_client_error_interceptor import RaiseClientErrorInterceptor
@@ -399,7 +399,7 @@ interceptor_config = {
 
 ## Configuration Examples
 
-# Basic Framework Configuration
+## Basic Framework Configuration
 
 ```yaml
 framework:
@@ -422,7 +422,7 @@ framework:
                 cache_dir: "./cache"
 ```
 
-# Advanced Adapter Configuration
+## Advanced Adapter Configuration
 
 ```yaml
 framework:
@@ -468,18 +468,18 @@ framework:
 
 The NeMo Evaluator uses an interceptor-based architecture that processes requests and responses through a configurable chain of components. Interceptors can modify requests, responses, or both, and can be enabled/disabled and configured independently.
 
-# Configuration Methods
+## Configuration Methods
 
 There are two primary ways to configure interceptors:
 
 1. **CLI Overrides**: Use the `--overrides` parameter for runtime configuration
 2. **YAML Configuration**: Define interceptor chains in configuration files
 
-# Configuring Interceptors
+## Configuring Interceptors
 
 Refer to [Configuring Interceptors](./configuring-interceptors.md) for details.
 
-# Complete Configuration Example
+## Complete Configuration Example
 
 Here's a complete example combining multiple interceptors:
 
@@ -537,7 +537,7 @@ eval-factory run_eval \
     --run_config config.yaml
 ```
 
-# Interceptor Chain Order
+## Interceptor Chain Order
 
 Interceptors are executed in the order they appear in the configuration. A typical order is:
 

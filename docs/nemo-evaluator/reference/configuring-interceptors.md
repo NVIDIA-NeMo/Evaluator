@@ -150,7 +150,7 @@ interceptors:
       output_dir: "/tmp/output"
 ```
 
-# Post-Evaluation Hooks
+## Post-Evaluation Hooks
 
 Post-evaluation hooks run after the evaluation is complete and can perform additional processing, reporting, or cleanup tasks.
 

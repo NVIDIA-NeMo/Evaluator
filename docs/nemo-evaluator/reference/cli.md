@@ -22,7 +22,7 @@ eval-factory [command] [options]
 
 ## Available Commands
 
-# `ls` - List Available Evaluations
+## `ls` - List Available Evaluations
 
 List all available evaluation types and frameworks.
 
@@ -40,7 +40,7 @@ human_eval:
   * human_eval
 ```
 
-# `run_eval` - Run Evaluation
+## `run_eval` - Run Evaluation
 
 Execute an evaluation with the specified configuration.
 
@@ -159,7 +159,7 @@ Parameter overrides use a dot-notation format to specify configuration paths:
 --overrides "config.params.limit_samples=100,config.params.max_tokens=512,target.api_endpoint.adapter_config.use_caching=true"
 ```
 
-# Override Format
+## Override Format
 
 ```
 section.subsection.parameter=value
@@ -173,7 +173,7 @@ section.subsection.parameter=value
 
 
 
-# Debug Mode
+## Debug Mode
 
 Enable debug mode for detailed error information:
 
@@ -187,7 +187,7 @@ eval-factory run_eval --debug [options]
 
 ## Examples
 
-# Complete Evaluation Workflow
+## Complete Evaluation Workflow
 
 ```bash
 # 1. List available evaluations
@@ -207,7 +207,7 @@ eval-factory run_eval \
 ls -la ./results/
 ```
 
-# Batch Evaluation Script
+## Batch Evaluation Script
 
 ```bash
 #!/bin/bash
@@ -237,7 +237,7 @@ echo "All evaluations completed!"
 ```
 
 
-# Framework Development
+## Framework Development
 
 ```bash
 # Setup new framework
@@ -264,7 +264,7 @@ eval-factory run_eval \
 
 ## Framework Setup Command
 
-# `nemo-evaluator-example` - Setup Framework
+## `nemo-evaluator-example` - Setup Framework
 
 Set up NVIDIA framework files in a destination folder.
 
@@ -293,7 +293,7 @@ nemo-evaluator-example my_package /path/to/destination
 
 ## Environment Variables
 
-# Logging Configuration
+## Logging Configuration
 
 ```bash
 # Set log level (recommended over --debug flag)
@@ -302,32 +302,32 @@ export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
 
 ## Best Practices
 
-# 1. **Configuration Management**
+## 1. **Configuration Management**
 - Use YAML configuration files for complex setups
 - Use environment variables for sensitive data
 - Validate configurations before running evaluations
 
-# 2. **Parameter Overrides**
+## 2. **Parameter Overrides**
 - Use dot notation for clear parameter paths
 - Test overrides with `--dry_run` first
 - Keep overrides simple and readable
 
-# 3. **Error Handling**
+## 3. **Error Handling**
 - Check command exit codes
 - Use `NEMO_EVALUATOR_LOG_LEVEL=DEBUG` for troubleshooting
 - Monitor evaluation progress
 
-# 4. **Performance**
+## 4. **Performance**
 - Use appropriate sample sizes for testing
 - Enable caching through adapter configuration
 - Monitor resource usage
 
-# 5. **Security**
+## 5. **Security**
 - Store API keys in environment variables
 - Use secure communication channels
 - Validate all inputs and configurations
 
-# 6. **Framework Development**
+## 6. **Framework Development**
 - Use `nemo-evaluator-example` to bootstrap new frameworks
 - Follow the framework template structure
 - Test frameworks thoroughly before production use
