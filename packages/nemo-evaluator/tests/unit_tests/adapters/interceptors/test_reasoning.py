@@ -174,6 +174,7 @@ def test_reasoning_responses(
             "<think>This is my reasoning process that should be migrated</think>Here's my final answer.",
         ),
         ("", "Here's my final answer.", "Here's my final answer."),
+        (None, "Here's my final answer.", "Here's my final answer."),
     ],
 )
 def test_migration(
@@ -209,9 +210,9 @@ def test_migration(
     response = requests.post(url, json=data)
 
     assert response.status_code == 200
-    cleaned_data = response.json()
-    cleaned_content = cleaned_data["choices"][0]["message"]["content"]
-    assert cleaned_content == expected_content
+    migrated_data = response.json()
+    migrated_content = migrated_data["choices"][0]["message"]["content"]
+    assert migrated_content == expected_content
 
 
 def test_multiple_choices(
