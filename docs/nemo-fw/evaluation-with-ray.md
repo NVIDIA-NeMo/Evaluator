@@ -19,20 +19,17 @@ Deployment with Ray Serve provides support for multiple replicas of your model a
 
 To deploy your model using Ray, use the `deploy` function with `serving_backend="ray"`:
 
-```python
-from nemo_eval.api import deploy
-
-if __name__ == "__main__":
-    deploy(
-        nemo_checkpoint='/workspace/llama3_8b_nemo2',
-        serving_backend="ray",
-        num_gpus=4,                    # Total GPUs available
-        num_replicas=2,                # Number of model replicas
-        tensor_parallelism_size=2,     # Tensor parallelism per replica
-        pipeline_parallelism_size=1,   # Pipeline parallelism per replica
-        context_parallel_size=1,       # Context parallelism per replica
-        server_port=8080,              # Ray server port
-    )
+```shell
+python \
+  /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
+  --nemo_checkpoint "meta-llama/Llama-3.1-8B" \
+  --model_id "megatron_model" \
+  --port 8080 \                          # Ray server port
+  --num_gpus 4 \                         # Total GPUs available
+  --num_replicas 2 \                     # Number of model replicas
+  --tensor_model_parallel_size 2 \       # Tensor parallelism per replica
+  --pipeline_model_parallel_size 1 \     # Pipeline parallelism per replica
+  --context_parallel_size 1              # Context parallelism per replica
 ```
 
 > **Note:** Adjust `num_replicas` based on the number of instances/replicas needed. Ensure that total `num_gpus` is equal to the `num_replicas` times model parallelism configuration (i.e `tensor_parallelism_size * pipeline_parallelism_size * context_parallel_size`).
@@ -40,14 +37,13 @@ if __name__ == "__main__":
 
 ## Run Evaluations on Ray-Deployed Models
 
-Once your model is deployed with Ray, you can run evaluations using the same evaluation API as with PyTriton deployment. It is recommended to use the [`check_endpoint`](https://github.com/NVIDIA-NeMo/Eval/blob/main/src/nemo_eval/utils/base.py) function to verify that the endpoint is responsive and ready to accept requests before starting the evaluation.
+Once your model is deployed with Ray, you can run evaluations using the same evaluation API as with PyTriton deployment. It is recommended to use the [`check_endpoint`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/core/utils.py) function to verify that the endpoint is responsive and ready to accept requests before starting the evaluation.
 
 To evaluate on generation benchmarks use the code snippet below:
 
 ```python
-from nemo_eval.utils.base import check_endpoint
-from nvidia_eval_commons.core.evaluate import evaluate
-from nvidia_eval_commons.api.api_dataclasses import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
+from nemo_evaluator.api import check_endpoint, evaluate
+from nemo_evaluator.api.api_dataclasses import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
 
 # Configure the evaluation target
 api_endpoint = ApiEndpoint(
