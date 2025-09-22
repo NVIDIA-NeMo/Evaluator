@@ -144,6 +144,7 @@ class AdapterConfig(BaseModel):
             "use_response_logging": False,
             "use_reasoning": False,
             "use_progress_tracking": False,
+            "use_raise_client_errors": False,
             "include_json": True,
             "custom_system_prompt": None,
             "caching_dir": None,
@@ -546,6 +547,32 @@ class AdapterConfig(BaseModel):
                     name="progress_tracking",
                     config=config,
                 )
+            )
+
+        # Add raise client errors interceptor if specified (Response)
+        if legacy_config["use_raise_client_errors"]:
+            # Get default values from the interceptor's Params class
+            from nemo_evaluator.adapters.interceptors.raise_client_error_interceptor import (
+                RaiseClientErrorInterceptor,
+            )
+            from nemo_evaluator.logging import get_logger
+
+            logger = get_logger(__name__)
+
+            default_params = RaiseClientErrorInterceptor.Params()
+
+            interceptors.append(
+                InterceptorConfig(
+                    name="raise_client_errors",
+                    enabled=True,
+                    config={},
+                )
+            )
+            logger.warning(
+                "RaiseClientErrorInterceptor configured with default values. "
+                f"This will raise exceptions for 4xx status codes ({default_params.status_code_range_start}-{default_params.status_code_range_end}) "
+                f"excluding {default_params.exclude_status_codes}. "
+                "Consider explicitly configuring the interceptor parameters for your specific use case."
             )
 
         # Convert legacy HTML report generation to post-eval hook
