@@ -17,7 +17,7 @@ Tips:
 - You do  not need to adjust params like tensor/data parallelism NIM should pick the best set up based on your hardware.
 
 Examples:
-- [Lepton NIM Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml) - NIM deployment on Lepton platform
+- [Lepton NIM Example](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml) - NIM deployment on Lepton platform
 
 ## Reference
 
