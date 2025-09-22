@@ -16,7 +16,10 @@
 import importlib
 import json
 import os
+import signal
+import sys
 
+import psutil
 import yaml
 
 from nemo_evaluator.adapters.server import AdapterServerProcess
@@ -50,12 +53,37 @@ def evaluate(
     evaluation = validate_configuration(run_config)
     prepare_output_directory(evaluation)
 
+    def kill_all(signum=None, frame=None):
+        """Kill all processes and exit."""
+        logger.critical("FATAL: Terminating all processes...")
+
+        parent = psutil.Process(os.getpid())  # current process
+        children = parent.children(recursive=True)
+        for child in children:
+            if signum == signal.SIGINT:
+                # Send SIGINT to children for immediate termination (skip post-eval hooks)
+                child.send_signal(signal.SIGINT)
+            else:
+                # Send SIGTERM to children for graceful termination (run post-eval hooks)
+                child.terminate()
+
+        # Use faster timeout for keyboard interrupt (SIGINT)
+        timeout = 1 if signum == signal.SIGINT else 5
+        gone, alive = psutil.wait_procs(children, timeout=timeout)
+        for child in alive:
+            logger.warning(f"Force killing child process {child.pid}")
+            child.kill()
+
+        sys.exit(1)
+
+    # Set up signal handlers
+    signal.signal(signal.SIGTERM, kill_all)
+    signal.signal(signal.SIGINT, kill_all)
+
     def run_evaluation_core():
         with AdapterServerProcess(evaluation):
             cmd = evaluation.render_command()
-
             run_command(cmd, verbose=True, propagate_errors=True)
-
             evaluation_result = parse_output(evaluation)
             return evaluation_result
 

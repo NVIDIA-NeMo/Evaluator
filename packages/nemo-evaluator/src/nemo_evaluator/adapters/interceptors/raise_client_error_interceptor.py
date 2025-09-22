@@ -22,8 +22,10 @@ from nemo_evaluator.adapters.decorators import register_for_adapter
 from nemo_evaluator.adapters.types import (
     AdapterGlobalContext,
     AdapterResponse,
+    FatalErrorException,
     ResponseInterceptor,
 )
+from nemo_evaluator.logging import get_logger
 
 
 @register_for_adapter(
@@ -35,7 +37,7 @@ class RaiseClientErrorInterceptor(ResponseInterceptor):
     """Adapter for handling non-retryable client error to raise an exception instead of continuing the benchmark."""
 
     class Params(BaseModel):
-        """No configuration parameters supported for raise client error interceptor."""
+        """Configuration parameters for raise client error interceptor."""
 
         exclude_status_codes: Optional[List[int]] = Field(
             default=[408, 429],
@@ -65,6 +67,9 @@ class RaiseClientErrorInterceptor(ResponseInterceptor):
         Args:
             params: Configuration parameters
         """
+        # Get logger for this interceptor
+        self.logger = get_logger(self.__class__.__name__)
+
         if params.exclude_status_codes and params.status_codes:
             overlap_status_codes = set(params.exclude_status_codes).intersection(
                 set(params.status_codes)
@@ -85,46 +90,80 @@ class RaiseClientErrorInterceptor(ResponseInterceptor):
         self.status_code_range_start = params.status_code_range_start
         self.status_code_range_end = params.status_code_range_end
 
-    def _format_exception(self, response: requests.Response) -> Exception:
-        return Exception(
-            f"Client error detected with raise_client_errors enabled: {response.status_code} {response.text}"
+        self.logger.info(
+            "Raise client error interceptor initialized",
+            exclude_status_codes=self.exclude_status_codes,
+            status_codes=self.status_codes,
+            status_code_range_start=self.status_code_range_start,
+            status_code_range_end=self.status_code_range_end,
         )
 
-    def _handle_client_error(self, response: requests.Response) -> requests.Response:
+    def _format_exception(
+        self, response: requests.Response, context: AdapterGlobalContext
+    ) -> FatalErrorException:
+        """Format a basic exception."""
+        error_msg = (
+            f"Upstream endpoint error detected with status code {response.status_code}"
+        )
+        return FatalErrorException(error_msg)
+
+    def _handle_client_error(
+        self, response: requests.Response, context: AdapterGlobalContext
+    ) -> requests.Response:
         """
-        Raises exception on client errors and not continue
+        Handles client errors by logging and optionally killing the process.
 
         Args:
             response: The API response object from requests
+            context: Global context containing request information
 
         Returns:
-            Response
+            Response if no error detected
+
+        Raises:
+            FatalErrorException: If a fatal error is detected
         """
         status_code = response.status_code
+
+        # Check if this status code should trigger an error
+        should_raise = False
+
         if self.status_codes and status_code in self.status_codes:
-            raise self._format_exception(response)
-
-        if self.exclude_status_codes and status_code in self.exclude_status_codes:
+            should_raise = True
+        elif self.exclude_status_codes and status_code in self.exclude_status_codes:
+            # This status code is excluded, don't raise
             return response
-
-        # Check range if defined
-        if self.status_code_range_start and self.status_code_range_end:
+        elif self.status_code_range_start and self.status_code_range_end:
             if (
                 self.status_code_range_start
                 <= response.status_code
                 <= self.status_code_range_end
             ):
-                raise self._format_exception(response)
+                should_raise = True
         elif (
             self.status_code_range_start
             and self.status_code_range_start <= response.status_code
         ):
-            raise self._format_exception(response)
+            should_raise = True
         elif (
             self.status_code_range_end
             and self.status_code_range_end >= response.status_code
         ):
-            raise self._format_exception(response)
+            should_raise = True
+
+        if should_raise:
+            # Log the fatal error with detailed information
+            upstream_url = response.url if hasattr(response, "url") else "Unknown"
+            self.logger.critical(
+                "FATAL ERROR: Upstream endpoint error detected",
+                status_code=status_code,
+                url=upstream_url,
+            )
+
+            # Create and raise the exception
+            exception = self._format_exception(response, context)
+            # Raise exception to be caught by evaluation system
+            raise exception
 
         return response
 
@@ -132,5 +171,6 @@ class RaiseClientErrorInterceptor(ResponseInterceptor):
     def intercept_response(
         self, resp: AdapterResponse, context: AdapterGlobalContext
     ) -> AdapterResponse:
-        (self._handle_client_error(resp.r),)
+        """Intercept response and handle client errors."""
+        self._handle_client_error(resp.r, context)
         return resp
