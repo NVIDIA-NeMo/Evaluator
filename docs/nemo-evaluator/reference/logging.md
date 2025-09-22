@@ -11,6 +11,8 @@ Set these environment variables for logging configuration:
 export NEMO_EVALUATOR_LOG_DIR=DEBUG
 ```
 
+The following table describes the available log levels:
+
 | Level | Description | Use Case |
 |-------|-------------|----------|
 | `INFO` | General information | Normal operation logs |
@@ -23,7 +25,7 @@ export NEMO_EVALUATOR_LOG_DIR=DEBUG
 
 ### Console Output
 
-Logs appear in the console (stderr) with color coding:
+Logs appear in the console (stderr) with the following color coding:
 
 - **Green**: INFO messages
 - **Yellow**: WARNING messages
@@ -78,8 +80,10 @@ Each request automatically gets a unique UUID that appears in all related log me
 
 ### No Logs Appearing
 
-- Check that logging interceptors are enabled in your configuration
-- Verify log level with `NEMO_EVALUATOR_LOG_LEVEL=INFO`
+If no logs are appearing, try the following steps:
+
+1. Check that your configuration enables logging interceptors.
+2. Verify log level with `NEMO_EVALUATOR_LOG_LEVEL=INFO`.
 
 ### Missing DEBUG Logs
 
@@ -87,8 +91,10 @@ Each request automatically gets a unique UUID that appears in all related log me
 
 ### Logs Not Going to Files
 
-- Check directory permissions
-- Verify log directory path
+If the system does not write logs to files, check the following:
+
+1. Check directory permissions.
+2. Verify log directory path.
 
 ### Debug Mode
 
@@ -108,7 +114,7 @@ export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
 eval-factory run_eval --eval_type mmlu_pro --model_id gpt-4 ...
 ```
 
-### Custom Log Directory
+### Custom Log Location
 
 ```bash
 # Specify custom log location using environment variable
