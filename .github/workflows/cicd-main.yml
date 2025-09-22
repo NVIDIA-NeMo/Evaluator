@@ -30,8 +30,18 @@ permissions:
   contents: read
 
 jobs:
+  # pre-flight:
+  #   uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@v0.53.0
+
   pre-flight:
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@v0.53.0
+    outputs:
+      is_deployment_workflow: false
+      is_ci_workload: true
+      docs_only: false
+  runs-on: ubuntu-latest
+  steps:
+    - name: noop
+      run: echo "noop"
 
   linting:
     runs-on: ubuntu-latest
