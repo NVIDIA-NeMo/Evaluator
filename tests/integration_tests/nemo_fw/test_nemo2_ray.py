@@ -14,10 +14,8 @@
 
 import logging
 import os
-import shutil
 import signal
 import subprocess
-import tempfile
 
 import pytest
 from nemo_evaluator.api import check_endpoint, evaluate
@@ -38,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope="module")
-def deployment_process():
+def deployment_process(set_env_vars):
     """Fixture to deploy the nemo checkpoint on Ray server."""
     nemo2_ckpt_path = "/home/TestData/nemo2_ckpt/llama-3_2-1b-instruct_v2.0"
     model_name = "megatron_model"
@@ -97,26 +95,6 @@ def deployment_process():
         subprocess.run(["pkill", f"-{signal.SIGTERM}", "tritonserver"], check=False)
 
 
-@pytest.fixture(autouse=True)
-def cleanup_results():
-    """Clean up results directory after each test."""
-    yield
-    results_dir = "results"
-    if os.path.exists(results_dir):
-        logger.info(f"Cleaning up results directory: {results_dir}")
-        shutil.rmtree(results_dir)
-
-
-@pytest.fixture(autouse=True)
-def set_env_vars():
-    """Set environment variables for the tests."""
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-    os.environ["HF_DATASETS_OFFLINE"] = "1"
-    os.environ["HF_HOME"] = "/home/TestData/HF_HOME"
-    os.environ["HF_DATASETS_CACHE"] = f"{os.environ['HF_HOME']}/datasets"
-    yield
-
-
 @pytest.mark.run_only_on("GPU")
 @pytest.mark.parametrize(
     "eval_type,endpoint_type,eval_params",
@@ -137,7 +115,9 @@ def set_env_vars():
         ("ifeval", "chat", {"limit_samples": 1, "request_timeout": 360}),
     ],
 )
-def test_evaluation(deployment_process, eval_type, endpoint_type, eval_params):
+def test_evaluation(
+    deployment_process, eval_type, endpoint_type, eval_params, tmp_path
+):
     """
     Test evaluation of a nemo model deployed with triton backend.
     """
@@ -151,9 +131,8 @@ def test_evaluation(deployment_process, eval_type, endpoint_type, eval_params):
 
     api_endpoint = ApiEndpoint(url=url, type=endpoint_type, model_id="megatron_model")
     eval_target = EvaluationTarget(api_endpoint=api_endpoint)
-    temp_dir = tempfile.TemporaryDirectory()
     eval_config = EvaluationConfig(
-        type=eval_type, params=ConfigParams(**eval_params), output_dir=temp_dir.name
+        type=eval_type, params=ConfigParams(**eval_params), output_dir=str(tmp_path)
     )
     results = evaluate(target_cfg=eval_target, eval_cfg=eval_config)
     # FIXME(martas): EF packages pre 25.09 use old imports from nvidia_eval_commons
