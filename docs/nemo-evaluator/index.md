@@ -53,7 +53,7 @@ NeMo Evaluator is the core, open-source evaluation engine. It powers standardize
 ## How It Differs from the Launcher
 
 - **nemo-evaluator**: Core evaluation engine, adapter system, and evaluation containers. This component focuses on correctness, repeatability, and benchmark definitions.
-- **nemo-evaluator-launcher**: Orchestration layer on top of the core engine. It adds a unified CLI, multi-backend execution (local/Slurm/hosted), job monitoring, and exporters. Refer to the [NeMo Evaluator Launcher documentation](../nemo-evaluator-launcher/index.md).
+- **nemo-evaluator-launcher**: Orchestration layer on top of the core engine. It adds a unified CLI, multi-backend execution (local/Slurm/hosted), job monitoring, and exporters. Refer to the [NeMo Evaluator Launcher documentation](../nemo-evaluator-launcher/index.md) for more information.
 
 ## Key Capabilities
 
