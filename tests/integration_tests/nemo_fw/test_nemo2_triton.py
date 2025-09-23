@@ -48,17 +48,17 @@ def deployment_process():
         [
             "python",
             "/opt/Export-Deploy/scripts/deploy/nlp/deploy_inframework_triton.py",
-            "-nc",
+            "--nemo_checkpoint",
             nemo2_ckpt_path,
-            "-ng",
+            "--num_gpus",
             "1",
-            "-nn",
+            "--num_nodes",
             "1",
-            "-tps",
+            "--tensor_parallelism_size",
             "1",
-            "-pps",
+            "--pipeline_parallelism_size",
             "1",
-            "-tmn",
+            "--triton_model_name",
             model_name,
         ]
     )
