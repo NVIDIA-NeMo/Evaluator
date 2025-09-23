@@ -13,6 +13,8 @@
 # limitations under the License.
 name: "Release NeMo-Eval"
 
+# NOTE(if-changed): check the `release-scheduled.yaml` workflow for sync
+# between the defaults of this flow (manual) and that one (scheduled).
 on:
   workflow_dispatch:
     inputs:
@@ -61,10 +63,12 @@ jobs:
           fi
           echo "Input validation passed"
 
+  # NOTE(if-changed): check the `release-scheduled.yaml` workflow for sync
+  # between the paramters of this job (manual) and that one (scheduled).
   release:
     if: ${{ inputs.component == 'nemo-evaluator' }}
     needs: validate-inputs
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.61.0
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.62.0
     with:
       release-ref: ${{ inputs.release-ref || github.sha }}
       python-package: nemo_evaluator
@@ -88,10 +92,12 @@ jobs:
       SSH_PWD: ${{ secrets.SSH_PWD }}
       BOT_KEY: ${{ secrets.BOT_KEY }}
 
+  # NOTE(if-changed): check the `release-scheduled.yaml` workflow for sync
+  # between the paramters of this job (manual) and that one (scheduled).
   release-launcher:
     if: ${{ inputs.component == 'nemo-evaluator-launcher' }}
     needs: validate-inputs
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.61.0
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.62.0
     with:
       release-ref: ${{ inputs.release-ref || github.sha }}
       python-package: nemo_evaluator_launcher
