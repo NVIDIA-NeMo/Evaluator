@@ -46,7 +46,7 @@ The architecture is as follows:
          │                                                             │
          └─────────────────────────────────────────────────────────────┘
 
-Interceptors are pieces of independent logic. They are designed to be easy to add separately.
+Interceptors are independent units of logic designed for easy integration.
 
 NeMo Evaluator is the core, open-source evaluation engine. It powers standardized, reproducible AI model evaluation across benchmarks. It provides the adapter/interceptor architecture, evaluation workflows, and ready-to-use evaluation containers. These components ensure consistent results across environments and over time.
 
