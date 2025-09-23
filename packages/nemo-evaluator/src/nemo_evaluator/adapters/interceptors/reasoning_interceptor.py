@@ -340,19 +340,30 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
             else:
                 reasoning_finished = True
             if usage:
+                # First try to get reasoning_tokens directly from usage
                 reasoning_tokens = usage.get("reasoning_tokens", "unknown")
                 updated_content_tokens = usage.get("content_tokens", "unknown")
 
-                # Check if reasoning_tokens is in completion_tokens_details
-                if (
-                    reasoning_tokens == "unknown"
-                    and "completion_tokens_details" in usage
-                ):
-                    completion_details = usage["completion_tokens_details"]
-                    if isinstance(completion_details, dict):
-                        reasoning_tokens = completion_details.get(
-                            "reasoning_tokens", "unknown"
-                        )
+                # If not found, check in completion_tokens_details and output_tokens_details
+                if reasoning_tokens == "unknown":
+                    for key in ["completion_tokens_details", "output_tokens_details"]:
+                        if key in usage:
+                            details = usage[key]
+                            if isinstance(details, dict):
+                                reasoning_tokens = details.get(
+                                    "reasoning_tokens", "unknown"
+                                )
+                                if reasoning_tokens != "unknown":
+                                    self.logger.debug(
+                                        f"Found reasoning_tokens in {key}: {reasoning_tokens}"
+                                    )
+                                    break
+
+                # Log if reasoning tokens were found
+                if reasoning_tokens != "unknown":
+                    self.logger.debug(f"Reasoning tokens extracted: {reasoning_tokens}")
+                else:
+                    self.logger.debug("No reasoning tokens found in usage data")
 
         else:
             reasoning_finished = False

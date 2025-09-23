@@ -1004,6 +1004,15 @@ def test_cached_response_reasoning_behavior(
             20,
             40,
         ),
+        # Format 3: reasoning_tokens in output_tokens_details
+        (
+            {
+                "output_tokens_details": {"reasoning_tokens": 25},
+                "content_tokens": 50,
+            },
+            25,
+            50,
+        ),
     ],
 )
 def test_reasoning_tokens_different_formats(
