@@ -48,7 +48,7 @@ responses through a chain of adapters. The system includes three primary types o
 - **ResponseInterceptor**: Captures and processes responses received from the endpoint, enabling functionalities such as token usage tracking, removal of reasoning tokens, and more.
 - **Post-eval hook**: Runs after the evaluation completes, allowing for cleanup, report generation, or other post-processing tasks.
 
-**Example**: To benchmark the `nvidia/llama-3.3-nemotron-super-49b-v1.5` model, you use the `system_message` interceptor to include the `/think` system message to turn on reasoning mode, and the `reasoning` interceptor to remove reasoning tokens before judging the model's responses.
+**Example**: To benchmark the `nvidia/llama-3.3-nemotron-super-49b-v1.5` model, use the `system_message` interceptor to include the `/think` system message and activate reasoning mode. Then, apply the `reasoning` interceptor to remove reasoning tokens before evaluating the model's responses.
 
 Interceptors enable straightforward evaluation of endpoints that:
 
