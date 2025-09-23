@@ -79,7 +79,8 @@ Run a small evaluation on your local machine. The launcher automatically pulls t
 
 **Configuration Examples**: Explore ready-to-use configuration files in [`packages/nemo-evaluator-launcher/examples/`](./packages/nemo-evaluator-launcher/examples/) for local, Lepton, and Slurm deployments with various model hosting options (vLLM, NIM, hosted endpoints).
 
-Once you have the example configuration file (either by cloning this repository or downloading such as the `local_nvidia_nemotron_nano_9b_v2.yaml` file directly), you can run the following command:
+Once you have the example configuration file, either by cloning this repository or downloading one directly such as `local_nvidia_nemotron_nano_9b_v2.yaml`, you can run the following command:
+
 
 ```bash
 nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_nvidia_nemotron_nano_9b_v2 --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
