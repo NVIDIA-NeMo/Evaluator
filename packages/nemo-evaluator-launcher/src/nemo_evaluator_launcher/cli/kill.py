@@ -13,12 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import json
 from dataclasses import dataclass
 
 from simple_parsing import field
-
-from nemo_evaluator_launcher.api.functional import kill_job_or_invocation
 
 
 @dataclass
@@ -34,6 +31,11 @@ class Cmd:
 
     def execute(self) -> None:
         """Execute the kill command."""
+        # Import heavy dependencies only when needed
+        import json
+
+        from nemo_evaluator_launcher.api.functional import kill_job_or_invocation
+
         result = kill_job_or_invocation(self.id)
         # Output as JSON
         print(json.dumps(result, indent=2))
