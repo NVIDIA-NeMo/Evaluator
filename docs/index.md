@@ -90,7 +90,7 @@ After running this command, you will see a `job_id`, which can be used to track 
 
 ## 4. Check Your Results
 
-Results, logs, and run configurations are saved locally. Inspect the status of the evaluation job by using the corresponding job id:
+Results, logs, and run configurations are saved locally. Inspect the status of the evaluation job by using the corresponding `job_id`:
 
 ```bash
 nemo-evaluator-launcher status <job_id_or_invocation_id>
