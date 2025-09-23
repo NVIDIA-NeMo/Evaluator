@@ -15,6 +15,7 @@
 
 """Progress tracking interceptor that tracks number of samples processed via webhook."""
 
+import os
 import pathlib
 import threading
 from typing import Optional, final
@@ -45,11 +46,15 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
 
         progress_tracking_url: Optional[str] = Field(
             default="http://localhost:8000",
-            description="URL to post the number of processed samples to.",
+            description="URL to post the number of processed samples to. Supports expansion of shell variables if present.",
         )
         progress_tracking_interval: int = Field(
             default=1,
             description="How often (every how many samples) to send a progress information.",
+        )
+        request_method: str = Field(
+            default="PATCH",
+            description="Request method to use for updating the evaluation progress.",
         )
         output_dir: Optional[str] = Field(
             default=None,
@@ -59,6 +64,7 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
     progress_tracking_url: Optional[str]
     progress_tracking_interval: int
     progress_filepath: Optional[pathlib.Path]
+    request_method: str
 
     def __init__(self, params: Params):
         """
@@ -67,8 +73,9 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
         Args:
             params: Configuration parameters
         """
-        self.progress_tracking_url = params.progress_tracking_url
+        self.progress_tracking_url = os.path.expandvars(params.progress_tracking_url)
         self.progress_tracking_interval = params.progress_tracking_interval
+        self.request_method = params.request_method
         if params.output_dir is not None:
             output_dir = pathlib.Path(params.output_dir)
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -111,20 +118,29 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
                 samples_processed=num_samples,
             )
 
-    def _send_progress(self, num_samples: int):
+    def _send_progress(self, num_samples: int) -> requests.Response:
         self.logger.debug(
             "Sending progress to tracking server",
             url=self.progress_tracking_url,
+            method=self.request_method,
             samples_processed=num_samples,
         )
+        body = {"samples_processed": num_samples}
         try:
-            requests.post(
+            resp = requests.request(
+                self.request_method,
                 self.progress_tracking_url,
-                json={"samples_processed": num_samples},
+                json=body,
             )
-            self.logger.debug(
-                "Progress sent successfully", samples_processed=num_samples
-            )
+            if resp.status_code >= 200 and resp.status_code < 300:
+                self.logger.debug(
+                    "Progress sent successfully", samples_processed=num_samples
+                )
+            else:
+                self.logger.warning(
+                    f"Failed to update job progress {body}: {resp.status_code} {resp.text}"
+                )
+            return resp
         except requests.exceptions.RequestException as e:
             self.logger.error(
                 "Failed to communicate with progress tracking server",

@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import threading
 import time
 from typing import List
@@ -34,13 +35,13 @@ from nemo_evaluator.adapters.types import (
 class FakeProgressTrackingServer:
     """Test server to receive progress tracking webhooks."""
 
-    def __init__(self, port: int = 8000):
+    def __init__(self, port: int = 8000, request_method="PATCH"):
         self.port = port
         self.app = Flask(__name__)
         self.received_updates: List[dict] = []
         self.lock = threading.Lock()
 
-        @self.app.route("/", methods=["POST"])
+        @self.app.route("/", methods=[request_method])
         def progress_webhook():
             """Receive progress updates."""
             data = request.get_json()
@@ -92,6 +93,18 @@ class TestProgressTrackingInterceptor:
         interceptor = ProgressTrackingInterceptor(params)
         assert interceptor.progress_tracking_url == "http://test-server:9000"
         assert interceptor.progress_tracking_interval == 5
+
+    @patch.dict(os.environ, {"NEMO_JOB_ID": "job-1234"})
+    def test_init_url_with_env_expansion(self):
+        """Test initialization with URL with env variable is expanded."""
+        params = ProgressTrackingInterceptor.Params(
+            progress_tracking_url="http://test-server:8000/jobs/${NEMO_JOB_ID}/status-details"
+        )
+        interceptor = ProgressTrackingInterceptor(params)
+        assert (
+            interceptor.progress_tracking_url
+            == "http://test-server:8000/jobs/job-1234/status-details"
+        )
 
     def test_intercept_response_sends_progress(self):
         """Test that intercept_response sends progress updates."""
@@ -213,11 +226,11 @@ class TestProgressTrackingInterceptor:
         finally:
             server.stop()
 
-    @patch("requests.post")
-    def test_network_error_handling(self, mock_post):
+    @patch("requests.request")
+    def test_network_error_handling(self, mock_request):
         """Test that network errors are handled gracefully."""
-        # Mock requests.post to raise an exception
-        mock_post.side_effect = requests.exceptions.RequestException(
+        # Mock requests.patch to raise an exception
+        mock_request.side_effect = requests.exceptions.RequestException(
             "Connection failed"
         )
 
@@ -240,7 +253,7 @@ class TestProgressTrackingInterceptor:
         assert result == mock_response
 
         # Verify that the request was attempted
-        mock_post.assert_called_once()
+        mock_request.assert_called_once()
 
     def test_interval_configuration(self):
         """Test different interval configurations."""
@@ -304,6 +317,52 @@ class TestProgressTrackingInterceptor:
             assert "samples_processed" in updates[0]
             assert updates[0]["samples_processed"] == 1
             assert isinstance(updates[0]["samples_processed"], int)
+
+        finally:
+            server.stop()
+
+    def test_configured_method(self):
+        """Test that the JSON payload has the correct format."""
+        # Start test server
+        server = FakeProgressTrackingServer(port=8006, request_method="POST")
+        server.start()
+
+        try:
+            # Create interceptor
+            params = ProgressTrackingInterceptor.Params(
+                progress_tracking_url="http://localhost:8006",
+                progress_tracking_interval=1,
+                request_method="POST",
+            )
+            interceptor = ProgressTrackingInterceptor(params)
+
+            mock_response = AdapterResponse(
+                r=requests.Response(),
+                rctx=AdapterRequestContext(),
+            )
+            context = AdapterGlobalContext(output_dir="/tmp", url="http://test")
+
+            # Process one sample
+            interceptor.intercept_response(mock_response, context)
+
+            # Check the payload format
+            updates = server.get_updates()
+            assert len(updates) == 1
+            assert "samples_processed" in updates[0]
+            assert updates[0]["samples_processed"] == 1
+            assert isinstance(updates[0]["samples_processed"], int)
+
+            # Verify PATCH does not update the server
+            params = ProgressTrackingInterceptor.Params(
+                progress_tracking_url="http://localhost:8006",
+                progress_tracking_interval=1,
+                request_method="PATCH",
+            )
+            interceptor = ProgressTrackingInterceptor(params)
+            interceptor.intercept_response(mock_response, context)
+            assert updates == server.get_updates(), (
+                "server should not update with misconfigured method"
+            )
 
         finally:
             server.stop()
