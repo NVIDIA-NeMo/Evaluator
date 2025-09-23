@@ -66,7 +66,7 @@ class TestLsTasksCommand:
         cmd = LsTasksCmd(json=True)
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=sample_tasks_data,
         ):
             output = StringIO()
@@ -97,7 +97,7 @@ class TestLsTasksCommand:
         cmd = LsTasksCmd(json=True)
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=empty_tasks_data,
         ):
             output = StringIO()
@@ -115,7 +115,7 @@ class TestLsTasksCommand:
         cmd = LsTasksCmd(json=True)
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=single_task_data,
         ):
             output = StringIO()
@@ -134,7 +134,7 @@ class TestLsTasksCommand:
         cmd = LsTasksCmd(json=False)
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=sample_tasks_data,
         ):
             output = StringIO()
@@ -170,7 +170,7 @@ class TestLsTasksCommand:
         cmd = LsTasksCmd(json=False)
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=sample_tasks_data,
         ):
             output = StringIO()
@@ -199,7 +199,7 @@ class TestLsTasksCommand:
         cmd = LsTasksCmd(json=False)
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=empty_tasks_data,
         ):
             output = StringIO()
@@ -214,7 +214,7 @@ class TestLsTasksCommand:
         cmd = LsTasksCmd(json=False)
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=single_task_data,
         ):
             output = StringIO()
@@ -243,7 +243,7 @@ class TestLsTasksCommand:
         cmd = LsTasksCmd(json=False)
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=test_data,
         ):
             output = StringIO()
@@ -277,7 +277,7 @@ class TestLsTasksCommand:
         cmd = LsTasksCmd(json=False)
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=test_data,
         ):
             output = StringIO()
@@ -324,7 +324,7 @@ class TestLsTasksCommand:
         ]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=malformed_data,
         ):
             with pytest.raises(AssertionError):
@@ -340,7 +340,7 @@ class TestLsTasksCommand:
         cmd = LsTasksCmd(json=False)
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=test_data,
         ):
             output = StringIO()
@@ -361,7 +361,7 @@ class TestLsTasksCommand:
             # Should have proper spacing and alignment
             assert len(task_lines) >= 2
 
-    @patch("nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list")
+    @patch("nemo_evaluator_launcher.api.functional.get_tasks_list")
     def test_api_function_called(self, mock_get_tasks):
         """Test that the API function is called correctly."""
         mock_get_tasks.return_value = []
@@ -381,7 +381,7 @@ class TestLsTasksCommand:
         cmd = LsTasksCmd(json=False)
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=single_data,
         ):
             output = StringIO()
@@ -398,7 +398,7 @@ class TestLsTasksCommand:
         ]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_tasks.get_tasks_list",
+            "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=multi_data,
         ):
             output = StringIO()

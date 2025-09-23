@@ -49,11 +49,11 @@ class TestLsRunsFiltering:
         ]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_runs.list_all_invocations_summary",
+            "nemo_evaluator_launcher.api.functional.list_all_invocations_summary",
             return_value=mock_data,
         ):
             with patch(
-                "nemo_evaluator_launcher.cli.ls_runs.get_invocation_benchmarks",
+                "nemo_evaluator_launcher.api.functional.get_invocation_benchmarks",
                 return_value=["test_benchmark"],
             ):
                 cmd = Cmd(executor="local")
@@ -87,11 +87,11 @@ class TestLsRunsFiltering:
         ]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_runs.list_all_invocations_summary",
+            "nemo_evaluator_launcher.api.functional.list_all_invocations_summary",
             return_value=mock_data,
         ):
             with patch(
-                "nemo_evaluator_launcher.cli.ls_runs.get_invocation_benchmarks",
+                "nemo_evaluator_launcher.api.functional.get_invocation_benchmarks",
                 return_value=["test_benchmark"],
             ):
                 cmd = Cmd(executor="local")
@@ -120,11 +120,11 @@ class TestLsRunsFiltering:
         ]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_runs.list_all_invocations_summary",
+            "nemo_evaluator_launcher.api.functional.list_all_invocations_summary",
             return_value=mock_data,
         ):
             with patch(
-                "nemo_evaluator_launcher.cli.ls_runs.get_invocation_benchmarks",
+                "nemo_evaluator_launcher.api.functional.get_invocation_benchmarks",
                 return_value=["test_benchmark"],
             ):
                 cmd = Cmd(since="2022-01-01T12:00:00")
@@ -152,11 +152,11 @@ class TestLsRunsFiltering:
         ]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_runs.list_all_invocations_summary",
+            "nemo_evaluator_launcher.api.functional.list_all_invocations_summary",
             return_value=mock_data,
         ):
             with patch(
-                "nemo_evaluator_launcher.cli.ls_runs.get_invocation_benchmarks",
+                "nemo_evaluator_launcher.api.functional.get_invocation_benchmarks",
                 return_value=["test_benchmark"],
             ):
                 cmd = Cmd(since="2022-01-01")
@@ -190,11 +190,11 @@ class TestLsRunsFiltering:
         ]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_runs.list_all_invocations_summary",
+            "nemo_evaluator_launcher.api.functional.list_all_invocations_summary",
             return_value=mock_data,
         ):
             with patch(
-                "nemo_evaluator_launcher.cli.ls_runs.get_invocation_benchmarks",
+                "nemo_evaluator_launcher.api.functional.get_invocation_benchmarks",
                 return_value=["test_benchmark"],
             ):
                 cmd = Cmd(since="2022-01-01")
@@ -211,7 +211,7 @@ class TestLsRunsFiltering:
         mock_data = [{"invocation_id": "inv1", "executor": "local", "num_jobs": 5}]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_runs.list_all_invocations_summary",
+            "nemo_evaluator_launcher.api.functional.list_all_invocations_summary",
             return_value=mock_data,
         ):
             cmd = Cmd(since="invalid-date-format")
@@ -237,11 +237,11 @@ class TestLsRunsFiltering:
         ]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_runs.list_all_invocations_summary",
+            "nemo_evaluator_launcher.api.functional.list_all_invocations_summary",
             return_value=mock_data,
         ):
             with patch(
-                "nemo_evaluator_launcher.cli.ls_runs.get_invocation_benchmarks",
+                "nemo_evaluator_launcher.api.functional.get_invocation_benchmarks",
                 return_value=["test_benchmark"],
             ):
                 cmd = Cmd(limit=3)
@@ -266,11 +266,11 @@ class TestLsRunsFiltering:
         ]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_runs.list_all_invocations_summary",
+            "nemo_evaluator_launcher.api.functional.list_all_invocations_summary",
             return_value=mock_data,
         ):
             with patch(
-                "nemo_evaluator_launcher.cli.ls_runs.get_invocation_benchmarks",
+                "nemo_evaluator_launcher.api.functional.get_invocation_benchmarks",
                 return_value=["test_benchmark"],
             ):
                 cmd = Cmd(limit=0)
@@ -298,11 +298,11 @@ class TestLsRunsTableFormatting:
         ]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_runs.list_all_invocations_summary",
+            "nemo_evaluator_launcher.api.functional.list_all_invocations_summary",
             return_value=mock_data,
         ):
             with patch(
-                "nemo_evaluator_launcher.cli.ls_runs.get_invocation_benchmarks",
+                "nemo_evaluator_launcher.api.functional.get_invocation_benchmarks",
                 return_value=["test_benchmark"],
             ):
                 cmd = Cmd()
@@ -329,11 +329,11 @@ class TestLsRunsTableFormatting:
         ]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_runs.list_all_invocations_summary",
+            "nemo_evaluator_launcher.api.functional.list_all_invocations_summary",
             return_value=mock_data,
         ):
             with patch(
-                "nemo_evaluator_launcher.cli.ls_runs.get_invocation_benchmarks",
+                "nemo_evaluator_launcher.api.functional.get_invocation_benchmarks",
                 return_value=["test_benchmark"],
             ):
                 cmd = Cmd()
@@ -359,11 +359,11 @@ class TestLsRunsTableFormatting:
         ]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_runs.list_all_invocations_summary",
+            "nemo_evaluator_launcher.api.functional.list_all_invocations_summary",
             return_value=mock_data,
         ):
             with patch(
-                "nemo_evaluator_launcher.cli.ls_runs.get_invocation_benchmarks",
+                "nemo_evaluator_launcher.api.functional.get_invocation_benchmarks",
                 return_value=["bench1", "bench2"],
             ):
                 cmd = Cmd()
@@ -384,11 +384,11 @@ class TestLsRunsTableFormatting:
         ]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_runs.list_all_invocations_summary",
+            "nemo_evaluator_launcher.api.functional.list_all_invocations_summary",
             return_value=mock_data,
         ):
             with patch(
-                "nemo_evaluator_launcher.cli.ls_runs.get_invocation_benchmarks",
+                "nemo_evaluator_launcher.api.functional.get_invocation_benchmarks",
                 return_value=[],
             ):
                 cmd = Cmd()
@@ -409,11 +409,11 @@ class TestLsRunsTableFormatting:
         ]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_runs.list_all_invocations_summary",
+            "nemo_evaluator_launcher.api.functional.list_all_invocations_summary",
             return_value=mock_data,
         ):
             with patch(
-                "nemo_evaluator_launcher.cli.ls_runs.get_invocation_benchmarks",
+                "nemo_evaluator_launcher.api.functional.get_invocation_benchmarks",
                 side_effect=Exception("DB error"),
             ):
                 cmd = Cmd()
@@ -432,11 +432,11 @@ class TestLsRunsTableFormatting:
         ]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_runs.list_all_invocations_summary",
+            "nemo_evaluator_launcher.api.functional.list_all_invocations_summary",
             return_value=mock_data,
         ):
             with patch(
-                "nemo_evaluator_launcher.cli.ls_runs.get_invocation_benchmarks",
+                "nemo_evaluator_launcher.api.functional.get_invocation_benchmarks",
                 return_value=["test_benchmark"],
             ):
                 cmd = Cmd()
@@ -464,11 +464,11 @@ class TestLsRunsTableFormatting:
         ]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_runs.list_all_invocations_summary",
+            "nemo_evaluator_launcher.api.functional.list_all_invocations_summary",
             return_value=mock_data,
         ):
             with patch(
-                "nemo_evaluator_launcher.cli.ls_runs.get_invocation_benchmarks",
+                "nemo_evaluator_launcher.api.functional.get_invocation_benchmarks",
                 return_value=["benchmark"],
             ):
                 cmd = Cmd()
@@ -515,11 +515,11 @@ class TestLsRunsCombinedFilters:
         ]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_runs.list_all_invocations_summary",
+            "nemo_evaluator_launcher.api.functional.list_all_invocations_summary",
             return_value=mock_data,
         ):
             with patch(
-                "nemo_evaluator_launcher.cli.ls_runs.get_invocation_benchmarks",
+                "nemo_evaluator_launcher.api.functional.get_invocation_benchmarks",
                 return_value=["test_benchmark"],
             ):
                 cmd = Cmd(executor="local", since="2022-01-01T12:00:00", limit=1)
@@ -543,7 +543,7 @@ class TestLsRunsCombinedFilters:
         ]
 
         with patch(
-            "nemo_evaluator_launcher.cli.ls_runs.list_all_invocations_summary",
+            "nemo_evaluator_launcher.api.functional.list_all_invocations_summary",
             return_value=mock_data,
         ):
             cmd = Cmd(executor="local")  # No matches

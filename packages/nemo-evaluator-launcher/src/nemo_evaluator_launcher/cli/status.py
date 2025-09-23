@@ -13,12 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import json
 from dataclasses import dataclass
 
 from simple_parsing import field
-
-from nemo_evaluator_launcher.api.functional import get_status
 
 
 @dataclass
@@ -36,6 +33,11 @@ class Cmd:
     )
 
     def execute(self) -> None:
+        # Import heavy dependencies only when needed
+        import json
+
+        from nemo_evaluator_launcher.api.functional import get_status
+
         res = get_status(self.job_ids)
         if self.json:
             # Remove progress field from JSON output as it's a WIP feature

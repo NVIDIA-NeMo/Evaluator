@@ -16,7 +16,10 @@
 import importlib
 import json
 import os
+import signal
+import sys
 
+import psutil
 import yaml
 
 from nemo_evaluator.adapters.server import AdapterServerProcess
@@ -27,7 +30,10 @@ from nemo_evaluator.api.api_dataclasses import (
     EvaluationTarget,
 )
 from nemo_evaluator.core.input import prepare_output_directory, validate_configuration
-from nemo_evaluator.core.resources import monitor_memory_usage
+from nemo_evaluator.core.resources import (
+    aggregate_runtime_metrics,
+    monitor_memory_usage,
+)
 from nemo_evaluator.core.utils import run_command
 from nemo_evaluator.logging import get_logger
 
@@ -50,12 +56,37 @@ def evaluate(
     evaluation = validate_configuration(run_config)
     prepare_output_directory(evaluation)
 
+    def kill_all(signum=None, frame=None):
+        """Kill all processes and exit."""
+        logger.critical("FATAL: Terminating all processes...")
+
+        parent = psutil.Process(os.getpid())  # current process
+        children = parent.children(recursive=True)
+        for child in children:
+            if signum == signal.SIGINT:
+                # Send SIGINT to children for immediate termination (skip post-eval hooks)
+                child.send_signal(signal.SIGINT)
+            else:
+                # Send SIGTERM to children for graceful termination (run post-eval hooks)
+                child.terminate()
+
+        # Use faster timeout for keyboard interrupt (SIGINT)
+        timeout = 1 if signum == signal.SIGINT else 5
+        gone, alive = psutil.wait_procs(children, timeout=timeout)
+        for child in alive:
+            logger.warning(f"Force killing child process {child.pid}")
+            child.kill()
+
+        sys.exit(1)
+
+    # Set up signal handlers
+    signal.signal(signal.SIGTERM, kill_all)
+    signal.signal(signal.SIGINT, kill_all)
+
     def run_evaluation_core():
         with AdapterServerProcess(evaluation):
             cmd = evaluation.render_command()
-
             run_command(cmd, verbose=True, propagate_errors=True)
-
             evaluation_result = parse_output(evaluation)
             return evaluation_result
 
@@ -81,7 +112,10 @@ def evaluate(
         logger.info("No cache directory configured, token usage will not be collected")
 
     evaluation_result, metrics = monitor_memory_usage(
-        run_evaluation_core, interval_ms=100, cache_dir=cache_dir
+        run_evaluation_core,
+        interval_ms=100,
+        cache_dir=cache_dir,
+        output_dir=evaluation.config.output_dir,
     )
 
     metrics_path = os.path.join(
@@ -97,15 +131,34 @@ def evaluate(
         except (json.JSONDecodeError, IOError):
             pass  # Start fresh if file is corrupted
 
+    # Aggregate all run data from run_times directory
+    aggregated_metrics = aggregate_runtime_metrics(evaluation.config.output_dir)
+
+    if aggregated_metrics:
+        runtime = aggregated_metrics.get("runtime_seconds", 0)
+        inference_time = aggregated_metrics.get("inference_time_seconds", 0)
+        scoring_time = aggregated_metrics.get("scoring_time_seconds", 0)
+        logger.info(
+            "Aggregated metrics",
+            runtime_seconds=runtime,
+            inference_time_seconds=inference_time,
+            scoring_time_seconds=scoring_time,
+            peak_memory_bytes=aggregated_metrics.get("peak_memory_bytes", 0),
+            total_runs=aggregated_metrics.get("total_runs", 0),
+        )
+
+    # Use aggregated metrics if available, otherwise use current metrics
+    final_metrics = aggregated_metrics if aggregated_metrics else metrics
+
     # Merge with existing metrics, using "evaluation" as the key
     # If evaluation key already exists, merge the metrics instead of overwriting
     if "evaluation" in existing_metrics:
         # Aggregate existing evaluation metrics with new ones
         existing_eval = existing_metrics["evaluation"]
-        if isinstance(existing_eval, dict) and isinstance(metrics, dict):
+        if isinstance(existing_eval, dict) and isinstance(final_metrics, dict):
             # Merge dictionaries with appropriate aggregation strategy
             merged_eval = existing_eval.copy()
-            for key, value in metrics.items():
+            for key, value in final_metrics.items():
                 if (
                     key in merged_eval
                     and isinstance(merged_eval[key], (int, float))
@@ -125,9 +178,9 @@ def evaluate(
                     merged_eval[key] = value
             merged_metrics = {**existing_metrics, "evaluation": merged_eval}
         else:
-            merged_metrics = {**existing_metrics, "evaluation": metrics}
+            merged_metrics = {**existing_metrics, "evaluation": final_metrics}
     else:
-        merged_metrics = {**existing_metrics, "evaluation": metrics}
+        merged_metrics = {**existing_metrics, "evaluation": final_metrics}
 
     # Write merged metrics to file
     with open(metrics_path, "w") as f:

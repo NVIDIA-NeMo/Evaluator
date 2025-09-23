@@ -170,7 +170,7 @@ def test_cli_arg_mapping_and_format_note(monkeypatch, capsys):
         return {"success": True, "jobs": {ids[0]: {"success": True}}}
 
     monkeypatch.setattr(
-        "nemo_evaluator_launcher.cli.export.export_results",
+        "nemo_evaluator_launcher.api.functional.export_results",
         _fake_export,
         raising=True,
     )
@@ -234,7 +234,7 @@ def test_handles_exporter_exception(monkeypatch):
             }
 
         monkeypatch.setattr(
-            "nemo_evaluator_launcher.cli.export.export_results", _mock_export
+            "nemo_evaluator_launcher.api.functional.export_results", _mock_export
         )
 
         cmd = ExportCmd(invocation_ids=["job1"], dest="local")
@@ -266,7 +266,7 @@ def test_handles_exporter_exception(monkeypatch):
             }
 
         monkeypatch.setattr(
-            "nemo_evaluator_launcher.cli.export.export_results", _mock_export
+            "nemo_evaluator_launcher.api.functional.export_results", _mock_export
         )
 
         cmd = ExportCmd(invocation_ids=["inv1", "inv2", "inv3"], dest="wandb")

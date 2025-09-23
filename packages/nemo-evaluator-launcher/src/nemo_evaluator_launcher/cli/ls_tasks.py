@@ -13,13 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import json
 from collections import defaultdict
 from dataclasses import dataclass
 
 from simple_parsing import field
-
-from nemo_evaluator_launcher.api.functional import get_tasks_list
 
 
 @dataclass
@@ -33,6 +30,11 @@ class Cmd:
     )
 
     def execute(self) -> None:
+        # Import heavy dependencies only when needed
+        import json
+
+        from nemo_evaluator_launcher.api.functional import get_tasks_list
+
         # TODO(dfridman): modify `get_tasks_list` to return a list of dicts in the first place
         data = get_tasks_list()
         headers = ["task", "endpoint_type", "harness", "container"]

@@ -36,6 +36,7 @@ from nemo_evaluator.adapters.types import (
     AdapterRequest,
     AdapterRequestContext,
     AdapterResponse,
+    FatalErrorException,
     PostEvalHook,
     RequestInterceptor,
     RequestToResponseInterceptor,
@@ -121,6 +122,13 @@ def _run_adapter_server(
 
     def signal_handler(signum, frame):
         """Handle termination signals by running post-eval hooks before exit."""
+        if signum == signal.SIGINT:
+            # Skip post-eval hooks for keyboard interrupt (Ctrl+C) for immediate termination
+            logger.info(
+                "Received SIGINT, shutting down immediately without post-eval hooks"
+            )
+            sys.exit(0)
+
         logger.info(
             f"Received signal {signum}, running post-eval hooks before shutdown"
         )
@@ -264,15 +272,21 @@ class AdapterServerProcess:
                 os.environ.get("ADAPTER_PORT", AdapterServer.DEFAULT_ADAPTER_PORT)
             )
 
-            post_hook_url = (
-                f"http://{adapter_host}:{adapter_port}/adapterserver/run-post-hook"
-            )
-            response = requests.post(post_hook_url, timeout=30)
-            if response.status_code == 200:
-                logger.info("Successfully ran post-evaluation hooks")
+            # Only run post-eval hooks if server is still responding (not shut down by signal handler)
+            if is_port_open(adapter_host, adapter_port, timeout=1.0):
+                post_hook_url = (
+                    f"http://{adapter_host}:{adapter_port}/adapterserver/run-post-hook"
+                )
+                response = requests.post(post_hook_url, timeout=30)
+                if response.status_code == 200:
+                    logger.info("Successfully ran post-evaluation hooks")
+                else:
+                    logger.error(
+                        f"Failed to run post-evaluation hooks: {response.status_code} - {response.text}"
+                    )
             else:
-                logger.error(
-                    f"Failed to run post-evaluation hooks: {response.status_code} - {response.text}"
+                logger.info(
+                    "Server not responding, post-eval hooks already run by signal handler"
                 )
         except Exception as e:
             logger.error(f"Failed to run post-evaluation hooks: {e}")
@@ -516,7 +530,7 @@ class AdapterServer:
             # Generate unique request ID for this request and bind it to logging context
             from nemo_evaluator.logging import bind_request_id, get_logger
 
-            # Bind the request ID to the current context so all loggers can access it
+            # Bind the request ID to the current context  so all loggers can access it
             request_id = bind_request_id()  # generates a new UUID
 
             # Get a logger for this request - context variables are automatically included
@@ -584,36 +598,15 @@ class AdapterServer:
                         current_response = interceptor.intercept_response(
                             current_response, global_context
                         )
+                except FatalErrorException:
+                    # Re-raise FatalErrorException to be caught by the main handler
+                    raise
                 except Exception as e:
                     request_logger.error(
                         f"Response interceptor {type(interceptor).__name__} failed: {e}"
                     )
                     # Continue with next interceptor
                     continue
-
-            # Log failed responses if enabled
-            if (
-                hasattr(self.adapter_config, "log_failed_requests")
-                and self.adapter_config.log_failed_requests
-                and current_response.r.status_code >= 400
-            ):
-                log_data = {
-                    "error": {
-                        "request": {
-                            "url": self.api_url,
-                            "body": current_request.r.get_json(),
-                            "headers": _get_safe_headers(current_request.r.headers),
-                        },
-                        "response": {
-                            "status_code": current_response.r.status_code,
-                            "headers": _get_safe_headers(current_response.r.headers),
-                            "body": current_response.r.content.decode(
-                                "utf-8", errors="ignore"
-                            ),
-                        },
-                    }
-                }
-                request_logger.error("failed_request_response_pair", data=log_data)
 
             # Log request completion (request_id is automatically included from context)
             request_logger.info(
@@ -630,11 +623,71 @@ class AdapterServer:
                 headers=headers,
             )
 
+        except FatalErrorException as e:
+            # Log failed request if enabled
+            self._log_failed_request(
+                500,
+                f"Fatal error: {str(e)}",
+                current_request if "current_request" in locals() else None,
+            )
+
+            # Send SIGTERM to parent process - the signal handler will run post-eval hooks
+            logger.info("Sending SIGTERM to parent process")
+            try:
+                os.kill(os.getppid(), signal.SIGTERM)
+            except (OSError, ProcessLookupError):
+                # Fallback to SIGKILL if SIGTERM fails
+                try:
+                    os.kill(os.getppid(), signal.SIGKILL)
+                except (OSError, ProcessLookupError):
+                    sys.exit(1)
+
+            # Return error response to Flask before exiting
+            return flask.Response("Fatal error occurred", status=500)
+
         except Exception as e:
+            # Log failed request if enabled
+            self._log_failed_request(
+                500,
+                f"Internal server error: {str(e)}",
+                current_request if "current_request" in locals() else None,
+            )
+
             request_logger.error(f"Handler error: {e}")
             return flask.Response(
                 f"Internal server error: {str(e)}", status=500, mimetype="text/plain"
             )
+
+    def _log_failed_request(
+        self, status_code: int, error_message: str, current_request=None
+    ) -> None:
+        """Log failed request if logging is enabled."""
+        if (
+            hasattr(self.adapter_config, "log_failed_requests")
+            and self.adapter_config.log_failed_requests
+        ):
+            log_data = {
+                "error": {
+                    "request": {
+                        "url": self.api_url,
+                        "body": (
+                            current_request.r.get_json() if current_request else None
+                        ),
+                        "headers": (
+                            _get_safe_headers(current_request.r.headers)
+                            if current_request
+                            else {}
+                        ),
+                    },
+                    "response": {
+                        "status_code": status_code,
+                        "headers": {},
+                        "body": error_message,
+                    },
+                }
+            }
+            request_logger = get_logger()
+            request_logger.error("failed_request_response_pair", data=log_data)
 
     def _run_post_eval_hooks_handler(self) -> flask.Response:
         """Handler for the post-eval hooks endpoint."""

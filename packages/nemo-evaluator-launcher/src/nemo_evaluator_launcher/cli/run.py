@@ -17,11 +17,7 @@ import pathlib
 import time
 from dataclasses import dataclass
 
-import yaml
-from omegaconf import OmegaConf
 from simple_parsing import field
-
-from nemo_evaluator_launcher.api.functional import RunConfig, run_eval
 
 
 @dataclass
@@ -65,6 +61,12 @@ class Cmd:
     )
 
     def execute(self) -> None:
+        # Import heavy dependencies only when needed
+        import yaml
+        from omegaconf import OmegaConf
+
+        from nemo_evaluator_launcher.api.functional import RunConfig, run_eval
+
         # Load configuration either from Hydra or from a run config file
         if self.run_config_file:
             # Validate that run config file is not used with other config options
