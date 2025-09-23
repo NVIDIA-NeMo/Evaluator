@@ -11,6 +11,8 @@ Set these environment variables for logging configuration:
 export NEMO_EVALUATOR_LOG_DIR=DEBUG
 ```
 
+The following table describes the available log levels:
+
 | Level | Description | Use Case |
 |-------|-------------|----------|
 | `INFO` | General information | Normal operation logs |
@@ -21,16 +23,18 @@ export NEMO_EVALUATOR_LOG_DIR=DEBUG
 
 ## Log Output
 
-# Console Output
-Logs appear in the console (stderr) with color coding:
+### Console Output
+
+Logs appear in the console (stderr) with the following color coding:
+
 - **Green**: INFO messages
 - **Yellow**: WARNING messages
 - **Red**: ERROR messages
 - **Red Background**: CRITICAL messages
 - **Grey**: DEBUG messages
 
+### Custom Log Directory
 
-# Custom Log Directory
 Specify a custom log directory using the `NEMO_EVALUATOR_LOG_DIR` environment variable:
 
 ```bash
@@ -42,7 +46,6 @@ eval-factory run_eval ...
 ```
 
 If `NEMO_EVALUATOR_LOG_DIR` is not set, logs will only appear in the console (stderr) and no files will be created.
-
 
 ## Using Logging Interceptors
 
@@ -64,6 +67,7 @@ target:
 ```
 
 or use CLI overrides:
+
 ```bash
 --overrides "target.api_endpoint.adapter_config.use_request_logging=true,target.api_endpoint.adapter_config.use_response_logging=true"
 ```
@@ -74,25 +78,34 @@ Each request automatically gets a unique UUID that appears in all related log me
 
 ## Troubleshooting
 
-# No logs appearing
-- Check that logging interceptors are enabled in your configuration
-- Verify log level with `NEMO_EVALUATOR_LOG_LEVEL=INFO`
+### No Logs Appearing
 
-# Missing DEBUG logs
+If no logs are appearing, try the following steps:
+
+1. Check that your configuration enables logging interceptors.
+2. Verify log level with `NEMO_EVALUATOR_LOG_LEVEL=INFO`.
+
+### Missing DEBUG Logs
+
 - Set `NEMO_EVALUATOR_LOG_LEVEL=DEBUG`
 
-# Logs not going to files
-- Check directory permissions
-- Verify log directory path
+### Logs Not Going to Files
 
-# Debug mode
+If the system does not write logs to files, check the following:
+
+1. Check directory permissions.
+2. Verify log directory path.
+
+### Debug Mode
+
 ```bash
 export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
 ```
 
 ## Examples
 
-# Basic logging
+### Basic Logging
+
 ```bash
 # Enable DEBUG logging
 export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
@@ -101,7 +114,8 @@ export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
 eval-factory run_eval --eval_type mmlu_pro --model_id gpt-4 ...
 ```
 
-# Custom log directory
+### Custom Log Location
+
 ```bash
 # Specify custom log location using environment variable
 export NEMO_EVALUATOR_LOG_DIR=./my_logs/
@@ -110,7 +124,8 @@ export NEMO_EVALUATOR_LOG_DIR=./my_logs/
 eval-factory run_eval --eval_type mmlu_pro ...
 ```
 
-# Environment verification
+### Environment Verification
+
 ```bash
 echo "NEMO_EVALUATOR_LOG_LEVEL: $NEMO_EVALUATOR_LOG_LEVEL"
 echo "NEMO_EVALUATOR_LOG_DIR: $NEMO_EVALUATOR_LOG_DIR"
