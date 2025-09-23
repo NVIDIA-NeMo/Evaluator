@@ -71,7 +71,7 @@ To use out-of-the-box build.nvidia.com APIs, you need an API key:
 
 1. Register an account at [build.nvidia.com](https://build.nvidia.com).
 2. In the Setup menu under Keys/Secrets, generate an API key.
-3. Set the environment variable by executing `export NGC_API_KEY=<YOUR_API_KEY>`
+3. Set the environment variable by executing `export NGC_API_KEY=<YOUR_API_KEY>`.
 
 ## 3. Run Your First Evaluation
 
