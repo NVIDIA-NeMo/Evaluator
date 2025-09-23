@@ -87,7 +87,7 @@ evaluation:
 
 ```bash
 nemo-evaluator-launcher run --config-dir configs --config-name local_endpoint \
-  -o target.api_endpoint.api_key=API_KEY
+  -o target.api_endpoint.api_key_name=API_KEY
 ```
 
 # 5. Run  the same evaluation for a different model (using CLI overrides)
@@ -100,7 +100,7 @@ URL=<YOUR_ENDPOINT_URL>  # Note: endpoint URL needs to be FULL (e.g., https://ap
 nemo-evaluator-launcher run --config-dir configs --config-name local_endpoint \
   -o target.api_endpoint.model_id=$MODEL_NAME \
   -o target.api_endpoint.url=$URL \
-  -o target.api_endpoint.api_key=API_KEY
+  -o target.api_endpoint.api_key_name=API_KEY
 ```
 
 After the launch you can monitor lively logs, status and after finishing display results and optionally export them in a unified nemo evaluator launcher way. After the failure e.g. connection error you can resume the job without the data loss [resuming] See [Exporters Documentation](nemo-evaluator-launcher/exporters/overview.md) for available export options.
