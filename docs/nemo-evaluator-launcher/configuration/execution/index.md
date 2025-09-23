@@ -5,7 +5,7 @@ Execution configurations define how and where to run evaluation tasks.
 ## Executors
 
 - **[Local](local.md)**: Development, testing, and evaluation of already deployed endpoints (Docker-based)
-- **[Slurm](slurm.md)**: HPC clusters and large-scale evaluations (can also deploy models)
+- **[SLURM](slurm.md)**: HPC clusters and large-scale evaluations (can also deploy models)
 - **[Lepton](lepton.md)**: Cloud deployments and parallel evaluations (can also deploy models)
 
 ## Quick Reference
@@ -26,14 +26,13 @@ execution:
 
 ## Auto Export
 
-On the executor level, we can define results export methods. The `auto_export` field enables automatic result export to various platforms:
+At the executor level, define result export methods. The `auto_export` field enables automatic export of results to the following platforms:
 
-- **W&B**: Weights & Biases experiment tracking
-- **MLFlow**: ML experiment management
-- **GSheets**: Google Sheets integration
-- **S3**: AWS S3 storage
+- **Weights & Biases (W&B)**: Experiment tracking
+- **MLflow**: Experiment management
+- **Google Sheets**: Spreadsheet integration
+- **Amazon S3**: Object storage
 
-For detailed configuration options, see the {doc}`Exporters Documentation <../../exporters/overview>`.
+For detailed configuration options, refer to the {doc}`Exporters Overview <../../exporters/overview>`.
 
-For detailed executor information, see the [Executors Overview](../../executors/overview.md).
-
+For detailed executor information, refer to the [Executors Overview](../../executors/overview.md).

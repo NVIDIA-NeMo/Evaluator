@@ -1,71 +1,81 @@
-# Deploying OpenAI-Compatible Endpoints
+# Deploy OpenAI-Compatible Endpoints
 
+<!-- cSpell:ignore SGLang sglang vLLM NeMo TensorRT trtllm NIM Triton API APIs -->
+<!-- cspell:words SGLang sglang vLLM NeMo TensorRT trtllm NIM Triton -->
 
 ## Evaluation Options
 
-You can either:
-1. **Deploy + Evaluate**: Use our default option to deploy and evaluate models locally
-   - Good for: Quick testing, full control over deployment environment (endpoint lifecycle)
-2. **Deploy on your own**: Deploy using any framework below, then evaluate
-   - Good for: Existing deployments, third-party services, separate evaluation/deployment environments
+You can do one of the following:
+
+- **Deploy and run evaluations**: Use the default option to deploy and run evaluations locally.
+  - Good for quick testing and full control of the deployment environment (endpoint lifecycle)
+- **Deploy separately**: Deploy by using any framework below, then run evaluations.
+  - Good for existing deployments, third-party services, or separate evaluation and deployment environments
 
 /// note | Framework Compatibility
-Models deployed with the frameworks listed below should work with nemo_evaluator_launcher.
+Models deployed with the frameworks listed below work with `nemo_evaluator_launcher`.
 ///
 
-**Tutorials:**
-- [Local Evaluation of Existing Endpoint](../local-evaluation-of-existing-endpoint.md)
+## Tutorials
+
+- [Run Evaluations on an Existing Local Endpoint](../local-evaluation-of-existing-endpoint.md)
 
 ## Quick Setup Options
 
-# vLLM
+### vLLM
 
-vLLM is a fast and easy-to-use library for LLM inference and serving..
+vLLM is a fast, easy-to-use library for LLM inference and serving.
 
-**Docker Setup:**
+#### vLLM References
+
 ```bash
 docker run --gpus all -p 8000:8000 vllm/vllm-openai:latest \
     --model microsoft/Phi-4-mini-instruct
 ```
 
-**Documentation:** 
 - [vLLM Documentation](https://docs.vllm.ai/en/latest/)
-- [vLLM Docker Deployment](https://docs.vllm.ai/en/stable/deployment/docker.html)
+- [Deploy vLLM with Docker](https://docs.vllm.ai/en/stable/deployment/docker.html)
 
-# SGLang
+<!-- vale off -->
+### SGLang
 
-SGLang is a fast serving framework for large language models and vision language models. It makes your interaction with models faster and more controllable by co-designing the backend runtime and frontend language. The core features include:
+SGLang is a fast serving framework for large language models and vision-language models.
 
-**Documentation:** 
+#### SGLang References
+
 - [SGLang Documentation](https://docs.sglang.ai/)
-- [SGLang Docker Deployment](https://github.com/sgl-project/sglang/tree/main/benchmark/deepseek_v3#using-docker-recommended)
+- [Deploy SGLang with Docker](https://github.com/sgl-project/sglang/tree/main/benchmark/deepseek_v3#using-docker-recommended)
+<!-- vale on -->
 
-# NeMo
+### NeMo
 
-NeMo Framework is NVIDIA's GPU accelerated, end-to-end training framework for large language models (LLMs), multi-modal models and speech models. The Export-Deploy library ("NeMo Export-Deploy") provides tools and APIs for exporting and deploying NeMo and 🤗Hugging Face models to production environments. It supports various deployment paths including TensorRT, TensorRT-LLM, and vLLM deployment through NVIDIA Triton Inference Server.
+The NVIDIA NeMo framework provides GPU-accelerated, end-to-end training for large language models, multi-modal models, and speech models. The Export-Deploy library provides tools and API for exporting and deploying NeMo and Hugging Face models to production environments. It supports several deployment paths, including TensorRT, TensorRT-LLM, and vLLM deployment by using NVIDIA Triton Inference Server.
 
-**Documentation:** 
-- [NVIDIA NeMo](https://github.com/NVIDIA-NeMo)
+#### NeMo References
+
+- [NVIDIA NeMo GitHub Repository](https://github.com/NVIDIA-NeMo)
 - [NeMo Export-Deploy](https://github.com/NVIDIA-NeMo/Export-Deploy)
 - [NeMo Export-Deploy Scripts](https://github.com/NVIDIA-NeMo/Export-Deploy/tree/main/scripts)
 
-# TRT-LLM
+### TensorRT-LLM (TRT-LLM)
 
-TRT-LLM provides optimized inference with OpenAI-compatible server through the `trtllm-serve` command.
+TensorRT-LLM provides optimized inference with an OpenAI-compatible server by using the `trtllm-serve` command.
 
-**Documentation:** 
+#### TensorRT-LLM References
+
 - [TensorRT-LLM Documentation](https://docs.nvidia.com/tensorrt-llm/index.html)
-- [TRT-LLM Server](https://nvidia.github.io/TensorRT-LLM/commands/trtllm-serve.html)
+- [trtllm-serve Command](https://nvidia.github.io/TensorRT-LLM/commands/trtllm-serve.html)
 
-# NIM (NVIDIA Inference Microservices)
+### NVIDIA Inference Microservices (NIM)
 
-NIM provides optimized inference microservices with OpenAI-compatible APIs.
+NVIDIA NIM provides optimized inference microservices with an OpenAI-compatible API.
 
-**Documentation:** 
-- [NIM Official Docs](https://docs.nvidia.com/nim/)
-- [NIM Deployment Guide](https://docs.nvidia.com/nim/large-language-models/latest/deployment-guide.html#)
+#### NIM References
 
+- [NIM Documentation](https://docs.nvidia.com/nim/)
+- [NIM Deployment Guide for Large Language Models](https://docs.nvidia.com/nim/large-language-models/latest/deployment-guide.html#)
 
-**Next Steps:**
-- [Local Evaluation of Existing Endpoint](../local-evaluation-of-existing-endpoint.md) - Learn how to run evaluations
-- [Testing Endpoint Compatibility](testing-endpoint-oai-compatibility.md) - Test your deployed endpoint with curl requests
+## Next Steps
+
+- [Run Evaluations on an Existing Local Endpoint](../local-evaluation-of-existing-endpoint.md): Learn how to run evaluations.
+- [Test Endpoint Compatibility](testing-endpoint-oai-compatibility.md): Verify your deployed endpoint by using `curl` requests.

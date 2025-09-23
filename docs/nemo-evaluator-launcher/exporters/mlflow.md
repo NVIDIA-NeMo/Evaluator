@@ -1,27 +1,39 @@
+<!-- vale off -->
+<!-- cSpell:ignore MLflow Nemotron vLLM -->
+
 # MLflow Exporter (`mlflow`)
 
-Export metrics and artifacts to MLflow for experiment tracking and run management. Inherits all core features from the [Local](local.md) exporter (artifact staging, multi-run, auto-export), and adds MLflow tracking.
+## Overview
 
-**What you can do:**
-- Log metrics and artifacts for each job as separate MLflow runs (per-task only)
-- Organize runs under MLflow experiments 
+Exports metrics and artifacts to MLflow for experiment tracking and run management. Inherits core features from the [Local](local.md) exporter (artifact staging, multi-run, auto-export) and adds MLflow tracking.
+
+## Key Features
+
+- Log metrics and artifacts for each job as separate MLflow runs (per task)
+- Organize runs under MLflow experiments
 - Auto-export after evaluations finish (local or cluster)
 
-**Key configuration:**
+## Configuration
+
 - Required: `tracking_uri`
 - `experiment_name`: MLflow experiment name (default: `nemo-evaluator-launcher`)
-- `run_name`: custom run name (default: `eval-<invocation>-<benchmark>`)
-- `description`: run description text
-- `skip_existing`: safety check to prevent duplicate runs for same invocation (default: false). MLflow runs are immutable, so this prevents creating duplicates when re-exporting
-- `log_metrics`: filter specific metrics (default: all available metrics)
-- `log_artifacts`: include artifacts (default: true), including the run config `config.yaml` for reproducibility
-- `extra_metadata`: user-defined fields logged as MLflow parameters
+- `run_name`: Custom run name (default: `eval-<invocation>-<benchmark>`)
+- `description`: Run description
+- `skip_existing`: Safety check to prevent duplicate runs for the same invocation (default: false). MLflow runs are immutable; this setting prevents creating duplicates when re-exporting
+- `log_metrics`: Filter specific metrics (default: all available metrics)
+- `log_artifacts`: Include artifacts (default: true), including the run configuration file, `config.yaml`, for reproducibility
+- `extra_metadata`: User-defined fields logged as MLflow parameters
 - `tags`: MLflow tags for run organization
-- Webhook-related: `triggered_by_webhook`, `webhook_source`, `source_artifact`, `config_source`
+- Webhook settings: `triggered_by_webhook`, `webhook_source`, `source_artifact`, `config_source`
 
-**Tip:** Use `skip_existing: true` to avoid duplicate runs when re-exporting the same results. We recommend `auto-export` for extensive configuration support.
+## Tips
 
-**Example (YAML excerpt):**
+Use `skip_existing: true` to avoid duplicate runs when re-exporting the same results. Use auto-export for robust configuration support.
+
+## Examples
+
+### YAML
+
 ```yaml
 execution:
   auto_export:
@@ -40,7 +52,8 @@ execution:
           hardware: "H100"
 ```
 
-**Examples (CLI):**
+### CLI
+
 ```bash
 # Default export
 nemo-evaluator-launcher export 8abcd123 --dest mlflow
@@ -49,7 +62,8 @@ nemo-evaluator-launcher export 8abcd123 --dest mlflow
 nemo-evaluator-launcher export 8abcd123 --dest mlflow --log-metrics accuracy pass@1
 ```
 
-**Examples (API):**
+### Python API
+
 ```python
 from nemo_evaluator_launcher.api.functional import export_results
 
@@ -61,6 +75,7 @@ export_results("8abcd123", dest="mlflow", config={
     "tracking_uri": "http://mlflow:5000",
     "experiment_name": "llm-evals",
     "skip_existing": True,
-    "tags": {"model": "nemotrons", "env": "production"}
+    "tags": {"model": "Nemotron", "env": "production"}
 })
 ```
+<!-- vale on -->

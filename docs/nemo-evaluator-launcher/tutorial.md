@@ -2,27 +2,28 @@
 
 Run reproducible evaluations against your own model endpoints. This guide shows the fastest path from a compatible endpoint to first results.
 
-## 1) Install the launcher
+## 1. Install the Launcher
 
 ```bash
-# Install NeMo Evaluator launcher
+# Install NeMo Evaluator Launcher
 pip install nemo-evaluator-launcher
 ```
 
-## 2) Prerequisite: an OpenAI-compatible endpoint
+## 2. Prerequisite: An OpenAI-Compatible Endpoint
 
 NeMo Evaluator sends OpenAI-compatible requests to your model during evaluation. You must have an endpoint that accepts either chat or completions API calls and can handle the evaluation load.
 
-**Configuration Examples**: Explore ready-to-use configuration files in [`packages/nemo-evaluator-launcher/examples/`](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples) for local, Lepton, and Slurm deployments with various model hosting options (vLLM, NIM, hosted endpoints).
+**Configuration Examples**: Explore ready-to-use configuration files in [`packages/nemo-evaluator-launcher/examples/`](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples) for local, Lepton, and SLURM deployments with various model hosting options (vLLM, NIM, hosted endpoints).
 
-Hosted endpoints (fastest):
+Hosted Endpoints (Fastest):
 
 - [build.nvidia.com](https://build.nvidia.com) (ready-to-use hosted models):
-  Hosted models expose OpenAI‑compatible APIs and work out of the box for evaluations — no hosting required. This is the fastest, least‑effort path to run evals across available endpoints.
+  Hosted models expose an OpenAI-compatible API and work out of the box for evaluations—no hosting required. This is the fastest, low-effort path to run evaluations across available endpoints.
 
   Example model: [nvidia/llama-3.1-nemotron-nano-vl-8b-v1](https://build.nvidia.com/nvidia/llama-3.1-nemotron-nano-vl-8b-v1)
 
   Minimal usage (override endpoint URL and key):
+
   ```bash
   nemo-evaluator-launcher run --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
@@ -30,30 +31,30 @@ Hosted endpoints (fastest):
     -o target.api_endpoint.api_key=${NGC_API_KEY}
   ```
 
-  For NVIDIA APIs, see [Setting up API Keys](https://docs.omniverse.nvidia.com/guide-sdg/latest/setup.html#preview-and-set-up-an-api-key).
+  For NVIDIA API access, refer to [Setting up API Keys](https://docs.omniverse.nvidia.com/guide-sdg/latest/setup.html#preview-and-set-up-an-api-key).
 
-  See examples for [build.nvidia.com](https://build.nvidia.com/) usage in the [local evaluation tutorial](tutorials/local-evaluation-of-existing-endpoint.md).
+  Refer to examples for [build.nvidia.com](https://build.nvidia.com/) usage in the [local evaluation tutorial](tutorials/local-evaluation-of-existing-endpoint.md).
 
-Self-hosted options:
+Self-Hosted Options:
 
 - TRT-LLM:
-```bash
-trtllm-serve /path/to/your/model \
-  --backend pytorch \
-  --port 8000
-```
+
+  ```bash
+  trtllm-serve /path/to/your/model \
+    --backend pytorch \
+    --port 8000
+  ```
 
 - vLLM:
-```bash
-docker run --gpus all -p 8000:8000 vllm/vllm-openai:latest \
-  --model meta-llama/Llama-3.1-8B-Instruct
-```
 
-  **Self-hosted options:**
+  ```bash
+  docker run --gpus all -p 8000:8000 vllm/vllm-openai:latest \
+    --model meta-llama/Llama-3.1-8B-Instruct
+  ```
 
-  For detailed deployment instructions, see the [Deployment Frameworks Guide](tutorials/deployments/deployment-frameworks-guide.md).
+For detailed deployment instructions, refer to the [Deployment Frameworks Guide](tutorials/deployments/deployment-frameworks-guide.md).
 
-  To test your endpoint compatibility, see [Testing Endpoint Compatibility](tutorials/deployments/testing-endpoint-oai-compatibility.md).
+To test your endpoint compatibility, refer to [Testing Endpoint Compatibility](tutorials/deployments/testing-endpoint-oai-compatibility.md).
 
 ## Quick Start
 
@@ -74,44 +75,50 @@ The NeMo Evaluator Launcher uses [Hydra](https://hydra.cc/docs/intro/) for confi
 The `examples/` directory contains ready-to-use configurations:
 
 - Local execution: [examples/local_llama_3_1_8b_instruct.yaml](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml)
-- Slurm execution: [examples/slurm_llama_3_1_8b_instruct.yaml](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml)
+- SLURM execution: [examples/slurm_llama_3_1_8b_instruct.yaml](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml)
 - Lepton AI execution: [examples/lepton_nim_llama_3_1_8b_instruct.yaml](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml)
 
 Run a local evaluation (requires [Docker](https://www.docker.com/)):
+
 ```bash
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct -o execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
 ```
 
-See guides for other backends:
-- [Slurm](executors/slurm.md)
+Refer to guides for other backends:
+
+- [SLURM](executors/slurm.md)
 - [Lepton](executors/lepton.md)
 
 #### Creating Custom Configurations
 
 1. Create your own configuration directory:
-```bash
-mkdir my_configs
-```
+
+   ```bash
+   mkdir my_configs
+   ```
 
 2. Copy an example configuration as a starting point:
-```bash
-cp examples/local_llama_3_1_8b_instruct.yaml my_configs/my_evaluation.yaml
-```
 
-3. Modify the [configuration](configuration/index.md) to suit your needs:
+   ```bash
+   cp examples/local_llama_3_1_8b_instruct.yaml my_configs/my_evaluation.yaml
+   ```
+
+3. Update the [configuration](configuration/index.md) to suit your needs:
+
    - [Change the model endpoint](configuration/target/index.md)
    - [Adjust evaluation parameters and select different benchmarks](configuration/evaluation/index.md)
    - [Configure deployment settings](configuration/deployment/index.md)
    - [Configure execution settings](configuration/execution/index.md)
 
 4. Run your custom configuration:
-```bash
-nemo-evaluator-launcher run --config-dir my_configs --config-name my_evaluation
-```
+
+   ```bash
+   nemo-evaluator-launcher run --config-dir my_configs --config-name my_evaluation
+   ```
 
 #### Configuration Overrides
 
-You can override configuration values from the command line (`-o` can be used multiple times, the notation follows [Hydra override syntax](https://hydra.cc/docs/advanced/override_grammar/basic/)):
+You can override configuration values from the command line. You can use `-o` more than once, following the [Hydra override syntax](https://hydra.cc/docs/advanced/override_grammar/basic/):
 
 ```bash
 nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
@@ -121,7 +128,7 @@ nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_
 
 #### Environment Variables
 
-Environment variables can be specified for all tasks or for specific tasks. In the below example, the `JUDGE_API_KEY_FOR_ALL_TASKS` environment variable is mapped to the `JUDGE_API_KEY` environment variable for all tasks, and the `HF_TOKEN_FOR_GPQA_DIAMOND` environment variable is mapped to the `HF_TOKEN` environment variable for the `gpqa_diamond` task.
+You can specify environment variables for all tasks or for specific tasks. In the following example, the `JUDGE_API_KEY_FOR_ALL_TASKS` environment variable maps to the `JUDGE_API_KEY` environment variable for all tasks, and the `HF_TOKEN_FOR_GPQA_DIAMOND` environment variable maps to the `HF_TOKEN` environment variable for the `gpqa_diamond` task.
 
 ```yaml
 evaluation:
@@ -135,17 +142,18 @@ evaluation:
         HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND
 ```
 
-For [Slurm](executors/slurm.md#environment-variables) and [Lepton](executors/lepton.md#configuration-notes), there are also ways to pass environment variables to the execution (like deployment containers).
+Refer to [SLURM](executors/slurm.md#environment-variables) and [Lepton](executors/lepton.md#configuration-notes) for ways to pass environment variables to the execution environment (such as deployment containers).
 
 ### 3. Check Evaluation Status
 
-Monitor the status of your evaluation jobs:
+Check the status of your evaluation jobs:
 
 ```bash
 nemo-evaluator-launcher status <job_id_or_invocation_id>
 ```
 
-You can check:
+You can check the following:
+
 - Individual job status: `nemo-evaluator-launcher status <job_id>`
 - All jobs in an invocation: `nemo-evaluator-launcher status <invocation_id>`
 
