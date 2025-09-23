@@ -1,33 +1,33 @@
 # SGLang Deployment
 
-SGLang is a fast serving framework for large language models and vision language models.
+SGLang is a high-performance serving framework for large language models (LLMs) and vision-language models.
 
 ## Configuration
 
-See the complete configuration structure in the [SGLang Config File](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/deployment/sglang.yaml).
+Refer to the [SGLang deployment configuration file](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/deployment/sglang.yaml) for the complete configuration structure.
 
 ## Key Settings
 
-- **`image`**: Docker image for SGLang server
-- **`checkpoint_path`**: Path to model checkpoints (required if not using Hugging Face)
-- **`hf_model_handle`**: Hugging Face model identifier (required if not using local checkpoint)
-- **`served_model_name`**: Name used for serving the model (required)
+- **`image`**: Docker image for the SGLang server
+- **`checkpoint_path`**: Path to the model checkpoints (required if not using Hugging Face)
+- **`hf_model_handle`**: Hugging Face model identifier (required if not using a local checkpoint)
+- **`served_model_name`**: Name used when serving the model (required)
 - **`port`**: Port for the SGLang server (default: 8000)
 - **`tensor_parallel_size`**: Number of GPUs for tensor parallelism (default: 8)
 - **`data_parallel_size`**: Number of replicas for data parallelism (default: 1)
-- **`extra_args`**: Additional arguments passed to SGLang server
-- **`env_vars`**: Environment variables for the container
+- **`extra_args`**: Additional arguments passed to the SGLang server
+- **`env_vars`**: Environment variables to set in the container
 
-Tips:
-- adjust `tensor_parallel_size`, `data_parallel_size` to your hardware and model size
-- use `hf_model_handle` for models from Hugging Face
-- adjust `HF_HOME` and mounts to speed up model loading
-- **Note**: The `${oc.select:deployment.hf_model_handle,/checkpoint}` syntax means:
-  - If `hf_model_handle` is provided, use that (downloads from Hugging Face)
-  - If `checkpoint_path` is provided instead, use that local path
+Use the following tips to optimize your configuration:
+- Adjust `tensor_parallel_size` and `data_parallel_size` to match your hardware and model size.
+- Use `hf_model_handle` for models hosted on Hugging Face.
+- Set `HF_HOME` and configure mounts to speed up model loading.
+- **Note**: The `${oc.select:deployment.hf_model_handle,/checkpoint}` expression resolves as follows:
+  - If `hf_model_handle` is provided, Evaluator downloads the model from Hugging Face.
+  - If `checkpoint_path` is provided instead, use that local path.
 
 
-## Reference
+## References
 
 - [SGLang Documentation](https://docs.sglang.ai/)
-- [SGLang Config File](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/deployment/sglang.yaml)
+- [SGLang deployment configuration file](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/deployment/sglang.yaml)

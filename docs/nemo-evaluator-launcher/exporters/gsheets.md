@@ -1,41 +1,63 @@
 # Google Sheets Exporter (`gsheets`)
 
-Export metrics to Google Sheets for collaborative sharing and analysis. Inherits all core features from the [Local](local.md) exporter (artifact staging, multi-run, auto-export), and adds Google Sheets integration.
+## Overview
 
-**What you can do:**
-- Append metrics from multiple jobs/invocations to a shared spreadsheet
-- Automatically create/extend header columns based on available metrics
-- Share results with team members through Google Sheets
-- Auto-export after evaluations finish (local or cluster)
+Export metrics to Google Sheets for collaborative sharing and analysis. This exporter inherits core features from the [Local](local.md) exporter—artifact staging, multi-run support, and auto-export—and adds Google Sheets integration.
 
-**Key configuration:**
-- `spreadsheet_name`: target spreadsheet name (default: "NeMo Evaluator Launcher Results")
-- `service_account_file`: path to Google service account JSON file (optional; see credentials setup below)
-- `log_metrics`: filter specific metrics (default: all available metrics for single-job export)
+## Key Features
 
-**Default behavior:**
-- Creates spreadsheet if it doesn't exist and shares it publicly (read-only)
-- Uses first sheet (`sheet1`) for all data
-- Multiple exports to the same spreadsheet append new rows
-- Dynamic headers: base columns (Model Name, Task Name, Invocation ID, Job ID, Executor) + metric columns
-- Task Name includes full harness.benchmark (e.g., `simple_evals.mmlu`)
-- Metric columns strip task prefix (e.g., `simple_evals.mmlu_accuracy` becomes `accuracy`)
-- Appends one row per job with metrics
+Use the Google Sheets exporter to:
 
-**Default spreadsheet layout:**
-| Model Name | Task Name        | Invocation ID | Job ID     | Executor | accuracy | pass@1 | ... |
-|------------|------------------|---------------|------------|----------|----------|--------|-----|
-| Nemotron   | Simple_evals.mmlu| 8abcd123      | 8abcd123.0 | local    | 0.85     | 0.72   | ... |
+- Append metrics from jobs to a shared spreadsheet.
+- Create or extend header columns based on available metrics.
+- Share results with team members using Google Sheets.
+- Automatically export after evaluations finish (local or cluster).
 
-**Credentials setup (one-time):**
-1. In Google Cloud Console, create (or select) a project and enable the “Google Sheets API”.
-2. Create a Service Account; generate a JSON key and download it.
-3. Option A (explicit path): save the file securely and point the exporter to it:
+## Configuration
+
+Configure the exporter with these options:
+
+- `spreadsheet_name`: Target spreadsheet name. Default: "NeMo Evaluator Launcher Results".
+- `service_account_file`: Path to the Google service account JSON file. Optional; refer to the Credentials Setup section.
+- `log_metrics`: Filter specific metrics for single-job export. Default: all available metrics.
+
+## Default Behavior
+
+By default, the exporter:
+
+- Creates the spreadsheet if it does not exist and grants public view access.
+- Uses the first sheet (`sheet1`) for all data.
+- Appends a new row for each export to the same spreadsheet.
+- Builds dynamic headers: base columns (Model Name, Task Name, Invocation ID, Job ID, Executor) plus metric columns.
+- Includes the full harness.benchmark in the Task Name, for example, `simple_evals.mmlu`.
+- Removes the task prefix from metric columns, for example, `simple_evals.mmlu_accuracy` becomes `accuracy`.
+- Appends one row per job with metrics.
+
+## Default Spreadsheet Layout
+
+The following table shows the default spreadsheet layout:
+
+| Model Name   | Task Name        | Invocation ID | Job ID     | Executor | accuracy | pass@1 | ... |
+|--------------|------------------|---------------|------------|----------|----------|--------|-----|
+| Example Model| simple_evals.mmlu| 8abcd123      | 8abcd123.0 | local    | 0.85     | 0.72   | ... |
+
+## Credentials
+
+Complete the following steps to enable Google Sheets access:
+
+1. In Google Cloud Console, create or select a project and enable the "Google Sheets API".
+2. Create a service account, generate a JSON key, and download it.
+3. Option A—explicit path: Save the file in a secure location and point the exporter to it:
    - `service_account_file: "/path/to/service-account.json"`
-4. Option B (implicit path): place the JSON at `~/.config/gspread/service_account.json` and omit `service_account_file`.
-5. If using an existing spreadsheet, share it with the service account email. If the exporter creates it, it will be shared publicly as read-only by default; adjust sharing in Google Sheets if you need stricter access.
+4. Option B—implicit path: Place the JSON file at `~/.config/gspread/service_account.json` and omit `service_account_file`.
+5. If you use an existing spreadsheet, share it with the service account email. If the exporter creates the spreadsheet, it grants public view access by default. Adjust sharing in Google Sheets if you require stricter access.
 
-**Example (YAML):**
+## Examples
+
+### YAML
+
+The following YAML enables automatic export to Google Sheets:
+
 ```yaml
 execution:
   auto_export:
@@ -48,24 +70,29 @@ execution:
         log_metrics: ["accuracy", "pass@1"]
 ```
 
-**Examples (CLI):**
+### CLI
+
+Basic export:
+
 ```bash
 # Basic export
 nemo-evaluator-launcher export 8abcd123 --dest gsheets
 ```
 
-**Examples (API):**
+### Python API
+
+Basic export using the default spreadsheet name:
+
 ```python
 from nemo_evaluator_launcher.api.functional import export_results
 
-# Basic export (uses default spreadsheet name)
 export_results("8abcd123", dest="gsheets")
 
-# Custom spreadsheet + metric filter for single-job export
+# Custom spreadsheet and metric filter for single-job export
 export_results("8abcd123.0", dest="gsheets", config={
     "spreadsheet_name": "My LLM Results",
     "log_metrics": ["accuracy", "f1_score"]
 })
 ```
 
-**Tip:** We recommend `auto-export` for team collaboration and hands-free result sharing.
+Note: Use auto-export to share results with your team with minimal setup.
