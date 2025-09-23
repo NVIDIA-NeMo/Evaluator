@@ -137,7 +137,7 @@ The system provides built-in performance optimization through caching:
 
 ### Logging and Debugging
 
-Comprehensive logging capabilities for monitoring and troubleshooting:
+The system also provides comprehensive logging capabilities for monitoring and troubleshooting:
 
 - **Request Logging**: Log all requests sent to models
 - **Response Logging**: Log all model responses
