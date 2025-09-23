@@ -189,8 +189,10 @@ def _update_persistent_metrics(
                 f,
             )
 
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(
+            "Failed to update persistent metrics", error=str(e), run_id=run_id
+        )
 
 
 def monitor_memory_usage(
