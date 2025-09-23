@@ -6,13 +6,13 @@ The NeMo Evaluator Python API provides programmatic access to evaluation capabil
 
 The Python API is built on top of NeMo Evaluator and provides:
 
-- **Programmatic Evaluation**: Run evaluations from Python code using `evaluate`
-- **Configuration Management**: Dynamic configuration and parameter management
-- **Adapter Integration**: Access to the full adapter system capabilities
-- **Result Processing**: Programmatic access to evaluation results
-- **Pipeline Integration**: Seamless integration with existing ML workflows
+- **Programmatic Evaluation**: Run evaluations from Python code using `evaluate`.
+- **Configuration Management**: Dynamic configuration and parameter management.
+- **Adapter Integration**: Access to the full adapter system capabilities.
+- **Result Processing**: Programmatic access to evaluation results.
+- **Pipeline Integration**: Seamless integration with existing ML workflows.
 
-## Supported PyPi Wheels:
+## Supported PyPi Wheels
 
 | Package Name | PyPI URL |
 |--------------|----------|
@@ -27,15 +27,14 @@ The Python API is built on top of NeMo Evaluator and provides:
 | nvidia-tooltalk | https://pypi.org/project/nvidia-tooltalk/ |
 | nvidia-vlmeval | https://pypi.org/project/nvidia-vlmeval/ |
 
-
 ## Basic Usage
 
-# Running Evaluations
+### Running Evaluations
 
-Below is an example script to run evaluations through a Python script. Please ensure that the `nvidia-simple-evals` package is installed. If you haven't installed it yet, you can find the installation instructions [here](https://pypi.org/project/nvidia-simple-evals/).
+The following example script shows how to run evaluations through a Python script. Ensure that the `nvidia-simple-evals` package is installed. If you have not installed it yet, you can find the installation instructions [here](https://pypi.org/project/nvidia-simple-evals/).
 
+First, import required packages:
 
-Firstly, import required packages:
 ```python
 from nemo_evaluator.core.evaluate import evaluate
 from nemo_evaluator.api.api_dataclasses import (
@@ -47,9 +46,12 @@ from nemo_evaluator.api.api_dataclasses import (
     AdapterConfig
 )
 ```
-# Minimal example
-You can use `EvaluationConfig` dataclass to provide your evaluation setup. 
-- `type` specifies the type of evaluation to be used (e.g. `mmlu_pro`, `ifeval`, etc.)
+
+### Minimal Example
+
+You can use `EvaluationConfig` dataclass to provide your evaluation setup.
+
+- `type` specifies the type of evaluation to be used, for example, `mmlu_pro`, `ifeval`, and so on.
 - `output_dir` indicates where the results, cache and other files should be stored
 
 ```python
@@ -76,16 +78,17 @@ target_config = EvaluationTarget(
 ```
 
 In the ApiEndpoint dataclass:
-- `model_id` represents the name or identifier of the model,
-- `url` points to the endpoint url where the model is hosted,
-- `type` refers to the type of the endpoint. It should be one of: `EndpointType.CHAT`, `EndpointType.COMPLETIONS`, `EndpointType.VLM`, `EndpointType.EMBEDDING`:
-    - `CHAT` endpoint accepts structured input as a sequence of messages (e.g., system, user, assistant roles) and returns a model-generated message, enabling controlled multi-turn interactions.
-    - `COMPLETIONS` endpoint takes a single prompt string and returns a text continuation, typically used for one-shot or single-turn tasks without conversational structure. 
-    - `VLM` endpoint hosts a model that has vision capabilities, 
-    - `EMBEDDING` endpoint hosts an embedding model.
-- `api_key` is the name of the environment variable that stores the api key required to access the gated endpoint.
 
-Having prepared `eval_config` and `target_config`, you can finally run the evaluation: 
+- `model_id` represents the name or identifier of the model
+- `url` points to the endpoint URL where the model is hosted
+- `type` refers to the type of the endpoint. It should be one of: `EndpointType.CHAT`, `EndpointType.COMPLETIONS`, `EndpointType.VLM`, `EndpointType.EMBEDDING`:
+    - `CHAT` endpoint accepts structured input as a sequence of messages, for example, system, user, assistant roles, and returns a model-generated message, enabling controlled multi-turn interactions.
+    - `COMPLETIONS` endpoint takes a single prompt string and returns a text continuation, typically used for one-shot or single-turn tasks without conversational structure.
+    - `VLM` endpoint hosts a model that has vision capabilities.
+    - `EMBEDDING` endpoint hosts an embedding model.
+- `api_key` is the name of the environment variable that stores the API key required to access the gated endpoint
+
+After preparing `eval_config` and `target_config`, you can run the evaluation:
 
 ```python
 print("\n=== Running Evaluation ===")
@@ -97,7 +100,9 @@ except Exception as e:
     print("Note: This is expected if the model endpoint is not accessible")
 ```
 
-# Advanced usage, Method 1: Direct configuration in dataclasses
+## Advanced Usage
+
+### Direct Configuration in Dataclasses
 
 You can use the `params` field in `EvaluationConfig` dataclass to override the default parameters, such as `temperature` or `max_new_tokens`: 
 
@@ -114,7 +119,7 @@ eval_config = EvaluationConfig(
 )
 ```
 
-You can define the Adapters to be used: 
+You can define the Adapters to be used:
 
 ```python
 # Create adapter configuration for advanced features
@@ -145,7 +150,7 @@ target_config = EvaluationTarget(
 )
 ```
 
-You can run the evaluation, just like before:
+You can run the evaluation as before:
 
 ```python
 print("\n=== Running Evaluation ===")
@@ -157,8 +162,9 @@ except Exception as e:
     print("Note: This is expected if the model endpoint is not accessible")
 ```
 
-# Advanced usage, Method 2: Using overrides (similar to CLI --overrides)
-Another way to customize your evaluation setup is through the `overrides` field. First, create a `base_config` by converting your existing EvaluationConfig and EvaluationTarget configurations into a dictionary format:
+### Using Overrides
+
+You can also customize your evaluation setup through the `overrides` field. First, create a `base_config` by converting your existing EvaluationConfig and EvaluationTarget configurations into a dictionary format:
 
 ```python
 base_config = {
@@ -215,7 +221,8 @@ except Exception as e:
     print("Note: This is expected if the model endpoint is not accessible")
 ```
 
-# Advanced usage, Method 3: Environment variable overrides
+### Environment Variable Overrides
+
 You can also set environment variables for dynamic configuration:
 
 ```python
@@ -228,4 +235,4 @@ print(f"ADAPTER_PORT: {os.environ.get('ADAPTER_PORT')}")
 print(f"NEMO_EVALUATOR_LOG_LEVEL: {os.environ.get('NEMO_EVALUATOR_LOG_LEVEL')}")
 ```
 
-For full API reference, see [API](../reference/api.md) page.
+For full API reference, refer to [API](../reference/api.md) page.
