@@ -2,21 +2,23 @@
 
 ## Table of Contents
 
-- [Testing compatibility of existing endpoint](#testing-compatibility-of-existing-endpoint)
+- [Testing Endpoint Compatibility](#testing-endpoint-compatibility)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
   - [Endpoint Requirements](#endpoint-requirements)
-  - [Chat endpoint testing](#chat-endpoint-testing)
-  - [Completion endpoint testing](#completion-endpoint-testing)
-  - [VLM chat endpoint testing](#vlm-chat-endpoint-testing)
-  - [Function calling testing](#function-calling-testing)
-  - [Audio endpoint testing](#audio-endpoint-testing)
+  - [Chat Endpoint Testing](#chat-endpoint-testing)
+  - [Completion Endpoint Testing](#completion-endpoint-testing)
+  - [VLM Chat Endpoint Testing](#vlm-chat-endpoint-testing)
+  - [Function Calling Testing](#function-calling-testing)
+  - [Audio Endpoint Testing](#audio-endpoint-testing)
 
 
-## Testing compatibility of existing endpoint
+## Overview
 
-This guide helps you test your hosted endpoint to verify OpenAI-compatible API compatibility using curl requests for different task types. Models deployed using nemo-evaluator-launcher should be compatible with these tests.
+This guide describes how to validate your hosted endpoint for OpenAI-compatible APIs using `curl` requests across common task types. Endpoints deployed with `nemo-evaluator-launcher` are compatible with these tests.
 
 
-# Endpoint Requirements
+## Endpoint Requirements
 
 Your endpoint should support the following parameters:
 
@@ -26,9 +28,9 @@ Your endpoint should support the following parameters:
 - `max_tokens`
 
 
-To test if your endpoint is compatible with OpenAI API, you can try the following curl command (replacing `<YOUR_ENDPOINT_URL>`, `<YOUR_API_KEY>` and `<YOUR_MODEL_NAME>` with your own values):
+To test if your endpoint is compatible with the OpenAI API, use the following `curl` commands. Replace `<YOUR_ENDPOINT_URL>`, `<YOUR_API_KEY>`, and `<YOUR_MODEL_NAME>` with your values:
 
-# Chat endpoint testing
+## Chat Endpoint Testing
 
 ```bash
 curl -X POST <YOUR_ENDPOINT_URL> \
@@ -41,7 +43,7 @@ curl -X POST <YOUR_ENDPOINT_URL> \
       "content": "Write Python code that can add a list of numbers together."
     }
   ],
-  "model": <YOUR_MODEL_NAME>,
+  "model": "<YOUR_MODEL_NAME>",
   "temperature": 0.6,
   "top_p": 0.95,
   "max_tokens": 256,
@@ -49,7 +51,7 @@ curl -X POST <YOUR_ENDPOINT_URL> \
 }'
 ```
 
-# Completion endpoint testing
+## Completion Endpoint Testing
 
 ```bash
 curl -X POST <YOUR_ENDPOINT_URL> \
@@ -65,9 +67,9 @@ curl -X POST <YOUR_ENDPOINT_URL> \
 }'
 ```
 
-# VLM chat endpoint testing
+## VLM Chat Endpoint Testing
 
-We support the **OpenAI Images API** ([docs](https://platform.openai.com/docs/guides/images-vision#giving-a-model-images-as-input)) and **vLLM** ([docs](https://docs.vllm.ai/en/stable/features/multimodal_inputs.html)) with the image provided as **base64-encoded image**, and the following content types:
+The endpoint supports the OpenAI Images API ([OpenAI Images Guide](https://platform.openai.com/docs/guides/images-vision#giving-a-model-images-as-input)) and vLLM multimodal inputs ([vLLM Multimodal Inputs](https://docs.vllm.ai/en/stable/features/multimodal_inputs.html)) with the image provided as a base64-encoded image. Use the following content types:
 
 - `image_url`
 - `text`
@@ -95,7 +97,7 @@ curl -X POST <YOUR_ENDPOINT_URL>  \
         ]
       }
     ],
-    "model": <YOUR_MODEL_NAME>,
+    "model": "<YOUR_MODEL_NAME>",
     "stream": false,
     "max_tokens": 16,
         "temperature": 0.0,
@@ -103,19 +105,19 @@ curl -X POST <YOUR_ENDPOINT_URL>  \
 }'
 ```
 
-# Function calling testing
+## Function Calling Testing
 
 We support OpenAI-compatible function calling ([docs](https://platform.openai.com/docs/guides/function-calling?api-mode=responses)):
 
 Function calling request:
 
-``` bash
+```bash
 curl -X POST <YOUR_ENDPOINT_URL> \
   -H "Content-Type: application/json" \
-  -H "Authorization: <YOUR_API_KEY>" \
+  -H "Authorization: Bearer <YOUR_API_KEY>" \
   -H "Accept: application/json" \
   -d '{
-    "model": <YOUR_MODEL_NAME>,
+    "model": "<YOUR_MODEL_NAME>",
     "stream": false,
     "max_tokens": 16,
     "temperature": 0.0,
@@ -160,7 +162,7 @@ curl -X POST <YOUR_ENDPOINT_URL> \
 
 ```
 
-# Audio endpoint testing
+## Audio Endpoint Testing
 
 We support audio input with the following content types:
 
@@ -168,14 +170,14 @@ We support audio input with the following content types:
 
 Example:
 
-``` bash
+```bash
 curl -X POST <YOUR_ENDPOINT_URL> \
   -H "Content-Type: application/json" \
-  -H "Authorization: <YOUR_API_KEY>" \
+  -H "Authorization: Bearer <YOUR_API_KEY>" \
   -H "Accept: application/json" \
   -d '{
     "max_tokens": 256,
-    "model": <YOUR_MODEL_NAME>,
+    "model": "<YOUR_MODEL_NAME>",
     "messages": [
         {
             "content": [
