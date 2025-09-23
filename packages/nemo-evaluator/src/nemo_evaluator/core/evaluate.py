@@ -18,7 +18,6 @@ import json
 import os
 import signal
 import sys
-import time
 
 import psutil
 import yaml
@@ -136,9 +135,9 @@ def evaluate(
     aggregated_metrics = aggregate_runtime_metrics(evaluation.config.output_dir)
 
     if aggregated_metrics:
-        runtime = aggregated_metrics.get('runtime_seconds', 0)
-        inference_time = aggregated_metrics.get('inference_time_seconds', 0)
-        scoring_time = aggregated_metrics.get('scoring_time_seconds', 0)
+        runtime = aggregated_metrics.get("runtime_seconds", 0)
+        inference_time = aggregated_metrics.get("inference_time_seconds", 0)
+        scoring_time = aggregated_metrics.get("scoring_time_seconds", 0)
         logger.info(
             f"Aggregated metrics: runtime={runtime:.2f}s, inference_time={inference_time:.2f}s, scoring_time={scoring_time:.2f}s, peak_memory={aggregated_metrics.get('peak_memory_bytes', 0)}, runs={aggregated_metrics.get('total_runs', 0)}"
         )
