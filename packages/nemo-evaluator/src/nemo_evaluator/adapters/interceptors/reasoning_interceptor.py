@@ -65,10 +65,6 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
         add_reasoning: bool = Field(
             default=True, description="Whether to add reasoning information"
         )
-        migrate_reasoning_content: bool = Field(
-            default=False,
-            description="If reasoning traces are found in `reasoning_content`, they will be moved to `content` field end surrounded by start_reasoning_token and end_reasoning_token",
-        )
         enable_reasoning_tracking: bool = Field(
             default=True, description="Enable reasoning tracking and logging"
         )
@@ -96,7 +92,6 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
     end_reasoning_token: str
     start_reasoning_token: str | None
     add_reasoning: bool
-    migrate_reasoning_content: bool
     enable_reasoning_tracking: bool
     include_if_not_finished: bool
     enable_caching: bool
@@ -115,7 +110,6 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
         self.end_reasoning_token = params.end_reasoning_token
         self.start_reasoning_token = params.start_reasoning_token
         self.add_reasoning = params.add_reasoning
-        self.migrate_reasoning_content = params.migrate_reasoning_content
         self.enable_reasoning_tracking = params.enable_reasoning_tracking
         self.include_if_not_finished = params.include_if_not_finished
         self.stats_file_saving_interval = params.stats_file_saving_interval
@@ -167,7 +161,6 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
             end_reasoning_token=self.end_reasoning_token,
             start_reasoning_token=self.start_reasoning_token,
             add_reasoning=self.add_reasoning,
-            migrate_reasoning_content=self.migrate_reasoning_content,
             enable_reasoning_tracking=self.enable_reasoning_tracking,
             include_if_not_finished=self.include_if_not_finished,
             stats_file_saving_interval=self.stats_file_saving_interval,
@@ -285,19 +278,15 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
                     ):
                         self._reasoning_stats[f"max_{key}"] = value
 
-            # Update total statistics
-            if reasoning_words != "unknown":
-                self._reasoning_stats["total_reasoning_words"] += reasoning_words
-            if original_words != "unknown":
-                self._reasoning_stats["total_original_content_words"] += original_words
-            if updated_words != "unknown":
-                self._reasoning_stats["total_updated_content_words"] += updated_words
-            if reasoning_tokens != "unknown":
-                self._reasoning_stats["total_reasoning_tokens"] += reasoning_tokens
-            if updated_content_tokens != "unknown":
-                self._reasoning_stats["total_updated_content_tokens"] += (
-                    updated_content_tokens
-                )
+            for key in [
+                "reasoning_words",
+                "original_content_words",
+                "updated_content_words",
+                "reasoning_tokens",
+                "updated_content_tokens",
+            ]:
+                if value is not None and value != "unknown":
+                    self._reasoning_stats[f"total_{key}"] += value
 
             # Log aggregated stats at specified interval
             if (
@@ -423,47 +412,13 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
         ).strip("\n")
         return cleaned_content
 
-    def _migrate_reasoning_content(self, msg: dict):
-        modified_msg = msg.copy()
-        if (
-            "reasoning_content" in msg
-            and msg["reasoning_content"]
-            and msg["reasoning_content"].strip()
-        ):
-            reasoning_content = msg["reasoning_content"]
-            content = msg.get("content", "")
-            updated_message_content = (
-                self.start_reasoning_token
-                + reasoning_content
-                + self.end_reasoning_token
-                + content
-            )
-            modified_msg["content"] = updated_message_content
-            return modified_msg
-        else:
-            return msg
-
     @final
     def intercept_response(
         self, resp: AdapterResponse, context: AdapterGlobalContext
     ) -> AdapterResponse:
         """Remove reasoning tokens from assistant message content in the response and track reasoning info."""
         if not self.add_reasoning:
-            if self.migrate_reasoning_content:
-                self.logger.debug(
-                    "Reasoning processing disabled, but migrating `reasoning_content` back to `content`."
-                )
-                response_data = resp.r.json()
-                for choice in response_data["choices"]:
-                    msg = choice.get("message")
-                    modified_msg = self._migrate_reasoning_content(msg)
-                    msg.update(modified_msg)
-
-                resp.r._content = json.dumps(response_data).encode()
-            else:
-                self.logger.debug(
-                    "Reasoning processing disabled, returning response as-is"
-                )
+            self.logger.debug("Reasoning processing disabled, returning response as-is")
             return resp
         if resp.rctx.cache_hit:
             self.logger.debug("Response was from cache, skipping reasoning processing")
