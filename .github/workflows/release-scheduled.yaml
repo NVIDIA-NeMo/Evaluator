@@ -17,9 +17,10 @@ name: "Release NeMo-Eval (scheduled)"
 # between the paramters of this job (scheduled) and that one (manual).
 on:
   schedule:
-    # We set 15 min delta to minimize overlaps in releases.
-    # == Tuesday and Thursday at 1:00 AM UTC.
-    - cron: "0 1 * * 2,4"
+    # Mon-Thu
+    - cron: "0 1 * * 1-4"
+  # NOTE(agronskiy): does not hurt but this to be removed once testing on main done.
+  workflow_dispatch:
 
 permissions:
   contents: write # To read repository content
@@ -29,7 +30,6 @@ jobs:
   # NOTE(if-changed): check the `release.yaml` workflow for sync
   # between the paramters of this job (scheduled) and that one (manual).
   release-scheduled-evaluator:
-    if: ${{ github.event_name == 'schedule' }}
     uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.62.0
     with:
       release-ref: ${{ github.sha }}
@@ -57,7 +57,6 @@ jobs:
   # NOTE(if-changed): check the `release.yaml` workflow for sync
   # between the paramters of this job (scheduled) and that one (manual).
   release-scheduled-evaluator-launcher:
-    if: ${{ github.event_name == 'schedule' }}
     # Runs after another release to avoid effects of concurrent pushes to `main`.
     needs: release-scheduled-evaluator
     uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.62.0
