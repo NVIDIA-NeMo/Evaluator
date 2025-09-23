@@ -243,10 +243,17 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
             # Update inference_run_times for current run
             run_id = self._stats["run_id"]
             if run_id not in self._stats["inference_run_times"]:
-                # First request in this run - set first_request_time
+                # First request in this run - estimate when inference actually started using latency
+                estimated_first_request_start = current_time
+                if hasattr(resp, "latency_ms") and resp.latency_ms is not None:
+                    # Estimate when this request was sent (current_time - latency)
+                    estimated_first_request_start = current_time - (
+                        resp.latency_ms / 1000.0
+                    )
+
                 self._stats["inference_run_times"][run_id] = {
                     "run_start": self._adapter_start_time,
-                    "first_request_time": current_time,
+                    "first_request_time": estimated_first_request_start,
                     "last_request_time": current_time,
                     "inference_time": 0.0,
                 }

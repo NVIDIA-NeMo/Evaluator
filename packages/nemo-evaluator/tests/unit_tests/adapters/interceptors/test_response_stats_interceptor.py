@@ -591,7 +591,9 @@ class TestResponseStatsInterceptorCache:
         assert interceptor1._stats["avg_latency_ms"] == 150.0  # (100 + 200) / 2
         assert interceptor1._stats["max_latency_ms"] == 200.0
         run1_inference_time = interceptor1._stats["inference_time"]
-        assert 0.05 <= run1_inference_time <= 0.15, (
+        # With latency-based estimation: sleep_time + latency_adjustment
+        # Expected: ~0.1s (sleep) + ~0.1s (first request latency) = ~0.2s
+        assert 0.15 <= run1_inference_time <= 0.25, (
             f"Run 1 inference time {run1_inference_time} not in expected range"
         )
 
@@ -819,7 +821,9 @@ class TestResponseStatsInterceptorCache:
 
             # Verify Run 1 inference time
             run1_time = interceptor1._stats["inference_time"]
-            assert 0.05 <= run1_time <= 0.15, (
+            # With latency-based estimation: sleep_time + latency_adjustment
+            # Expected: ~0.1s (sleep) + ~0.1s (first request latency) = ~0.2s
+            assert 0.15 <= run1_time <= 0.25, (
                 f"Run 1 time {run1_time} not in expected range"
             )
             assert interceptor1._stats["run_id"] == 0
@@ -847,7 +851,9 @@ class TestResponseStatsInterceptorCache:
             # Verify Run 2 inference time
             # All run_ids should be integers after cache loading fix
             run2_time = interceptor2._stats["inference_run_times"][1]["inference_time"]
-            assert 0.05 <= run2_time <= 0.15, (
+            # With latency-based estimation: sleep_time + latency_adjustment
+            # Expected: ~0.08s (sleep) + ~0.3s (first request latency) = ~0.38s
+            assert 0.35 <= run2_time <= 0.45, (
                 f"Run 2 time {run2_time} not in expected range"
             )
             assert interceptor2._stats["run_id"] == 1
@@ -874,7 +880,9 @@ class TestResponseStatsInterceptorCache:
             # Verify Run 3 inference time
             # All run_ids should be integers after cache loading fix
             run3_time = interceptor3._stats["inference_run_times"][2]["inference_time"]
-            assert 0.05 <= run3_time <= 0.15, (
+            # With latency-based estimation: sleep_time + latency_adjustment
+            # Expected: ~0.06s (sleep) + ~0.5s (first request latency) = ~0.56s
+            assert 0.50 <= run3_time <= 0.65, (
                 f"Run 3 time {run3_time} not in expected range"
             )
             assert interceptor3._stats["run_id"] == 2
