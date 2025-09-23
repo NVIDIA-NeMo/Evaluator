@@ -32,7 +32,7 @@ eval-factory run_eval \
     --overrides 'config.params.limit_samples=3'
 ```
 
-The example above evaluates the `meta/llama-3.1-8b-instruct` model on the `mmlu_pro` benchmark from the `simple-evals` framework. The `limit_samples` parameter restricts evaluation to 3 samples instead of the entire dataset.
+The example above evaluates the `meta/llama-3.1-8b-instruct` model on the `mmlu_pro` benchmark from the `simple-evals` framework. The `limit_samples` parameter restricts evaluation to three samples instead of the entire dataset.
 
 **Quick Overview:**
 NeMo Evaluator Launcher provides specialized containers for different evaluation domains including language models, code generation, vision-language models, agent AI, retrieval systems, and safety evaluation. Each container targets specific use cases and comes with pre-configured evaluation harnesses.
