@@ -68,7 +68,7 @@ def get_token_usage_from_cache_db(cache_db_path: str | Path) -> dict:
                     "total_cached_requests": row[3],
                 }
     except Exception as e:
-        logger.warning(f"Failed to read token usage from cache: {e}")
+        logger.warning("Failed to read token usage from cache", error=str(e))
 
     return {}
 
@@ -125,8 +125,8 @@ def aggregate_runtime_metrics(output_dir: str) -> dict[str, Any]:
     if run_count > 0:
         aggregated_metrics = {
             "runtime_seconds": total_runtime,
-            "start_time": earliest_start or "",
-            "end_time": latest_end or "",
+            "start_time": earliest_start,
+            "end_time": latest_end,
             "peak_memory_bytes": max_peak_memory,
             "peak_tree_memory_bytes": max_peak_tree_memory,
             "total_runs": run_count,
@@ -147,7 +147,9 @@ def aggregate_runtime_metrics(output_dir: str) -> dict[str, Any]:
                     aggregated_metrics["scoring_time_seconds"] = scoring_time
         except Exception as e:
             # If we can't read response stats, just continue without scoring time
-            logger.warning(f"Could not extract inference time from response stats: {e}")
+            logger.warning(
+                "Could not extract inference time from response stats", error=str(e)
+            )
 
     return aggregated_metrics
 
@@ -284,7 +286,7 @@ def monitor_memory_usage(
         try:
             token_usage = get_token_usage_from_cache(cache_dir)
         except Exception as e:
-            logger.warning(f"Failed to get token usage from cache: {e}")
+            logger.warning("Failed to get token usage from cache", error=str(e))
 
     metrics = {
         "runtime_seconds": runtime_seconds,

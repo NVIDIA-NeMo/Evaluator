@@ -139,7 +139,12 @@ def evaluate(
         inference_time = aggregated_metrics.get("inference_time_seconds", 0)
         scoring_time = aggregated_metrics.get("scoring_time_seconds", 0)
         logger.info(
-            f"Aggregated metrics: runtime={runtime:.2f}s, inference_time={inference_time:.2f}s, scoring_time={scoring_time:.2f}s, peak_memory={aggregated_metrics.get('peak_memory_bytes', 0)}, runs={aggregated_metrics.get('total_runs', 0)}"
+            "Aggregated metrics",
+            runtime_seconds=runtime,
+            inference_time_seconds=inference_time,
+            scoring_time_seconds=scoring_time,
+            peak_memory_bytes=aggregated_metrics.get("peak_memory_bytes", 0),
+            total_runs=aggregated_metrics.get("total_runs", 0),
         )
 
     # Use aggregated metrics if available, otherwise use current metrics
