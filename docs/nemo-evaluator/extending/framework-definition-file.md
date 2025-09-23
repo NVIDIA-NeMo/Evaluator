@@ -45,7 +45,7 @@ framework:
 
 ### 2. Defaults Section
 
-The `defaults` section defines the default configuration and execution command that will be used across all evaluations unless overridden. You can override through `--overrides` flag (see [Parameter Overrides](../reference/cli.md#parameter-overrides)) or [Run Configuration file](../reference/cli.md#run-configuration).
+The `defaults` section defines the default configuration and execution command that will be used across all evaluations unless overridden. You can override it through the `--overrides` flag (see [Parameter Overrides](../reference/cli.md#parameter-overrides)) or the [Run Configuration file](../reference/cli.md#run-configuration).
 
 ### Command Template
 
