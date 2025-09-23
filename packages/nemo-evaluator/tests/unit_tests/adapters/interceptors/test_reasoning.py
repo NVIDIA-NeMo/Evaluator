@@ -177,9 +177,6 @@ def test_reasoning_responses(
         (None, "Here's my final answer.", "Here's my final answer."),
     ],
 )
-@pytest.mark.xfail(
-    reason="Migration functionality not implemented in reasoning interceptor"
-)
 def test_migration(
     adapter_server_migration,
     fake_openai_endpoint,
