@@ -71,7 +71,7 @@ defaults:
 - **Conditional logic**: Include parameters only when they have values
 - **Environment setup**: Export API keys before running the command
 
-**Key Template Variables:**
+#### Key Template Variables
 
 **Target API Endpoint Variables:**
 
