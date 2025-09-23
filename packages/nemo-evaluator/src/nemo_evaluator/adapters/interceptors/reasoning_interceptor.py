@@ -278,15 +278,19 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
                     ):
                         self._reasoning_stats[f"max_{key}"] = value
 
-            for key in [
-                "reasoning_words",
-                "original_content_words",
-                "updated_content_words",
-                "reasoning_tokens",
-                "updated_content_tokens",
-            ]:
-                if value is not None and value != "unknown":
-                    self._reasoning_stats[f"total_{key}"] += value
+            # Update total statistics
+            if reasoning_words != "unknown":
+                self._reasoning_stats["total_reasoning_words"] += reasoning_words
+            if original_words != "unknown":
+                self._reasoning_stats["total_original_content_words"] += original_words
+            if updated_words != "unknown":
+                self._reasoning_stats["total_updated_content_words"] += updated_words
+            if reasoning_tokens != "unknown":
+                self._reasoning_stats["total_reasoning_tokens"] += reasoning_tokens
+            if updated_content_tokens != "unknown":
+                self._reasoning_stats["total_updated_content_tokens"] += (
+                    updated_content_tokens
+                )
 
             # Log aggregated stats at specified interval
             if (
