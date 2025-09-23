@@ -191,6 +191,12 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
                             run_data["last_request_time"]
                         ).timestamp()
 
+                    # Convert inference_time from string to float if needed
+                    if run_data.get("inference_time") and isinstance(
+                        run_data["inference_time"], str
+                    ):
+                        run_data["inference_time"] = float(run_data["inference_time"])
+
                     converted_run_times[int_run_id] = run_data
 
                 # Replace with converted run_times
@@ -208,6 +214,14 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
                     except ValueError:
                         status_codes[key] = value
                 aggregated_stats["status_codes"] = status_codes
+
+            # Convert global inference_time from string to float if needed
+            if "inference_time" in aggregated_stats and isinstance(
+                aggregated_stats["inference_time"], str
+            ):
+                aggregated_stats["inference_time"] = float(
+                    aggregated_stats["inference_time"]
+                )
 
             # Set current stats to cached data (cached stats already contain accumulated data)
             self._stats = aggregated_stats
@@ -267,6 +281,9 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
                 )
 
                 # Add delta to global inference_time
+                # Ensure old_inference_time is a float before calculation
+                if isinstance(old_inference_time, str):
+                    old_inference_time = float(old_inference_time)
                 delta = run_data["inference_time"] - old_inference_time
                 self._stats["inference_time"] += delta
 
