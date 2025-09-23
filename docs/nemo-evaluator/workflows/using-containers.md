@@ -123,7 +123,7 @@ eval-factory run_eval \
 # → Detailed logs are available for analysis
 ```
 
-For more details, refer to [CLI](../reference/cli.md)
+For more details, refer to the [CLI](../reference/cli.md).
 
 ## Performance and Monitoring
 
