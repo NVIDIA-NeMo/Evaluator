@@ -56,7 +56,7 @@ Interceptors enable straightforward evaluation of endpoints that:
 - do not support certain parameters
 - need custom system messages
 - require reasoning handling
-and more, making the workflow highly adaptable.
+and more, making the workflow highly adaptable
 
 **Configuration Methods**  
 You have two options for specifying adapters:
