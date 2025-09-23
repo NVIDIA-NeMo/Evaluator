@@ -109,11 +109,13 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
             "avg_prompt_tokens": None,
             "avg_total_tokens": None,
             "avg_completion_tokens": None,
+            "avg_reasoning_tokens": None,
             "avg_latency_ms": None,
             # Maximum statistics
             "max_prompt_tokens": None,
             "max_total_tokens": None,
             "max_completion_tokens": None,
+            "max_reasoning_tokens": None,
             "max_latency_ms": None,
             # Counters and totals
             "count": 0,
@@ -220,7 +222,7 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
             self.logger.info("No cached interceptor state found")
 
     def _calculate_inference_time(self, run_data: dict) -> float:
-        """Calculate inference time ensuring timestamps are floats."""
+        """Calculate inference time from estimated first request start to last request end."""
         last_time = run_data["last_request_time"]
         first_time = run_data["first_request_time"]
 
@@ -243,10 +245,17 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
             # Update inference_run_times for current run
             run_id = self._stats["run_id"]
             if run_id not in self._stats["inference_run_times"]:
-                # First request in this run - set first_request_time
+                # First request in this run - estimate when inference actually started using latency
+                estimated_first_request_start = current_time
+                if hasattr(resp, "latency_ms") and resp.latency_ms is not None:
+                    # Estimate when this request was sent (current_time - latency)
+                    estimated_first_request_start = current_time - (
+                        resp.latency_ms / 1000.0
+                    )
+
                 self._stats["inference_run_times"][run_id] = {
                     "run_start": self._adapter_start_time,
-                    "first_request_time": current_time,
+                    "first_request_time": estimated_first_request_start,
                     "last_request_time": current_time,
                     "inference_time": 0.0,
                 }
@@ -298,7 +307,12 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
         """Update response statistics with new data (thread-safe)."""
         with self._lock:
             # Update token statistics with running means BEFORE incrementing successful_count
-            for token_type in ["prompt_tokens", "total_tokens", "completion_tokens"]:
+            for token_type in [
+                "prompt_tokens",
+                "total_tokens",
+                "completion_tokens",
+                "reasoning_tokens",
+            ]:
                 value = individual_stats.get(token_type, 0)
                 self._update_running_stats(token_type, value)
 
@@ -359,6 +373,15 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
                 detailed_stats["prompt_tokens"] = usage.get("prompt_tokens", 0)
                 detailed_stats["total_tokens"] = usage.get("total_tokens", 0)
                 detailed_stats["completion_tokens"] = usage.get("completion_tokens", 0)
+
+                # Extract reasoning tokens from completion_tokens_details
+                completion_tokens_details = usage.get("completion_tokens_details", {})
+                if isinstance(completion_tokens_details, dict):
+                    detailed_stats["reasoning_tokens"] = completion_tokens_details.get(
+                        "reasoning_tokens", 0
+                    )
+                else:
+                    detailed_stats["reasoning_tokens"] = 0
 
             # Extract choices information
             choices = response_data.get("choices", [])
