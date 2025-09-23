@@ -135,3 +135,23 @@ NeMo Evaluator Launcher provides pre-built evaluation containers for different e
 ## Contribution Guide
 
 We welcome community contributions. Please see our [Contribution Guide](https://github.com/NVIDIA-NeMo/Eval/blob/main/CONTRIBUTING.md) for instructions on submitting pull requests, reporting issues, and suggesting features.
+
+::::{toctree}
+:hidden:
+Home <self>
+::::
+
+<!-- ::::{toctree}
+:hidden:
+:caption: About NeMo Curator
+:maxdepth: 1
+
+:::: -->
+
+::::{toctree}
+:hidden:
+:caption: Libraries
+:maxdepth: 1
+NeMo Evaluator Launcher <nemo-evaluator-launcher/index.md>
+NeMo Evaluator <nemo-evaluator/index.md>
+::::

@@ -5,3 +5,7 @@ sphinx-copybutton   # Adds a copy button for code blocks
 myst_parser         # For our markdown docs
 nvidia-sphinx-theme # Our NVIDIA theme
 sphinxcontrib-mermaid # For mermaid diagrams
+myst-parser
+sphinx-design
+sphinxcontrib-mermaid
+swagger-plugin-for-sphinx
