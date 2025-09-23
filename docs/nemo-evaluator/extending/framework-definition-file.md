@@ -192,10 +192,11 @@ command: >-
 
 Parameters follow a hierarchical override system:
 
-1. **Framework defaults** (fourth priority)
-2. **Evaluation defaults** (third priority)
-3. **User configuration** (second priority)
-4. **CLI overrides** (first priority)
+- **Framework defaults** (fourth priority)
+- **Evaluation defaults** (third priority)
+- **User configuration** (second priority)
+- **CLI overrides** (first priority)
+
 
 For more information about using these overrides, see the [CLI Reference](../reference/cli.md#parameter-overrides) documentation.
 
