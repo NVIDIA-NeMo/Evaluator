@@ -67,7 +67,7 @@ The Local executor uses Docker volume mounts for data persistence:
 ### Docker Volumes
 
 - **Results Mount**: The executor mounts `output_dir` as `/results` in evaluation containers
-- **No Custom Mounts**: The Local executor does not support custom volume mounts (unlike SLURM or Lepton)
+- **No Custom Mounts**: The Local executor does not support custom volume mounts (unlike Slurm or Lepton)
 
 
 ## Resuming

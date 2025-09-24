@@ -31,7 +31,7 @@ The following examples show typical configurations:
 
 - [Local None Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml) - Local evaluation with an existing endpoint
 - [Lepton None Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/lepton_none_llama_3_1_8b_instruct.yaml) - Lepton evaluation with an existing endpoint
-- [SLURM None Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/slurm_no_deployment_llama_3_1_8b_instruct.yaml) - SLURM evaluation with an existing endpoint
+- [Slurm None Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/slurm_no_deployment_llama_3_1_8b_instruct.yaml) - Slurm evaluation with an existing endpoint
 - [Local with Metadata](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/local_with_user_provided_metadata.yaml) - Local evaluation with custom metadata
 - [Auto Export Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/local_auto_export_llama_3_1_8b_instruct.yaml) - Local evaluation with automatic result export
 
