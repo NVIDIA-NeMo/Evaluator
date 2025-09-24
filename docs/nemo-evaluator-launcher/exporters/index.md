@@ -35,7 +35,7 @@ Exporters move evaluation results and artifacts from completed runs to external 
 
 ## Usage Patterns
 
-**Manual Export (CLI):**
+**Manual Export (CLI)**
 ```bash
 # Single invocation
 nemo-evaluator-launcher export 8abcd123 --dest wandb
