@@ -10,13 +10,13 @@ Executors run evaluations by using the appropriate Docker image (which contains 
 ## Supported Execution Back Ends
 
 - `Local`: Run on your workstation with Docker.
-- `SLURM`: Submit jobs to an HPC cluster managed by SLURM.
+- `Slurm`: Submit jobs to an HPC cluster managed by Slurm.
 - `Lepton`: Deploy endpoints and run evaluations on Lepton AI.
 - `Custom`: Build your own executor for any environment, such as AWS, Google Cloud, Azure, or Kubernetes.
 
 ## Executor Feature Comparison
 
-| Feature | Local | SLURM | Lepton |
+| Feature | Local | Slurm | Lepton |
 |---------|-------|-------|--------|
 | **Evaluation** | ✅ | ✅ | ✅ |
 | **Deployment + Evaluation** | ❌ | ✅ | ✅ |
@@ -27,12 +27,12 @@ Executors run evaluations by using the appropriate Docker image (which contains 
 
 Tip: The simplest way to get started is the Local executor. It pulls the evaluation container to your machine and runs it locally. The model can be hosted anywhere. As long as it exposes an OpenAI‑compatible endpoint, the local run can call it. Refer to the [Local Evaluation Tutorial](../tutorials/local-evaluation-of-existing-endpoint.md) for a step‑by‑step guide.
 
-Some executors, such as SLURM and Lepton, host the model on the fly for the duration of the evaluation. This workflow uses two containers:
+Some executors, such as Slurm and Lepton, host the model on the fly for the duration of the evaluation. This workflow uses two containers:
 
 - One for the containerized evaluation (benchmark harness)
 - One for serving the model endpoint
 
-When you enable on‑the‑fly hosting, the evaluation configuration also includes a deployment section. Refer to the [Deployment Configuration](../configuration/deployment/index.md) and the examples in the `examples/` folder for SLURM and Lepton.
+When you enable on‑the‑fly hosting, the evaluation configuration also includes a deployment section. Refer to the [Deployment Configuration](../configuration/deployment/index.md) and the examples in the `examples/` folder for Slurm and Lepton.
 
 ## Common Workflow
 
@@ -101,7 +101,7 @@ nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_
 Refer to the following guides:
 
 - [Local](local.md)
-- [SLURM](slurm.md)
+- [Slurm](slurm.md)
 - [Lepton](lepton.md)
 - Custom: Write your own executor to run evaluations anywhere.
 
@@ -136,7 +136,7 @@ output_dir/
 **Executor‑specific scripts:**
 
 - **Local**: `run.sh` (per task) and `run_all.sh` (all tasks) for manual execution.
-- **SLURM**: `sbatch_*.sh` scripts with HPC job metadata.
+- **Slurm**: `sbatch_*.sh` scripts with HPC job metadata.
 
 For detailed output structure and executor‑specific details, refer to the `nemo-evaluator-launcher` package documentation at `packages/nemo-evaluator-launcher`.
 

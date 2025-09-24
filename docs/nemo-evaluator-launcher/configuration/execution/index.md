@@ -5,7 +5,7 @@ Execution configurations define how and where to run evaluation tasks.
 ## Executors
 
 - **[Local](local.md)**: Development, testing, and evaluation of already deployed endpoints (Docker-based)
-- **[SLURM](slurm.md)**: HPC clusters and large-scale evaluations (can also deploy models)
+- **[Slurm](slurm.md)**: HPC clusters and large-scale evaluations (can also deploy models)
 - **[Lepton](lepton.md)**: Cloud deployments and parallel evaluations (can also deploy models)
 
 ## Quick Reference

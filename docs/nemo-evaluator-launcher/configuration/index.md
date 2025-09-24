@@ -7,7 +7,7 @@ The `nemo-evaluator-launcher` uses [Hydra](https://hydra.cc/docs/intro/) for con
 The configuration includes these predefined sections:
 
 - **`defaults`** - Specifies default execution and deployment methods
-- **`execution`** - Setup for execution configuration ([Execution Overview](execution/index.md) | [Local](execution/local.md), [SLURM](execution/slurm.md), [Lepton](execution/lepton.md))
+- **`execution`** - Setup for execution configuration ([Execution Overview](execution/index.md) | [Local](execution/local.md), [Slurm](execution/slurm.md), [Lepton](execution/lepton.md))
 - **`deployment`** - Setup for deployment configuration ([Deployment Overview](deployment/index.md) | [vLLM](deployment/vllm.md), [SGLang](deployment/sglang.md), [NIM](deployment/nim.md), [None](deployment/none.md))
 - **`target`** - API endpoint configuration ([Target Overview](target/index.md))
 - **`evaluation`** - Evaluation tasks from nemo-evaluator-launcher with additional setup like overriding default values ([Evaluation Overview](evaluation/index.md))
@@ -59,7 +59,7 @@ Uses [Hydra's defaults list](https://hydra.cc/docs/advanced/defaults_list/) to c
 Defines how and where to run evaluations. Refer to [Execution Overview](execution/index.md) for details.
 
 - **[Local](execution/local.md)**: Run on your machine with Docker
-- **[SLURM](execution/slurm.md)**: Submit jobs to HPC clusters
+- **[Slurm](execution/slurm.md)**: Submit jobs to HPC clusters
 - **[Lepton](execution/lepton.md)**: Deploy and run on Lepton AI
 
 ### 3. Deployment
