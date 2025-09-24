@@ -170,26 +170,17 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
                     # Convert run_id from string to int if needed
                     int_run_id = int(run_id) if isinstance(run_id, str) else run_id
 
-                    if run_data.get("run_start") and isinstance(
-                        run_data["run_start"], str
-                    ):
-                        run_data["run_start"] = datetime.datetime.fromisoformat(
-                            run_data["run_start"]
-                        ).timestamp()
-                    if run_data.get("first_request_time") and isinstance(
-                        run_data["first_request_time"], str
-                    ):
-                        run_data["first_request_time"] = (
-                            datetime.datetime.fromisoformat(
-                                run_data["first_request_time"]
+                    # List of time-related fields to convert from ISO strings to timestamps
+                    time_fields = [
+                        "run_start",
+                        "first_request_time",
+                        "last_request_time",
+                    ]
+                    for field in time_fields:
+                        if run_data.get(field) and isinstance(run_data[field], str):
+                            run_data[field] = datetime.datetime.fromisoformat(
+                                run_data[field]
                             ).timestamp()
-                        )
-                    if run_data.get("last_request_time") and isinstance(
-                        run_data["last_request_time"], str
-                    ):
-                        run_data["last_request_time"] = datetime.datetime.fromisoformat(
-                            run_data["last_request_time"]
-                        ).timestamp()
 
                     # Convert inference_time from string to float if needed
                     if run_data.get("inference_time") and isinstance(
