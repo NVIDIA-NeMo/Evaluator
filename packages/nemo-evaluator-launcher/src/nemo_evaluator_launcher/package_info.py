@@ -16,7 +16,11 @@
 # Below is the _next_ version that will be published, not the currently published one.
 MAJOR = 0
 MINOR = 1
+<<<<<<< HEAD
 PATCH = 4
+=======
+PATCH = 3
+>>>>>>> 94f2fed (beep boop 🤖: Bumping to v0.1.3)
 PRE_RELEASE = ""
 
 # Use the following formatting: (major, minor, patch, pre-release)
