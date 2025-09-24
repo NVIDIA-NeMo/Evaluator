@@ -1,18 +1,5 @@
 # Testing Endpoint Compatibility
 
-## Table of Contents
-
-- [Testing Endpoint Compatibility](#testing-endpoint-compatibility)
-  - [Table of Contents](#table-of-contents)
-  - [Overview](#overview)
-  - [Endpoint Requirements](#endpoint-requirements)
-  - [Chat Endpoint Testing](#chat-endpoint-testing)
-  - [Completion Endpoint Testing](#completion-endpoint-testing)
-  - [VLM Chat Endpoint Testing](#vlm-chat-endpoint-testing)
-  - [Function Calling Testing](#function-calling-testing)
-  - [Audio Endpoint Testing](#audio-endpoint-testing)
-
-
 ## Overview
 
 This guide describes how to validate your hosted endpoint for OpenAI-compatible APIs using `curl` requests across common task types. Endpoints deployed with `nemo-evaluator-launcher` are compatible with these tests.
