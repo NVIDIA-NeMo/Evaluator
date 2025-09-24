@@ -57,7 +57,10 @@ mkdir configs
 
 Create a configuration file with a descriptive name (e.g., `configs/local_endpoint.yaml`):
 
-This configuration will create evaluations for 2 tasks: `ifeval` and `mbpp`. You can display the whole configuration and scripts which will be executed using `--dry_run`
+This configuration will create evaluations for 2 tasks: `ifeval` and `mbpp`. 
+
+- **`ifeval`**: [Instruction Following Evaluation](https://arxiv.org/abs/2311.07911) - evaluates ability to follow natural language instructions
+- **`mbpp`**: [Mostly Basic Programming Problems](https://arxiv.org/abs/2108.07732) - coding benchmark with 974 Python programming tasks
 
 ```yaml
 defaults:
@@ -84,6 +87,8 @@ evaluation:
     - name: mbpp
 
 ```
+
+You can display the whole configuration and scripts which will be executed using `--dry_run`:
 
 # 4. Run evaluation
 
@@ -171,15 +176,20 @@ After evaluation completion, your output directory will contain the following st
 ```
 
 ## Key Artifacts
-- **`run.sh`**: Execution script for running the evaluation task
-- **`eval_factory_metrics.json`**: Contains evaluation metrics, timing statistics, and performance data
-- **`results.yml`**: Comprehensive results in YAML format, including scores and detailed metrics
-- **`run_config.yml`**: NeMo-evaluator task-specific configuration used during execution
+
+### NeMo Evaluator Artifacts
+- **`results.yml`**: [Comprehensive results in YAML format, including scores and detailed metrics](../../nemo-evaluator/reference/outputs.md#resultsyml)
+- **`run_config.yml`**: [NeMo-evaluator task-specific configuration used during execution](../../nemo-evaluator/reference/outputs.md#run-configyml)
+- **`eval_factory_metrics.json`**: [Contains evaluation metrics, timing statistics, and performance data](../../nemo-evaluator/reference/outputs.md#eval-factory-metricsjson)
+- **`report.html`**: [Human-readable report with example request-response pairs](../../nemo-evaluator/reference/outputs.md#reporthtml)
+
+For detailed information about all output artifacts, see the [Output Reference](../../nemo-evaluator/reference/outputs.md).
+
+### NeMo Evaluator Launcher Artifacts
 - **`logs/`**: Execution logs including stdout.log and stage logs
-- **`report.html`**: Human-readable report with example request-response pairs
+- **`run.sh`**: Execution script for running the evaluation task
 
-To get the final evaluations metrics `results.yml`
-
+To get the final evaluation metrics, check `results.yml`
 
 
 ## Next Steps
