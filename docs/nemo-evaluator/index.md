@@ -1,12 +1,12 @@
 # NeMo Evaluator: The Universal Platform for LLM Evaluation
 
-NeMo Evaluator is an open-source evaluation engine that provides standardized, reproducible AI model evaluation through a containerized architecture and adapter system. It enables you to run evaluations across multiple specialized evaluation harnesses (17+ containers including LM-Eval, HELM, MT-Bench, and more) against any OpenAI-compatible model API. The platform's core strength lies in its interceptor-based adapter architecture that standardizes request/response flow, optional logging/caching layers, and its collection of ready-to-use evaluation containers published through NVIDIA's NGC catalog.
+NeMo Evaluator is an open-source evaluation engine. It provides standardized, reproducible AI model evaluation through a containerized architecture and adapter system. It enables you to run evaluations across multiple specialized evaluation harnesses (17+ containers including LM-Eval, HELM, MT-Bench, and others) against any OpenAI-compatible model API. The platform's core strength lies in its interceptor-based adapter architecture. This architecture standardizes request/response flow and optional logging/caching layers. It also includes a collection of ready-to-use evaluation containers published through NVIDIA's NGC catalog.
 
 [Container Reference](./reference/containers.md) | [Using Containers](./workflows/using-containers.md) | [CLI Reference](./reference/cli.md) | [Configuration Guide](./reference/configuring-interceptors.md) | [Python API](./workflows/python-api.md)
 
 ---
 
-The arch is as follows:
+The architecture is as follows:
 
 
          ┌─────────────────────┐
@@ -46,51 +46,56 @@ The arch is as follows:
          │                                                             │
          └─────────────────────────────────────────────────────────────┘
 
-In other words, interceptors are pieces of independent logic which should be
-relatively easy to add separately.
+Interceptors are independent units of logic designed for easy integration.
 
+NeMo Evaluator is the core, open-source evaluation engine. It powers standardized, reproducible AI model evaluation across benchmarks. It provides the adapter/interceptor architecture, evaluation workflows, and ready-to-use evaluation containers. These components ensure consistent results across environments and over time.
 
-NeMo Evaluator is the core, open-source evaluation engine that powers standardized, reproducible AI model evaluation across benchmarks. It provides the adapter/interceptor architecture, evaluation workflows, and the set of ready-to-use evaluation containers that ensure consistent results across environments and over time.
+## How It Differs from the Launcher
 
-## How it differs from the Launcher
-- **nemo-evaluator**: Core evaluation engine, adapter system, and evaluation containers. Focused on correctness, repeatability, and benchmark definitions.
-- **nemo-evaluator-launcher**: Orchestration on top of the core engine. Adds a unified CLI, multi-backend execution (local/Slurm/hosted), job monitoring, and exporters. See the launcher intro: [nemo-evaluator-launcher](../nemo-evaluator-launcher/index.md)
+- **nemo-evaluator**: Core evaluation engine, adapter system, and evaluation containers. This component focuses on correctness, repeatability, and benchmark definitions.
+- **nemo-evaluator-launcher**: Orchestration layer on top of the core engine. It adds a unified CLI, multi-backend execution (local/Slurm/hosted), job monitoring, and exporters. Refer to the [NeMo Evaluator Launcher documentation](../nemo-evaluator-launcher/index.md) for more information.
 
-## Key capabilities
-- **Adapter/Interceptor architecture**: Standardizes how requests and responses flow to your endpoint (OpenAI-compatible) and through optional logging/caching layers
-- **Benchmarks and containers**: Curated evaluation harnesses packaged as reproducible containers
+## Key Capabilities
+
+- **Adapter/Interceptor Architecture**: Standardizes how requests and responses flow to your endpoint (OpenAI-compatible) and through optional logging/caching layers
+- **Benchmarks and Containers**: Curated evaluation harnesses packaged as reproducible containers
   - Browse available containers: [Container Reference](./reference/containers.md)
-- **Flexible configuration**: Fully resolved configs per run enable exact replays and comparisons
-- **Metrics and artifacts**: Consistent result schemas and artifact layouts for downstream analysis
+- **Flexible Configuration**: Fully resolved configs per run enable exact replays and comparisons
+- **Metrics and Artifacts**: Consistent result schemas and artifact layouts for downstream analysis
 
-## Architecture overview
-- Targets an OpenAI-compatible endpoint for the model under test
-- Applies optional interceptors (request/response logging, caching, etc.)
-- Executes benchmark tasks using the corresponding containerized framework
-- Produces metrics, logs, and artifacts in a standard directory structure
+## Architecture Overview
 
-## Using the core library
+- Targets an OpenAI-compatible endpoint for the model under test.
+- Applies optional interceptors (request/response logging, caching, and others).
+- Executes benchmark tasks using the corresponding containerized framework.
+- Produces metrics, logs, and artifacts in a standard directory structure.
+
+## Using the Core Library
+
 - **Python API**: Programmatic access to core evaluation functionality
   - API reference: [API Reference](./reference/api.md)
 - **Containers**: Run evaluations using the published containers for each framework
   - Container reference: [Container Reference](./reference/containers.md)
 
-For end-to-end CLI and multi-backend orchestration, use the Launcher: [nemo-evaluator-launcher](../nemo-evaluator-launcher/index.md)
+For end-to-end CLI and multi-backend orchestration, use the [NeMo Evaluator Launcher](../nemo-evaluator-launcher/index.md).
 
 ## Extending
+
 Add your own benchmark or framework by defining its configuration and interfaces:
-- Extension guide: [Framework Definition File](./extending/framework-definition-file.md)
 
-## Next steps
-- Read the architecture details and glossary in the main docs
-- Explore containers and pick the benchmarks you need: [Container Reference](./reference/containers.md)
-- If you want a turnkey CLI, start with the Launcher Tutorial: [Tutorial](../nemo-evaluator-launcher/tutorial.md)
+- Extension guide: [Framework Definition File](./extending/framework-definition-file.md).
 
-## NGC Containers
+## Next Steps
+
+- Read the architecture details and glossary in the main docs.
+- Explore containers and pick the benchmarks you need: [Container Reference](./reference/containers.md).
+- If you want a turnkey CLI, start with the [NeMo Evaluator Launcher Tutorial](../nemo-evaluator-launcher/tutorial.md).
+
+## NVIDIA NGC Containers
 
 NeMo Evaluator provides pre-built evaluation containers through the NVIDIA NGC catalog:
 
-| Container | Description | NGC Catalog | Latest Tag | Supported benchmarks |
+| Container | Description | NGC Catalog | Latest Tag | Supported Benchmarks |
 |-----------|-------------|-------------|------------| ------------|
 | **agentic_eval** | Agentic AI evaluation framework | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/agentic_eval) | `25.08.1` | agentic_eval_answer_accuracy, agentic_eval_goal_accuracy_with_reference, agentic_eval_goal_accuracy_without_reference, agentic_eval_topic_adherence, agentic_eval_tool_call_accuracy |
 | **bfcl** | Function calling | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl) | `25.08.1` | bfclv2, bfclv2_ast, bfclv2_ast_prompting, bfclv3, bfclv3_ast, bfclv3_ast_prompting |
@@ -110,7 +115,7 @@ NeMo Evaluator provides pre-built evaluation containers through the NVIDIA NGC c
 | **tooltalk** | Tool usage evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk) | `25.08.1` | tooltalk |
 | **vlmevalkit** | Vision-language model evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit) | `25.08.1` | ai2d_judge, chartqa, ocrbench, slidevqa |
 
-# Container Usage
+## Container Usage
 
 ```bash
 # Pull a container

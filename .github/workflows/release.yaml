@@ -42,6 +42,9 @@ on:
         description: Branch to push the version bump
         required: true
         type: string
+  schedule:
+    # Mon-Thu
+    - cron: "0 1 * * 1-4"
 
 permissions:
   contents: write # To read repository content
@@ -53,6 +56,10 @@ jobs:
     steps:
       - name: Validate inputs
         run: |
+          if [ "${{ github.event_name }}" == "schedule" ]; then
+            echo "Skipping validation for scheduled run"
+            exit 0
+          fi
           if [ "${{ inputs.version-bump-branch }}" == "${{ inputs.release-ref }}" ]; then
             echo "Error: version-bump-branch cannot be the same as release-ref"
             echo "version-bump-branch: ${{ inputs.version-bump-branch }}"
@@ -62,16 +69,17 @@ jobs:
           echo "Input validation passed"
 
   release:
-    if: ${{ inputs.component == 'nemo-evaluator' }}
+    if: ${{ github.event_name == 'schedule' || inputs.component == 'nemo-evaluator' }}
     needs: validate-inputs
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.61.0
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.62.1
     with:
-      release-ref: ${{ inputs.release-ref || github.sha }}
+      release-ref: ${{ github.event_name == 'schedule' && github.sha || inputs.release-ref || github.sha }}
       python-package: nemo_evaluator
       library-name: NeMo Evaluator
-      dry-run: ${{ inputs.dry-run || false }}
-      version-bump-branch: ${{ inputs.version-bump-branch || github.ref_name }}
-      create-gh-release: ${{ inputs.create-gh-release }}
+      # Tricky, below is the exact rewrite of "if it's schedule, then false, else use the version of `inputs.dry-run`"
+      dry-run: ${{ github.event_name != 'schedule' && inputs.dry-run }}
+      version-bump-branch: ${{ github.event_name == 'schedule' && 'main' || inputs.version-bump-branch || github.ref_name }}
+      create-gh-release: ${{ github.event_name == 'schedule' && true || inputs.create-gh-release }}
       gh-release-tag-prefix: nemo-evaluator-
       packaging: uv
       skip-test-wheel: true
@@ -89,16 +97,17 @@ jobs:
       BOT_KEY: ${{ secrets.BOT_KEY }}
 
   release-launcher:
-    if: ${{ inputs.component == 'nemo-evaluator-launcher' }}
+    if: ${{ github.event_name == 'schedule' || inputs.component == 'nemo-evaluator-launcher' }}
     needs: validate-inputs
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.61.0
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.62.1
     with:
-      release-ref: ${{ inputs.release-ref || github.sha }}
+      release-ref: ${{ github.event_name == 'schedule' && github.sha || inputs.release-ref || github.sha }}
       python-package: nemo_evaluator_launcher
       library-name: NeMo Evaluator Launcher
-      dry-run: ${{ inputs.dry-run || false }}
-      version-bump-branch: ${{ inputs.version-bump-branch || github.ref_name }}
-      create-gh-release: ${{ inputs.create-gh-release || true }}
+      # Tricky, below is the exact rewrite of "if it's schedule, then false, else use the version of `inputs.dry-run`"
+      dry-run: ${{ github.event_name != 'schedule' && inputs.dry-run }}
+      version-bump-branch: ${{ github.event_name == 'schedule' && 'main' || inputs.version-bump-branch || github.ref_name }}
+      create-gh-release: ${{ github.event_name == 'schedule' && true || inputs.create-gh-release }}
       gh-release-tag-prefix: nemo-evaluator-launcher-
       packaging: uv
       skip-test-wheel: true

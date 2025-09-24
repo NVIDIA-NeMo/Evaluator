@@ -13,7 +13,7 @@ An FDF defines:
 
 ## File Structure
 
-The FDF follows a hierarchical structure with three main sections:
+The FDF follows a hierarchical structure with 3 main sections:
 
 ```yaml
 framework:          # Framework identification and metadata
@@ -23,7 +23,7 @@ evaluations:        # Available evaluation types
 
 ## Section Details
 
-# 1. Framework Section
+### 1. Framework Section
 
 The `framework` section contains basic identification and metadata for your evaluation harness.
 
@@ -43,11 +43,11 @@ framework:
 - **`description`**: Comprehensive description of the framework's purpose
 - **`url`**: Link to the original benchmark repository
 
-# 2. Defaults Section
+### 2. Defaults Section
 
-The `defaults` section defines the default configuration and execution command that will be used across all evaluations unless overridden. Overriding is supported either through `--overrides` flag (see [Parameter Overrides](../reference/cli.md#parameter-overrides)) or [Run Configuration file](../reference/cli.md#run-configuration).
+The `defaults` section defines the default configuration and execution command that will be used across all evaluations unless overridden. You can override it through the `--overrides` flag (see [Parameter Overrides](../reference/cli.md#parameter-overrides)) or the [Run Configuration file](../reference/cli.md#run-configuration).
 
-## Command Template
+### Command Template
 
 The `command` field uses Jinja2 templating to dynamically generate execution commands based on configuration parameters. This is where you define how your evaluation harness's CLI interface will be called.
 
@@ -65,14 +65,16 @@ defaults:
 ```
 
 **What this does:**
+
 - **`example_eval`**: Your harness's actual CLI command (replace with your command)
 - **Template variables**: Dynamically insert values from the evaluation configuration
 - **Conditional logic**: Include parameters only when they have values
 - **Environment setup**: Export API keys before running the command
 
-**Key Template Variables:**
+#### Key Template Variables
 
 **Target API Endpoint Variables:**
+
 - **`{{target.api_endpoint.api_key}}`**: Name of the environment variable storing API key
 - **`{{target.api_endpoint.model_id}}`**: Target model identifier
 - **`{{target.api_endpoint.stream}}`**: Whether responses should be streamed
@@ -81,11 +83,13 @@ defaults:
 - **`{{target.api_endpoint.adapter_config}}`**: Adapter configuration
 
 **Evaluation Configuration Variables:**
+
 - **`{{config.output_dir}}`**: Output directory for results
 - **`{{config.type}}`**: Type of the task
 - **`{{config.supported_endpoint_types}}`**: Supported endpoint types (chat/completions)
 
 **Configuration Parameters:**
+
 - **`{{config.params.task}}`**: Evaluation task type
 - **`{{config.params.temperature}}`**: Model temperature setting
 - **`{{config.params.limit_samples}}`**: Sample limit for evaluation
@@ -96,8 +100,7 @@ defaults:
 - **`{{config.params.top_p}}`**: Top-p sampling parameter
 - **`{{config.params.extra}}`**: Framework-specific parameters
 
-
-## Configuration Defaults
+#### Configuration Defaults
 
 ```yaml
 defaults:
@@ -118,12 +121,13 @@ defaults:
 ```
 
 **Parameter Categories:**
+
 - **Core Parameters**: Basic evaluation settings (temperature, max_tokens)
 - **Performance Parameters**: Parallelism and timeout settings
 - **Framework Parameters**: Task-specific configuration options
 - **Extra Parameters**: Custom parameters specific to your framework
 
-## Target Configuration
+#### Target Configuration
 
 ```yaml
 defaults:
@@ -136,10 +140,11 @@ defaults:
 ```
 
 **Endpoint Types:**
+
 - **`chat`**: Multi-turn conversation format (OpenAI chat completions)
 - **`completion`**: Single-turn text completion format
 
-# 3. Evaluations Section
+### 3. Evaluations Section
 
 The `evaluations` section defines the specific evaluation types available in your framework, each with its own configuration defaults.
 
@@ -162,6 +167,7 @@ evaluations:
 ```
 
 **Evaluation Configuration:**
+
 - **`name`**: Unique identifier for the evaluation type
 - **`description`**: Clear description of what the evaluation measures
 - **`type`**: Internal type identifier used by the framework
@@ -170,9 +176,9 @@ evaluations:
 
 ## Advanced Features
 
-# Conditional Parameter Handling
+### Conditional Parameter Handling
 
-Use Jinja2 conditionals to handle optional parameters. This ensures your CLI command only includes parameters when they have values, preventing errors from undefined or null parameters:
+Use Jinja2 conditionals to handle optional parameters. This ensures that your CLI command includes parameters only when they have values, preventing errors from undefined or null parameters:
 
 ```yaml
 command: >-
@@ -182,19 +188,21 @@ command: >-
   {% if config.params.extra.args is defined %} {{ config.params.extra.args }} {% endif %}
 ```
 
-# Parameter Inheritance
+### Parameter Inheritance
 
 Parameters follow a hierarchical override system:
-1. **Framework defaults** (4th priority)
-2. **Evaluation defaults** (3rd priority)
-3. **User configuration** (2nd priority)
-4. **CLI overrides** (1st priority)
 
-For more information on how to use these overrides, see the [CLI Reference](../reference/cli.md#parameter-overrides) documentation.
+- **Framework defaults** (fourth priority)
+- **Evaluation defaults** (third priority)
+- **User configuration** (second priority)
+- **CLI overrides** (first priority)
 
-# Dynamic Configuration
 
-Use template variables to reference other configuration sections. For example, re-use `config.output_dir` for `--cache` input argument:
+For more information about using these overrides, see the [CLI Reference](../reference/cli.md#parameter-overrides) documentation.
+
+### Dynamic Configuration
+
+Use template variables to reference other configuration sections. For example, reuse `config.output_dir` for `--cache` input argument:
 
 ```yaml
 command: >-
@@ -203,16 +211,16 @@ command: >-
 
 ## Integration with Eval Factory
 
-# File Location
+## File Location
 
 Place your FDF in the `core_evals/<framework_name>/` directory of your framework package:
 
-```
+```bash
 your-framework/
 ├── core_evals/
 │   └── your_framework/
 │       ├── framework.yml           # This is your FDF
-|       ├── framework_entrypoint.py # This is an entrypoint to execute evaluation (usually pre-defined)
+│       ├── framework_entrypoint.py # This is an entrypoint to execute evaluation (usually pre-defined)
 │       ├── output.py               # Output parser (custom)
 │       └── __init__.py             # Empty init file
 ├── setup.py                        # Package configuration
@@ -229,14 +237,14 @@ The FDF is validated by the NeMo Evaluator system to ensure:
 
 ## Troubleshooting
 
-# Common Issues
+### Common Issues
 
 1. **Template Errors**: Check Jinja2 syntax and variable references
 2. **Parameter Conflicts**: Ensure parameter names don't conflict between sections
 3. **Type Mismatches**: Verify parameter types match expected values
 4. **Missing Fields**: Ensure all required fields are defined
 
-# Debug Mode
+### Debug Mode
 
 Enable debug logging to see how your FDF is processed:
 

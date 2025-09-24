@@ -537,6 +537,7 @@ class AdapterConfig(BaseModel):
                 "progress_tracking_interval": legacy_config[
                     "progress_tracking_interval"
                 ],
+                "request_method": "POST",  # Legacy method uses POST
                 "output_dir": cls._get_default_output_dir(legacy_config, run_config),
             }
             if legacy_config["progress_tracking_url"] is not None:
