@@ -138,7 +138,10 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
                 )
             else:
                 self.logger.warning(
-                    f"Failed to update job progress {body}: {resp.status_code} {resp.text}"
+                    "Failed to update job progress",
+                    body=body,
+                    status_code=resp.status_code,
+                    response_text=resp.text,
                 )
             return resp
         except requests.exceptions.RequestException as e:
