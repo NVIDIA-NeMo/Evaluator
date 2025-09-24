@@ -47,7 +47,7 @@ nemo-evaluator-launcher export 8abcd123 9def4567 --dest local --format json
 nemo-evaluator-launcher export 8abcd123.0 --dest mlflow
 ```
 
-**Manual Export (API):**
+**Manual Export (API)**
 ```python
 from nemo_evaluator_launcher.api.functional import export_results
 
