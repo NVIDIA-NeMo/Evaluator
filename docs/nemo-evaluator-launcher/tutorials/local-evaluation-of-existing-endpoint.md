@@ -11,7 +11,7 @@ This tutorial explains how to benchmark an existing API endpoint using the local
 
 First, install the NeMo Evaluator Launcher. Refer to the [Tutorial Installation Guide](../tutorial.md#1-install-the-launcher) for detailed setup instructions.
 
-## Steps
+## Set Up Your Evaluation
 
 ## 1. Select a Model
 
