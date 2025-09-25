@@ -904,6 +904,13 @@ def test_save_stats_to_file_creates_directory(tmp_path, nested_path):
             "responses_with_reasoning": 85,
             "avg_reasoning_words": 12.5,
         },
+        {
+            "total_responses": 5,
+            "responses_with_reasoning": 3,
+            "total_reasoning_words": 25,
+            "total_original_content_words": 50,
+            "total_updated_content_words": 30,
+        },
     ],
 )
 def test_reasoning_stats_access(test_stats):
@@ -926,6 +933,134 @@ def test_reasoning_stats_access(test_stats):
 
     # Verify it's a copy, not the original
     assert stats is not interceptor._reasoning_stats
+
+
+@pytest.mark.parametrize(
+    "cache_hit,expected_total_responses,expected_responses_with_reasoning",
+    [
+        # Cached response - should NOT be counted (skipped by interceptor)
+        (True, 0, 0),
+        # Normal response (not cached)
+        (False, 1, 1),
+    ],
+)
+def test_cached_response_reasoning_behavior(
+    tmp_path,
+    cache_hit,
+    expected_total_responses,
+    expected_responses_with_reasoning,
+):
+    """Test that cached responses are properly skipped in reasoning stats counting."""
+    interceptor = ResponseReasoningInterceptor(
+        ResponseReasoningInterceptor.Params(
+            enable_reasoning_tracking=True,
+            enable_caching=False,  # Disable caching to avoid state pollution
+        )
+    )
+
+    # Create mock response with reasoning content
+    response_data = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": "<think>This is reasoning content.</think>Final answer.",
+                    "reasoning_content": "This is reasoning content.",
+                }
+            }
+        ],
+        "usage": {"reasoning_tokens": 10, "content_tokens": 20},
+    }
+
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = response_data
+    mock_response._content = json.dumps(response_data).encode()
+
+    mock_rctx = Mock()
+    mock_rctx.cache_hit = cache_hit
+
+    adapter_response = AdapterResponse(r=mock_response, rctx=mock_rctx)
+    context = AdapterGlobalContext(output_dir=str(tmp_path), url="http://localhost")
+
+    interceptor.intercept_response(adapter_response, context)
+
+    stats = interceptor._reasoning_stats
+    assert stats["total_responses"] == expected_total_responses
+    assert stats["responses_with_reasoning"] == expected_responses_with_reasoning
+
+
+@pytest.mark.parametrize(
+    "usage_format,expected_reasoning_tokens,expected_content_tokens",
+    [
+        # Format 1: reasoning_tokens and content_tokens at top level
+        ({"reasoning_tokens": 15, "content_tokens": 30}, 15, 30),
+        # Format 2: reasoning_tokens in completion_tokens_details
+        (
+            {
+                "completion_tokens_details": {"reasoning_tokens": 20},
+                "content_tokens": 40,
+            },
+            20,
+            40,
+        ),
+        # Format 3: reasoning_tokens in output_tokens_details
+        (
+            {
+                "output_tokens_details": {"reasoning_tokens": 25},
+                "content_tokens": 50,
+            },
+            25,
+            50,
+        ),
+    ],
+)
+def test_reasoning_tokens_different_formats(
+    tmp_path,
+    usage_format,
+    expected_reasoning_tokens,
+    expected_content_tokens,
+):
+    """Test reasoning interceptor handles different usage data formats for reasoning tokens."""
+    interceptor = ResponseReasoningInterceptor(
+        ResponseReasoningInterceptor.Params(
+            enable_reasoning_tracking=True,
+            enable_caching=False,
+        )
+    )
+
+    # Create mock response with reasoning content
+    response_data = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": "<think>This is reasoning content.</think>Final answer.",
+                    "reasoning_content": "This is reasoning content.",
+                }
+            }
+        ],
+        "usage": usage_format,
+    }
+
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = response_data
+    mock_response._content = json.dumps(response_data).encode()
+
+    mock_rctx = Mock()
+    mock_rctx.cache_hit = False
+
+    adapter_response = AdapterResponse(r=mock_response, rctx=mock_rctx)
+    context = AdapterGlobalContext(output_dir=str(tmp_path), url="http://localhost")
+
+    interceptor.intercept_response(adapter_response, context)
+
+    stats = interceptor._reasoning_stats
+    assert stats["total_responses"] == 1
+    assert stats["responses_with_reasoning"] == 1
+    assert stats["total_reasoning_tokens"] == expected_reasoning_tokens
+    assert stats["total_updated_content_tokens"] == expected_content_tokens
 
 
 def test_load_from_cache_during_initialization(tmp_path):
