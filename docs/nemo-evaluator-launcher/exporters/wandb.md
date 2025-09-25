@@ -1,31 +1,42 @@
 # Weights & Biases Exporter (`wandb`)
 
-Export metrics and artifacts to W&B for experiment tracking. Inherits all core features from the [Local](local.md) exporter (artifact staging, multi-run, auto-export), and adds W&B run management.
+## Overview
 
-**What you can do:**
-- Log metrics and artifacts for each job to W&B
-- Choose per-task runs (default) or aggregate multiple tasks into one run per invocation
-- Append to an existing run (multi-task resume) to keep all tasks in one place
-- Auto-export after evaluations finish (local or cluster)
+Export evaluation metrics and artifacts to Weights & Biases (W&B) for experiment tracking. The exporter inherits all core features from the [Local exporter](local.md)—artifact staging, multi-run support, and automatic export—and adds W&B run management.
 
-**Key configuration:**
-- Required: `entity`, `project`
-- `log_mode`: 
-  - `per_task` (default): creates one W&B run per task/benchmark (name: `eval-<invocation>-<benchmark>`)
-  - `multi_task`: creates one W&B run per invocation (name: `eval-<invocation>`) with resume capability
-- `name`: custom run name (overrides defaults above)
-- `group`: run grouping (default: invocation_id)
-- `tags`: list of tags for filtering
-- `description`: run description text
-- `job_type`: run type classification (default: "evaluation")
-- `log_metrics`: filter specific metrics (default: all available metrics)
-- `log_artifacts`: include artifacts (default: true), including the run config `config.yaml` for reproducibility
-- `extra_metadata`: user-defined custom fields merged into W&B run.config
-- Webhook-related: `triggered_by_webhook`, `webhook_source`, `source_artifact`, `config_source`
+## Key Features
 
-**Tip:** We recommend `auto-export` for the extensive support of configuration and customization.
+- Log metrics and artifacts for each job to W&B.
+- Choose per-task runs (default) or combine tasks into one run per invocation.
+- Append to an existing run (multi-task resume) to keep all tasks in one place.
+- Export automatically after evaluations finish (local or cluster).
 
-**Example (YAML excerpt):**
+## Configuration
+
+- Required: `entity`, `project`.
+- `log_mode`:
+  - `per_task` (default): Creates one W&B run per task or benchmark (name: `eval-<invocation>-<benchmark>`).
+  - `multi_task`: Creates one W&B run per invocation (name: `eval-<invocation>`) with resume capability.
+- `name`: Custom run name (overrides defaults above).
+- `group`: Run grouping (default: `invocation_id`).
+- `tags`: List of tags for filtering.
+- `description`: Run description.
+- `job_type`: Run type classification (default: "evaluation").
+- `log_metrics`: Filter specific metrics (default: all available metrics).
+- `log_artifacts`: Include artifacts (default: true), including the run configuration file `config.yaml` for reproducibility.
+- `extra_metadata`: User-defined fields merged into the W&B run configuration.
+- Webhook fields: `triggered_by_webhook`, `webhook_source`, `source_artifact`, `config_source`.
+
+## Credentials
+
+- Run `wandb login` on the machine that performs the export.
+- For non-interactive environments, set `WANDB_API_KEY` in the environment.
+- Optional for on-prem or self-hosted W&B: set `WANDB_BASE_URL`.
+
+## Examples
+
+### YAML
+
 ```yaml
 execution:
   auto_export:
@@ -47,12 +58,14 @@ execution:
           hardware: "super-gpu9000s"
 ```
 
-**Examples (CLI):**
+### CLI
+
 ```bash
 nemo-evaluator-launcher export 8abcd123 --dest wandb
 ```
 
-**Examples (API):**
+### Python API
+
 ```python
 from nemo_evaluator_launcher.api.functional import export_results
 
@@ -63,3 +76,7 @@ export_results("8abcd123", dest="wandb", config={"entity": "myorg", "project": "
 export_results("8abcd123", dest="wandb",
                config={"entity": "myorg", "project": "evals", "log_mode": "multi_task"})
 ```
+
+## Tips
+
+Use `auto_export` for the most flexible configuration and customization.
