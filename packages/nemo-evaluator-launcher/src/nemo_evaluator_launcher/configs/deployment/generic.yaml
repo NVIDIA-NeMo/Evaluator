@@ -24,6 +24,7 @@ port: 8000
 served_model_name: ???  # Name of the served model (used in command templates and evaluation)
 extra_args: ""  # Additional command line arguments
 env_vars: {}  # Environment variables as {name: value} dict
+checkpoint_path: null  # Path to model checkpoint
 
 # API endpoints (customize based on your server)
 endpoints:
