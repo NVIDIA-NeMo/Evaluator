@@ -75,12 +75,12 @@ def get_eval_factory_command(
     create_file_cmd = _yaml_to_echo_command(
         yaml.safe_dump(config_fields), "config_ef.yaml"
     )
-    nv_eval_command = f"""nv_eval run_eval --model_id {model_id} --model_type {model_type} --eval_type {eval_type} --model_url {model_url} --api_key_name API_KEY --output_dir /results --run_config config_ef.yaml"""
+    eval_command = f"""eval-factory run_eval --model_id {model_id} --model_type {model_type} --eval_type {eval_type} --model_url {model_url} --api_key_name API_KEY --output_dir /results --run_config config_ef.yaml"""
 
     if overrides:
-        nv_eval_command = f"{nv_eval_command} --overrides {overrides_str}"
+        eval_command = f"{eval_command} --overrides {overrides_str}"
 
-    return create_file_cmd + " && " + "cat config_ef.yaml && " + nv_eval_command
+    return create_file_cmd + " && " + "cat config_ef.yaml && " + eval_command
 
 
 def get_endpoint_url(
