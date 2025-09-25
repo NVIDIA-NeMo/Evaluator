@@ -15,7 +15,7 @@ Automodel checkpoint deployment uses Ray Serve as the serving backend. It also o
 
 ```shell
 python \
-  /opt/Export-Deploy/scripts/deploy/nlp/deploy_inframework_triton.py \
+  /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_hf.py \
   --model_path 'meta-llama/Llama-3.1-8B' \
   --model_id "megatron_model" \
   --port 8080 \
