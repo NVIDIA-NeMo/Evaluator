@@ -11,6 +11,7 @@ Key arguments:
 - **`command`**: Command to run the server with template variables (required)
 - **`served_model_name`**: Name of the served model (required)
 - **`endpoints`**: API endpoint paths (chat, completions, health)
+- **`checkpoint_path`**: Path to model checkpoint for mounting (default: null)
 - **`extra_args`**: Additional command line arguments
 - **`env_vars`**: Environment variables as {name: value} dict
 
