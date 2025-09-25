@@ -62,6 +62,10 @@ This configuration will create evaluations for 2 tasks: `ifeval` and `mbpp`.
 - **`ifeval`**: [Instruction Following Evaluation](https://arxiv.org/abs/2311.07911) - evaluates ability to follow natural language instructions
 - **`mbpp`**: [Mostly Basic Programming Problems](https://arxiv.org/abs/2108.07732) - coding benchmark with 974 Python programming tasks
 
+**Expected runtime**: For the given parallelism `ifeval` takes ~25 minutes, `mbpp` takes ~1 hour.
+
+**💡 Quick test**: For a faster sanity check, uncomment `config.params.limit_samples: 10` in the configuration below to run only 10 samples per task.
+
 ```yaml
 defaults:
   - execution: local
@@ -82,6 +86,7 @@ evaluation:
   overrides: # Note: The overrides above apply to all tasks in the evaluation
     config.params.request_timeout: 3600  # Maximum time (in seconds) to wait for each API response
     config.params.parallelism: 4         # Number of parallel requests to send simultaneously
+    # config.params.limit_samples: 10 # **SANITY CHECK**: Uncomment this line to run only 10 samples per task for quick testing
   tasks:
     - name: ifeval  # use the default benchmark configuration
     - name: mbpp
