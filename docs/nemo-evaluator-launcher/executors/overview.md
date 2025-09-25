@@ -19,7 +19,7 @@ Executors run the evaluation for you by taking the appropriate Docker image (whi
 |---------|-------|-------|--------|
 | **Evaluation** | ✅ | ✅ | ✅ |
 | **Deployment + Evaluation** | ❌ | ✅ | ✅ |
-| **Resuming** | ✅ (Manual) | ✅ (Auto) | ?? |
+| **Resuming** | ✅ (Manual) | ✅ (Auto) | ✅ |
 | **Cloud Native** | ❌ | ❌ | ✅ |
 | **Autoscaling** | ❌ | ❌ | ✅ |
 | **Best For** | Development, Testing | HPC Clusters | Cloud Scale |
