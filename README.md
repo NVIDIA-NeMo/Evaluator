@@ -109,6 +109,7 @@ print(results)
 | Checkpoint Type | Inference Backend | Deployment Server | Evaluation Harnesses Supported |
 |----------------|-------------------|-------------|--------------------------|
 |         NeMo FW checkpoint via Megatron Core backend         |    [Megatron Core in-framework inference engine](https://github.com/NVIDIA/Megatron-LM/tree/main/megatron/core/inference)               |     PyTriton (single and multi node model parallelism), Ray (single node model parallelism with multi instance evals)        |          lm-evaluation-harness, simple-evals, BigCode, BFCL, safety-harness, garak                |
+|         Automodel checkpoint (HF checkpoint)        |     vLLM               |     Ray         |          lm-evaluation-harness, simple-evals, BigCode, BFCL, safety-harness, garak                |
 
 ## 🏗️ Architecture
 
