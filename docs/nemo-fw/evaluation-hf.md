@@ -24,7 +24,16 @@ python \
   --use_vllm_backend
 ```
 
-The `--model_path` can refer to either a local checkpoint path or a Hugging Face model ID, as shown in the example above. In the example above, checkpoint deployment uses the `vLLM` backend. To enable accelerated inference, install `vLLM` in your environment—either within the NeMo Framework container or externally—using the command `pip install vllm`. If you prefer to evaluate the Automodel checkpoint without using the `vLLM` backend, remove the `--use_vllm_backend` flag from the command above.
+The `--model_path` can refer to either a local checkpoint path or a Hugging Face model ID, as shown in the example above. In the example above, checkpoint deployment uses the `vLLM` backend. To enable accelerated inference, install `vLLM` in your environment. To install `vLLM` inside the NeMo Framework container follow the steps below as shared in [Export-Deploy's README](https://github.com/NVIDIA-NeMo/Export-Deploy?tab=readme-ov-file#install-tensorrt-llm-vllm-or-trt-onnx-backend:~:text=cd%20/opt/Export%2DDeploy%0Auv%20sync%20%2D%2Dinexact%20%2D%2Dlink%2Dmode%20symlink%20%2D%2Dlocked%20%2D%2Dextra%20vllm%20%24(cat%20/opt/uv_args.txt)):
+
+```shell
+cd /opt/Export-Deploy
+uv sync --inexact --link-mode symlink --locked --extra vllm $(cat /opt/uv_args.txt)
+```
+
+To install `vLLM` outside of NeMo Framwork container follow the steps mentioned [here](https://github.com/NVIDIA-NeMo/Export-Deploy?tab=readme-ov-file#install-tensorrt-llm-vllm-or-trt-onnx-backend:~:text=Install%20TransformerEngine%20%2B%20vLLM).
+
+If you prefer to evaluate the Automodel checkpoint without using the `vLLM` backend, remove the `--use_vllm_backend` flag from the command above.
 
 > **Note:** To speed up evaluation using multiple instances, increase the `num_replicas` parameter.
 For additional guidance, refer to ["Use Ray Serve for Multi-Instance Evaluations"](evaluation-with-ray.md).
