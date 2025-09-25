@@ -453,6 +453,54 @@ class TestResponseStatsInterceptor:
         assert interceptor._stats["count"] >= 500
         assert interceptor._stats["status_codes"][200] >= 500
 
+    @pytest.mark.parametrize(
+        "cache_hit,expected_total_responses,expected_successful_responses",
+        [
+            # Cached response - should NOT be counted (skipped by interceptor)
+            (True, 0, 0),
+            # Normal response (not cached)
+            (False, 1, 1),
+        ],
+    )
+    def test_cached_response_stats_behavior(
+        self,
+        tmp_path,
+        context,
+        cache_hit,
+        expected_total_responses,
+        expected_successful_responses,
+    ):
+        """Test that cached responses are properly skipped in stats counting."""
+        # Create a unique cache directory for each test to avoid state pollution
+        import uuid
+
+        unique_cache_dir = tmp_path / f"test_cache_{uuid.uuid4().hex[:8]}"
+
+        interceptor = ResponseStatsInterceptor(
+            ResponseStatsInterceptor.Params(
+                save_individuals=False, cache_dir=str(unique_cache_dir)
+            )
+        )
+
+        # Create a mock response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"result": "test"}
+        mock_response._content = b'{"result": "test"}'
+
+        # Setup request context with cache hit status
+        mock_rctx = Mock()
+        mock_rctx.cache_hit = cache_hit
+
+        adapter_response = AdapterResponse(r=mock_response, rctx=mock_rctx)
+
+        # Process response
+        interceptor.intercept_response(adapter_response, context)
+
+        # Verify stats counting behavior
+        assert interceptor._stats["count"] == expected_total_responses
+        assert interceptor._stats["successful_count"] == expected_successful_responses
+
 
 class TestResponseStatsInterceptorCache:
     """Test ResponseStatsInterceptor caching and aggregation functionality."""
