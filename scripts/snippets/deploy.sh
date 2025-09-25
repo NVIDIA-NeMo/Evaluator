@@ -14,7 +14,7 @@
 
 ## Deploy
 
-CHECKPOINT_PATH = "/checkpoints/llama-3_2-1b-instruct_v2.0"
+CHECKPOINT_PATH="/checkpoints/llama-3_2-1b-instruct_v2.0"
 
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
