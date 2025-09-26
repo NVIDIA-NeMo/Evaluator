@@ -55,7 +55,7 @@ evaluation:
         config.params.temperature: 0.6
         config.params.top_p: 0.95
         config.params.max_new_tokens: 8192
-        config.params.parallelism: 32
+        config.params.parallelism: 4
       env_vars:
         HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND  # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
     - name: mbpp
@@ -64,6 +64,6 @@ evaluation:
         config.params.top_p: 0.95
         config.params.max_new_tokens: 2048
         config.params.extra.n_samples: 5  # sample 5 predictions per prompt
-        config.params.parallelism: 32
+        config.params.parallelism: 4
         target.api_endpoint.adapter_config.custom_system_prompt: >-
           "You must only provide the code implementation"
