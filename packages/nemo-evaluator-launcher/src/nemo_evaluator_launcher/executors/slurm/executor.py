@@ -41,10 +41,8 @@ from nemo_evaluator_launcher.common.execdb import (
 )
 from nemo_evaluator_launcher.common.helpers import (
     get_api_key_name,
-    get_endpoint_url,
     get_eval_factory_command,
     get_eval_factory_dataset_size_from_run_config,
-    get_health_url,
     get_timestamp_string,
 )
 from nemo_evaluator_launcher.common.mapping import (
@@ -455,7 +453,6 @@ def _create_slurm_sbatch_script(
     # get task from mapping, overrides, urls
     tasks_mapping = load_tasks_mapping()
     task_definition = get_task_from_mapping(task.name, tasks_mapping)
-    health_url = get_health_url(cfg, get_endpoint_url(cfg, task, task_definition))
 
     # TODO(public release): convert to template
     s = "#!/bin/bash\n"
@@ -558,10 +555,11 @@ def _create_slurm_sbatch_script(
         )
 
         # wait for the server to initialize
+        health_path = cfg.deployment.get("health_check_path", "/health")
         s += _get_wait_for_server_handler(
             '"${NODES_IPS_ARRAY[@]}"',
             cfg.deployment.port,
-            health_url,
+            health_path,
             "server",
             check_pid=True,
         )
