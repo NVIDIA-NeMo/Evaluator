@@ -41,7 +41,7 @@ python \
   --server_port {server_port} \
   --num_gpus {devices} \
   --num_nodes {nodes} \
-  --tensor_parallelism_size {tensor_parallelism_size} \
+  --tensor_model_parallel_size {tensor_model_parallel_size} \
   --pipeline_parallelism_size {pipeline_parallelism_size} \
   --max_batch_size {max_batch_size} \
   {additional_args}
