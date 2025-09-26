@@ -42,7 +42,7 @@ python \
   --num_gpus {devices} \
   --num_nodes {nodes} \
   --tensor_model_parallel_size {tensor_model_parallel_size} \
-  --pipeline_parallelism_size {pipeline_parallelism_size} \
+  --pipeline_model_parallel_size {pipeline_model_parallel_size} \
   --max_batch_size {max_batch_size} \
   {additional_args}
 """
