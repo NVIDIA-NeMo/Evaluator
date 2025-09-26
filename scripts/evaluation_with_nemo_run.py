@@ -57,7 +57,7 @@ python \
   --num_gpus {devices} \
   --num_nodes {nodes} \
   --tensor_model_parallel_size {tensor_model_parallel_size} \
-  --pipeline_parallelism_size {pipeline_parallelism_size} \
+  --pipeline_model_parallel_size {pipeline_model_parallel_size} \
   --max_batch_size {max_batch_size} \
   --num_replicas {num_replicas} \
   {additional_args}
@@ -286,11 +286,12 @@ def main():
         "server_port": args.server_port,
         "server_address": args.server_address,
         "max_input_len": args.max_input_len,
-        "tensor_parallelism_size": args.tensor_parallelism_size,
-        "pipeline_parallelism_size": args.pipeline_parallelism_size,
+        "tensor_model_parallel_size": args.tensor_parallelism_size,
+        "pipeline_model_parallel_size": args.pipeline_parallelism_size,
         "max_batch_size": args.batch_size,
         "devices": args.devices,
         "nodes": args.nodes,
+        "num_replicas": args.num_replicas,
     }
 
     exp_name = "NeMoEvaluation"
@@ -304,7 +305,6 @@ def main():
             **commons_args, additional_args=additional_args
         )
     elif args.serving_backend == "ray":
-        additional_args += f" --num_replicas {args.num_replicas}"
         if args.num_cpus_per_replica:
             additional_args += f" --num_cpus_per_replica {args.num_cpus_per_replica}"
         deploy_script = RAY_DEPLOY_SCRIPT.format(
