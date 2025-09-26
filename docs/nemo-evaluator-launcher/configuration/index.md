@@ -50,7 +50,7 @@ Uses [Hydra's defaults list](https://hydra.cc/docs/advanced/defaults_list/) to c
 
 **Available Options:**
 - **Execution**: `local`, `slurm`, `lepton`
-- **Deployment**: `vllm`, `sglang`, `nim`, `none`
+- **Deployment**: `vllm`, `sglang`, `nim`, `generic`, `none`
 
 # 2. Execution
 Defines how and where to run evaluations. See [Execution Overview](execution/index.md) for details.
@@ -65,6 +65,7 @@ Defines how to deploy and serve your model. See [Deployment Overview](deployment
 - **[vLLM](deployment/vllm.md)**: Fast LLM inference and serving
 - **[SGLang](deployment/sglang.md)**: Fast serving framework for LLMs and VLMs
 - **[NIM](deployment/nim.md)**: NVIDIA Inference Microservices
+- **[Generic](deployment/generic.md)**: Custom server deployment with flexible configuration
 - **[None](deployment/none.md)**: Use existing endpoint (no deployment)
 
 # 4. Target
