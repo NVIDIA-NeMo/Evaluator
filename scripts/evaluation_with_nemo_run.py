@@ -56,7 +56,7 @@ python \
   --host {server_address} \
   --num_gpus {devices} \
   --num_nodes {nodes} \
-  --tensor_parallelism_size {tensor_parallelism_size} \
+  --tensor_model_parallel_size {tensor_model_parallel_size} \
   --pipeline_parallelism_size {pipeline_parallelism_size} \
   --max_batch_size {max_batch_size} \
   --num_replicas {num_replicas} \
