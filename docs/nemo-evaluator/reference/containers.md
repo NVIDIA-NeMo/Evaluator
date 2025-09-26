@@ -24,7 +24,7 @@ Eval Factory provides a collection of specialized containers for different evalu
 **Pull Command**:
 
 ```bash
-docker pull nvcr.io/nvidia/eval-factory/agentic_eval:latest
+docker pull nvcr.io/nvidia/eval-factory/agentic_eval:25.08.1
 ```
 
 **Defaults**:
@@ -54,7 +54,7 @@ docker pull nvcr.io/nvidia/eval-factory/agentic_eval:latest
 **Pull Command**:
 
 ```bash
-docker pull nvcr.io/nvidia/eval-factory/rag_retriever_eval:latest
+docker pull nvcr.io/nvidia/eval-factory/rag_retriever_eval:25.08.1
 ```
 
 ### Simple-Evals Container
@@ -72,7 +72,7 @@ docker pull nvcr.io/nvidia/eval-factory/rag_retriever_eval:latest
 **Pull Command**:
 
 ```bash
-docker pull nvcr.io/nvidia/eval-factory/simple-evals:latest
+docker pull nvcr.io/nvidia/eval-factory/simple-evals:25.08.1
 ```
 
 **Defaults**:
@@ -107,7 +107,7 @@ docker pull nvcr.io/nvidia/eval-factory/simple-evals:latest
 **Pull Command**:
 
 ```bash
-docker pull nvcr.io/nvidia/eval-factory/lm-evaluation-harness:latest
+docker pull nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.08.1
 ```
 
 **Defaults**:
@@ -142,7 +142,7 @@ docker pull nvcr.io/nvidia/eval-factory/lm-evaluation-harness:latest
 **Pull Command**:
 
 ```bash
-docker pull nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:latest
+docker pull nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.08.1
 ```
 
 **Defaults**:
@@ -267,7 +267,7 @@ docker pull nvcr.io/nvidia/eval-factory/tooltalk:25.07.1
 **Pull Command**:
 
 ```bash
-docker pull nvcr.io/nvidia/eval-factory/bfcl:latest
+docker pull nvcr.io/nvidia/eval-factory/bfcl:25.08.1
 ```
 
 **Defaults**:
@@ -324,7 +324,7 @@ docker pull nvcr.io/nvidia/eval-factory/garak:25.07.1
 **Pull Command**:
 
 ```bash
-docker pull nvcr.io/nvidia/eval-factory/safety-harness:latest
+docker pull nvcr.io/nvidia/eval-factory/safety-harness:25.08.1
 ```
 
 **Defaults**:
