@@ -13,7 +13,7 @@ pip install nemo-evaluator-launcher
 
 NeMo Evaluator sends OpenAI-compatible requests to your model during evaluation. You must have an endpoint that accepts either chat or completions API calls and can handle the evaluation load.
 
-**Configuration Examples**: Explore ready-to-use configuration files in [`packages/nemo-evaluator-launcher/examples/`](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples) for local, Lepton, and Slurm deployments with various model hosting options (vLLM, NIM, hosted endpoints).
+**Configuration Examples**: Explore ready-to-use configuration files in [`packages/nemo-evaluator-launcher/examples/`](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples) for local, Lepton, and Slurm deployments with various model hosting options (vLLM, NIM, hosted endpoints).
 
 Hosted endpoints (fastest):
 
@@ -73,9 +73,9 @@ The NeMo Evaluator Launcher uses [Hydra](https://hydra.cc/docs/intro/) for confi
 
 The `examples/` directory contains ready-to-use configurations:
 
-- Local execution: [examples/local_llama_3_1_8b_instruct.yaml](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml)
-- Slurm execution: [examples/slurm_llama_3_1_8b_instruct.yaml](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml)
-- Lepton AI execution: [examples/lepton_nim_llama_3_1_8b_instruct.yaml](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml)
+- Local execution: [examples/local_llama_3_1_8b_instruct.yaml](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml)
+- Slurm execution: [examples/slurm_llama_3_1_8b_instruct.yaml](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml)
+- Lepton AI execution: [examples/lepton_nim_llama_3_1_8b_instruct.yaml](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml)
 
 Run a local evaluation (requires [Docker](https://www.docker.com/)):
 ```bash

@@ -27,9 +27,9 @@ Tips:
 - use `env_var_names` to pass environment variables to evaluation containers
 
 Examples:
-- [Lepton vLLM Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/lepton_vllm_llama_3_1_8b_instruct.yaml) - Lepton execution with vLLM deployment
-- [Lepton NIM Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml) - Lepton execution with NIM deployment
-- [Lepton None Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/lepton_none_llama_3_1_8b_instruct.yaml) - Lepton execution with already deployed in Lepton endpoint
+- [Lepton vLLM Example](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/lepton_vllm_llama_3_1_8b_instruct.yaml) - Lepton execution with vLLM deployment
+- [Lepton NIM Example](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml) - Lepton execution with NIM deployment
+- [Lepton None Example](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/lepton_none_llama_3_1_8b_instruct.yaml) - Lepton execution with already deployed in Lepton endpoint
 
 ## Reference
 

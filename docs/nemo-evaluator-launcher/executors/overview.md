@@ -30,7 +30,7 @@ Some executors (e.g., Slurm, Lepton) can optionally host the model on‑the‑fl
 - one for the containerized evaluation (benchmark harness), and
 - one for serving the model endpoint.
 
-When on‑the‑fly hosting is enabled, the evaluation configuration also includes a deployment section. See the [deployment configuration documentation](../configuration/deployment/index.md) and examples in the [examples/](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples) folder for Slurm and Lepton.
+When on‑the‑fly hosting is enabled, the evaluation configuration also includes a deployment section. See the [deployment configuration documentation](../configuration/deployment/index.md) and examples in the [examples/](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples) folder for Slurm and Lepton.
 
 #### Common workflow
 1. [Choose an executor and example config](../configuration/index.md)

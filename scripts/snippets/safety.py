@@ -17,6 +17,7 @@
 ## Export the required variables
 # export HF_TOKEN=...
 ## Run the evaluation
+from nemo_evaluator.api import evaluate
 from nemo_evaluator.api.api_dataclasses import (
     ApiEndpoint,
     ConfigParams,
@@ -24,7 +25,6 @@ from nemo_evaluator.api.api_dataclasses import (
     EvaluationConfig,
     EvaluationTarget,
 )
-from nemo_evaluator.core.evaluate import evaluate
 
 model_name = "megatron_model"
 chat_url = "http://0.0.0.0:8080/v1/chat/completions/"
