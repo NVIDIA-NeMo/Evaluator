@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import yaml
+from jinja2 import Environment, FileSystemLoader
 from omegaconf import DictConfig, OmegaConf
 
 from nemo_evaluator_launcher.common.execdb import (
@@ -121,6 +122,14 @@ class SlurmExecutor(BaseExecutor):
                     invocation_id=invocation_id,
                     job_id=job_id,
                 )
+
+                # Create HAProxy config file with placeholder IPs only if multiple_instances is true
+                if cfg.deployment.get("multiple_instances", False):
+                    haproxy_config = _generate_haproxy_config_with_placeholders(cfg)
+                    haproxy_config_path = local_task_subdir / "haproxy.cfg"
+                    with open(haproxy_config_path, "w") as f:
+                        f.write(haproxy_config)
+
                 local_runsub_path = local_task_subdir / "run.sub"
                 remote_runsub_path = remote_task_subdir / "run.sub"
                 with open(local_runsub_path, "w") as f:
@@ -544,35 +553,23 @@ def _create_slurm_sbatch_script(
             deployment_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
         # add deployment srun command
-        s += "# deployment server\n"
-        s += "srun --mpi pmix --overlap "
-        s += "--container-image {} ".format(cfg.deployment.image)
-        if deployment_mounts_list:
-            s += "--container-mounts {} ".format(",".join(deployment_mounts_list))
-        if not cfg.execution.get("mounts", {}).get("mount_home", True):
-            s += "--no-container-mount-home "
-        s += "--output {} ".format(remote_task_subdir / "logs" / "server-%A.out")
-        deployment_env_var_names = list(
-            cfg.execution.get("env_vars", {}).get("deployment", {})
-        )
-        if cfg.deployment.get("env_vars"):
-            warnings.warn(
-                "cfg.deployment.env_vars will be deprecated in future versions. "
-                "Use cfg.execution.env_vars.deployment instead.",
-                category=DeprecationWarning,
-                stacklevel=2,
-            )
-            deployment_env_var_names.extend(list(cfg.deployment["env_vars"]))
-        if deployment_env_var_names:
-            s += f"--container-env {','.join(deployment_env_var_names)} "
-        s += "{} &\n\n".format(cfg.deployment.command)  # run asynchronously
-        s += (
-            "SERVER_PID=$!  # capture the PID of the server background srun process\n\n"
+        s += _generate_deployment_srun_command(
+            cfg, deployment_mounts_list, remote_task_subdir
         )
 
         # wait for the server to initialize
-        s += _WAIT_FOR_SERVER_HANDLER.format(health_url=health_url)
+        s += _get_wait_for_server_handler(
+            '"${NODES_IPS_ARRAY[@]}"',
+            cfg.deployment.port,
+            health_url,
+            "server",
+            check_pid=True,
+        )
         s += "\n\n"
+
+        # add HAProxy load balancer only if multiple_instances is true
+        if cfg.deployment.get("multiple_instances", False):
+            s += _get_proxy_server_srun_command(cfg, remote_task_subdir)
 
     # prepare evaluation mounts
     evaluation_mounts_list = [
@@ -586,6 +583,7 @@ def _create_slurm_sbatch_script(
     # add evaluation srun command
     s += "# evaluation client\n"
     s += "srun --mpi pmix --overlap "
+    s += "--nodes 1 --ntasks 1 "  # Client always runs on single node
     s += "--container-image {} ".format(eval_image)
     evaluation_env_var_names = list(
         cfg.execution.get("env_vars", {}).get("evaluation", {})
@@ -602,7 +600,10 @@ def _create_slurm_sbatch_script(
 
     # terminate the server after all evaluation clients finish
     if cfg.deployment.type != "none":
-        s += "kill $SERVER_PID  # terminate the server to finish gracefully\n\n"
+        s += "kill $SERVER_PID  # terminate the server to finish gracefully\n"
+        if cfg.deployment.get("multiple_instances", False):
+            s += "kill $HAPROXY_PID  # terminate HAProxy to finish gracefully\n"
+        s += "\n"
 
     # auto-export
     if cfg.execution.get("auto_export", {}).get("destinations", []):
@@ -988,9 +989,160 @@ sbatch --dependency=afternotok:$SLURM_JOB_ID $_this_script $SLURM_JOB_ID
 """.strip()
 
 
-_WAIT_FOR_SERVER_HANDLER = """
-date
-# wait for the server to initialize
-bash -c 'while [[ "$(curl -s -o /dev/null -w "%{{http_code}}" {health_url})" != "200" ]]; do kill -0 '"$SERVER_PID"' 2>/dev/null || {{ echo "Server process '"$SERVER_PID"' died"; exit 1; }}; sleep 5; done'
+def _generate_haproxy_config_with_placeholders(cfg):
+    """Generate HAProxy configuration with placeholder IPs using Jinja template."""
+    # Set up Jinja environment
+    template_dir = Path(__file__).parent
+    env = Environment(loader=FileSystemLoader(template_dir))
+    template = env.get_template("haproxy.cfg.j2")
+
+    # Prepare template data with placeholder IPs - use actual number of nodes
+    num_nodes = cfg.execution.num_nodes
+    nodes = []
+    for i in range(num_nodes):
+        nodes.append({"ip": f"{{IP_{i}}}", "port": cfg.deployment.port})
+
+    # Get health check parameters from execution config
+    proxy_config = cfg.execution.get("proxy", {}).get("config", {})
+    health_check_path = proxy_config.get("health_check_path", "/health")
+    health_check_status = proxy_config.get("health_check_status", 200)
+    haproxy_port = proxy_config.get("haproxy_port", 5009)
+
+    # Render template
+    config = template.render(
+        haproxy_port=haproxy_port,
+        health_check_path=health_check_path,
+        health_check_status=health_check_status,
+        nodes=nodes,
+    )
+
+    return config
+
+
+def _generate_haproxy_config(cfg, nodes_ips):
+    """Generate HAProxy configuration using Jinja template."""
+    # Set up Jinja environment
+    template_dir = Path(__file__).parent
+    env = Environment(loader=FileSystemLoader(template_dir))
+    template = env.get_template("haproxy.cfg.j2")
+
+    # Prepare template data
+    nodes = []
+    for i, ip in enumerate(nodes_ips, 1):
+        nodes.append(
+            {"ip": ip, "port": cfg.deployment.port}  # All nodes use the same port
+        )
+
+    # Get health check parameters from deployment config
+    health_check_path = cfg.deployment.get("health_check_path", "/health")
+    health_check_status = cfg.deployment.get("health_check_status", 200)
+    haproxy_port = cfg.deployment.get("haproxy_port", 5009)
+
+    # Render template
+    config = template.render(
+        haproxy_port=haproxy_port,
+        health_check_path=health_check_path,
+        health_check_status=health_check_status,
+        nodes=nodes,
+    )
+
+    return config
+
+
+def _generate_deployment_srun_command(
+    cfg, deployment_mounts_list, remote_task_subdir, instance_id: int = 0
+):
+    """Generate the deployment srun command with proper node/ntask configuration."""
+    s = ""
+    s += "# deployment server\n"
+    s += "# Get node IPs\n"
+    s += "nodes=( $(scontrol show hostnames $SLURM_JOB_NODELIST) )\n"
+    s += 'nodes_array=("${nodes[@]}")  # Ensure nodes are stored properly\n'
+    s += 'export NODES_IPS_ARRAY=($(for node in "${nodes_array[@]}"; do srun --nodelist=$node --ntasks=1 --nodes=1 hostname --ip-address; done))\n'
+    s += 'echo "Node IPs: ${NODES_IPS_ARRAY[@]}"\n'
+    s += "srun --mpi pmix --overlap "
+    s += f"--nodes {cfg.execution.num_nodes} --ntasks {cfg.execution.num_nodes} "
+    s += "--container-image {} ".format(cfg.deployment.image)
+    if deployment_mounts_list:
+        s += "--container-mounts {} ".format(",".join(deployment_mounts_list))
+    if not cfg.execution.get("mounts", {}).get("mount_home", True):
+        s += "--no-container-mount-home "
+    s += "--output {} ".format(remote_task_subdir / "logs" / "server-%A-%t.out")
+
+    deployment_env_var_names = list(
+        cfg.execution.get("env_vars", {}).get("deployment", {})
+    )
+    if cfg.deployment.get("env_vars"):
+        warnings.warn(
+            "cfg.deployment.env_vars will be deprecated in future versions. "
+            "Use cfg.execution.env_vars.deployment instead.",
+            category=DeprecationWarning,
+            stacklevel=2,
+        )
+        deployment_env_var_names.extend(list(cfg.deployment["env_vars"]))
+    if deployment_env_var_names:
+        s += f"--container-env {','.join(deployment_env_var_names)} "
+    s += "{} &\n\n".format(cfg.deployment.command)  # run asynchronously
+    s += "SERVER_PID=$!  # capture the PID of the server background srun process\n\n"
+
+    return s
+
+
+def _get_wait_for_server_handler(
+    ip_list: str,
+    port: int,
+    health_check_path: str,
+    service_name: str = "server",
+    check_pid: bool = False,
+):
+    """Generate wait for server handler that takes a list of IPs."""
+    pid_check = ""
+    if check_pid:
+        pid_check = 'kill -0 "$SERVER_PID" 2>/dev/null || { echo "Server process $SERVER_PID died"; exit 1; }'
+
+    handler = f"""date
+# wait for the {service_name} to initialize
+for ip in {ip_list}; do
+  echo "Waiting for {service_name} on $ip..."
+  while [[ "$(curl -s -o /dev/null -w "%{{http_code}}" http://$ip:{port}{health_check_path})" != "200" ]]; do
+    {pid_check}
+    sleep 5
+  done
+  echo "{service_name} ready on $ip!"
+done
 date
 """.strip()
+
+    return handler
+
+
+def _get_proxy_server_srun_command(cfg, remote_task_subdir):
+    """Generate HAProxy proxy server srun command."""
+    s = ""
+    s += "# HAProxy load balancer\n"
+    s += "# Replace placeholder IPs with actual node IPs\n"
+    s += f"haproxy_config_file={remote_task_subdir}/haproxy.cfg\n"
+    s += 'for i in "${!NODES_IPS_ARRAY[@]}"; do\n'
+    s += '    ip="${NODES_IPS_ARRAY[$i]}"\n'
+    s += '    sed -i "s/{IP_$i}/$ip/g" "$haproxy_config_file"\n'
+    s += "done\n"
+    s += "\n"
+    s += "srun --mpi pmix --overlap "
+    s += "--nodes 1 --ntasks 1 "
+    s += f"--container-image {cfg.execution.get('proxy', {}).get('image', 'haproxy:latest')} "
+    s += f"--container-mounts {remote_task_subdir}/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro "
+    s += f"--output {remote_task_subdir}/logs/haproxy-%A.out "
+    s += "haproxy -f /usr/local/etc/haproxy/haproxy.cfg &\n"
+    s += "HAPROXY_PID=$!  # capture the PID of the HAProxy background srun process\n"
+    s += 'echo "HAProxy started with PID: $HAPROXY_PID"\n\n'
+
+    # Wait for HAProxy to be ready on localhost
+    proxy_config = cfg.execution.get("proxy", {}).get("config", {})
+    haproxy_port = proxy_config.get("haproxy_port", 5009)
+    health_path = proxy_config.get("health_check_path", "/health")
+    s += _get_wait_for_server_handler(
+        "127.0.0.1", haproxy_port, health_path, "HAProxy", check_pid=False
+    )
+    s += "\n"
+
+    return s
