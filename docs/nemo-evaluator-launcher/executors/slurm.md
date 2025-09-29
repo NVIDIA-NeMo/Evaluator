@@ -102,4 +102,4 @@ The Slurm executor includes advanced auto-resume capabilities:
 
 ## Monitoring and Job Management
 
-For monitoring jobs, checking status, and managing evaluations, refer to the [Executors Overview](overview.md#job-management) section.
+For monitoring jobs, checking status, and managing evaluations, refer to the [Executors Overview](index.md#job-management) section.
