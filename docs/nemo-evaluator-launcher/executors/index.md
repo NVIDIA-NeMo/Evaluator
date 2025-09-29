@@ -39,7 +39,7 @@ When you enable on‑the‑fly hosting, the evaluation configuration also includ
 1. [Choose an executor and example configuration](../configuration/index.md)
 2. [Point the target to your model endpoint](../configuration/target/index.md)
 3. [Run and view logs](#job-management)
-4. [Optionally export results to dashboards or files](../exporters/overview.md)
+4. [Optionally export results to dashboards or files](../exporters/index.md)
 
 ## Key Commands
 
