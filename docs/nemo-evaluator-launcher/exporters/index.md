@@ -87,8 +87,7 @@ execution:
 ```
 
 ## Tip: Remote Auto-Export (Slurm)
-
-**Prerequisites on the cluster:**
+Set up your cluster environment with the following requirements:
 
 - Install `nemo-evaluator-launcher[all]` in an environment that is visible to compute nodes (for example, on a shared file system such as Lustre).
 - Ensure binaries are resolvable at export time. For example, add the following YAML override:
