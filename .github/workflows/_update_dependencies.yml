@@ -9,12 +9,6 @@ on:
     secrets:
       PAT:
         required: true
-      AZURE_CLIENT_ID:
-        required: true
-      AZURE_TENANT_ID:
-        required: true
-      AZURE_SUBSCRIPTION_ID:
-        required: true
       SSH_KEY:
         required: true
       SSH_PWD:
@@ -33,25 +27,18 @@ jobs:
 
   update-lockfile:
     environment: nemo-ci
-    runs-on: linux-amd64-cpu16
+    runs-on: ubuntu-latest
     needs: [pre-flight]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: nemo-evaluator
+          - package: nemo-evaluator-launcher
     env:
       SOURCE_BRANCH: ${{ needs.pre-flight.outputs.bump-branch }}
       TARGET_BRANCH: ${{ inputs.target-branch }}
     steps:
-      - name: Install Azure CLI
-        run: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Azure ACR Login
-        run: az acr login --name nemoci
-
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
@@ -61,7 +48,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT }}
         run: |
-          docker build -f docker/Dockerfile.ci --build-arg INFERENCE_FRAMEWORK=inframework --secret id=GH_TOKEN -t eval .
+          docker build -f docker/Dockerfile.ci --build-arg PACKAGE=${{ matrix.package }} -t eval .
 
       - name: Create bump branch if not exists
         run: |
@@ -81,7 +68,7 @@ jobs:
         run: |
           docker run \
           --rm \
-          -v $(pwd):/workspace \
+          -v $(pwd)/packages/${{ matrix.package }}:/workspace \
           -w /workspace \
           -e GH_TOKEN=${{ secrets.PAT }} \
           eval \
@@ -90,8 +77,8 @@ jobs:
       - name: Upload lock file
         uses: actions/upload-artifact@v4
         with:
-          name: lock-file-${{ env.SOURCE_BRANCH }}
-          path: uv.lock
+          name: lock-file-${{ env.SOURCE_BRANCH }}-${{ matrix.package }}
+          path: packages/${{ matrix.package }}/uv.lock
 
   create-pr:
     needs: [update-lockfile, pre-flight]
@@ -128,8 +115,13 @@ jobs:
 
       - name: Download lock file
         uses: actions/download-artifact@v4
-        with:
-          name: lock-file-${{ env.SOURCE_BRANCH }}
+
+      - name: Move files
+        run: |
+          mv lock-file-${{ needs.pre-flight.outputs.bump-branch }}-nemo-evaluator-launcher/uv.lock \
+            packages/nemo-evaluator-launcher/uv.lock
+          mv lock-file-${{ needs.pre-flight.outputs.bump-branch }}-nemo-evaluator/uv.lock \
+            packages/nemo-evaluator/uv.lock
 
       - name: Create Bump PR
         uses: peter-evans/create-pull-request@v6
