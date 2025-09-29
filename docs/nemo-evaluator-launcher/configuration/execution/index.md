@@ -35,4 +35,4 @@ At the executor level, define result export methods. The `auto_export` field ena
 
 For detailed configuration options, refer to the [Exporters Overview](../../exporters/index.md#exporters-overview).
 
-For detailed executor information, refer to the [Executors Overview](../../executors/overview.md).
+For detailed executor information, refer to the [Executors Overview](../../executors/index.md#executors-overview).
