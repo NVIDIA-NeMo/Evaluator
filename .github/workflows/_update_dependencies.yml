@@ -116,6 +116,11 @@ jobs:
       - name: Download lock file
         uses: actions/download-artifact@v4
 
+      - name: Move files
+        run: |
+          mv ${{ needs.pre-flight.outputs.bump-branch }}-nemo-evaluator-launcher packages/nemo-evaluator-launcher/uv.lock
+          mv ${{ needs.pre-flight.outputs.bump-branch }}-nemo-evaluator packages/nemo-evaluator/uv.lock
+
       - name: Create Bump PR
         uses: peter-evans/create-pull-request@v6
         id: create-pull-request
