@@ -113,7 +113,7 @@ Set up your cluster environment with the following requirements:
 
 
 ## Add Your Own Exporter
-It is straightforward to add a custom exporter to fit your tools:
+You can easily add a custom exporter to fit your tools:
 - Inherit from `BaseExporter`
 - Use `LocalExporter` to stage artifacts
 - Add your custom upload and processing logic
