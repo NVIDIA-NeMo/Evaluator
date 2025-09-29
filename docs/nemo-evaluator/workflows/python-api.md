@@ -256,4 +256,4 @@ print(f"NEMO_EVALUATOR_LOG_LEVEL: {os.environ.get('NEMO_EVALUATOR_LOG_LEVEL')}")
 :::
 ::::
 
-For full API reference, refer to {doc}`../reference/api`.
+For full API reference, refer to {ref}`api-reference`.

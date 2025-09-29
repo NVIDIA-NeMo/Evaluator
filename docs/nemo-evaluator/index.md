@@ -3,7 +3,7 @@
 
 NeMo Evaluator is an open-source evaluation engine. It provides standardized, reproducible AI model evaluation through a containerized architecture and adapter system. It enables you to run evaluations across 17+ specialized evaluation harnesses (containers including LM-Eval, HELM, MT-Bench, and others) against any OpenAI-compatible model API. The platform's core strength lies in its interceptor-based adapter architecture. This architecture standardizes request/response flow and optional logging/caching layers. It also includes a collection of ready-to-use evaluation containers published through NVIDIA's NGC catalog.
 
-{doc}`./reference/containers` | {doc}`./workflows/using-containers` | {doc}`./reference/cli` | {doc}`./reference/configuring-interceptors` | {doc}`./workflows/python-api`
+{ref}`containers` | {ref}`using-containers` | {ref}`cli-reference` | {ref}`configuring-interceptors` | {ref}`python-api`
 
 ---
 
@@ -54,7 +54,7 @@ NeMo Evaluator is the core, open-source evaluation engine. It powers standardize
 
 - **Adapter/Interceptor Architecture**: Standardizes how requests and responses flow to your endpoint (OpenAI-compatible) and through optional logging/caching layers
 - **Benchmarks and Containers**: Curated evaluation harnesses packaged as reproducible containers
-  - Browse available containers: {doc}`./reference/containers`
+  - Browse available containers: {ref}`containers`
 - **Flexible Configuration**: Fully resolved configurations per run enable exact replays and comparisons
 - **Metrics and Artifacts**: Consistent result schemas and artifact layouts for downstream analysis
 
@@ -68,9 +68,9 @@ NeMo Evaluator is the core, open-source evaluation engine. It powers standardize
 ## Using the Core Library
 
 - **Python API**: Programmatic access to core evaluation functionality
-  - API reference: {doc}`./reference/api`
+  - API reference: {ref}`api-reference`
 - **Containers**: Run evaluations using the published containers for each framework
-  - Container reference: {doc}`./reference/containers`
+  - Container reference: {ref}`containers`
 
 For end-to-end CLI and multi-backend orchestration, use the {doc}`../nemo-evaluator-launcher/index`.
 
@@ -78,12 +78,12 @@ For end-to-end CLI and multi-backend orchestration, use the {doc}`../nemo-evalua
 
 Add your own benchmark or framework by defining its configuration and interfaces:
 
-- Extension guide: {doc}`./extending/framework-definition-file`.
+- Extension guide: {ref}`framework-definition-file`.
 
 ## Next Steps
 
 - Read the architecture details and glossary in the main docs.
-- Explore containers and pick the benchmarks you need: {doc}`./reference/containers`.
+- Explore containers and pick the benchmarks you need: {ref}`containers`.
 - If you want a turnkey CLI, start with the {doc}`../nemo-evaluator-launcher/tutorial`.
 
 ## NVIDIA NGC Containers
