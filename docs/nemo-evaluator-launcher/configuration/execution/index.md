@@ -33,6 +33,6 @@ At the executor level, define result export methods. The `auto_export` field ena
 - **Google Sheets**: Spreadsheet integration
 - **Amazon S3**: Object storage
 
-For detailed configuration options, refer to the {doc}`Exporters Overview <../../exporters/overview>`.
+For detailed configuration options, refer to the [Exporters Overview](../../exporters/index.md#exporters-overview).
 
 For detailed executor information, refer to the [Executors Overview](../../executors/overview.md).
