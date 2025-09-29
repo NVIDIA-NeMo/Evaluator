@@ -118,8 +118,8 @@ jobs:
 
       - name: Move files
         run: |
-          mv ${{ needs.pre-flight.outputs.bump-branch }}-nemo-evaluator-launcher packages/nemo-evaluator-launcher/uv.lock
-          mv ${{ needs.pre-flight.outputs.bump-branch }}-nemo-evaluator packages/nemo-evaluator/uv.lock
+          mv lock-file-${{ needs.pre-flight.outputs.bump-branch }}-nemo-evaluator-launcher packages/nemo-evaluator-launcher/uv.lock
+          mv lock-file-${{ needs.pre-flight.outputs.bump-branch }}-nemo-evaluator packages/nemo-evaluator/uv.lock
 
       - name: Create Bump PR
         uses: peter-evans/create-pull-request@v6
