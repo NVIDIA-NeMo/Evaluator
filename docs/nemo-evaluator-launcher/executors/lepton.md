@@ -2,7 +2,7 @@
 
 The Lepton executor deploys endpoints and runs evaluations on Lepton AI. It enables fast, isolated, parallel evaluations using hosted or deployed endpoints. Refer to [DGX Cloud Lepton](https://www.nvidia.com/en-us/data-center/dgx-cloud-lepton/) for product details.
 
-Refer to the [Executors Overview](overview.md) for common concepts and commands.
+Refer to the [Executors Overview](index.md) for common concepts and commands.
 
 ## Prerequisites
 
