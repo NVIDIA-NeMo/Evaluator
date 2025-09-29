@@ -2,7 +2,7 @@
 
 Executors run evaluations by using the appropriate Docker image (which contains the evaluation harness) and executing the selected benchmark in your environment. They orchestrate containerized runs, manage resources and I/O paths, and ensure that evaluations are reproducible across machines and clusters. An executor can also provision and host the model endpoint as part of the workflow.
 
-- **Core Ideas**:
+**Core Ideas**:
   - The model is separate from the evaluation container; communication is by an OpenAI‑compatible API.
   - Each benchmark runs in an open‑source Docker container for reproducibility.
   - Execution back ends can also manage model deployment.
