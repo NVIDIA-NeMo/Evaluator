@@ -5,7 +5,7 @@
 
 ## Overview
 
-Exports metrics and artifacts to MLflow for experiment tracking and run management. Inherits core features from the [Local](local.md) exporter (artifact staging, multi-run, auto-export) and adds MLflow tracking.
+Exports metrics and artifacts to MLflow for experiment tracking and run management. It inherits core features from the [Local](local.md) exporter (artifact staging, multi-run, auto-export) and adds MLflow tracking.
 
 ## Key Features
 
