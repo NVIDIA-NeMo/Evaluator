@@ -48,7 +48,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT }}
         run: |
-          docker build -f docker/Dockerfile.ci --build-arg package=${{ matrix.package }} -t eval .
+          docker build -f docker/Dockerfile.ci --build-arg PACKAGE=${{ matrix.package }} -t eval .
 
       - name: Create bump branch if not exists
         run: |
