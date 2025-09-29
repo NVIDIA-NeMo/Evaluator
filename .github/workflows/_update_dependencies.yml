@@ -68,7 +68,7 @@ jobs:
         run: |
           docker run \
           --rm \
-          -v $(pwd):/workspace \
+          -v $(pwd)/packages/${{ matrix.package }}:/workspace \
           -w /workspace \
           -e GH_TOKEN=${{ secrets.PAT }} \
           eval \
