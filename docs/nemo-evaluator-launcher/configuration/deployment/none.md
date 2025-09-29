@@ -20,7 +20,7 @@ target:
 - **`type: none`**: Specifies no deployment
 - **`target.api_endpoint.model_id`**: Model identifier
 - **`target.api_endpoint.url`**: Full URL for your OpenAI-compatible endpoint
-- **`target.api_endpoint.api_key`**: API key used for authentication
+- **`target.api_endpoint.api_key_name`**: Name of the API key used for authentication
 
 **Note**:
 
