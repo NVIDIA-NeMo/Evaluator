@@ -24,14 +24,14 @@ Models deployed with the frameworks listed below work with `nemo_evaluator_launc
 
 ### vLLM
 
-vLLM is a fast, easy-to-use library for LLM inference and serving.
-
-#### vLLM References
-
 ```bash
 docker run --gpus all -p 8000:8000 vllm/vllm-openai:latest \
     --model microsoft/Phi-4-mini-instruct
 ```
+
+vLLM is a fast, easy-to-use library for LLM inference and serving.
+
+#### vLLM References
 
 - [vLLM Documentation](https://docs.vllm.ai/en/latest/)
 - [Deploy vLLM with Docker](https://docs.vllm.ai/en/stable/deployment/docker.html)
