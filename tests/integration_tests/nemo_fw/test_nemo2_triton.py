@@ -59,16 +59,10 @@ def deployment_process(set_env_vars):
             "1",
             "--triton_model_name",
             model_name,
-        ]
-    )
-    # FIXME(martas): uvicorn is now part of the deploy_inframework_triton.py script
-    # command below should be removed for Export-Deploy@fcec69d and port and host should be
-    # passed to the script
-    fastapi_proc = subprocess.Popen(
-        [
-            "python",
-            "-c",
-            f"import uvicorn; uvicorn.run('nemo_deploy.service.fastapi_interface_to_pytriton:app', host='0.0.0.0', port={port})",
+            "--server_port",
+            str(port),
+            "--server_address",
+            "0.0.0.0",
         ]
     )
 
@@ -94,14 +88,6 @@ def deployment_process(set_env_vars):
 
     yield deploy_proc  # We only need the process reference for cleanup
 
-    fastapi_proc.send_signal(signal.SIGINT)
-    try:
-        fastapi_proc.wait(timeout=30)
-    except subprocess.TimeoutExpired:
-        try:
-            os.killpg(fastapi_proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
     deploy_proc.send_signal(signal.SIGINT)
     try:
         deploy_proc.wait(timeout=30)
