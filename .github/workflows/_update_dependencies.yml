@@ -78,7 +78,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lock-file-${{ env.SOURCE_BRANCH }}-${{ matrix.package }}
-          path: uv.lock
+          path: packages/${{ matrix.package }}/uv.lock
 
   create-pr:
     needs: [update-lockfile, pre-flight]
