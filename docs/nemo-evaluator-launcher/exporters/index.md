@@ -104,7 +104,7 @@ Set up your cluster environment with the following requirements:
   - Google Sheets: The `service_account_file` path must be valid on the cluster, or pass `GOOGLE_APPLICATION_CREDENTIALS` using `execution.env_vars.evaluation`.
 
 
-**Notes:**
+**Note:**
 - Avoid "local" export paths that point to your local machine when running on Slurm. Use cluster paths, or run a post hoc export from your local machine:
 
   ```bash
