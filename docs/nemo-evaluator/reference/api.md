@@ -1,3 +1,4 @@
+(api-reference)=
 # API Reference
 
 This document provides a comprehensive reference for the NeMo Evaluator Python API.

@@ -72,6 +72,7 @@ docs = [
     "myst_parser",         # For our markdown docs
     "nvidia-sphinx-theme", # Our NVIDIA theme
     "sphinxcontrib-mermaid", # For mermaid diagrams
+    "sphinx-design",       # For grid cards and design elements
 ]
 
 [project.scripts]

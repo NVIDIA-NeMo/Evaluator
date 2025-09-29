@@ -1,3 +1,4 @@
+(cli-reference)=
 # CLI Reference
 
 This document provides a comprehensive reference for the `nemo-evaluator` command-line interface that is the primary way to interact with NeMo Evaluator from the terminal.

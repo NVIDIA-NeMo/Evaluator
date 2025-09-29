@@ -1,3 +1,4 @@
+(configuring-interceptors)=
 # Configuring Interceptors
 
 Interceptors are components that process API requests and responses during evaluation. They provide capabilities for logging, caching, request modification, and response processing. Interceptors execute in a specific order within the evaluation pipeline, allowing you to customize and track the behavior of your evaluations.
@@ -24,13 +25,16 @@ Captures and logs incoming API requests for debugging, analysis, and audit purpo
 - Configurable request limits
 - Logging of failed requests
 
-**CLI Configuration:**
+::::{tab-set}
+:::{tab-item} CLI Configuration
 
 ```bash
 --overrides 'target.api_endpoint.adapter_config.use_request_logging=True,target.api_endpoint.adapter_config.max_saved_requests=1000'
 ```
 
-**YAML Configuration:**
+:::
+
+:::{tab-item} YAML Configuration
 
 ```yaml
 interceptors:
@@ -40,6 +44,9 @@ interceptors:
       max_requests: 1000
       log_failed_requests: true
 ```
+
+:::
+::::
 
 ### Response Logging Interceptor
 
@@ -51,13 +58,14 @@ Captures and logs API responses for analysis and debugging. Use this interceptor
 - Configurable response limits
 - Supports filtering by response status
 
-**CLI Configuration:**
+::::{tab-set}
+:::{tab-item} CLI Configuration
 
 ```bash
 --overrides 'target.api_endpoint.adapter_config.use_response_logging=True,target.api_endpoint.adapter_config.max_saved_responses=1000'
 ```
 
-**YAML Configuration:**
+:::{tab-item} YAML Configuration
 
 ```yaml
 interceptors:
@@ -66,6 +74,9 @@ interceptors:
     config:
       max_responses: 1000
 ```
+
+:::
+::::
 
 ### Caching Interceptor
 
@@ -78,13 +89,14 @@ Implements intelligent caching of API requests and responses to improve evaluati
 - Separate limits for cached requests and responses
 - Reuse of cached responses
 
-**CLI Configuration:**
+::::{tab-set}
+:::{tab-item} CLI Configuration
 
 ```bash
 --overrides 'target.api_endpoint.adapter_config.use_caching=True,target.api_endpoint.adapter_config.caching_dir=./cache,target.api_endpoint.adapter_config.reuse_cached_responses=True'
 ```
 
-**YAML Configuration:**
+:::{tab-item} YAML Configuration
 
 ```yaml
 interceptors:
@@ -99,19 +111,23 @@ interceptors:
       max_saved_responses: 1000
 ```
 
+:::
+::::
+
 ### Endpoint Interceptor
 
 **Required interceptor** that handles the actual API communication. This interceptor must be present in every configuration as it performs the final request to the target API endpoint.
 
 **Important**: This interceptor should always be the last in the interceptor chain.
 
-**CLI Configuration:**
+::::{tab-set}
+:::{tab-item} CLI Configuration
 
 ```bash
 # The endpoint interceptor is automatically enabled and requires no additional CLI configuration
 ```
 
-**YAML Configuration:**
+:::{tab-item} YAML Configuration
 
 ```yaml
 interceptors:
@@ -119,6 +135,9 @@ interceptors:
     enabled: true
     config: {}
 ```
+
+:::
+::::
 
 ## Specialized Interceptors
 
@@ -132,13 +151,16 @@ Modifies or injects system messages into API requests. This interceptor is usefu
 - Overrides existing system messages
 - Supports dynamic message templates
 
-**CLI Configuration:**
+::::{tab-set}
+:::{tab-item} CLI Configuration
 
 ```bash
 --overrides 'target.api_endpoint.adapter_config.use_system_prompt=True,target.api_endpoint.adapter_config.custom_system_prompt="You are a helpful assistant."'
 ```
 
-**YAML Configuration:**
+:::
+
+:::{tab-item} YAML Configuration
 
 ```yaml
 interceptors:
@@ -147,6 +169,9 @@ interceptors:
     config:
       system_message: "You are a helpful assistant."
 ```
+
+:::
+::::
 
 ### Payload Modifier Interceptor
 
@@ -159,13 +184,16 @@ Provides comprehensive request payload modification capabilities. Use this inter
 - Rename parameter keys
 - Supports complex parameter transformations
 
-**CLI Configuration:**
+::::{tab-set}
+:::{tab-item} CLI Configuration
 
 ```bash
 --overrides 'target.api_endpoint.adapter_config.params_to_add={"temperature": 0.7},target.api_endpoint.adapter_config.params_to_remove=["max_tokens"]'
 ```
 
-**YAML Configuration:**
+:::
+
+:::{tab-item} YAML Configuration
 
 ```yaml
 interceptors:
@@ -181,6 +209,9 @@ interceptors:
         "old_param": "new_param"
 ```
 
+:::
+::::
+
 ### Reasoning Interceptor
 
 Specialized interceptor for handling reasoning tokens in model responses. This interceptor is useful for evaluating models that support chain-of-thought reasoning or explicit thinking processes.
@@ -192,13 +223,16 @@ Specialized interceptor for handling reasoning tokens in model responses. This i
 - Reasoning token injection
 - Support for incomplete reasoning sequences
 
-**CLI Configuration:**
+::::{tab-set}
+:::{tab-item} CLI Configuration
 
 ```bash
 --overrides 'target.api_endpoint.adapter_config.use_reasoning=True,target.api_endpoint.adapter_config.end_reasoning_token="</think>",target.api_endpoint.adapter_config.start_reasoning_token="<think>"'
 ```
 
-**YAML Configuration:**
+:::
+
+:::{tab-item} YAML Configuration
 
 ```yaml
 interceptors:
@@ -212,6 +246,9 @@ interceptors:
       include_if_not_finished: true
 ```
 
+:::
+::::
+
 ### Progress Tracking Interceptor
 
 Monitors and reports evaluation progress in real-time. This interceptor is valuable for long-running evaluations and integration with monitoring systems.
@@ -223,13 +260,16 @@ Monitors and reports evaluation progress in real-time. This interceptor is valua
 - HTTP endpoint integration
 - Output directory tracking
 
-**CLI Configuration:**
+::::{tab-set}
+:::{tab-item} CLI Configuration
 
 ```bash
 --overrides 'target.api_endpoint.adapter_config.use_progress_tracking=True,target.api_endpoint.adapter_config.progress_tracking_url=http://localhost:3828/progress'
 ```
 
-**YAML Configuration:**
+:::
+
+:::{tab-item} YAML Configuration
 
 ```yaml
 interceptors:
@@ -240,6 +280,9 @@ interceptors:
       progress_tracking_interval: 10
       output_dir: "/tmp/output"
 ```
+
+:::
+::::
 
 ## Post-Evaluation Hooks
 
@@ -261,13 +304,16 @@ Generates comprehensive HTML reports from evaluation results. This hook creates 
 - HTML: Interactive web-based reports
 - JSON: Machine-readable structured data
 
-**CLI Configuration:**
+::::{tab-set}
+:::{tab-item} CLI Configuration
 
 ```bash
 --overrides 'target.api_endpoint.adapter_config.generate_html_report=True'
 ```
 
-**YAML Configuration:**
+:::
+
+:::{tab-item} YAML Configuration
 
 ```yaml
 post_eval_hooks:
@@ -277,3 +323,6 @@ post_eval_hooks:
       report_types: ["html", "json"]
       html_report_size: 15  # Optional: limit number of entries
 ```
+
+:::
+::::

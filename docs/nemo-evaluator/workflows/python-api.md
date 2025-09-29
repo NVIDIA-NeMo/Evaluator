@@ -1,10 +1,11 @@
+(python-api)=
 # Python API
 
 The NeMo Evaluator Python API provides programmatic access to evaluation capabilities through the `nemo-evaluator` package, allowing you to integrate evaluations into existing ML pipelines, automate workflows, and build custom evaluation applications.
 
 ## Overview
 
-The Python API is built on top of NeMo Evaluator and provides:
+The Python API builds on top of NeMo Evaluator and provides:
 
 - **Programmatic Evaluation**: Run evaluations from Python code using `evaluate`.
 - **Configuration Management**: Dynamic configuration and parameter management.
@@ -14,24 +15,39 @@ The Python API is built on top of NeMo Evaluator and provides:
 
 ## Supported PyPi Wheels
 
-| Package Name | PyPI URL |
-|--------------|----------|
-| nvidia-bfcl | https://pypi.org/project/nvidia-bfcl/ |
-| nvidia-bigcode-eval | https://pypi.org/project/nvidia-bigcode-eval/ |
-| nvidia-crfm-helm | https://pypi.org/project/nvidia-crfm-helm/ |
-| nvidia-eval-factory-garak | https://pypi.org/project/nvidia-eval-factory-garak/ |
-| nvidia-lm-eval | https://pypi.org/project/nvidia-lm-eval/ |
-| nvidia-mtbench-evaluator | https://pypi.org/project/nvidia-mtbench-evaluator/ |
-| nvidia-safety-harness | https://pypi.org/project/nvidia-safety-harness/ |
-| nvidia-simple-evals | https://pypi.org/project/nvidia-simple-evals/ |
-| nvidia-tooltalk | https://pypi.org/project/nvidia-tooltalk/ |
-| nvidia-vlmeval | https://pypi.org/project/nvidia-vlmeval/ |
+```{list-table}
+:header-rows: 1
+:widths: 50 50
+
+* - Package Name
+  - PyPI URL
+* - nvidia-bfcl
+  - https://pypi.org/project/nvidia-bfcl/
+* - nvidia-bigcode-eval
+  - https://pypi.org/project/nvidia-bigcode-eval/
+* - nvidia-crfm-helm
+  - https://pypi.org/project/nvidia-crfm-helm/
+* - nvidia-eval-factory-garak
+  - https://pypi.org/project/nvidia-eval-factory-garak/
+* - nvidia-lm-eval
+  - https://pypi.org/project/nvidia-lm-eval/
+* - nvidia-mtbench-evaluator
+  - https://pypi.org/project/nvidia-mtbench-evaluator/
+* - nvidia-safety-harness
+  - https://pypi.org/project/nvidia-safety-harness/
+* - nvidia-simple-evals
+  - https://pypi.org/project/nvidia-simple-evals/
+* - nvidia-tooltalk
+  - https://pypi.org/project/nvidia-tooltalk/
+* - nvidia-vlmeval
+  - https://pypi.org/project/nvidia-vlmeval/
+```
 
 ## Basic Usage
 
 ### Running Evaluations
 
-The following example script shows how to run evaluations through a Python script. Ensure that the `nvidia-simple-evals` package is installed. If you have not installed it yet, you can find the installation instructions [here](https://pypi.org/project/nvidia-simple-evals/).
+The following example script shows how to run evaluations through a Python script. Ensure that you install the `nvidia-simple-evals` package. If you have not installed it yet, you can find the installation instructions at the nvidia-simple-evals PyPI page.
 
 First, import required packages:
 
@@ -51,8 +67,8 @@ from nemo_evaluator.api.api_dataclasses import (
 
 You can use `EvaluationConfig` dataclass to provide your evaluation setup.
 
-- `type` specifies the type of evaluation to be used, for example, `mmlu_pro`, `ifeval`, and so on.
-- `output_dir` indicates where the results, cache and other files should be stored
+- `type` specifies the evaluation type to use, for example, `mmlu_pro`, `ifeval`, and so on.
+- `output_dir` indicates where the system stores results, cache and other files
 
 ```python
 eval_config = EvaluationConfig(
@@ -80,8 +96,8 @@ target_config = EvaluationTarget(
 In the ApiEndpoint dataclass:
 
 - `model_id` represents the name or identifier of the model
-- `url` points to the endpoint URL where the model is hosted
-- `type` refers to the type of the endpoint. It should be one of: `EndpointType.CHAT`, `EndpointType.COMPLETIONS`, `EndpointType.VLM`, `EndpointType.EMBEDDING`:
+- `url` points to the endpoint URL where the system hosts the model
+- `type` refers to the endpoint type. It should be one of: `EndpointType.CHAT`, `EndpointType.COMPLETIONS`, `EndpointType.VLM`, `EndpointType.EMBEDDING`:
     - `CHAT` endpoint accepts structured input as a sequence of messages, for example, system, user, assistant roles, and returns a model-generated message, enabling controlled multi-turn interactions.
     - `COMPLETIONS` endpoint takes a single prompt string and returns a text continuation, typically used for one-shot or single-turn tasks without conversational structure.
     - `VLM` endpoint hosts a model that has vision capabilities.
@@ -102,7 +118,8 @@ except Exception as e:
 
 ## Advanced Usage
 
-### Direct Configuration in Dataclasses
+::::{tab-set}
+:::{tab-item} Direct Configuration
 
 You can use the `params` field in `EvaluationConfig` dataclass to override the default parameters, such as `temperature` or `max_new_tokens`: 
 
@@ -161,8 +178,9 @@ except Exception as e:
     print(f"Evaluation failed: {e}")
     print("Note: This is expected if the model endpoint is not accessible")
 ```
+:::
 
-### Using Overrides
+:::{tab-item} Using Overrides
 
 You can also customize your evaluation setup through the `overrides` field. First, create a `base_config` by converting your existing EvaluationConfig and EvaluationTarget configurations into a dictionary format:
 
@@ -220,8 +238,9 @@ except Exception as e:
     print(f"Evaluation failed: {e}")
     print("Note: This is expected if the model endpoint is not accessible")
 ```
+:::
 
-### Environment Variable Overrides
+:::{tab-item} Environment Variables
 
 You can also set environment variables for dynamic configuration:
 
@@ -234,5 +253,7 @@ print("\n=== Environment Variables ===")
 print(f"ADAPTER_PORT: {os.environ.get('ADAPTER_PORT')}")
 print(f"NEMO_EVALUATOR_LOG_LEVEL: {os.environ.get('NEMO_EVALUATOR_LOG_LEVEL')}")
 ```
+:::
+::::
 
-For full API reference, refer to [API](../reference/api.md) page.
+For full API reference, refer to {doc}`../reference/api`.

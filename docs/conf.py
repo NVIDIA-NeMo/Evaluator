@@ -39,6 +39,7 @@ extensions = [
     "sphinx.ext.napoleon",  # For google style docstrings
     "sphinx_copybutton",  # For copy button in code blocks
     "sphinxcontrib.mermaid",  # For mermaid diagrams
+    "sphinx_design",  # For grid cards and design elements
 ]
 
 templates_path = ["_templates"]

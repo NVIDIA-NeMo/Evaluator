@@ -1,10 +1,12 @@
+(framework-definition-file)=
 # Framework Definition File (FDF)
 
-The Framework Definition File (FDF) is a YAML configuration file that serves as the single source of truth for evaluation harnesses in the NeMo Evaluator ecosystem. It defines how evaluation harnesses are configured, executed, and integrated with the Eval Factory system.
+The Framework Definition File (FDF) is a YAML configuration file that serves as the single source of truth for evaluation harnesses in the NeMo Evaluator ecosystem. It defines how evaluation harnesses configure, execute, and integrate with the Evaluation Factory system.
 
 ## Overview
 
 An FDF defines:
+
 - **Framework metadata**: Name, description, package information
 - **Default configurations**: Parameters, commands, and settings
 - **Evaluation types**: Available evaluation tasks and their configurations
@@ -37,21 +39,22 @@ framework:
 ```
 
 **Fields:**
-- **`name`**: Unique identifier used internally by the system
-- **`pkg_name`**: Python package name (usually matches the name)
+
+- **`name`**: Unique identifier that the system uses internally
+- **`pkg_name`**: Python package name (typically matches the name)
 - **`full_name`**: Human-readable name displayed in UI and documentation
 - **`description`**: Comprehensive description of the framework's purpose
 - **`url`**: Link to the original benchmark repository
 
 ### 2. Defaults Section
 
-The `defaults` section defines the default configuration and execution command that will be used across all evaluations unless overridden. You can override it through the `--overrides` flag (see [Parameter Overrides](../reference/cli.md#parameter-overrides)) or the [Run Configuration file](../reference/cli.md#run-configuration).
+The `defaults` section defines the default configuration and execution command that all evaluations use unless overridden. You can override it through the `--overrides` flag (refer to [Parameter Overrides](../reference/cli.md#parameter-overrides)) or the [Run Configuration file](../reference/cli.md#run-configuration).
 
 ### Command Template
 
-The `command` field uses Jinja2 templating to dynamically generate execution commands based on configuration parameters. This is where you define how your evaluation harness's CLI interface will be called.
+The `command` field uses Jinja2 templating to dynamically generate execution commands based on configuration parameters. This is where you define how the system calls your evaluation harness's CLI interface.
 
-**Important Note**: `example_eval` is a placeholder representing your actual CLI command. When onboarding your harness, replace this with your real command (e.g., `lm-eval`, `bigcode-eval`, `gorilla-eval`, etc.).
+**Important Note**: `example_eval` is a placeholder representing your actual CLI command. When integrating your harness, replace this with your real command (e.g., `lm-eval`, `bigcode-eval`, `gorilla-eval`, etc.).
 
 ```yaml
 defaults:
@@ -68,7 +71,7 @@ defaults:
 
 - **`example_eval`**: Your harness's actual CLI command (replace with your command)
 - **Template variables**: Dynamically insert values from the evaluation configuration
-- **Conditional logic**: Include parameters only when they have values
+- **Conditional logic**: Include parameters when they have values
 - **Environment setup**: Export API keys before running the command
 
 #### Key Template Variables
@@ -77,15 +80,15 @@ defaults:
 
 - **`{{target.api_endpoint.api_key}}`**: Name of the environment variable storing API key
 - **`{{target.api_endpoint.model_id}}`**: Target model identifier
-- **`{{target.api_endpoint.stream}}`**: Whether responses should be streamed
-- **`{{target.api_endpoint.type}}`**: The type of the target endpoint
+- **`{{target.api_endpoint.stream}}`**: Whether to stream responses
+- **`{{target.api_endpoint.type}}`**: Target endpoint type
 - **`{{target.api_endpoint.url}}`**: URL of the model
 - **`{{target.api_endpoint.adapter_config}}`**: Adapter configuration
 
 **Evaluation Configuration Variables:**
 
 - **`{{config.output_dir}}`**: Output directory for results
-- **`{{config.type}}`**: Type of the task
+- **`{{config.type}}`**: Task type
 - **`{{config.supported_endpoint_types}}`**: Supported endpoint types (chat/completions)
 
 **Configuration Parameters:**
@@ -93,9 +96,9 @@ defaults:
 - **`{{config.params.task}}`**: Evaluation task type
 - **`{{config.params.temperature}}`**: Model temperature setting
 - **`{{config.params.limit_samples}}`**: Sample limit for evaluation
-- **`{{config.params.max_new_tokens}}`**: Maximum tokens to generate
+- **`{{config.params.max_new_tokens}}`**: Token generation limit
 - **`{{config.params.max_retries}}`**: Number of REST request retries
-- **`{{config.params.parallelism}}`**: Parallelism to be used
+- **`{{config.params.parallelism}}`**: Parallelism level
 - **`{{config.params.request_timeout}}`**: REST response timeout
 - **`{{config.params.top_p}}`**: Top-p sampling parameter
 - **`{{config.params.extra}}`**: Framework-specific parameters
@@ -107,7 +110,7 @@ defaults:
   config:
     params:
       limit_samples: null           # No limit on samples by default
-      max_new_tokens: 4096         # Maximum tokens to generate
+      max_new_tokens: 4096         # Token generation limit
       temperature: 0.0             # Deterministic generation
       top_p: 0.00001              # Nucleus sampling parameter
       parallelism: 10              # Number of parallel requests
@@ -122,7 +125,7 @@ defaults:
 
 **Parameter Categories:**
 
-- **Core Parameters**: Basic evaluation settings (temperature, max_tokens)
+- **Core Parameters**: Basic evaluation settings (temperature, token limits)
 - **Performance Parameters**: Parallelism and timeout settings
 - **Framework Parameters**: Task-specific configuration options
 - **Extra Parameters**: Custom parameters specific to your framework
@@ -178,7 +181,7 @@ evaluations:
 
 ### Conditional Parameter Handling
 
-Use Jinja2 conditionals to handle optional parameters. This ensures that your CLI command includes parameters only when they have values, preventing errors from undefined or null parameters:
+Use Jinja2 conditionals to handle optional parameters. This ensures that your CLI command includes parameters when they have values, preventing errors from undefined or null parameters:
 
 ```yaml
 command: >-
@@ -197,8 +200,7 @@ Parameters follow a hierarchical override system:
 - **User configuration** (second priority)
 - **CLI overrides** (first priority)
 
-
-For more information about using these overrides, see the [CLI Reference](../reference/cli.md#parameter-overrides) documentation.
+For more information about using these overrides, refer to the [CLI Reference](../reference/cli.md#parameter-overrides) documentation.
 
 ### Dynamic Configuration
 
@@ -209,7 +211,7 @@ command: >-
   example_eval --output {{config.output_dir}} --cache {{config.output_dir}}/cache
 ```
 
-## Integration with Eval Factory
+## Integration with Evaluation Factory
 
 ## File Location
 
@@ -229,7 +231,8 @@ your-framework/
 
 ## Validation
 
-The FDF is validated by the NeMo Evaluator system to ensure:
+The NeMo Evaluator system validates the FDF to ensure:
+
 - Required fields are present
 - Parameter types are correct
 - Template syntax is valid
@@ -242,11 +245,11 @@ The FDF is validated by the NeMo Evaluator system to ensure:
 1. **Template Errors**: Check Jinja2 syntax and variable references
 2. **Parameter Conflicts**: Ensure parameter names don't conflict between sections
 3. **Type Mismatches**: Verify parameter types match expected values
-4. **Missing Fields**: Ensure all required fields are defined
+4. **Missing Fields**: Ensure the system defines all required fields
 
 ### Debug Mode
 
-Enable debug logging to see how your FDF is processed:
+Enable debug logging to view how the system processes your FDF:
 
 ```bash
 export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
