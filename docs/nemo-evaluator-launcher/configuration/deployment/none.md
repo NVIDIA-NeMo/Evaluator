@@ -25,7 +25,7 @@ target:
 **Note**:
 
 - Do not include the actual API key in the configuration file—use environment variables instead.
-- If your model does not require an API key, omit the `api_key` field.
+- If your model does not require an API key, omit the `api_key_name` field.
 
 The following examples show typical configurations:
 
