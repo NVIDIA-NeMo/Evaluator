@@ -58,7 +58,9 @@ export_results("8abcd123", dest="wandb", config={"entity": "myorg", "project": "
 export_results(["8abcd123", "9def4567"], dest="local", config={"format": "json"})
 ```
 
-**Auto-Export:** Add the following to your YAML configuration and customize
+**Auto-Export** 
+Add the following to your YAML configuration and customize:
+
 ```yaml
 # Auto-export config under execution
 execution:
