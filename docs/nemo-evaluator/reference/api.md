@@ -97,7 +97,7 @@ def evaluate(
 
 **Prerequisites:**
 
-- **Container way**: Use simple-evals container mentioned in the [Container Reference](containers.md)
+- **Container way**: Use simple-evals container mentioned in the {ref}`containers`
 - **Python way**:
 
   ```bash
@@ -491,7 +491,7 @@ Two primary methods exist to configure interceptors:
 
 ### Configuring Interceptors
 
-Refer to [Configuring Interceptors](./configuring-interceptors.md) for details.
+Refer to {ref}`configuring-interceptors` for details.
 
 ### Complete Configuration Example
 

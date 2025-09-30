@@ -9,7 +9,7 @@ Evaluation containers are the execution environments that run benchmarks and eva
 
 ## Available Container Types
 
-For a comprehensive list of all available evaluation factory containers with detailed descriptions, specifications, and usage examples, refer to the [Container Reference](nemo-evaluator/reference/containers.md).
+For a comprehensive list of all available evaluation factory containers with detailed descriptions, specifications, and usage examples, refer to the {ref}`containers`.
 
 ## Evaluation Execution Workflow
 
@@ -62,8 +62,8 @@ and more, making the workflow highly adaptable
 **Configuration Methods**  
 You have two options for specifying adapters:
 
-- **CLI Overrides**: Use `--overrides` parameter for runtime configuration ([learn more](../reference/api.md#interceptor-system))
-- **YAML Configuration**: Define interceptor chains in configuration files ([learn more](../reference/api.md#interceptor-system))
+- **CLI Overrides**: Use `--overrides` parameter for runtime configuration ({ref}`learn more <api-reference:interceptor-system>`)
+- **YAML Configuration**: Define interceptor chains in configuration files ({ref}`learn more <api-reference:interceptor-system>`)
 
 ## Configuration and Overrides
 
@@ -92,7 +92,8 @@ In this example, several parameter overrides customize the evaluation:
 
 ## Workflow Examples
 
-### Basic Evaluation Workflow
+::::{tab-set}
+:::{tab-item} Basic Evaluation Workflow
 
 ```bash
 # Run evaluation with eval-factory
@@ -105,7 +106,9 @@ eval-factory run_eval \
     --output_dir ./results
 ```
 
-### Advanced Configuration Workflow
+:::
+
+:::{tab-item} Advanced Configuration Workflow
 
 ```bash
 # 1. Enable comprehensive logging and caching
@@ -124,7 +127,10 @@ eval-factory run_eval \
 # → Detailed logs are available for analysis
 ```
 
-For more details, refer to the [CLI](../reference/cli.md).
+:::
+::::
+
+For more details, refer to the {ref}`cli-reference`.
 
 ## Performance and Monitoring
 
@@ -147,7 +153,8 @@ The system also provides comprehensive logging capabilities for monitoring and t
 
 ## Troubleshooting
 
-### Port Conflicts
+::::{tab-set}
+:::{tab-item} Port Conflicts
 
 If you encounter port conflicts, you can change the adapter server port:
 
@@ -155,7 +162,9 @@ If you encounter port conflicts, you can change the adapter server port:
 export ADAPTER_PORT=3828
 ```
 
-### Configuration Issues
+:::
+
+:::{tab-item} Configuration Issues
 
 Enable verbose logging to debug configuration issues:
 
@@ -163,7 +172,9 @@ Enable verbose logging to debug configuration issues:
 --overrides 'target.api_endpoint.adapter_config.use_request_logging=True,target.api_endpoint.adapter_config.log_failed_requests=True'
 ```
 
-### API Key Issues
+:::
+
+:::{tab-item} API Key Issues
 
 Verify that you set your API key in the environment:
 
@@ -171,40 +182,45 @@ Verify that you set your API key in the environment:
 export MY_API_KEY=your_api_key_here
 ```
 
+:::
+::::
+
 ## Best Practices
 
-### 1. Use Environment Variables
+1. **Use Environment Variables**
 
-- Store sensitive information like API keys in environment variables
-- Use consistent naming conventions for environment variables
-- Document required environment variables for your team
+   - Store sensitive information like API keys in environment variables
+   - Use consistent naming conventions for environment variables
+   - Document required environment variables for your team
 
-### 2. Test Configurations
+2. **Test Configurations**
 
-- Start with small sample sizes for testing (for example, `config.params.limit_samples=10`)
-- Verify configurations work before running large evaluations
-- Use the `--overrides` parameter to test different settings
+   - Start with small sample sizes for testing (for example, `config.params.limit_samples=10`)
+   - Verify configurations work before running large evaluations
+   - Use the `--overrides` parameter to test different settings
 
-### 3. Enable Logging and Caching
+3. **Enable Logging and Caching**
 
-- Use request and response logging for debugging
-- Enable caching to resume failed evaluations
-- Generate HTML reports for detailed analysis
+   - Use request and response logging for debugging
+   - Enable caching to resume failed evaluations
+   - Generate HTML reports for detailed analysis
 
-### 4. Track Progress
+4. **Track Progress**
 
-- Check logs frequently for any issues
-- Track cache usage and performance
+   - Check logs frequently for any issues
+   - Track cache usage and performance
 
-### 5. Configuration Management
+5. **Configuration Management**
 
-- Use consistent configuration patterns across evaluations
-- Document your configuration overrides
-- Version control your configuration files
+   - Use consistent configuration patterns across evaluations
+   - Document your configuration overrides
+   - Version control your configuration files
 
 ## Environment Variables
 
-### Adapter Server Configuration
+::::{tab-set}
+
+:::{tab-item} Adapter Server Configuration
 
 You can configure the adapter server using environment variables:
 
@@ -213,7 +229,9 @@ export ADAPTER_PORT=3828
 export ADAPTER_HOST=localhost
 ```
 
-### API Key Management
+:::
+
+:::{tab-item} API Key Management
 
 Store your API keys securely in environment variables:
 
@@ -221,3 +239,6 @@ Store your API keys securely in environment variables:
 export MY_API_KEY=your_api_key_here
 export HF_TOKEN=your_hf_token_here
 ```
+
+:::
+::::

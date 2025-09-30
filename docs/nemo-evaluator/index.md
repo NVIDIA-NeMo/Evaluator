@@ -174,8 +174,8 @@ This project will download and install third-party open source software projects
 :maxdepth: 2
 :caption: Contents
 :hidden:
-
+About NeMo Evaluator <self>
 extending/framework-definition-file
 workflows/index
-reference/index
+References <reference/index>
 ```

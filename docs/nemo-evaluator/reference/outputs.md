@@ -38,7 +38,7 @@ See [Example Structure](#results-yml-example) below.
 **Contents**:
 - Task configuration and parameters
 - Model endpoint settings
-- [Adapter and interceptor configurations](configuring-interceptors.md)
+- {ref}`configuring-interceptors`
 - Evaluation-specific overrides
 
 **Usage**: Enables exact reproduction of evaluation runs and configuration auditing.
@@ -47,7 +47,7 @@ See [Example Structure](#results-yml-example) below.
 ```bash
 eval-factory run_eval --run_config <path/to/run_config.yml> --output_dir <new_output_dir>
 ```
-See [Run Configuration](cli.md#run-configuration) for details.
+See {ref}`Run Configuration <cli-reference:run-configuration>` for details.
 
 ### `eval_factory_metrics.json`
 
@@ -87,10 +87,10 @@ in the results dir you will also find original benchmark artifacts.
 
 Many adapters are capable of collecting, saving, and logging artifacts during runtime, providing enhanced observability and debugging capabilities. Examples include:
 
-- **[Request Logging](configuring-interceptors.md#request-logging-interceptor)**: Adapters can log all incoming requests with full context and metadata
-- **[Response Logging](configuring-interceptors.md#response-logging-interceptor)**: Complete response data including tokens, timing, and model-specific information
+- **{ref}`Request Logging <configuring-interceptors:request-logging-interceptor>`**: Adapters can log all incoming requests with full context and metadata
+- **{ref}`Response Logging <configuring-interceptors:response-logging-interceptor>`**: Complete response data including tokens, timing, and model-specific information
 
-For detailed configuration options, see [Adapter Configuration](configuring-interceptors.md).
+For detailed configuration options, see {ref}`configuring-interceptors`.
 
 These artifacts can be programmatically accessed for:
 

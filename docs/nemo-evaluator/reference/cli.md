@@ -5,7 +5,7 @@ This document provides a comprehensive reference for the `nemo-evaluator` comman
 
 ## Prerequisites
 
-- **container way**: Use simple-evals container mentioned in the [Container Reference](containers.md)
+- **container way**: Use simple-evals container mentioned in the {ref}`containers`
 - **Python way**:
 
   ```bash
