@@ -1,5 +1,6 @@
 # NeMo Evaluator
 
+
 [![License](https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg)](https://github.com/NVIDIA-NeMo/Eval/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-green)](https://www.python.org/downloads/)
 [![Tests](https://github.com/NVIDIA-NeMo/Eval/actions/workflows/cicd-main.yml/badge.svg)](https://github.com/NVIDIA-NeMo/Eval/actions/workflows/cicd-main.yml)
@@ -39,7 +40,7 @@ graph TD
     B -- " " --> D{Slurm};
     B -- " " --> E{Lepton};
     subgraph Execution Environment
-        C -- "Launches Container" --> F[Evaluation Container];        
+        C -- "Launches Container" --> F[Evaluation Container];
         D -- "Launches Container" --> F;
         E -- "Launches Container" --> F;
     end
