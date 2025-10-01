@@ -36,8 +36,8 @@ eval-factory ls
 ```
 mmlu_pro: 
   * mmlu_pro
-gsm8k: 
-  * gsm8k
+gpqa_diamond: 
+  * gpqa_diamond
 human_eval: 
   * human_eval
 ```
@@ -219,7 +219,7 @@ ls -la ./results/
 
 # Batch evaluation script
 models=("meta/llama-3.1-8b-instruct" "meta/llama-3.1-70b-instruct")
-eval_types=("mmlu_pro" "gsm8k")
+eval_types=("mmlu_pro" "gpqa_diamond")
 
 for model in "${models[@]}"; do
   for eval_type in "${eval_types[@]}"; do
