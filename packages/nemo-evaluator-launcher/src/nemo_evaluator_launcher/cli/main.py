@@ -59,7 +59,7 @@ def create_parser() -> ArgumentParser:
         "-v",
         "--verbose",
         action="store_true",
-        help="Enable verbose logging (sets NEMO_EVALUATOR_LOG_LEVEL=DEBUG)",
+        help="Enable verbose logging (sets LOG_LEVEL=DEBUG)",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=False)
@@ -80,7 +80,7 @@ def create_parser() -> ArgumentParser:
         "-v",
         "--verbose",
         action="store_true",
-        help="Enable verbose logging (sets NEMO_EVALUATOR_LOG_LEVEL=DEBUG)",
+        help="Enable verbose logging (sets LOG_LEVEL=DEBUG)",
     )
     run_parser.add_arguments(run.Cmd, dest="run")
 
@@ -92,7 +92,7 @@ def create_parser() -> ArgumentParser:
         "-v",
         "--verbose",
         action="store_true",
-        help="Enable verbose logging (sets NEMO_EVALUATOR_LOG_LEVEL=DEBUG)",
+        help="Enable verbose logging (sets LOG_LEVEL=DEBUG)",
     )
     status_parser.add_arguments(status.Cmd, dest="status")
 
@@ -106,7 +106,7 @@ def create_parser() -> ArgumentParser:
         "-v",
         "--verbose",
         action="store_true",
-        help="Enable verbose logging (sets NEMO_EVALUATOR_LOG_LEVEL=DEBUG)",
+        help="Enable verbose logging (sets LOG_LEVEL=DEBUG)",
     )
     kill_parser.add_arguments(kill.Cmd, dest="kill")
 
@@ -118,7 +118,7 @@ def create_parser() -> ArgumentParser:
         "-v",
         "--verbose",
         action="store_true",
-        help="Enable verbose logging (sets NEMO_EVALUATOR_LOG_LEVEL=DEBUG)",
+        help="Enable verbose logging (sets LOG_LEVEL=DEBUG)",
     )
     # Add arguments from `ls tasks` so that they work with `ls` as default alias
     ls_parser.add_arguments(ls_tasks.Cmd, dest="tasks_alias")
@@ -149,7 +149,7 @@ def create_parser() -> ArgumentParser:
         "-v",
         "--verbose",
         action="store_true",
-        help="Enable verbose logging (sets NEMO_EVALUATOR_LOG_LEVEL=DEBUG)",
+        help="Enable verbose logging (sets LOG_LEVEL=DEBUG)",
     )
     export_parser.add_arguments(export.ExportCmd, dest="export")
 
@@ -163,7 +163,7 @@ def main() -> None:
 
     # Handle --verbose flag
     if is_verbose_enabled(args):
-        os.environ["NEMO_EVALUATOR_LOG_LEVEL"] = "DEBUG"
+        os.environ["LOG_LEVEL"] = "DEBUG"
 
     # Handle --version flag
     if hasattr(args, "version") and args.version:
