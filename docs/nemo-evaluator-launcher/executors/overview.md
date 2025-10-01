@@ -34,7 +34,7 @@ When on‑the‑fly hosting is enabled, the evaluation configuration also includ
 
 #### Common workflow
 1. [Choose an executor and example config](../configuration/index.md)
-2. [Point the target to your model endpoint](nemo-evaluator-launcher/configuration/target/index.md)
+2. [Point the target to your model endpoint](../configuration/target/index.md)
 3. [Run and monitor logs](#job-management)
 4. [Optionally export results to dashboards or files](../exporters/overview.md)
 
