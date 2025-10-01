@@ -66,7 +66,7 @@ For programmatic evaluation in custom workflows:
 ```python
 from nemo_evaluator.core.evaluate import evaluate
 from nemo_evaluator.api.api_dataclasses import (
-    EvaluationConfig, EvaluationTarget, ApiEndpoint, ConfigParams
+    EvaluationConfig, EvaluationTarget, ApiEndpoint, ConfigParams, EndpointType
 )
 
 # Configure text generation evaluation
@@ -85,7 +85,7 @@ target_config = EvaluationTarget(
     api_endpoint=ApiEndpoint(
         url="https://integrate.api.nvidia.com/v1/chat/completions",
         model_id="meta/llama-3.1-8b-instruct", 
-        type="chat",
+        type=EndpointType.CHAT,
         api_key="MY_API_KEY"  # Environment variable name containing your API key
     )
 )
@@ -246,13 +246,13 @@ Text generation evaluations use the NVIDIA Eval Commons framework:
 ```python
 from nemo_evaluator.core.evaluate import evaluate
 from nemo_evaluator.api.api_dataclasses import (
-    ApiEndpoint, EvaluationConfig, EvaluationTarget, ConfigParams
+    ApiEndpoint, EvaluationConfig, EvaluationTarget, ConfigParams, EndpointType
 )
 
 # Configure target endpoint
 api_endpoint = ApiEndpoint(
     url="http://0.0.0.0:8080/v1/completions/",
-    type="completions",
+    type=EndpointType.COMPLETIONS,
     model_id="megatron_model"
 )
 target = EvaluationTarget(api_endpoint=api_endpoint)

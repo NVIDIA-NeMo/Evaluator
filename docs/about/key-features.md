@@ -82,26 +82,35 @@ target:
     url: "http://localhost:8080/v1/completions/"
     model_id: "my-model"
     adapter_config:
-      # Logging interceptors
-      use_request_logging: true      # Log all requests for debugging
-      use_response_logging: true     # Log all responses for analysis
-      max_logged_requests: 1000
-      
-      # Caching interceptor
-      use_caching: true              # Cache responses for performance
-      caching_dir: "./evaluation_cache"
-      
-      # Reasoning interceptor
-      use_reasoning: true            # Chain-of-thought support
-      start_reasoning_token: "<think>"
-      end_reasoning_token: "</think>"
-      
-      # System message interceptor
-      use_system_prompt: true
-      custom_system_prompt: "You are a helpful AI assistant. Think step by step."
-      
-      # Progress tracking
-      use_progress_tracking: true
+      interceptors:
+        # System message interceptor
+        - name: system_message
+          config:
+            system_message: "You are a helpful AI assistant. Think step by step."
+        
+        # Request logging interceptor
+        - name: request_logging
+          config:
+            max_requests: 1000
+        
+        # Caching interceptor
+        - name: caching
+          config:
+            cache_dir: "./evaluation_cache"
+        
+        # Reasoning interceptor
+        - name: reasoning
+          config:
+            start_reasoning_token: "<think>"
+            end_reasoning_token: "</think>"
+        
+        # Response logging interceptor
+        - name: response_logging
+          config:
+            max_responses: 1000
+        
+        # Progress tracking interceptor
+        - name: progress_tracking
 ```
 
 ### Programmatic API
@@ -239,28 +248,38 @@ target:
     url: "https://production-api.com/v1/completions"
     model_id: "production-model"
     adapter_config:
-      # System message interceptor
-      use_system_prompt: true
-      custom_system_prompt: "You are an expert AI assistant specialized in this domain."
-      
-      # Comprehensive logging
-      use_request_logging: true
-      use_response_logging: true
-      max_logged_requests: 5000
       log_failed_requests: true
-      
-      # Performance optimization
-      use_caching: true
-      caching_dir: "./production_cache"
-      
-      # Advanced reasoning
-      use_reasoning: true
-      start_reasoning_token: "<think>"
-      end_reasoning_token: "</think>"
-      
-      # Monitoring
-      use_progress_tracking: true
-      progress_tracking_url: "http://monitoring.internal:3828/progress"
+      interceptors:
+        # System message interceptor
+        - name: system_message
+          config:
+            system_message: "You are an expert AI assistant specialized in this domain."
+        
+        # Request logging interceptor
+        - name: request_logging
+          config:
+            max_requests: 5000
+        
+        # Caching interceptor
+        - name: caching
+          config:
+            cache_dir: "./production_cache"
+        
+        # Reasoning interceptor
+        - name: reasoning
+          config:
+            start_reasoning_token: "<think>"
+            end_reasoning_token: "</think>"
+        
+        # Response logging interceptor
+        - name: response_logging
+          config:
+            max_responses: 5000
+        
+        # Progress tracking interceptor
+        - name: progress_tracking
+          config:
+            progress_tracking_url: "http://monitoring.internal:3828/progress"
 ```
 
 ##  **Security and Safety**
@@ -281,12 +300,6 @@ nv-eval run \
 - **garak**: Security vulnerability scanning and prompt injection detection  
 - **agentic_eval**: Tool usage and planning evaluation for agentic AI systems
 
-### Production Security Features
-- **Request Validation**: Input sanitization and validation
-- **Resource Isolation**: Containerized execution environments
-- **Audit Logging**: Complete evaluation traceability
-- **Access Control**: Role-based permissions and API key management
-
 ##  **Monitoring and Observability**
 
 ### Real-Time Progress Tracking
@@ -300,12 +313,19 @@ nv-eval status <invocation_id>
 nv-eval kill <invocation_id>
 ```
 
-### Comprehensive Result Analytics
-Built-in analysis and visualization capabilities:
-- **Performance Metrics**: Accuracy, latency, throughput analysis
-- **Comparative Analysis**: Multi-model benchmarking
-- **Trend Analysis**: Performance over time tracking
-- **Export Integration**: Seamless data pipeline integration
+### Result Export and Analysis
+Export evaluation results to MLOps platforms for downstream analysis:
+
+```bash
+# Export to MLflow for experiment tracking
+nv-eval export <invocation_id> --dest mlflow
+
+# Export to Weights & Biases for visualization
+nv-eval export <invocation_id> --dest wandb
+
+# Export to Google Sheets for sharing
+nv-eval export <invocation_id> --dest gsheets
+```
 
 ## **Key Parameters**
 

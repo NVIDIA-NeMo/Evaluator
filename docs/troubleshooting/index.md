@@ -85,7 +85,7 @@ Installation problems, authentication setup, and model deployment issues to get 
 :link: runtime-issues/index
 :link-type: doc
 
-Configuration validation, launcher management, and performance issues during evaluation execution.
+Configuration validation and launcher management during evaluation execution.
 :::
 
 :::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Advanced & Debugging

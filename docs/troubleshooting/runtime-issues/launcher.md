@@ -4,7 +4,7 @@ Troubleshooting guide for NeMo Evaluator Launcher-specific problems including co
 
 ## Configuration Issues
 
-###  Configuration Validation Errors
+### Configuration Validation Errors
 
 **Problem**: Configuration fails validation before execution
 
@@ -42,7 +42,7 @@ Error: Cannot specify both 'api_key' and 'api_key_name' in target.api_endpoint
 ```
 **Fix**: Use only one authentication method in configuration.
 
-###  Hydra Configuration Errors
+### Hydra Configuration Errors
 
 **Problem**: Hydra fails to resolve configuration composition
 
@@ -77,7 +77,7 @@ nv-eval run --config-dir /absolute/path/to/configs --config-name my_config
 
 ## Job Management Issues
 
-###  Job Status Problems
+### Job Status Problems
 
 **Problem**: Cannot check job status or jobs appear stuck
 
@@ -107,13 +107,11 @@ nv-eval ls runs
 2. **Stale Job Database**:
 **Fix**: Check execution database location and permissions:
 ```bash
-# Default database location varies by executor
-# Local: ./nemo_evaluator_launcher.db
-# Check permissions and disk space
-ls -la nemo_evaluator_launcher.db
+# Database location
+ls -la ~/.nemo-evaluator/exec-db/exec.v1.jsonl
 ```
 
-###  Job Termination Issues
+### Job Termination Issues
 
 **Problem**: Cannot kill running jobs
 
@@ -124,9 +122,6 @@ nv-eval kill <invocation_id>
 
 # Kill specific job
 nv-eval kill <job_id>
-
-# Force kill (if supported by executor)
-nv-eval kill <invocation_id> --force
 ```
 
 **Executor-Specific Issues**:
@@ -137,7 +132,7 @@ nv-eval kill <invocation_id> --force
 
 ## Multi-Backend Execution Issues
 
-###  Local Executor Problems
+### Local Executor Problems
 
 **Problem**: Docker-related execution failures
 
@@ -157,18 +152,9 @@ sudo systemctl start docker
 ```
 Error: Failed to pull container image
 ```
-**Fix**: Check network connectivity and container registry access:
-```bash
-docker pull nvcr.io/nvidia/nemo:24.01
-```
+**Fix**: Check network connectivity and container registry access.
 
-3. **GPU Access Issues**:
-```
-Error: NVIDIA runtime not found
-```
-**Fix**: Install nvidia-container-toolkit and restart Docker.
-
-###  Slurm Executor Problems
+### Slurm Executor Problems
 
 **Problem**: Jobs fail to submit to Slurm cluster
 
@@ -200,12 +186,12 @@ Error: Insufficient resources for job
 **Fix**: Adjust resource requirements:
 ```yaml
 execution:
-  nodes: 1
-  gpus_per_node: 2  # Reduce from 8
-  time_limit: "2:00:00"  # Reduce time limit
+  num_nodes: 1
+  gpus_per_node: 2
+  walltime: "2:00:00"
 ```
 
-###  Lepton Executor Problems
+### Lepton Executor Problems
 
 **Problem**: Lepton deployment or execution failures
 
@@ -232,21 +218,21 @@ lep login -c <workspace_name>:<your_token>
 ```
 Error: Deployment failed to reach Ready state
 ```
-**Fix**: Check Lepton workspace capacity and try smaller model or fewer replicas.
+**Fix**: Check Lepton workspace capacity and deployment status.
 
 ## Export Issues
 
-###  Export Failures
+### Export Failures
 
 **Problem**: Results export fails to destination
 
 **Diagnosis**:
 ```bash
 # List completed runs
-nv-eval ls runs --status completed
+nv-eval ls runs
 
-# Try export with verbose logging
-nv-eval export <invocation_id> --dest local --format json -v
+# Try export
+nv-eval export <invocation_id> --dest local --format json
 ```
 
 **Common Issues**:
@@ -268,74 +254,6 @@ Error: Invalid W&B credentials
 ```bash
 # W&B
 wandb login
-
-# Google Sheets
-# Provide service account credentials file
-```
-
-3. **Network Issues**:
-```
-Error: Connection timeout to MLflow server
-```
-**Fix**: Verify network connectivity and server availability:
-```bash
-curl -I http://mlflow-server:5000/health
-```
-
-## Performance Issues
-
-###  Slow Execution
-
-**Problem**: Evaluations run slower than expected
-
-**Optimization Strategies**:
-
-1. **Increase Parallelism**:
-```yaml
-evaluation:
-  overrides:
-    config.params.parallelism: 32  # Increase from default
-```
-
-2. **Optimize Resource Allocation**:
-```yaml
-execution:
-  gpus_per_node: 8  # Use all available GPUs
-deployment:
-  envs:
-    CUDA_VISIBLE_DEVICES: "0,1,2,3,4,5,6,7"
-```
-
-3. **Use Test Samples for Development**:
-```bash
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
-  -o +config.params.limit_samples=10
-```
-
-###  Resource Exhaustion
-
-**Problem**: Out of memory or disk space errors
-
-**Solutions**:
-
-1. **Monitor Resources**:
-```bash
-# GPU memory
-nvidia-smi
-
-# Disk space
-df -h
-
-# System memory
-free -h
-```
-
-2. **Reduce Resource Usage**:
-```yaml
-evaluation:
-  overrides:
-    config.params.max_new_tokens: 512  # Reduce from 2048
-    config.params.parallelism: 4       # Reduce concurrent requests
 ```
 
 ## Getting Help
@@ -372,9 +290,9 @@ nv-eval ls runs
 ```
 
 4. **Log Files**:
-- Local executor: Check Docker container logs
+- Local executor: Check `<output_dir>/<task_name>/logs/stdout.log`
 - Slurm executor: Check job output files in output directory
-- Lepton executor: Check Lepton job logs
+- Lepton executor: Check Lepton job logs via Lepton CLI
 
 ### Common Resolution Steps
 

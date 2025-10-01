@@ -11,6 +11,8 @@ Solutions for configuration parameters, tokenizer setup, and endpoint configurat
 **Required Configuration**:
 
 ```python
+from nemo_evaluator import EvaluationConfig, ConfigParams
+
 config = EvaluationConfig(
     type="arc_challenge",
     params=ConfigParams(
@@ -51,14 +53,16 @@ else:
 **Solution**: Use completions endpoint instead:
 
 ```python
+from nemo_evaluator import ApiEndpoint, EvaluationConfig, EndpointType
+
 # Change from chat to completions
 api_endpoint = ApiEndpoint(
-    url="http://0.0.0.0:8080/v1/completions/",  # Not chat/completions
-    type="completions"  # Not "chat"
+    url="http://0.0.0.0:8080/v1/completions/",
+    type=EndpointType.COMPLETIONS
 )
 
 # Use completion-based tasks
-config = EvaluationConfig(type="mmlu")  # Not "mmlu_instruct"
+config = EvaluationConfig(type="mmlu")
 ```
 
 ### Endpoint Configuration Examples
@@ -66,12 +70,12 @@ config = EvaluationConfig(type="mmlu")  # Not "mmlu_instruct"
 **For Completions (Base Models)**:
 
 ```python
-from nemo_eval import EvaluationConfig, TargetConfig, ApiEndpoint
+from nemo_evaluator import EvaluationTarget, ApiEndpoint, EndpointType
 
-target_cfg = TargetConfig(
+target_cfg = EvaluationTarget(
     api_endpoint=ApiEndpoint(
         url="http://0.0.0.0:8080/v1/completions/",
-        type="completions",
+        type=EndpointType.COMPLETIONS,
         model_id="megatron_model"
     )
 )
@@ -80,10 +84,12 @@ target_cfg = TargetConfig(
 **For Chat (Instruct Models)**:
 
 ```python
-target_cfg = TargetConfig(
+from nemo_evaluator import EvaluationTarget, ApiEndpoint, EndpointType
+
+target_cfg = EvaluationTarget(
     api_endpoint=ApiEndpoint(
         url="http://0.0.0.0:8080/v1/chat/completions/",
-        type="chat",
+        type=EndpointType.CHAT,
         model_id="megatron_model"
     )
 )
@@ -102,19 +108,21 @@ target_cfg = TargetConfig(
 **Solutions**:
 
 ```python
+from nemo_evaluator import ConfigParams
+
 # Reduce concurrency
 params = ConfigParams(
     parallelism=1,  # Start with single-threaded
-    limit_samples=10  # Test with small sample
+    limit_samples=10,  # Test with small sample
+    request_timeout=600  # Increase timeout for large models (seconds)
 )
-
-# Increase timeout for large models
-# (timeout settings depend on evaluation framework)
 ```
 
 ### Conservative Configuration Template
 
 ```python
+from nemo_evaluator import EvaluationConfig, ConfigParams
+
 def create_evaluation_config(task_name, output_dir, limit_samples=None):
     """Template for reliable configuration"""
     return EvaluationConfig(
@@ -133,32 +141,22 @@ def create_evaluation_config(task_name, output_dir, limit_samples=None):
 ### Pre-Evaluation Checks
 
 ```python
-def validate_config(target_cfg, eval_cfg):
-    """Test configuration before full evaluation"""
-    
-    # Test endpoint connectivity
-    test_response = requests.post(
-        target_cfg.api_endpoint.url,
-        json={
-            "prompt": "test", 
-            "model": target_cfg.api_endpoint.model_id, 
-            "max_tokens": 1
-        }
-    )
-    assert test_response.status_code == 200, f"Endpoint failed: {test_response.status_code}"
-    
-    # Verify task exists
-    from nemo_evaluator import show_available_tasks
-    print("Verifying task availability:")
-    show_available_tasks()
-    
-    return True
+from nemo_evaluator import show_available_tasks
+
+# Verify task exists
+print("Available tasks:")
+show_available_tasks()
+
+# Test endpoint connectivity with curl before running evaluation:
+# curl -X POST http://0.0.0.0:8080/v1/completions/ \
+#   -H "Content-Type: application/json" \
+#   -d '{"prompt": "test", "model": "megatron_model", "max_tokens": 1}'
 ```
 
 ### Common Configuration Mistakes
 
-1. **Wrong endpoint type**: Using `chat` for base models or `completions` for instruct models
-2. **Missing tokenizer**: Log-probability tasks require explicit tokenizer configuration  
+1. **Wrong endpoint type**: Using `EndpointType.CHAT` for base models or `EndpointType.COMPLETIONS` for instruct models
+2. **Missing tokenizer**: Log-probability tasks require explicit tokenizer configuration in `params.extra`
 3. **High parallelism**: Starting with parallelism > 1 can mask underlying issues
 4. **Incorrect model ID**: Model ID must match what the deployment expects
 5. **Missing output directory**: Ensure output path exists and is writable
@@ -168,8 +166,10 @@ def validate_config(target_cfg, eval_cfg):
 **MMLU (Choice-Based)**:
 
 ```python
+from nemo_evaluator import EvaluationConfig, ConfigParams
+
 config = EvaluationConfig(
-    type="lm-evaluation-harness.mmlu",
+    type="mmlu",
     params=ConfigParams(
         extra={
             "tokenizer": "/path/to/tokenizer",
@@ -182,10 +182,12 @@ config = EvaluationConfig(
 **Generation Tasks**:
 
 ```python
+from nemo_evaluator import EvaluationConfig, ConfigParams
+
 config = EvaluationConfig(
-    type="simple-evals.hellaswag",
+    type="hellaswag",
     params=ConfigParams(
-        max_tokens=100,
+        max_new_tokens=100,
         temperature=0,
         limit_samples=50
     )

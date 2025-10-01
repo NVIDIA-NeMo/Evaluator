@@ -13,6 +13,8 @@ The adapter system transforms simple model API calls into sophisticated evaluati
 - **Configurability**: Interceptors can be enabled/disabled and configured independently
 - **Extensibility**: Custom interceptors can be added for specialized processing
 
+The following diagram shows a typical interceptor pipeline configuration. Note that interceptors must follow the order: Request → RequestToResponse → Response, but the specific interceptors and their configuration are flexible:
+
 ```{mermaid}
 graph LR
     A[Evaluation Request] --> B[Adapter System]
@@ -75,11 +77,11 @@ Provide supporting capabilities:
 - **Logging**: Capture request/response data
 - **Progress Tracking**: Monitor evaluation progress
 - **Response Stats**: Track request statistics and metrics
-- **Error Handling**: Raise exceptions for client errors
+- **Raise Client Error**: Raise exceptions for client errors (4xx status codes, excluding 408 and 429)
 
 ### Integration Interceptors
 Handle external system integration:
-- **Endpoint**: Route requests to model APIs with authentication, retry logic, and rate limit handling
+- **Endpoint**: Route requests to model APIs
 
 ## Configuration Philosophy
 

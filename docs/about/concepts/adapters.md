@@ -31,7 +31,7 @@ The adapter system includes several built-in interceptors:
 - **Response Stats**: Collect aggregated statistics from API responses
 - **Progress Tracking**: Monitor evaluation progress
 - **Endpoint**: Handle HTTP communication with the model API
-- **Raise Client Error**: Handle and raise exceptions for client errors
+- **Raise Client Errors**: Handle and raise exceptions for client errors
 
 ## Integration
 
@@ -41,24 +41,11 @@ The adapter system integrates seamlessly with:
 - **NeMo Evaluator Core**: Direct integration via `AdapterConfig`
 - **NeMo Evaluator Launcher**: YAML configuration support
 
-## Usage Example
+## Configuration
 
-The adapter system can be configured using YAML configuration (which supports legacy parameter names) or directly in Python using the modern interceptor-based API:
+### Modern Interceptor-Based Configuration
 
-### YAML Configuration
-
-:::{code-block} yaml
-target:
-  api_endpoint:
-    url: http://localhost:8080/v1/completions/
-    adapter_config:
-      use_reasoning: true
-      use_caching: true
-      use_request_logging: true
-      custom_system_prompt: "You are a helpful assistant."
-:::
-
-### Python API
+The recommended approach uses the interceptor-based API:
 
 :::{code-block} python
 from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig

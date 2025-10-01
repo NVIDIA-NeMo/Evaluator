@@ -1,6 +1,6 @@
 # Runtime and Execution Issues
 
-Solutions for problems that occur during evaluation execution, including configuration validation, launcher management, and performance optimization.
+Solutions for problems that occur during evaluation execution, including configuration validation and launcher management.
 
 ## Common Runtime Problems
 
@@ -72,13 +72,6 @@ Config parameter validation, tokenizer setup, and endpoint configuration problem
 NeMo Evaluator Launcher-specific problems including job management and multi-backend execution.
 :::
 
-:::{grid-item-card} {octicon}`zap;1.5em;sd-mr-1` Performance Issues
-:link: performance
-:link-type: doc
-
-Memory optimization, scaling problems, and resource management for better throughput.
-:::
-
 ::::
 
 ## Runtime Troubleshooting Strategy
@@ -89,13 +82,10 @@ Memory optimization, scaling problems, and resource management for better throug
 4. **Monitor Resources**: Watch GPU memory, CPU usage, and network connectivity
 5. **Scale Gradually**: Increase parallelism and sample size once basic functionality works
 
-For complex runtime issues requiring detailed debugging, see {doc}`../advanced/debugging-guide`.
-
 :::{toctree}
 :caption: Runtime Issues
 :hidden:
 
 Configuration <configuration>
 Launcher <launcher>
-Performance <performance>
 :::

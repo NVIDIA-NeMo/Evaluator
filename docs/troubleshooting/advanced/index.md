@@ -22,14 +22,15 @@ def full_system_check():
     
     # Framework availability
     try:
-        frameworks = list_available_evaluations()
-        print(f"✅ Available frameworks: {len(frameworks)}")
+        print("Available evaluation frameworks:")
+        show_available_tasks()
     except Exception as e:
         print(f"❌ Framework check failed: {e}")
     
     # Server connectivity
     try:
-        ready = wait_for_fastapi_server("http://0.0.0.0:8080", max_retries=3)
+        response = requests.get("http://0.0.0.0:8080/health", timeout=5)
+        ready = response.status_code == 200
         print(f"✅ Server ready: {ready}")
     except Exception as e:
         print(f"❌ Server check failed: {e}")
@@ -75,13 +76,12 @@ def log_evaluation_progress():
 ```python
 def minimal_evaluation_test():
     """Simplest possible evaluation for debugging"""
-    from nemo_evaluator import evaluate
-    from nemo_evaluator.api.api_dataclasses import *
+    from nemo_evaluator import evaluate, ApiEndpoint, EvaluationTarget, EvaluationConfig, ConfigParams, EndpointType
     
     # Absolute minimal configuration
     api_endpoint = ApiEndpoint(
         url="http://0.0.0.0:8080/v1/completions/",
-        type="completions",
+        type=EndpointType.COMPLETIONS,
         model_id="megatron_model"
     )
     
@@ -108,26 +108,7 @@ minimal_evaluation_test()
 
 ## Advanced Categories
 
-Deep-dive resources for complex troubleshooting scenarios:
-
-::::{grid} 1 2 2 2
-:gutter: 1 1 1 2
-
-:::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Debugging Techniques
-:link: debugging-guide
-:link-type: doc
-
-Systematic debugging approaches, monitoring strategies, and error recovery patterns.
-:::
-
-:::{grid-item-card} {octicon}`pattern;1.5em;sd-mr-1` Common Patterns
-:link: common-patterns
-:link-type: doc
-
-Frequently encountered problems with solutions based on actual test patterns and user reports.
-:::
-
-::::
+This section provides comprehensive debugging techniques and monitoring strategies. For specific issues, refer to {doc}`../setup-issues/index` and {doc}`../runtime-issues/index`.
 
 ## When to Use Advanced Debugging
 
@@ -149,11 +130,3 @@ Use these techniques when:
 6. **Environment Documentation**: Document exact versions, configurations, and environment details
 
 For immediate help with common issues, check {doc}`../setup-issues/index` and {doc}`../runtime-issues/index` first.
-
-:::{toctree}
-:caption: Advanced Debugging
-:hidden:
-
-Debugging Guide <debugging-guide>
-Common Patterns <common-patterns>
-:::

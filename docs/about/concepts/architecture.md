@@ -1,109 +1,82 @@
 # Architecture Overview
 
-NeMo Eval provides a **three-tier architecture** for comprehensive model evaluation, from deployment to orchestration:
+NeMo Evaluator provides a **two-tier architecture** for comprehensive model evaluation:
 
 ```{mermaid}
 graph TB
-    subgraph Tier3[" Tier 3: Orchestration Layer"]
-        Launcher["NeMo Evaluator Launcher<br/>• CLI & API orchestration<br/>• Multi-backend execution<br/>• Result export & monitoring"]
+    subgraph Tier2[" Orchestration Layer"]
+        Launcher["nemo-evaluator-launcher<br/>• CLI orchestration<br/>• Multi-backend execution (local, Slurm, Lepton)<br/>• Deployment management (vLLM, NIM, SGLang)<br/>• Result export (MLflow, W&B, Google Sheets)"]
     end
     
-    subgraph Tier2[" Tier 2: Evaluation Engine"]
-        Evaluator["NeMo Evaluator Core<br/>• Adapter system<br/>• Interceptor pipeline<br/>• Advanced evaluation logic"]
+    subgraph Tier1[" Evaluation Engine"]
+        Evaluator["nemo-evaluator<br/>• Adapter system<br/>• Interceptor pipeline<br/>• Containerized evaluation execution<br/>• Result aggregation"]
     end
     
-    subgraph Tier1[" Tier 1: Model Deployment"]
-        Deploy["NeMo Eval Deploy<br/>• vLLM & Ray backends<br/>• Model serving<br/>• OpenAI-compatible APIs"]
-    end
-    
-    subgraph External["External Frameworks"]
-        EvalHarnesses["Evaluation Harnesses<br/>• lm-evaluation-harness<br/>• simple-evals<br/>• BFCL, BigCode<br/>• garak, safety-harness"]
-        
-        EvalFactory["NVIDIA Eval Factory<br/>• Unified interface<br/>• Containerized benchmarks<br/>• Framework packaging"]
+    subgraph External["NVIDIA Eval Factory Containers"]
+        Containers["Evaluation Frameworks<br/>• nvidia-lm-eval (lm-evaluation-harness)<br/>• nvidia-simple-evals<br/>• nvidia-bfcl, nvidia-bigcode-eval<br/>• nvidia-eval-factory-garak<br/>• nvidia-safety-harness"]
     end
     
     Launcher --> Evaluator
-    Evaluator --> Deploy
-    Evaluator --> EvalFactory
-    EvalHarnesses --> EvalFactory
+    Evaluator --> Containers
     
-    style Tier3 fill:#e1f5fe
-    style Tier2 fill:#f3e5f5  
-    style Tier1 fill:#e8f5e8
+    style Tier2 fill:#e1f5fe
+    style Tier1 fill:#f3e5f5
     style External fill:#fff3e0
 ```
 
 ## Component Overview
 
-### **Tier 1: Model Deployment** (`nemo_eval`)
-
-Foundation layer that handles model serving and API endpoints.
-
-**Key Features:**
-
-- vLLM and Ray Serve backend support
-- Multi-GPU tensor and pipeline parallelism
-- OpenAI-compatible REST APIs
-- High-performance inference with CUDA graphs and PagedAttention
-
-**Use Cases:**
-
-- Deploying NeMo checkpoints for evaluation
-- Setting up model serving infrastructure
-- Creating evaluation-ready endpoints
-
-### **Tier 2: Evaluation Engine** (`nemo-evaluator`)
-
-Core evaluation capabilities with advanced request/response processing.
-
-**Key Features:**
-
-- **Adapter System**: Configurable request/response processing
-- **Interceptor Pipeline**: Modular components for logging, caching, reasoning
-- **Advanced Evaluation Logic**: Containerized benchmark execution
-- **Plugin Architecture**: Extensible framework for custom components
-
-**Use Cases:**
-
-- Advanced evaluation workflows with custom processing
-- Request/response transformation and logging
-- Integration into existing ML pipelines
-- Custom benchmark development
-
-### **Tier 3: Orchestration Layer** (`nemo-evaluator-launcher`)
+### **Orchestration Layer** (`nemo-evaluator-launcher`)
 
 High-level orchestration for complete evaluation workflows.
 
 **Key Features:**
 
-- CLI and configuration management
-- Multi-backend execution (local, Slurm, cloud)
-- Result aggregation and export
-- Workflow monitoring and management
+- CLI and YAML configuration management
+- Multi-backend execution (local, Slurm, Lepton)
+- Deployment management (vLLM, NIM, SGLang, or bring-your-own-endpoint)
+- Result export to MLflow, Weights & Biases, and Google Sheets
+- Job monitoring and lifecycle management
 
 **Use Cases:**
 
-- Production evaluation pipelines
-- Research experiments with reproducible configurations
+- Automated evaluation pipelines
+- HPC cluster evaluations with Slurm
+- Cloud deployments with Lepton AI
 - Multi-model comparative studies
-- Automated evaluation workflows
 
-## Detailed Component Architecture
+### **Evaluation Engine** (`nemo-evaluator`)
 
-### **Interceptor Pipeline** (New in nemo-evaluator)
+Core evaluation capabilities with request/response processing.
 
-The evaluation engine includes a sophisticated interceptor system for request/response processing:
+**Key Features:**
+
+- **Adapter System**: Request/response processing layer for API endpoints
+- **Interceptor Pipeline**: Modular components for logging, caching, and reasoning
+- **Containerized Execution**: Evaluation harnesses run in Docker containers
+- **Result Aggregation**: Standardized result schemas and metrics
+
+**Use Cases:**
+
+- Programmatic evaluation integration
+- Request/response transformation and logging
+- Custom interceptor development
+- Direct Python API usage
+
+## Interceptor Pipeline
+
+The evaluation engine provides an interceptor system for request/response processing. Interceptors are configurable components that process API requests and responses in a pipeline.
 
 ```{mermaid}
 graph LR
     A[Request] --> B[System Message]
     B --> C[Payload Modifier]
     C --> D[Request Logging]
-    D --> E[Caching Check]
-    E --> F[Endpoint]
+    D --> E[Caching]
+    E --> F[API Endpoint]
     F --> G[Response Logging]
-    G --> H[Reasoning Processing]
-    H --> I[Progress Tracking]
+    G --> H[Reasoning]
+    H --> I[Response Stats]
     I --> J[Response]
     
     style E fill:#e1f5fe
@@ -112,51 +85,60 @@ graph LR
 
 **Available Interceptors:**
 
-- **System Message**: Inject custom system prompts
+- **System Message**: Inject system prompts into chat requests
 - **Payload Modifier**: Transform request parameters
-- **Request/Response Logging**: Structured logging with configurable storage
-- **Caching**: Response caching with configurable backends
-- **Reasoning**: Chain-of-thought processing and extraction
-- **Progress Tracking**: Real-time evaluation monitoring
+- **Request/Response Logging**: Log requests and responses to files
+- **Caching**: Cache responses to avoid redundant API calls
+- **Reasoning**: Extract chain-of-thought from responses
+- **Response Stats**: Track token usage and latency metrics
+- **Progress Tracking**: Monitor evaluation progress
 
-### **Integration Patterns**
+## Integration Patterns
 
-#### **Pattern 1: Complete Stack** (Recommended)
+### **Pattern 1: Launcher with Deployment**
 
-:::{code-block} python
-# 1. Deploy model via launcher configuration
-# See deployment documentation for details
-
-# 2. Configure evaluation with adapters
-from nemo_evaluator.adapters.adapter_config import AdapterConfig
-adapter_config = AdapterConfig(
-    use_reasoning=True,
-    use_caching=True,
-    custom_system_prompt="You are a helpful assistant."
-)
-
-# 3. Run evaluation
-from nemo_evaluator.core.evaluate import evaluate
-results = evaluate(target_cfg=target, eval_cfg=config)
-:::
-
-#### **Pattern 2: Orchestrated Workflow**
+Use the launcher to handle both model deployment and evaluation:
 
 ```bash
-# Single command handles deployment, evaluation, and export
 nv-eval run \
   --config-dir examples \
   --config-name local_llama_3_1_8b_instruct \
-  -o config.params.temperature=0.8
+  -o deployment.checkpoint_path=/path/to/model \
+  -o 'evaluation.tasks=["mmlu_pro", "gsm8k"]'
 ```
 
-#### **Pattern 3: Programmatic Integration**
+### **Pattern 2: Launcher with Existing Endpoint**
 
-:::{code-block} python
-# Direct integration into ML pipelines
-from nemo_evaluator.api import run
-results = run(
-    target_cfg=target_config,
-    eval_cfg=evaluation_config
+Point the launcher to an existing API endpoint:
+
+```bash
+nv-eval run \
+  --config-dir examples \
+  --config-name local_llama_3_1_8b_instruct \
+  -o target.api_endpoint.url=http://localhost:8080/v1/completions \
+  -o deployment.type=none
+```
+
+### **Pattern 3: Python API**
+
+Use the Python API for programmatic integration:
+
+```python
+from nemo_evaluator import evaluate, EvaluationConfig, EvaluationTarget, ApiEndpoint, EndpointType
+
+# Configure target endpoint
+api_endpoint = ApiEndpoint(
+    url="http://localhost:8080/v1/completions",
+    type=EndpointType.COMPLETIONS
 )
-:::
+target = EvaluationTarget(api_endpoint=api_endpoint)
+
+# Configure evaluation
+eval_config = EvaluationConfig(
+    type="mmlu_pro",
+    output_dir="./results"
+)
+
+# Run evaluation
+results = evaluate(eval_cfg=eval_config, target_cfg=target)
+```

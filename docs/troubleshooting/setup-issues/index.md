@@ -67,20 +67,13 @@ Module import errors, missing dependencies, and framework installation problems.
 HuggingFace tokens, dataset access permissions, and gated model authentication.
 :::
 
-:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Deployment Issues
-:link: deployment
-:link-type: doc
-
-Model deployment problems, server connectivity, and inference setup failures.
-:::
-
 ::::
 
 ## Quick Resolution Steps
 
 1. **Start with Installation**: Ensure all required packages are installed
 2. **Configure Authentication**: Set up tokens for gated datasets and models
-3. **Test Deployment**: Verify your model endpoint is accessible
+3. **Test Deployment**: Verify your model endpoint is accessible (see {ref}`deployment-overview`)
 4. **Validate Setup**: Run a minimal evaluation to confirm everything works
 
 If setup issues persist, check the {doc}`../advanced/index` section for comprehensive debugging techniques.
@@ -91,5 +84,4 @@ If setup issues persist, check the {doc}`../advanced/index` section for comprehe
 
 Installation <installation>
 Authentication <authentication>
-Deployment <deployment>
 :::

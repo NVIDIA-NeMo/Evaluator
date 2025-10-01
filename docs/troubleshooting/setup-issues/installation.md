@@ -14,7 +14,7 @@ Solutions for import errors, missing dependencies, and framework installation pr
 pip install nvidia-lm-eval
 
 # For additional frameworks
-pip install nvidia-simple-evals nvidia-bigcode nvidia-bfcl
+pip install nvidia-simple-evals nvidia-bigcode-eval nvidia-bfcl
 ```
 
 ###  Problem: `Framework for task X not found`
@@ -56,7 +56,7 @@ config = EvaluationConfig(
 
 1. **Install all evaluation frameworks** at once to avoid missing dependencies:
 ```bash
-pip install nvidia-lm-eval nvidia-simple-evals nvidia-bigcode nvidia-bfcl
+pip install nvidia-lm-eval nvidia-simple-evals nvidia-bigcode-eval nvidia-bfcl
 ```
 
 2. **Restart your Python session** after installing new frameworks to ensure they're properly loaded.

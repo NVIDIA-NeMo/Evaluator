@@ -2,7 +2,7 @@
 
 # About NeMo Evaluator
 
-NeMo Evaluator is NVIDIA's comprehensive platform for AI model evaluation and benchmarking. It consists of two core libraries that work together to enable consistent, scalable, and reproducible evaluation of GenAI models spanning LLMs, VLMs, agentic AI, and retrieval systems.
+NeMo Evaluator is NVIDIA's comprehensive platform for AI model evaluation and benchmarking. It consists of two core libraries that work together to enable consistent, scalable, and reproducible evaluation of large language models across diverse capabilities including reasoning, code generation, function calling, and safety.
 
 ![image](../../NeMo_Repo_Overview_Eval.png)
 
@@ -39,13 +39,13 @@ NeMo Evaluator consists of two main libraries:
 * - User Type
   - Key Benefits
 * - **Researchers**
-  - Access 100+ benchmarks across 18 evaluation harnesses with containerized reproducibility. Run evaluations locally or on HPC clusters with minimal setup overhead.
+  - Access 100+ benchmarks across multiple evaluation harnesses with containerized reproducibility. Run evaluations locally or on HPC clusters.
 * - **ML Engineers**
-  - Integrate evaluations into ML pipelines with programmatic APIs. Deploy models and run evaluations across multiple backends with consistent, reproducible results.
+  - Integrate evaluations into ML pipelines with programmatic APIs. Deploy models and run evaluations across multiple backends.
 * - **Organizations**
-  - Scale evaluation across teams with unified CLI, multi-backend execution, and enterprise-grade result tracking. Export results to existing MLOps infrastructure.
+  - Scale evaluation across teams with unified CLI, multi-backend execution, and result tracking. Export results to MLflow, Weights & Biases, or Google Sheets.
 * - **AI Safety Teams**
-  - Conduct comprehensive safety assessments using specialized containers for security testing, bias evaluation, and alignment verification with detailed logging and audit trails.
+  - Conduct safety assessments using specialized containers for security testing and bias evaluation with detailed logging.
 * - **Model Developers**
-  - Evaluate custom models against standard benchmarks using OpenAI-compatible APIs. Extend the platform with custom frameworks and evaluation tasks.
+  - Evaluate custom models against standard benchmarks using OpenAI-compatible APIs.
 ```

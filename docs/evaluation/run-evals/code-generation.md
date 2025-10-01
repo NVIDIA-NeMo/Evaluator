@@ -60,7 +60,7 @@ For programmatic evaluation in custom workflows:
 ```python
 from nemo_evaluator.core.evaluate import evaluate
 from nemo_evaluator.api.api_dataclasses import (
-    EvaluationConfig, EvaluationTarget, ApiEndpoint, ConfigParams
+    EvaluationConfig, EvaluationTarget, ApiEndpoint, ConfigParams, EndpointType
 )
 
 # Configure code generation evaluation
@@ -79,7 +79,7 @@ target_config = EvaluationTarget(
     api_endpoint=ApiEndpoint(
         url="https://integrate.api.nvidia.com/v1/chat/completions",
         model_id="meta/llama-3.1-8b-instruct", 
-        type="chat",
+        type=EndpointType.CHAT,
         api_key="your_api_key"
     )
 )

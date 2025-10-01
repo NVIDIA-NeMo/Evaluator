@@ -1,29 +1,41 @@
 (evaluation-model)=
+
 # Evaluation Model
 
-This page introduces NeMo Eval's core evaluation model: evaluation types, endpoint formats, and core metrics.
+NeMo Evaluator provides evaluation approaches and endpoint compatibility for comprehensive AI model assessment.
 
-## Evaluation Types
+## Evaluation Approaches
 
-- **Text Generation**: Models generate responses to prompts, assessed for correctness or quality.
-- **Log Probability**: Models assign probabilities to continuations for multiple-choice style scoring.
-- **Multiple Choice**: Models pick the best answer from predefined options.
+NeMo Evaluator supports several evaluation approaches through containerized harnesses:
 
-## Endpoints
+- **Text Generation**: Models generate responses to prompts, assessed for correctness or quality against reference answers or rubrics.
+- **Log Probability**: Models assign probabilities to token sequences, enabling confidence measurement without text generation. Effective for choice-based tasks and base model evaluation.
+- **Code Generation**: Models generate code from natural language descriptions, evaluated for correctness through test execution.
+- **Function Calling**: Models generate structured outputs for tool use and API interaction scenarios.
+- **Safety & Security**: Evaluation against adversarial prompts and safety benchmarks to test model alignment and robustness.
 
-NeMo Eval targets OpenAI-compatible APIs:
+One or more evaluation harnesses implement each approach. To discover available tasks for each approach, use `nv-eval ls tasks`.
 
-- **Completions**: `/v1/completions/` — direct text completion without chat formatting.
-- **Chat**: `/v1/chat/completions/` — conversational interface with role-based messages.
+## Endpoint Compatibility
 
-## Core Metrics
+NeMo Evaluator targets OpenAI-compatible API endpoints. The platform supports the following endpoint types:
 
-- **Accuracy**
-- **Perplexity**
-- **Pass@k** (code)
-- **BLEU/ROUGE** (text similarity)
-- **Safety Scores**
+- **`completions`**: Direct text completion without chat formatting (`/v1/completions`). Used for base models and academic benchmarks.
+- **`chat`**: Conversational interface with role-based messages (`/v1/chat/completions`). Used for instruction-tuned and chat models.
+- **`vlm`**: Vision-language model endpoints supporting image inputs.
+- **`embedding`**: Embedding generation endpoints for retrieval evaluation.
+
+Each evaluation task specifies which endpoint types it supports. Verify compatibility using `nv-eval ls tasks`.
+
+## Metrics
+
+Individual evaluation harnesses define metrics that vary by task. Common metric types include:
+
+- **Accuracy metrics**: Exact match, normalized accuracy, F1 scores
+- **Generative metrics**: BLEU, ROUGE, code execution pass rates
+- **Probability metrics**: Perplexity, log-likelihood scores
+- **Safety metrics**: Refusal rates, toxicity scores, vulnerability detection
+
+The platform returns results in a standardized schema regardless of the source harness. To see metrics for a specific task, refer to {ref}`eval-benchmarks` or run an evaluation and inspect the results.
 
 For hands-on guides, refer to {ref}`eval-run`.
-
-
