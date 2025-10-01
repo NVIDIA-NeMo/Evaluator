@@ -37,10 +37,16 @@ def installed_modules(n: int):
         # Temporarily uninstall nvidia-simple-evals to make it unavailable
         import subprocess
 
+        if os.environ.get("UV_PROJECT_ENVIRONMENT"):
+            pip_cmd = ["uv", "pip"]
+            flags = []
+        else:
+            pip_cmd = [sys.executable, "-m", "pip"]
+            flags = ["-y"]
         try:
             subprocess.run(
-                [sys.executable, "-m", "pip", "uninstall", "-y", "nvidia-simple-evals"],
-                capture_output=True,
+                pip_cmd + ["uninstall", *flags, "nvidia-simple-evals"],
+                capture_output=False,
                 check=False,
             )
         except Exception:
@@ -51,8 +57,8 @@ def installed_modules(n: int):
         # Reinstall the package
         try:
             subprocess.run(
-                [sys.executable, "-m", "pip", "install", "nvidia-simple-evals"],
-                capture_output=True,
+                pip_cmd + ["install", "nvidia-simple-evals"],
+                capture_output=False,
                 check=False,
             )
         except Exception:
