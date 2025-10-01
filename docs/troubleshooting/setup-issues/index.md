@@ -36,7 +36,9 @@ python -c "import os; print('HF_TOKEN set:', bool(os.environ.get('HF_TOKEN')))"
 
 ```bash
 # Check if deployment server is running
-curl -I http://0.0.0.0:8080/v1/triton_health
+# Use /health for vLLM, SGLang, NIM deployments
+# Use /v1/triton_health for NeMo/Triton deployments
+curl -I http://0.0.0.0:8080/health
 
 # Verify GPU availability
 nvidia-smi
@@ -68,15 +70,6 @@ HuggingFace tokens, dataset access permissions, and gated model authentication.
 :::
 
 ::::
-
-## Quick Resolution Steps
-
-1. **Start with Installation**: Ensure all required packages are installed
-2. **Configure Authentication**: Set up tokens for gated datasets and models
-3. **Test Deployment**: Verify your model endpoint is accessible (see {ref}`deployment-overview`)
-4. **Validate Setup**: Run a minimal evaluation to confirm everything works
-
-If setup issues persist, check the {doc}`../advanced/index` section for comprehensive debugging techniques.
 
 :::{toctree}
 :caption: Setup Issues

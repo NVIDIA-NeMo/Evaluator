@@ -346,35 +346,6 @@ Your endpoint must implement the OpenAI API format:
 }
 ```
 
-## Best Practices
-
-### Deployment
-
-- Use containerization (Docker/Podman) for consistent environments
-- Add health check endpoints for monitoring
-- Use load balancers for high availability and scaling
-- Track model versions and deployment configurations
-
-### Configuration
-
-- Store API keys in environment variables, never in code or configuration files
-- Use the adapter system for caching to reduce costs and improve performance
-- Set appropriate timeouts based on your model's inference time
-- Enable request/response logging during development for debugging
-
-### Performance
-
-- Set parallelism based on your endpoint's capacity
-- Track response times and adjust timeout settings accordingly
-- Use caching for repeated requests to improve throughput
-- Consider batch size and throughput requirements when sizing infrastructure
-
-### Security
-
-- Always use HTTPS in production environments
-- Add API authentication on your endpoints
-- Use rate limiting to prevent abuse
-- Update dependencies and frameworks on a regular schedule
 
 ## Troubleshooting
 

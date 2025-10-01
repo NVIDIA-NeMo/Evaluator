@@ -35,8 +35,10 @@ nv-eval ls runs
 ```python
 import requests
 
-# Check health endpoint
-health_response = requests.get("http://0.0.0.0:8080/v1/triton_health")
+# Check health endpoint (adjust based on your deployment)
+# vLLM/SGLang/NIM: use /health
+# NeMo/Triton: use /v1/triton_health
+health_response = requests.get("http://0.0.0.0:8080/health", timeout=5)
 print(f"Health Status: {health_response.status_code}")
 
 # Test completions endpoint
@@ -71,7 +73,7 @@ except ImportError as e:
 
 Choose the category that best matches your issue for targeted solutions and debugging steps.
 
-::::{grid} 1 2 2 2
+::::{grid} 1 1 1 1
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`download;1.5em;sd-mr-1` Setup & Installation
@@ -86,13 +88,6 @@ Installation problems, authentication setup, and model deployment issues to get 
 :link-type: doc
 
 Configuration validation and launcher management during evaluation execution.
-:::
-
-:::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Advanced & Debugging
-:link: advanced/index
-:link-type: doc
-
-Comprehensive debugging techniques, monitoring strategies, and complex issue resolution patterns.
 :::
 
 ::::

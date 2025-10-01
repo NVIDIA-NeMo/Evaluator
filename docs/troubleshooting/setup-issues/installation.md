@@ -52,17 +52,3 @@ config = EvaluationConfig(
 )
 ```
 
-## Prevention Tips
-
-1. **Install all evaluation frameworks** at once to avoid missing dependencies:
-```bash
-pip install nvidia-lm-eval nvidia-simple-evals nvidia-bigcode-eval nvidia-bfcl
-```
-
-2. **Restart your Python session** after installing new frameworks to ensure they're properly loaded.
-
-3. **Use explicit framework names** in task specifications to avoid conflicts:
-   - `lm-evaluation-harness.mmlu` instead of just `mmlu`
-   - `simple-evals.hellaswag` instead of just `hellaswag`
-
-4. **Check available tasks** before running evaluations to confirm framework installation.

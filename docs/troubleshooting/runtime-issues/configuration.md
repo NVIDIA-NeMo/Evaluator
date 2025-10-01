@@ -118,23 +118,6 @@ params = ConfigParams(
 )
 ```
 
-### Conservative Configuration Template
-
-```python
-from nemo_evaluator import EvaluationConfig, ConfigParams
-
-def create_evaluation_config(task_name, output_dir, limit_samples=None):
-    """Template for reliable configuration"""
-    return EvaluationConfig(
-        type=task_name,
-        params=ConfigParams(
-            limit_samples=limit_samples,
-            parallelism=1,  # Conservative default
-            temperature=0,   # Deterministic for testing
-        ),
-        output_dir=output_dir
-    )
-```
 
 ## Configuration Validation
 
@@ -153,13 +136,13 @@ show_available_tasks()
 #   -d '{"prompt": "test", "model": "megatron_model", "max_tokens": 1}'
 ```
 
-### Common Configuration Mistakes
+### Common Configuration Issues
 
-1. **Wrong endpoint type**: Using `EndpointType.CHAT` for base models or `EndpointType.COMPLETIONS` for instruct models
-2. **Missing tokenizer**: Log-probability tasks require explicit tokenizer configuration in `params.extra`
-3. **High parallelism**: Starting with parallelism > 1 can mask underlying issues
-4. **Incorrect model ID**: Model ID must match what the deployment expects
-5. **Missing output directory**: Ensure output path exists and is writable
+- Wrong endpoint type (using `EndpointType.CHAT` for base models or `EndpointType.COMPLETIONS` for instruct models)
+- Missing tokenizer (log-probability tasks require explicit tokenizer configuration in `params.extra`)
+- High parallelism (starting with `parallelism > 1` can mask underlying issues; use `parallelism=1` for initial debugging)
+- Incorrect model ID (model ID must match what the deployment expects)
+- Missing output directory (ensure output path exists and is writable)
 
 ### Task-Specific Configuration
 
@@ -188,7 +171,6 @@ config = EvaluationConfig(
     type="hellaswag",
     params=ConfigParams(
         max_new_tokens=100,
-        temperature=0,
         limit_samples=50
     )
 )

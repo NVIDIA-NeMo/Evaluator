@@ -82,28 +82,11 @@ Your endpoint must provide OpenAI-compatible APIs:
 ### Required Endpoints
 - **Completions**: `/v1/completions` (POST) - For text completion tasks
 - **Chat Completions**: `/v1/chat/completions` (POST) - For conversational tasks
-- **Health Check**: `/health` (GET) - For monitoring (recommended)
+- **Health Check**: `/v1/triton_health` (GET) - For monitoring (recommended)
 
 ### Request/Response Format
 Must follow OpenAI API specifications for compatibility with evaluation frameworks.
 
-## Popular Integration Patterns
-
-### Hosted Model APIs
-- **NVIDIA Build**: Ready-to-use models with enterprise features
-- **OpenAI API**: Direct access to GPT models for comparison
-- **Cloud Providers**: Azure OpenAI, AWS Bedrock, Google Vertex AI
-
-### Self-Hosted Frameworks
-- **vLLM**: Fast inference with PagedAttention and optimized serving
-- **TensorRT-LLM**: High-performance serving with NVIDIA TensorRT
-- **Ray Serve**: Multi-instance serving with horizontal scaling
-- **Custom FastAPI**: Build your own OpenAI-compatible server
-
-### Enterprise Integration
-- **Kubernetes**: Container orchestration for production deployments
-- **MLOps Pipelines**: Integration with MLflow, Kubeflow, Airflow
-- **Security & Compliance**: OAuth, LDAP, audit logging, DLP
 
 ## Configuration Management
 
