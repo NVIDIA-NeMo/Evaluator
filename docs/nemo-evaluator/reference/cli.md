@@ -251,7 +251,6 @@ nemo-evaluator-example my_custom_eval .
 # core_evals/my_custom_eval/
 # ├── framework.yml
 # ├── output.py
-# ├── framework_entrypoint.py
 # └── __init__.py
 
 # Edit framework.yml to configure your evaluation
@@ -294,7 +293,6 @@ nemo-evaluator-example my_package /path/to/destination
 **What it creates:**
 
 - `core_evals/my_package/framework.yml` - Framework configuration
-- `core_evals/my_package/framework_entrypoint.py` - Running `run_eval()`
 - `core_evals/my_package/output.py` - Output parsing logic
 - `core_evals/my_package/__init__.py` - Package initialization
 

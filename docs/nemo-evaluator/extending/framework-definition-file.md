@@ -220,7 +220,6 @@ your-framework/
 ├── core_evals/
 │   └── your_framework/
 │       ├── framework.yml           # This is your FDF
-│       ├── framework_entrypoint.py # This is an entrypoint to execute evaluation (usually pre-defined)
 │       ├── output.py               # Output parser (custom)
 │       └── __init__.py             # Empty init file
 ├── setup.py                        # Package configuration
