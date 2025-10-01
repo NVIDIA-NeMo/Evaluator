@@ -109,12 +109,15 @@ nemo-evaluator-launcher run --config-dir configs --config-name your_config --dry
 Enable debug logging for detailed error information and troubleshooting:
 
 ```bash
-# Set environment variable (recommended)
-export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
+# Using the verbose flag (recommended)
+nemo-evaluator-launcher -v run --config-name your_config
 
-# Run your evaluation
+# Or using environment variable
+export LOG_LEVEL=DEBUG
 nemo-evaluator-launcher run --config-name your_config
 ```
+
+The `-v`/`--verbose` flag is available on all commands and automatically sets `LOG_LEVEL=DEBUG` for comprehensive logging.
 
 ### Log failed requests responses pair 
 
