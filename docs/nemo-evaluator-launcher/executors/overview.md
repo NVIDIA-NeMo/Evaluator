@@ -130,5 +130,5 @@ For detailed output structure and executor-specific details, see the [nemo-evalu
 
 ## Configuration Files
 
-See all available execution configurations: [Execution Configs](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/execution)
+See all available execution configurations: [Execution Configs](../../../../packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/execution).
 

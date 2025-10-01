@@ -49,7 +49,7 @@ docker run --gpus all -p 8000:8000 vllm/vllm-openai:latest \
   --model meta-llama/Llama-3.1-8B-Instruct
 ```
 
-  **Self-hosted options:**
+For more information, see:
 
   For detailed deployment instructions, see the [Deployment Frameworks Guide](tutorials/deployments/deployment-frameworks-guide.md).
 
