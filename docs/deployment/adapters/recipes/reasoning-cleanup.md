@@ -35,13 +35,19 @@ config = EvaluationConfig(type="gsm8k", output_dir="results")
 results = evaluate(target_cfg=target, eval_cfg=config)
 ```
 
-Tips:
+## Configuration Parameters
 
-- Set both `start_reasoning_token` and `end_reasoning_token` to match your model's delimiters
-- The reasoning interceptor removes content between these tokens from the final response before scoring
-- Reasoning statistics (word counts, token counts, completion status) are automatically tracked and logged
-- The interceptor works with both chat and completions endpoints
-- Other parameters include `include_if_not_finished` (default: `True`) and `enable_reasoning_tracking` (default: `True`)
-- Refer to {ref}`adapters-configuration` for all interceptor options and defaults
+Set both `start_reasoning_token` and `end_reasoning_token` to match your model's delimiters. The reasoning interceptor removes content between these tokens from the final response before scoring.
+
+Optional parameters:
+
+- `include_if_not_finished` (default: `True`): Include reasoning content if reasoning is not finished (end token not found)
+- `enable_reasoning_tracking` (default: `True`): Enable reasoning tracking and logging
+- `add_reasoning` (default: `True`): Whether to add reasoning information to the response
+- `migrate_reasoning_content` (default: `False`): Migrate `reasoning_content` field to `content` field with tokens
+
+Reasoning statistics (word counts, token counts, completion status) are automatically tracked and logged when enabled.
+
+Refer to {ref}`adapters-configuration` for all interceptor options and defaults.
 
 

@@ -22,11 +22,10 @@ Let NeMo Evaluator Launcher handle both model deployment and evaluation orchestr
 
 ```bash
 # Launcher deploys model AND runs evaluation
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name slurm_llama_3_1_8b_instruct \
-    -o deployment.model_path=/shared/models/llama-3.1-8b \
-    -o 'evaluation.tasks=["mmlu_pro", "gsm8k"]'
+    -o deployment.checkpoint_path=/shared/models/llama-3.1-8b
 ```
 
 **When to use:**
@@ -39,7 +38,7 @@ nemo-evaluator-launcher run \
 **Supported deployment types:** vLLM, NIM, SGLang, or no deployment (existing endpoints)
 
 :::{seealso}
-For detailed YAML configuration reference for each deployment type, see {ref}`deployment-overview`.
+For detailed YAML configuration reference for each deployment type, see the {ref}`configuration-overview` in the NeMo Evaluator Launcher library.
 :::
 
 ### **Bring-Your-Own-Endpoint**
@@ -48,7 +47,7 @@ You handle model deployment, NeMo Evaluator handles evaluation:
 **Launcher users with existing endpoints:**
 ```bash
 # Point launcher to your deployed model
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=http://localhost:8080/v1/completions
@@ -56,11 +55,11 @@ nemo-evaluator-launcher run \
 
 **Core library users:**
 ```python
-from nemo_evaluator.core.evaluate import evaluate
-from nemo_evaluator.api.api_dataclasses import ApiEndpoint, EvaluationTarget
+from nemo_evaluator import evaluate, ApiEndpoint, EvaluationTarget, EvaluationConfig, ConfigParams
 
 api_endpoint = ApiEndpoint(url="http://localhost:8080/v1/completions")
 target = EvaluationTarget(api_endpoint=api_endpoint)
+config = EvaluationConfig(type="mmlu_pro", output_dir="./results")
 evaluate(target_cfg=target, eval_cfg=config)
 ```
 
@@ -90,38 +89,37 @@ Use NVIDIA Build, OpenAI, or other hosted model APIs.
 
 ### Available Deployment Types
 
-Based on the deployment configurations from PR #108:
+The launcher supports multiple deployment types through Hydra configuration:
 
-**vLLM Deployment (`deployment/vllm.yaml`)**
+**vLLM Deployment**
 ```yaml
 deployment:
   type: vllm
-  model_path: /path/to/model
-  port: 8080
-  gpu_memory_utilization: 0.9
-  max_model_len: 4096
+  checkpoint_path: /path/to/model  # Or HuggingFace model ID
   served_model_name: my-model
+  tensor_parallel_size: 8
+  data_parallel_size: 1
 ```
 
-**NIM Deployment (`deployment/nim.yaml`)**  
+**NIM Deployment**  
 ```yaml
 deployment:
   type: nim
-  model_path: /path/to/model
-  container_image: nvcr.io/nim/llama-3.1-8b-instruct
-  port: 8000
+  image: nvcr.io/nim/meta/llama-3.1-8b-instruct:1.8.6
+  served_model_name: meta/llama-3.1-8b-instruct
 ```
 
-**SGLang Deployment (`deployment/sglang.yaml`)**
+**SGLang Deployment**
 ```yaml
 deployment:
   type: sglang
-  model_path: /path/to/model
-  port: 30000
-  tensor_parallel_size: 1
+  checkpoint_path: /path/to/model  # Or HuggingFace model ID
+  served_model_name: my-model
+  tensor_parallel_size: 8
+  data_parallel_size: 1
 ```
 
-**No Deployment (`deployment/none.yaml`)**
+**No Deployment**
 ```yaml
 deployment:
   type: none  # Use existing endpoint
@@ -131,13 +129,19 @@ deployment:
 
 **Local Backend**
 ```yaml
-# examples/local_with_vllm_deployment.yaml
-deployment:
-  type: vllm
-  model_path: /models/llama-3.1-8b
-  
+# Evaluates against existing endpoints only (no deployment)
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
 execution:
-  backend: local
+  output_dir: ./results
+  
+target:
+  api_endpoint:
+    url: http://localhost:8080/v1/completions
+    model_id: my-model
   
 evaluation:
   tasks:
@@ -147,41 +151,49 @@ evaluation:
 
 **Slurm Backend**  
 ```yaml
-# examples/slurm_with_nim_deployment.yaml
+# Deploys model on Slurm and runs evaluation
+defaults:
+  - execution: slurm/default
+  - deployment: vllm
+  - _self_
+
 deployment:
-  type: nim
-  model_path: /shared/models/llama-3.1-8b.nemo
+  checkpoint_path: /shared/models/llama-3.1-8b
+  served_model_name: meta-llama/Llama-3.1-8B-Instruct
   
 execution:
-  backend: slurm
+  account: my-account
+  output_dir: /shared/results
   partition: gpu
-  nodes: 1
-  gpus_per_node: 4
-  time_limit: "02:00:00"
+  walltime: "02:00:00"
   
 evaluation:
   tasks:
     - name: mmlu_pro
-      params:
-        limit_samples: 1000
+    - name: gpqa_diamond
 ```
 
 **Lepton Backend**
 ```yaml
-# examples/lepton_with_vllm_deployment.yaml
+# Deploys model on Lepton and runs evaluation
+defaults:
+  - execution: lepton/default
+  - deployment: vllm
+  - _self_
+
 deployment:
-  type: vllm
-  model_path: meta-llama/Llama-3.1-8B-Instruct
-  resource_shape: gpu.a100.1x
+  checkpoint_path: meta-llama/Llama-3.1-8B-Instruct
+  served_model_name: llama-3.1-8b-instruct
+  lepton_config:
+    resource_shape: gpu.1xh200
   
 execution:
-  backend: lepton
+  output_dir: ./results
   
 evaluation:
   tasks:
     - name: mmlu_pro
-    - name: gsm8k
-    - name: humaneval
+    - name: ifeval
 ```
 
 ## Bring-Your-Own-Endpoint Options
@@ -190,7 +202,6 @@ Choose from these approaches when managing your own deployment:
 
 ### Manual Deployment
 - **vLLM**: High-performance serving with PagedAttention optimization
-- **vLLM**: Fast inference with optimized attention mechanisms
 - **Custom serving**: Any OpenAI-compatible endpoint
 
 ### Hosted Services  
@@ -208,7 +219,7 @@ Choose from these approaches when managing your own deployment:
 ### With Launcher
 ```bash
 # Point to any existing endpoint
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=http://your-endpoint:8080/v1/completions \
@@ -217,9 +228,12 @@ nemo-evaluator-launcher run \
 
 ### With Core Library
 ```python
-from nemo_evaluator.core.evaluate import evaluate
-from nemo_evaluator.api.api_dataclasses import (
-    ApiEndpoint, EvaluationConfig, EvaluationTarget
+from nemo_evaluator import (
+    evaluate,
+    ApiEndpoint,
+    EvaluationConfig,
+    EvaluationTarget,
+    ConfigParams
 )
 
 # Configure any endpoint
@@ -228,7 +242,11 @@ api_endpoint = ApiEndpoint(
     model_id="your-model-name"
 )
 target = EvaluationTarget(api_endpoint=api_endpoint)
-config = EvaluationConfig(type="mmlu_pro", output_dir="results")
+config = EvaluationConfig(
+    type="mmlu_pro",
+    output_dir="results",
+    params=ConfigParams(limit_samples=100)
+)
 
 evaluate(target_cfg=target, eval_cfg=config)
 ```

@@ -38,20 +38,14 @@ Ensure you have:
 # List available log-probability tasks
 nv-eval ls tasks | grep -E "(arc|hellaswag|winogrande|truthfulqa)"
 
-# Run ARC Challenge evaluation
+# Run ARC Challenge evaluation with existing endpoint
+# Note: Configure tokenizer parameters in your YAML config file
 nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
-    -o 'evaluation.tasks=["adlr_arc_challenge_llama"]' \
     -o target.api_endpoint.url=http://0.0.0.0:8080/v1/completions \
     -o target.api_endpoint.type=completions \
     -o target.api_endpoint.model_id=megatron_model
-
-# Run multiple log-probability benchmarks
-nv-eval run \
-    --config-dir examples \
-    --config-name local_log_probability_suite \
-    -o 'evaluation.tasks=["adlr_arc_challenge_llama", "hellaswag", "winogrande", "adlr_truthfulqa_mc2"]'
 ```
 
 :::
@@ -120,7 +114,7 @@ eval-factory run_eval \
     --model_url http://0.0.0.0:8080/v1/completions \
     --model_type completions \
     --output_dir /tmp/results \
-    --overrides 'config.params.extra.tokenizer=/path/to/tokenizer,config.params.extra.tokenizer_backend=huggingface,config.params.limit_samples=100'
+    --overrides "config.params.extra.tokenizer=/path/to/tokenizer,config.params.extra.tokenizer_backend=huggingface,config.params.limit_samples=100"
 ```
 
 :::
@@ -224,17 +218,7 @@ This approach eliminates the need for complex instruction-following and provides
 
 **Deploy your model**: Choose from {ref}`launcher-orchestrated-deployment` (recommended) or {ref}`bring-your-own-endpoint`.
 
-For deployment, use the launcher:
-
-```bash
-# Deploy via launcher
-nemo-evaluator-launcher run \
-    --config-name local_deployment \
-    -o deployment.type=vllm \
-    -o deployment.model_path=/checkpoints/llama-3_2-1b-instruct_v2.0 \
-    -o deployment.port=8080 \
-    -o deployment.gpus=1
-```
+For manual deployment, refer to the {ref}`bring-your-own-endpoint-manual` guide for instructions on deploying with vLLM, TensorRT-LLM, or other serving frameworks.
 
 ### Step 2: Wait for Server Readiness
 
@@ -242,24 +226,22 @@ nemo-evaluator-launcher run \
 import requests
 import time
 
-def wait_for_server(base_url: str, max_retries: int = 600) -> bool:
-    """Wait for server to be ready."""
-    for _ in range(max_retries):
-        try:
-            response = requests.get(f"{base_url}/health", timeout=5)
-            if response.status_code == 200:
-                return True
-        except requests.exceptions.RequestException:
-            pass
-        time.sleep(10)
-    return False
-
-# Verify server and model are ready
-server_ready = wait_for_server(
-    base_url="http://0.0.0.0:8080",
-    max_retries=600
-)
-assert server_ready, "Server not ready"
+# Example health check - adjust endpoint path based on your deployment
+# vLLM/SGLang/NIM: use /health
+# Custom deployments: check your framework's health endpoint
+base_url = "http://0.0.0.0:8080"
+max_retries = 60
+for _ in range(max_retries):
+    try:
+        response = requests.get(f"{base_url}/health", timeout=5)
+        if response.status_code == 200:
+            print("Server ready")
+            break
+    except requests.exceptions.RequestException:
+        pass
+    time.sleep(10)
+else:
+    raise RuntimeError("Server not ready after waiting")
 ```
 
 ### Step 3: Configure and Run Evaluation
@@ -395,9 +377,7 @@ params = ConfigParams(
     max_retries=3,   # Retry policy
     extra={
         "tokenizer": "/path/to/tokenizer",
-        "tokenizer_backend": "huggingface",
-        "batch_size": 8,  # Request batching if supported
-        "cache_requests": True  # Enable caching
+        "tokenizer_backend": "huggingface"
     }
 )
 ```
@@ -444,19 +424,6 @@ stderr = acc_metric.scores['acc'].stats.stderr
 print(f"Accuracy: {acc:.3f} ± {stderr:.3f}")
 ```
 
-### Baseline Performance Ranges
-
-The following table provides approximate performance ranges observed across different model sizes. These values serve as reference points and can vary significantly based on training data, architecture, and fine-tuning approaches.
-
-| Task | 1B Model | 7B Model | 70B Model |
-|------|----------|----------|-----------|
-| ARC Challenge | 0.35-0.45 | 0.55-0.65 | 0.70-0.80 |
-| HellaSwag | 0.45-0.55 | 0.70-0.80 | 0.85-0.90 |
-| Winogrande | 0.55-0.65 | 0.70-0.75 | 0.80-0.85 |
-| TruthfulQA | 0.30-0.40 | 0.35-0.45 | 0.45-0.55 |
-
-*Note: These are approximate reference ranges. Actual performance depends on training data, architecture, and fine-tuning.*
-
 ## Performance Considerations
 
 ### Recommended Settings
@@ -482,8 +449,7 @@ ConfigParams(
     request_timeout=120,  # Generous timeout
     extra={
         "tokenizer": "/path/to/tokenizer",
-        "tokenizer_backend": "huggingface",
-        "batch_size": 4   # If supported by harness
+        "tokenizer_backend": "huggingface"
     }
 )
 ```

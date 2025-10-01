@@ -17,50 +17,14 @@ Slurm launcher-orchestrated deployment:
 
 ```bash
 # Deploy and evaluate on Slurm cluster
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name slurm_llama_3_1_8b_instruct \
     -o deployment.checkpoint_path=/shared/models/llama-3.1-8b-instruct \
     -o execution.partition=gpu
 ```
 
-## Deployment Types
-
-### NIM Slurm Deployment
-
-```yaml
-# Slurm with NIM deployment
-defaults:
-  - execution: slurm/default
-  - deployment: nim
-  - _self_
-
-deployment:
-  type: nim
-  image: nvcr.io/nim/meta/llama-3.1-8b-instruct:1.8.6
-  served_model_name: meta/llama-3.1-8b-instruct
-  port: 8000
-
-execution:
-  account: my-account
-  output_dir: /shared/results
-  partition: gpu
-  num_nodes: 1
-  gpus_per_node: 4
-  walltime: "02:00:00"
-
-target:
-  api_endpoint:
-    url: http://localhost:8000/v1/chat/completions
-    model_id: meta/llama-3.1-8b-instruct
-
-evaluation:
-  tasks:
-    - name: mmlu_pro
-    - name: gsm8k
-```
-
-### vLLM Slurm Deployment
+## vLLM Deployment
 
 ```yaml
 # Slurm with vLLM deployment
@@ -72,8 +36,9 @@ defaults:
 deployment:
   type: vllm
   checkpoint_path: /shared/models/llama-3.1-8b-instruct
-  served_model_name: meta/llama-3.1-8b-instruct
-  tensor_parallel_size: 4
+  served_model_name: meta-llama/Llama-3.1-8B-Instruct
+  tensor_parallel_size: 1
+  data_parallel_size: 8
   port: 8000
 
 execution:
@@ -81,91 +46,56 @@ execution:
   output_dir: /shared/results
   partition: gpu
   num_nodes: 1
-  gpus_per_node: 4
-  walltime: "04:00:00"
-
-target:
-  api_endpoint:
-    url: http://localhost:8000/v1/chat/completions
-    model_id: meta/llama-3.1-8b-instruct
-
-evaluation:
-  tasks:
-    - name: mmlu_pro
-    - name: gsm8k
-    - name: humaneval
-```
-
-### Multi-Node Deployment
-
-```yaml
-# Multi-node vLLM deployment
-defaults:
-  - execution: slurm/default
-  - deployment: vllm
-  - _self_
-
-deployment:
-  type: vllm
-  checkpoint_path: /shared/models/llama-3.1-70b-instruct
-  served_model_name: meta/llama-3.1-70b-instruct
-  tensor_parallel_size: 8
-  pipeline_parallel_size: 1
-  port: 8000
-
-execution:
-  account: my-account
-  output_dir: /shared/results
-  partition: gpu
-  num_nodes: 2
   ntasks_per_node: 1
-  gres: gpu:4
-  walltime: "08:00:00"
+  gres: gpu:8
+  walltime: "02:00:00"
 
 target:
   api_endpoint:
     url: http://localhost:8000/v1/chat/completions
-    model_id: meta/llama-3.1-70b-instruct
+    model_id: meta-llama/Llama-3.1-8B-Instruct
 
 evaluation:
   tasks:
-    - name: mmlu_pro
+    - name: ifeval
+    - name: gpqa_diamond
+    - name: mbpp
 ```
 
 ## Slurm Configuration
 
 ### Supported Parameters
 
-The following execution parameters are supported for Slurm deployments:
+The following execution parameters are supported for Slurm deployments. See `configs/execution/slurm/default.yaml` in the launcher package for the base configuration:
 
 ```yaml
 execution:
   # Required parameters
-  hostname: slurm-cluster.example.com  # Slurm cluster hostname
-  username: ${oc.env:USER}             # SSH username
-  account: my-account                   # Slurm account for billing
-  output_dir: /shared/results          # Results directory
+  hostname: ???                         # Slurm cluster hostname
+  username: ${oc.env:USER}             # SSH username (defaults to USER environment variable)
+  account: ???                          # Slurm account for billing
+  output_dir: ???                       # Results directory
   
   # Resource allocation
-  partition: gpu                        # Slurm partition/queue
+  partition: batch                      # Slurm partition/queue
   num_nodes: 1                         # Number of nodes
   ntasks_per_node: 1                   # Tasks per node
-  gpus_per_node: 8                     # GPUs per node (optional)
-  gres: gpu:8                          # GPU resources (alternative to gpus_per_node)
+  gres: gpu:8                          # GPU resources
   walltime: "01:00:00"                 # Wall time limit (HH:MM:SS)
-  
-  # Project metadata
-  subproject: nemo-evaluator-launcher  # Subproject identifier
   
   # Environment variables and mounts
   env_vars:
     deployment: {}                     # Environment variables for deployment container
     evaluation: {}                     # Environment variables for evaluation container
   mounts:
-    deployment: {}                     # Mount points for deployment container
-    evaluation: {}                     # Mount points for evaluation container
+    deployment: {}                     # Mount points for deployment container (source:target format)
+    evaluation: {}                     # Mount points for evaluation container (source:target format)
     mount_home: true                   # Whether to mount home directory
 ```
+
+:::{note}
+The `gpus_per_node` parameter can be used as an alternative to `gres` for specifying GPU resources. However, `gres` is the default in the base configuration.
+:::
 
 ## Configuration Examples
 
@@ -181,8 +111,9 @@ defaults:
 deployment:
   type: vllm
   checkpoint_path: /shared/models/llama-3.1-8b-instruct
-  served_model_name: meta/llama-3.1-8b-instruct
-  tensor_parallel_size: 2
+  served_model_name: meta-llama/Llama-3.1-8B-Instruct
+  tensor_parallel_size: 1
+  data_parallel_size: 8
   port: 8000
 
 execution:
@@ -191,22 +122,21 @@ execution:
   hostname: slurm.example.com
   partition: gpu
   num_nodes: 1
-  gpus_per_node: 2
+  ntasks_per_node: 1
+  gres: gpu:8
   walltime: "06:00:00"
 
 target:
   api_endpoint:
     url: http://localhost:8000/v1/chat/completions
-    model_id: meta/llama-3.1-8b-instruct
+    model_id: meta-llama/Llama-3.1-8B-Instruct
 
 evaluation:
   tasks:
-    - name: mmlu_pro
-    - name: arc_challenge
-    - name: hellaswag
-    - name: gsm8k
-    - name: humaneval
+    - name: ifeval
+    - name: gpqa_diamond
     - name: mbpp
+    - name: hellaswag
 ```
 
 ## Job Management
@@ -215,15 +145,14 @@ evaluation:
 
 ```bash
 # Submit job with configuration
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name slurm_llama_3_1_8b_instruct
 
 # Submit with configuration overrides
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name slurm_llama_3_1_8b_instruct \
-    -o execution.num_nodes=2 \
     -o execution.walltime="04:00:00" \
     -o execution.partition=gpu-long
 ```
@@ -231,18 +160,18 @@ nemo-evaluator-launcher run \
 ### Monitoring Jobs
 
 ```bash
-# Check job status using nemo-evaluator-launcher
-nemo-evaluator-launcher status <job_id>
+# Check job status
+nv-eval status <job_id>
 
 # List all runs (optionally filter by executor)
-nemo-evaluator-launcher ls runs --executor slurm
+nv-eval ls runs --executor slurm
 ```
 
 ### Managing Jobs
 
 ```bash
-# Cancel job using nemo-evaluator-launcher
-nemo-evaluator-launcher kill <job_id>
+# Cancel job
+nv-eval kill <job_id>
 ```
 
 ### Native Slurm Commands
@@ -301,35 +230,6 @@ execution:
 
 Results are organized by timestamp and invocation ID in subdirectories.
 
-## Performance Optimization
-
-### Resource Allocation
-
-Adjust resource allocation based on your model and cluster:
-
-```yaml
-execution:
-  num_nodes: 1
-  gpus_per_node: 8
-  ntasks_per_node: 1
-  walltime: "04:00:00"
-
-deployment:
-  type: vllm
-  tensor_parallel_size: 8
-  data_parallel_size: 1
-```
-
-### vLLM Configuration
-
-Optimize vLLM parameters through the `extra_args` field:
-
-```yaml
-deployment:
-  type: vllm
-  extra_args: "--gpu-memory-utilization 0.95 --max-model-len 4096"
-```
-
 ## Troubleshooting
 
 ### Common Issues
@@ -348,7 +248,7 @@ sinfo -p gpu
 
 ```bash
 # Check job status
-nemo-evaluator-launcher status <job_id>
+nv-eval status <job_id>
 
 # View Slurm job details
 scontrol show job <slurm_job_id>
@@ -369,12 +269,9 @@ sinfo -p <partition_name> -o "%P %l"
 **Resource Allocation:**
 
 ```bash
-# Adjust GPU allocation
--o execution.gpus_per_node=4
+# Adjust GPU allocation via gres
+-o execution.gres=gpu:4
 -o deployment.tensor_parallel_size=4
-
-# Adjust number of nodes
--o execution.num_nodes=2
 ```
 
 ### Debugging with Slurm Commands
@@ -392,25 +289,3 @@ sacct -j <slurm_job_id> --format=JobID,JobName,State,ExitCode,DerivedExitCode
 # Check job efficiency after completion
 seff <slurm_job_id>
 ```
-
-## Best Practices
-
-### Resource Management
-
-- Request appropriate resources to avoid waste and reduce queue times
-- Check efficiency with `seff` after jobs complete
-- Set realistic walltimes based on benchmark requirements
-- Account for queue wait times when planning evaluations
-
-### Data Management
-
-- Use shared storage accessible to all cluster nodes
-- Store models in a shared filesystem to avoid duplication
-- Ensure proper filesystem permissions for the evaluation user
-
-### Cluster Etiquette
-
-- Follow cluster policies and respect resource limits
-- Check job status and address failures promptly
-- Choose appropriate partitions for your workload
-- Contact cluster administrators for help with configuration

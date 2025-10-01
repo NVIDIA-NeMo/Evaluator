@@ -1,12 +1,15 @@
+<!-- vale off -->
 (bring-your-own-endpoint-hosted)=
 
 # Hosted Services
 
 Use existing hosted model APIs from cloud providers without managing your own infrastructure. This approach offers the fastest path to evaluation with minimal setup requirements.
+<!-- vale on -->
 
 ## Overview
 
 Hosted services provide:
+
 - Pre-deployed models accessible via API
 - No infrastructure management required
 - Pay-per-use pricing models
@@ -15,9 +18,11 @@ Hosted services provide:
 
 ## NVIDIA Build
 
+<!-- vale off -->
 NVIDIA's catalog of ready-to-use AI models with OpenAI-compatible APIs.
+<!-- vale on -->
 
-### Setup and Authentication
+### NVIDIA Build Setup and Authentication
 
 ```bash
 # Get your NGC API key from https://build.nvidia.com
@@ -28,140 +33,118 @@ curl -H "Authorization: Bearer $NGC_API_KEY" \
      "https://integrate.api.nvidia.com/v1/models"
 ```
 
-### Available Models
+Refer to the [NVIDIA Build catalog](https://build.nvidia.com) for available models.
 
-Popular models available on NVIDIA Build:
-
-```yaml
-# Common models and their identifiers
-models:
-  # Llama family
-  - id: meta/llama-3.1-8b-instruct
-    name: "Llama 3.1 8B Instruct"
-    context_length: 128000
-    
-  - id: meta/llama-3.1-70b-instruct  
-    name: "Llama 3.1 70B Instruct"
-    context_length: 128000
-    
-  - id: meta/llama-3.1-405b-instruct
-    name: "Llama 3.1 405B Instruct"
-    context_length: 128000
-    
-  # Nemotron family
-  - id: nvidia/nemotron-4-340b-instruct
-    name: "Nemotron 4 340B Instruct"
-    context_length: 4096
-    
-  # Code generation
-  - id: meta/codellama-70b
-    name: "Code Llama 70B"
-    context_length: 16384
-```
-
-### Configuration Examples
+### NVIDIA Build Configuration
 
 #### Basic NVIDIA Build Evaluation
 
 ```yaml
 # config/nvidia_build_basic.yaml
-deployment:
-  type: none  # No deployment needed
+defaults:
+  - execution: local
+  - deployment: none  # No deployment needed
+  - _self_
 
 target:
   api_endpoint:
     url: https://integrate.api.nvidia.com/v1/chat/completions
     model_id: meta/llama-3.1-8b-instruct
-    api_key: ${NGC_API_KEY}
+    api_key_name: NGC_API_KEY  # Name of environment variable
 
 execution:
-  backend: local
+  output_dir: ./results
 
 evaluation:
+  overrides:
+    config.params.limit_samples: 100
   tasks:
     - name: mmlu_pro
-      params:
-        limit_samples: 100
     - name: gsm8k
-      params:
-        limit_samples: 50
 ```
 
 #### Multi-Model Comparison
 
-```yaml
-# config/nvidia_build_comparison.yaml
-models:
-  - name: llama-3.1-8b
-    target:
-      api_endpoint:
-        url: https://integrate.api.nvidia.com/v1/chat/completions
-        model_id: meta/llama-3.1-8b-instruct
-        api_key: ${NGC_API_KEY}
-        
-  - name: llama-3.1-70b
-    target:
-      api_endpoint:
-        url: https://integrate.api.nvidia.com/v1/chat/completions
-        model_id: meta/llama-3.1-70b-instruct
-        api_key: ${NGC_API_KEY}
+For multi-model comparison, run separate evaluations for each model and compare results:
 
-evaluation:
-  tasks:
-    - name: mmlu_pro
-    - name: gsm8k
-    - name: humaneval
+```bash
+# Evaluate first model
+nv-eval run \
+    --config-dir examples \
+    --config-name local_llama_3_1_8b_instruct \
+    -o target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
+    -o execution.output_dir=./results/llama-3.1-8b
+
+# Evaluate second model
+nv-eval run \
+    --config-dir examples \
+    --config-name local_llama_3_1_8b_instruct \
+    -o target.api_endpoint.model_id=meta/llama-3.1-70b-instruct \
+    -o execution.output_dir=./results/llama-3.1-70b
 ```
 
 #### With Custom Adapters
 
-```yaml
-# config/nvidia_build_with_adapters.yaml
-target:
-  api_endpoint:
-    url: https://integrate.api.nvidia.com/v1/chat/completions
-    model_id: meta/llama-3.1-8b-instruct
-    api_key: ${NGC_API_KEY}
-    
-    adapter_config:
-      # Custom system prompting
-      use_system_prompt: true
-      custom_system_prompt: "You are a helpful assistant that provides accurate and concise answers."
-      
-      # Caching for cost efficiency
-      use_caching: true
-      caching_dir: ./nvidia_build_cache
-      
-      # Request logging
-      use_request_logging: true
-      max_logged_requests: 20
+Configure adapters using the interceptor structure in Python. For detailed YAML configuration, see {ref}`adapters-configuration`.
+
+```python
+from nemo_evaluator import evaluate, ApiEndpoint, EvaluationTarget, EvaluationConfig
+from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
+
+adapter_config = AdapterConfig(
+    interceptors=[
+        InterceptorConfig(
+            name="system_message",
+            config={"system_message": "You are a helpful assistant that provides accurate and concise answers."}
+        ),
+        InterceptorConfig(
+            name="caching",
+            config={"cache_dir": "./nvidia_build_cache", "reuse_cached_responses": True}
+        ),
+        InterceptorConfig(
+            name="request_logging",
+            config={"max_requests": 20}
+        )
+    ]
+)
+
+api_endpoint = ApiEndpoint(
+    url="https://integrate.api.nvidia.com/v1/chat/completions",
+    model_id="meta/llama-3.1-8b-instruct",
+    api_key="NGC_API_KEY",  # Name of environment variable
+    adapter_config=adapter_config
+)
+target = EvaluationTarget(api_endpoint=api_endpoint)
+config = EvaluationConfig(type="mmlu_pro", output_dir="./results")
+results = evaluate(target_cfg=target, eval_cfg=config)
 ```
 
-### Command-Line Usage
+### NVIDIA Build CLI Usage
+
+Use `nv-eval` (recommended) or `nemo-evaluator-launcher`:
 
 ```bash
 # Basic evaluation
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
     -o target.api_endpoint.api_key=${NGC_API_KEY}
 
-# Large model evaluation
-nemo-evaluator-launcher run \
+# Large model evaluation with limited samples
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.model_id=meta/llama-3.1-405b-instruct \
-    -o 'evaluation.tasks=["mmlu_pro"]' \
-    -o evaluation.params.limit_samples=50
+    -o config.params.limit_samples=50
 ```
 
 ## OpenAI API
 
 Direct integration with OpenAI's GPT models for comparison and benchmarking.
 
-### Setup and Authentication
+### OpenAI Setup and Authentication
 
 ```bash
 # Get API key from https://platform.openai.com/api-keys
@@ -172,83 +155,69 @@ curl -H "Authorization: Bearer $OPENAI_API_KEY" \
      "https://api.openai.com/v1/models"
 ```
 
-### Available Models
+Refer to the [OpenAI model documentation](https://platform.openai.com/docs/models) for available models.
 
-```yaml
-# OpenAI model identifiers
-models:
-  # GPT-4 family
-  - id: gpt-4
-    name: "GPT-4"
-    context_length: 8192
-    
-  - id: gpt-4-turbo
-    name: "GPT-4 Turbo"
-    context_length: 128000
-    
-  - id: gpt-4o
-    name: "GPT-4o"
-    context_length: 128000
-    
-  # GPT-3.5 family  
-  - id: gpt-3.5-turbo
-    name: "GPT-3.5 Turbo"
-    context_length: 4096
-```
-
-### Configuration Examples
+### OpenAI Configuration
 
 #### Basic OpenAI Evaluation
 
 ```yaml
 # config/openai_basic.yaml
-deployment:
-  type: none
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
 
 target:
   api_endpoint:
     url: https://api.openai.com/v1/chat/completions
     model_id: gpt-4
-    api_key: ${OPENAI_API_KEY}
+    api_key_name: OPENAI_API_KEY  # Name of environment variable
+
+execution:
+  output_dir: ./results
 
 evaluation:
+  overrides:
+    config.params.limit_samples: 100
   tasks:
     - name: mmlu_pro
-      params:
-        limit_samples: 100
     - name: gsm8k
-      params:
-        limit_samples: 50
 ```
 
 #### Cost-Optimized Configuration
 
 ```yaml
 # config/openai_cost_optimized.yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
 target:
   api_endpoint:
     url: https://api.openai.com/v1/chat/completions
     model_id: gpt-3.5-turbo  # Less expensive model
-    api_key: ${OPENAI_API_KEY}
-    
-    adapter_config:
-      # Aggressive caching to reduce API calls
-      use_caching: true
-      caching_dir: ./openai_cache
+    api_key_name: OPENAI_API_KEY
+
+execution:
+  output_dir: ./results
 
 evaluation:
+  overrides:
+    config.params.limit_samples: 50  # Smaller sample size
+    config.params.parallelism: 2  # Lower parallelism to respect rate limits
   tasks:
     - name: mmlu_pro
-      params:
-        limit_samples: 50  # Smaller sample size
-        parallelism: 2  # Lower parallelism to respect rate limits
 ```
 
-### Command-Line Usage
+### OpenAI CLI Usage
+
+Use `nv-eval` (recommended) or `nemo-evaluator-launcher`:
 
 ```bash
 # GPT-4 evaluation
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://api.openai.com/v1/chat/completions \
@@ -256,139 +225,41 @@ nemo-evaluator-launcher run \
     -o target.api_endpoint.api_key=${OPENAI_API_KEY}
 
 # Cost-effective GPT-3.5 evaluation
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.model_id=gpt-3.5-turbo \
-    -o +config.params.limit_samples=50 \
-    -o +config.params.parallelism=2
-```
-
-## Anthropic Claude
-
-Access Claude models through Anthropic's API.
-
-### Setup and Authentication
-
-```bash
-# Get API key from https://console.anthropic.com/
-export ANTHROPIC_API_KEY="your-anthropic-api-key"
-```
-
-### Configuration
-
-```yaml
-# config/anthropic_claude.yaml
-target:
-  api_endpoint:
-    url: https://api.anthropic.com/v1/messages
-    model_id: claude-3-sonnet-20240229
-    api_key: ${ANTHROPIC_API_KEY}
-    
-    # Anthropic-specific headers
-    custom_headers:
-      anthropic-version: "2023-06-01"
-
-evaluation:
-  tasks:
-    - name: mmlu_pro
-    - name: gsm8k
-```
-
-## Google Gemini
-
-Use Google's Gemini models through their API.
-
-### Setup and Authentication
-
-```bash
-# Get API key from Google AI Studio
-export GOOGLE_API_KEY="your-google-api-key"
-```
-
-### Configuration
-
-```yaml
-# config/google_gemini.yaml
-target:
-  api_endpoint:
-    url: https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
-    model_id: gemini-pro
-    api_key: ${GOOGLE_API_KEY}
-
-evaluation:
-  tasks:
-    - name: mmlu_pro
-    - name: gsm8k
+    -o config.params.limit_samples=50 \
+    -o config.params.parallelism=2
 ```
 
 ## Troubleshooting
 
-### Common Issues
+### Authentication Errors
 
-**Authentication Errors:**
+Verify that your API key has the correct value:
 
 ```bash
-# Verify API key
+# Verify NVIDIA Build API key
 curl -H "Authorization: Bearer $NGC_API_KEY" \
      "https://integrate.api.nvidia.com/v1/models"
 
-# Check key format
-echo $NGC_API_KEY | wc -c  # Should be appropriate length
+# Verify OpenAI API key
+curl -H "Authorization: Bearer $OPENAI_API_KEY" \
+     "https://api.openai.com/v1/models"
 ```
 
-**Rate Limiting:**
+### Rate Limiting
 
-```python
-# Handle rate limits gracefully
-async def handle_rate_limit(response):
-    if response.status == 429:
-        retry_after = int(response.headers.get('Retry-After', 60))
-        print(f"Rate limited. Waiting {retry_after} seconds...")
-        await asyncio.sleep(retry_after)
-        return True
-    return False
+If you encounter rate limit errors (HTTP 429), reduce the `parallelism` parameter in your configuration:
+
+```yaml
+evaluation:
+  overrides:
+    config.params.parallelism: 2  # Lower parallelism to respect rate limits
 ```
-
-**Model Availability:**
-
-```bash
-# Check available models
-curl -H "Authorization: Bearer $API_KEY" \
-w     "$BASE_URL/models" | jq '.data[].id'
-```
-
-## Best Practices
-
-### Cost Optimization
-
-- **Use caching**: Enable response caching to reduce repeated API calls
-- **Choose appropriate models**: Balance cost versus performance needs
-- **Limit evaluation scope**: Use `limit_samples` to test with smaller datasets first
-- **Monitor API usage**: Track token consumption and request patterns
-
-### Performance
-
-- **Adjust parallelism**: Configure `params.parallelism` based on provider rate limits
-- **Use caching**: Enable the caching adapter to avoid redundant API calls
-- **Limit sample sizes**: Test with smaller datasets before full evaluations
-- **Track response times**: Monitor latency to identify performance issues
-
-### Security
-
-- **Secure API keys**: Use environment variables (e.g., `${NGC_API_KEY}`) for API credentials
-- **Audit logging**: Enable `use_request_logging` and `use_response_logging` for compliance
-- **Check responses**: Verify response format and status codes
-
-### Reliability
-
-- **Configure retries**: Set `max_retries` in evaluation configuration for transient failures
-- **Set appropriate timeouts**: Configure `request_timeout` for long-running requests
-- **Track API health**: Monitor error rates and response codes
-- **Test before production**: Use `limit_samples` for initial validation
 
 ## Next Steps
 
-- **Compare providers**: Evaluate different hosted services for your use cases
-- **Add adapters**: Explore [adapter configurations](../adapters/configuration.md) for advanced features
+- **Add adapters**: Explore [adapter configurations](../adapters/configuration.md) for custom processing
 - **Self-host models**: Consider [manual deployment](manual-deployment.md) for full control

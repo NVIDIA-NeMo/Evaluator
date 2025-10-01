@@ -89,7 +89,7 @@ Scale your evaluations, export results, customize adapters, and resolve issues w
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`workflow;1.5em;sd-mr-1` Multi-Backend Execution
-:link: ../libraries/nemo-evaluator-launcher/executors/index
+:link: ../libraries/nemo-evaluator-launcher/configuration/executors/index
 :link-type: doc
 Run evaluations on local machines, HPC clusters, or cloud platforms with unified configuration.
 :::

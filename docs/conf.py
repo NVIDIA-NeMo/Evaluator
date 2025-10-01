@@ -143,15 +143,18 @@ suppress_warnings = [
     "toc.not_included",  # Expected when video docs are excluded from GA builds
     "toc.no_title",      # Expected for helm docs that include external README files
     "docutils",          # Expected for autodoc2-generated content with regex patterns and complex syntax
-
+    "ref.python",        # Expected for ambiguous autodoc2 cross-references (e.g., multiple 'Params' classes)
 ]
 
 # -- Options for Autodoc2 ---------------------------------------------------
 sys.path.insert(0, os.path.abspath(".."))
+sys.path.insert(0, os.path.abspath("../packages/nemo-evaluator/src"))
 
 # Conditional autodoc2 configuration - only enable if packages exist
+# Note: We point to the parent package rather than individual subpackages because
+# the subpackages have relative imports between them (e.g., api imports from core)
 autodoc2_packages_list = [
-    "../src/nemo_eval",  # Path to your package relative to conf.py
+    "../packages/nemo-evaluator/src/nemo_evaluator/"
 ]
 
 # Check if any of the packages actually exist before enabling autodoc2
@@ -215,6 +218,11 @@ if autodoc2_packages:
         r".*\._.*",                # Skip private modules
         r".*\.conftest",           # Skip conftest files
     ]
+    
+    # Load index template from external file for better maintainability
+    template_path = os.path.join(os.path.dirname(__file__), "_templates", "autodoc2_index.rst")
+    with open(template_path) as f:
+        autodoc2_index_template = f.read()
     
     # This is a workaround that uses the parser located in autodoc2_docstrings_parser.py to allow autodoc2 to
     # render google style docstrings.

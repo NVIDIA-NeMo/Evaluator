@@ -43,7 +43,6 @@ Use the following tips to control logging caps:
 - Set `max_requests` and `max_responses` in the interceptor config to limit volume
 - Omit or disable interceptors to turn off logging for that direction
 - Use low limits for quick debugging, and increase when needed
-- Failed requests are automatically tracked by the adapter system for debugging
 
 Refer to {ref}`adapters-configuration` for all `AdapterConfig` options and defaults
 

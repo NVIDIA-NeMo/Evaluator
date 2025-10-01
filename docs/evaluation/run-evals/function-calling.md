@@ -244,45 +244,6 @@ if result.tasks:
 
 BFCL evaluations measure function calling accuracy across various dimensions. The specific metrics depend on the BFCL version and configuration. Check the `results.yml` output file for detailed metric breakdowns.
 
-**Typical Performance Ranges:**
-
-| Model Category | Expected Accuracy Range |
-|----------------|------------------------|
-| Function-Tuned Models | 80-90% |
-| Chat-Optimized Models | 65-80% |
-| Base Chat Models | 40-65% |
-
-## Common Function Calling Patterns
-
-### Single Function Calls
-
-Simple, direct function invocation for straightforward requests.
-
-### Parallel Function Execution
-
-Multiple independent function calls for complex queries:
-```python
-# User: "Get weather for London and Tokyo, and current time in both"
-# Expected: parallel calls to get_weather() and get_time()
-```
-
-### Sequential Function Chaining
-
-Using output from one function as input to another:
-```python
-# User: "Find restaurants near the Eiffel Tower"
-# Expected: get_location("Eiffel Tower") → find_restaurants(coordinates)
-```
-
-## Integration with Agent Frameworks
-
-Function calling evaluation results help assess model readiness for:
-
-- **LangChain Integration**: Tool calling capabilities
-- **AutoGPT Systems**: Multi-step task automation
-- **Custom Agent Frameworks**: API integration accuracy
-- **Workflow Automation**: Reliable function orchestration
-
 ---
 
 *For more function calling tasks and advanced configurations, see the [BFCL package documentation](https://pypi.org/project/nvidia-bfcl/).*

@@ -27,20 +27,21 @@ Once your manual deployment is running, use the launcher to evaluate:
 
 ```bash
 # Basic evaluation against manual deployment
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=http://localhost:8080/v1/completions \
-    -o target.api_endpoint.model_id=your-model-name \
-    -o deployment.type=none  # No launcher deployment needed
+    -o target.api_endpoint.model_id=your-model-name
 ```
 
 #### Configuration File Approach
 
 ```yaml
 # config/manual_deployment.yaml
-deployment:
-  type: none  # No deployment by launcher
+defaults:
+  - execution: local
+  - deployment: none  # No deployment by launcher
+  - _self_
 
 target:
   api_endpoint:
@@ -48,23 +49,8 @@ target:
     model_id: llama-3.1-8b
     # Optional authentication (name of environment variable holding API key)
     api_key_name: API_KEY
-    
-    # Optional adapter configuration using interceptors
-    adapter_config:
-      interceptors:
-        - name: caching
-          config:
-            cache_dir: ./cache
-            reuse_cached_responses: true
-        - name: request_logging
-          config:
-            max_requests: 10
-        - name: response_logging
-          config:
-            max_responses: 10
 
 execution:
-  type: local  # Run evaluation locally
   output_dir: ./results
 
 evaluation:
@@ -112,8 +98,8 @@ config = EvaluationConfig(
 )
 
 # Run evaluation
-results = evaluate(target_cfg=target, eval_cfg=config)
-print(f"Results: {results.metrics}")
+results = evaluate(eval_cfg=config, target_cfg=target)
+print(f"Results: {results}")
 ```
 
 #### With Adapter Configuration
@@ -172,8 +158,8 @@ config = EvaluationConfig(
 )
 
 # Run evaluation
-results = evaluate(target_cfg=target, eval_cfg=config)
-print(f"Results: {results.metrics}")
+results = evaluate(eval_cfg=config, target_cfg=target)
+print(f"Results: {results}")
 ```
 
 ## Prerequisites
@@ -346,17 +332,20 @@ Your endpoint must implement the OpenAI API format:
 }
 ```
 
-
 ## Troubleshooting
 
 ### Connection Issues
 
 If you encounter connection errors:
 
-1. Verify the endpoint is running and accessible:
+1. Verify the endpoint is running and accessible. Check the health endpoint (path varies by framework):
 
    ```bash
+   # For vLLM, SGLang, NIM
    curl http://localhost:8080/health
+   
+   # For NeMo/Triton deployments
+   curl http://localhost:8080/v1/triton_health
    ```
 
 2. Check that the URL in your configuration matches your deployment:

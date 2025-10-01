@@ -248,4 +248,4 @@ nv-eval --help
 
 **Source**: `packages/nemo-evaluator/src/nemo_evaluator/core/entrypoint.py:105-123`  
 **API Export**: `nemo_evaluator/__init__.py` exports `show_available_tasks` for public use  
-**Related**: See {ref}`quickstart-guide` for evaluation setup and {ref}`benchmarks-overview` for task descriptions
+**Related**: See {ref}`gs-quickstart` for evaluation setup and {ref}`eval-benchmarks` for task descriptions

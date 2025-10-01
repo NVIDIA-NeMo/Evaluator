@@ -3,7 +3,7 @@
 
 # Key Features
 
-NeMo Evaluator delivers comprehensive AI model evaluation through a dual-library architecture that scales from local development to enterprise production. Experience container-first reproducibility, multi-backend execution, and 100+ benchmarks across 18 evaluation harnesses.
+NeMo Evaluator delivers comprehensive AI model evaluation through a dual-library architecture that scales from local development to enterprise production. Experience container-first reproducibility, multi-backend execution, and 100+ benchmarks across 17 evaluation harnesses.
 
 ##  **Unified Orchestration (NeMo Evaluator Launcher)**
 
@@ -22,7 +22,7 @@ nv-eval run --config-dir examples --config-name slurm_llama_3_1_8b_instruct
 nv-eval run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruct
 ```
 
-### 100+ Benchmarks Across 18 Harnesses
+### 100+ Benchmarks Across 17 Harnesses
 Access comprehensive benchmark suite with single CLI:
 
 ```bash
@@ -171,17 +171,14 @@ Hydra-based configuration with full reproducibility:
 evaluation:
   tasks:
     - name: mmlu_pro
-      params:
-        limit_samples: 1000
+      overrides:
+        config.params.limit_samples: 1000
     - name: gsm8k
-      params:
-        temperature: 0.0
+      overrides:
+        config.params.temperature: 0.0
 
 execution:
-  backend: slurm
-  resources:
-    nodes: 4
-    gpus_per_node: 8
+  output_dir: results
 
 target:
   api_endpoint:
@@ -198,18 +195,27 @@ Evaluate any model that exposes OpenAI-compatible endpoints:
 - **Self-Hosted**: vLLM, TRT-LLM, NeMo Framework
 - **Custom Endpoints**: Any service implementing OpenAI API spec
 
-### Flexible Evaluation Modes
-Support for diverse evaluation methodologies:
+### Endpoint Type Support
+Support for diverse evaluation endpoint types through the evaluation configuration:
 
-```bash
-# Text generation evaluation
-eval-factory run_eval --model_type chat --eval_type mmlu_pro
+```yaml
+# Text generation evaluation (chat endpoint)
+target:
+  api_endpoint:
+    type: chat
+    url: https://api.example.com/v1/chat/completions
 
-# Log-probability evaluation  
-eval-factory run_eval --model_type completions --eval_type multiple_choice
+# Log-probability evaluation (completions endpoint)
+target:
+  api_endpoint:
+    type: completions
+    url: https://api.example.com/v1/completions
 
-# Vision-language evaluation
-eval-factory run_eval --model_type vlm --eval_type vqa_benchmark
+# Vision-language evaluation (vlm endpoint)
+target:
+  api_endpoint:
+    type: vlm
+    url: https://api.example.com/v1/chat/completions
 ```
 
 ##  **Extensibility and Customization**
@@ -326,7 +332,3 @@ nv-eval export <invocation_id> --dest wandb
 # Export to Google Sheets for sharing
 nv-eval export <invocation_id> --dest gsheets
 ```
-
-## **Key Parameters**
-
-NeMo Evaluator provides a rich set of configurable parameters that give you fine-grained control over your evaluation workflows. From model interaction settings to execution environment configuration, these parameters enable you to customize every aspect of the evaluation process while maintaining reproducibility and consistency across different deployment scenarios.

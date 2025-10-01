@@ -17,12 +17,11 @@ The launcher supports multiple deployment backends and execution environments.
 ## Quick Start
 
 ```bash
-# Deploy model and run evaluation in one command
-nemo-evaluator-launcher run \
+# Deploy model and run evaluation in one command (Slurm example)
+nv-eval run \
     --config-dir examples \
-    --config-name local_llama_3_1_8b_instruct \
-    -o deployment.model_path=/path/to/your/model \
-    -o deployment.type=vllm
+    --config-name slurm_llama_3_1_8b_instruct \
+    -o deployment.checkpoint_path=/path/to/your/model
 ```
 
 ## Execution Backends
@@ -35,7 +34,7 @@ Choose the execution backend that matches your infrastructure:
 :::{grid-item-card} {octicon}`desktop-download;1.5em;sd-mr-1` Local Execution
 :link: local
 :link-type: doc
-Run evaluations on your local machine against existing endpoints. **Note**: Local executor does not deploy models.
+Run evaluations on your local machine against existing endpoints. **Note**: Local executor does **not** deploy models. Use Slurm or Lepton for deployment.
 :::
 
 :::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Slurm Deployment
@@ -84,15 +83,22 @@ The launcher supports multiple deployment types:
 Basic configuration structure for launcher-orchestrated deployment:
 
 ```yaml
+# Use Hydra defaults to compose config
+defaults:
+  - execution: slurm/default  # or lepton/default; local does not deploy
+  - deployment: vllm  # or nim, sglang, none
+  - _self_
+
 # Deployment configuration
 deployment:
-  type: vllm  # or nim, sglang, none
-  model_path: /path/to/model
+  checkpoint_path: /path/to/model  # Or HuggingFace model ID
+  served_model_name: my-model
   # ... deployment-specific options
 
-# Execution backend
+# Execution backend configuration
 execution:
-  backend: local  # or slurm, lepton
+  account: my-account
+  output_dir: /path/to/results
   # ... backend-specific options
 
 # Evaluation tasks
@@ -100,13 +106,6 @@ evaluation:
   tasks:
     - name: mmlu_pro
     - name: gsm8k
-  # ... evaluation options
-
-# Target endpoint (auto-configured)
-target:
-  api_endpoint:
-    url: http://localhost:8000/v1/chat/completions
-    model_id: deployed-model
 ```
 
 ## Key Benefits

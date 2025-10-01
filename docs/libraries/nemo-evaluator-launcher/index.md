@@ -35,7 +35,7 @@ Complete configuration schema, examples, and advanced patterns for all use cases
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Executors
-:link: executors/index
+:link: configuration/executors/index
 :link-type: doc
 
 Execute evaluations on your local machine, HPC cluster (Slurm), or cloud platform (Lepton AI).
@@ -49,21 +49,21 @@ Export results to MLflow, Weights & Biases, Google Sheets, or local files with o
 :::
 
 :::{grid-item-card} {octicon}`workflow;1.5em;sd-mr-1` Local Executor
-:link: executors/local
+:link: configuration/executors/local
 :link-type: doc
 
 Docker-based evaluation on your workstation. Perfect for development and testing.
 :::
 
 :::{grid-item-card} {octicon}`organization;1.5em;sd-mr-1` Slurm Executor
-:link: executors/slurm
+:link: configuration/executors/slurm
 :link-type: doc
 
 HPC cluster execution with automatic resource management and job scheduling.
 :::
 
 :::{grid-item-card} {octicon}`cloud;1.5em;sd-mr-1` Lepton Executor
-:link: executors/lepton
+:link: configuration/executors/lepton
 :link-type: doc
 
 Cloud execution with on-demand GPU provisioning and automatic scaling.
@@ -135,7 +135,7 @@ Use the launcher whenever you want:
 :hidden:
 
 Quickstart <quickstart>
-Executors <executors/index>
+Executors <configuration/executors/index>
 Configuration <configuration/index>
 Exporters <exporters/index>
 Python API <api>

@@ -19,10 +19,10 @@ Strip intermediate reasoning tokens before scoring.
 Enforce a standard system prompt for chat endpoints.
 :::
 
-:::{grid-item-card} Response Shaping
+:::{grid-item-card} Request Parameter Modification
 :link: adapters-recipe-response-shaping
 :link-type: ref
-Normalize outputs for evaluators and downstream tools.
+Standardize request parameters across endpoint providers.
 :::
 
 :::{grid-item-card} Logging Caps
@@ -39,7 +39,7 @@ Control logging volume for requests and responses.
 
 Reasoning Cleanup <reasoning-cleanup>
 Custom System Prompt (Chat) <custom-system-prompt>
-Response Shaping <response-shaping>
+Request Parameter Modification <response-shaping>
 Logging Caps <logging-caps>
 ```
 

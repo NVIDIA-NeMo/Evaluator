@@ -20,7 +20,6 @@ api_endpoint.adapter_config = AdapterConfig(
     interceptors=[
         InterceptorConfig(
             name="system_message",
-            enabled=True,
             config={"system_message": "You are a precise, concise assistant. Answer questions directly and accurately."}
         )
     ]
@@ -32,12 +31,12 @@ config = EvaluationConfig(type="mmlu_pro", output_dir="results")
 results = evaluate(target_cfg=target, eval_cfg=config)
 ```
 
-Notes:
+## How It Works
 
-- Include the `system_message` interceptor in the interceptors list to enable this feature
-- The system message applies to both chat and completions endpoints
-- The adapter injects the system message into the request before sending to the model
-- For chat endpoints, the interceptor adds the system message as a message with `role: "system"`
-- For completions endpoints, the interceptor prepends the system message to the prompt
-- Refer to {ref}`adapters-configuration` for available options and defaults
+The `system_message` interceptor modifies chat-format requests by:
 
+1. Removing any existing system messages from the messages array
+2. Inserting the configured system message as the first message with `role: "system"`
+3. Preserving all other request parameters
+
+Refer to {ref}`adapters-configuration` for more configuration options.

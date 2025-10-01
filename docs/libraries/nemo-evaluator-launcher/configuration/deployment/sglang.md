@@ -108,5 +108,5 @@ The `${oc.select:deployment.hf_model_handle,/checkpoint}` syntax uses OmegaConf'
 **Related Documentation:**
 
 - [Deployment Configuration Overview](index.md)
-- [Execution Platform Configuration](../execution/index.md)
+- [Execution Platform Configuration](../executors/index.md)
 - [SGLang Documentation](https://docs.sglang.ai/)

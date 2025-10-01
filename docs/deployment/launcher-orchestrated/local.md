@@ -21,7 +21,7 @@ Local execution:
 
 ```bash
 # Run evaluation against existing endpoint
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct
 ```
@@ -99,26 +99,24 @@ evaluation:
         HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND
 ```
 
-### With Adapter Interceptors
+### With Adapter Configuration
+
+Configure adapters using evaluation overrides:
 
 ```yaml
 target:
   api_endpoint:
     url: http://localhost:8080/v1/chat/completions
     model_id: my-model
-    adapter_config:
-      interceptors:
-        - name: reasoning
-          config:
-            start_reasoning_token: "<think>"
-            end_reasoning_token: "</think>"
-        - name: caching
-          config:
-            cache_dir: ./evaluation_cache
-        - name: request_logging
-          config:
-            max_requests: 50
+
+evaluation:
+  overrides:
+    target.api_endpoint.adapter_config.use_reasoning: true
+    target.api_endpoint.adapter_config.use_system_prompt: true
+    target.api_endpoint.adapter_config.custom_system_prompt: "Think step by step."
 ```
+
+For detailed adapter configuration options, refer to {ref}`adapters`.
 
 ## Command-Line Usage
 
@@ -126,18 +124,18 @@ target:
 
 ```bash
 # Run evaluation
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct
 
 # Dry run to preview configuration
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     --dry-run
 
 # Override endpoint URL
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=http://localhost:8080/v1/chat/completions
@@ -147,19 +145,19 @@ nemo-evaluator-launcher run \
 
 ```bash
 # Check job status
-nemo-evaluator-launcher status <job_id>
+nv-eval status <job_id>
 
 # Check entire invocation
-nemo-evaluator-launcher status <invocation_id>
+nv-eval status <invocation_id>
 
 # Kill running job
-nemo-evaluator-launcher kill <job_id>
+nv-eval kill <job_id>
 
 # List available tasks
-nemo-evaluator-launcher ls tasks
+nv-eval ls tasks
 
 # List recent runs
-nemo-evaluator-launcher ls runs
+nv-eval ls runs
 ```
 
 ## Requirements
@@ -174,8 +172,8 @@ nemo-evaluator-launcher ls runs
 
 You must have a model endpoint running and accessible before starting evaluation. Options include:
 
-- {ref}`manual-deployment` using vLLM, TensorRT-LLM, or other frameworks
-- {ref}`hosted-services` like NVIDIA API Catalog or OpenAI
+- {ref}`bring-your-own-endpoint-manual` using vLLM, TensorRT-LLM, or other frameworks
+- {ref}`bring-your-own-endpoint-hosted` like NVIDIA API Catalog or OpenAI
 - Custom deployment solutions
 
 ## Troubleshooting
@@ -210,9 +208,6 @@ sudo usermod -aG docker $USER
 curl -X POST http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model": "test", "messages": [{"role": "user", "content": "Hi"}]}'
-
-# Check if endpoint is accessible from Docker container
-docker run --rm curlimages/curl:latest curl http://host.docker.internal:8080/health
 ```
 
 **API authentication errors:**
@@ -225,15 +220,14 @@ docker run --rm curlimages/curl:latest curl http://host.docker.internal:8080/hea
 
 **Job hangs or shows no progress:**
 
+Check logs in the output directory:
+
 ```bash
 # Track logs in real-time
 tail -f <output_dir>/<task_name>/logs/stdout.log
 
-# Check Docker container status
-docker ps -a
-
 # Kill and restart if needed
-nemo-evaluator-launcher kill <job_id>
+nv-eval kill <job_id>
 ```
 
 **Tasks fail with errors:**
@@ -246,36 +240,15 @@ nemo-evaluator-launcher kill <job_id>
 
 ```bash
 # Validate configuration before running
-nemo-evaluator-launcher run \
+nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     --dry-run
 ```
 
-## Best Practices
-
-### Before Running
-
-1. Verify endpoint is running and accessible
-2. Test configuration with `--dry-run`
-3. Use `limit_samples` for initial testing
-4. Ensure adequate disk space for results
-
-### During Execution
-
-- Track logs for errors: `tail -f <output_dir>/*/logs/stdout.log`
-- Check job status: `nemo-evaluator-launcher status <invocation_id>`
-- Use sequential mode (`mode: sequential`) if running several tasks with limited resources
-
-### Configuration Tips
-
-- Use environment variables for API keys: `api_key_name: API_KEY`
-- Store configuration files in version control
-- Use task-specific overrides for custom parameters
-
 ## Next Steps
 
-- **Deploy your own model**: See {ref}`manual-deployment` for local model serving
+- **Deploy your own model**: See {ref}`bring-your-own-endpoint-manual` for local model serving
 - **Scale to HPC**: Use {ref}`launcher-orchestrated-slurm` for cluster deployments
 - **Cloud execution**: Try {ref}`launcher-orchestrated-lepton` for cloud-based evaluation
 - **Configure adapters**: Add interceptors with {ref}`adapters`

@@ -23,7 +23,7 @@ adapter_config = AdapterConfig(
             }
         )
     ],
-    endpoint_type="chat"  # Optional: "chat" (default) or "completions"
+    endpoint_type="chat"  # Optional, defaults to "chat"
 )
 ```
 
@@ -33,7 +33,7 @@ adapter_config = AdapterConfig(
 
 **Name:** `system_message`
 
-Adds a system message to requests. For chat endpoints, adds as a system role message. For completions endpoints, prepends to the prompt.
+Adds a system message to requests by adding it as a system role message.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -66,6 +66,7 @@ Processes reasoning content in responses by detecting and removing reasoning tok
 | `include_if_not_finished` | `bool` | `True` | Include reasoning if end token not found |
 | `enable_caching` | `bool` | `True` | Cache individual request reasoning statistics |
 | `cache_dir` | `str` | `"/tmp/reasoning_interceptor"` | Cache directory for reasoning stats |
+| `stats_file_saving_interval` | `int \| None` | `None` | Save stats to file every N responses (None = only save via post_eval_hook) |
 | `logging_aggregated_stats_interval` | `int` | `100` | Log aggregated stats every N responses |
 
 **Example:**
@@ -169,10 +170,10 @@ Tracks evaluation progress by counting processed samples and optionally sending 
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `progress_tracking_url` | `str \| None` | `"http://localhost:8000"` | URL to post progress updates |
+| `progress_tracking_url` | `str \| None` | `"http://localhost:8000"` | URL to post progress updates. Supports shell variable expansion. |
 | `progress_tracking_interval` | `int` | `1` | Update every N samples |
 | `request_method` | `str` | `"PATCH"` | HTTP method for progress updates |
-| `output_dir` | `str \| None` | `None` | Directory to save progress file |
+| `output_dir` | `str \| None` | `None` | Directory to save progress file (creates a `progress` file in this directory) |
 
 **Example:**
 
@@ -281,13 +282,13 @@ adapter_config = AdapterConfig(
 
 ### YAML Configuration
 
-You can also configure adapters through YAML files:
+You can also configure adapters through YAML files in your evaluation configuration:
 
 ```yaml
 target:
   api_endpoint:
-    url: http://localhost:8080/v1/completions/
-    type: completions
+    url: http://localhost:8080/v1/chat/completions
+    type: chat
     model_id: megatron_model
     adapter_config:
       interceptors:
@@ -308,7 +309,6 @@ target:
           config:
             cache_dir: ./cache
             reuse_cached_responses: true
-      endpoint_type: chat
 ```
 
 ## Interceptor Order
@@ -321,8 +321,8 @@ Interceptors are executed in the order they appear in the `interceptors` list:
 
 For example, with interceptors `[system_message, request_logging, caching, response_logging, reasoning]`:
 
-- Request flow: `system_message` → `request_logging` → `caching` → API call
-- Response flow: `reasoning` → `response_logging` → `caching` (cache save)
+- Request flow: `system_message` → `request_logging` → `caching` (check cache) → API call (if cache miss)
+- Response flow: API call → `caching` (save to cache) → `response_logging` → `reasoning`
 
 ## Shorthand Syntax
 

@@ -184,10 +184,10 @@ Strip intermediate reasoning tokens before scoring.
 Enforce a standard system prompt for chat endpoints.
 :::
 
-:::{grid-item-card} Response Shaping
+:::{grid-item-card} Request Parameter Modification
 :link: adapters-recipe-response-shaping
 :link-type: ref
-Normalize outputs for evaluators and downstream tools.
+Standardize request parameters across endpoint providers.
 :::
 
 :::{grid-item-card} Logging Caps
@@ -232,7 +232,7 @@ Complete configuration schema, examples, and advanced patterns for all use cases
 :::
 
 :::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Executors
-:link: libraries/nemo-evaluator-launcher/executors/index
+:link: libraries/nemo-evaluator-launcher/configuration/executors/index
 :link-type: doc
 
 Run evaluations on local machines, HPC clusters (Slurm), or cloud platforms (Lepton AI).

@@ -1,9 +1,9 @@
 <!-- markdownlint-disable MD012 MD041 -->
 (adapters-recipe-response-shaping)=
 
-# Response Shaping
+# Request Parameter Modification
 
-Normalize provider-specific response formats for evaluators.
+Standardize request parameters across different endpoint providers.
 
 ```python
 from nemo_evaluator import (
