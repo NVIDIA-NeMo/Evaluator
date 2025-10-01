@@ -106,10 +106,10 @@ defaults:
 defaults:
   config:
     params:
-      limit_samples: null           # No limit on samples by default
+      limit_samples: null          # No limit on samples by default
       max_new_tokens: 4096         # Maximum tokens to generate
       temperature: 0.0             # Deterministic generation
-      top_p: 0.00001              # Nucleus sampling parameter
+      top_p: 0.00001               # Nucleus sampling parameter
       parallelism: 10              # Number of parallel requests
       max_retries: 5               # Maximum API retry attempts
       request_timeout: 60          # Request timeout in seconds
