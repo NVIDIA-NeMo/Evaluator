@@ -13,8 +13,7 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 # Framework-specific logging
-logging.getLogger("nvidia_eval_commons").setLevel(logging.DEBUG)
-logging.getLogger("nemo_eval").setLevel(logging.DEBUG)
+logging.getLogger("nemo_evaluator").setLevel(logging.DEBUG)
 ```
 
 ### Step-by-Step Debugging Process
@@ -44,9 +43,9 @@ response = requests.post(
 assert response.status_code == 200
 
 # Test task availability
-from nemo_eval.utils.base import find_framework
-framework = find_framework("mmlu")
-print(f"MMLU found in: {framework}")
+from nemo_evaluator import show_available_tasks
+print("Available tasks:")
+show_available_tasks()
 ```
 
 3. **Gradually Increase Complexity**:
@@ -125,8 +124,21 @@ def monitor_evaluation_progress(log_file="evaluation.log"):
 ```python
 # Pattern: "Connection refused", "Server not ready"
 # Solution: Check deployment status and wait for server
-from nemo_eval.utils.base import wait_for_fastapi_server
-wait_for_fastapi_server("http://0.0.0.0:8080", max_retries=60)
+import requests
+import time
+
+def wait_for_server(url, max_retries=60):
+    for _ in range(max_retries):
+        try:
+            response = requests.get(f"{url}/health", timeout=5)
+            if response.status_code == 200:
+                return True
+        except:
+            pass
+        time.sleep(10)
+    return False
+
+wait_for_server("http://0.0.0.0:8080", max_retries=60)
 ```
 
 **Memory Errors**:
@@ -268,9 +280,10 @@ def validate_before_evaluation(target_cfg, eval_cfg):
     
     # Validate task
     try:
-        from nemo_eval.utils.base import find_framework
-        framework = find_framework(eval_cfg.type.split('.')[-1])
-        validations.append(f" Task found in {framework}")
+        from nemo_evaluator import show_available_tasks
+        print("Validating task availability:")
+        show_available_tasks()
+        validations.append("✓ Task validation check complete")
     except Exception as e:
         validations.append(f" Task validation failed: {e}")
         return False, validations

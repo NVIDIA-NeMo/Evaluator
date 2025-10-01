@@ -13,7 +13,7 @@ graph TB
     end
     
     subgraph Tier1[" Tier 1: Model Deployment"]
-        Deploy["NeMo Eval Deploy<br/>• PyTriton & Ray backends<br/>• Model serving<br/>• OpenAI-compatible APIs"]
+        Deploy["NeMo Eval Deploy<br/>• vLLM & Ray backends<br/>• Model serving<br/>• OpenAI-compatible APIs"]
     end
     
     subgraph External["External Frameworks"]
@@ -41,10 +41,10 @@ Foundation layer that handles model serving and API endpoints.
 
 **Key Features:**
 
-- PyTriton and Ray Serve backends
-- Multi-GPU and multi-node support
+- vLLM and Ray Serve backend support
+- Multi-GPU tensor and pipeline parallelism
 - OpenAI-compatible REST APIs
-- High-performance inference with CUDA graphs
+- High-performance inference with CUDA graphs and PagedAttention
 
 **Use Cases:**
 
@@ -124,9 +124,8 @@ graph LR
 #### **Pattern 1: Complete Stack** (Recommended)
 
 :::{code-block} python
-# 1. Deploy model
-from nemo_eval.api import deploy
-deploy(nemo_checkpoint="/path/to/checkpoint", serving_backend="pytriton")
+# 1. Deploy model via launcher configuration
+# See deployment documentation for details
 
 # 2. Configure evaluation with adapters
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
@@ -138,7 +137,7 @@ adapter_config = AdapterConfig(
 
 # 3. Run evaluation
 from nemo_evaluator.core.evaluate import evaluate
-results = evaluate(target_cfg=target, eval_cfg=config, adapter_cfg=adapter_config)
+results = evaluate(target_cfg=target, eval_cfg=config)
 :::
 
 #### **Pattern 2: Orchestrated Workflow**
@@ -158,7 +157,6 @@ nv-eval run \
 from nemo_evaluator.api import run
 results = run(
     target_cfg=target_config,
-    eval_cfg=evaluation_config,
-    adapter_cfg=adapter_config
+    eval_cfg=evaluation_config
 )
 :::

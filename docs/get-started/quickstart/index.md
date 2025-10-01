@@ -14,7 +14,7 @@ All paths require:
 
 Select the approach that best matches your workflow and technical requirements:
 
-::::{grid} 1 2 2 2
+::::{grid} 1 2 2 3
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` NeMo Evaluator Launcher
@@ -41,14 +41,6 @@ Programmatic control with full adapter features, custom configurations, and dire
 Direct container execution with volume mounting, environment control, and integration into Docker-based CI/CD pipelines.
 :::
 
-:::{grid-item-card} {octicon}`stack;1.5em;sd-mr-1` Complete Stack Integration
-:link: gs-quickstart-full-stack
-:link-type: ref
-**For advanced users**
-
-Full three-tier architecture combining model deployment, advanced evaluation, and orchestration for production workflows.
-:::
-
 ::::
 
 ## Model Endpoints
@@ -71,7 +63,7 @@ pip install vllm
 vllm serve meta-llama/Llama-3.1-8B-Instruct --port 8080
 
 # Or use other serving frameworks
-# TRT-LLM, NeMo Framework, Ray Serve, etc.
+# TRT-LLM, NeMo Framework, etc.
 ```
 
 See {ref}`deployment-overview` for detailed deployment options.
@@ -151,10 +143,14 @@ nv-eval ls tasks
 
 ```bash
 # Check if results were generated
-find ./results -name "*.json" -type f
+find ./results -name "*.yml" -type f
 
-# View summary results
-cat ./results/<invocation_id>/summary.json
+# View task results
+cat ./results/<invocation_id>/<task_name>/artifacts/results.yml
+
+# Or export and view processed results
+nv-eval export <invocation_id> --dest local --format json
+cat ./results/<invocation_id>/processed_results.json
 ```
 :::
 
@@ -173,9 +169,8 @@ After completing your quickstart:
 # List all available tasks
 nv-eval ls tasks
 
-# Run different evaluation types
-nv-eval run --config-dir examples --config-name local_safety_evaluation
-nv-eval run --config-dir examples --config-name local_code_generation
+# Run with limited samples for quick testing
+nv-eval run --config-dir examples --config-name local_limit_samples
 ```
 :::
 
@@ -189,6 +184,9 @@ nv-eval export <invocation_id> --dest mlflow
 # Export to Weights & Biases  
 nv-eval export <invocation_id> --dest wandb
 
+# Export to Google Sheets
+nv-eval export <invocation_id> --dest gsheets
+
 # Export to local files
 nv-eval export <invocation_id> --dest local --format json
 ```
@@ -199,10 +197,10 @@ nv-eval export <invocation_id> --dest local --format json
 
 ```bash
 # Run on Slurm cluster
-nv-eval run --config-dir examples --config-name slurm_multi_gpu
+nv-eval run --config-dir examples --config-name slurm_llama_3_1_8b_instruct
 
 # Run on Lepton AI
-nv-eval run --config-dir examples --config-name lepton_deployment
+nv-eval run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruct
 ```
 :::
 
@@ -226,5 +224,4 @@ nv-eval run --config-dir examples --config-name lepton_deployment
 NeMo Evaluator Launcher <launcher>
 NeMo Evaluator Core <core>
 Container Direct <container>
-Complete Stack Integration <full-stack>
 ```

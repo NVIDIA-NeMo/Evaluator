@@ -27,12 +27,6 @@ Comprehensive command-line interface reference with all commands, options, and e
 Complete configuration reference with examples for all executors and deployment types.
 :::
 
-:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Deployment API
-:link: ../deployment/index
-:link-type: doc
-Complete reference for the deploy() function with all parameters, examples, and configuration options.
-:::
-
 :::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Evaluation Utilities
 :link: ../libraries/nemo-evaluator/api
 :link-type: doc

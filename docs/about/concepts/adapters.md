@@ -5,12 +5,12 @@ Adapters in NeMo Evaluator provide sophisticated request and response processing
 
 ## Architecture Overview
 
-The adapter system transforms simple API calls into sophisticated evaluation workflows:
+The adapter system transforms simple API calls into sophisticated evaluation workflows through a two-phase pipeline:
 
-1. **Request Processing**: Interceptors modify outgoing requests (system prompts, parameters)
-2. **API Communication**: Endpoint interceptor handles HTTP communication with retries
-3. **Response Processing**: Interceptors extract reasoning, log data, and cache results
-4. **Result Integration**: Processed responses integrate with evaluation frameworks
+1. **Request Processing**: Interceptors modify outgoing requests (system prompts, parameters) before they reach the endpoint
+2. **Response Processing**: Interceptors extract reasoning, log data, cache results, and track statistics after receiving responses
+
+The endpoint interceptor bridges these phases by handling HTTP communication with the model API.
 
 ## Core Components
 
@@ -28,30 +28,58 @@ The adapter system includes several built-in interceptors:
 - **Request/Response Logging**: Capture detailed interaction data
 - **Caching**: Store and retrieve responses for efficiency
 - **Reasoning**: Extract chain-of-thought reasoning
+- **Response Stats**: Collect aggregated statistics from API responses
 - **Progress Tracking**: Monitor evaluation progress
 - **Endpoint**: Handle HTTP communication with the model API
+- **Raise Client Error**: Handle and raise exceptions for client errors
 
 ## Integration
 
 The adapter system integrates seamlessly with:
+
 - **Evaluation Frameworks**: Works with any OpenAI-compatible API
 - **NeMo Evaluator Core**: Direct integration via `AdapterConfig`
 - **NeMo Evaluator Launcher**: YAML configuration support
 
 ## Usage Example
 
+The adapter system can be configured using YAML configuration (which supports legacy parameter names) or directly in Python using the modern interceptor-based API:
+
+### YAML Configuration
+
+:::{code-block} yaml
+target:
+  api_endpoint:
+    url: http://localhost:8080/v1/completions/
+    adapter_config:
+      use_reasoning: true
+      use_caching: true
+      use_request_logging: true
+      custom_system_prompt: "You are a helpful assistant."
+:::
+
+### Python API
+
 :::{code-block} python
-from nemo_evaluator.adapters.adapter_config import AdapterConfig
+from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
 
 adapter_config = AdapterConfig(
-    api_url="http://localhost:8080/v1/completions/",
-    use_reasoning=True,
-    use_caching=True,
-    use_request_logging=True,
-    custom_system_prompt="You are a helpful assistant."
+    interceptors=[
+        InterceptorConfig(
+            name="system_message",
+            enabled=True,
+            config={"system_message": "You are a helpful assistant."}
+        ),
+        InterceptorConfig(name="request_logging", enabled=True),
+        InterceptorConfig(
+            name="caching",
+            enabled=True,
+            config={"cache_dir": "./cache", "reuse_cached_responses": True}
+        ),
+        InterceptorConfig(name="reasoning", enabled=True),
+        InterceptorConfig(name="endpoint")
+    ]
 )
 :::
 
 For detailed usage and configuration examples, see {ref}`adapters-interceptors-concepts`.
-
-

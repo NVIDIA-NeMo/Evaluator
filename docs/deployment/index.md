@@ -77,19 +77,13 @@ evaluate(target_cfg=target, eval_cfg=config)
 :::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Manual Deployment
 :link: bring-your-own-endpoint/manual-deployment
 :link-type: doc
-Deploy using PyTriton, Ray Serve, vLLM, or other serving frameworks.
+Deploy using vLLM, Ray Serve, or other serving frameworks.
 :::
 
 :::{grid-item-card} {octicon}`globe;1.5em;sd-mr-1` Hosted Services
 :link: bring-your-own-endpoint/hosted-services
 :link-type: doc
 Use NVIDIA Build, OpenAI, or other hosted model APIs.
-:::
-
-:::{grid-item-card} {octicon}`organization;1.5em;sd-mr-1` Enterprise Infrastructure
-:link: bring-your-own-endpoint/enterprise-infrastructure
-:link-type: doc
-Integrate with Kubernetes, existing MLOps pipelines, or custom infrastructure.
 :::
 
 ::::
@@ -195,8 +189,7 @@ evaluation:
 Choose from these approaches when managing your own deployment:
 
 ### Manual Deployment
-- **PyTriton**: High-performance serving with NVIDIA Triton Inference Server
-- **Ray Serve**: Multi-instance evaluation with horizontal scaling  
+- **vLLM**: High-performance serving with PagedAttention optimization
 - **vLLM**: Fast inference with optimized attention mechanisms
 - **Custom serving**: Any OpenAI-compatible endpoint
 

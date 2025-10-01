@@ -7,6 +7,7 @@ Deploy and evaluate models on Lepton AI cloud platform using NeMo Evaluator Laun
 ## Overview
 
 Lepton launcher-orchestrated deployment:
+
 - Deploys models on Lepton AI cloud platform
 - Provides managed infrastructure and scaling
 - Supports various resource shapes and configurations
@@ -21,9 +22,17 @@ Based on PR #108's Lepton execution backend implementation.
 nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name lepton_vllm_llama_3_1_8b_instruct \
-    -o deployment.model_path=meta-llama/Llama-3.1-8B-Instruct \
-    -o execution.resource_shape=gpu.a100.1x
+    -o deployment.checkpoint_path=meta-llama/Llama-3.1-8B-Instruct \
+    -o deployment.lepton_config.resource_shape=gpu.1xh200
 ```
+
+This command:
+
+1. Deploys a vLLM endpoint on Lepton AI
+2. Runs the configured evaluation tasks
+3. Returns an invocation ID for monitoring
+
+The launcher handles endpoint creation, evaluation execution, and provides cleanup commands.
 
 ## Prerequisites
 
@@ -33,22 +42,11 @@ nemo-evaluator-launcher run \
 # Install Lepton AI CLI
 pip install leptonai
 
-# Login to Lepton AI
+# Authenticate with Lepton AI
 lepton login
-
-# Set API token (if needed)
-export LEPTON_API_TOKEN="your-api-token"
 ```
 
-### Authentication Configuration
-
-```yaml
-# config/lepton_auth.yaml
-execution:
-  backend: lepton
-  api_token: ${LEPTON_API_TOKEN}  # From environment
-  workspace: "your-workspace"     # Optional workspace
-```
+Refer to the [Lepton AI documentation](https://www.lepton.ai/docs) for authentication and workspace configuration.
 
 ## Deployment Types
 
@@ -56,550 +54,276 @@ execution:
 
 High-performance inference with cloud scaling:
 
+Refer to the complete working configuration in `examples/lepton_vllm_llama_3_1_8b_instruct.yaml`. Key configuration sections:
+
 ```yaml
-# config/lepton_vllm.yaml
 deployment:
   type: vllm
-  model_path: meta-llama/Llama-3.1-8B-Instruct
-  port: 8080
-  gpu_memory_utilization: 0.9
-  max_model_len: 4096
-  served_model_name: llama-3.1-8b
+  checkpoint_path: meta-llama/Llama-3.1-8B-Instruct
+  served_model_name: llama-3.1-8b-instruct
+  tensor_parallel_size: 1
+  
+  lepton_config:
+    resource_shape: gpu.1xh200
+    min_replicas: 1
+    max_replicas: 3
+    auto_scaler:
+      scale_down:
+        no_traffic_timeout: 3600
 
 execution:
-  backend: lepton
-  resource_shape: gpu.a100.1x    # Single A100 GPU
-  min_replicas: 1                # Minimum instances
-  max_replicas: 3                # Auto-scaling limit
-  timeout: 300                   # Deployment timeout
+  type: lepton
+  evaluation_tasks:
+    timeout: 3600
 
 evaluation:
   tasks:
-    - name: mmlu_pro
-      params:
-        limit_samples: 500
-    - name: gsm8k
-      params:
-        limit_samples: 200
-
-target:
-  api_endpoint:
-    url: "https://${LEPTON_DEPLOYMENT_URL}/v1/chat/completions"
-    model_id: llama-3.1-8b
+    - name: ifeval
 ```
+
+The launcher automatically retrieves the endpoint URL after deployment, eliminating the need for manual URL configuration.
 
 ### NIM Lepton Deployment
 
-Enterprise-grade serving in the cloud:
+Enterprise-grade serving in the cloud. Refer to the complete working configuration in `examples/lepton_nim_llama_3_1_8b_instruct.yaml`:
 
 ```yaml
-# config/lepton_nim.yaml
 deployment:
   type: nim
-  model_path: meta-llama/Llama-3.1-8B-Instruct
-  container_image: nvcr.io/nim/llama-3.1-8b-instruct
-  port: 8000
+  image: nvcr.io/nim/meta/llama-3.1-8b-instruct:1.8.6
+  served_model_name: meta/llama-3.1-8b-instruct
+  
+  lepton_config:
+    resource_shape: gpu.1xh200
+    min_replicas: 1
+    max_replicas: 3
+    auto_scaler:
+      scale_down:
+        no_traffic_timeout: 3600
 
 execution:
-  backend: lepton
-  resource_shape: gpu.a100.2x    # Dual A100 setup
-  min_replicas: 1
-  max_replicas: 5
-  auto_scale: true               # Enable auto-scaling
-  
-evaluation:
-  tasks:
-    - name: mmlu_pro
-    - name: gsm8k
-    - name: humaneval
-
-target:
-  api_endpoint:
-    url: "https://${LEPTON_DEPLOYMENT_URL}/v1/chat/completions"
-    model_id: llama-3.1-8b-instruct
-```
-
-### Custom Model Deployment
-
-Deploy your own models to Lepton:
-
-```yaml
-# config/lepton_custom.yaml
-deployment:
-  type: vllm
-  model_path: /workspace/my-custom-model  # Local path or HF model
-  custom_image: "my-registry/custom-vllm:latest"
-  
-execution:
-  backend: lepton
-  resource_shape: gpu.h100.1x    # H100 for custom models
-  
-  # Custom environment
-  env_vars:
-    CUSTOM_CONFIG: "production"
-    MODEL_CACHE_DIR: "/tmp/model_cache"
-    
-  # Storage mounting
-  mounts:
-    - source: "/shared/models"
-      target: "/workspace/models"
-      type: "volume"
+  type: lepton
 
 evaluation:
   tasks:
-    - name: custom_benchmark
+    - name: ifeval
 ```
+
+### SGLang Deployment
+
+SGLang is also supported as a deployment type. Use `deployment.type: sglang` with similar configuration to vLLM.
 
 ## Resource Shapes
 
-### Available GPU Configurations
+Resource shapes are Lepton platform-specific identifiers that determine the compute resources allocated to your deployment. Available shapes depend on your Lepton workspace configuration and quota.
+
+**Common patterns:**
+
+- GPU shapes: `gpu.1xh200`, `gpu.2xa100`, `gpu.4xh100`
+- CPU shapes: `cpu.small`, `cpu.medium`, `cpu.large`
+
+Configure in your deployment:
 
 ```yaml
-execution:
-  backend: lepton
-  
-  # Single GPU options
-  resource_shape: gpu.a100.1x     # 1x A100 40GB
-  resource_shape: gpu.h100.1x     # 1x H100 80GB
-  resource_shape: gpu.l4.1x       # 1x L4 24GB
-  
-  # Multi-GPU options
-  resource_shape: gpu.a100.2x     # 2x A100 40GB
-  resource_shape: gpu.a100.4x     # 4x A100 40GB
-  resource_shape: gpu.h100.2x     # 2x H100 80GB
-  resource_shape: gpu.h100.4x     # 4x H100 80GB
-  resource_shape: gpu.h100.8x     # 8x H100 80GB
+deployment:
+  lepton_config:
+    resource_shape: gpu.1xh200  # Check your Lepton workspace for available shapes
 ```
 
-### CPU-Only Options
-
-```yaml
-execution:
-  backend: lepton
-  
-  # CPU configurations
-  resource_shape: cpu.small       # 2 vCPU, 4GB RAM
-  resource_shape: cpu.medium      # 4 vCPU, 8GB RAM
-  resource_shape: cpu.large       # 8 vCPU, 16GB RAM
-  resource_shape: cpu.xlarge      # 16 vCPU, 32GB RAM
-```
+Refer to the [Lepton AI documentation](https://www.lepton.ai/docs) or check your workspace settings for the complete list of available resource shapes.
 
 ## Configuration Examples
 
-### Auto-Scaling Deployment
+### Auto-Scaling Configuration
+
+Configure auto-scaling behavior through the `lepton_config.auto_scaler` section:
 
 ```yaml
-# config/lepton_autoscale.yaml
 deployment:
-  type: vllm
-  model_path: meta-llama/Llama-3.1-8B-Instruct
-  tensor_parallel_size: 2
-
-execution:
-  backend: lepton
-  resource_shape: gpu.a100.2x
-  
-  # Auto-scaling configuration
-  min_replicas: 1                # Always keep 1 instance
-  max_replicas: 10               # Scale up to 10 instances
-  target_concurrency: 50         # Target requests per instance
-  scale_down_delay: 300          # Wait 5 min before scaling down
-  
-  # Health checks
-  health_check_path: "/health"
-  health_check_timeout: 30
-
-evaluation:
-  tasks:
-    - name: mmlu_pro
-      params:
-        limit_samples: 5000  # Large evaluation triggers scaling
-  
-  parallelism: 20  # High parallelism to test scaling
+  lepton_config:
+    min_replicas: 1
+    max_replicas: 3
+    auto_scaler:
+      scale_down:
+        no_traffic_timeout: 3600  # Seconds before scaling down
+        scale_from_zero: false
 ```
 
-### Multi-Model Evaluation
+### Using Existing Endpoints
+
+To evaluate against an already-deployed Lepton endpoint without creating a new deployment:
 
 ```yaml
-# config/lepton_multi_model.yaml
-# Use Lepton's model serving for comparison study
-
-models:
-  - name: llama-3.1-8b
-    deployment:
-      type: vllm
-      model_path: meta-llama/Llama-3.1-8B-Instruct
-      resource_shape: gpu.a100.1x
-      
-  - name: llama-3.1-70b  
-    deployment:
-      type: vllm
-      model_path: meta-llama/Llama-3.1-70B-Instruct
-      resource_shape: gpu.a100.4x
-      tensor_parallel_size: 4
-
-execution:
-  backend: lepton
-  parallel_deployments: true  # Deploy models in parallel
-
-evaluation:
-  tasks:
-    - name: mmlu_pro
-    - name: gsm8k
-  
-  # Compare models on same tasks
-  compare_models: true
-```
-
-### Cost-Optimized Setup
-
-```yaml
-# config/lepton_cost_optimized.yaml
 deployment:
-  type: vllm
-  model_path: meta-llama/Llama-3.1-8B-Instruct
-  gpu_memory_utilization: 0.95  # Maximize GPU usage
+  type: none  # Skip deployment
+
+target:
+  api_endpoint:
+    url: "https://your-endpoint.lepton.ai/v1/chat/completions"
+    model_id: your-model-name
 
 execution:
-  backend: lepton
-  resource_shape: gpu.l4.1x      # Cost-effective L4 GPU
-  
-  # Minimize costs
-  min_replicas: 0                # Scale to zero when idle
-  max_replicas: 2                # Limit maximum scale
-  idle_timeout: 300              # Shutdown after 5 min idle
-  
-  # Spot instances (if available)
-  use_spot_instances: true
-  spot_max_price: 0.50           # Maximum spot price
+  type: lepton
 
 evaluation:
   tasks:
     - name: mmlu_pro
-      params:
-        limit_samples: 100  # Smaller evaluation
-        
-  # Sequential processing to minimize replicas
-  parallelism: 1
 ```
+
+Refer to `examples/lepton_none_llama_3_1_8b_instruct.yaml` for a complete example.
 
 ## Advanced Configuration
 
-### Custom Docker Images
+### Environment Variables
+
+Pass environment variables to deployment containers through `lepton_config.envs`:
 
 ```yaml
-# config/lepton_custom_image.yaml
 deployment:
-  type: custom
-  custom_image: "my-registry/custom-inference:v1.0"
-  
-  # Build configuration
-  dockerfile: |
-    FROM vllm/vllm-openai:latest
-    COPY custom_config.json /app/config.json
-    RUN pip install custom-package
-    
-  build_context: "./docker_context"
-
-execution:
-  backend: lepton
-  resource_shape: gpu.a100.1x
-  
-  # Custom startup command
-  command: ["python", "/app/custom_server.py"]
-  
-  # Environment variables
-  env_vars:
-    CUSTOM_CONFIG_PATH: "/app/config.json"
-    LOG_LEVEL: "INFO"
+  lepton_config:
+    envs:
+      HF_TOKEN:
+        value_from:
+          secret_name_ref: "HUGGING_FACE_HUB_TOKEN"
+      CUSTOM_VAR: "direct_value"
 ```
 
-### Storage and Networking
+### Storage Mounts
+
+Configure persistent storage for model caching:
 
 ```yaml
-# config/lepton_storage.yaml
-execution:
-  backend: lepton
-  
-  # Persistent storage
-  storage:
-    - name: "model-cache"
-      size: "100Gi"
-      mount_path: "/cache"
-      storage_class: "fast-ssd"
-      
-    - name: "results"
-      size: "50Gi" 
-      mount_path: "/results"
-      storage_class: "standard"
-  
-  # Networking
-  network:
-    ingress:
-      - path: "/metrics"
-        port: 9090
-        public: false  # Internal only
-        
-    egress:
-      - destination: "*.huggingface.co"
-        protocol: "https"
+deployment:
+  lepton_config:
+    mounts:
+      enabled: true
+      cache_path: "/path/to/storage"
+      mount_path: "/opt/nim/.cache"
 ```
 
 ## Monitoring and Management
 
-### Deployment Status
+### Check Evaluation Status
+
+Use NeMo Evaluator Launcher commands to monitor your evaluations:
 
 ```bash
-# Check deployment status
-nemo-evaluator-launcher status <job_id>
+# Check status using invocation ID
+nemo-evaluator-launcher status <invocation_id>
 
-# List Lepton deployments
+# Kill running evaluations and cleanup endpoints
+nemo-evaluator-launcher kill <invocation_id>
+```
+
+### Monitor Lepton Resources
+
+Use Lepton AI CLI commands to monitor platform resources:
+
+```bash
+# List all deployments in your workspace
 lepton deployment list
 
-# Get deployment details
+# Get details about a specific deployment
 lepton deployment get <deployment-name>
 
 # View deployment logs
 lepton deployment logs <deployment-name>
-```
-
-### Resource Monitoring
-
-```bash
-# Monitor resource usage
-lepton deployment metrics <deployment-name>
-
-# Check scaling events
-lepton deployment events <deployment-name>
-
-# View billing information
-lepton billing usage --deployment <deployment-name>
-```
-
-### Debugging
-
-```bash
-# Access deployment shell (if enabled)
-lepton deployment exec <deployment-name> -- /bin/bash
-
-# Port forward for local debugging
-lepton deployment port-forward <deployment-name> 8080:8080
-
-# Download deployment artifacts
-lepton deployment download-artifacts <deployment-name>
-```
-
-## Cost Management
-
-### Cost Optimization Strategies
-
-```yaml
-# config/lepton_cost_aware.yaml
-execution:
-  backend: lepton
-  
-  # Use smaller instances for development
-  resource_shape: gpu.l4.1x
-  
-  # Aggressive auto-scaling
-  min_replicas: 0
-  scale_to_zero_timeout: 180  # 3 minutes
-  
-  # Spot instances
-  use_spot_instances: true
-  spot_interruption_handler: true
-  
-  # Resource limits
-  cpu_limit: "4000m"
-  memory_limit: "16Gi"
-  gpu_limit: 1
-
-evaluation:
-  # Batch evaluations to minimize deployment time
-  batch_size: 100
-  max_concurrent_batches: 2
-```
-
-### Cost Monitoring
-
-```yaml
-# config/lepton_with_budget.yaml
-execution:
-  backend: lepton
-  
-  # Budget controls
-  max_cost_per_hour: 5.0        # USD per hour limit
-  daily_budget: 50.0            # USD per day limit
-  
-  # Alerts
-  cost_alerts:
-    - threshold: 80  # 80% of budget
-      action: "warn"
-    - threshold: 95  # 95% of budget  
-      action: "pause"
-    - threshold: 100 # 100% of budget
-      action: "stop"
-```
-
-## Integration Examples
-
-### CI/CD Pipeline Integration
-
-```yaml
-# .github/workflows/lepton-evaluation.yml
-name: Model Evaluation on Lepton
-on:
-  push:
-    branches: [main]
-    
-jobs:
-  evaluate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-          
-      - name: Install dependencies
-        run: |
-          pip install nemo-evaluator-launcher leptonai
-          
-      - name: Run evaluation
-        env:
-          LEPTON_API_TOKEN: ${{ secrets.LEPTON_API_TOKEN }}
-        run: |
-          nemo-evaluator-launcher run \
-            --config-dir configs \
-            --config-name lepton_ci_evaluation \
-            -o deployment.model_path="${{ github.event.head_commit.message }}"
-```
-
-### MLflow Integration
-
-```yaml
-# config/lepton_mlflow.yaml
-execution:
-  backend: lepton
-  
-evaluation:
-  tasks:
-    - name: mmlu_pro
-    - name: gsm8k
-    
-  # MLflow tracking
-  mlflow:
-    tracking_uri: "https://mlflow.company.com"
-    experiment_name: "lepton-evaluations"
-    
-  # Auto-export results
-  exporters:
-    - type: mlflow
-      config:
-        tracking_uri: "https://mlflow.company.com"
-        experiment_name: "lepton-evaluations"
-        tags:
-          deployment_platform: "lepton"
-          resource_shape: "${execution.resource_shape}"
-```
-
-## Troubleshooting
-
-### Common Lepton Issues
-
-**Deployment Timeout:**
-```bash
-# Increase deployment timeout
--o execution.timeout=600
-
-# Check deployment logs
-lepton deployment logs <deployment-name>
-```
-
-**Resource Unavailable:**
-```bash
-# Try different resource shape
--o execution.resource_shape=gpu.a100.1x
 
 # Check resource availability
 lepton resource list --available
 ```
 
-**Authentication Issues:**
+Refer to the [Lepton AI CLI documentation](https://www.lepton.ai/docs) for the complete command reference.
+
+## Exporting Results
+
+### MLflow Integration
+
+After evaluation completes, export results to MLflow using the export command:
+
 ```bash
-# Re-authenticate
+# Export results to MLflow
+nemo-evaluator-launcher export \
+  --invocation-id <invocation_id> \
+  --exporter mlflow \
+  --tracking-uri https://mlflow.company.com \
+  --experiment-name lepton-evaluations
+```
+
+Refer to the {ref}`exporters documentation <nemo-evaluator-launcher-exporters>` for additional export options and configurations.
+
+## Troubleshooting
+
+### Common Issues
+
+**Deployment Timeout:**
+
+If endpoints take too long to become ready, check deployment logs:
+
+```bash
+# Check deployment logs via Lepton CLI
+lepton deployment logs <deployment-name>
+
+# Increase readiness timeout in configuration
+# (in execution.lepton_platform.deployment.endpoint_readiness_timeout)
+```
+
+**Resource Unavailable:**
+
+If your requested resource shape is unavailable:
+
+```bash
+# Check available resources in your workspace
+lepton resource list --available
+
+# Try a different resource shape in your config
+```
+
+**Authentication Issues:**
+
+```bash
+# Re-authenticate with Lepton
 lepton login
 
-# Check token
+# Verify authentication status
 lepton auth status
-
-# Set token explicitly
-export LEPTON_API_TOKEN="your-token"
 ```
 
-**Scaling Issues:**
-```bash
-# Check scaling events
-lepton deployment events <deployment-name>
+**Endpoint Not Found:**
 
-# Adjust scaling parameters
--o execution.target_concurrency=100
--o execution.scale_down_delay=600
-```
+If evaluation jobs cannot connect to the endpoint:
 
-### Performance Issues
-
-**High Latency:**
-```yaml
-# Optimize for latency
-deployment:
-  type: vllm
-  max_batch_size: 1          # Reduce batch size
-  max_waiting_time: 0.01     # Reduce wait time
-
-execution:
-  resource_shape: gpu.h100.1x  # Use faster GPU
-  min_replicas: 2              # Keep instances warm
-```
-
-**Low Throughput:**
-```yaml
-# Optimize for throughput
-deployment:
-  type: vllm
-  max_batch_size: 64         # Larger batches
-  tensor_parallel_size: 2    # Use more GPUs
-
-execution:
-  resource_shape: gpu.a100.2x
-  max_replicas: 5            # Allow more scaling
-```
+1. Verify endpoint is in "Ready" state using `lepton deployment get <deployment-name>`
+2. Confirm the endpoint URL is accessible
+3. Verify API tokens are properly set in Lepton secrets
 
 ## Best Practices
 
-### Resource Management
-- **Right-size instances**: Choose appropriate resource shapes for your models
-- **Use auto-scaling**: Configure scaling based on actual usage patterns
-- **Monitor costs**: Set up budget alerts and cost monitoring
-- **Optimize for spot**: Use spot instances for cost-sensitive workloads
+### Configuration Management
+
+- **Use example configs as templates**: Start with the provided examples in the `examples/` directory
+- **Test with deployment type "none"**: Run against existing endpoints before deploying new ones
+- **Configure auto-scaling appropriately**: Set `min_replicas` and `max_replicas` based on expected load
+
+### Resource Selection
+
+- **Right-size your deployments**: Choose resource shapes that match your model requirements
+- **Consider tensor parallelism**: Use multi-GPU shapes for larger models with tensor parallelism support
+- **Check resource availability**: Verify available shapes in your Lepton workspace before deployment
 
 ### Deployment Strategy
-- **Test locally first**: Validate configurations locally before deploying
-- **Use staging environments**: Test deployments in staging before production
-- **Implement health checks**: Ensure proper health check endpoints
-- **Plan for failures**: Handle spot interruptions and deployment failures
 
-### Security and Compliance
-- **Use private deployments**: Keep sensitive models private
-- **Implement access controls**: Use proper authentication and authorization
-- **Monitor access**: Log and monitor API access patterns
-- **Data residency**: Ensure compliance with data location requirements
+- **Start small**: Begin with smaller evaluations to verify configuration
+- **Check endpoint readiness**: Review Lepton deployment status before running large-scale evaluations
+- **Clean up resources**: Use `nemo-evaluator-launcher kill` to remove endpoints when done
+
+### Security
+
+- **Use Lepton secrets**: Store sensitive credentials (HF tokens, NGC keys, API tokens) in Lepton secrets
+- **Reference secrets properly**: Use `value_from.secret_name_ref` in configuration to reference secrets
 
 ## Next Steps
 
-- **Compare costs**: Analyze costs vs {ref}`launcher-orchestrated-slurm` for your use case
-- **Optimize performance**: Fine-tune deployment configurations for your workloads
-- **Automate workflows**: Integrate Lepton deployments into your ML pipelines
-- **Scale globally**: Explore multi-region deployments for global access
+- Compare with {ref}`launcher-orchestrated-slurm` for HPC cluster deployments
+- Explore {ref}`launcher-orchestrated-local` for local development and testing
+- Review complete configuration examples in the `examples/` directory

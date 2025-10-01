@@ -30,12 +30,6 @@ Install NeMo Eval and set up your evaluation environment with all necessary depe
 Deploy your first model and run a simple evaluation in just a few minutes.
 :::
 
-:::{grid-item-card} {octicon}`workflow;1.5em;sd-mr-1` Integration Patterns
-:link: integration-patterns
-:link-type: doc
-Learn advanced integration patterns for the three-tier architecture.
-:::
-
 ::::
 
 ## Entry Point Decision Guide

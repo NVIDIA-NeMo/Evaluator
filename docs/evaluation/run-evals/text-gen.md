@@ -10,7 +10,10 @@ Text generation evaluation is the primary method for assessing LLM capabilities 
 
 Ensure you have:
 
-1. TODO
+1. **Model Endpoint**: An OpenAI-compatible API endpoint for your model (completions or chat)
+2. **API Access**: Valid API key if your endpoint requires authentication
+3. **Installed Packages**: NeMo Evaluator or access to evaluation containers
+4. **Sufficient Resources**: Adequate compute for your chosen benchmarks
 
 ---
 
@@ -72,7 +75,7 @@ eval_config = EvaluationConfig(
     output_dir="./results",
     params=ConfigParams(
         limit_samples=None,  # Full dataset
-        temperature=0.0,     # Deterministic
+        temperature=0.01,    # Near-deterministic for reproducibility
         max_new_tokens=512,
         top_p=0.95
     )
@@ -83,7 +86,7 @@ target_config = EvaluationTarget(
         url="https://integrate.api.nvidia.com/v1/chat/completions",
         model_id="meta/llama-3.1-8b-instruct", 
         type="chat",
-        api_key="your_api_key"
+        api_key="MY_API_KEY"  # Environment variable name containing your API key
     )
 )
 
@@ -126,13 +129,9 @@ Use the launcher CLI to discover all available text generation tasks:
 ```bash
 # List all available benchmarks
 nv-eval ls tasks
-
-# Filter by text generation category (if supported)
-nv-eval ls tasks --filter text_generation
-
-# Get detailed information about a specific task (if supported)
-nv-eval ls tasks --task mmlu_pro
 ```
+
+Run this command to discover the complete list of available benchmarks across all installed frameworks.
 
 ## Text Generation Task Categories
 
@@ -142,11 +141,12 @@ nv-eval ls tasks --task mmlu_pro
 
 * - Area
   - Purpose
-  - Key Tasks
+  - Example Tasks
   - Evaluation Method
 * - Academic Benchmarks
   - Assess general knowledge and reasoning across academic domains
   - - `mmlu`
+    - `mmlu_pro`
     - `arc_challenge`
     - `hellaswag`
     - `truthfulqa`
@@ -154,22 +154,20 @@ nv-eval ls tasks --task mmlu_pro
 * - Instruction Following
   - Evaluate ability to follow complex instructions and formatting requirements
   - - `ifeval`
-    - `mmlu_instruct`
-    - `gpqa_diamond_cot`
+    - `gpqa_diamond`
   - Generated responses assessed against instruction criteria
 * - Mathematical Reasoning
   - Test mathematical problem-solving and multi-step reasoning
   - - `gsm8k`
-    - `mgsm`
     - `math`
   - Final answer extraction and numerical comparison
 * - Multilingual Evaluation
   - Assess capabilities across different languages
-  - - `arc_multilingual`
-    - `hellaswag_multilingual`
-    - `mgsm`
+  - - `mgsm` (multilingual GSM8K)
   - Language-specific text generation and assessment
 ```
+
+**Note**: Task availability depends on installed frameworks. Use `nv-eval ls tasks` to see the complete list for your environment.
 
 ## Task Naming and Framework Specification
 
@@ -211,17 +209,27 @@ Use this approach when:
 :::{tab-item} Framework Discovery
 :sync: discovery
 
-Resolve task naming conflicts using the framework discovery utility:
+Resolve task naming conflicts by listing available tasks:
 
 ```python
-from nemo_eval.utils.base import find_framework
+from nemo_evaluator import show_available_tasks
 
-# Find which framework provides a task
-framework = find_framework("mmlu")
-print(f"MMLU provided by: {framework}")
+# Display all tasks organized by framework
+print("Available tasks by framework:")
+show_available_tasks()
 ```
 
-This utility helps you:
+Or use the CLI for programmatic access:
+
+```bash
+# List all tasks with framework information
+nv-eval ls tasks
+
+# Filter for specific tasks
+nv-eval ls tasks | grep mmlu
+```
+
+This helps you:
 - Identify which framework implements a task
 - Resolve naming conflicts programmatically
 - Understand available task sources
@@ -251,10 +259,10 @@ target = EvaluationTarget(api_endpoint=api_endpoint)
 
 # Configure evaluation parameters
 params = ConfigParams(
-    temperature=0,      # Deterministic generation
-    top_p=1.0,         # No nucleus sampling
-    limit_samples=100, # Evaluate subset for testing
-    parallelism=1      # Single-threaded requests
+    temperature=0.01,   # Near-deterministic generation
+    top_p=1.0,          # No nucleus sampling
+    limit_samples=100,  # Evaluate subset for testing
+    parallelism=1       # Single-threaded requests
 )
 
 # Configure evaluation task
@@ -271,11 +279,13 @@ results = evaluate(target_cfg=target, eval_cfg=config)
 ### Endpoint Types
 
 **Completions Endpoint** (`/v1/completions/`):
+
 - Direct text completion without conversation formatting
 - Used for: Academic benchmarks, reasoning tasks, base model evaluation
 - Model processes prompts as-is without applying chat templates
 
 **Chat Endpoint** (`/v1/chat/completions/`):
+
 - Conversational interface with role-based message formatting
 - Used for: Instruction following, chat benchmarks, instruction-tuned models
 - Requires models with defined chat templates
@@ -285,7 +295,7 @@ results = evaluate(target_cfg=target, eval_cfg=config)
 For comprehensive parameter reference including all available settings, optimization patterns, and framework-specific options, refer to {ref}`eval-parameters`.
 
 **Key Parameters for Text Generation**:
-- `temperature=0` for deterministic, reproducible results
-- `max_new_tokens` to control response length
-- `limit_samples` for subset evaluation during testing
-- `parallelism` to balance speed with server capacity
+- `temperature`: Use low values (0.01-0.1) for deterministic, reproducible results
+- `max_new_tokens`: Controls maximum response length
+- `limit_samples`: Limits evaluation to a subset for testing
+- `parallelism`: Balances speed with server capacity

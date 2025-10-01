@@ -11,7 +11,7 @@ When basic troubleshooting doesn't resolve your issue, use these systematic debu
 :::{tab-item} Comprehensive Health Check
 
 ```python
-from nemo_eval.utils.base import wait_for_fastapi_server, list_available_evaluations
+from nemo_evaluator import show_available_tasks
 import requests
 import torch
 
@@ -52,8 +52,7 @@ import logging
 
 # Enable comprehensive logging
 logging.basicConfig(level=logging.DEBUG)
-logging.getLogger("nvidia_eval_commons").setLevel(logging.DEBUG)
-logging.getLogger("nemo_eval").setLevel(logging.DEBUG)
+logging.getLogger("nemo_evaluator").setLevel(logging.DEBUG)
 
 # Monitor evaluation progress
 def log_evaluation_progress():
@@ -76,8 +75,8 @@ def log_evaluation_progress():
 ```python
 def minimal_evaluation_test():
     """Simplest possible evaluation for debugging"""
-    from nvidia_eval_commons.core.evaluate import evaluate
-    from nvidia_eval_commons.api.api_dataclasses import *
+    from nemo_evaluator import evaluate
+    from nemo_evaluator.api.api_dataclasses import *
     
     # Absolute minimal configuration
     api_endpoint = ApiEndpoint(

@@ -12,7 +12,7 @@ Launcher-orchestrated deployment means the launcher:
 - Runs evaluations against the deployed model
 - Handles cleanup and resource management
 
-Based on PR #108, the launcher supports multiple deployment backends and execution environments.
+The launcher supports multiple deployment backends and execution environments.
 
 ## Quick Start
 
@@ -32,10 +32,10 @@ Choose the execution backend that matches your infrastructure:
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
-:::{grid-item-card} {octicon}`desktop-download;1.5em;sd-mr-1` Local Deployment
+:::{grid-item-card} {octicon}`desktop-download;1.5em;sd-mr-1` Local Execution
 :link: local
 :link-type: doc
-Deploy and evaluate on your local machine. Perfect for development, testing, and small-scale evaluations.
+Run evaluations on your local machine against existing endpoints. **Note**: Local executor does not deploy models.
 :::
 
 :::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Slurm Deployment
@@ -54,7 +54,7 @@ Deploy on Lepton AI cloud platform. Best for cloud-native deployments with manag
 
 ## Deployment Types
 
-The launcher supports multiple deployment types from PR #108's implementation:
+The launcher supports multiple deployment types:
 
 ### vLLM Deployment
 - **Fast inference** with optimized attention mechanisms
@@ -105,7 +105,7 @@ evaluation:
 # Target endpoint (auto-configured)
 target:
   api_endpoint:
-    url: http://localhost:8080/v1/chat/completions
+    url: http://localhost:8000/v1/chat/completions
     model_id: deployed-model
 ```
 

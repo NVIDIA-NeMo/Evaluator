@@ -42,15 +42,17 @@ Custom tasks require explicit harness specification using the format:
 **Examples**:
 
 - `"lm-evaluation-harness.lambada_openai"` - LM-Eval harness task
-- `"simple-evals.human_eval"` - Simple-Evals harness task  
-- `"bigcode-evaluation-harness.humaneval_python"` - BigCode harness task
+- `"simple-evals.humaneval"` - Simple-Evals harness task  
+- `"bigcode-evaluation-harness.humaneval"` - BigCode harness task
+
+**Note**: These examples demonstrate accessing tasks from upstream evaluation harnesses. Pre-configured tasks with optimized settings are available through the launcher CLI (`nv-eval ls tasks`). Custom task configuration is useful when you need non-standard parameters or when evaluating tasks not yet integrated into the pre-configured catalog.
 
 ## lambada_openai (Log-Probability Task)
 
 The `lambada_openai` task evaluates reading comprehension using log-probabilities.
 
 ```bash
-pip install nvidia-lm-eval==25.6
+pip install nvidia-lm-eval
 ```
 
 1. Deploy your model:
@@ -79,9 +81,9 @@ pip install nvidia-lm-eval==25.6
 - Requires tokenizer configuration for proper probability calculation
 - `limit_samples=10` used for quick testing (remove for full evaluation)
 
-## WikiText (Perplexity Task)
+## Additional LM-Eval Tasks
 
-Evaluate language modeling capabilities using the WikiText benchmark:
+You can access additional tasks from the LM Evaluation Harness that may not have pre-defined configurations. For example, to evaluate perplexity or other log-probability tasks:
 
 ```python
 from nemo_evaluator.api.api_dataclasses import (
@@ -89,7 +91,7 @@ from nemo_evaluator.api.api_dataclasses import (
 )
 from nemo_evaluator.core.evaluate import evaluate
 
-# Configure evaluation
+# Configure evaluation for any lm-evaluation-harness task
 target_config = EvaluationTarget(
     api_endpoint=ApiEndpoint(
         url="http://0.0.0.0:8080/v1/completions/", 
@@ -98,19 +100,22 @@ target_config = EvaluationTarget(
     )
 )
 
+# Example: Using a custom task from lm-evaluation-harness
 eval_config = EvaluationConfig(
-    type="lm-evaluation-harness.wikitext",
+    type="lm-evaluation-harness.<task_name>",
     params=ConfigParams(
         extra={
             "tokenizer_backend": "huggingface",
             "tokenizer": "/checkpoints/llama-3_2-1b-instruct_v2.0/context/nemo_tokenizer"
         }
     ),
-    output_dir="./wikitext-results"
+    output_dir="./custom-task-results"
 )
 
 results = evaluate(target_cfg=target_config, eval_cfg=eval_config)
 ```
+
+**Note**: Replace `<task_name>` with any task available in the upstream [LM Evaluation Harness](https://github.com/EleutherAI/lm-evaluation-harness). Not all upstream tasks have been tested or pre-configured. For pre-configured tasks, refer to {ref}`log-probability` and {ref}`text-gen`.
 
 ## HumanEval (Code Generation)
 
@@ -118,13 +123,13 @@ Evaluate code generation capabilities using HumanEval:
 
 ```bash
 # Install simple-evals framework
-pip install nvidia-simple-evals==25.6
+pip install nvidia-simple-evals
 ```
 
 ```python
 # Configure HumanEval evaluation
 eval_config = EvaluationConfig(
-    type="simple-evals.human_eval",
+    type="simple-evals.humaneval",
     params=ConfigParams(
         temperature=0.2,  # Slight randomness for code diversity
         max_new_tokens=512,  # Sufficient for code solutions
@@ -144,29 +149,7 @@ eval_config = EvaluationConfig(
 - Requires code execution environment
 - `pass_at_k` metrics measure success rates
 
-## Multi-Language Code Evaluation
-
-```bash
-# Install BigCode evaluation harness
-pip install nvidia-bigcode-eval==25.6
-```
-
-```python
-# Configure multi-language code evaluation  
-eval_config = EvaluationConfig(
-    type="bigcode-evaluation-harness.humaneval_multilang",
-    params=ConfigParams(
-        temperature=0.1,
-        max_new_tokens=1024,
-        extra={
-            "languages": ["python", "java", "cpp"],  # Target languages
-            "num_workers": 4,  # Parallel execution workers
-            "eval_metric": "pass_at_k"
-        }
-    ),
-    output_dir="./multilang-results"
-)
-```
+For additional code generation tasks, refer to {ref}`code-generation`.
 
 ---
 

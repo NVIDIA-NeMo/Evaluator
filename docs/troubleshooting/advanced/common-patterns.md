@@ -12,16 +12,32 @@ Practical troubleshooting guide based on frequent user issues and test patterns 
 
 **Diagnosis**:
 ```python
-from nemo_eval.utils.base import wait_for_fastapi_server
+import requests
+import time
 
-# Test server readiness with detailed logging
-server_ready = wait_for_fastapi_server(
+def check_server_ready(base_url: str, max_retries: int = 60, retry_interval: int = 10) -> bool:
+    """Test server readiness with detailed logging."""
+    for i in range(max_retries):
+        try:
+            response = requests.get(f"{base_url}/health", timeout=5)
+            if response.status_code == 200:
+                print(f"✓ Server ready after {i * retry_interval} seconds")
+                return True
+        except requests.exceptions.RequestException as e:
+            if i % 6 == 0:  # Log every minute
+                print(f"Waiting for server... ({i * retry_interval}s elapsed)")
+        
+        time.sleep(retry_interval)
+    
+    print("✗ Server failed to start within timeout")
+    return False
+
+# Test server readiness
+server_ready = check_server_ready(
     base_url="http://0.0.0.0:8080",
     max_retries=60,  # 10 minutes 
     retry_interval=10
 )
-if not server_ready:
-    print(" Server failed to start within timeout")
 ```
 
 **Solutions**:
@@ -156,9 +172,9 @@ os.environ["HF_TOKEN"] = "your_huggingface_token"
 def check_dataset_access():
     """Check if required datasets are accessible."""
     try:
-        from nemo_eval.utils.base import list_available_evaluations
-        evals = list_available_evaluations()
-        print(f" Available evaluations: {len(evals)} frameworks")
+        from nemo_evaluator import show_available_tasks
+        print("✓ Available evaluations:")
+        show_available_tasks()
         return True
     except ImportError as e:
         print(f" Missing evaluation packages: {e}")
@@ -257,8 +273,7 @@ def diagnose_imports():
     """Diagnose common import issues."""
     packages_to_check = [
         "core_evals",
-        "nvidia_eval_commons", 
-        "nemo_eval",
+        "nemo_evaluator",
         "torch",
         "transformers"
     ]
@@ -310,11 +325,11 @@ pip install nvidia-eval-commons~=1.0.0
 **Diagnosis**:
 ```python
 import time
-from nvidia_eval_commons.core.evaluate import evaluate
+from nemo_evaluator import evaluate
 
 # Time your evaluation
 start_time = time.time()
-results = evaluate(target_cfg=target, eval_cfg=config)
+results = evaluate(eval_cfg=config, target_cfg=target)
 duration = time.time() - start_time
 
 samples = config.params.limit_samples or 1000
@@ -374,21 +389,18 @@ def comprehensive_health_check():
     
     # 1. Import check
     try:
-        from nemo_eval.utils.base import list_available_evaluations
-        evals = list_available_evaluations()
-        print(f" Available frameworks: {len(evals)}")
+        from nemo_evaluator import show_available_tasks
+        print("✓ Available frameworks:")
+        show_available_tasks()
     except Exception as e:
         print(f" Import error: {e}")
         return False
     
     # 2. Server check
     try:
-        from nemo_eval.utils.base import wait_for_fastapi_server
-        ready = wait_for_fastapi_server(
-            base_url="http://0.0.0.0:8080",
-            max_retries=5,
-            retry_interval=2
-        )
+        import requests
+        response = requests.get("http://0.0.0.0:8080/health", timeout=2)
+        ready = response.status_code == 200
         print(f" Server ready: {ready}")
     except Exception as e:
         print(f" Server check failed: {e}")
@@ -420,9 +432,8 @@ comprehensive_health_check()
 def minimal_evaluation_test():
     """Minimal test to verify evaluation pipeline."""
     try:
-        from nvidia_eval_commons.core.evaluate import evaluate
-        from nvidia_eval_commons.api.api_dataclasses import (
-            ApiEndpoint, EvaluationConfig, EvaluationTarget, ConfigParams
+        from nemo_evaluator import (
+            ApiEndpoint, EvaluationConfig, EvaluationTarget, ConfigParams, evaluate
         )
         
         # Minimal configuration

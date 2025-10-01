@@ -38,7 +38,7 @@ NeMo Evaluator provides multiple installation paths depending on your needs. Cho
 
 ### System Requirements
 
-- Python 3.10 or higher (up to 3.13)
+- Python 3.10 or higher (supports 3.10, 3.11, 3.12, and 3.13)
 - CUDA-compatible GPU(s) (tested on RTX A6000, A100, H100)
 - Docker (for container-based workflows)
 
@@ -78,9 +78,6 @@ pip install nemo-evaluator-launcher[mlflow]      # MLflow only
 pip install nemo-evaluator-launcher[wandb]       # Weights & Biases only  
 pip install nemo-evaluator-launcher[gsheets]     # Google Sheets only
 
-# Optional: Install Lepton AI for cloud execution
-pip install leptonai
-
 # Verify installation
 nv-eval --version
 nv-eval ls tasks
@@ -107,7 +104,7 @@ source nemo-eval-env/bin/activate
 
 # Install core library with dependencies
 pip install torch==2.7.0 setuptools pybind11 wheel_stub  # Required for TE
-pip install --no-build-isolation nemo-eval
+pip install --no-build-isolation nemo-evaluator
 
 # Install evaluation frameworks
 pip install nvidia-simple-evals nvidia-lm-eval
@@ -147,13 +144,13 @@ docker run --rm -it --gpus all \
 # Or run evaluation directly
 docker run --rm --gpus all \
     -v $(pwd)/results:/workspace/results \
-    -e `MY_API_KEY`=your-api-key \
+    -e MY_API_KEY=your-api-key \
     nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
     eval-factory run_eval \
         --eval_type mmlu_pro \
         --model_url https://integrate.api.nvidia.com/v1/chat/completions \
         --model_id meta/llama-3.1-8b-instruct \
-        --api_key_name `MY_API_KEY` \
+        --api_key_name MY_API_KEY \
         --output_dir /workspace/results
 ```
 
@@ -175,33 +172,17 @@ echo " Container access verified"
 
 ## Add New Evaluation Frameworks
 
-The NeMo Framework Docker image comes with [nvidia-lm-eval](https://pypi.org/project/nvidia-lm-eval/) pre-installed.
+You can add more evaluation methods by installing additional NVIDIA Eval Factory packages.
 
-However, you can add more evaluation methods by installing additional NVIDIA Eval Factory packages.
+**Prerequisites**: An OpenAI-compatible model endpoint must be running and accessible.
 
-For each package, follow these steps:
+For each package:
 
 1. Install the required package.
 
-2. Deploy your model:
+2. Export any required environment variables (if specified).
 
-```{literalinclude} ../scripts/snippets/deploy.py
-:language: python
-:start-after: "## Deploy"
-:linenos:
-```
-
-Run the deployment in the background:
-
-```bash
-python deploy.py
-```
-
-Open two separate terminals within the same container to execute the deployment and evaluation.
-
-3. (Optional) Export the required environment variables.
-
-4. Run the evaluation of your choice.
+3. Run the evaluation of your choice.
 
 Below you can find examples for enabling and launching evaluations for different packages.
 These examples demonstrate functionality using a subset of samples.
@@ -274,10 +255,10 @@ pip install nvidia-simple-evals==25.7.1
 In the example below, we use the `AIME_2025` task, which follows the llm-as-a-judge approach for checking the output correctness.
 By default, [Llama 3.3 70B](https://build.nvidia.com/meta/llama-3_3-70b-instruct) NVIDIA NIM is used for judging.
 
-2. To run evaluation, set your [build.nvidia.com](https://build.nvidia.com/) API key as the ``JUDGE_API_KEY`` variable:
+2. To run evaluation, set your [build.nvidia.com](https://build.nvidia.com/) API key as the `JUDGE_API_KEY` variable:
 
 ```bash
-export `JUDGE_API_KEY`=...
+export JUDGE_API_KEY=your-api-key-here
 ```
 
 To customize the judge setting, see the instructions for [NVIDIA Eval Factory package](https://pypi.org/project/nvidia-simple-evals/). 

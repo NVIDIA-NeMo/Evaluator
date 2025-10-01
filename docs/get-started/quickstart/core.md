@@ -3,7 +3,7 @@
 
 **Best for**: Developers who need programmatic control
 
-The NeMo Evaluator Core provides direct Python API access with full adapter features, custom configurations, and integration capabilities for existing workflows.
+The NeMo Evaluator Core provides direct Python API access for custom configurations and integration into existing Python workflows.
 
 ## Prerequisites
 
@@ -19,8 +19,7 @@ from nemo_evaluator.api.api_dataclasses import (
     EvaluationTarget, 
     ApiEndpoint, 
     EndpointType,
-    ConfigParams,
-    AdapterConfig
+    ConfigParams
 )
 
 # Configure evaluation
@@ -28,28 +27,20 @@ eval_config = EvaluationConfig(
     type="mmlu_pro",
     output_dir="./results",
     params=ConfigParams(
-        limit_samples=10,  # Small test run
+        limit_samples=10,
         temperature=0.0,
         max_new_tokens=1024,
         parallelism=1
     )
 )
 
-# Configure target endpoint with adapter features
-adapter_config = AdapterConfig(
-    use_request_logging=True,      # Log all requests
-    use_response_logging=True,     # Log all responses
-    use_caching=True,              # Enable caching
-    caching_dir="./cache"          # Cache directory
-)
-
+# Configure target endpoint
 target_config = EvaluationTarget(
     api_endpoint=ApiEndpoint(
         url="https://integrate.api.nvidia.com/v1/chat/completions",
         model_id="meta/llama-3.1-8b-instruct",
         api_key="your_api_key_here",
-        type=EndpointType.CHAT,
-        adapter_config=adapter_config
+        type=EndpointType.CHAT
     )
 )
 
@@ -60,94 +51,71 @@ print(f"Evaluation completed: {result}")
 
 ## Complete Working Example
 
-Here's a comprehensive example with error handling and environment setup:
-
 ```python
 import os
 from nemo_evaluator.core.evaluate import evaluate
 from nemo_evaluator.api.api_dataclasses import (
-    EvaluationConfig, EvaluationTarget, ApiEndpoint, 
-    EndpointType, ConfigParams, AdapterConfig
+    EvaluationConfig, 
+    EvaluationTarget, 
+    ApiEndpoint, 
+    EndpointType, 
+    ConfigParams
 )
 
 # Set up environment
 os.environ["NGC_API_KEY"] = "nvapi-your-key-here"
 
-# Configure evaluation with comprehensive settings
+# Configure evaluation
 eval_config = EvaluationConfig(
     type="mmlu_pro",
     output_dir="./results",
     params=ConfigParams(
-        limit_samples=3,           # Small test for quick validation
-        temperature=0.0,           # Deterministic results
+        limit_samples=3,
+        temperature=0.0,
         max_new_tokens=1024,
         parallelism=1,
         max_retries=5
     )
 )
 
-# Advanced adapter configuration
-adapter_config = AdapterConfig(
-    use_request_logging=True,
-    use_response_logging=True,
-    use_caching=True,
-    caching_dir="./cache",
-    save_responses=True,
-    log_failed_requests=True
-)
-
+# Configure target
 target_config = EvaluationTarget(
     api_endpoint=ApiEndpoint(
         model_id="meta/llama-3.1-8b-instruct",
         url="https://integrate.api.nvidia.com/v1/chat/completions",
         type=EndpointType.CHAT,
-        api_key=os.environ["NGC_API_KEY"],
-        adapter_config=adapter_config
+        api_key=os.environ["NGC_API_KEY"]
     )
 )
 
-# Run evaluation with error handling
+# Run evaluation
 try:
-    print("Starting evaluation...")
     result = evaluate(eval_cfg=eval_config, target_cfg=target_config)
-    print(f"✅ Evaluation completed successfully!")
-    print(f"Results saved to: {eval_config.output_dir}")
-    print(f"Result summary: {result}")
+    print(f"Evaluation completed. Results saved to: {eval_config.output_dir}")
 except Exception as e:
-    print(f"❌ Evaluation failed: {e}")
-    print("Check your API key and endpoint configuration")
+    print(f"Evaluation failed: {e}")
 ```
 
 ## Key Features
 
-### Full Adapter Control
-
-- Request and response logging
-- Response caching for efficiency
-- Custom system prompts
-- Reasoning extraction capabilities
-- Progress tracking integration
-
 ### Programmatic Integration
 
 - Direct Python API access
-- Custom configuration objects
-- Error handling and retry logic
+- Pydantic-based configuration with type hints
 - Integration with existing Python workflows
 
-### Advanced Configuration
+### Evaluation Configuration
 
-- Fine-grained parameter control
-- Various evaluation types in sequence
-- Custom output formatting
-- Environment variable integration
+- Fine-grained parameter control via `ConfigParams`
+- Multiple evaluation types: `mmlu_pro`, `gsm8k`, `hellaswag`, and more
+- Configurable sampling, temperature, and token limits
 
-### Development Benefits
+### Endpoint Support
 
-- Type hints for better IDE support
-- Comprehensive error messages
-- Debugging capabilities
-- Unit test integration
+- Chat endpoints (`EndpointType.CHAT`)
+- Completion endpoints (`EndpointType.COMPLETIONS`)
+- VLM endpoints (`EndpointType.VLM`)
+- Embedding endpoints (`EndpointType.EMBEDDING`)
 
 ## Advanced Usage Patterns
 
@@ -168,24 +136,103 @@ for benchmark in benchmarks:
     results[benchmark] = result
 ```
 
-### Custom Adapter Configuration
+### Discovering Available Benchmarks
 
 ```python
-# Advanced adapter with reasoning extraction
-adapter_config = AdapterConfig(
-    use_reasoning=True,
-    start_reasoning_token="<think>",
-    end_reasoning_token="</think>",
-    custom_system_prompt="You are a helpful AI assistant. Think step by step.",
-    use_progress_tracking=True,
-    progress_tracking_url="http://localhost:3828/progress"
-)
+from nemo_evaluator import show_available_tasks
+
+# List all installed evaluation tasks
+show_available_tasks()
 ```
+
+### Using Adapters and Interceptors
+
+For advanced evaluation scenarios, configure the adapter system with interceptors for request/response processing, caching, logging, and more:
+
+```python
+from nemo_evaluator.core.evaluate import evaluate
+from nemo_evaluator.api.api_dataclasses import (
+    ApiEndpoint, EvaluationConfig, EvaluationTarget, ConfigParams, EndpointType
+)
+from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
+
+# Configure evaluation target with adapter
+api_endpoint = ApiEndpoint(
+    url="http://0.0.0.0:8080/v1/completions/",
+    type=EndpointType.COMPLETIONS,
+    model_id="my_model"
+)
+
+# Create adapter configuration with interceptors
+api_endpoint.adapter_config = AdapterConfig(
+    interceptors=[
+        InterceptorConfig(
+            name="system_message",
+            config={"system_message": "You are a helpful AI assistant. Think step by step."}
+        ),
+        InterceptorConfig(
+            name="request_logging",
+            config={"max_requests": 50}
+        ),
+        InterceptorConfig(
+            name="caching",
+            config={
+                "cache_dir": "./evaluation_cache",
+                "reuse_cached_responses": True
+            }
+        ),
+        InterceptorConfig(
+            name="response_logging",
+            config={"max_responses": 50}
+        ),
+        InterceptorConfig(
+            name="reasoning",
+            config={
+                "start_reasoning_token": "<think>",
+                "end_reasoning_token": "</think>"
+            }
+        ),
+        InterceptorConfig(
+            name="progress_tracking",
+            config={"progress_tracking_url": "http://localhost:3828/progress"}
+        )
+    ]
+)
+
+target = EvaluationTarget(api_endpoint=api_endpoint)
+
+# Run evaluation with full adapter pipeline
+config = EvaluationConfig(
+    type="gsm8k",
+    output_dir="./results/gsm8k",
+    params=ConfigParams(
+        limit_samples=10,
+        temperature=0.0,
+        max_new_tokens=512,
+        parallelism=1
+    )
+)
+
+result = evaluate(eval_cfg=config, target_cfg=target)
+print(f"Evaluation completed: {result}")
+```
+
+**Available Interceptors:**
+
+- `system_message`: Add custom system prompts to chat requests
+- `request_logging`: Log incoming requests for debugging
+- `response_logging`: Log outgoing responses for debugging
+- `caching`: Cache responses to reduce API costs and speed up reruns
+- `reasoning`: Extract chain-of-thought reasoning from model responses
+- `progress_tracking`: Track evaluation progress and send updates
+
+For complete adapter documentation, refer to {ref}`adapters-usage`.
 
 ## Next Steps
 
 - Integrate into your existing Python workflows
-- Explore advanced adapter features
-- Build custom evaluation pipelines
-- Consider {ref}`gs-quickstart-launcher` for simpler CLI workflows
+- Run multiple benchmarks in sequence
+- Explore available evaluation types with `show_available_tasks()`
+- Configure adapters and interceptors for advanced evaluation scenarios
+- Consider {ref}`gs-quickstart-launcher` for CLI workflows
 - Try {ref}`gs-quickstart-container` for containerized environments

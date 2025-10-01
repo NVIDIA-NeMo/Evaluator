@@ -43,7 +43,6 @@ These parameters are available for all evaluation tasks regardless of the underl
 | `temperature` | `float` | Sampling randomness | `0` (deterministic), `0.7` (creative) | Use `0` for reproducible results |
 | `top_p` | `float` | Nucleus sampling threshold | `1.0` (disabled), `0.9` (selective) | Controls diversity of generated text |
 | `max_new_tokens` | `int` | Maximum response length | `256`, `512`, `1024` | Limits generation length |
-| `max_tokens` | `int` | Alternative to max_new_tokens | `256`, `512`, `1024` | Some harnesses use this variant |
 
 ### Evaluation Control Parameters
 

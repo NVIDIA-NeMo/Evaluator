@@ -2,21 +2,65 @@
 
 # Usage
 
-To enable the adapters, pass the `AdapterConfig` class to the `evaluate` method from `nemo_evaluator.core.evaluate`. The example below configures the adapter with reasoning, caching, and logging:
+Configure the adapter system using the `AdapterConfig` class with interceptors. Pass the configuration through the `ApiEndpoint.adapter_config` parameter:
 
 ```python
-from nemo_evaluator.core.evaluate import evaluate
-from nemo_evaluator.adapters.adapter_config import AdapterConfig
-from nvidia_eval_commons.api.api_dataclasses import (
+from nemo_evaluator import (
     ApiEndpoint,
+    EndpointType,
     EvaluationConfig,
-    EvaluationTarget
+    EvaluationTarget,
+    evaluate
+)
+from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
+
+# Configure adapter with multiple interceptors
+adapter_config = AdapterConfig(
+    interceptors=[
+        # Reasoning interceptor
+        InterceptorConfig(
+            name="reasoning",
+            config={
+                "start_reasoning_token": "<think>",
+                "end_reasoning_token": "</think>"
+            }
+        ),
+        # System message interceptor
+        InterceptorConfig(
+            name="system_message",
+            config={
+                "system_message": "You are a helpful assistant that thinks step by step."
+            }
+        ),
+        # Logging interceptors
+        InterceptorConfig(
+            name="request_logging",
+            config={"max_requests": 50}
+        ),
+        InterceptorConfig(
+            name="response_logging",
+            config={"max_responses": 50}
+        ),
+        # Caching interceptor
+        InterceptorConfig(
+            name="caching",
+            config={
+                "cache_dir": "./evaluation_cache"
+            }
+        ),
+        # Progress tracking
+        InterceptorConfig(
+            name="progress_tracking"
+        )
+    ]
 )
 
 # Configure evaluation target
 api_endpoint = ApiEndpoint(
     url="http://localhost:8080/v1/completions/",
-    model_id="megatron_model"
+    type=EndpointType.COMPLETIONS,
+    model_id="megatron_model",
+    adapter_config=adapter_config
 )
 target_config = EvaluationTarget(api_endpoint=api_endpoint)
 
@@ -27,42 +71,10 @@ eval_config = EvaluationConfig(
     output_dir="./results/mmlu",
 )
 
-# Configure adapter with multiple interceptors
-adapter_config = AdapterConfig(
-    # Core endpoint configuration
-    api_url="http://localhost:8080/v1/completions/",
-    
-    # Reasoning interceptor
-    use_reasoning=True,
-    start_reasoning_token="<think>",
-    end_reasoning_token="</think>",
-    extract_reasoning=True,
-    
-    # System message interceptor
-    use_system_prompt=True,
-    custom_system_prompt="You are a helpful assistant that thinks step by step.",
-    
-    # Logging interceptors
-    use_request_logging=True,
-    use_response_logging=True,
-    max_logged_requests=50,
-    max_logged_responses=50,
-    log_failed_requests=True,
-    
-    # Caching interceptor
-    use_caching=True,
-    caching_dir="./evaluation_cache",
-    reuse_cached_responses=True,
-    
-    # Progress tracking
-    use_progress_tracking=True
-)
-
 # Run evaluation with adapter system
 results = evaluate(
-    target_cfg=target_config,
     eval_cfg=eval_config,
-    adapter_cfg=adapter_config,
+    target_cfg=target_config
 )
 ```
 
@@ -74,25 +86,27 @@ You can also configure adapters through YAML configuration files:
 target:
   api_endpoint:
     url: http://localhost:8080/v1/completions/
+    type: completions
     model_id: megatron_model
     adapter_config:
-      # Reasoning capabilities
-      use_reasoning: true
-      start_reasoning_token: "<think>"
-      end_reasoning_token: "</think>"
-      
-      # System prompting
-      use_system_prompt: true
-      custom_system_prompt: "You are a helpful assistant that thinks step by step."
-      
-      # Logging and caching
-      use_request_logging: true
-      use_response_logging: true
-      use_caching: true
-      caching_dir: ./cache
-      
-      # Progress monitoring
-      use_progress_tracking: true
+      interceptors:
+        - name: reasoning
+          config:
+            start_reasoning_token: "<think>"
+            end_reasoning_token: "</think>"
+        - name: system_message
+          config:
+            system_message: "You are a helpful assistant that thinks step by step."
+        - name: request_logging
+          config:
+            max_requests: 50
+        - name: response_logging
+          config:
+            max_responses: 50
+        - name: caching
+          config:
+            cache_dir: ./cache
+        - name: progress_tracking
 
 config:
   type: mmlu_pro
@@ -100,5 +114,3 @@ config:
   params:
     limit_samples: 10
 ```
-
-

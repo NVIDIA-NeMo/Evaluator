@@ -24,7 +24,7 @@ nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
-    -o target.api_endpoint.api_key=${YOUR_API_KEY} \
+    -o target.api_endpoint.api_key_name=YOUR_API_KEY \
     -o execution.output_dir=./results
 
 # 4. Check status and results
@@ -45,9 +45,9 @@ nv-eval run \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
-    -o target.api_endpoint.api_key=${NGC_API_KEY} \
+    -o target.api_endpoint.api_key_name=NGC_API_KEY \
     -o execution.output_dir=./results \
-    -o +config.params.limit_samples=10
+    -o config.params.limit_samples=10
 
 # Monitor progress (replace with actual invocation_id from output)
 nv-eval status <invocation_id>
@@ -68,14 +68,13 @@ ls -la ./results/<invocation_id>/
 ### Automated Container Management
 
 - Automatically pulls and manages evaluation containers
-- Handles GPU access and volume mounting
+- Handles volume mounting for results
 - No manual Docker commands required
 
 ### Built-in Orchestration
 
 - Job queuing and parallel execution
 - Progress monitoring and status tracking
-- Automatic retry on failures
 
 ### Result Export
 

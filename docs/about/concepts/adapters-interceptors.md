@@ -74,12 +74,12 @@ Provide supporting capabilities:
 - **Caching**: Store and retrieve responses
 - **Logging**: Capture request/response data
 - **Progress Tracking**: Monitor evaluation progress
+- **Response Stats**: Track request statistics and metrics
+- **Error Handling**: Raise exceptions for client errors
 
 ### Integration Interceptors
 Handle external system integration:
-- **Endpoint**: Route requests to model APIs
-- **Authentication**: Handle API authentication
-- **Rate Limiting**: Control request throughput
+- **Endpoint**: Route requests to model APIs with authentication, retry logic, and rate limit handling
 
 ## Configuration Philosophy
 
@@ -88,9 +88,14 @@ The adapter system follows a **configuration-over-code** philosophy:
 ### Simple Configuration
 Enable basic features with minimal configuration:
 :::{code-block} python
+from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
+
 adapter_config = AdapterConfig(
-    use_caching=True,
-    use_request_logging=True
+    interceptors=[
+        InterceptorConfig(name="caching", enabled=True),
+        InterceptorConfig(name="request_logging", enabled=True),
+        InterceptorConfig(name="endpoint")
+    ]
 )
 :::
 
@@ -98,11 +103,32 @@ adapter_config = AdapterConfig(
 Full control over interceptor behavior:
 :::{code-block} python
 adapter_config = AdapterConfig(
-    use_reasoning=True,
-    start_reasoning_token="<think>",
-    custom_system_prompt="You are an expert.",
-    caching_dir="./cache",
-    max_logged_requests=1000
+    interceptors=[
+        InterceptorConfig(
+            name="system_message",
+            enabled=True,
+            config={"system_message": "You are an expert."}
+        ),
+        InterceptorConfig(
+            name="caching",
+            enabled=True,
+            config={"cache_dir": "./cache"}
+        ),
+        InterceptorConfig(
+            name="request_logging",
+            enabled=True,
+            config={"max_requests": 1000}
+        ),
+        InterceptorConfig(
+            name="reasoning",
+            enabled=True,
+            config={
+                "start_reasoning_token": "<think>",
+                "end_reasoning_token": "</think>"
+            }
+        ),
+        InterceptorConfig(name="endpoint")
+    ]
 )
 :::
 
@@ -110,9 +136,16 @@ adapter_config = AdapterConfig(
 Declarative configuration for reproducibility:
 ```yaml
 adapter_config:
-  use_reasoning: true
-  use_caching: true
-  custom_system_prompt: "Think step by step."
+  interceptors:
+    - name: system_message
+      enabled: true
+      config:
+        system_message: "Think step by step."
+    - name: caching
+      enabled: true
+    - name: reasoning
+      enabled: true
+    - name: endpoint
 ```
 
 ## Design Benefits
@@ -165,6 +198,5 @@ For detailed implementation information, see:
 - **{ref}`interceptor-logging`**: Detailed logging configuration
 - **{ref}`interceptor-caching`**: Response caching setup and optimization
 - **{ref}`interceptor-reasoning`**: Chain-of-thought processing configuration
-- **{ref}`integration-patterns`**: Real-world usage patterns
 
 The adapter and interceptor system represents a fundamental shift from simple API calls to sophisticated, configurable evaluation workflows that can adapt to diverse research and production needs.

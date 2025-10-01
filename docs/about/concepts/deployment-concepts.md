@@ -7,8 +7,7 @@ High-level guidance for choosing backends and understanding where adapters fit.
 
 | Use Case | Recommended Backend | Key Benefits |
 |----------|-------------------|--------------|
-| Production deployment | PyTriton | High performance, multi-node support |
-| Accelerated evaluation | Ray Serve | Multi-instance, horizontal scaling |
+| Production deployment | vLLM | High performance, multi-GPU support |
 | Custom processing | Adapters | Request/response transformation |
 
 ## Adapter Positioning
@@ -17,8 +16,7 @@ Adapters sit between the evaluation client and the upstream model endpoint, enab
 
 ## Scaling Modes
 
-- Multi-node model parallelism (PyTriton)
-- Multi-instance horizontal scaling (Ray Serve)
+- Multi-GPU tensor and pipeline parallelism (vLLM)
 
 For deployment steps, refer to {ref}`deployment-overview`.
 

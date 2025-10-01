@@ -21,9 +21,16 @@ pip install nvidia-simple-evals nvidia-bigcode nvidia-bfcl
 
 **Diagnosis**:
 ```python
-from nemo_eval.utils.base import list_available_evaluations
-tasks = list_available_evaluations()
-print("Available tasks:", [t for task_list in tasks.values() for t in task_list])
+from nemo_evaluator import show_available_tasks
+
+# Display all available tasks
+print("Available tasks:")
+show_available_tasks()
+```
+
+Or use the CLI:
+```bash
+nv-eval ls tasks
 ```
 
 **Solution**:

@@ -135,7 +135,7 @@ Install the LM Evaluation Harness for local development:
 pip install nvidia-lm-eval
 
 # Verify installation
-python -c "from nemo_eval.utils.base import list_available_evaluations; print('NeMo Eval installed')"
+python -c "from nemo_evaluator import show_available_tasks; print('NeMo Evaluator installed')"
 ```
 
 ## Discovering Available Tasks
@@ -222,33 +222,41 @@ This approach eliminates the need for complex instruction-following and provides
 
 ### Step 1: Deploy Model
 
-**Deploy your model**: Choose from {ref}`launcher-orchestrated-deployment` (recommended) or {ref}`bring-your-own-endpoint` with {ref}`pytriton-deployment` or {ref}`ray-serve`.
+**Deploy your model**: Choose from {ref}`launcher-orchestrated-deployment` (recommended) or {ref}`bring-your-own-endpoint`.
 
-For a quick deployment example:
+For deployment, use the launcher:
 
-```python
-from nemo_eval.api import deploy
-
-# Deploy NeMo checkpoint with PyTriton backend
-deploy(
-    nemo_checkpoint="/checkpoints/llama-3_2-1b-instruct_v2.0",
-    serving_backend="pytriton",
-    server_port=8080,
-    num_gpus=1,
-    max_input_len=4096,
-    max_batch_size=8
-)
+```bash
+# Deploy via launcher
+nemo-evaluator-launcher run \
+    --config-name local_deployment \
+    -o deployment.type=vllm \
+    -o deployment.model_path=/checkpoints/llama-3_2-1b-instruct_v2.0 \
+    -o deployment.port=8080 \
+    -o deployment.gpus=1
 ```
 
 ### Step 2: Wait for Server Readiness
 
 ```python
-from nemo_eval.utils.base import wait_for_fastapi_server
+import requests
+import time
+
+def wait_for_server(base_url: str, max_retries: int = 600) -> bool:
+    """Wait for server to be ready."""
+    for _ in range(max_retries):
+        try:
+            response = requests.get(f"{base_url}/health", timeout=5)
+            if response.status_code == 200:
+                return True
+        except requests.exceptions.RequestException:
+            pass
+        time.sleep(10)
+    return False
 
 # Verify server and model are ready
-server_ready = wait_for_fastapi_server(
+server_ready = wait_for_server(
     base_url="http://0.0.0.0:8080",
-    model_name="megatron_model",
     max_retries=600
 )
 assert server_ready, "Server not ready"

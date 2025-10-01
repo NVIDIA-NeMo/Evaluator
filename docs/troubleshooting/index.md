@@ -54,11 +54,11 @@ print(f"Completions Status: {response.status_code}")
 :::{tab-item} Core API Check
 
 ```python
-from nemo_eval.utils.base import list_available_evaluations
+from nemo_evaluator import show_available_tasks
 
 try:
-    tasks = list_available_evaluations()
-    print("Available frameworks:", list(tasks.keys()))
+    print("Available frameworks and tasks:")
+    show_available_tasks()
 except ImportError as e:
     print(f"Missing dependency: {e}")
 ```

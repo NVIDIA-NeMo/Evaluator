@@ -1,112 +1,347 @@
+<!-- markdownlint-disable MD041 -->
+<!-- vale off -->
 (adapters-configuration)=
 
 # Configuration
 
-The adapter system is configured using the `AdapterConfig` class from `nemo_evaluator.adapters.adapter_config`. This class provides comprehensive configuration options for all interceptors in the pipeline.
+Configure the adapter system using the `AdapterConfig` class from `nemo_evaluator.adapters.adapter_config`. This class uses a registry-based interceptor architecture where you configure a list of interceptors, each with their own parameters.
 
-## Core Configuration
+## Core Configuration Structure
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `api_url` | `str` | Required | URL of the model API endpoint |
+`AdapterConfig` accepts the following structure:
 
-## Interceptor Configuration
+```python
+from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
+
+adapter_config = AdapterConfig(
+    interceptors=[
+        InterceptorConfig(
+            name="interceptor_name",
+            enabled=True,  # Optional, defaults to True
+            config={
+                # Interceptor-specific parameters
+            }
+        )
+    ],
+    endpoint_type="chat"  # Optional: "chat" (default) or "completions"
+)
+```
+
+## Available Interceptors
 
 ### System Message Interceptor
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `use_system_prompt` | `bool` | `False` | Enable system message injection |
-| `custom_system_prompt` | `Optional[str]` | `None` | Custom system message content |
+
+**Name:** `system_message`
+
+Adds a system message to requests. For chat endpoints, adds as a system role message. For completions endpoints, prepends to the prompt.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `system_message` | `str` | Required | System message to add to requests |
+
+**Example:**
+
+```python
+InterceptorConfig(
+    name="system_message",
+    config={
+        "system_message": "You are a helpful assistant."
+    }
+)
+```
 
 ### Reasoning Interceptor
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `use_reasoning` | `bool` | `False` | Enable reasoning processing |
-| `start_reasoning_token` | `str` | `"<think>"` | Token marking start of reasoning |
-| `end_reasoning_token` | `str` | `"</think>"` | Token marking end of reasoning |
-| `extract_reasoning` | `bool` | `True` | Extract reasoning into separate field |
-| `reasoning_field` | `str` | `"reasoning"` | Field name for extracted reasoning |
 
-### Logging Interceptors
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `use_request_logging` | `bool` | `False` | Enable request logging |
-| `use_response_logging` | `bool` | `False` | Enable response logging |
-| `max_logged_requests` | `int` | `100` | Maximum requests to log |
-| `max_logged_responses` | `int` | `100` | Maximum responses to log |
-| `log_failed_requests` | `bool` | `True` | Log failed requests |
-| `save_responses` | `bool` | `False` | Save response content to files |
-| `logging_dir` | `str` | `"./logs"` | Directory for log files |
+**Name:** `reasoning`
+
+Processes reasoning content in responses by detecting and removing reasoning tokens, tracking reasoning statistics, and optionally extracting reasoning to separate fields.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `start_reasoning_token` | `str \| None` | `"<think>"` | Token marking start of reasoning section |
+| `end_reasoning_token` | `str` | `"</think>"` | Token marking end of reasoning section |
+| `add_reasoning` | `bool` | `True` | Whether to add reasoning information |
+| `migrate_reasoning_content` | `bool` | `False` | Migrate reasoning_content to content field with tokens |
+| `enable_reasoning_tracking` | `bool` | `True` | Enable reasoning tracking and logging |
+| `include_if_not_finished` | `bool` | `True` | Include reasoning if end token not found |
+| `enable_caching` | `bool` | `True` | Cache individual request reasoning statistics |
+| `cache_dir` | `str` | `"/tmp/reasoning_interceptor"` | Cache directory for reasoning stats |
+| `logging_aggregated_stats_interval` | `int` | `100` | Log aggregated stats every N responses |
+
+**Example:**
+
+```python
+InterceptorConfig(
+    name="reasoning",
+    config={
+        "start_reasoning_token": "<think>",
+        "end_reasoning_token": "</think>",
+        "enable_reasoning_tracking": True
+    }
+)
+```
+
+### Request Logging Interceptor
+
+**Name:** `request_logging`
+
+Logs incoming requests with configurable limits and detail levels.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `log_request_body` | `bool` | `True` | Whether to log request body |
+| `log_request_headers` | `bool` | `True` | Whether to log request headers |
+| `max_requests` | `int \| None` | `2` | Maximum requests to log (None for unlimited) |
+
+**Example:**
+
+```python
+InterceptorConfig(
+    name="request_logging",
+    config={
+        "max_requests": 50,
+        "log_request_body": True
+    }
+)
+```
+
+### Response Logging Interceptor
+
+**Name:** `response_logging`
+
+Logs outgoing responses with configurable limits and detail levels.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `log_response_body` | `bool` | `True` | Whether to log response body |
+| `log_response_headers` | `bool` | `True` | Whether to log response headers |
+| `max_responses` | `int \| None` | `None` | Maximum responses to log (None for unlimited) |
+
+**Example:**
+
+```python
+InterceptorConfig(
+    name="response_logging",
+    config={
+        "max_responses": 50,
+        "log_response_body": True
+    }
+)
+```
 
 ### Caching Interceptor
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `use_caching` | `bool` | `False` | Enable response caching |
-| `caching_dir` | `str` | `"./cache"` | Cache storage directory |
-| `reuse_cached_responses` | `bool` | `True` | Use cached responses when available |
-| `cache_key_fields` | `list` | `["messages"]` | Fields for cache key generation |
+
+**Name:** `caching`
+
+Caches requests and responses to disk with options for reusing cached responses.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `cache_dir` | `str` | `"/tmp"` | Directory to store cache files |
+| `reuse_cached_responses` | `bool` | `False` | Whether to reuse cached responses |
+| `save_requests` | `bool` | `False` | Whether to save requests to cache |
+| `save_responses` | `bool` | `True` | Whether to save responses to cache |
+| `max_saved_requests` | `int \| None` | `None` | Maximum requests to save (None for unlimited) |
+| `max_saved_responses` | `int \| None` | `None` | Maximum responses to save (None for unlimited) |
+
+**Notes:**
+
+- If `reuse_cached_responses` is `True`, `save_responses` is automatically set to `True` and `max_saved_responses` to `None`
+- The system generates cache keys automatically using SHA256 hash of request data
+
+**Example:**
+
+```python
+InterceptorConfig(
+    name="caching",
+    config={
+        "cache_dir": "./evaluation_cache",
+        "reuse_cached_responses": True
+    }
+)
+```
 
 ### Progress Tracking Interceptor
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `use_progress_tracking` | `bool` | `False` | Enable progress monitoring |
-| `progress_tracking_url` | `Optional[str]` | `None` | URL for progress updates |
-| `progress_update_interval` | `int` | `10` | Update interval in requests |
+
+**Name:** `progress_tracking`
+
+Tracks evaluation progress by counting processed samples and optionally sending updates to a webhook.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `progress_tracking_url` | `str \| None` | `"http://localhost:8000"` | URL to post progress updates |
+| `progress_tracking_interval` | `int` | `1` | Update every N samples |
+| `request_method` | `str` | `"PATCH"` | HTTP method for progress updates |
+| `output_dir` | `str \| None` | `None` | Directory to save progress file |
+
+**Example:**
+
+```python
+InterceptorConfig(
+    name="progress_tracking",
+    config={
+        "progress_tracking_url": "http://monitor:8000/progress",
+        "progress_tracking_interval": 10
+    }
+)
+```
 
 ### Endpoint Interceptor
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `max_retries` | `int` | `3` | Maximum retry attempts |
-| `retry_delay` | `float` | `1.0` | Delay between retries (seconds) |
-| `timeout` | `float` | `30.0` | Request timeout (seconds) |
-| `retry_on_timeout` | `bool` | `True` | Retry on timeout errors |
+
+**Name:** `endpoint`
+
+Makes the actual HTTP request to the upstream API. This interceptor has no configurable parameters and is typically added automatically as the final interceptor in the chain.
+
+**Example:**
+
+```python
+InterceptorConfig(name="endpoint")
+```
 
 ## Configuration Examples
 
 ### Basic Configuration
+
 ```python
-from nemo_evaluator.adapters.adapter_config import AdapterConfig
+from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
 
 adapter_config = AdapterConfig(
-    api_url="http://localhost:8080/v1/completions/",
-    use_request_logging=True,
-    use_caching=True
+    interceptors=[
+        InterceptorConfig(
+            name="request_logging",
+            config={"max_requests": 10}
+        ),
+        InterceptorConfig(
+            name="caching",
+            config={"cache_dir": "./cache"}
+        )
+    ]
 )
 ```
 
 ### Advanced Configuration
+
 ```python
+from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
+
 adapter_config = AdapterConfig(
-    # Endpoint configuration
-    api_url="http://localhost:8080/v1/completions/",
-    max_retries=5,
-    timeout=45.0,
-    
-    # System prompting
-    use_system_prompt=True,
-    custom_system_prompt="You are an expert AI assistant.",
-    
-    # Reasoning processing
-    use_reasoning=True,
-    start_reasoning_token="<think>",
-    end_reasoning_token="</think>",
-    extract_reasoning=True,
-    
-    # Comprehensive logging
-    use_request_logging=True,
-    use_response_logging=True,
-    max_logged_requests=1000,
-    log_failed_requests=True,
-    
-    # Performance optimization
-    use_caching=True,
-    caching_dir="./production_cache",
-    reuse_cached_responses=True,
-    
-    # Monitoring
-    use_progress_tracking=True,
-    progress_tracking_url="http://monitoring:3828/progress"
+    interceptors=[
+        # System prompting
+        InterceptorConfig(
+            name="system_message",
+            config={
+                "system_message": "You are an expert AI assistant."
+            }
+        ),
+        # Reasoning processing
+        InterceptorConfig(
+            name="reasoning",
+            config={
+                "start_reasoning_token": "<think>",
+                "end_reasoning_token": "</think>",
+                "enable_reasoning_tracking": True
+            }
+        ),
+        # Request logging
+        InterceptorConfig(
+            name="request_logging",
+            config={
+                "max_requests": 1000,
+                "log_request_body": True
+            }
+        ),
+        # Response logging
+        InterceptorConfig(
+            name="response_logging",
+            config={
+                "max_responses": 1000,
+                "log_response_body": True
+            }
+        ),
+        # Caching
+        InterceptorConfig(
+            name="caching",
+            config={
+                "cache_dir": "./production_cache",
+                "reuse_cached_responses": True
+            }
+        ),
+        # Progress tracking
+        InterceptorConfig(
+            name="progress_tracking",
+            config={
+                "progress_tracking_url": "http://monitoring:3828/progress",
+                "progress_tracking_interval": 10
+            }
+        )
+    ],
+    endpoint_type="chat"
 )
 ```
 
+### YAML Configuration
 
+You can also configure adapters through YAML files:
+
+```yaml
+target:
+  api_endpoint:
+    url: http://localhost:8080/v1/completions/
+    type: completions
+    model_id: megatron_model
+    adapter_config:
+      interceptors:
+        - name: system_message
+          config:
+            system_message: "You are a helpful assistant."
+        - name: reasoning
+          config:
+            start_reasoning_token: "<think>"
+            end_reasoning_token: "</think>"
+        - name: request_logging
+          config:
+            max_requests: 50
+        - name: response_logging
+          config:
+            max_responses: 50
+        - name: caching
+          config:
+            cache_dir: ./cache
+            reuse_cached_responses: true
+      endpoint_type: chat
+```
+
+## Interceptor Order
+
+Interceptors are executed in the order they appear in the `interceptors` list:
+
+1. **Request interceptors** process the request in list order
+2. The **endpoint interceptor** makes the actual API call (automatically added if not present)
+3. **Response interceptors** process the response in reverse list order
+
+For example, with interceptors `[system_message, request_logging, caching, response_logging, reasoning]`:
+
+- Request flow: `system_message` → `request_logging` → `caching` → API call
+- Response flow: `reasoning` → `response_logging` → `caching` (cache save)
+
+## Shorthand Syntax
+
+You can use string names as shorthand for interceptors with default configuration:
+
+```python
+adapter_config = AdapterConfig(
+    interceptors=["request_logging", "caching", "response_logging"]
+)
+```
+
+This is equivalent to:
+
+```python
+adapter_config = AdapterConfig(
+    interceptors=[
+        InterceptorConfig(name="request_logging"),
+        InterceptorConfig(name="caching"),
+        InterceptorConfig(name="response_logging")
+    ]
+)
+```

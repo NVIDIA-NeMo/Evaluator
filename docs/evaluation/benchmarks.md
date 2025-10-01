@@ -15,10 +15,8 @@ NeMo Evaluator provides access to 100+ benchmarks through pre-built NGC containe
 # List all available benchmarks
 nv-eval ls tasks
 
-# Filter by category (if supported)
-nv-eval ls tasks --filter reasoning
-nv-eval ls tasks --filter safety
-nv-eval ls tasks --filter coding
+# Output as JSON for programmatic filtering
+nv-eval ls tasks --json
 ```
 
 ## Benchmark Categories
@@ -38,8 +36,8 @@ nv-eval ls tasks --filter coding
 # Run academic benchmark suite
 nv-eval run \
     --config-dir examples \
-    --config-name academic_benchmark_suite \
-    -o 'evaluation.tasks=["mmlu_pro", "gsm8k", "arc_challenge"]'
+    --config-name local_llama_3_1_8b_instruct \
+    -o 'evaluation.tasks=[{name: mmlu_pro}, {name: gsm8k}, {name: arc_challenge}]'
 ```
 
 ###  **Code Generation**  
@@ -54,8 +52,8 @@ nv-eval run \
 # Run code generation evaluation
 nv-eval run \
     --config-dir examples \
-    --config-name coding_evaluation \
-    -o 'evaluation.tasks=["humaneval", "mbpp"]'
+    --config-name local_llama_3_1_8b_instruct \
+    -o 'evaluation.tasks=[{name: humaneval}, {name: mbpp}]'
 ```
 
 ###  **Safety and Security**
@@ -69,14 +67,14 @@ nv-eval run \
 # Run comprehensive safety evaluation
 nv-eval run \
     --config-dir examples \
-    --config-name comprehensive_safety \
-    -o 'evaluation.tasks=["toxicity", "bias_detection", "jailbreak_resistance"]'
+    --config-name local_llama_3_1_8b_instruct \
+    -o 'evaluation.tasks=[{name: aegis_v2}, {name: garak}]'
 ```
 
 ###  **Function Calling and Agentic AI**
 | Container | Benchmarks | Description | NGC Catalog |
 |-----------|------------|-------------|-------------|
-| **bfcl** | Berkeley Function Calling Leaderboard | Function calling evaluation | [Link](https://catalog.ngc.nvidia.com/teams/eval-factory/containers/bfcl) |
+| **bfcl** | Berkeley Function Calling Leaderboard | Function calling evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl) |
 | **agentic_eval** | Tool usage, planning tasks | Agentic AI evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/agentic_eval) |
 | **tooltalk** | Tool interaction evaluation | Tool usage assessment | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk) |
 
@@ -129,28 +127,25 @@ docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_lates
 nv-eval ls tasks
 ```
 
-## Migration from Legacy Framework
+## Integration Patterns
 
-If you're migrating from the legacy framework-based approach:
+NeMo Evaluator provides multiple integration options to fit your workflow:
 
-### **Old Approach** (Deprecated)
-```python
-from nemo_eval.utils.base import list_available_evaluations
-available_tasks = list_available_evaluations()
-```
-
-### **New Approach** (Recommended)
 ```bash
-# Use launcher for unified access
+# Launcher CLI (recommended for most users)
 nv-eval ls tasks
 nv-eval run --config-dir examples --config-name local_mmlu_evaluation
-```
 
-For detailed migration guidance, see {ref}`integration-patterns`.
+# Container direct execution
+docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} eval-factory ls
+
+# Python API (for programmatic control)
+# See the Python API documentation for details
+```
 
 ## Next Steps
 
 - **Start Evaluating**: Use {ref}`launcher-quickstart` for immediate access to all benchmarks
 - **Container Details**: Browse the complete {ref}`nemo-evaluator-containers` for specifications
-- **Custom Benchmarks**: Learn to {ref}`framework-definition-file`
-- **Advanced Usage**: Explore [Multi-Backend Execution](../libraries/nemo-evaluator-launcher/executors/index) for scale
+- **Custom Benchmarks**: Learn to create custom evaluations with {ref}`framework-definition-file`
+- **Advanced Usage**: Explore {ref}`executors <lib-launcher>` for multi-backend execution at scale

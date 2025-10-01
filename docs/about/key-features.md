@@ -35,7 +35,7 @@ nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
 
 # Run safety evaluation
 nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
-  -o 'evaluation.tasks=["toxicity", "bias_detection", "jailbreak_resistance"]'
+  -o 'evaluation.tasks=["aegis_v2", "garak"]'
 ```
 
 ### Built-in Result Export
@@ -75,35 +75,33 @@ docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:{{ docke
 ### Advanced Adapter System
 Sophisticated request/response processing pipeline with interceptor architecture:
 
-```python
-from nemo_evaluator.adapters.adapter_config import AdapterConfig
-
-adapter_config = AdapterConfig(
-    # Core endpoint configuration
-    api_url="http://localhost:8080/v1/completions/",
-    
-    # Logging interceptors
-    use_request_logging=True,      # Log all requests for debugging
-    use_response_logging=True,     # Log all responses for analysis
-    max_logged_requests=1000,
-    
-    # Caching interceptor
-    use_caching=True,              # Cache responses for performance
-    caching_dir="./evaluation_cache",
-    reuse_cached_responses=True,
-    
-    # Reasoning interceptor
-    use_reasoning=True,            # Chain-of-thought support
-    start_reasoning_token="<think>",
-    end_reasoning_token="</think>",
-    
-    # System message interceptor
-    use_system_prompt=True,
-    custom_system_prompt="You are a helpful AI assistant. Think step by step.",
-    
-    # Progress tracking
-    use_progress_tracking=True
-)
+```yaml
+# Configure adapter system in framework YAML configuration
+target:
+  api_endpoint:
+    url: "http://localhost:8080/v1/completions/"
+    model_id: "my-model"
+    adapter_config:
+      # Logging interceptors
+      use_request_logging: true      # Log all requests for debugging
+      use_response_logging: true     # Log all responses for analysis
+      max_logged_requests: 1000
+      
+      # Caching interceptor
+      use_caching: true              # Cache responses for performance
+      caching_dir: "./evaluation_cache"
+      
+      # Reasoning interceptor
+      use_reasoning: true            # Chain-of-thought support
+      start_reasoning_token: "<think>"
+      end_reasoning_token: "</think>"
+      
+      # System message interceptor
+      use_system_prompt: true
+      custom_system_prompt: "You are a helpful AI assistant. Think step by step."
+      
+      # Progress tracking
+      use_progress_tracking: true
 ```
 
 ### Programmatic API
@@ -188,7 +186,7 @@ target:
 Evaluate any model that exposes OpenAI-compatible endpoints:
 
 - **Hosted Models**: NVIDIA Build, OpenAI, Anthropic, Cohere
-- **Self-Hosted**: vLLM, TRT-LLM, NeMo Framework, Ray Serve
+- **Self-Hosted**: vLLM, TRT-LLM, NeMo Framework
 - **Custom Endpoints**: Any service implementing OpenAI API spec
 
 ### Flexible Evaluation Modes
@@ -232,44 +230,37 @@ evaluations:
 ```
 
 ### Advanced Interceptor Configuration
-Fine-tune request/response processing with the adapter system:
+Fine-tune request/response processing with the adapter system through YAML configuration:
 
-```python
-# Production-ready adapter configuration
-from nemo_evaluator.adapters.adapter_config import AdapterConfig
-
-adapter_config = AdapterConfig(
-    # Endpoint configuration
-    api_url="https://production-api.com/v1/completions",
-    max_retries=3,
-    retry_delay=2.0,
-    timeout=30.0,
-    
-    # System message interceptor
-    use_system_prompt=True,
-    custom_system_prompt="You are an expert AI assistant specialized in this domain.",
-    
-    # Comprehensive logging
-    use_request_logging=True,
-    use_response_logging=True,
-    max_logged_requests=5000,
-    log_failed_requests=True,
-    
-    # Performance optimization
-    use_caching=True,
-    caching_dir="./production_cache",
-    reuse_cached_responses=True,
-    
-    # Advanced reasoning
-    use_reasoning=True,
-    start_reasoning_token="<think>",
-    end_reasoning_token="</think>",
-    extract_reasoning=True,
-    
-    # Monitoring
-    use_progress_tracking=True,
-    progress_tracking_url="http://monitoring.internal:3828/progress"
-)
+```yaml
+# Production-ready adapter configuration in framework YAML
+target:
+  api_endpoint:
+    url: "https://production-api.com/v1/completions"
+    model_id: "production-model"
+    adapter_config:
+      # System message interceptor
+      use_system_prompt: true
+      custom_system_prompt: "You are an expert AI assistant specialized in this domain."
+      
+      # Comprehensive logging
+      use_request_logging: true
+      use_response_logging: true
+      max_logged_requests: 5000
+      log_failed_requests: true
+      
+      # Performance optimization
+      use_caching: true
+      caching_dir: "./production_cache"
+      
+      # Advanced reasoning
+      use_reasoning: true
+      start_reasoning_token: "<think>"
+      end_reasoning_token: "</think>"
+      
+      # Monitoring
+      use_progress_tracking: true
+      progress_tracking_url: "http://monitoring.internal:3828/progress"
 ```
 
 ##  **Security and Safety**
@@ -281,14 +272,14 @@ Built-in safety assessment through specialized containers:
 # Run safety evaluation suite
 nv-eval run \
     --config-dir examples \
-    --config-name comprehensive_safety \
-    -o 'evaluation.tasks=["toxicity", "bias_detection", "jailbreak_resistance", "privacy_leakage"]'
+    --config-name local_llama_3_1_8b_instruct \
+    -o 'evaluation.tasks=["aegis_v2", "garak"]'
 ```
 
 **Safety Containers Available:**
-- **safety-harness**: Toxicity, bias, and alignment testing
+- **safety-harness**: Content safety evaluation using NemoGuard judge models
 - **garak**: Security vulnerability scanning and prompt injection detection  
-- **agentic_eval**: Tool misuse and planning safety evaluation
+- **agentic_eval**: Tool usage and planning evaluation for agentic AI systems
 
 ### Production Security Features
 - **Request Validation**: Input sanitization and validation
@@ -305,8 +296,8 @@ Monitor evaluation progress across all backends:
 # Check evaluation status
 nv-eval status <invocation_id>
 
-# View live logs
-nv-eval logs <invocation_id> --follow
+# Kill running evaluations
+nv-eval kill <invocation_id>
 ```
 
 ### Comprehensive Result Analytics

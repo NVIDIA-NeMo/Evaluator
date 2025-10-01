@@ -15,7 +15,7 @@ Before diving into specific issues, verify your basic setup with these quick che
 pip list | grep nvidia
 
 # Check for missing evaluation frameworks
-python -c "from nemo_eval.utils.base import list_available_evaluations; print(list(list_available_evaluations().keys()))"
+python -c "from nemo_evaluator import show_available_tasks; show_available_tasks()"
 ```
 
 :::

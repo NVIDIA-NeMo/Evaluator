@@ -11,10 +11,23 @@ Solutions for model deployment problems, server connectivity, and inference fail
 **Diagnosis**:
 
 ```python
-from nemo_eval.utils.base import wait_for_fastapi_server
+import requests
+import time
 
-# Wait for server with detailed logging
-success = wait_for_fastapi_server(
+def wait_for_server(base_url: str, max_retries: int = 60, retry_interval: int = 5) -> bool:
+    """Wait for server with detailed logging."""
+    for i in range(max_retries):
+        try:
+            response = requests.get(f"{base_url}/health", timeout=5)
+            if response.status_code == 200:
+                return True
+        except requests.exceptions.RequestException:
+            pass
+        time.sleep(retry_interval)
+    return False
+
+# Wait for server
+success = wait_for_server(
     base_url="http://0.0.0.0:8080",
     max_retries=60,
     retry_interval=5

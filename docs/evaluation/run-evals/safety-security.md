@@ -4,7 +4,6 @@
 
 Test AI safety, alignment, and security vulnerabilities using specialized safety harnesses and probing techniques to ensure responsible AI deployment.
 
-
 ## Overview
 
 Safety and security evaluation assesses models for:
@@ -36,7 +35,7 @@ Ensure you have:
 
 ```bash
 # List available safety tasks
-nv-eval ls tasks | grep -E "(safety|aegis|toxic|garak)"
+nv-eval ls tasks | grep -E "(safety|aegis|garak)"
 
 # Run Aegis safety evaluation
 nv-eval run \
@@ -46,11 +45,11 @@ nv-eval run \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o target.api_endpoint.api_key=${YOUR_API_KEY}
 
-# Run comprehensive safety evaluation
+# Run safety and security evaluation
 nv-eval run \
     --config-dir examples \
-    --config-name local_safety_suite \
-    -o 'evaluation.tasks=["aegis_v2", "toxic_chat", "safety_bench"]'
+    --config-name local_llama_3_1_8b_instruct \
+    -o 'evaluation.tasks=["aegis_v2", "garak"]'
 ```
 :::
 
@@ -133,7 +132,7 @@ Install the safety evaluation packages for local development:
 
 ```bash
 # Safety harness for comprehensive safety evaluation
-pip install nvidia-safety-harness==25.7.1
+pip install nvidia-safety-harness==25.6
 
 # Garak for security vulnerability scanning  
 pip install nvidia-eval-factory-garak==25.6
@@ -160,7 +159,7 @@ Use the launcher CLI to discover all available safety and security tasks:
 nv-eval ls tasks
 
 # Filter for safety and security tasks
-nv-eval ls tasks | grep -E "(safety|aegis|toxic|garak)"
+nv-eval ls tasks | grep -E "(safety|aegis|garak)"
 
 # Get detailed information about a specific task (if supported)
 nv-eval ls tasks --task aegis_v2
@@ -173,16 +172,18 @@ nv-eval ls tasks --task aegis_v2
 | Task | Description | Judge Model Required | Dataset Access |
 |------|-------------|---------------------|----------------|
 | `aegis_v2` | Content safety evaluation | NemoGuard 8B | Gated |
-| `toxic_chat` | Toxicity detection in conversations | External judge | Open |
-| `safety_bench` | Comprehensive safety benchmark | NemoGuard | Gated |
 
 ### Garak Security Tasks
 
-| Task | Description | Attack Type | Complexity |
-|------|-------------|-------------|------------|
-| `prompt_injection` | Prompt manipulation resistance | Injection | Intermediate |
-| `jailbreak` | System override attempts | Evasion | Advanced |
-| `data_leakage` | Information extraction attacks | Extraction | Advanced |
+The `garak` task provides comprehensive security testing through configurable probes:
+
+| Probe Category | Example Probes | Description |
+|----------------|----------------|-------------|
+| Encoding | `encoding.*` | Test handling of various encodings |
+| Prompt Injection | `promptinject.*` | Test resistance to prompt manipulation |
+| Data Leakage | `leakage.*` | Test for information extraction vulnerabilities |
+
+Configure specific probes using the `extra.probes` parameter (refer to examples below).
 
 ## Basic Safety Evaluation
 
@@ -193,52 +194,49 @@ Content safety evaluation using NVIDIA's NemoGuard safety model can be performed
 ### Comprehensive Safety Testing
 
 ```python
-# Multi-dimensional safety evaluation
-safety_tasks = ["aegis_v2", "toxic_chat", "safety_bench"]
-safety_results = {}
-
-for task in safety_tasks:
-    eval_config = EvaluationConfig(
-        type=task,
-        output_dir=f"/results/safety/{task}/",
-        params=ConfigParams(
-            limit_samples=100,
-            parallelism=1,          # Sequential for safety analysis
-            temperature=0.7,        # Natural conversation temperature
-            extra={
-                "judge": {
-                    "model_id": "llama-nemotron-safety-guard-v2",
-                    "url": "http://0.0.0.0:9000/v1/completions",
-                }
+# Aegis V2 safety evaluation with judge model
+eval_config = EvaluationConfig(
+    type="aegis_v2",
+    output_dir="/results/safety/aegis_v2/",
+    params=ConfigParams(
+        limit_samples=100,
+        parallelism=1,          # Sequential for safety analysis
+        temperature=0.7,        # Natural conversation temperature
+        extra={
+            "judge": {
+                "model_id": "llama-nemotron-safety-guard-v2",
+                "url": "http://0.0.0.0:9000/v1/completions",
             }
-        )
+        }
     )
-    
-    safety_results[task] = evaluate(
-        target_cfg=target_config,
-        eval_cfg=eval_config
-    )
+)
+
+safety_result = evaluate(
+    target_cfg=target_config,
+    eval_cfg=eval_config
+)
 ```
 
-### Custom Safety Scenarios
+### Custom Judge Configuration
 
-Configure domain-specific safety testing:
+Configure domain-specific safety evaluation by customizing the judge model:
 
 ```python
-# Healthcare domain safety evaluation
-healthcare_safety_config = EvaluationConfig(
-    type="custom_safety",
+# Aegis evaluation with custom judge configuration
+eval_config = EvaluationConfig(
+    type="aegis_v2",
+    output_dir="/results/safety/aegis_custom/",
     params=ConfigParams(
+        limit_samples=100,
+        parallelism=1,
+        temperature=0.7,
         extra={
-            "domain": "healthcare",
-            "safety_categories": [
-                "medical_misinformation",
-                "patient_privacy", 
-                "treatment_advice"
-            ],
             "judge": {
-                "model_id": "domain-specific-safety-judge",
-                "url": "http://0.0.0.0:9000/v1/completions"
+                "model_id": "your-custom-safety-judge",
+                "url": "http://your-judge-endpoint:9000/v1/completions",
+                "api_key": "your_judge_api_key",
+                "parallelism": 8,
+                "request_timeout": 60
             }
         }
     )
@@ -249,88 +247,92 @@ healthcare_safety_config = EvaluationConfig(
 
 ### Garak Security Scanning
 
-Use Garak for comprehensive security vulnerability testing:
+Use Garak for comprehensive security vulnerability testing with configurable probes:
 
 ```python
-# Security vulnerability evaluation
-garak_tasks = [
-    "prompt_injection",    # Prompt manipulation attempts
-    "jailbreak",          # System override testing  
-    "data_leakage"        # Information extraction tests
-]
+# Security vulnerability evaluation with specific probes
+eval_config = EvaluationConfig(
+    type="garak",
+    output_dir="/results/security/garak/",
+    params=ConfigParams(
+        limit_samples=50,
+        temperature=0.8,      # Varied responses for security testing
+        parallelism=2,
+        extra={
+            "probes": "promptinject,leakage.DivergenceInject,encoding.InjectAscii85"
+        }
+    )
+)
 
-for task in garak_tasks:
-    eval_config = EvaluationConfig(
-        type=task,
-        output_dir=f"/results/security/{task}/",
-        params=ConfigParams(
-            limit_samples=50,
-            temperature=0.8,      # Varied responses for security testing
-            parallelism=2
-        )
+security_result = evaluate(
+    target_cfg=target_config,
+    eval_cfg=eval_config
+)
+
+# For all available probes, omit the probes parameter or set to None
+eval_config_all = EvaluationConfig(
+    type="garak",
+    output_dir="/results/security/garak_all/",
+    params=ConfigParams(
+        limit_samples=50,
+        extra={"probes": None}  # Runs all available probes
     )
-    
-    security_results = evaluate(
-        target_cfg=target_config,
-        eval_cfg=eval_config
-    )
+)
 ```
 
 ## Understanding Safety Metrics
 
-### Safety Evaluation Scores
+### Safety Evaluation Results
 
-```python
-# Example safety evaluation results
-{
-    "overall_safety_score": 0.87,        # Overall safety compliance (0-1)
-    "content_safety": {
-        "toxicity_rate": 0.03,            # Percentage of toxic responses
-        "inappropriate_content": 0.05,     # Inappropriate content rate
-        "harmful_advice": 0.02             # Harmful advice generation rate
-    },
-    "alignment_metrics": {
-        "helpfulness": 0.92,              # Helpful response rate
-        "harmlessness": 0.89,             # Harmless response rate  
-        "honesty": 0.94                   # Honest/truthful responses
-    },
-    "robustness": {
-        "jailbreak_resistance": 0.91,     # Resistance to jailbreaks
-        "prompt_injection_defense": 0.88,  # Injection attack defense
-        "consistent_behavior": 0.93       # Behavioral consistency
-    }
-}
-```
+Safety evaluation results are returned in the standardized `EvaluationResult` format. The specific metrics vary by task:
 
-### Safety Score Interpretation
+**Aegis V2 Results**:
+The `aegis_v2` task returns safety scores based on the NemoGuard judge model's assessment. Results are saved to the `results.yml` file in your output directory and follow the standard evaluation result structure with task-specific metrics.
 
-| Safety Score Range | Interpretation | Deployment Recommendation |
-|-------------------|----------------|--------------------------|
-| 0.90-1.00 | Excellent safety | Production ready |
-| 0.80-0.89 | Good safety | Production with monitoring |
-| 0.70-0.79 | Moderate safety | Limited deployment |
-| < 0.70 | Poor safety | Not recommended for deployment |
+**Garak Results**:
+The `garak` task returns pass/fail rates for each probe executed, along with detailed vulnerability reports.
+
+Refer to the generated `results.yml` and `report.html` files in your output directory for detailed metrics and interpretations specific to your evaluation.
+
+### Interpreting Results
+
+Safety evaluation results should be interpreted in the context of your specific use case and deployment environment. Consider:
+
+- **Pass Rates**: Higher pass rates indicate better safety alignment
+- **Vulnerability Detection**: Pay attention to any detected vulnerabilities or failures
+- **Judge Model Assessments**: Review detailed judge model responses for context
+- **Probe Coverage**: For Garak, review which probes were tested and their results
+
+Refer to your organization's safety guidelines and thresholds when determining deployment readiness.
 
 ## Production Safety Monitoring
 
 ### Continuous Safety Assessment
 
+For production monitoring, you can periodically run safety evaluations on sample production data:
+
 ```python
-# Production safety monitoring configuration
-production_safety_config = ConfigParams(
-    limit_samples=None,           # Full continuous monitoring
-    parallelism=4,
-    extra={
-        "monitoring_mode": True,
-        "alert_thresholds": {
-            "toxicity_rate": 0.05,      # Alert if > 5% toxic
-            "safety_score": 0.80        # Alert if < 80% safe
-        },
-        "judge": {
-            "model_id": "production-safety-judge",
-            "url": "http://safety-judge:9000/v1/completions"
+# Production safety evaluation
+eval_config = EvaluationConfig(
+    type="aegis_v2",
+    output_dir="/results/production_monitoring/",
+    params=ConfigParams(
+        limit_samples=1000,    # Sample size for monitoring
+        parallelism=4,
+        temperature=0.7,
+        extra={
+            "judge": {
+                "model_id": "llama-nemotron-safety-guard-v2",
+                "url": "http://safety-judge:9000/v1/completions"
+            }
         }
-    }
+    )
+)
+
+# Run evaluation on production sample data
+monitoring_result = evaluate(
+    target_cfg=target_config,
+    eval_cfg=eval_config
 )
 ```
 

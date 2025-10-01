@@ -6,41 +6,52 @@
 Normalize provider-specific response formats for evaluators.
 
 ```python
-from nemo_evaluator.core.evaluate import evaluate
-from nemo_evaluator.adapters.adapter_config import AdapterConfig
-from nvidia_eval_commons.api.api_dataclasses import (
-    ApiEndpoint, EndpointType, EvaluationConfig, EvaluationTarget
+from nemo_evaluator import (
+    ApiEndpoint, EndpointType, EvaluationConfig, EvaluationTarget, evaluate
 )
+from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
 
 # Configure completions endpoint
 completions_url = "http://0.0.0.0:8080/v1/completions/"
 api_endpoint = ApiEndpoint(url=completions_url, type=EndpointType.COMPLETIONS, model_id="megatron_model")
+
+# Configure adapter with payload modification for response shaping
+api_endpoint.adapter_config = AdapterConfig(
+    interceptors=[
+        InterceptorConfig(
+            name="payload_modifier",
+            enabled=True,
+            config={
+                "params_to_add": {"temperature": 0.0, "max_new_tokens": 100},
+                "params_to_remove": ["max_tokens"]  # Remove conflicting parameters
+            }
+        ),
+        InterceptorConfig(
+            name="request_logging",
+            enabled=True,
+            config={"max_requests": 10}
+        ),
+        InterceptorConfig(
+            name="response_logging",
+            enabled=True,
+            config={"max_responses": 10}
+        )
+    ]
+)
+
 target = EvaluationTarget(api_endpoint=api_endpoint)
 config = EvaluationConfig(type="lambada", output_dir="results")
 
-# Configure adapter with payload modification for response shaping
-adapter_cfg = AdapterConfig(
-    api_url=completions_url,
-    
-    # Use payload modifier to standardize request parameters
-    params_to_add={"temperature": 0.0, "max_new_tokens": 100},
-    params_to_remove=["max_tokens"],  # Remove conflicting parameters
-    
-    # Enable logging to monitor transformations
-    use_request_logging=True,
-    use_response_logging=True,
-    max_logged_requests=10
-)
-
-results = evaluate(target_cfg=target, eval_cfg=config, adapter_cfg=adapter_cfg)
+results = evaluate(target_cfg=target, eval_cfg=config)
 ```
 
 Guidance:
 
-- Use `params_to_add` to standardize request parameters across different endpoints
-- Use `params_to_remove` to eliminate conflicting or unsupported parameters
-- Use `params_to_rename` to map parameter names between different API formats
-- Enable logging to monitor parameter transformations and ensure they work correctly
+- Use the `payload_modifier` interceptor to standardize request parameters across different endpoints
+- Configure `params_to_add` in the interceptor config to add or override parameters
+- Configure `params_to_remove` in the interceptor config to eliminate conflicting or unsupported parameters
+- Configure `params_to_rename` in the interceptor config to map parameter names between different API formats
+- Use `request_logging` and `response_logging` interceptors to monitor transformations
 - Keep transformations minimal to avoid masking upstream issues
 - The payload modifier interceptor works with both chat and completions endpoints
 

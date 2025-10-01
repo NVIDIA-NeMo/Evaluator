@@ -31,19 +31,13 @@ Choose the approach that best fits your infrastructure and requirements:
 :::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Manual Deployment
 :link: manual-deployment
 :link-type: doc
-Deploy using PyTriton, Ray Serve, vLLM, or custom serving frameworks for full control.
+Deploy using vLLM, TensorRT-LLM, or custom serving frameworks for full control.
 :::
 
 :::{grid-item-card} {octicon}`globe;1.5em;sd-mr-1` Hosted Services
 :link: hosted-services
 :link-type: doc
 Use NVIDIA Build, OpenAI API, or other cloud providers for instant availability.
-:::
-
-:::{grid-item-card} {octicon}`organization;1.5em;sd-mr-1` Enterprise Infrastructure
-:link: enterprise-infrastructure
-:link-type: doc
-Integrate with Kubernetes, MLOps pipelines, and enterprise security systems.
 :::
 
 ::::
@@ -65,9 +59,8 @@ nemo-evaluator-launcher run \
 ### Using Core Library
 
 ```python
-from nemo_evaluator.core.evaluate import evaluate
-from nvidia_eval_commons.api.api_dataclasses import (
-    ApiEndpoint, EvaluationConfig, EvaluationTarget
+from nemo_evaluator import (
+    ApiEndpoint, EvaluationConfig, EvaluationTarget, evaluate
 )
 
 # Configure your endpoint
@@ -79,7 +72,7 @@ target = EvaluationTarget(api_endpoint=api_endpoint)
 
 # Run evaluation
 config = EvaluationConfig(type="mmlu_pro", output_dir="results")
-results = evaluate(target_cfg=target, eval_cfg=config)
+results = evaluate(eval_cfg=config, target_cfg=target)
 ```
 
 ## Endpoint Requirements
@@ -102,9 +95,9 @@ Must follow OpenAI API specifications for compatibility with evaluation framewor
 - **Cloud Providers**: Azure OpenAI, AWS Bedrock, Google Vertex AI
 
 ### Self-Hosted Frameworks
-- **PyTriton**: High-performance serving with NVIDIA Triton
+- **vLLM**: Fast inference with PagedAttention and optimized serving
+- **TensorRT-LLM**: High-performance serving with NVIDIA TensorRT
 - **Ray Serve**: Multi-instance serving with horizontal scaling
-- **vLLM**: Fast inference with optimized attention mechanisms
 - **Custom FastAPI**: Build your own OpenAI-compatible server
 
 ### Enterprise Integration
@@ -182,7 +175,6 @@ target:
 
 - **Manual Deployment**: Learn [Manual Deployment](manual-deployment.md) techniques
 - **Hosted Services**: Explore [Hosted Services](hosted-services.md) options
-- **Enterprise Integration**: Implement [Enterprise Infrastructure](enterprise-infrastructure.md) patterns
 - **Configure Adapters**: Set up [Evaluation Adapters](../adapters/index.md) for custom processing
 
 ```{toctree}
@@ -191,7 +183,4 @@ target:
 
 Manual Deployment <manual-deployment>
 Hosted Services <hosted-services>
-Enterprise Infrastructure <enterprise-infrastructure>
-PyTriton Backend <pytriton>
-Ray Serve Deployment <ray-serve>
 ```

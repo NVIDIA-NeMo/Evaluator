@@ -148,9 +148,9 @@ def validate_config(target_cfg, eval_cfg):
     assert test_response.status_code == 200, f"Endpoint failed: {test_response.status_code}"
     
     # Verify task exists
-    from nemo_eval.utils.base import find_framework
-    framework = find_framework(eval_cfg.type.split('.')[-1])
-    print(f"Task {eval_cfg.type} found in {framework}")
+    from nemo_evaluator import show_available_tasks
+    print("Verifying task availability:")
+    show_available_tasks()
     
     return True
 ```

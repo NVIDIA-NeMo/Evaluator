@@ -11,7 +11,7 @@ Ensure you have:
 1. Completed the initial getting started guides for {ref}`gs-install` and {ref}`gs-quickstart`.
 2. Chosen a [Model Deployment](deployment-overview) option:
    - {ref}`launcher-orchestrated-deployment` (recommended)
-   - {ref}`bring-your-own-endpoint` with {ref}`pytriton-deployment` or {ref}`ray-serve`
+   - {ref}`bring-your-own-endpoint`
 3. Reviewed the [evaluation parameters](eval-parameters) available for optimization.
 
 ::::{tab-set}

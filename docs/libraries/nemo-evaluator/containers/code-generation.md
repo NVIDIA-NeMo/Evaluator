@@ -39,7 +39,7 @@ docker pull nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_com
 
 ## BFCL Container
 
-**NGC Catalog**: [bfcl](https://catalog.ngc.nvidia.com/teams/eval-factory/containers/bfcl)
+**NGC Catalog**: [bfcl](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl)
 
 Container for Berkeley Function-Calling Leaderboard evaluation framework.
 

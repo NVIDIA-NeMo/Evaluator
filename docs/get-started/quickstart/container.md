@@ -51,7 +51,7 @@ docker run --rm -it --gpus all \
     -e HF_TOKEN=hf_your-token-here \
     nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} bash
 
-# 3. Inside container - run evaluation with advanced features
+# 3. Inside container - run evaluation
 eval-factory run_eval \
     --eval_type mmlu_pro \
     --model_id meta/llama-3.1-8b-instruct \
@@ -59,7 +59,7 @@ eval-factory run_eval \
     --model_type chat \
     --api_key_name MY_API_KEY \
     --output_dir /workspace/results \
-    --overrides 'config.params.limit_samples=3,target.api_endpoint.adapter_config.use_request_logging=True,target.api_endpoint.adapter_config.use_caching=True,target.api_endpoint.adapter_config.caching_dir=/workspace/cache'
+    --overrides 'config.params.limit_samples=3'
 
 # 4. Exit container and check results
 exit
@@ -154,7 +154,7 @@ services:
 #!/bin/bash
 # batch_eval.sh
 
-BENCHMARKS=("mmlu_pro" "gsm8k" "hellaswag" "arc_easy")
+BENCHMARKS=("mmlu_pro" "gpqa_diamond" "humaneval")
 API_KEY=${NGC_API_KEY}
 
 for benchmark in "${BENCHMARKS[@]}"; do
@@ -163,6 +163,7 @@ for benchmark in "${BENCHMARKS[@]}"; do
     docker run --rm --gpus all \
         -v $(pwd)/results:/workspace/results \
         -e MY_API_KEY=$API_KEY \
+        -e HF_TOKEN=$HF_TOKEN \
         nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
         eval-factory run_eval \
             --eval_type $benchmark \
@@ -179,25 +180,10 @@ done
 echo "All evaluations completed. Results in ./results/"
 ```
 
-### Custom Configuration Mounting
-
-```bash
-# Mount custom configuration files
-docker run --rm --gpus all \
-    -v $(pwd)/results:/workspace/results \
-    -v $(pwd)/my-configs:/workspace/my-configs \
-    -e MY_API_KEY=nvapi-your-key-here \
-    nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
-    eval-factory run_eval \
-        --config-dir /workspace/my-configs \
-        --config-name custom_evaluation \
-        --output-dir /workspace/results
-```
-
 ## Next Steps
 
 - Integrate into your CI/CD pipelines
 - Explore Docker Compose for multi-service setups
 - Consider Kubernetes deployment for scale
 - Try {ref}`gs-quickstart-launcher` for simplified workflows
-- Explore {ref}`gs-quickstart-full-stack` for advanced use cases
+- See {ref}`gs-quickstart-core` for programmatic API and advanced adapter features

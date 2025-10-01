@@ -16,7 +16,7 @@ nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct --dr
 
 # Test minimal configuration
 python -c "
-from nvidia_eval_commons.api.api_dataclasses import EvaluationConfig, ConfigParams
+from nemo_evaluator import EvaluationConfig, ConfigParams
 config = EvaluationConfig(type='mmlu', params=ConfigParams(limit_samples=1))
 print('Configuration valid')
 "
