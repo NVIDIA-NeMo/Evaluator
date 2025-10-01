@@ -2,7 +2,7 @@
 
 # Tutorials
 
-Master NeMo Eval with hands-on tutorials and practical examples.
+Master {{ product_name_short }} with hands-on tutorials and practical examples.
 
 ## Before You Start
 

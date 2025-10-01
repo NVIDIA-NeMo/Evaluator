@@ -2,7 +2,7 @@
 
 # Troubleshooting
 
-Comprehensive troubleshooting guide for NeMo Eval evaluations, organized by problem type and complexity level.
+Comprehensive troubleshooting guide for {{ product_name_short }} evaluations, organized by problem type and complexity level.
 
 This section provides systematic approaches to diagnose and resolve evaluation issues. Start with the quick diagnostics below to verify your basic setup, then navigate to the appropriate troubleshooting category based on where your issue occurs in the evaluation workflow.
 
@@ -80,7 +80,7 @@ Choose the category that best matches your issue for targeted solutions and debu
 :link: setup-issues/index
 :link-type: doc
 
-Installation problems, authentication setup, and model deployment issues to get NeMo Eval running.
+Installation problems, authentication setup, and model deployment issues to get {{ product_name_short }} running.
 :::
 
 :::{grid-item-card} {octicon}`play;1.5em;sd-mr-1` Runtime & Execution
@@ -118,7 +118,7 @@ When reporting issues, include:
 
 ### Community Resources
 
-- **GitHub Issues**: [NeMo Eval Issues](https://github.com/NVIDIA-NeMo/Eval/issues)
+- **GitHub Issues**: [{{ product_name_short }} Issues](https://github.com/NVIDIA-NeMo/Eval/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/NVIDIA-NeMo/Eval/discussions)
 - **Documentation**: {ref}`template-home`
 

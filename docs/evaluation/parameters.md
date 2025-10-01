@@ -2,12 +2,12 @@
 
 # Evaluation Configuration Parameters
 
-Comprehensive reference for configuring evaluation tasks in NeMo Eval, covering universal parameters, framework-specific settings, and optimization patterns.
+Comprehensive reference for configuring evaluation tasks in {{ product_name_short }}, covering universal parameters, framework-specific settings, and optimization patterns.
 
 
 ## Overview
 
-All evaluation tasks in NeMo Eval use the `ConfigParams` class for configuration. This provides a consistent interface across different evaluation harnesses while allowing framework-specific customization through the `extra` parameter.
+All evaluation tasks in {{ product_name_short }} use the `ConfigParams` class for configuration. This provides a consistent interface across different evaluation harnesses while allowing framework-specific customization through the `extra` parameter.
 
 ```python
 from nemo_evaluator.api.api_dataclasses import ConfigParams

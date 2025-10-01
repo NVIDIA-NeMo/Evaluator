@@ -21,7 +21,7 @@ Before you begin, make sure you have:
 :::{grid-item-card} {octicon}`download;1.5em;sd-mr-1` Installation
 :link: gs-install
 :link-type: ref
-Install NeMo Eval and set up your evaluation environment with all necessary dependencies.
+Install {{ product_name_short }} and set up your evaluation environment with all necessary dependencies.
 :::
 
 :::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Quick Start

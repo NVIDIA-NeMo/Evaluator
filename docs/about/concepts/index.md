@@ -1,7 +1,7 @@
 (about-concepts)=
 # Concepts
 
-Use this section to understand how NeMo Eval works at a high level. Start with the evaluation model, then read about adapters and deployment choices.
+Use this section to understand how {{ product_name_short }} works at a high level. Start with the evaluation model, then read about adapters and deployment choices.
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
