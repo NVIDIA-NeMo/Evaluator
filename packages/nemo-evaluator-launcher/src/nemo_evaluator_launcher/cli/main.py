@@ -31,6 +31,22 @@ from nemo_evaluator_launcher.common.logging_utils import logger
 VERSION_HELP = "Show version information"
 
 
+def is_verbose_enabled(args) -> bool:
+    """Check if verbose flag is enabled in any subcommand."""
+    # Check global verbose flag
+    if hasattr(args, "verbose") and args.verbose:
+        return True
+
+    # Check subcommand verbose flags
+    subcommands = ["run", "status", "kill", "tasks_alias", "tasks", "runs", "export"]
+    for subcmd in subcommands:
+        if hasattr(args, subcmd) and hasattr(getattr(args, subcmd), "verbose"):
+            if getattr(getattr(args, subcmd), "verbose"):
+                return True
+
+    return False
+
+
 def create_parser() -> ArgumentParser:
     """Create and configure the CLI argument parser with subcommands."""
     parser = ArgumentParser()
@@ -60,11 +76,23 @@ def create_parser() -> ArgumentParser:
     run_parser = subparsers.add_parser(
         "run", help="Run evaluation", description="Run evaluation"
     )
+    run_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging (sets NEMO_EVALUATOR_LOG_LEVEL=DEBUG)",
+    )
     run_parser.add_arguments(run.Cmd, dest="run")
 
     # Status subcommand
     status_parser = subparsers.add_parser(
         "status", help="Check job status", description="Check job status"
+    )
+    status_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging (sets NEMO_EVALUATOR_LOG_LEVEL=DEBUG)",
     )
     status_parser.add_arguments(status.Cmd, dest="status")
 
@@ -74,11 +102,23 @@ def create_parser() -> ArgumentParser:
         help="Kill a job or invocation",
         description="Kill a job (e.g., aefc4819.0) or entire invocation (e.g., aefc4819) by its ID",
     )
+    kill_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging (sets NEMO_EVALUATOR_LOG_LEVEL=DEBUG)",
+    )
     kill_parser.add_arguments(kill.Cmd, dest="kill")
 
     # Ls subcommand (with nested subcommands)
     ls_parser = subparsers.add_parser(
         "ls", help="List resources", description="List tasks or runs"
+    )
+    ls_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging (sets NEMO_EVALUATOR_LOG_LEVEL=DEBUG)",
     )
     # Add arguments from `ls tasks` so that they work with `ls` as default alias
     ls_parser.add_arguments(ls_tasks.Cmd, dest="tasks_alias")
@@ -105,6 +145,12 @@ def create_parser() -> ArgumentParser:
         help="Export evaluation results",
         description="Export evaluation results takes a List of invocation ids and a list of destinations(local, gitlab, wandb)",
     )
+    export_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging (sets NEMO_EVALUATOR_LOG_LEVEL=DEBUG)",
+    )
     export_parser.add_arguments(export.ExportCmd, dest="export")
 
     return parser
@@ -116,7 +162,7 @@ def main() -> None:
     args = parser.parse_args()
 
     # Handle --verbose flag
-    if hasattr(args, "verbose") and args.verbose:
+    if is_verbose_enabled(args):
         os.environ["NEMO_EVALUATOR_LOG_LEVEL"] = "DEBUG"
 
     # Handle --version flag
