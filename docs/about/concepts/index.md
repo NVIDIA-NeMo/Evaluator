@@ -12,6 +12,12 @@ Use this section to understand how {{ product_name_short }} works at a high leve
 Core evaluation types, OpenAI-compatible endpoints, and metrics.
 :::
 
+:::{grid-item-card} Framework Definition Files
+:link: fdf-concept
+:link-type: ref
+YAML configuration files that integrate evaluation frameworks into NeMo Evaluator.
+:::
+
 :::{grid-item-card} Adapters & Interceptors
 :link: adapters-interceptors
 :link-type: doc
@@ -25,5 +31,6 @@ Advanced request/response processing with configurable interceptor pipelines.
 
 Architecture <architecture>
 Evaluation Model <evaluation-model>
+Framework Definition Files <framework-definition-file>
 Adapters & Interceptors <adapters-interceptors>
 ```

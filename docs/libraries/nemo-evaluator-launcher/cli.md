@@ -1,4 +1,4 @@
-# CLI Reference
+# NeMo Evaluator Launcher CLI Reference (nv-eval)
 
 The NeMo Evaluator Launcher provides a command-line interface for running evaluations, managing jobs, and exporting results. The CLI is available through two commands:
 

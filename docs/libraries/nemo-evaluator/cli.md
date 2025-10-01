@@ -1,6 +1,6 @@
 (nemo-evaluator-cli)=
 
-# CLI Reference
+# NeMo Evaluator CLI Reference (eval-factory)
 
 This document provides a comprehensive reference for the `nemo-evaluator` command-line interface, which is the primary way to interact with NeMo Evaluator from the terminal.
 

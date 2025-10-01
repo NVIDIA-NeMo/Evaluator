@@ -40,6 +40,12 @@ Discover how to extend evaluation capabilities by installing additional framewor
 Master custom evaluation workflows by running WikiText benchmark with advanced configuration and log-probability analysis.
 :::
 
+:::{grid-item-card} {octicon}`package-dependents;1.5em;sd-mr-1` 4. Create a Framework Definition File
+:link: create-framework-definition-file
+:link-type: ref
+Integrate your custom evaluation framework with {{ product_name_short }} by creating a Framework Definition File (FDF).
+:::
+
 ::::
 
 ## Run the Tutorials

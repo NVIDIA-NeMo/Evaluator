@@ -134,10 +134,11 @@ Use the launcher whenever you want:
 :caption: NeMo Evaluator Launcher
 :hidden:
 
+About NeMo Evaluator Launcher <self>
 Quickstart <quickstart>
 Executors <configuration/executors/index>
 Configuration <configuration/index>
 Exporters <exporters/index>
 Python API <api>
-CLI Reference <cli>
+CLI Reference (nv-eval) <cli>
 :::

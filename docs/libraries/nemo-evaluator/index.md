@@ -74,12 +74,12 @@ Command-line interface for direct container and evaluation execution.
 :::{toctree}
 :caption: NeMo Evaluator Core
 :hidden:
-
+About NeMo Evaluator <self>
 Workflows <workflows/index>
 Benchmark Containers <containers/index>
 Interceptors <interceptors/index>
 Logging <logging>
 Extending <extending/index>
 API Reference <api>
-CLI Reference <cli>
+CLI Reference (eval-factory) <cli>
 :::
