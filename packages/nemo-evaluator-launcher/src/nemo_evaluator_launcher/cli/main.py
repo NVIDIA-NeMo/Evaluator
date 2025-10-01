@@ -15,6 +15,8 @@
 #
 """Main CLI module using simple-parsing with subcommands."""
 
+import os
+
 from simple_parsing import ArgumentParser
 
 import nemo_evaluator_launcher.cli.export as export
@@ -35,6 +37,14 @@ def create_parser() -> ArgumentParser:
 
     # Add --version flag at the top level
     parser.add_argument("--version", action="store_true", help=VERSION_HELP)
+
+    # Add --verbose/-v flag for debug logging
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging (sets NEMO_EVALUATOR_LOG_LEVEL=DEBUG)",
+    )
 
     subparsers = parser.add_subparsers(dest="command", required=False)
 
@@ -104,6 +114,10 @@ def main() -> None:
     """Main CLI entry point with subcommands."""
     parser = create_parser()
     args = parser.parse_args()
+
+    # Handle --verbose flag
+    if hasattr(args, "verbose") and args.verbose:
+        os.environ["NEMO_EVALUATOR_LOG_LEVEL"] = "DEBUG"
 
     # Handle --version flag
     if hasattr(args, "version") and args.version:
