@@ -2,51 +2,67 @@
 
 # MLflow Exporter (`mlflow`)
 
-Exports accuracy metrics (and optionally artifacts) to an MLflow Tracking Server. Can create a run per job or a single run for an entire invocation.
+Exports accuracy metrics and artifacts to an MLflow Tracking Server.
 
-- **Purpose**: Centralize metrics, parameters, and artifacts in MLflow
-- **Requirements**: `mlflow` installed and a reachable tracking server
+- **Purpose**: Centralize metrics, parameters, and artifacts in MLflow for experiment tracking
+- **Requirements**: `mlflow` package installed and a reachable MLflow tracking server
 
 ## Usage
 
-Export evaluation results to MLflow Tracking Server for centralized experiment management and model lifecycle tracking.
-
+Export evaluation results to MLflow Tracking Server for centralized experiment management.
 
 ::::{tab-set}
 
-:::{tab-item} CLI
+:::{tab-item} Auto-Export (Recommended)
 
-Export results to MLflow with various configuration options. Note that all MLflow-specific settings must be passed via the `--config` argument with JSON format:
+Configure MLflow export to run automatically after evaluation completes. Add MLflow configuration to your run config YAML file:
+
+```yaml
+execution:
+  auto_export:
+    destinations: ["mlflow"]
+    configs:
+      mlflow:
+        tracking_uri: "http://mlflow.example.com:5000"
+        experiment_name: "llm-evaluation"
+        description: "Llama 3.1 8B evaluation"
+        log_metrics: ["accuracy", "f1"]
+        tags:
+          model_family: "llama"
+          version: "3.1"
+        extra_metadata:
+          hardware: "A100"
+          batch_size: 32
+        log_artifacts: true
+
+target:
+  api_endpoint:
+    model_id: meta/llama-3.1-8b-instruct
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+
+evaluation:
+  tasks:
+    - name: simple_evals.mmlu
+```
+
+Run the evaluation with auto-export enabled:
 
 ```bash
-# Basic export to MLflow server
-nv-eval export 8abcd123 --dest mlflow \
-  --output-dir ./export_results \
-  --config '{"tracking_uri": "http://mlflow:5000", "experiment_name": "model-evaluation"}'
-
-# Export with custom run name and tags
-nv-eval export 8abcd123 --dest mlflow \
-  --output-dir ./export_results \
-  --config '{"tracking_uri": "http://mlflow:5000", "experiment_name": "llm-benchmarks", "run_name": "gpt-4-evaluation", "tags": {"model": "gpt-4", "dataset": "mmlu"}}'
-
-# Export multiple runs with artifact logging disabled
-nv-eval export 8abcd123 9def4567 --dest mlflow \
-  --output-dir ./export_results \
-  --config '{"tracking_uri": "http://mlflow:5000", "experiment_name": "model-comparison", "log_artifacts": false}'
+nemo-evaluator-launcher run --config-dir . --config-name my_config
 ```
 
 :::
 
-:::{tab-item} Python
+:::{tab-item} Manual Export (Python API)
 
-Export results programmatically with comprehensive MLflow integration:
+Export results programmatically after evaluation completes:
 
 ```python
 from nemo_evaluator_launcher.api.functional import export_results
 
 # Basic MLflow export
 export_results(
-    ["8abcd123"], 
+    invocation_ids=["8abcd123"], 
     dest="mlflow", 
     config={
         "tracking_uri": "http://mlflow:5000",
@@ -54,41 +70,47 @@ export_results(
     }
 )
 
-# Comprehensive export with metadata and tags
+# Export with metadata and tags
 export_results(
-    ["8abcd123"], 
+    invocation_ids=["8abcd123"], 
     dest="mlflow", 
     config={
         "tracking_uri": "http://mlflow:5000",
         "experiment_name": "llm-benchmarks",
-        "run_name": "gpt-4-mmlu-evaluation",
-        "description": "Evaluation of GPT-4 on MMLU benchmark dataset",
+        "run_name": "llama-3.1-8b-mmlu",
+        "description": "Evaluation of Llama 3.1 8B on MMLU",
         "tags": {
-            "model_family": "gpt",
-            "model_version": "4",
-            "benchmark": "mmlu",
-            "evaluation_date": "2024-01-15"
+            "model_family": "llama",
+            "model_version": "3.1",
+            "benchmark": "mmlu"
         },
-        "log_metrics": ["accuracy", "precision", "recall", "f1_score"],
-        "log_artifacts": True,
+        "log_metrics": ["accuracy"],
         "extra_metadata": {
             "hardware": "A100-80GB",
-            "batch_size": 32,
-            "temperature": 0.0
+            "batch_size": 32
         }
     }
 )
 
-# Export with webhook integration
+# Export with artifacts disabled
 export_results(
-    ["8abcd123"], 
+    invocation_ids=["8abcd123"], 
     dest="mlflow", 
     config={
         "tracking_uri": "http://mlflow:5000",
-        "experiment_name": "automated-evaluations",
-        "triggered_by_webhook": True,
-        "webhook_source": "github-actions",
-        "skip_existing": True  # Avoid duplicate runs
+        "experiment_name": "model-comparison",
+        "log_artifacts": False
+    }
+)
+
+# Skip if run already exists
+export_results(
+    invocation_ids=["8abcd123"], 
+    dest="mlflow", 
+    config={
+        "tracking_uri": "http://mlflow:5000",
+        "experiment_name": "nightly-evals",
+        "skip_existing": True
     }
 )
 ```
@@ -97,7 +119,7 @@ export_results(
 
 ::::
 
-## Key Configuration
+## Configuration Parameters
 
 ```{list-table}
 :header-rows: 1
@@ -106,58 +128,41 @@ export_results(
 * - Parameter
   - Type
   - Description
-  - Default/Notes
+  - Default
 * - `tracking_uri`
   - str
   - MLflow tracking server URI
   - Required
 * - `experiment_name`
   - str
-  - Target experiment
-  - Required
+  - MLflow experiment name
+  - `"nemo-evaluator-launcher"`
 * - `run_name`
-  - str, optional
+  - str
   - Run display name
   - Auto-generated
 * - `description`
-  - str, optional
+  - str
   - Run description
   - None
 * - `tags`
-  - dict[str,str], optional
-  - Run tags
+  - dict[str, str]
+  - Custom tags for the run
   - None
 * - `extra_metadata`
-  - dict, optional
-  - Additional key/value metadata
+  - dict
+  - Additional parameters logged to MLflow
   - None
 * - `skip_existing`
   - bool
-  - Skip if existing run for same invocation found
+  - Skip export if run exists for invocation
   - `false`
 * - `log_metrics`
-  - list[str], optional
-  - Filter metrics to log
+  - list[str]
+  - Filter metrics by substring match
   - All metrics
 * - `log_artifacts`
   - bool
-  - Upload artifacts for each job
+  - Upload evaluation artifacts
   - `true`
-* - `triggered_by_webhook`
-  - bool, optional
-  - Webhook trigger flag
-  - `false`
-* - `webhook_source`
-  - str, optional
-  - Webhook source identifier
-  - None
-* - `source_artifact`
-  - str, optional
-  - Source artifact path
-  - None
-* - `config_source`
-  - str, optional
-  - Configuration source
-  - None
 ```
-

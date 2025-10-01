@@ -9,52 +9,36 @@ Exports accuracy metrics and artifacts to W&B. Supports either per-task runs or 
 
 ## Usage
 
-Export evaluation results to Weights & Biases for comprehensive experiment tracking, visualization, and collaboration.
+Export evaluation results to Weights & Biases for experiment tracking, visualization, and collaboration.
 
 ::::{tab-set}
 
 :::{tab-item} CLI
 
-Export results to W&B with flexible logging options:
+Basic export to W&B using credentials and project settings from your evaluation configuration:
 
 ```bash
-# Basic export to W&B project
-nv-eval export 8abcd123 --dest wandb \
-  --config '{"entity": "myorg", "project": "model-evaluations"}'
+# Export to W&B (uses config from evaluation run)
+nv-eval export 8abcd123 --dest wandb
 
-# Export with custom run name and grouping
-nv-eval export 8abcd123 --dest wandb \
-  --config '{
-    "entity": "myorg",
-    "project": "llm-benchmarks",
-    "name": "gpt-4-mmlu-eval",
-    "group": "mmlu-experiments",
-    "tags": {"model": "gpt-4", "benchmark": "mmlu"}
-  }'
-
-# Export multiple runs in multi-task mode with filtered metrics
-nv-eval export 8abcd123 9def4567 --dest wandb \
-  --config '{
-    "entity": "myorg",
-    "project": "model-comparison",
-    "log_mode": "multi_task",
-    "log_metrics": ["accuracy", "f1_score"],
-    "log_artifacts": false
-  }'
+# Filter metrics to export specific measurements
+nv-eval export 8abcd123 --dest wandb --log-metrics accuracy f1_score
 ```
+
+**Note**: Specify W&B configuration (entity, project, tags, etc.) in your evaluation YAML configuration file under `execution.auto_export.configs.wandb`. The CLI export command reads these settings from the stored job configuration.
 
 :::
 
 :::{tab-item} Python
 
-Export results programmatically with comprehensive W&B integration:
+Export results programmatically with W&B configuration:
 
 ```python
 from nemo_evaluator_launcher.api.functional import export_results
 
 # Basic W&B export
 export_results(
-    ["8abcd123"], 
+    invocation_ids=["8abcd123"], 
     dest="wandb", 
     config={
         "entity": "myorg", 
@@ -62,119 +46,121 @@ export_results(
     }
 )
 
-# Comprehensive export with metadata and organization
+# Export with metadata and organization
 export_results(
-    ["8abcd123"], 
+    invocation_ids=["8abcd123"], 
     dest="wandb", 
     config={
         "entity": "myorg",
         "project": "llm-benchmarks",
-        "name": "gpt-4-comprehensive-eval",
-        "group": "gpt-family-comparison",
-        "description": "Comprehensive evaluation of GPT-4 across multiple benchmarks",
-        "tags": {
-            "model_family": "gpt",
-            "model_version": "4",
-            "evaluation_suite": "comprehensive"
-        },
-        "log_mode": "per_task",  # Create separate runs for each task
-        "log_metrics": ["accuracy", "precision", "recall", "f1_score", "bleu"],
+        "name": "llama-3.1-8b-eval",
+        "group": "llama-family-comparison",
+        "description": "Evaluation of Llama 3.1 8B on benchmarks",
+        "tags": ["llama-3.1", "8b"],
+        "log_mode": "per_task",
+        "log_metrics": ["accuracy"],
         "log_artifacts": True,
         "extra_metadata": {
-            "hardware": "A100-80GB",
-            "batch_size": 32,
-            "temperature": 0.0,
-            "max_tokens": 2048
+            "hardware": "A100-80GB"
         }
     }
 )
 
-# Multi-task export for comparative analysis
+# Multi-task mode: single run for all tasks
 export_results(
-    ["8abcd123", "9def4567", "abc12345"], 
+    invocation_ids=["8abcd123"], 
     dest="wandb", 
     config={
         "entity": "myorg",
         "project": "model-comparison",
-        "log_mode": "multi_task",  # Single run with all tasks
-        "name": "three-model-comparison",
-        "group": "comparative-analysis",
-        "description": "Comparing three different models on the same evaluation tasks",
-        "log_artifacts": False,  # Metrics only for comparison
-        "triggered_by_webhook": True,
-        "webhook_source": "automated-pipeline"
+        "log_mode": "multi_task",
+        "log_artifacts": False
     }
 )
 ```
 
 :::
 
+:::{tab-item} YAML Config
+
+Configure W&B export in your evaluation YAML file for automatic export on completion:
+
+```yaml
+execution:
+  auto_export:
+    destinations: ["wandb"]
+    configs:
+      wandb:
+        entity: "myorg"
+        project: "llm-benchmarks"
+        name: "llama-3.1-8b-instruct-v1"
+        group: "baseline-evals"
+        tags: ["llama-3.1", "baseline"]
+        description: "Baseline evaluation"
+        log_mode: "multi_task"
+        log_metrics: ["accuracy"]
+        log_artifacts: true
+        extra_metadata:
+          hardware: "H100"
+          checkpoint: "path/to/checkpoint"
+```
+
+:::
+
 ::::
 
-## Key Configuration
+## Configuration Parameters
 
 ```{list-table}
 :header-rows: 1
-:widths: 25 15 45 15
+:widths: 20 15 50 15
 
 * - Parameter
   - Type
   - Description
-  - Default/Notes
+  - Default
 * - `entity`
   - str
-  - W&B entity
+  - W&B entity (organization or username)
   - Required
 * - `project`
   - str
-  - W&B project
+  - W&B project name
   - Required
 * - `log_mode`
   - str
-  - Logging mode: `per_task` or `multi_task`
+  - Logging mode: `per_task` creates separate runs for each evaluation task; `multi_task` creates a single run for all tasks
   - `per_task`
 * - `name`
-  - str, optional
-  - Run display name
+  - str
+  - Run display name. If not specified, auto-generated as `eval-{invocation_id}-{benchmark}` (per_task) or `eval-{invocation_id}` (multi_task)
   - Auto-generated
 * - `group`
-  - str, optional
-  - Run group
-  - None
+  - str
+  - Run group for organizing related runs
+  - Invocation ID
 * - `tags`
-  - dict[str,str], optional
-  - Run tags
+  - list[str]
+  - Tags for categorizing the run
   - None
 * - `description`
-  - str, optional
-  - Run description
+  - str
+  - Run description (stored as W&B notes)
   - None
 * - `log_metrics`
-  - list[str], optional
-  - Filter metrics to log
+  - list[str]
+  - Metric name patterns to filter (e.g., `["accuracy", "f1"]`). Logs only metrics containing these substrings
   - All metrics
 * - `log_artifacts`
   - bool
-  - Log artifacts in addition to metrics
+  - Whether to upload evaluation artifacts (results files, configs) to W&B
   - `true`
 * - `extra_metadata`
-  - dict, optional
-  - Additional key/value metadata
-  - None
-* - `triggered_by_webhook`
-  - bool, optional
-  - Webhook trigger flag
-  - `false`
-* - `webhook_source`
-  - str, optional
-  - Webhook source identifier
-  - None
-* - `source_artifact`
-  - str, optional
-  - Source artifact path
-  - None
-* - `config_source`
-  - str, optional
-  - Configuration source
-  - None
+  - dict
+  - Additional metadata stored in run config (e.g., hardware, hyperparameters)
+  - `{}`
+* - `job_type`
+  - str
+  - W&B job type classification
+  - `evaluation`
 ```

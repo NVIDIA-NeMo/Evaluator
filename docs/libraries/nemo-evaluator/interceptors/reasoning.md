@@ -2,167 +2,157 @@
 
 # Reasoning
 
-The reasoning interceptor extracts and processes chain-of-thought reasoning from model responses, enabling analysis of model reasoning patterns and supporting models that use thinking tokens.
+The reasoning interceptor processes chain-of-thought reasoning from model responses by removing reasoning tokens from content and tracking reasoning statistics.
 
 ## Overview
 
-The `ReasoningInterceptor` handles models that generate explicit reasoning steps, typically enclosed in special tokens. It can extract reasoning content, separate it from final answers, and provide structured output for analysis.
+The `ResponseReasoningInterceptor` handles models that generate explicit reasoning steps, typically enclosed in special tokens. It removes reasoning content from the final response and tracks reasoning metrics for analysis.
 
 ## Configuration
 
-### AdapterConfig Parameters
+### Python Configuration
 
 ```python
-from nemo_evaluator.adapters.adapter_config import AdapterConfig
+from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
 
 adapter_config = AdapterConfig(
-    # Enable reasoning processing
-    use_reasoning=True,
-    
-    # Reasoning token configuration
-    start_reasoning_token="<think>",
-    end_reasoning_token="</think>",
-    
-    # Extraction options
-    extract_reasoning=True,
-    reasoning_field="reasoning"
+    interceptors=[
+        InterceptorConfig(
+            name="reasoning",
+            config={
+                "start_reasoning_token": "<think>",
+                "end_reasoning_token": "</think>",
+                "add_reasoning": True,
+                "enable_reasoning_tracking": True
+            }
+        )
+    ]
 )
 ```
 
 ### CLI Configuration
+
 ```bash
---overrides 'target.api_endpoint.adapter_config.use_reasoning=True,target.api_endpoint.adapter_config.end_reasoning_token="</think>",target.api_endpoint.adapter_config.start_reasoning_token="<think>"'
+--overrides 'target.api_endpoint.adapter_config.interceptors=[{"name":"reasoning","config":{"start_reasoning_token":"<think>","end_reasoning_token":"</think>"}}]'
 ```
 
 ### YAML Configuration
+
 ```yaml
 target:
   api_endpoint:
     adapter_config:
-      use_reasoning: true
-      start_reasoning_token: "<think>"
-      end_reasoning_token: "</think>"
-      extract_reasoning: true
-      reasoning_field: "reasoning"
+      interceptors:
+        - name: reasoning
+          config:
+            start_reasoning_token: "<think>"
+            end_reasoning_token: "</think>"
+            add_reasoning: true
+            enable_reasoning_tracking: true
 ```
 
 ## Configuration Options
 
 | Parameter | Description | Default | Type |
 |-----------|-------------|---------|------|
-| `use_reasoning` | Enable reasoning processing | `False` | bool |
-| `start_reasoning_token` | Token that marks the start of reasoning | `"<think>"` | str |
-| `end_reasoning_token` | Token that marks the end of reasoning | `"</think>"` | str |
-| `extract_reasoning` | Extract reasoning into separate field | `True` | bool |
-| `reasoning_field` | Field name for extracted reasoning | `"reasoning"` | str |
+| `start_reasoning_token` | Token that marks the start of reasoning section | `"<think>"` | str \| None |
+| `end_reasoning_token` | Token that marks the end of reasoning section | `"</think>"` | str |
+| `add_reasoning` | Whether to add reasoning information | `True` | bool |
+| `migrate_reasoning_content` | Migrate reasoning_content to content field with tokens | `False` | bool |
+| `enable_reasoning_tracking` | Enable reasoning tracking and logging | `True` | bool |
+| `include_if_not_finished` | Include reasoning content if reasoning is not finished (end token not found) | `True` | bool |
+| `stats_file_saving_interval` | How often (every N responses) to save stats to file | `None` | int \| None |
+| `enable_caching` | Whether to enable caching of reasoning statistics | `True` | bool |
+| `cache_dir` | Custom cache directory for reasoning stats | `"/tmp/reasoning_interceptor"` | str |
+| `logging_aggregated_stats_interval` | How often (every N responses) to log aggregated reasoning statistics | `100` | int |
 
 ## Processing Examples
 
-### Input Processing
+### Basic Reasoning Stripping
+
 ```python
 # Original response from model
-response_content = "<think>Let me solve this step by step. 2+2 is basic addition. 2 plus 2 equals 4.</think>The answer is 4."
+original_content = "<think>Let me solve this step by step. 2+2 is basic addition. 2 plus 2 equals 4.</think>The answer is 4."
 
 # After reasoning interceptor processing
-{
-    "reasoning": "Let me solve this step by step. 2+2 is basic addition. 2 plus 2 equals 4.",
-    "final_answer": "The answer is 4.",
-    "original_content": "<think>Let me solve this step by step. 2+2 is basic addition. 2 plus 2 equals 4.</think>The answer is 4."
-}
+# The content field has reasoning removed
+processed_content = "The answer is 4."
 ```
 
-### Complex Reasoning Example
+### Multi-Step Reasoning
+
 ```python
-# Multi-step reasoning
-response_content = """<think>
+# Original response with multi-line reasoning
+original_content = """<think>
 This is a word problem. Let me break it down:
 1. John has 5 apples
 2. He gives away 2 apples  
 3. So he has 5 - 2 = 3 apples left
 </think>John has 3 apples remaining."""
 
-# Processed output
-{
-    "reasoning": "This is a word problem. Let me break it down:\n1. John has 5 apples\n2. He gives away 2 apples\n3. So he has 5 - 2 = 3 apples left",
-    "final_answer": "John has 3 apples remaining."
-}
+# After processing: reasoning tokens and content are removed
+processed_content = "John has 3 apples remaining."
 ```
 
-## Reasoning Analysis
+## Tracked Metrics
 
-### Metrics Extraction
-The interceptor can extract reasoning metrics:
+The interceptor automatically tracks the following statistics:
 
-```json
-{
-    "reasoning_stats": {
-        "reasoning_length": 156,
-        "reasoning_tokens": 32,
-        "final_answer_length": 24,
-        "final_answer_tokens": 5,
-        "reasoning_ratio": 0.86
-    }
-}
-```
+| Metric | Description |
+|--------|-------------|
+| `total_responses` | Total number of responses processed |
+| `responses_with_reasoning` | Number of responses containing reasoning content |
+| `reasoning_finished_count` | Number of responses where reasoning completed (end token found) |
+| `reasoning_started_count` | Number of responses where reasoning started |
+| `avg_reasoning_words` | Average word count in reasoning content |
+| `avg_reasoning_tokens` | Average token count in reasoning content |
+| `avg_original_content_words` | Average word count in original content (before processing) |
+| `avg_updated_content_words` | Average word count in updated content (after processing) |
+| `avg_updated_content_tokens` | Average token count in updated content |
+| `max_reasoning_words` | Maximum word count in reasoning content |
+| `max_reasoning_tokens` | Maximum token count in reasoning content |
+| `max_updated_content_tokens` | Maximum token count in updated content |
+| `total_reasoning_words` | Total word count across all reasoning content |
+| `total_reasoning_tokens` | Total token count across all reasoning content |
 
-### Pattern Detection
+These statistics are saved to `eval_factory_metrics.json` under the `reasoning` key after evaluation completes.
+
+## Example: Custom Reasoning Tokens
+
 ```python
-# Common reasoning patterns
-patterns = {
-    "step_by_step": "step by step|let me think|breaking it down",
-    "calculation": "\\d+\\s*[+\\-*/]\\s*\\d+\\s*=",
-    "conclusion": "therefore|thus|so|in conclusion"
-}
-```
+from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
 
-## Use Cases
-
-- **Chain-of-Thought Evaluation**: Evaluate models that use explicit reasoning
-- **Reasoning Quality Analysis**: Assess the quality and coherence of reasoning steps
-- **Performance Optimization**: Measure reasoning overhead vs. accuracy improvements
-- **Educational Applications**: Understand how models approach problem-solving
-- **Debugging**: Identify where models make reasoning errors
-
-## Integration with Benchmarks
-
-### Math Benchmarks (GSM8K, MATH)
-```python
-adapter_config = AdapterConfig(
-    use_reasoning=True,
-    start_reasoning_token="<think>",
-    end_reasoning_token="</think>",
-    extract_reasoning=True
-)
-```
-
-### Custom Reasoning Formats
-```python
 # For models using different reasoning tokens
 adapter_config = AdapterConfig(
-    use_reasoning=True,
-    start_reasoning_token="[REASONING]",
-    end_reasoning_token="[/REASONING]",
-    extract_reasoning=True
+    interceptors=[
+        InterceptorConfig(
+            name="reasoning",
+            config={
+                "start_reasoning_token": "[REASONING]",
+                "end_reasoning_token": "[/REASONING]"
+            }
+        )
+    ]
 )
 ```
 
-## Best Practices
+## Example: Combined with Other Interceptors
 
-### Token Configuration
-- Use consistent reasoning tokens across evaluations
-- Choose tokens that are unlikely to appear in regular content
-- Consider model-specific token preferences
-
-### Analysis Workflow
 ```python
-# Complete reasoning analysis setup
+from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
+
 adapter_config = AdapterConfig(
-    use_reasoning=True,
-    start_reasoning_token="<think>",
-    end_reasoning_token="</think>",
-    extract_reasoning=True,
-    use_request_logging=True,  # Log for analysis
-    use_response_logging=True,
-    save_responses=True        # Save for offline analysis
+    interceptors=[
+        InterceptorConfig(name="request_logging", config={"max_requests": 50}),
+        InterceptorConfig(name="response_logging", config={"max_responses": 50}),
+        InterceptorConfig(
+            name="reasoning",
+            config={
+                "start_reasoning_token": "<think>",
+                "end_reasoning_token": "</think>",
+                "enable_reasoning_tracking": True
+            }
+        )
+    ]
 )
 ```

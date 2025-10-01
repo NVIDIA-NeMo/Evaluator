@@ -12,7 +12,6 @@ Evaluation configuration defines which benchmarks to run and their configuration
 evaluation:
   overrides:  # Global overrides for all tasks
     config.params.request_timeout: 3600
-    target.api_endpoint.adapter_config.use_system_prompt: true
   tasks:
     - name: task_name  # Use default benchmark configuration
     - name: another_task
@@ -26,10 +25,12 @@ evaluation:
 ## Key Components
 
 ### Global Overrides
+
 - **`overrides`**: Parameter overrides that apply to all tasks
 - **`env_vars`**: Environment variables that apply to all tasks
 
 ### Task Configuration
+
 - **`tasks`**: List of evaluation tasks to run
 - **`name`**: Name of the benchmark task
 - **`overrides`**: Task-specific parameter overrides
@@ -40,19 +41,20 @@ For a comprehensive list of available tasks, their descriptions, and task-specif
 ## Advanced Task Configuration
 
 ### Parameter Overrides
+
 The overrides system is crucial for leveraging the full flexibility of the common endpoint interceptors and task configuration layer. This is where nemo-evaluator intersects with nemo-evaluator-launcher, providing a unified configuration interface.
 
 #### Global Overrides
+
 ```yaml
 evaluation:
   overrides:
     config.params.request_timeout: 3600
     config.params.temperature: 0.7
-    target.api_endpoint.adapter_config.use_system_prompt: true
-    target.api_endpoint.adapter_config.custom_system_prompt: "Think step by step."
 ```
 
 #### Task-Specific Overrides
+
 ```yaml
 evaluation:
   tasks:
@@ -68,14 +70,12 @@ evaluation:
         config.params.top_p: 0.95
         config.params.max_new_tokens: 2048
         config.params.extra.n_samples: 5
-        target.api_endpoint.adapter_config.custom_system_prompt: "You must only provide the code implementation"
 ```
 
 ### Environment Variables
+
 ```yaml
 evaluation:
-  overrides:
-    # Global environment variables
   tasks:
     - name: task_name
       env_vars:
@@ -88,28 +88,27 @@ evaluation:
 Use evaluation configuration when you want to:
 
 - **Change Default Sampling Parameters**: Adjust temperature, top_p, max_new_tokens for different tasks
-- **Set Custom System Prompts**: Add task-specific instructions or reasoning prompts (see {ref}`interceptor-system-messages`)
-- **Add/Remove/Rename Special Parameters**: Modify payload structure (e.g., add `"reasoning": "thinking"`) (see {ref}`interceptor-payload-modification`)
 - **Change Default Task Values**: Override benchmark-specific default configurations
-- **Parametrize the Judge**: Configure evaluation judge models and their parameters for scoring (see {ref}`parameter-overrides`)
-- **Debug and Test**: e.g. Launch with limited samples
+- **Configure Task-Specific Parameters**: Set custom parameters for individual benchmarks (e.g., n_samples for code generation tasks)
+- **Debug and Test**: Launch with limited samples for validation
 - **Adjust Endpoint Capabilities**: Configure request timeouts, max retries, and parallel request limits
 
 /// tip | Long String Overrides
-For overriding long strings (e.g., system prompts), use YAML multiline syntax with `>-`:
+For overriding long strings, use YAML multiline syntax with `>-`:
 
 ```yaml
-target.api_endpoint.adapter_config.params_to_add: >-
-  <HERE_WRITE_WHATEVER_YOU_WANT_AND_IT_WILL_BE_PASSED_WITHOUT_ANY_MODIFICATIONS_TO_OVERRIDES>
+config.params.extra.custom_field: >-
+  This is a long string that spans multiple lines
+  and will be passed as a single value with spaces
+  replacing the newlines.
 ```
 
 This preserves formatting and allows for complex multi-line configurations.
 ///
 
-
 ## Reference
 
 - **Parameter Overrides**: {ref}`parameter-overrides` - Complete guide to available parameters and override syntax
-- **Troubleshooting**: See {ref}`configuration-troubleshooting` for debug mode, testing, and common issues
-- **Interceptors Documentation**: {ref}`nemo-evaluator-interceptors` - How to modify request/response payloads and add custom parameters
+- **Adapter Configuration**: For advanced request/response modification (system prompts, payload modification, reasoning handling), see {ref}`nemo-evaluator-interceptors`
 - **Task Configuration**: {ref}`lib-core` - Complete nemo-evaluator documentation
+- **Available Tasks**: {ref}`nemo-evaluator-containers` - Browse all available evaluation tasks and benchmarks

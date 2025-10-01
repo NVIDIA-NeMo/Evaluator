@@ -17,7 +17,7 @@ The *Core Evaluation Engine* delivers standardized, reproducible AI model evalua
 :link: workflows/index
 :link-type: doc
 
-Use the evaluation engine through Python API, containers, or programmatic workflows.
+Run evaluations using pre-built containers directly or integrate them through the Python API.
 :::
 
 :::{grid-item-card} {octicon}`container;1.5em;sd-mr-1` Containers

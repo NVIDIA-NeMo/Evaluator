@@ -31,13 +31,21 @@ target:
     model_id: meta/llama-3.1-8b-instruct    # Model identifier (required)
     url: https://your-endpoint.com/v1/chat/completions  # Endpoint URL (required)
     api_key_name: API_KEY                    # Environment variable name (recommended)
-    
-    # Optional: Adapter configuration
+```
+
+/// note | Legacy Adapter Configuration
+The following adapter configuration parameters use the legacy format and are maintained for backward compatibility. For new configurations, use the modern interceptor-based system documented in {ref}`interceptor-system-messages` and {ref}`interceptor-reasoning`.
+
+```yaml
+target:
+  api_endpoint:
+    # Legacy adapter configuration (supported but not recommended for new configs)
     adapter_config:
       use_reasoning: false                   # Strip reasoning tokens if true
       use_system_prompt: true                # Enable system prompt support
       custom_system_prompt: "Think step by step."  # Custom system prompt
 ```
+///
 
 ### Evaluation Configuration
 
@@ -47,7 +55,6 @@ evaluation:
   overrides:
     config.params.request_timeout: 3600
     config.params.temperature: 0.7
-    target.api_endpoint.adapter_config.use_reasoning: false
   
   # Task-specific configuration
   tasks:
@@ -62,8 +69,6 @@ evaluation:
     - name: mbpp
       overrides:
         config.params.extra.n_samples: 5
-        target.api_endpoint.adapter_config.custom_system_prompt: >-
-          "You must only provide the code implementation"
 ```
 
 ## Platform Examples
@@ -203,11 +208,6 @@ nemo-evaluator-launcher run --config-name your_config evaluation.overrides.confi
 - `config.params.parallelism`: Concurrent request limit
 - `config.params.request_timeout`: Request timeout in seconds
 
-**Adapter Settings:**
-- `target.api_endpoint.adapter_config.use_reasoning`: Handle reasoning tokens
-- `target.api_endpoint.adapter_config.use_system_prompt`: Enable system prompts
-- `target.api_endpoint.adapter_config.custom_system_prompt`: Custom system message
-
 **Task-Specific:**
 - `config.params.extra.n_samples`: Number of samples per prompt (for code tasks)
 - Environment variables for dataset access (like `HF_TOKEN`)
@@ -216,7 +216,7 @@ nemo-evaluator-launcher run --config-name your_config evaluation.overrides.confi
 
 Automatically export evaluation results to multiple destinations for experiment tracking and collaboration.
 
-**Supported Destinations**: W&B, MLflow, Google Sheets, S3
+**Supported Destinations**: W&B, MLflow, Google Sheets
 
 ### Basic Configuration
 
@@ -242,11 +242,13 @@ execution:
         log_mode: "multi_task"
 ```
 
+/// note
+For detailed exporter configuration, see {ref}`exporters-overview`.
+///
+
 ### Key Configuration Options
 
 - **`log_metrics`**: Filter which metrics to export (e.g., `["accuracy", "pass@1"]`)
 - **`log_mode`**: "multi_task" (all tasks together) or "per_task" (separate entries)
 - **`extra_metadata`**: Additional experiment metadata and tags
 - **Environment variables**: Use `${oc.env:VAR_NAME}` for secure credential handling
-
-For detailed exporter configuration, see the [exporters documentation](../exporters/overview.md).

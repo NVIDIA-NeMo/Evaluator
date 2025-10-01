@@ -194,7 +194,7 @@ docker pull nvcr.io/nvidia/eval-factory/hle:{{ docker_compose_latest }}
 
 **NGC Catalog**: [ifbench](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/ifbench)
 
-Container for challenging benchmark for precise instruction following evaluation.
+Container for a challenging benchmark for precise instruction following evaluation.
 
 **Use Cases:**
 - Precise instruction following evaluation

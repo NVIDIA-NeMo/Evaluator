@@ -12,7 +12,7 @@ Exporters move evaluation results and artifacts from completed runs to external 
 
 ```bash
 nv-eval export <id1> [<id2> ...] \
-  --dest <local|gsheets|wandb|mlflow|leaderboard> \
+  --dest <local|gsheets|wandb|mlflow> \
   [options]
 ```
 
@@ -24,7 +24,7 @@ nv-eval export <id1> [<id2> ...] \
 from nemo_evaluator_launcher.api.functional import export_results
 
 export_results(
-    ["8abcd123"], 
+    invocation_ids=["8abcd123"], 
     dest="local", 
     config={
         "format": "json", 
@@ -74,16 +74,7 @@ Export metrics to Google Sheets for easy sharing, reporting, and collaborative a
 
 ::::
 
-Multiple exporters can be configured simultaneously to support different stakeholder needs and workflow integration points.
-
-## Add Your Own Exporter
-
-How to a custom exporter to fit your tools:
-
-1. Define destination-specific configuration (credentials, endpoints, paths)
-1. Implement metric selection and artifact upload logic
-1. Ensure idempotency (e.g., `skip_existing`) and good error messages
-1. Expose a CLI/Python entry point consistent with other exporters
+You can configure multiple exporters simultaneously to support different stakeholder needs and workflow integration points.
 
 :::{toctree}
 :caption: Exporters

@@ -11,12 +11,14 @@ Containers specialized for evaluating AI model safety, security, and robustness 
 Container for security and robustness evaluation of AI models.
 
 **Use Cases:**
+
 - Security testing
 - Adversarial attack evaluation
 - Robustness assessment
 - Safety evaluation
 
 **Pull Command:**
+
 ```bash
 docker pull nvcr.io/nvidia/eval-factory/garak:{{ docker_compose_latest }}
 ```
@@ -32,6 +34,7 @@ docker pull nvcr.io/nvidia/eval-factory/garak:{{ docker_compose_latest }}
 | `probes` | `None` |
 
 **Key Features:**
+
 - Automated security testing
 - Vulnerability detection
 - Prompt injection testing
@@ -39,6 +42,7 @@ docker pull nvcr.io/nvidia/eval-factory/garak:{{ docker_compose_latest }}
 - Comprehensive security reporting
 
 **Security Test Categories:**
+
 - Prompt Injection Attacks
 - Data Extraction Attempts
 - Jailbreak Techniques
@@ -54,15 +58,21 @@ docker pull nvcr.io/nvidia/eval-factory/garak:{{ docker_compose_latest }}
 Container for comprehensive safety evaluation of AI models.
 
 **Use Cases:**
+
 - Safety alignment evaluation
 - Harmful content detection
 - Bias and fairness assessment
 - Ethical AI evaluation
 
 **Pull Command:**
+
 ```bash
 docker pull nvcr.io/nvidia/eval-factory/safety-harness:{{ docker_compose_latest }}
 ```
+
+**Required Environment Variables:**
+
+- `HF_TOKEN`: Required for aegis_v2 safety evaluation tasks
 
 **Default Parameters:**
 
@@ -78,6 +88,7 @@ docker pull nvcr.io/nvidia/eval-factory/safety-harness:{{ docker_compose_latest 
 | `judge` | `{'url': None, 'model_id': None, 'api_key': None, 'parallelism': 32, 'request_timeout': 60, 'max_retries': 16}` |
 
 **Key Features:**
+
 - Comprehensive safety benchmarks
 - Bias detection and measurement
 - Harmful content classification
@@ -85,6 +96,7 @@ docker pull nvcr.io/nvidia/eval-factory/safety-harness:{{ docker_compose_latest 
 - Detailed safety reporting
 
 **Safety Evaluation Areas:**
+
 - Bias and Fairness
 - Harmful Content Generation
 - Toxicity Detection

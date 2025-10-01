@@ -37,16 +37,16 @@ from nemo_evaluator_launcher.api.functional import export_results
 
 # Basic export to Google Sheets
 export_results(
-    ["8abcd123"], 
+    invocation_ids=["8abcd123"], 
     dest="gsheets", 
     config={
-        "spreadsheet_name": "Nemo Evaluator Launcher Results"
+        "spreadsheet_name": "NeMo Evaluator Launcher Results"
     }
 )
 
 # Export with service account and filtered metrics
 export_results(
-    ["8abcd123", "9def4567"], 
+    invocation_ids=["8abcd123", "9def4567"], 
     dest="gsheets", 
     config={
         "spreadsheet_name": "Model Comparison Results",
@@ -75,9 +75,9 @@ export_results(
   - Path to service account JSON
   - Uses default credentials if omitted
 * - `spreadsheet_name`
-  - str
+  - str, optional
   - Target spreadsheet name
-  - Required
+  - Default: "NeMo Evaluator Launcher Results"
 * - `log_metrics`
   - list[str], optional
   - Filter metrics to log

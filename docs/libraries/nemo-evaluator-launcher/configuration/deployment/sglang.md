@@ -2,120 +2,77 @@
 
 # SGLang Deployment
 
-SGLang is a fast serving framework for large language models and vision language models, optimized for high-throughput inference with efficient memory usage and structured generation capabilities.
-
-## When to Use SGLang
-
-- **High-Throughput Serving**: Need fast inference with optimized attention mechanisms
-- **Structured Generation**: Require constrained or guided text generation
-- **Memory Efficiency**: Want to maximize GPU memory utilization
-- **Vision-Language Models**: Working with multimodal models
-- **Custom Serving**: Need flexible serving configuration and optimization
-
-## Key Benefits
-
-- **Performance**: Optimized attention and memory management for faster inference
-- **Flexibility**: Supports both HuggingFace models and local checkpoints
-- **Scalability**: Configurable tensor and data parallelism
-- **Compatibility**: OpenAI-compatible API endpoints
-- **Efficiency**: Advanced memory optimization and batching strategies
+SGLang is a serving framework for large language models. This deployment type launches SGLang servers using the `lmsysorg/sglang` Docker image.
 
 ## Configuration
 
-### Basic Settings
+### Required Settings
+
+See the complete configuration structure in `configs/deployment/sglang.yaml`.
 
 ```yaml
 deployment:
   type: sglang
   image: lmsysorg/sglang:latest
+  checkpoint_path: /path/to/model  # Path to model (local or HuggingFace model ID)
   served_model_name: your-model-name
   port: 8000
-  
-  # Model source (choose one)
-  hf_model_handle: meta-llama/Llama-3.1-8B-Instruct  # HuggingFace model
-  # OR
-  checkpoint_path: /path/to/local/checkpoint          # Local checkpoint
 ```
 
-### Parallelism Configuration
+**Required Fields:**
+
+- `checkpoint_path`: Model path or HuggingFace model ID (e.g., `meta-llama/Llama-3.1-8B-Instruct`)
+- `served_model_name`: Name for the served model
+
+### Optional Settings
 
 ```yaml
 deployment:
-  tensor_parallel_size: 8    # Number of GPUs for tensor parallelism
-  data_parallel_size: 1      # Number of replicas for data parallelism
+  tensor_parallel_size: 8    # Default: 8
+  data_parallel_size: 1      # Default: 1
+  extra_args: ""             # Extra SGLang server arguments
+  env_vars: {}               # Environment variables (key: value dict)
 ```
 
-**Parallelism Guidelines:**
-- **Tensor Parallel**: Split model across multiple GPUs (for large models)
-- **Data Parallel**: Multiple model replicas (for high throughput)
-- **Total GPUs**: `tensor_parallel_size × data_parallel_size`
+**Configuration Fields:**
 
-### Advanced Configuration
+- `tensor_parallel_size`: Number of GPUs for tensor parallelism (default: 8)
+- `data_parallel_size`: Number of data parallel replicas (default: 1)
+- `extra_args`: Extra command-line arguments to pass to SGLang server
+- `env_vars`: Environment variables for the container
+
+### API Endpoints
+
+The SGLang deployment exposes OpenAI-compatible endpoints:
 
 ```yaml
-deployment:
-  extra_args: "--disable-flashinfer --enable-torch-compile"
-  env_vars:
-    HF_HOME: "/cache/huggingface"
-    CUDA_VISIBLE_DEVICES: "0,1,2,3"
-  
-  endpoints:
-    chat: /v1/chat/completions
-    completions: /v1/completions
-    health: /health
+endpoints:
+  chat: /v1/chat/completions
+  completions: /v1/completions
+  health: /health
 ```
 
-## Model Loading Options
-
-SGLang supports flexible model loading with automatic fallback:
-
-```yaml
-# Option 1: HuggingFace Model (recommended)
-deployment:
-  hf_model_handle: meta-llama/Llama-3.1-8B-Instruct
-  # Automatically downloads and caches model
-
-# Option 2: Local Checkpoint
-deployment:
-  checkpoint_path: /models/llama-3.1-8b-instruct
-  # Uses local model files
-
-# Option 3: Automatic Selection
-deployment:
-  hf_model_handle: meta-llama/Llama-3.1-8B-Instruct
-  checkpoint_path: /models/llama-3.1-8b-instruct
-  # Uses HuggingFace if available, falls back to local path
-```
-
-The launcher uses `${oc.select:deployment.hf_model_handle,/checkpoint}` syntax to automatically choose the appropriate model source.
-
-## Complete Example
+## Example Configuration
 
 ```yaml
 defaults:
-  - execution: local
+  - execution: slurm/default
   - deployment: sglang
   - _self_
 
 deployment:
-  type: sglang
-  image: lmsysorg/sglang:latest
-  hf_model_handle: meta-llama/Llama-3.1-8B-Instruct
+  checkpoint_path: meta-llama/Llama-3.1-8B-Instruct
   served_model_name: llama-3.1-8b-instruct
-  port: 8000
-  
-  # Parallelism for 4 GPUs
   tensor_parallel_size: 4
   data_parallel_size: 1
-  
-  # Performance optimizations
-  extra_args: "--disable-flashinfer --mem-fraction-static 0.8"
+  extra_args: ""
   env_vars:
     HF_HOME: "/cache/huggingface"
-    CUDA_VISIBLE_DEVICES: "0,1,2,3"
 
 execution:
-  output_dir: sglang_evaluation_results
+  account: your-account
+  output_dir: /path/to/output
+  walltime: 02:00:00
 
 evaluation:
   tasks:
@@ -123,46 +80,33 @@ evaluation:
     - name: ifeval
 ```
 
-## Performance Optimization
+## Command Template
 
-### GPU Configuration
-- **Single GPU**: `tensor_parallel_size: 1, data_parallel_size: 1`
-- **Multi-GPU (Large Model)**: `tensor_parallel_size: 4, data_parallel_size: 1`
-- **Multi-GPU (High Throughput)**: `tensor_parallel_size: 2, data_parallel_size: 2`
+The launcher uses the following command template to start the SGLang server (from `configs/deployment/sglang.yaml`):
 
-### Memory Optimization
-```yaml
-deployment:
-  extra_args: "--mem-fraction-static 0.8 --max-running-requests 256"
-  env_vars:
-    PYTORCH_CUDA_ALLOC_CONF: "max_split_size_mb:128"
+```bash
+python3 -m sglang.launch_server \
+  --model-path ${oc.select:deployment.hf_model_handle,/checkpoint} \
+  --host 0.0.0.0 \
+  --port ${deployment.port} \
+  --served-model-name ${deployment.served_model_name} \
+  --tp ${deployment.tensor_parallel_size} \
+  --dp ${deployment.data_parallel_size} \
+  ${deployment.extra_args}
 ```
 
-### Caching and Storage
-```yaml
-deployment:
-  env_vars:
-    HF_HOME: "/fast/storage/huggingface"  # Use fast storage for model cache
-    TRANSFORMERS_CACHE: "/fast/storage/transformers"
-```
-
-## Tips and Best Practices
-
-- **Model Selection**: Use `hf_model_handle` for HuggingFace models, `checkpoint_path` for local models
-- **GPU Allocation**: Match `tensor_parallel_size` to your available GPUs for large models
-- **Memory Management**: Adjust `--mem-fraction-static` based on your GPU memory
-- **Performance**: Use `--disable-flashinfer` if encountering compatibility issues
-- **Caching**: Set `HF_HOME` to fast storage to speed up model loading
-- **Monitoring**: Check `/health` endpoint to verify deployment status
+:::{note}
+The `${oc.select:deployment.hf_model_handle,/checkpoint}` syntax uses OmegaConf's select resolver. In practice, set `checkpoint_path` with your model path or HuggingFace model ID.
+:::
 
 ## Reference
 
-**Related Documentation:**
-- [SGLang Documentation](https://docs.sglang.ai/) - Official SGLang documentation
-- [Execution Platforms](../execution/index.md) - Execution platform configuration
-- [Model Optimization Guide](https://docs.sglang.ai/optimization) - Performance tuning
+**Configuration File:**
 
-**Validation:**
-- Use `nemo-evaluator-launcher run --dry-run` to validate configuration
-- Check SGLang server logs for deployment issues
-- Monitor GPU memory usage during deployment
+- Source: `packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/configs/deployment/sglang.yaml`
+
+**Related Documentation:**
+
+- [Deployment Configuration Overview](index.md)
+- [Execution Platform Configuration](../execution/index.md)
+- [SGLang Documentation](https://docs.sglang.ai/)

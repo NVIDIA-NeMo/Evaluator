@@ -10,17 +10,17 @@ The nemo-evaluator-launcher uses [Hydra](https://hydra.cc/docs/intro/) for confi
 2. **Set your execution platform**: Use `execution: local` for development
 3. **Configure your target**: Point to your API endpoint
 4. **Select benchmarks**: Add evaluation tasks
-5. **Test first**: Always use `--dry-run` to validate
+5. **Test first**: Always use `--dry-run` to verify
 
 ```bash
-# Validate configuration
+# Verify configuration
 nemo-evaluator-launcher run --config-name your_config --dry-run
 
 # Run evaluation
 nemo-evaluator-launcher run --config-name your_config
 ```
 
-###  Basic Structure
+### Basic Structure
 
 Every configuration has four main sections:
 
@@ -40,9 +40,8 @@ target:                  # Required for deployment: none
     api_key_name: API_KEY
 
 evaluation:              # Required: what benchmarks to run
-  tasks:
-    - name: gpqa_diamond
-    - name: ifeval
+  - name: gpqa_diamond
+  - name: ifeval
 ```
 
 ## Deployment Options
@@ -126,20 +125,19 @@ Configure evaluation tasks, parameter overrides, and environment variables for y
 
 ::::
 
-
 ## Command Line Overrides
 
-Override any configuration value using Hydra's syntax:
+Override any configuration value using the `-o` flag:
 
 ```bash
 # Basic override
 nemo-evaluator-launcher run --config-name your_config \
-  execution.output_dir=my_results
+  -o execution.output_dir=my_results
 
 # Multiple overrides
 nemo-evaluator-launcher run --config-name your_config \
-  execution.output_dir=my_results \
-  target.api_endpoint.url="https://new-endpoint.com/v1/chat/completions"
+  -o execution.output_dir=my_results \
+  -o target.api_endpoint.url="https://new-endpoint.com/v1/chat/completions"
 ```
 
 ```{toctree}

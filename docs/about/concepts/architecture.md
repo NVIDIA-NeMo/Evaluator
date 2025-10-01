@@ -147,7 +147,7 @@ results = evaluate(target_cfg=target, eval_cfg=config)
 nv-eval run \
   --config-dir examples \
   --config-name local_llama_3_1_8b_instruct \
-  -o target.api_endpoint.adapter_config.use_reasoning=true
+  -o config.params.temperature=0.8
 ```
 
 #### **Pattern 3: Programmatic Integration**

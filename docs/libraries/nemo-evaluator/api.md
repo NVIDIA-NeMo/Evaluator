@@ -103,13 +103,16 @@ def evaluate(
 ```
 
 **Prerequisites:**
+
 - **Container way**: Use simple-evals container mentioned in {ref}`nemo-evaluator-containers`
-- **Python way**: 
+- **Python way**:
+
   ```bash
   pip install nemo-evaluator nvidia-simple-evals
   ```
 
 **Example Programmatic Usage:**
+
 ```python
 from nemo_evaluator.core.evaluate import evaluate
 from nemo_evaluator.api.api_dataclasses import (
@@ -216,8 +219,12 @@ class AdapterConfig:
     discovery: DiscoveryConfig                    # Module discovery configuration
     interceptors: list[InterceptorConfig]        # List of interceptors
     post_eval_hooks: list[PostEvalHookConfig]   # Post-evaluation hooks
-    endpoint_type: str                           # Default endpoint type
-    caching_dir: str | None                      # Legacy caching directory
+    endpoint_type: str                           # Type of endpoint (default: "chat")
+    caching_dir: str | None                      # Legacy field (deprecated, use caching interceptor)
+    generate_html_report: bool                   # Whether to generate HTML report (default: True)
+    log_failed_requests: bool                    # Whether to log failed requests (default: False)
+    tracking_requests_stats: bool                # Enable request statistics tracking (default: True)
+    html_report_size: int | None                 # Number of request-response pairs in HTML report (default: 5)
 ```
 
 ### `InterceptorConfig`
@@ -254,25 +261,26 @@ class DiscoveryConfig:
 ### 1. Request Logging Interceptor
 
 ```python
-from nemo_evaluator.adapters.interceptors.logging_interceptor import LoggingInterceptor
+from nemo_evaluator.adapters.interceptors.logging_interceptor import RequestLoggingInterceptor
 
 # Configuration
 interceptor_config = {
     "name": "request_logging",
     "enabled": True,
     "config": {
-        "output_dir": "/tmp/logs",
-        "max_requests": 1000,
-        "log_failed_requests": True
+        "max_requests": 2,
+        "log_request_body": True,
+        "log_request_headers": True
     }
 }
 ```
 
 **Features:**
-- Logs all API requests and responses
-- Configurable output directory
-- Request/response count limits
-- Failed request logging
+
+- Logs incoming API requests
+- Configurable request count limit
+- Optional request body logging
+- Optional request headers logging
 
 ### 2. Caching Interceptor
 
@@ -285,25 +293,26 @@ interceptor_config = {
     "enabled": True,
     "config": {
         "cache_dir": "/tmp/cache",
-        "reuse_cached_responses": True,
-        "save_requests": True,
+        "reuse_cached_responses": False,
+        "save_requests": False,
         "save_responses": True,
-        "max_saved_requests": 1000,
-        "max_saved_responses": 1000
+        "max_saved_requests": None,
+        "max_saved_responses": None
     }
 }
 ```
 
 **Features:**
+
 - Response caching for performance
 - Configurable cache directory
-- Request/response persistence
-- Cache size limits
+- Optional request/response persistence
+- Optional cache size limits
 
 ### 3. Reasoning Interceptor
 
 ```python
-from nemo_evaluator.adapters.interceptors.reasoning_interceptor import ReasoningInterceptor
+from nemo_evaluator.adapters.interceptors.reasoning_interceptor import ResponseReasoningInterceptor
 
 # Configuration
 interceptor_config = {
@@ -313,16 +322,24 @@ interceptor_config = {
         "start_reasoning_token": "<think>",
         "end_reasoning_token": "</think>",
         "add_reasoning": True,
-        "enable_reasoning_tracking": True
+        "migrate_reasoning_content": False,
+        "enable_reasoning_tracking": True,
+        "include_if_not_finished": True,
+        "stats_file_saving_interval": None,
+        "enable_caching": True,
+        "cache_dir": "/tmp/reasoning_interceptor",
+        "logging_aggregated_stats_interval": 100
     }
 }
 ```
 
 **Features:**
-- Reasoning chain support
-- Custom reasoning tokens
-- Reasoning tracking and analysis
-- Chain-of-thought prompting
+
+- Processes reasoning content in responses
+- Detects and removes reasoning tokens
+- Tracks reasoning statistics
+- Optional extraction of reasoning to separate fields
+- Caching support for interrupted runs
 
 ### 4. System Message Interceptor
 
@@ -334,16 +351,16 @@ interceptor_config = {
     "name": "system_message",
     "enabled": True,
     "config": {
-        "custom_system_prompt": "You are a helpful AI assistant.",
-        "override_existing": True
+        "system_message": "You are a helpful AI assistant."
     }
 }
 ```
 
 **Features:**
-- Custom system prompt injection
-- Prompt override capabilities
-- Consistent system behavior
+
+- Adds system message to requests
+- For chat endpoints: adds as system role message
+- For completions endpoints: prepends to the prompt
 
 ### 5. Endpoint Interceptor
 
@@ -354,17 +371,15 @@ from nemo_evaluator.adapters.interceptors.endpoint_interceptor import EndpointIn
 interceptor_config = {
     "name": "endpoint",
     "enabled": True,
-    "config": {
-        "endpoint_url": "https://api.example.com/v1/chat/completions",
-        "timeout": 30
-    }
+    "config": {}  # No configurable parameters
 }
 ```
 
 **Features:**
-- Endpoint URL management
-- Request timeout configuration
-- Endpoint validation
+
+- Makes actual HTTP requests to upstream API
+- Automatically added as final interceptor in chain
+- No user-configurable parameters
 
 ### 6. Progress Tracking Interceptor
 
@@ -376,45 +391,49 @@ interceptor_config = {
     "name": "progress_tracking",
     "enabled": True,
     "config": {
-        "tracking_url": "http://localhost:3828/progress",
-        "interval": 1,
-        "track_requests": True,
-        "track_responses": True
+        "progress_tracking_url": "http://localhost:8000",
+        "progress_tracking_interval": 1,
+        "request_method": "PATCH",
+        "output_dir": None
     }
 }
 ```
 
 **Features:**
-- Real-time progress monitoring
-- Configurable tracking intervals
-- Request/response tracking
-- External progress endpoints
+
+- Tracks number of samples processed via webhook
+- Configurable tracking URL and interval
+- Optional local file tracking
+- Configurable HTTP request method
 
 ### 7. Payload Modifier Interceptor
 
 ```python
-from nemo_evaluator.adapters.interceptors.payload_modifier_interceptor import PayloadModifierInterceptor
+from nemo_evaluator.adapters.interceptors.payload_modifier_interceptor import PayloadParamsModifierInterceptor
 
 # Configuration
 interceptor_config = {
     "name": "payload_modifier",
     "enabled": True,
     "config": {
+        "params_to_remove": None,
         "params_to_add": {
             "extra_body": {
                 "chat_template_kwargs": {
                     "enable_thinking": False
                 }
             }
-        }
+        },
+        "params_to_rename": None
     }
 }
 ```
 
 **Features:**
-- Request payload modification
-- Custom parameter injection
-- Flexible configuration options
+
+- Modifies request payload
+- Can remove, add, or rename parameters
+- Supports nested parameter structures
 
 ### 8. Client Error Interceptor
 
@@ -423,19 +442,23 @@ from nemo_evaluator.adapters.interceptors.raise_client_error_interceptor import 
 
 # Configuration
 interceptor_config = {
-    "name": "raise_client_error",
+    "name": "raise_client_errors",
     "enabled": True,
     "config": {
-        "raise_on_error": True,
-        "error_threshold": 400
+        "exclude_status_codes": [408, 429],
+        "status_codes": None,
+        "status_code_range_start": 400,
+        "status_code_range_end": 499
     }
 }
 ```
 
 **Features:**
-- Error handling and propagation
-- Configurable error thresholds
-- Client error management
+
+- Raises exceptions on client errors (4xx status codes)
+- Configurable status code ranges
+- Can exclude specific status codes (like 408, 429)
+- Stops evaluation on non-retryable errors
 
 ## Configuration Examples
 
@@ -480,8 +503,9 @@ framework:
             - name: "request_logging"
               enabled: true
               config:
-                output_dir: "./logs"
-                max_requests: 1000
+                max_requests: 50
+                log_request_body: true
+                log_request_headers: true
             - name: "caching"
               enabled: true
               config:
@@ -493,18 +517,18 @@ framework:
                 start_reasoning_token: "<think>"
                 end_reasoning_token: "</think>"
                 add_reasoning: true
+                enable_reasoning_tracking: true
             - name: "progress_tracking"
               enabled: true
               config:
-                tracking_url: "http://localhost:3828/progress"
-                interval: 1
+                progress_tracking_url: "http://localhost:8000"
+                progress_tracking_interval: 1
           post_eval_hooks:
             - name: "custom_analysis"
               enabled: true
               config:
                 analysis_type: "detailed"
           endpoint_type: "chat"
-          caching_dir: "./legacy_cache"
 ```
 
 ## Interceptor System
@@ -513,7 +537,7 @@ The NeMo Evaluator uses an interceptor-based architecture that processes request
 
 ### Configuration Methods
 
-There are two primary ways to configure interceptors:
+You can configure interceptors using two primary approaches:
 
 1. **CLI Overrides**: Use the `--overrides` parameter for runtime configuration
 2. **YAML Configuration**: Define interceptor chains in configuration files
@@ -526,19 +550,8 @@ Refer to {ref}`nemo-evaluator-interceptors` for details.
 
 Here's a complete example combining multiple interceptors:
 
-**CLI Configuration:**
-```bash
-eval-factory run_eval \
-    --eval_type mmlu_pro \
-    --model_id meta/llama-3.1-8b-instruct \
-    --model_url https://integrate.api.nvidia.com/v1/chat/completions \
-    --model_type chat \
-    --api_key_name MY_API_KEY \
-    --output_dir ./results \
-    --overrides 'target.api_endpoint.adapter_config.use_request_logging=True,target.api_endpoint.adapter_config.use_caching=True,target.api_endpoint.adapter_config.caching_dir=./cache,target.api_endpoint.adapter_config.generate_html_report=True'
-```
-
 **YAML Configuration:**
+
 ```yaml
 target:
   api_endpoint:
@@ -547,9 +560,9 @@ target:
         - name: "request_logging"
           enabled: true
           config:
-            output_dir: "./logs"
-            max_requests: 1000
-            log_failed_requests: true
+            max_requests: 50
+            log_request_body: true
+            log_request_headers: true
         - name: "caching"
           enabled: true
           config:
@@ -562,16 +575,13 @@ target:
         - name: "response_logging"
           enabled: true
           config:
-            output_dir: "./logs"
-            max_responses: 1000
-      post_eval_hooks:
-        - name: "post_eval_report"
-          enabled: true
-          config:
-            report_types: ["html", "json"]
+            max_responses: 50
+      post_eval_hooks: []
 ```
+
 To use the above, save it as `config.yaml` and run:
-```
+
+```bash
 eval-factory run_eval \
     --eval_type mmlu_pro \
     --model_id meta/llama-3.1-8b-instruct \
@@ -584,16 +594,18 @@ eval-factory run_eval \
 
 ### Interceptor Chain Order
 
-Interceptors are executed in the order they appear in the configuration. A typical order is:
+Interceptors are executed in the order they appear in the configuration. The order matters because:
 
-1. `system_message` (add/modify system prompts)
-2. `payload_modifier` (modify request parameters)
-3. `omni_info` (add omni info if specified)
-4. `request_logging` (capture final request)
-5. `caching` (check cache before making request)
-6. `endpoint` or `nvcf` (make the actual API call)
-7. `response_logging` (log the response)
-8. `reasoning` (add/process reasoning tokens)
-9. `progress_tracking` (track evaluation progress)
+- **Request interceptors** process requests sequentially before sending to the endpoint
+- **Response interceptors** process responses sequentially after receiving from the endpoint
 
-If the interceptors are configured from the CLI, the chain will be configured in the above order.
+A typical order is:
+
+1. `system_message` - Add/modify system prompts
+2. `payload_modifier` - Modify request parameters
+3. `request_logging` - Log the request
+4. `caching` - Check cache before making request
+5. `endpoint` - Make the actual API call (automatically added)
+6. `response_logging` - Log the response
+7. `reasoning` - Process reasoning tokens
+8. `progress_tracking` - Track evaluation progress

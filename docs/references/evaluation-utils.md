@@ -22,9 +22,10 @@ def show_available_tasks() -> None
 
 ### Description
 
-This function scans all installed `core_evals` packages and prints a hierarchical list of available evaluation tasks organized by framework. It is useful for discovering which benchmarks and tasks are available in your environment.
+This function scans all installed `core_evals` packages and prints a hierarchical list of available evaluation tasks organized by framework. Use this function to discover which benchmarks and tasks are available in your environment.
 
 The function automatically detects:
+
 - **Installed frameworks**: lm-evaluation-harness, simple-evals, bigcode, BFCL
 - **Available tasks**: All tasks defined in each framework's configuration
 - **Installation status**: Displays message if no evaluation packages are installed
@@ -57,18 +58,9 @@ show_available_tasks()
 
 #### Programmatic Task Discovery
 
-For programmatic access to task information, use the CLI or launcher API:
-
-```bash
-# Using CLI
-nv-eval ls tasks
-
-# Filter for specific tasks
-nv-eval ls tasks | grep mmlu
-```
+For programmatic access to task information, use the launcher API:
 
 ```python
-# Using Launcher API
 from nemo_evaluator_launcher.api.functional import get_tasks_list
 
 # Get structured task information
@@ -76,6 +68,16 @@ tasks = get_tasks_list()
 for task in tasks:
     task_name, endpoint_type, harness, container = task
     print(f"Task: {task_name}, Type: {endpoint_type}, Framework: {harness}")
+```
+
+To filter tasks using the CLI:
+
+```bash
+# List all tasks
+nv-eval ls tasks
+
+# Filter for specific tasks
+nv-eval ls tasks | grep mmlu
 ```
 
 #### Check Installation Status
@@ -108,7 +110,7 @@ pip install nvidia-bfcl           # Berkeley Function Calling Leaderboard
 
 ### Error Handling
 
-The function handles missing packages gracefully:
+The function handles missing packages:
 
 ```python
 from nemo_evaluator import show_available_tasks
@@ -123,51 +125,6 @@ except ImportError as e:
 
 ---
 
-## Task Discovery Patterns
-
-### Find Tasks by Domain
-
-Use the CLI for domain-specific task discovery:
-
-```bash
-# Find all math-related tasks
-nv-eval ls tasks | grep -i math
-
-# Find code generation tasks
-nv-eval ls tasks | grep -iE "(code|humaneval|mbpp)"
-
-# Find safety evaluation tasks
-nv-eval ls tasks | grep -iE "(safety|toxic|bias)"
-```
-
-### Framework Capability Matrix
-
-Different frameworks specialize in different evaluation types:
-
-| Framework | Primary Use Case | Example Tasks |
-|-----------|-----------------|---------------|
-| **lm-evaluation-harness** | Academic benchmarks, reasoning | MMLU, GSM8K, ARC, HellaSwag |
-| **simple-evals** | Specialized reasoning, competition problems | AIME, MATH, MGSM, MMLU-Pro |
-| **bigcode** | Code generation and understanding | HumanEval, MBPP, APPS |
-| **BFCL** | Function calling, tool use | AST prompting, executable calls |
-
-### Discover Tasks for Specific Endpoints
-
-Different tasks require different endpoint types:
-
-```bash
-# Chat endpoint tasks (instruction-following)
-nv-eval ls tasks | awk '$2 == "chat"'
-
-# Completions endpoint tasks (base models)
-nv-eval ls tasks | awk '$2 == "completions"'
-
-# Vision-language tasks
-nv-eval ls tasks | awk '$2 == "vlm"'
-```
-
----
-
 ## Integration with Evaluation Workflows
 
 ### Pre-Flight Task Verification
@@ -175,59 +132,47 @@ nv-eval ls tasks | awk '$2 == "vlm"'
 Verify task availability before running evaluations:
 
 ```python
-from nemo_evaluator import show_available_tasks
-import subprocess
+from nemo_evaluator_launcher.api.functional import get_tasks_list
 
 def verify_task_available(task_name: str) -> bool:
     """Check if a specific task is available."""
-    result = subprocess.run(
-        ["nv-eval", "ls", "tasks"],
-        capture_output=True,
-        text=True
-    )
-    return task_name in result.stdout
+    tasks = get_tasks_list()
+    return any(task[0] == task_name for task in tasks)
 
 # Usage
 if verify_task_available("mmlu"):
     print("✓ MMLU is available")
 else:
-    print("✗ MMLU not found. Install: pip install nvidia-lm-eval")
+    print("✗ MMLU not found. Install evaluation framework packages")
 ```
 
-### Dynamic Task Configuration
+### Filter Tasks by Endpoint Type
 
-Use task discovery for dynamic configuration:
+Use task discovery to filter by endpoint type:
 
 ```python
 from nemo_evaluator_launcher.api.functional import get_tasks_list
-from nemo_evaluator_launcher.api.types import RunConfig
 
 # Get all chat endpoint tasks
 tasks = get_tasks_list()
-chat_tasks = [t[0] for t in tasks if t[1] == "chat"]
+chat_tasks = [task[0] for task in tasks if task[1] == "chat"]
+completions_tasks = [task[0] for task in tasks if task[1] == "completions"]
 
-# Run evaluations for all chat tasks
-for task in chat_tasks[:5]:  # Run first five
-    config = RunConfig.from_hydra(
-        config_dir="examples",
-        config_name="local_llama_3_1_8b_instruct",
-        hydra_overrides=[f"evaluation.tasks=[{task}]"]
-    )
-    # Execute evaluation...
+print(f"Chat tasks: {chat_tasks[:5]}")  # Show first five
+print(f"Completions tasks: {completions_tasks[:5]}")
 ```
 
 ### Framework Selection
 
-When multiple frameworks provide the same task, use explicit framework specification:
+When a task is provided by more than one framework, use explicit framework specification in your configuration:
 
 ```python
-from nemo_evaluator.core.evaluate import evaluate
-from nemo_evaluator.api.api_dataclasses import EvaluationConfig
+from nemo_evaluator.api.api_dataclasses import EvaluationConfig, ConfigParams
 
 # Explicit framework specification
 config = EvaluationConfig(
     type="lm-evaluation-harness.mmlu",  # Instead of just "mmlu"
-    # ... other configuration
+    params=ConfigParams(task="mmlu")
 )
 ```
 
@@ -238,6 +183,7 @@ config = EvaluationConfig(
 ### Problem: "NO evaluation packages are installed"
 
 **Solution**:
+
 ```bash
 # Install evaluation frameworks
 pip install nvidia-lm-eval nvidia-simple-evals nvidia-bigcode-eval nvidia-bfcl
@@ -248,39 +194,26 @@ python -c "from nemo_evaluator import show_available_tasks; show_available_tasks
 
 ### Problem: Task not appearing in list
 
-**Diagnosis**:
-```python
-# Check if package is installed
-import importlib
-try:
-    importlib.import_module("core_evals.lm_evaluation_harness")
-    print("✓ LM Eval Harness installed")
-except ImportError:
-    print("✗ LM Eval Harness not installed")
-```
-
-**Note**: The module name `lm_evaluation_harness` represents the internal package structure and may vary based on the framework package organization.
-
 **Solution**:
+
 ```bash
-# Install missing framework
+# Install the required framework package
 pip install nvidia-lm-eval
 
-# Restart Python session to reload packages
+# Verify installation
+python -c "from nemo_evaluator import show_available_tasks; show_available_tasks()"
 ```
 
 ### Problem: Task conflicts between frameworks
 
-When multiple frameworks implement the same task name (for example, both `lm-evaluation-harness` and `simple-evals` may provide `mmlu`), use explicit framework specification:
+When a task name is provided by more than one framework (for example, both `lm-evaluation-harness` and `simple-evals` provide `mmlu`), use explicit framework specification:
 
 **Solution**:
+
 ```bash
-# CLI approach - use explicit framework.task format
+# Use explicit framework.task format in your configuration overrides
 nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["lm-evaluation-harness.mmlu"]'
-
-# Alternative: check which frameworks provide a task
-nv-eval ls tasks | grep mmlu
 ```
 
 ---

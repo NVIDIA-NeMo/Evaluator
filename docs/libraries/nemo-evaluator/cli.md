@@ -6,10 +6,16 @@ This document provides a comprehensive reference for the `nemo-evaluator` comman
 
 ## Prerequisites
 
-- **Container way**: Use simple-evals container mentioned in {ref}`nemo-evaluator-containers`
-- **Python way**: 
+- **Container way**: Use evaluation containers mentioned in {ref}`nemo-evaluator-containers`
+- **Python way**:
+
   ```bash
-  pip install nemo-evaluator nvidia-simple-evals
+  pip install nemo-evaluator
+  ```
+
+  To run evaluations, you also need to install an evaluation framework package (for example, `nvidia-simple-evals`):
+  ```bash
+  pip install nvidia-simple-evals
   ```
 
 ## Overview
@@ -179,8 +185,6 @@ section.subsection.parameter=value
 
 ## Handle Errors
 
-
-
 ### Debug Mode
 
 Enable debug mode for detailed error information:
@@ -244,7 +248,6 @@ done
 echo "All evaluations completed!"
 ```
 
-
 ### Framework Development
 
 ```bash
@@ -254,7 +257,6 @@ nemo-evaluator-example my_custom_eval .
 # This creates the basic structure:
 # core_evals/my_custom_eval/
 # ├── framework.yml
-# ├── framework_entrypoint.py
 # ├── output.py
 # └── __init__.py
 
@@ -286,16 +288,15 @@ nemo-evaluator-example [package_name] [destination]
 
 **Example Usage:**
 ```bash
-# Setup framework in current directory
-nemo-evaluator-example my_package
-
 # Setup framework in specific directory
 nemo-evaluator-example my_package /path/to/destination
+
+# Setup framework in current directory
+nemo-evaluator-example my_package .
 ```
 
 **What it creates:**
 - `core_evals/my_package/framework.yml` - Framework configuration
-- `core_evals/my_package/framework_entrypoint.py` - Running `run_eval()`
 - `core_evals/my_package/output.py` - Output parsing logic
 - `core_evals/my_package/__init__.py` - Package initialization
 
@@ -307,35 +308,3 @@ nemo-evaluator-example my_package /path/to/destination
 # Set log level (recommended over --debug flag)
 export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
 ```
-
-## Best Practices
-
-### 1. **Configuration Management**
-- Use YAML configuration files for complex setups
-- Use environment variables for sensitive data
-- Validate configurations before running evaluations
-
-### 2. **Parameter Overrides**
-- Use dot notation for clear parameter paths
-- Test overrides with `--dry_run` first
-- Keep overrides simple and readable
-
-### 3. **Error Handling**
-- Check command exit codes
-- Use `NEMO_EVALUATOR_LOG_LEVEL=DEBUG` for troubleshooting
-- Monitor evaluation progress
-
-### 4. **Performance**
-- Use appropriate sample sizes for testing
-- Enable caching through adapter configuration
-- Monitor resource usage
-
-### 5. **Security**
-- Store API keys in environment variables
-- Use secure communication channels
-- Validate all inputs and configurations
-
-### 6. **Framework Development**
-- Use `nemo-evaluator-example` to bootstrap new frameworks
-- Follow the framework template structure
-- Test frameworks thoroughly before production use

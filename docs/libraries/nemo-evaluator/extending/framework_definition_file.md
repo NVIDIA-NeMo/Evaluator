@@ -94,6 +94,8 @@ defaults:
 
 #### Configuration Defaults
 
+The following example shows common parameter defaults. Each framework defines its own default values in the framework.yml file.
+
 ```yaml
 defaults:
   config:
@@ -127,12 +129,12 @@ defaults:
       type: chat                           # Default endpoint type
       supported_endpoint_types:            # All supported types
         - chat
-        - completion
+        - completions
 ```
 
 **Endpoint Types:**
 - **`chat`**: Multi-turn conversation format (OpenAI chat completions)
-- **`completion`**: Single-turn text completion format
+- **`completions`**: Single-turn text completion format
 
 ### 3. Evaluations Section
 
@@ -147,7 +149,7 @@ evaluations:
         type: "example_task_1"             # Evaluation type identifier
         supported_endpoint_types:          # Supported endpoints for this task
           - chat
-          - completion
+          - completions
         params:
           task: "example_task_1"           # Task-specific identifier
           temperature: 0.0                 # Task-specific temperature
@@ -207,7 +209,6 @@ your-framework/
  core_evals/
     your_framework/
         framework.yml           # This is your FDF
-|        framework_entrypoint.py # This is an entrypoint to execute evaluation (usually pre-defined)
         output.py               # Output parser (custom)
         __init__.py             # Empty init file
  setup.py                        # Package configuration

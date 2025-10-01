@@ -21,25 +21,21 @@ Here's a complete Slurm executor configuration with model deployment:
 ```yaml
 # examples/slurm_llama_3_1_8b_instruct.yaml
 defaults:
-  - execution: slurm
+  - execution: slurm/default
   - deployment: vllm
   - _self_
 
 execution:
+  account: your_account
   output_dir: /shared/results
   partition: gpu
-  nodes: 1
+  walltime: "04:00:00"
   gpus_per_node: 8
-  time_limit: "04:00:00"
 
 deployment:
-  type: vllm
-  model_path: /shared/models/llama-3.1-8b-instruct
-  
-target:
-  api_endpoint:
-    url: http://localhost:8000/v1/chat/completions
-    model_id: meta/llama-3.1-8b-instruct
+  checkpoint_path: /shared/models/llama-3.1-8b-instruct
+  served_model_name: meta-llama/Llama-3.1-8B-Instruct
+  tensor_parallel_size: 1
     
 evaluation:
   tasks:
@@ -49,8 +45,7 @@ evaluation:
 ```
 
 This configuration:
-- Uses the `slurm` execution backend
+- Uses the Slurm execution backend
 - Deploys a vLLM model server on the cluster
-- Requests GPU resources (1 node, 8 GPUs, 4-hour time limit)
-- Points the evaluation to the deployed model endpoint
-- Runs three common benchmark tasks
+- Requests GPU resources (8 GPUs per node, 4-hour time limit)
+- Runs three benchmark tasks

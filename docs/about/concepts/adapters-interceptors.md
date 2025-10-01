@@ -195,7 +195,6 @@ The adapter system integrates seamlessly with evaluation frameworks:
 For detailed implementation information, see:
 
 - **{ref}`nemo-evaluator-interceptors`**: Individual interceptor guides with configuration examples
-- **{ref}`interceptor-logging`**: Detailed logging configuration
 - **{ref}`interceptor-caching`**: Response caching setup and optimization
 - **{ref}`interceptor-reasoning`**: Chain-of-thought processing configuration
 

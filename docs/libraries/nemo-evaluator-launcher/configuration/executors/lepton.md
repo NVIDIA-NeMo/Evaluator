@@ -8,43 +8,41 @@ See common concepts and commands in the executors overview.
 
 ## Prerequisites
 
-- Lepton account and credentials configured
+- Lepton AI account and workspace access
+- Lepton AI credentials configured
 - Appropriate container images and permissions (for deployment flows)
 
 ## Install Lepton AI SDK
 
-Install the Lepton AI SDK locally so you can connect to your workspace and submit jobs:
+Install the Lepton AI SDK:
 
 ```bash
-git clone https://github.com/leptonai/leptonai.git
-cd leptonai
-pip install .
+pip install leptonai
 ```
 
 ## Authenticate with Your Lepton Workspace
 
-Generate an API token and log in from the same Python environment where you installed `leptonai`:
-1. Open your Lepton AI dashboard.
-2. Go to Settings → Tokens.
-3. Create a new token (use a descriptive name and long expiration).
-4. Copy and securely save the token. It starts with "nvapi-".
-5. Log in from your terminal:
+Log in to your Lepton AI workspace:
+
 ```bash
-lep login -c <workspace_name>:<your_token>
+lep login
 ```
+
+Follow the prompts to authenticate with your Lepton AI credentials.
 
 ## Quick Start
 
 Run a Lepton evaluation using the provided examples:
+
 ```bash
 # Deploy NIM model and run evaluation
-nv-eval run --config-dir examples --config-name lepton_nim_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir examples --config-name lepton_nim_llama_3_1_8b_instruct
 
 # Deploy vLLM model and run evaluation
-nv-eval run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruct
 
 # Use an existing endpoint (no deployment)
-nv-eval run --config-dir examples --config-name lepton_none_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir examples --config-name lepton_none_llama_3_1_8b_instruct
 ```
 
 ## Parallel Deployment Strategy
@@ -52,12 +50,12 @@ nv-eval run --config-dir examples --config-name lepton_none_llama_3_1_8b_instruc
 - Dedicated endpoints: Each task gets its own endpoint of the same model
 - Parallel deployment: All endpoints are created simultaneously (~3x faster)
 - Resource isolation: Independent tasks avoid mutual interference
-- Storage isolation: Per-invocation directory `/shared/nemo-evaluator-launcher-workspace/{invocation_id}`
+- Storage isolation: Per-invocation subdirectories are created in your configured mount paths
 - Simple cleanup: Single command tears down endpoints and storage
 
 ```{mermaid}
 graph TD
-    A["nv-eval run"] --> B["Load Tasks"]
+    A["nemo-evaluator-launcher run"] --> B["Load Tasks"]
     B --> D["Endpoints Deployment"]
     D --> E1["Deployment 1: Create Endpoint 1"]
     D --> E2["Deployment 2: Create Endpoint 2"]
@@ -76,49 +74,43 @@ graph TD
     K --> L["Finish"]
 ```
 
-## Configuration Example
+## Configuration
 
-Here's a complete Lepton executor configuration with vLLM deployment:
+Lepton executor configurations require:
 
-```yaml
-# examples/lepton_vllm_llama_3_1_8b_instruct.yaml
-defaults:
-  - execution: lepton
-  - deployment: vllm
-  - _self_
+- **Execution backend**: `execution: lepton/default`
+- **Deployment type**: One of `vllm`, `sglang`, `nim`, or `none`
+- **Lepton platform settings**: Node groups, resource shapes, secrets, and storage mounts
+- **Evaluation tasks**: List of tasks to run
 
-execution:
-  output_dir: ./cloud_results
+Refer to the complete working examples in the `examples/` directory:
 
-deployment:
-  type: vllm
-  model_id: meta-llama/Llama-3.1-8B-Instruct
-  
-target:
-  api_endpoint:
-    model_id: meta/llama-3.1-8b-instruct
-    
-evaluation:
-  tasks:
-    - name: hellaswag
-    - name: arc_challenge
-    - name: winogrande
+- `lepton_vllm_llama_3_1_8b_instruct.yaml` - vLLM deployment
+- `lepton_nim_llama_3_1_8b_instruct.yaml` - NIM container deployment
+- `lepton_none_llama_3_1_8b_instruct.yaml` - Use existing endpoint
+
+These example files include:
+
+- Lepton-specific resource configuration (`lepton_config.resource_shape`, node groups)
+- Environment variable references to secrets (HuggingFace tokens, API keys)
+- Storage mount configurations for model caching
+- Auto-scaling settings for deployments
+
+## Monitoring and Troubleshooting
+
+Check the status of your evaluation runs:
+
+```bash
+# Check status of a specific invocation
+nemo-evaluator-launcher status <invocation_id>
+
+# Kill running jobs and cleanup endpoints
+nemo-evaluator-launcher kill <invocation_id>
 ```
 
-This configuration:
+Common issues:
 
-- Uses the `lepton` execution backend
-- Deploys a vLLM model server on Lepton AI infrastructure
-- Automatically handles model deployment and endpoint creation
-- Runs three common benchmark tasks
-
-## Configuration Notes
-
-- Supports Hydra overrides for endpoint URLs, API keys, and execution output paths
-- Environment variables can be passed to deployment containers via `deployment.envs`
-
-## Troubleshooting
-
-- Ensure Lepton credentials are valid and images are accessible
+- Ensure Lepton credentials are valid (`lep login`)
+- Verify container images are accessible from your Lepton workspace
 - Check that endpoints reach Ready state before jobs start
-- Use launcher status commands to inspect job progress
+- Confirm secrets are configured in Lepton UI (Settings → Secrets)

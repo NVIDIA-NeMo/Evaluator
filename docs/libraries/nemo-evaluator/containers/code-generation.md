@@ -163,4 +163,4 @@ docker pull nvcr.io/nvidia/eval-factory/scicode:{{ docker_compose_latest }}
 | `n_samples` | `1` |
 | `eval_threads` | `None` |
 
-**Supported Domains:** Physics, Math, Material Science, Biology, Chemistry (16 subdomains total)
+**Supported Domains:** Physics, Math, Material Science, Biology, Chemistry (16 subdomains from 5 domains)

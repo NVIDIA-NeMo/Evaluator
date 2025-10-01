@@ -2,14 +2,11 @@
 
 # Local Exporter (`local`)
 
-Exports artifacts and optional summaries to the local filesystem (and from remote executors via staging). It can also produce consolidated JSON or CSV summaries of metrics.
-
-- **Purpose**: Copy artifacts/logs locally; optionally build per-invocation summaries
+Exports artifacts and optional summaries to the local filesystem. When used with remote executors, stages artifacts from remote locations. Can produce consolidated JSON or CSV summaries of metrics.
 
 ## Usage
 
 Export evaluation results and artifacts to your local filesystem with optional summary reports.
-
 
 ::::{tab-set}
 
@@ -18,19 +15,17 @@ Export evaluation results and artifacts to your local filesystem with optional s
 Export artifacts and generate summary reports locally:
 
 ```bash
-# Basic export to default directory
+# Basic export to current directory
 nv-eval export 8abcd123 --dest local
 
 # Export with JSON summary to custom directory
-nv-eval export 8abcd123 --dest local --format json -o ./evaluation-results/
+nv-eval export 8abcd123 --dest local --format json --output-dir ./evaluation-results/
 
 # Export multiple runs with CSV summary and logs included
-nv-eval export 8abcd123 9def4567 --dest local \
-  --config '{"format": "csv", "copy_logs": true, "output_dir": "./results"}'
+nv-eval export 8abcd123 9def4567 --dest local --format csv --copy-logs --output-dir ./results
 
 # Export only specific metrics to a custom filename
-nv-eval export 8abcd123 --dest local \
-  --config '{"format": "json", "log_metrics": ["accuracy", "bleu"], "output_filename": "model_metrics.json"}'
+nv-eval export 8abcd123 --dest local --format json --log-metrics accuracy --log-metrics bleu --output-filename model_metrics.json
 ```
 
 :::
@@ -44,7 +39,7 @@ from nemo_evaluator_launcher.api.functional import export_results
 
 # Basic local export with JSON summary
 export_results(
-    ["8abcd123"], 
+    invocation_ids=["8abcd123"], 
     dest="local", 
     config={
         "format": "json", 
@@ -54,7 +49,7 @@ export_results(
 
 # Export multiple runs with comprehensive configuration
 export_results(
-    ["8abcd123", "9def4567"], 
+    invocation_ids=["8abcd123", "9def4567"], 
     dest="local", 
     config={
         "output_dir": "./evaluation-outputs",
@@ -68,7 +63,7 @@ export_results(
 
 # Export artifacts only (no summary)
 export_results(
-    ["8abcd123"], 
+    invocation_ids=["8abcd123"], 
     dest="local", 
     config={
         "output_dir": "./artifacts-only",
@@ -91,30 +86,29 @@ export_results(
 * - Parameter
   - Type
   - Description
-  - Default/Notes
+  - Default
 * - `output_dir`
   - str
-  - Destination directory
-  - `./nemo-evaluator-results`
+  - Destination directory for exported results
+  - `.` (CLI), `./nemo-evaluator-launcher-results` (Python API)
 * - `copy_logs`
   - bool
   - Include logs alongside artifacts
   - `false`
 * - `only_required`
   - bool
-  - Copy only required/optional artifacts
+  - Copy only required and optional artifacts; excludes other files
   - `true`
 * - `format`
   - str | null
-  - Summary format: `json`, `csv`, or omit for none
-  - None
+  - Summary format: `json`, `csv`, or `null` for artifacts only
+  - `null`
 * - `log_metrics`
   - list[str]
-  - Filter which metrics to include (exact or substring)
+  - Filter metrics by name (exact or substring match)
   - All metrics
 * - `output_filename`
   - str
-  - Override default summary filename
-  - Auto-generated
+  - Override default summary filename (`processed_results.json` or `processed_results.csv`)
+  - `processed_results.<format>`
 ```
-

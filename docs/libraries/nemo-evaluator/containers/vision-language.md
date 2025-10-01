@@ -11,12 +11,14 @@ Containers specialized for evaluating multimodal models that process both visual
 Container for Vision-Language Model evaluation toolkit.
 
 **Use Cases:**
+
 - Multimodal model evaluation
 - Image-text understanding assessment
 - Visual reasoning evaluation
 - Cross-modal performance testing
 
 **Pull Command:**
+
 ```bash
 docker pull nvcr.io/nvidia/eval-factory/vlmevalkit:{{ docker_compose_latest }}
 ```
@@ -33,16 +35,9 @@ docker pull nvcr.io/nvidia/eval-factory/vlmevalkit:{{ docker_compose_latest }}
 | `max_retries` | `5` |
 | `request_timeout` | `60` |
 
-**Key Features:**
-- Support for various vision-language benchmarks
-- Image preprocessing and encoding
-- Text-image alignment evaluation
-- Visual question answering capabilities
-- Cross-modal retrieval assessment
+**Supported Benchmarks:**
 
-**Supported Evaluation Types:**
-- Visual Question Answering (VQA)
-- Image Captioning
-- Visual Reasoning
-- Cross-modal Retrieval
-- Multimodal Understanding Tasks
+- `ocrbench` - Optical character recognition and text understanding
+- `slidevqa` - Slide-based visual question answering (requires `OPENAI_CLIENT_ID`, `OPENAI_CLIENT_SECRET`)
+- `chartqa` - Chart and graph interpretation
+- `ai2d_judge` - AI2 Diagram understanding (requires `OPENAI_CLIENT_ID`, `OPENAI_CLIENT_SECRET`)

@@ -2,11 +2,11 @@
 
 # Interceptors
 
-The interceptor system is the core innovation of NeMo Evaluator, providing sophisticated **adapter and interceptor architecture** for fine-grained control over request and response processing during model evaluation.
+Interceptors provide fine-grained control over request and response processing during model evaluation through a configurable pipeline architecture.
 
 ## Overview
 
-The adapter system transforms simple model API calls into sophisticated evaluation workflows through a configurable pipeline of **interceptors**. Each interceptor can inspect, modify, or augment requests and responses as they flow through the evaluation process.
+The adapter system processes model API calls through a configurable pipeline of interceptors. Each interceptor can inspect, modify, or augment requests and responses as they flow through the evaluation process.
 
 ```{mermaid}
 graph LR
@@ -36,19 +36,10 @@ graph LR
     style E fill:#e8f5e8
 ```
 
-Configure request/response interceptors to add logging, caching, and custom processing to your evaluations.
-
 ## Core Interceptors
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
-
-:::{grid-item-card} {octicon}`log;1.5em;sd-mr-1` Request & Response Logging
-:link: logging
-:link-type: doc
-
-Log incoming requests and outgoing responses for debugging and analysis.
-:::
 
 :::{grid-item-card} {octicon}`cache;1.5em;sd-mr-1` Caching
 :link: caching
@@ -92,13 +83,6 @@ Handle reasoning tokens and track reasoning metrics.
 Track evaluation progress and status updates.
 :::
 
-:::{grid-item-card} {octicon}`globe;1.5em;sd-mr-1` Endpoint
-:link: endpoint
-:link-type: doc
-
-Route requests to model APIs with retry logic and error handling.
-:::
-
 ::::
 
 ## Process Post-Evaluation Results
@@ -119,12 +103,10 @@ Run additional processing, reporting, or cleanup after evaluations complete.
 :caption: Interceptors
 :hidden:
 
-Request & Response Logging <logging>
 Caching <caching>
 System Messages <system-messages>
 Payload Modification <payload-modification>
 Reasoning <reasoning>
 Progress Tracking <progress-tracking>
-Endpoint <endpoint>
 Post-Evaluation Hooks <post-evaluation-hooks>
 :::
