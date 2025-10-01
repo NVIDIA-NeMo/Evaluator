@@ -4,18 +4,19 @@ This document provides a comprehensive reference for the NeMo Evaluator Python A
 
 ## Core API Functions
 
-# CLI vs Programmatic Usage
+### CLI vs. Programmatic Usage
 
 The NeMo Evaluator API supports two usage patterns:
 
 1. **CLI Usage** (Recommended): Use `eval-factory run_eval` function which parses command line arguments
 2. **Programmatic Usage**: Use `evaluate()` function with configuration objects
 
-**When to use which:**
+**When to Use Which:**
+
 - **CLI**: For command-line tools, scripts, and simple automation
 - **Programmatic**: For building custom applications, workflows, and integration with other systems
 
-# Available Dataclasses
+### Available Data Classes
 
 The API provides several dataclasses for configuration:
 
@@ -36,7 +37,7 @@ from nemo_evaluator.api.api_dataclasses import (
 )
 ```
 
-# `run_eval`
+## `run_eval`
 
 The main entry point for running evaluations. This is a CLI entry point that parses command line arguments.
 
@@ -48,12 +49,12 @@ def run_eval() -> None:
     CLI entry point for running evaluations.
     
     This function parses command line arguments and executes evaluations.
-    It does not take parameters directly - all configuration is passed via CLI arguments.
+    It does not take parameters directly - all configuration is passed through CLI arguments.
     
     CLI Arguments:
-        --eval_type: Type of evaluation to run (e.g., "mmlu_pro", "gsm8k")
-        --model_id: Model identifier (e.g "meta/llama-3.1-8b-instruct")
-        --model_url: API endpoint URL (e.g "https://integrate.api.nvidia.com/v1/chat/completions" for chat endpoint type)
+        --eval_type: Type of evaluation to run (such as "mmlu_pro", "gpqa_diamond")
+        --model_id: Model identifier (such as "meta/llama-3.1-8b-instruct")
+        --model_url: API endpoint URL (such as "https://integrate.api.NVIDIA.com/v1/chat/completions" for chat endpoint type)
         --model_type: Endpoint type ("chat", "completions", "vlm", "embedding")
         --api_key_name: Environment variable name for API key integration with endpoints (optional)
         --output_dir: Output directory for results
@@ -67,9 +68,9 @@ def run_eval() -> None:
     """
 ```
 
-**Note**: The `run_eval()` function is designed as a CLI entry point. For programmatic usage, you should use the underlying configuration objects and the `evaluate()` function directly.
+**Note**: The `run_eval()` function is designed as a CLI entry point. For programmatic usage, use the underlying configuration objects and the `evaluate()` function directly.
 
-# `evaluate`
+## `evaluate`
 
 The core evaluation function for programmatic usage.
 
@@ -94,13 +95,16 @@ def evaluate(
 ```
 
 **Prerequisites:**
+
 - **Container way**: Use simple-evals container mentioned in the [Container Reference](containers.md)
-- **Python way**: 
+- **Python way**:
+
   ```bash
-  pip install nemo-evaluator nvidia-simple-evals
+  pip install nemo-evaluator NVIDIA-simple-evals
   ```
 
 **Example Programmatic Usage:**
+
 ```python
 from nemo_evaluator.core.evaluate import evaluate
 from nemo_evaluator.api.api_dataclasses import (
@@ -123,10 +127,10 @@ eval_config = EvaluationConfig(
 # Create target configuration
 target_config = EvaluationTarget(
     api_endpoint=ApiEndpoint(
-        url="https://integrate.api.nvidia.com/v1/chat/completions",
+        url="https://integrate.api.NVIDIA.com/v1/chat/completions",
         model_id="meta/llama-3.1-8b-instruct",
         type="chat",
-        api_key="MY_API_KEY" # Name of the environemnt variable that stores api_key
+        api_key="MY_API_KEY" # Name of the environment variable that stores api_key
     )
 )
 
@@ -136,7 +140,7 @@ result = evaluate(eval_config, target_config)
 
 ## Data Structures
 
-# `EvaluationConfig`
+### `EvaluationConfig`
 
 Configuration for evaluation runs, defined in `api_dataclasses.py`.
 
@@ -150,7 +154,7 @@ class EvaluationConfig:
     params: str                  # parameter overrides
 ```
 
-# `EvaluationTarget`
+### `EvaluationTarget`
 
 Target configuration for API endpoints, defined in `api_dataclasses.py`.
 
@@ -170,14 +174,14 @@ class ApiEndpoint:
 ```
 
 In the ApiEndpoint dataclass, `type` should be one of: `EndpointType.CHAT`, `EndpointType.COMPLETIONS`, `EndpointType.VLM`, `EndpointType.EMBEDDING`:
-    - `CHAT` endpoint accepts structured input as a sequence of messages (e.g., system, user, assistant roles) and returns a model-generated message, enabling controlled multi-turn interactions.
-    - `COMPLETIONS` endpoint takes a single prompt string and returns a text continuation, typically used for one-shot or single-turn tasks without conversational structure. 
-    - `VLM` endpoint hosts a model that has vision capabilities, 
+    - `CHAT` endpoint accepts structured input as a sequence of messages (such as system, user, assistant roles). It returns a model-generated message, enabling controlled multi-turn interactions.
+    - `COMPLETIONS` endpoint takes a single prompt string and returns a text continuation, typically used for one-shot or single-turn tasks without conversational structure.
+    - `VLM` endpoint hosts a model that has vision capabilities.
     - `EMBEDDING` endpoint hosts an embedding model.
 
 ## Adapter System
 
-# `AdapterConfig`
+### `AdapterConfig`
 
 Configuration for the adapter system, defined in `adapter_config.py`.
 
@@ -194,7 +198,7 @@ class AdapterConfig:
     caching_dir: str | None                      # Legacy caching directory
 ```
 
-# `InterceptorConfig`
+### `InterceptorConfig`
 
 Configuration for individual interceptors.
 
@@ -209,7 +213,7 @@ class InterceptorConfig:
     config: dict[str, Any]          # Interceptor-specific configuration
 ```
 
-# `DiscoveryConfig`
+### `DiscoveryConfig`
 
 Configuration for discovering third-party modules and directories.
 
@@ -225,7 +229,7 @@ class DiscoveryConfig:
 
 ## Available Interceptors
 
-# 1. Request Logging Interceptor
+### 1. Request Logging Interceptor
 
 ```python
 from nemo_evaluator.adapters.interceptors.logging_interceptor import LoggingInterceptor
@@ -243,12 +247,13 @@ interceptor_config = {
 ```
 
 **Features:**
+
 - Logs all API requests and responses
 - Configurable output directory
 - Request/response count limits
 - Failed request logging
 
-# 2. Caching Interceptor
+### 2. Caching Interceptor
 
 ```python
 from nemo_evaluator.adapters.interceptors.caching_interceptor import CachingInterceptor
@@ -269,13 +274,14 @@ interceptor_config = {
 ```
 
 **Features:**
+
 - Response caching for performance
 - Persistent storage - responses are saved to disk, allowing resumption after process termination
 - Configurable cache directory
 - Request/response persistence
 - Cache size limits
 
-# 3. Reasoning Interceptor
+### 3. Reasoning Interceptor
 
 ```python
 from nemo_evaluator.adapters.interceptors.reasoning_interceptor import ReasoningInterceptor
@@ -294,12 +300,13 @@ interceptor_config = {
 ```
 
 **Features:**
+
 - Reasoning chain support
 - Custom reasoning tokens
 - Reasoning tracking and analysis
 - Chain-of-thought prompting
 
-# 4. System Message Interceptor
+### 4. System Message Interceptor
 
 ```python
 from nemo_evaluator.adapters.interceptors.system_message_interceptor import SystemMessageInterceptor
@@ -316,17 +323,19 @@ interceptor_config = {
 ```
 
 **Features:**
+
 - Custom system prompt injection
 - Prompt override capabilities
 - Consistent system behavior
 
 **Use Cases:**
+
 - Modify system prompts for different evaluation scenarios
 - Test different prompt variations without code changes
 - Override existing system messages for consistent behavior
 - A/B testing of different prompt strategies
 
-# 5. Endpoint Interceptor
+### 5. Endpoint Interceptor
 
 ```python
 from nemo_evaluator.adapters.interceptors.endpoint_interceptor import EndpointInterceptor
@@ -343,11 +352,12 @@ interceptor_config = {
 ```
 
 **Features:**
+
 - Endpoint URL management
 - Request timeout configuration
 - Endpoint validation
 
-# 6. Payload Modifier Interceptor
+### 6. Payload Modifier Interceptor
 
 ```python
 from nemo_evaluator.adapters.interceptors.payload_modifier_interceptor import PayloadModifierInterceptor
@@ -369,14 +379,16 @@ interceptor_config = {
 ```
 
 **Explanation:**
+
 This interceptor is particularly useful when custom behavior is needed. In this example, the `enable_thinking` parameter is a custom key that controls the reasoning mode of the model. When set to `False`, it disables the model's internal reasoning/thinking process, which can be useful for scenarios where you want more direct responses without the model's step-by-step reasoning output.
 
 **Features:**
+
 - Request payload modification
 - Custom parameter injection
 - Flexible configuration options
 
-# 7. Client Error Interceptor
+### 7. Client Error Interceptor
 
 ```python
 from nemo_evaluator.adapters.interceptors.raise_client_error_interceptor import RaiseClientErrorInterceptor
@@ -393,13 +405,14 @@ interceptor_config = {
 ```
 
 **Features:**
+
 - Error handling and propagation
 - Configurable error thresholds
 - Client error management
 
 ## Configuration Examples
 
-# Basic Framework Configuration
+### Basic Framework Configuration
 
 ```yaml
 framework:
@@ -422,7 +435,7 @@ framework:
                 cache_dir: "./cache"
 ```
 
-# Advanced Adapter Configuration
+### Advanced Adapter Configuration
 
 ```yaml
 framework:
@@ -468,22 +481,23 @@ framework:
 
 The NeMo Evaluator uses an interceptor-based architecture that processes requests and responses through a configurable chain of components. Interceptors can modify requests, responses, or both, and can be enabled/disabled and configured independently.
 
-# Configuration Methods
+### Configuration Methods
 
-There are two primary ways to configure interceptors:
+Two primary methods exist to configure interceptors:
 
 1. **CLI Overrides**: Use the `--overrides` parameter for runtime configuration
 2. **YAML Configuration**: Define interceptor chains in configuration files
 
-# Configuring Interceptors
+### Configuring Interceptors
 
 Refer to [Configuring Interceptors](./configuring-interceptors.md) for details.
 
-# Complete Configuration Example
+### Complete Configuration Example
 
-Here's a complete example combining multiple interceptors:
+Here is a complete example combining multiple interceptors:
 
 **CLI Configuration:**
+
 ```bash
 eval-factory run_eval \
     --eval_type mmlu_pro \
@@ -496,6 +510,7 @@ eval-factory run_eval \
 ```
 
 **YAML Configuration:**
+
 ```yaml
 target:
   api_endpoint:
@@ -525,8 +540,10 @@ target:
           config:
             report_types: ["html", "json"]
 ```
+
 To use the above, save it as `config.yaml` and run:
-```
+
+```bash
 eval-factory run_eval \
     --eval_type mmlu_pro \
     --model_id meta/llama-3.1-8b-instruct \
@@ -537,7 +554,7 @@ eval-factory run_eval \
     --run_config config.yaml
 ```
 
-# Interceptor Chain Order
+### Interceptor Chain Order
 
 Interceptors are executed in the order they appear in the configuration. A typical order is:
 

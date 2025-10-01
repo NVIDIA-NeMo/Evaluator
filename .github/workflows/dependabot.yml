@@ -24,6 +24,7 @@ jobs:
             grep -o 'r[0-9]\+\.[0-9]\+\.[0-9]\+' | 
             sort -V | 
             tail -n1)
+
           echo "nemo_eval_release_branch=$latest_branch" >> $GITHUB_OUTPUT
 
   bump-tags:
@@ -32,16 +33,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target-branch: ${{ needs.get-release-branch-names.outputs.eval }}
+          # - target-branch: ${{ needs.get-release-branch-names.outputs.eval }} # re-enable that after code-freeze of 25.11
           - target-branch: main
     uses: ./.github/workflows/_update_dependencies.yml
     with:
       target-branch: ${{ matrix.target-branch }}
     secrets:
       PAT: ${{ secrets.PAT }}
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       SSH_KEY: ${{ secrets.SSH_KEY }}
       SSH_PWD: ${{ secrets.SSH_PWD }}
 
@@ -59,5 +57,5 @@ jobs:
         run: |
           curl -X POST \
             -H 'Content-type: application/json' \
-            --data "{\"text\":\":robot_joy: <https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|Mcore-bump-bot workflow> failed. Please fix manually.\n\ncc ${SLACK_WEBHOOK_ADMIN}\"}" \
+            --data "{\"text\":\":robot_joy: <https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|Dependabot workflow> failed. Please fix manually.\n\ncc ${SLACK_WEBHOOK_ADMIN}\"}" \
             $SLACK_WEBHOOK
