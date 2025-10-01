@@ -56,7 +56,7 @@ The `command` field uses Jinja2 templating to dynamically generate execution com
 ```yaml
 defaults:
   command: >-
-    {% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}} && {% endif %}
+    {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %}
     example_eval --model {{target.api_endpoint.model_id}} 
     --task {{config.params.task}}
     --url {{target.api_endpoint.url}} 
@@ -74,8 +74,7 @@ defaults:
 #### Key Template Variables
 
 **Target API Endpoint Variables:**
-
-- **`{{target.api_endpoint.api_key}}`**: Name of the environment variable storing API key
+- **`{{target.api_endpoint.api_key_name}}`**: Name of the environment variable storing API key
 - **`{{target.api_endpoint.model_id}}`**: Target model identifier
 - **`{{target.api_endpoint.stream}}`**: Whether responses should be streamed
 - **`{{target.api_endpoint.type}}`**: The type of the target endpoint
