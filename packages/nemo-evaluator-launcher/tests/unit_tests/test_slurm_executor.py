@@ -105,9 +105,7 @@ class TestSlurmExecutorFeatures:
             }
             mock_get_health.return_value = "http://localhost:8000/health"
             mock_get_endpoint.return_value = "http://localhost:8000/v1"
-            mock_get_eval_command.return_value = (
-                "nemo_evaluator_launcher run_eval --test"
-            )
+            mock_get_eval_command.return_value = "eval-factory run_eval --test"
             mock_get_model_name.return_value = "test-model"
 
             yield {

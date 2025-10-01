@@ -9,6 +9,9 @@ package-dir = { "" = "src" }
 where = ["src"]
 include = ["nemo_evaluator", "nemo_evaluator.*"]
 
+[tool.setuptools.package-data]
+nemo_evaluator = ["resources/**/*"]
+
 [tool.setuptools.dynamic]
 version = { attr = "nemo_evaluator.package_info.__version__" }
 
@@ -71,6 +74,7 @@ docs = [
     "sphinx-copybutton",   # Adds a copy button for code blocks
     "myst_parser",         # For our markdown docs
     "nvidia-sphinx-theme", # Our NVIDIA theme
+    "sphinxcontrib-mermaid", # For mermaid diagrams
 ]
 
 [project.scripts]
