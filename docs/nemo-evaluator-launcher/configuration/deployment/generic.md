@@ -18,3 +18,7 @@ Key arguments:
 ## Best Practices
 - Ensure server responds to health check endpoint (ensure that health endpoint is correctly parametrized)
 - Test configuration with `--dry_run`
+
+## Contributing Permanent Configurations
+
+If you've successfully applied the generic deployment to serve a specific model or framework, contributions are welcome! We'll turn your working configuration into a permanent config file for the community.
