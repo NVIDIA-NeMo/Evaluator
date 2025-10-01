@@ -1,0 +1,1139 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>API Reference &#8212; NeMo Eval</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'nemo-evaluator/reference/api';</script>
+    <script>
+        DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.1.0';
+        DOCUMENTATION_OPTIONS.show_version_warning_banner =
+            false;
+        </script>
+    <link rel="icon" href="../../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+
+
+    <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js" ></script>
+    
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-2"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-2"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-2"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-2">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA-NeMo/Eval" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-3"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-3"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-3"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-3">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA-NeMo/Eval" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Home</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Libraries</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../nemo-evaluator-launcher/index.html">NeMo Evaluator Launcher</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">NeMo Evaluator</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">API Reference</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="api-reference">
+<h1>API Reference<a class="headerlink" href="#api-reference" title="Link to this heading">#</a></h1>
+<p>This document provides a comprehensive reference for the NeMo Evaluator Python API.</p>
+<section id="core-api-functions">
+<h2>Core API Functions<a class="headerlink" href="#core-api-functions" title="Link to this heading">#</a></h2>
+<section id="cli-vs-programmatic-usage">
+<h3>CLI vs. Programmatic Usage<a class="headerlink" href="#cli-vs-programmatic-usage" title="Link to this heading">#</a></h3>
+<p>The NeMo Evaluator API supports two usage patterns:</p>
+<ol class="arabic simple">
+<li><p><strong>CLI Usage</strong> (Recommended): Use <code class="docutils literal notranslate"><span class="pre">eval-factory</span> <span class="pre">run_eval</span></code> function which parses command line arguments</p></li>
+<li><p><strong>Programmatic Usage</strong>: Use <code class="docutils literal notranslate"><span class="pre">evaluate()</span></code> function with configuration objects</p></li>
+</ol>
+<p><strong>When to Use Which:</strong></p>
+<ul class="simple">
+<li><p><strong>CLI</strong>: For command-line tools, scripts, and simple automation</p></li>
+<li><p><strong>Programmatic</strong>: For building custom applications, workflows, and integration with other systems</p></li>
+</ul>
+</section>
+<section id="available-data-classes">
+<h3>Available Data Classes<a class="headerlink" href="#available-data-classes" title="Link to this heading">#</a></h3>
+<p>The API provides several dataclasses for configuration:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.api.api_dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">EvaluationConfig</span><span class="p">,</span>      <span class="c1"># Main evaluation configuration</span>
+    <span class="n">EvaluationTarget</span><span class="p">,</span>      <span class="c1"># Target model configuration</span>
+    <span class="n">ConfigParams</span><span class="p">,</span>          <span class="c1"># Evaluation parameters</span>
+    <span class="n">ApiEndpoint</span><span class="p">,</span>           <span class="c1"># API endpoint configuration</span>
+    <span class="n">EvaluationResult</span><span class="p">,</span>      <span class="c1"># Evaluation results</span>
+    <span class="n">TaskResult</span><span class="p">,</span>            <span class="c1"># Individual task results</span>
+    <span class="n">MetricResult</span><span class="p">,</span>          <span class="c1"># Metric scores</span>
+    <span class="n">Score</span><span class="p">,</span>                 <span class="c1"># Score representation</span>
+    <span class="n">ScoreStats</span><span class="p">,</span>            <span class="c1"># Score statistics</span>
+    <span class="n">GroupResult</span><span class="p">,</span>           <span class="c1"># Grouped results</span>
+    <span class="n">EndpointType</span><span class="p">,</span>          <span class="c1"># Endpoint type enum</span>
+    <span class="n">Evaluation</span>             <span class="c1"># Complete evaluation object</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="run-eval">
+<h2><code class="docutils literal notranslate"><span class="pre">run_eval</span></code><a class="headerlink" href="#run-eval" title="Link to this heading">#</a></h2>
+<p>The main entry point for running evaluations. This is a CLI entry point that parses command line arguments.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.api.run</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_eval</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">run_eval</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    CLI entry point for running evaluations.</span>
+<span class="sd">    </span>
+<span class="sd">    This function parses command line arguments and executes evaluations.</span>
+<span class="sd">    It does not take parameters directly - all configuration is passed through CLI arguments.</span>
+<span class="sd">    </span>
+<span class="sd">    CLI Arguments:</span>
+<span class="sd">        --eval_type: Type of evaluation to run (such as &quot;mmlu_pro&quot;, &quot;gpqa_diamond&quot;)</span>
+<span class="sd">        --model_id: Model identifier (such as &quot;meta/llama-3.1-8b-instruct&quot;)</span>
+<span class="sd">        --model_url: API endpoint URL (such as &quot;https://integrate.api.NVIDIA.com/v1/chat/completions&quot; for chat endpoint type)</span>
+<span class="sd">        --model_type: Endpoint type (&quot;chat&quot;, &quot;completions&quot;, &quot;vlm&quot;, &quot;embedding&quot;)</span>
+<span class="sd">        --api_key_name: Environment variable name for API key integration with endpoints (optional)</span>
+<span class="sd">        --output_dir: Output directory for results</span>
+<span class="sd">        --run_config: Path to YAML Run Configuration file (optional)</span>
+<span class="sd">        --overrides: Comma-separated dot-style parameter overrides (optional)</span>
+<span class="sd">        --dry_run: Show rendered config without running (optional)</span>
+<span class="sd">        --debug: Enable debug logging (optional, deprecated, use NV_LOG_LEVEL=DEBUG env var)</span>
+<span class="sd">    </span>
+<span class="sd">    Usage:</span>
+<span class="sd">        run_eval()  # Parses sys.argv automatically</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+<p><strong>Note</strong>: The <code class="docutils literal notranslate"><span class="pre">run_eval()</span></code> function is designed as a CLI entry point. For programmatic usage, use the underlying configuration objects and the <code class="docutils literal notranslate"><span class="pre">evaluate()</span></code> function directly.</p>
+</section>
+<section id="evaluate">
+<h2><code class="docutils literal notranslate"><span class="pre">evaluate</span></code><a class="headerlink" href="#evaluate" title="Link to this heading">#</a></h2>
+<p>The core evaluation function for programmatic usage.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.core.evaluate</span><span class="w"> </span><span class="kn">import</span> <span class="n">evaluate</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.api.api_dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">EvaluationConfig</span><span class="p">,</span> <span class="n">EvaluationTarget</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">evaluate</span><span class="p">(</span>
+    <span class="n">eval_cfg</span><span class="p">:</span> <span class="n">EvaluationConfig</span><span class="p">,</span>
+    <span class="n">target_cfg</span><span class="p">:</span> <span class="n">EvaluationTarget</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">EvaluationResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Run an evaluation using configuration objects.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        eval_cfg: Evaluation configuration object</span>
+<span class="sd">        target_cfg: Target configuration object</span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        EvaluationResult: Evaluation results and metadata</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+<p><strong>Prerequisites:</strong></p>
+<ul>
+<li><p><strong>Container way</strong>: Use simple-evals container mentioned in the <a class="reference internal" href="containers.html"><span class="std std-doc">Container Reference</span></a></p></li>
+<li><p><strong>Python way</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>nemo-evaluator<span class="w"> </span>NVIDIA-simple-evals
+</pre></div>
+</div>
+</li>
+</ul>
+<p><strong>Example Programmatic Usage:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.core.evaluate</span><span class="w"> </span><span class="kn">import</span> <span class="n">evaluate</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.api.api_dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">EvaluationConfig</span><span class="p">,</span> 
+    <span class="n">EvaluationTarget</span><span class="p">,</span> 
+    <span class="n">ConfigParams</span><span class="p">,</span>
+    <span class="n">ApiEndpoint</span>
+<span class="p">)</span>
+
+<span class="c1"># Create evaluation configuration</span>
+<span class="n">eval_config</span> <span class="o">=</span> <span class="n">EvaluationConfig</span><span class="p">(</span>
+    <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;simple_evals.mmlu_pro&quot;</span><span class="p">,</span>
+    <span class="n">output_dir</span><span class="o">=</span><span class="s2">&quot;./results&quot;</span><span class="p">,</span> 
+    <span class="n">params</span><span class="o">=</span><span class="n">ConfigParams</span><span class="p">(</span>
+        <span class="n">limit_samples</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+        <span class="n">temperature</span><span class="o">=</span><span class="mf">0.1</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+
+<span class="c1"># Create target configuration</span>
+<span class="n">target_config</span> <span class="o">=</span> <span class="n">EvaluationTarget</span><span class="p">(</span>
+    <span class="n">api_endpoint</span><span class="o">=</span><span class="n">ApiEndpoint</span><span class="p">(</span>
+        <span class="n">url</span><span class="o">=</span><span class="s2">&quot;https://integrate.api.NVIDIA.com/v1/chat/completions&quot;</span><span class="p">,</span>
+        <span class="n">model_id</span><span class="o">=</span><span class="s2">&quot;meta/llama-3.1-8b-instruct&quot;</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;chat&quot;</span><span class="p">,</span>
+        <span class="n">api_key</span><span class="o">=</span><span class="s2">&quot;MY_API_KEY&quot;</span> <span class="c1"># Name of the environment variable that stores api_key</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+
+<span class="c1"># Run evaluation</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">evaluate</span><span class="p">(</span><span class="n">eval_config</span><span class="p">,</span> <span class="n">target_config</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="data-structures">
+<h2>Data Structures<a class="headerlink" href="#data-structures" title="Link to this heading">#</a></h2>
+<section id="evaluationconfig">
+<h3><code class="docutils literal notranslate"><span class="pre">EvaluationConfig</span></code><a class="headerlink" href="#evaluationconfig" title="Link to this heading">#</a></h3>
+<p>Configuration for evaluation runs, defined in <code class="docutils literal notranslate"><span class="pre">api_dataclasses.py</span></code>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.api.api_dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">EvaluationConfig</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">EvaluationConfig</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for evaluation runs.&quot;&quot;&quot;</span>
+    <span class="nb">type</span><span class="p">:</span> <span class="nb">str</span>                    <span class="c1"># Type of evaluation - benchmark to be run</span>
+    <span class="n">output_dir</span><span class="p">:</span> <span class="nb">str</span>              <span class="c1"># Output directory</span>
+    <span class="n">params</span><span class="p">:</span> <span class="nb">str</span>                  <span class="c1"># parameter overrides</span>
+</pre></div>
+</div>
+</section>
+<section id="evaluationtarget">
+<h3><code class="docutils literal notranslate"><span class="pre">EvaluationTarget</span></code><a class="headerlink" href="#evaluationtarget" title="Link to this heading">#</a></h3>
+<p>Target configuration for API endpoints, defined in <code class="docutils literal notranslate"><span class="pre">api_dataclasses.py</span></code>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.api.api_dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">EvaluationTarget</span><span class="p">,</span> <span class="n">EndpointType</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">EvaluationTarget</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Target configuration for API endpoints.&quot;&quot;&quot;</span>
+    <span class="n">api_endpoint</span><span class="p">:</span> <span class="n">ApiEndpoint</span>  <span class="c1"># API endpoint to be used for evaluation</span>
+ 
+<span class="k">class</span><span class="w"> </span><span class="nc">ApiEndpoint</span><span class="p">:</span>
+    <span class="n">url</span><span class="p">:</span> <span class="nb">str</span>                          <span class="c1"># API endpoint URL</span>
+    <span class="n">model_id</span><span class="p">:</span> <span class="nb">str</span>                     <span class="c1"># Model name or identifier</span>
+    <span class="nb">type</span><span class="p">:</span> <span class="nb">str</span>                         <span class="c1"># Endpoint type (chat, completions, vlm, or embedding)</span>
+    <span class="n">api_key</span><span class="p">:</span> <span class="nb">str</span>                      <span class="c1"># Name of the env variable that stores API key</span>
+    <span class="n">adapter_config</span><span class="p">:</span> <span class="n">AdapterConfig</span>     <span class="c1"># Adapter configuration</span>
+</pre></div>
+</div>
+<p>In the ApiEndpoint dataclass, <code class="docutils literal notranslate"><span class="pre">type</span></code> should be one of: <code class="docutils literal notranslate"><span class="pre">EndpointType.CHAT</span></code>, <code class="docutils literal notranslate"><span class="pre">EndpointType.COMPLETIONS</span></code>, <code class="docutils literal notranslate"><span class="pre">EndpointType.VLM</span></code>, <code class="docutils literal notranslate"><span class="pre">EndpointType.EMBEDDING</span></code>:
+- <code class="docutils literal notranslate"><span class="pre">CHAT</span></code> endpoint accepts structured input as a sequence of messages (such as system, user, assistant roles). It returns a model-generated message, enabling controlled multi-turn interactions.
+- <code class="docutils literal notranslate"><span class="pre">COMPLETIONS</span></code> endpoint takes a single prompt string and returns a text continuation, typically used for one-shot or single-turn tasks without conversational structure.
+- <code class="docutils literal notranslate"><span class="pre">VLM</span></code> endpoint hosts a model that has vision capabilities.
+- <code class="docutils literal notranslate"><span class="pre">EMBEDDING</span></code> endpoint hosts an embedding model.</p>
+</section>
+</section>
+<section id="adapter-system">
+<h2>Adapter System<a class="headerlink" href="#adapter-system" title="Link to this heading">#</a></h2>
+<section id="adapterconfig">
+<h3><code class="docutils literal notranslate"><span class="pre">AdapterConfig</span></code><a class="headerlink" href="#adapterconfig" title="Link to this heading">#</a></h3>
+<p>Configuration for the adapter system, defined in <code class="docutils literal notranslate"><span class="pre">adapter_config.py</span></code>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.adapters.adapter_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">AdapterConfig</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">AdapterConfig</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the adapter system.&quot;&quot;&quot;</span>
+    
+    <span class="n">discovery</span><span class="p">:</span> <span class="n">DiscoveryConfig</span>                    <span class="c1"># Module discovery configuration</span>
+    <span class="n">interceptors</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">InterceptorConfig</span><span class="p">]</span>        <span class="c1"># List of interceptors</span>
+    <span class="n">post_eval_hooks</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">PostEvalHookConfig</span><span class="p">]</span>   <span class="c1"># Post-evaluation hooks</span>
+    <span class="n">endpoint_type</span><span class="p">:</span> <span class="nb">str</span>                           <span class="c1"># Default endpoint type</span>
+    <span class="n">caching_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>                      <span class="c1"># Legacy caching directory</span>
+</pre></div>
+</div>
+</section>
+<section id="interceptorconfig">
+<h3><code class="docutils literal notranslate"><span class="pre">InterceptorConfig</span></code><a class="headerlink" href="#interceptorconfig" title="Link to this heading">#</a></h3>
+<p>Configuration for individual interceptors.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.adapters.adapter_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">InterceptorConfig</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">InterceptorConfig</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a single interceptor.&quot;&quot;&quot;</span>
+    
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>                        <span class="c1"># Interceptor name</span>
+    <span class="n">enabled</span><span class="p">:</span> <span class="nb">bool</span>                    <span class="c1"># Whether enabled</span>
+    <span class="n">config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>          <span class="c1"># Interceptor-specific configuration</span>
+</pre></div>
+</div>
+</section>
+<section id="discoveryconfig">
+<h3><code class="docutils literal notranslate"><span class="pre">DiscoveryConfig</span></code><a class="headerlink" href="#discoveryconfig" title="Link to this heading">#</a></h3>
+<p>Configuration for discovering third-party modules and directories.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.adapters.adapter_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">DiscoveryConfig</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">DiscoveryConfig</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for discovering 3rd party modules and directories.&quot;&quot;&quot;</span>
+    
+    <span class="n">modules</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>               <span class="c1"># List of module paths to discover</span>
+    <span class="n">dirs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>                  <span class="c1"># List of directory paths to discover</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="available-interceptors">
+<h2>Available Interceptors<a class="headerlink" href="#available-interceptors" title="Link to this heading">#</a></h2>
+<section id="request-logging-interceptor">
+<h3>1. Request Logging Interceptor<a class="headerlink" href="#request-logging-interceptor" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.adapters.interceptors.logging_interceptor</span><span class="w"> </span><span class="kn">import</span> <span class="n">LoggingInterceptor</span>
+
+<span class="c1"># Configuration</span>
+<span class="n">interceptor_config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;request_logging&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;enabled&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s2">&quot;config&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;output_dir&quot;</span><span class="p">:</span> <span class="s2">&quot;/tmp/logs&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;max_requests&quot;</span><span class="p">:</span> <span class="mi">1000</span><span class="p">,</span>
+        <span class="s2">&quot;log_failed_requests&quot;</span><span class="p">:</span> <span class="kc">True</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><strong>Features:</strong></p>
+<ul class="simple">
+<li><p>Logs all API requests and responses</p></li>
+<li><p>Configurable output directory</p></li>
+<li><p>Request/response count limits</p></li>
+<li><p>Failed request logging</p></li>
+</ul>
+</section>
+<section id="caching-interceptor">
+<h3>2. Caching Interceptor<a class="headerlink" href="#caching-interceptor" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.adapters.interceptors.caching_interceptor</span><span class="w"> </span><span class="kn">import</span> <span class="n">CachingInterceptor</span>
+
+<span class="c1"># Configuration</span>
+<span class="n">interceptor_config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;caching&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;enabled&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s2">&quot;config&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;cache_dir&quot;</span><span class="p">:</span> <span class="s2">&quot;/tmp/cache&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;reuse_cached_responses&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">&quot;save_requests&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">&quot;save_responses&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">&quot;max_saved_requests&quot;</span><span class="p">:</span> <span class="mi">1000</span><span class="p">,</span>
+        <span class="s2">&quot;max_saved_responses&quot;</span><span class="p">:</span> <span class="mi">1000</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><strong>Features:</strong></p>
+<ul class="simple">
+<li><p>Response caching for performance</p></li>
+<li><p>Persistent storage - responses are saved to disk, allowing resumption after process termination</p></li>
+<li><p>Configurable cache directory</p></li>
+<li><p>Request/response persistence</p></li>
+<li><p>Cache size limits</p></li>
+</ul>
+</section>
+<section id="reasoning-interceptor">
+<h3>3. Reasoning Interceptor<a class="headerlink" href="#reasoning-interceptor" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.adapters.interceptors.reasoning_interceptor</span><span class="w"> </span><span class="kn">import</span> <span class="n">ReasoningInterceptor</span>
+
+<span class="c1"># Configuration</span>
+<span class="n">interceptor_config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;reasoning&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;enabled&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s2">&quot;config&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;start_reasoning_token&quot;</span><span class="p">:</span> <span class="s2">&quot;&lt;think&gt;&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;end_reasoning_token&quot;</span><span class="p">:</span> <span class="s2">&quot;&lt;/think&gt;&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;add_reasoning&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">&quot;enable_reasoning_tracking&quot;</span><span class="p">:</span> <span class="kc">True</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><strong>Features:</strong></p>
+<ul class="simple">
+<li><p>Reasoning chain support</p></li>
+<li><p>Custom reasoning tokens</p></li>
+<li><p>Reasoning tracking and analysis</p></li>
+<li><p>Chain-of-thought prompting</p></li>
+</ul>
+</section>
+<section id="system-message-interceptor">
+<h3>4. System Message Interceptor<a class="headerlink" href="#system-message-interceptor" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.adapters.interceptors.system_message_interceptor</span><span class="w"> </span><span class="kn">import</span> <span class="n">SystemMessageInterceptor</span>
+
+<span class="c1"># Configuration</span>
+<span class="n">interceptor_config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;system_message&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;enabled&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s2">&quot;config&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;custom_system_prompt&quot;</span><span class="p">:</span> <span class="s2">&quot;You are a helpful AI assistant.&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;override_existing&quot;</span><span class="p">:</span> <span class="kc">True</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><strong>Features:</strong></p>
+<ul class="simple">
+<li><p>Custom system prompt injection</p></li>
+<li><p>Prompt override capabilities</p></li>
+<li><p>Consistent system behavior</p></li>
+</ul>
+<p><strong>Use Cases:</strong></p>
+<ul class="simple">
+<li><p>Modify system prompts for different evaluation scenarios</p></li>
+<li><p>Test different prompt variations without code changes</p></li>
+<li><p>Override existing system messages for consistent behavior</p></li>
+<li><p>A/B testing of different prompt strategies</p></li>
+</ul>
+</section>
+<section id="endpoint-interceptor">
+<h3>5. Endpoint Interceptor<a class="headerlink" href="#endpoint-interceptor" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.adapters.interceptors.endpoint_interceptor</span><span class="w"> </span><span class="kn">import</span> <span class="n">EndpointInterceptor</span>
+
+<span class="c1"># Configuration</span>
+<span class="n">interceptor_config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;endpoint&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;enabled&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s2">&quot;config&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;endpoint_url&quot;</span><span class="p">:</span> <span class="s2">&quot;https://api.example.com/v1/chat/completions&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;timeout&quot;</span><span class="p">:</span> <span class="mi">30</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><strong>Features:</strong></p>
+<ul class="simple">
+<li><p>Endpoint URL management</p></li>
+<li><p>Request timeout configuration</p></li>
+<li><p>Endpoint validation</p></li>
+</ul>
+</section>
+<section id="payload-modifier-interceptor">
+<h3>6. Payload Modifier Interceptor<a class="headerlink" href="#payload-modifier-interceptor" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.adapters.interceptors.payload_modifier_interceptor</span><span class="w"> </span><span class="kn">import</span> <span class="n">PayloadModifierInterceptor</span>
+
+<span class="c1"># Configuration</span>
+<span class="n">interceptor_config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;payload_modifier&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;enabled&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s2">&quot;config&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;params_to_add&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;extra_body&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;chat_template_kwargs&quot;</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">&quot;enable_thinking&quot;</span><span class="p">:</span> <span class="kc">False</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><strong>Explanation:</strong></p>
+<p>This interceptor is particularly useful when custom behavior is needed. In this example, the <code class="docutils literal notranslate"><span class="pre">enable_thinking</span></code> parameter is a custom key that controls the reasoning mode of the model. When set to <code class="docutils literal notranslate"><span class="pre">False</span></code>, it disables the model’s internal reasoning/thinking process, which can be useful for scenarios where you want more direct responses without the model’s step-by-step reasoning output.</p>
+<p><strong>Features:</strong></p>
+<ul class="simple">
+<li><p>Request payload modification</p></li>
+<li><p>Custom parameter injection</p></li>
+<li><p>Flexible configuration options</p></li>
+</ul>
+</section>
+<section id="client-error-interceptor">
+<h3>7. Client Error Interceptor<a class="headerlink" href="#client-error-interceptor" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.adapters.interceptors.raise_client_error_interceptor</span><span class="w"> </span><span class="kn">import</span> <span class="n">RaiseClientErrorInterceptor</span>
+
+<span class="c1"># Configuration</span>
+<span class="n">interceptor_config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;raise_client_error&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;enabled&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s2">&quot;config&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;raise_on_error&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">&quot;error_threshold&quot;</span><span class="p">:</span> <span class="mi">400</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><strong>Features:</strong></p>
+<ul class="simple">
+<li><p>Error handling and propagation</p></li>
+<li><p>Configurable error thresholds</p></li>
+<li><p>Client error management</p></li>
+</ul>
+</section>
+</section>
+<section id="configuration-examples">
+<h2>Configuration Examples<a class="headerlink" href="#configuration-examples" title="Link to this heading">#</a></h2>
+<section id="basic-framework-configuration">
+<h3>Basic Framework Configuration<a class="headerlink" href="#basic-framework-configuration" title="Link to this heading">#</a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">framework</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mmlu_pro</span>
+<span class="w">  </span><span class="nt">defaults</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">limit_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="w">        </span><span class="nt">max_tokens</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">512</span>
+<span class="w">        </span><span class="nt">temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span>
+<span class="w">    </span><span class="nt">target</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">api_endpoint</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">adapter_config</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">interceptors</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;request_logging&quot;</span>
+<span class="w">              </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;caching&quot;</span>
+<span class="w">              </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">              </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">                </span><span class="nt">cache_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;./cache&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="advanced-adapter-configuration">
+<h3>Advanced Adapter Configuration<a class="headerlink" href="#advanced-adapter-configuration" title="Link to this heading">#</a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">framework</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">advanced_eval</span>
+<span class="w">  </span><span class="nt">defaults</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">target</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">api_endpoint</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">adapter_config</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">discovery</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">modules</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;custom.interceptors&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;my.package&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">            </span><span class="nt">dirs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;/path/to/custom/interceptors&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">          </span><span class="nt">interceptors</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;request_logging&quot;</span>
+<span class="w">              </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">              </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">                </span><span class="nt">max_requests</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;caching&quot;</span>
+<span class="w">              </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">              </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">                </span><span class="nt">cache_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;./cache&quot;</span>
+<span class="w">                </span><span class="nt">reuse_cached_responses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;reasoning&quot;</span>
+<span class="w">              </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">              </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">                </span><span class="nt">start_reasoning_token</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&lt;think&gt;&quot;</span>
+<span class="w">                </span><span class="nt">end_reasoning_token</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&lt;/think&gt;&quot;</span>
+<span class="w">                </span><span class="nt">add_reasoning</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;progress_tracking&quot;</span>
+<span class="w">              </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">              </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">                </span><span class="nt">tracking_url</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;http://localhost:3828/progress&quot;</span>
+<span class="w">                </span><span class="nt">interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">          </span><span class="nt">post_eval_hooks</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;custom_analysis&quot;</span>
+<span class="w">              </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">              </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">                </span><span class="nt">analysis_type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;detailed&quot;</span>
+<span class="w">          </span><span class="nt">endpoint_type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;chat&quot;</span>
+<span class="w">          </span><span class="nt">caching_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;./legacy_cache&quot;</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="interceptor-system">
+<h2>Interceptor System<a class="headerlink" href="#interceptor-system" title="Link to this heading">#</a></h2>
+<p>The NeMo Evaluator uses an interceptor-based architecture that processes requests and responses through a configurable chain of components. Interceptors can modify requests, responses, or both, and can be enabled/disabled and configured independently.</p>
+<section id="configuration-methods">
+<h3>Configuration Methods<a class="headerlink" href="#configuration-methods" title="Link to this heading">#</a></h3>
+<p>Two primary methods exist to configure interceptors:</p>
+<ol class="arabic simple">
+<li><p><strong>CLI Overrides</strong>: Use the <code class="docutils literal notranslate"><span class="pre">--overrides</span></code> parameter for runtime configuration</p></li>
+<li><p><strong>YAML Configuration</strong>: Define interceptor chains in configuration files</p></li>
+</ol>
+</section>
+<section id="configuring-interceptors">
+<h3>Configuring Interceptors<a class="headerlink" href="#configuring-interceptors" title="Link to this heading">#</a></h3>
+<p>Refer to <a class="reference internal" href="configuring-interceptors.html"><span class="std std-doc">Configuring Interceptors</span></a> for details.</p>
+</section>
+<section id="complete-configuration-example">
+<h3>Complete Configuration Example<a class="headerlink" href="#complete-configuration-example" title="Link to this heading">#</a></h3>
+<p>Here is a complete example combining multiple interceptors:</p>
+<p><strong>CLI Configuration:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>eval-factory<span class="w"> </span>run_eval<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--eval_type<span class="w"> </span>mmlu_pro<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--model_id<span class="w"> </span>meta/llama-3.1-8b-instruct<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--model_url<span class="w"> </span>https://integrate.api.nvidia.com/v1/chat/completions<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--model_type<span class="w"> </span>chat<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--api_key_name<span class="w"> </span>MY_API_KEY<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--output_dir<span class="w"> </span>./results<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--overrides<span class="w"> </span><span class="s1">&#39;target.api_endpoint.adapter_config.use_request_logging=True,target.api_endpoint.adapter_config.use_caching=True,target.api_endpoint.adapter_config.caching_dir=./cache,target.api_endpoint.adapter_config.generate_html_report=True&#39;</span>
+</pre></div>
+</div>
+<p><strong>YAML Configuration:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">target</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">api_endpoint</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">adapter_config</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">interceptors</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;request_logging&quot;</span>
+<span class="w">          </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">          </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">max_requests</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">            </span><span class="nt">log_failed_requests</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;caching&quot;</span>
+<span class="w">          </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">          </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">cache_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;./cache&quot;</span>
+<span class="w">            </span><span class="nt">reuse_cached_responses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">            </span><span class="nt">save_requests</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">            </span><span class="nt">save_responses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;endpoint&quot;</span>
+<span class="w">          </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;response_logging&quot;</span>
+<span class="w">          </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">          </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">max_responses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">      </span><span class="nt">post_eval_hooks</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;post_eval_report&quot;</span>
+<span class="w">          </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">          </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">report_types</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;html&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;json&quot;</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>To use the above, save it as <code class="docutils literal notranslate"><span class="pre">config.yaml</span></code> and run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>eval-factory<span class="w"> </span>run_eval<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--eval_type<span class="w"> </span>mmlu_pro<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--model_id<span class="w"> </span>meta/llama-3.1-8b-instruct<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--model_url<span class="w"> </span>https://integrate.api.nvidia.com/v1/chat/completions<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--model_type<span class="w"> </span>chat<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--api_key_name<span class="w"> </span>MY_API_KEY<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--output_dir<span class="w"> </span>./results<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--run_config<span class="w"> </span>config.yaml
+</pre></div>
+</div>
+</section>
+<section id="interceptor-chain-order">
+<h3>Interceptor Chain Order<a class="headerlink" href="#interceptor-chain-order" title="Link to this heading">#</a></h3>
+<p>Interceptors are executed in the order they appear in the configuration. A typical order is:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">system_message</span></code> (add/modify system prompts)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">payload_modifier</span></code> (modify request parameters)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">request_logging</span></code> (log the request sent to the model)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">caching</span></code> (check cache before making request)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">endpoint</span></code> or <code class="docutils literal notranslate"><span class="pre">nvcf</span></code> (make the actual API call)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">response_logging</span></code> (log the response)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">reasoning</span></code> (add/process reasoning tokens)</p></li>
+</ol>
+<p>If the interceptors are configured from the CLI, the chain will be configured in the above order.</p>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#core-api-functions">Core API Functions</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cli-vs-programmatic-usage">CLI vs. Programmatic Usage</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#available-data-classes">Available Data Classes</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-eval"><code class="docutils literal notranslate"><span class="pre">run_eval</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#evaluate"><code class="docutils literal notranslate"><span class="pre">evaluate</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-structures">Data Structures</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#evaluationconfig"><code class="docutils literal notranslate"><span class="pre">EvaluationConfig</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#evaluationtarget"><code class="docutils literal notranslate"><span class="pre">EvaluationTarget</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#adapter-system">Adapter System</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adapterconfig"><code class="docutils literal notranslate"><span class="pre">AdapterConfig</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#interceptorconfig"><code class="docutils literal notranslate"><span class="pre">InterceptorConfig</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#discoveryconfig"><code class="docutils literal notranslate"><span class="pre">DiscoveryConfig</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#available-interceptors">Available Interceptors</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#request-logging-interceptor">1. Request Logging Interceptor</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#caching-interceptor">2. Caching Interceptor</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reasoning-interceptor">3. Reasoning Interceptor</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#system-message-interceptor">4. System Message Interceptor</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#endpoint-interceptor">5. Endpoint Interceptor</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#payload-modifier-interceptor">6. Payload Modifier Interceptor</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#client-error-interceptor">7. Client Error Interceptor</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration-examples">Configuration Examples</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#basic-framework-configuration">Basic Framework Configuration</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#advanced-adapter-configuration">Advanced Adapter Configuration</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#interceptor-system">Interceptor System</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration-methods">Configuration Methods</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configuring-interceptors">Configuring Interceptors</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#complete-configuration-example">Complete Configuration Example</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#interceptor-chain-order">Interceptor Chain Order</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025, NVIDIA Corporation.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+<div class="extra_footer">
+  
+  
+    <script type="text/javascript">if (typeof _satellite !== "undefined") {_satellite.pageBottom();}</script>
+    
+  
+</div></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>

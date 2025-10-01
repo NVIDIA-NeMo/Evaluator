@@ -1,0 +1,826 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Framework Definition File (FDF) &#8212; NeMo Eval</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'nemo-evaluator/extending/framework-definition-file';</script>
+    <script>
+        DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.1.0';
+        DOCUMENTATION_OPTIONS.show_version_warning_banner =
+            false;
+        </script>
+    <link rel="icon" href="../../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+
+
+    <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js" ></script>
+    
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-2"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-2"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-2"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-2">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA-NeMo/Eval" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-3"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-3"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-3"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-3">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA-NeMo/Eval" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Home</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Libraries</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../nemo-evaluator-launcher/index.html">NeMo Evaluator Launcher</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">NeMo Evaluator</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Framework Definition File (FDF)</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="framework-definition-file-fdf">
+<h1>Framework Definition File (FDF)<a class="headerlink" href="#framework-definition-file-fdf" title="Link to this heading">#</a></h1>
+<p>The Framework Definition File (FDF) is a YAML configuration file that serves as the single source of truth for evaluation harnesses in the NeMo Evaluator ecosystem. It defines how evaluation harnesses are configured, executed, and integrated with the Eval Factory system.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>An FDF defines:</p>
+<ul class="simple">
+<li><p><strong>Framework metadata</strong>: Name, description, package information</p></li>
+<li><p><strong>Default configurations</strong>: Parameters, commands, and settings</p></li>
+<li><p><strong>Evaluation types</strong>: Available evaluation tasks and their configurations</p></li>
+<li><p><strong>Execution commands</strong>: Jinja2-templated commands for running evaluations</p></li>
+<li><p><strong>API compatibility</strong>: Supported endpoint types and configurations</p></li>
+</ul>
+</section>
+<section id="file-structure">
+<h2>File Structure<a class="headerlink" href="#file-structure" title="Link to this heading">#</a></h2>
+<p>The FDF follows a hierarchical structure with 3 main sections:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">framework</span><span class="p">:</span><span class="w">          </span><span class="c1"># Framework identification and metadata</span>
+<span class="nt">defaults</span><span class="p">:</span><span class="w">           </span><span class="c1"># Default configurations and commands</span>
+<span class="nt">evaluations</span><span class="p">:</span><span class="w">        </span><span class="c1"># Available evaluation types</span>
+</pre></div>
+</div>
+</section>
+<section id="section-details">
+<h2>Section Details<a class="headerlink" href="#section-details" title="Link to this heading">#</a></h2>
+<section id="framework-section">
+<h3>1. Framework Section<a class="headerlink" href="#framework-section" title="Link to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">framework</span></code> section contains basic identification and metadata for your evaluation harness.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">framework</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">example-evaluation-framework</span><span class="w">          </span><span class="c1"># Internal framework identifier</span>
+<span class="w">  </span><span class="nt">pkg_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">example_evaluation_framework</span><span class="w">     </span><span class="c1"># Python package name</span>
+<span class="w">  </span><span class="nt">full_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Example Evaluation Harness</span><span class="w">    </span><span class="c1"># Human-readable display name</span>
+<span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">A comprehensive example...</span><span class="w">    </span><span class="c1"># Detailed description</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/example/...</span><span class="w">        </span><span class="c1"># Original repository URL</span>
+</pre></div>
+</div>
+<p><strong>Fields:</strong></p>
+<ul class="simple">
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">name</span></code></strong>: Unique identifier used internally by the system</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">pkg_name</span></code></strong>: Python package name (usually matches the name)</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">full_name</span></code></strong>: Human-readable name displayed in UI and documentation</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">description</span></code></strong>: Comprehensive description of the framework’s purpose</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">url</span></code></strong>: Link to the original benchmark repository</p></li>
+</ul>
+</section>
+<section id="defaults-section">
+<h3>2. Defaults Section<a class="headerlink" href="#defaults-section" title="Link to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">defaults</span></code> section defines the default configuration and execution command that will be used across all evaluations unless overridden. You can override it through the <code class="docutils literal notranslate"><span class="pre">--overrides</span></code> flag (see <a class="reference internal" href="../reference/cli.html#parameter-overrides"><span class="std std-ref">Parameter Overrides</span></a>) or the <a class="reference internal" href="../reference/cli.html#run-configuration"><span class="std std-ref">Run Configuration file</span></a>.</p>
+</section>
+<section id="command-template">
+<h3>Command Template<a class="headerlink" href="#command-template" title="Link to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">command</span></code> field uses Jinja2 templating to dynamically generate execution commands based on configuration parameters. This is where you define how your evaluation harness’s CLI interface will be called.</p>
+<p><strong>Important Note</strong>: <code class="docutils literal notranslate"><span class="pre">example_eval</span></code> is a placeholder representing your actual CLI command. When onboarding your harness, replace this with your real command (e.g., <code class="docutils literal notranslate"><span class="pre">lm-eval</span></code>, <code class="docutils literal notranslate"><span class="pre">bigcode-eval</span></code>, <code class="docutils literal notranslate"><span class="pre">gorilla-eval</span></code>, etc.).</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">defaults</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;-</span>
+<span class="w">    </span><span class="no">{% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} &amp;&amp; {% endif %}</span>
+<span class="w">    </span><span class="no">example_eval --model {{target.api_endpoint.model_id}} </span>
+<span class="w">    </span><span class="no">--task {{config.params.task}}</span>
+<span class="w">    </span><span class="no">--url {{target.api_endpoint.url}} </span>
+<span class="w">    </span><span class="no">--temperature {{config.params.temperature}}</span>
+<span class="w">    </span><span class="no"># ... additional parameters</span>
+</pre></div>
+</div>
+<p><strong>What this does:</strong></p>
+<ul class="simple">
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">example_eval</span></code></strong>: Your harness’s actual CLI command (replace with your command)</p></li>
+<li><p><strong>Template variables</strong>: Dynamically insert values from the evaluation configuration</p></li>
+<li><p><strong>Conditional logic</strong>: Include parameters only when they have values</p></li>
+<li><p><strong>Environment setup</strong>: Export API keys before running the command</p></li>
+</ul>
+<section id="key-template-variables">
+<h4>Key Template Variables<a class="headerlink" href="#key-template-variables" title="Link to this heading">#</a></h4>
+<p><strong>Target API Endpoint Variables:</strong></p>
+<ul class="simple">
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">{{target.api_endpoint.api_key_name}}</span></code></strong>: Name of the environment variable storing API key</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">{{target.api_endpoint.model_id}}</span></code></strong>: Target model identifier</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">{{target.api_endpoint.stream}}</span></code></strong>: Whether responses should be streamed</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">{{target.api_endpoint.type}}</span></code></strong>: The type of the target endpoint</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">{{target.api_endpoint.url}}</span></code></strong>: URL of the model</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">{{target.api_endpoint.adapter_config}}</span></code></strong>: Adapter configuration</p></li>
+</ul>
+<p><strong>Evaluation Configuration Variables:</strong></p>
+<ul class="simple">
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">{{config.output_dir}}</span></code></strong>: Output directory for results</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">{{config.type}}</span></code></strong>: Type of the task</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">{{config.supported_endpoint_types}}</span></code></strong>: Supported endpoint types (chat/completions)</p></li>
+</ul>
+<p><strong>Configuration Parameters:</strong></p>
+<ul class="simple">
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">{{config.params.task}}</span></code></strong>: Evaluation task type</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">{{config.params.temperature}}</span></code></strong>: Model temperature setting</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">{{config.params.limit_samples}}</span></code></strong>: Sample limit for evaluation</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">{{config.params.max_new_tokens}}</span></code></strong>: Maximum tokens to generate</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">{{config.params.max_retries}}</span></code></strong>: Number of REST request retries</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">{{config.params.parallelism}}</span></code></strong>: Parallelism to be used</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">{{config.params.request_timeout}}</span></code></strong>: REST response timeout</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">{{config.params.top_p}}</span></code></strong>: Top-p sampling parameter</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">{{config.params.extra}}</span></code></strong>: Framework-specific parameters</p></li>
+</ul>
+</section>
+<section id="configuration-defaults">
+<h4>Configuration Defaults<a class="headerlink" href="#configuration-defaults" title="Link to this heading">#</a></h4>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">defaults</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">limit_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span><span class="w">          </span><span class="c1"># No limit on samples by default</span>
+<span class="w">      </span><span class="nt">max_new_tokens</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4096</span><span class="w">         </span><span class="c1"># Maximum tokens to generate</span>
+<span class="w">      </span><span class="nt">temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span><span class="w">             </span><span class="c1"># Deterministic generation</span>
+<span class="w">      </span><span class="nt">top_p</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.00001</span><span class="w">               </span><span class="c1"># Nucleus sampling parameter</span>
+<span class="w">      </span><span class="nt">parallelism</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">              </span><span class="c1"># Number of parallel requests</span>
+<span class="w">      </span><span class="nt">max_retries</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">               </span><span class="c1"># Maximum API retry attempts</span>
+<span class="w">      </span><span class="nt">request_timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span><span class="w">          </span><span class="c1"># Request timeout in seconds</span>
+<span class="w">      </span><span class="nt">extra</span><span class="p">:</span><span class="w">                       </span><span class="c1"># Framework-specific parameters</span>
+<span class="w">        </span><span class="nt">n_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span><span class="w">            </span><span class="c1"># Number of evaluation samples</span>
+<span class="w">        </span><span class="nt">downsampling_ratio</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span><span class="w">   </span><span class="c1"># Data downsampling ratio</span>
+<span class="w">        </span><span class="nt">add_system_prompt</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">   </span><span class="c1"># Include system prompt</span>
+<span class="w">        </span><span class="nt">args</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span><span class="w">                 </span><span class="c1"># Additional CLI arguments</span>
+</pre></div>
+</div>
+<p><strong>Parameter Categories:</strong></p>
+<ul class="simple">
+<li><p><strong>Core Parameters</strong>: Basic evaluation settings (temperature, max_tokens)</p></li>
+<li><p><strong>Performance Parameters</strong>: Parallelism and timeout settings</p></li>
+<li><p><strong>Framework Parameters</strong>: Task-specific configuration options</p></li>
+<li><p><strong>Extra Parameters</strong>: Custom parameters specific to your framework</p></li>
+</ul>
+</section>
+<section id="target-configuration">
+<h4>Target Configuration<a class="headerlink" href="#target-configuration" title="Link to this heading">#</a></h4>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">defaults</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">target</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">api_endpoint</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">chat</span><span class="w">                           </span><span class="c1"># Default endpoint type</span>
+<span class="w">      </span><span class="nt">supported_endpoint_types</span><span class="p">:</span><span class="w">            </span><span class="c1"># All supported types</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">chat</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">completion</span>
+</pre></div>
+</div>
+<p><strong>Endpoint Types:</strong></p>
+<ul class="simple">
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">chat</span></code></strong>: Multi-turn conversation format (OpenAI chat completions)</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">completion</span></code></strong>: Single-turn text completion format</p></li>
+</ul>
+</section>
+</section>
+<section id="evaluations-section">
+<h3>3. Evaluations Section<a class="headerlink" href="#evaluations-section" title="Link to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">evaluations</span></code> section defines the specific evaluation types available in your framework, each with its own configuration defaults.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">evaluations</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">example_task_1</span><span class="w">                    </span><span class="c1"># Evaluation identifier</span>
+<span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Basic functionality demo</span><span class="w">   </span><span class="c1"># Human-readable description</span>
+<span class="w">    </span><span class="nt">defaults</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;example_task_1&quot;</span><span class="w">             </span><span class="c1"># Evaluation type identifier</span>
+<span class="w">        </span><span class="nt">supported_endpoint_types</span><span class="p">:</span><span class="w">          </span><span class="c1"># Supported endpoints for this task</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">chat</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">completion</span>
+<span class="w">        </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;example_task_1&quot;</span><span class="w">           </span><span class="c1"># Task-specific identifier</span>
+<span class="w">          </span><span class="nt">temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span><span class="w">                 </span><span class="c1"># Task-specific temperature</span>
+<span class="w">          </span><span class="nt">max_new_tokens</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1024</span><span class="w">             </span><span class="c1"># Task-specific token limit</span>
+<span class="w">          </span><span class="nt">extra</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">custom_key</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;custom_value&quot;</span><span class="w">     </span><span class="c1">#  Task-specific custom param</span>
+</pre></div>
+</div>
+<p><strong>Evaluation Configuration:</strong></p>
+<ul class="simple">
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">name</span></code></strong>: Unique identifier for the evaluation type</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">description</span></code></strong>: Clear description of what the evaluation measures</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">type</span></code></strong>: Internal type identifier used by the framework</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">supported_endpoint_types</span></code></strong>: API endpoint types compatible with this evaluation</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">params</span></code></strong>: Task-specific parameter overrides</p></li>
+</ul>
+</section>
+</section>
+<section id="advanced-features">
+<h2>Advanced Features<a class="headerlink" href="#advanced-features" title="Link to this heading">#</a></h2>
+<section id="conditional-parameter-handling">
+<h3>Conditional Parameter Handling<a class="headerlink" href="#conditional-parameter-handling" title="Link to this heading">#</a></h3>
+<p>Use Jinja2 conditionals to handle optional parameters. This ensures that your CLI command includes parameters only when they have values, preventing errors from undefined or null parameters:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;-</span>
+<span class="w">  </span><span class="no">example_eval --model {{target.api_endpoint.model_id}}</span>
+<span class="w">  </span><span class="no">{% if config.params.limit_samples is not none %} --first_n {{config.params.limit_samples}}{% endif %}</span>
+<span class="w">  </span><span class="no">{% if config.params.extra.add_system_prompt %} --add_system_prompt {% endif %}</span>
+<span class="w">  </span><span class="no">{% if config.params.extra.args is defined %} {{ config.params.extra.args }} {% endif %}</span>
+</pre></div>
+</div>
+</section>
+<section id="parameter-inheritance">
+<h3>Parameter Inheritance<a class="headerlink" href="#parameter-inheritance" title="Link to this heading">#</a></h3>
+<p>Parameters follow a hierarchical override system:</p>
+<ul class="simple">
+<li><p><strong>Framework defaults</strong> (fourth priority)</p></li>
+<li><p><strong>Evaluation defaults</strong> (third priority)</p></li>
+<li><p><strong>User configuration</strong> (second priority)</p></li>
+<li><p><strong>CLI overrides</strong> (first priority)</p></li>
+</ul>
+<p>For more information about using these overrides, see the <a class="reference internal" href="../reference/cli.html#parameter-overrides"><span class="std std-ref">CLI Reference</span></a> documentation.</p>
+</section>
+<section id="dynamic-configuration">
+<h3>Dynamic Configuration<a class="headerlink" href="#dynamic-configuration" title="Link to this heading">#</a></h3>
+<p>Use template variables to reference other configuration sections. For example, reuse <code class="docutils literal notranslate"><span class="pre">config.output_dir</span></code> for <code class="docutils literal notranslate"><span class="pre">--cache</span></code> input argument:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;-</span>
+<span class="w">  </span><span class="no">example_eval --output {{config.output_dir}} --cache {{config.output_dir}}/cache</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="integration-with-eval-factory">
+<h2>Integration with Eval Factory<a class="headerlink" href="#integration-with-eval-factory" title="Link to this heading">#</a></h2>
+</section>
+<section id="file-location">
+<h2>File Location<a class="headerlink" href="#file-location" title="Link to this heading">#</a></h2>
+<p>Place your FDF in the <code class="docutils literal notranslate"><span class="pre">core_evals/&lt;framework_name&gt;/</span></code> directory of your framework package:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>your-framework/
+├──<span class="w"> </span>core_evals/
+│<span class="w">   </span>└──<span class="w"> </span>your_framework/
+│<span class="w">       </span>├──<span class="w"> </span>framework.yml<span class="w">           </span><span class="c1"># This is your FDF</span>
+│<span class="w">       </span>├──<span class="w"> </span>output.py<span class="w">               </span><span class="c1"># Output parser (custom)</span>
+│<span class="w">       </span>└──<span class="w"> </span>__init__.py<span class="w">             </span><span class="c1"># Empty init file</span>
+├──<span class="w"> </span>setup.py<span class="w">                        </span><span class="c1"># Package configuration</span>
+└──<span class="w"> </span>README.md<span class="w">                       </span><span class="c1"># Framework documentation</span>
+</pre></div>
+</div>
+</section>
+<section id="validation">
+<h2>Validation<a class="headerlink" href="#validation" title="Link to this heading">#</a></h2>
+<p>The FDF is validated by the NeMo Evaluator system to ensure:</p>
+<ul class="simple">
+<li><p>Required fields are present</p></li>
+<li><p>Parameter types are correct</p></li>
+<li><p>Template syntax is valid</p></li>
+<li><p>Configuration consistency</p></li>
+</ul>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<section id="common-issues">
+<h3>Common Issues<a class="headerlink" href="#common-issues" title="Link to this heading">#</a></h3>
+<ol class="arabic simple">
+<li><p><strong>Template Errors</strong>: Check Jinja2 syntax and variable references</p></li>
+<li><p><strong>Parameter Conflicts</strong>: Ensure parameter names don’t conflict between sections</p></li>
+<li><p><strong>Type Mismatches</strong>: Verify parameter types match expected values</p></li>
+<li><p><strong>Missing Fields</strong>: Ensure all required fields are defined</p></li>
+</ol>
+</section>
+<section id="debug-mode">
+<h3>Debug Mode<a class="headerlink" href="#debug-mode" title="Link to this heading">#</a></h3>
+<p>Enable debug logging to see how your FDF is processed:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">NEMO_EVALUATOR_LOG_LEVEL</span><span class="o">=</span>DEBUG
+eval-factory<span class="w"> </span>run_eval<span class="w"> </span>--eval_type<span class="w"> </span>your_evaluation
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#file-structure">File Structure</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#section-details">Section Details</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#framework-section">1. Framework Section</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#defaults-section">2. Defaults Section</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#command-template">Command Template</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#key-template-variables">Key Template Variables</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration-defaults">Configuration Defaults</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#target-configuration">Target Configuration</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#evaluations-section">3. Evaluations Section</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#advanced-features">Advanced Features</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#conditional-parameter-handling">Conditional Parameter Handling</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#parameter-inheritance">Parameter Inheritance</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dynamic-configuration">Dynamic Configuration</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#integration-with-eval-factory">Integration with Eval Factory</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#file-location">File Location</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#validation">Validation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#common-issues">Common Issues</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#debug-mode">Debug Mode</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025, NVIDIA Corporation.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+<div class="extra_footer">
+  
+  
+    <script type="text/javascript">if (typeof _satellite !== "undefined") {_satellite.pageBottom();}</script>
+    
+  
+</div></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>

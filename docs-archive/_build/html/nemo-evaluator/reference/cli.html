@@ -1,0 +1,914 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>CLI Reference &#8212; NeMo Eval</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'nemo-evaluator/reference/cli';</script>
+    <script>
+        DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.1.0';
+        DOCUMENTATION_OPTIONS.show_version_warning_banner =
+            false;
+        </script>
+    <link rel="icon" href="../../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+
+
+    <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js" ></script>
+    
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-2"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-2"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-2"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-2">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA-NeMo/Eval" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-3"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-3"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-3"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-3">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA-NeMo/Eval" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Home</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Libraries</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../nemo-evaluator-launcher/index.html">NeMo Evaluator Launcher</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">NeMo Evaluator</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">CLI Reference</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="cli-reference">
+<h1>CLI Reference<a class="headerlink" href="#cli-reference" title="Link to this heading">#</a></h1>
+<p>This document provides a comprehensive reference for the <code class="docutils literal notranslate"><span class="pre">nemo-evaluator</span></code> command-line interface that is the primary way to interact with NeMo Evaluator from the terminal.</p>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
+<ul>
+<li><p><strong>container way</strong>: Use simple-evals container mentioned in the <a class="reference internal" href="containers.html"><span class="std std-doc">Container Reference</span></a></p></li>
+<li><p><strong>Python way</strong>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>nemo-evaluator<span class="w"> </span>nvidia-simple-evals
+</pre></div>
+</div>
+</li>
+</ul>
+</section>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>The CLI provides a unified interface for managing evaluations and frameworks. It is built on top of the Python API and provides both interactive and non-interactive modes.</p>
+</section>
+<section id="command-structure">
+<h2>Command Structure<a class="headerlink" href="#command-structure" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>eval-factory<span class="w"> </span><span class="o">[</span>command<span class="o">]</span><span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</pre></div>
+</div>
+</section>
+<section id="available-commands">
+<h2>Available Commands<a class="headerlink" href="#available-commands" title="Link to this heading">#</a></h2>
+</section>
+<section id="ls-list-available-evaluations">
+<h2><code class="docutils literal notranslate"><span class="pre">ls</span></code>: List Available Evaluations<a class="headerlink" href="#ls-list-available-evaluations" title="Link to this heading">#</a></h2>
+<p>List all available evaluation types and frameworks.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>eval-factory<span class="w"> </span>ls
+</pre></div>
+</div>
+<p><strong>Output Example:</strong></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">mmlu_pro</span><span class="p">:</span> 
+  <span class="o">*</span> <span class="n">mmlu_pro</span>
+<span class="n">gpqa_diamond</span><span class="p">:</span> 
+  <span class="o">*</span> <span class="n">gpqa_diamond</span>
+<span class="n">human_eval</span><span class="p">:</span> 
+  <span class="o">*</span> <span class="n">human_eval</span>
+</pre></div>
+</div>
+</section>
+<section id="run-eval-run-evaluation">
+<h2><code class="docutils literal notranslate"><span class="pre">run_eval</span></code>: Run Evaluation<a class="headerlink" href="#run-eval-run-evaluation" title="Link to this heading">#</a></h2>
+<p>Execute an evaluation with the specified configuration.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>eval-factory<span class="w"> </span>run_eval<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</pre></div>
+</div>
+<p>To view the list of options, run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>eval-factory<span class="w"> </span>run_eval<span class="w"> </span>--help
+</pre></div>
+</div>
+<p><strong>Required Options:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--eval_type</span></code>: Type of evaluation to run</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--model_id</span></code>: Model identifier</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--model_url</span></code>: API endpoint URL</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--model_type</span></code>: Endpoint type (chat, completions, vlm, embedding)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--output_dir</span></code>: Output directory for results</p></li>
+</ul>
+<p><strong>Optional Options:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--api_key_name</span></code>: Environment variable name for API key</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--run_config</span></code>: Path to YAML configuration file</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--overrides</span></code>: Comma-separated parameter overrides</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--dry_run</span></code>: Show configuration without running</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--debug</span></code>: Enable debug mode (deprecated; use NEMO_EVALUATOR_LOG_LEVEL instead)</p></li>
+</ul>
+<p><strong>Example Usage:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Basic evaluation</span>
+eval-factory<span class="w"> </span>run_eval<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--eval_type<span class="w"> </span>mmlu_pro<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--model_id<span class="w"> </span><span class="s2">&quot;meta/llama-3.1-8b-instruct&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--model_url<span class="w"> </span><span class="s2">&quot;https://integrate.api.nvidia.com/v1/chat/completions&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--model_type<span class="w"> </span>chat<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--api_key_name<span class="w"> </span>MY_API_KEY<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output_dir<span class="w"> </span>./results
+
+<span class="c1"># With parameter overrides</span>
+eval-factory<span class="w"> </span>run_eval<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--eval_type<span class="w"> </span>mmlu_pro<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--model_id<span class="w"> </span><span class="s2">&quot;meta/llama-3.1-8b-instruct&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--model_url<span class="w"> </span><span class="s2">&quot;https://integrate.api.nvidia.com/v1/chat/completions&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--model_type<span class="w"> </span>chat<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--api_key_name<span class="w"> </span>MY_API_KEY<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output_dir<span class="w"> </span>./results<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--overrides<span class="w"> </span><span class="s2">&quot;config.params.limit_samples=100,config.params.temperature=0.1&quot;</span>
+
+<span class="c1"># Dry run to see configuration</span>
+eval-factory<span class="w"> </span>run_eval<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--eval_type<span class="w"> </span>mmlu_pro<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--model_id<span class="w"> </span><span class="s2">&quot;meta/llama-3.1-8b-instruct&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--model_url<span class="w"> </span><span class="s2">&quot;https://integrate.api.nvidia.com/v1/chat/completions&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--model_type<span class="w"> </span>chat<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--api_key_name<span class="w"> </span>MY_API_KEY<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output_dir<span class="w"> </span>./results<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--dry_run
+</pre></div>
+</div>
+<p>For execution with run configuration:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Using YAML configuration file</span>
+eval-factory<span class="w"> </span>run_eval<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--eval_type<span class="w"> </span>mmlu_pro<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output_dir<span class="w"> </span>./results<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--run_config<span class="w"> </span>./config/eval_config.yml
+</pre></div>
+</div>
+<p>To refer to the structure of the run configuration, refer to the <a class="reference internal" href="#run-configuration">Run Configuration</a> section below.</p>
+</section>
+<section id="run-configuration">
+<h2>Run Configuration<a class="headerlink" href="#run-configuration" title="Link to this heading">#</a></h2>
+<p>Run configurations are stored in YAML files with the following structure:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mmlu_pro</span>
+<span class="w">  </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">limit_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="nt">target</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">api_endpoint</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://integrate.api.nvidia.com/v1/chat/completions</span>
+<span class="w">    </span><span class="nt">model_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">meta/llama-3.1-8b-instruct</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">chat</span>
+<span class="w">    </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MY_API_KEY</span>
+<span class="w">    </span><span class="nt">adapter_config</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">interceptors</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;request_logging&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;caching&quot;</span>
+<span class="w">          </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">          </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">cache_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;./cache&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;endpoint&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;response_logging&quot;</span>
+<span class="w">          </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>Run configurations can be specified in YAML files and executed with the following syntax:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>eval-factory<span class="w"> </span>run_eval<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--run_config<span class="w"> </span>config.yml<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--output_dir<span class="w"> </span><span class="sb">`</span>mktemp<span class="w"> </span>-d<span class="sb">`</span>
+</pre></div>
+</div>
+</section>
+<section id="parameter-overrides">
+<h2>Parameter Overrides<a class="headerlink" href="#parameter-overrides" title="Link to this heading">#</a></h2>
+<p>Parameter overrides use a dot-notation format to specify configuration paths:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Basic parameter overrides</span>
+--overrides<span class="w"> </span><span class="s2">&quot;config.params.limit_samples=100,config.params.temperature=0.1&quot;</span>
+
+<span class="c1"># Adapter configuration overrides</span>
+--overrides<span class="w"> </span><span class="s2">&quot;target.api_endpoint.adapter_config.interceptors.0.config.output_dir=./logs&quot;</span>
+
+<span class="c1"># Multiple complex overrides</span>
+--overrides<span class="w"> </span><span class="s2">&quot;config.params.limit_samples=100,config.params.max_tokens=512,target.api_endpoint.adapter_config.use_caching=true&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="override-format">
+<h2>Override Format<a class="headerlink" href="#override-format" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>section.subsection.parameter<span class="o">=</span>value
+</pre></div>
+</div>
+<p><strong>Examples:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">config.params.limit_samples=100</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">target.api_endpoint.adapter_config.use_caching=true</span></code></p></li>
+</ul>
+</section>
+<section id="debug-mode">
+<h2>Debug Mode<a class="headerlink" href="#debug-mode" title="Link to this heading">#</a></h2>
+<p>Enable debug mode for detailed error information:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Set environment variable (recommended)</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">NEMO_EVALUATOR_LOG_LEVEL</span><span class="o">=</span>DEBUG
+
+<span class="c1"># Or use deprecated debug flag</span>
+eval-factory<span class="w"> </span>run_eval<span class="w"> </span>--debug<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</pre></div>
+</div>
+</section>
+<section id="examples">
+<h2>Examples<a class="headerlink" href="#examples" title="Link to this heading">#</a></h2>
+<section id="complete-evaluation-workflow">
+<h3>Complete Evaluation Workflow<a class="headerlink" href="#complete-evaluation-workflow" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. List available evaluations</span>
+eval-factory<span class="w"> </span>ls
+
+<span class="c1"># 2. Run evaluation</span>
+eval-factory<span class="w"> </span>run_eval<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--eval_type<span class="w"> </span>mmlu_pro<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--model_id<span class="w"> </span><span class="s2">&quot;meta/llama-3.1-8b-instruct&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--model_url<span class="w"> </span><span class="s2">&quot;https://integrate.api.nvidia.com/v1/chat/completions&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--model_type<span class="w"> </span>chat<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--api_key_name<span class="w"> </span>MY_API_KEY<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output_dir<span class="w"> </span>./results<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--overrides<span class="w"> </span><span class="s2">&quot;config.params.limit_samples=100&quot;</span>
+
+<span class="c1"># 3. Show results</span>
+ls<span class="w"> </span>-la<span class="w"> </span>./results/
+</pre></div>
+</div>
+</section>
+<section id="batch-evaluation-script">
+<h3>Batch Evaluation Script<a class="headerlink" href="#batch-evaluation-script" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="ch">#!/bin/bash</span>
+
+<span class="c1"># Batch evaluation script</span>
+<span class="nv">models</span><span class="o">=(</span><span class="s2">&quot;meta/llama-3.1-8b-instruct&quot;</span><span class="w"> </span><span class="s2">&quot;meta/llama-3.1-70b-instruct&quot;</span><span class="o">)</span>
+<span class="nv">eval_types</span><span class="o">=(</span><span class="s2">&quot;mmlu_pro&quot;</span><span class="w"> </span><span class="s2">&quot;gpqa_diamond&quot;</span><span class="o">)</span>
+
+<span class="k">for</span><span class="w"> </span>model<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">models</span><span class="p">[@]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span>eval_type<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">eval_types</span><span class="p">[@]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Running </span><span class="nv">$eval_type</span><span class="s2"> on </span><span class="nv">$model</span><span class="s2">...&quot;</span>
+<span class="w">    </span>
+<span class="w">    </span>eval-factory<span class="w"> </span>run_eval<span class="w"> </span><span class="se">\</span>
+<span class="w">      </span>--eval_type<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$eval_type</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">      </span>--model_id<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$model</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">      </span>--model_url<span class="w"> </span><span class="s2">&quot;https://integrate.api.nvidia.com/v1/chat/completions&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">      </span>--model_type<span class="w"> </span>chat<span class="w"> </span><span class="se">\</span>
+<span class="w">      </span>--api_key_name<span class="w"> </span>MY_API_KEY<span class="w"> </span><span class="se">\</span>
+<span class="w">      </span>--output_dir<span class="w"> </span><span class="s2">&quot;./results/</span><span class="si">${</span><span class="nv">model</span><span class="p">//</span><span class="se">\/</span><span class="p">/_</span><span class="si">}</span><span class="s2">_</span><span class="si">${</span><span class="nv">eval_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">      </span>--overrides<span class="w"> </span><span class="s2">&quot;config.params.limit_samples=50&quot;</span>
+<span class="w">    </span>
+<span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Completed </span><span class="nv">$eval_type</span><span class="s2"> on </span><span class="nv">$model</span><span class="s2">&quot;</span>
+<span class="w">  </span><span class="k">done</span>
+<span class="k">done</span>
+
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;All evaluations completed!&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="framework-development">
+<h3>Framework Development<a class="headerlink" href="#framework-development" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Setup new framework</span>
+nemo-evaluator-example<span class="w"> </span>my_custom_eval<span class="w"> </span>.
+
+<span class="c1"># This creates the basic structure:</span>
+<span class="c1"># core_evals/my_custom_eval/</span>
+<span class="c1"># ├── framework.yml</span>
+<span class="c1"># ├── output.py</span>
+<span class="c1"># └── __init__.py</span>
+
+<span class="c1"># Edit framework.yml to configure your evaluation</span>
+<span class="c1"># Edit output.py to implement result parsing</span>
+<span class="c1"># Test your framework</span>
+eval-factory<span class="w"> </span>run_eval<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--eval_type<span class="w"> </span>my_custom_eval<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--model_id<span class="w"> </span><span class="s2">&quot;test-model&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--model_url<span class="w"> </span><span class="s2">&quot;https://api.example.com/v1/chat/completions&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--model_type<span class="w"> </span>chat<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--api_key_name<span class="w"> </span>MY_API_KEY<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output_dir<span class="w"> </span>./results
+</pre></div>
+</div>
+</section>
+</section>
+<section id="framework-setup-command">
+<h2>Framework Setup Command<a class="headerlink" href="#framework-setup-command" title="Link to this heading">#</a></h2>
+<section id="nemo-evaluator-example-set-up-framework">
+<h3><code class="docutils literal notranslate"><span class="pre">nemo-evaluator-example</span></code>: Set Up Framework<a class="headerlink" href="#nemo-evaluator-example-set-up-framework" title="Link to this heading">#</a></h3>
+<p>Set up NVIDIA framework files in a destination folder.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>nemo-evaluator-example<span class="w"> </span><span class="o">[</span>package_name<span class="o">]</span><span class="w"> </span><span class="o">[</span>destination<span class="o">]</span>
+</pre></div>
+</div>
+<p><strong>Arguments:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">package_name</span></code>: Python package-like name for the framework</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">destination</span></code>: Destination folder where to create framework files</p></li>
+</ul>
+<p><strong>Example Usage:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Setup framework in current directory</span>
+nemo-evaluator-example<span class="w"> </span>my_package
+
+<span class="c1"># Setup framework in specific directory</span>
+nemo-evaluator-example<span class="w"> </span>my_package<span class="w"> </span>/path/to/destination
+</pre></div>
+</div>
+<p><strong>What it creates:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">core_evals/my_package/framework.yml</span></code> - Framework configuration</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">core_evals/my_package/output.py</span></code> - Output parsing logic</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">core_evals/my_package/__init__.py</span></code> - Package initialization</p></li>
+</ul>
+</section>
+</section>
+<section id="logging-configuration">
+<h2>Logging Configuration<a class="headerlink" href="#logging-configuration" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Set log level (recommended over --debug flag)</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">NEMO_EVALUATOR_LOG_LEVEL</span><span class="o">=</span>DEBUG
+</pre></div>
+</div>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading">#</a></h2>
+<section id="configuration-management">
+<h3>1. Configuration Management<a class="headerlink" href="#configuration-management" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Use YAML configuration files for complex setups</p></li>
+<li><p>Use environment variables for sensitive data</p></li>
+<li><p>Validate configurations before running evaluations</p></li>
+</ul>
+</section>
+<section id="id1">
+<h3>2. Parameter Overrides<a class="headerlink" href="#id1" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Use dot notation for clear parameter paths</p></li>
+<li><p>Test overrides with <code class="docutils literal notranslate"><span class="pre">--dry_run</span></code> first</p></li>
+<li><p>Keep overrides simple and readable</p></li>
+</ul>
+</section>
+<section id="error-handling">
+<h3>3. Error Handling<a class="headerlink" href="#error-handling" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Check command exit codes</p></li>
+<li><p>Use <code class="docutils literal notranslate"><span class="pre">NEMO_EVALUATOR_LOG_LEVEL=DEBUG</span></code> for troubleshooting</p></li>
+<li><p>Monitor evaluation progress</p></li>
+</ul>
+</section>
+<section id="performance">
+<h3>4. Performance<a class="headerlink" href="#performance" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Use appropriate sample sizes for testing</p></li>
+<li><p>Enable caching through adapter configuration</p></li>
+<li><p>Monitor resource usage</p></li>
+</ul>
+</section>
+<section id="security">
+<h3>5. Security<a class="headerlink" href="#security" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Store API keys in environment variables</p></li>
+<li><p>Use secure communication channels</p></li>
+<li><p>Validate all inputs and configurations</p></li>
+</ul>
+</section>
+<section id="id2">
+<h3>6. Framework Development<a class="headerlink" href="#id2" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Use <code class="docutils literal notranslate"><span class="pre">nemo-evaluator-example</span></code> to bootstrap new frameworks</p></li>
+<li><p>Follow the framework template structure</p></li>
+<li><p>Test frameworks thoroughly before production use</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#command-structure">Command Structure</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#available-commands">Available Commands</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#ls-list-available-evaluations"><code class="docutils literal notranslate"><span class="pre">ls</span></code>: List Available Evaluations</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-eval-run-evaluation"><code class="docutils literal notranslate"><span class="pre">run_eval</span></code>: Run Evaluation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-configuration">Run Configuration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#parameter-overrides">Parameter Overrides</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#override-format">Override Format</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#debug-mode">Debug Mode</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#examples">Examples</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#complete-evaluation-workflow">Complete Evaluation Workflow</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#batch-evaluation-script">Batch Evaluation Script</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#framework-development">Framework Development</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#framework-setup-command">Framework Setup Command</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo-evaluator-example-set-up-framework"><code class="docutils literal notranslate"><span class="pre">nemo-evaluator-example</span></code>: Set Up Framework</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#logging-configuration">Logging Configuration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#best-practices">Best Practices</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration-management">1. Configuration Management</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">2. Parameter Overrides</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#error-handling">3. Error Handling</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#performance">4. Performance</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#security">5. Security</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">6. Framework Development</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025, NVIDIA Corporation.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+<div class="extra_footer">
+  
+  
+    <script type="text/javascript">if (typeof _satellite !== "undefined") {_satellite.pageBottom();}</script>
+    
+  
+</div></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,804 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>NeMo Evaluator: The Universal Platform for LLM Evaluation &#8212; NeMo Eval</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'nemo-evaluator/index';</script>
+    <script>
+        DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.1.0';
+        DOCUMENTATION_OPTIONS.show_version_warning_banner =
+            false;
+        </script>
+    <link rel="icon" href="../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="NeMo Evaluator Launcher" href="../nemo-evaluator-launcher/index.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+
+
+    <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js" ></script>
+    
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-2"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-2"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-2"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-2">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA-NeMo/Eval" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-3"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-3"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-3"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-3">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA-NeMo/Eval" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Home</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Libraries</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../nemo-evaluator-launcher/index.html">NeMo Evaluator Launcher</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">NeMo Evaluator</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">NeMo Evaluator: The Universal Platform for LLM Evaluation</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="nemo-evaluator-the-universal-platform-for-llm-evaluation">
+<h1>NeMo Evaluator: The Universal Platform for LLM Evaluation<a class="headerlink" href="#nemo-evaluator-the-universal-platform-for-llm-evaluation" title="Link to this heading">#</a></h1>
+<p>NeMo Evaluator is an open-source evaluation engine. It provides standardized, reproducible AI model evaluation through a containerized architecture and adapter system. It enables you to run evaluations across multiple specialized evaluation harnesses (17+ containers including LM-Eval, HELM, MT-Bench, and others) against any OpenAI-compatible model API. The platform’s core strength lies in its interceptor-based adapter architecture. This architecture standardizes request/response flow and optional logging/caching layers. It also includes a collection of ready-to-use evaluation containers published through NVIDIA’s NGC catalog.</p>
+<p><a class="reference internal" href="reference/containers.html"><span class="std std-doc">Container Reference</span></a> | <a class="reference internal" href="workflows/using-containers.html"><span class="std std-doc">Using Containers</span></a> | <a class="reference internal" href="reference/cli.html"><span class="std std-doc">CLI Reference</span></a> | <a class="reference internal" href="reference/configuring-interceptors.html"><span class="std std-doc">Configuration Guide</span></a> | <a class="reference internal" href="workflows/python-api.html"><span class="std std-doc">Python API</span></a></p>
+<hr class="docutils" />
+<p>The architecture is as follows:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>     ┌─────────────────────┐
+     │                     │
+     │  NeMo Evaluator     │
+     │  harness            │
+     └───▲──────┬──────────┘
+         │      │
+ returns │      │
+         │      │ calls
+         │      │
+         │      │
+     ┌───┼──────┼──────────────────────────────────────────────────┐
+     │   │      ▼                                                  │
+     │ AdapterServer (@ localhost:3825)                            │
+     │                                                             │
+     │   ▲      │       chain of RequestInterceptors:              │
+     │   │      │       flask.Request                              │
+     │   │      │       is passed on the way up                    │
+     │   │      │                                                  │   ┌──────────────────────┐
+     │   │ ┌────▼───────────────────────────────────────────────┐  │   │                      │
+     │   │ │intcptr_1─────►intcptr_2───►...───►intcptr_N────────┼──┼───►                      │
+     │   │ │                                                    │  │   │                      │
+     │   │ └─────────────────────-──────────────────────────────┘  │   │   deployed           │
+     │   │                                                         │   │   OAI-compatible     │
+     │   │                                                         │   │   model endpoint     │
+     │   │                                                         │   │                      │
+     │   │                                                         │   │                      │
+     │   │                                                         │   │                      │
+     │ ┌─┼──────────────────────────────────────────┐              │   │                      │
+     │ │intcptr&#39;_M◄──intcptr&#39;_2◄──...◄───intcptr&#39;_1 ◄──────────────┼───┤                      │
+     │ └────────────────────────────────────────────┘              │   └──────────────────────┘
+     │                                                             │
+     │              Chain of ResponseInterceptors:                 │
+     │              requests.Response is passed on the way down    │
+     │                                                             │
+     │                                                             │
+     └─────────────────────────────────────────────────────────────┘
+</pre></div>
+</div>
+<p>Interceptors are independent units of logic designed for easy integration.</p>
+<p>NeMo Evaluator is the core, open-source evaluation engine. It powers standardized, reproducible AI model evaluation across benchmarks. It provides the adapter/interceptor architecture, evaluation workflows, and ready-to-use evaluation containers. These components ensure consistent results across environments and over time.</p>
+<section id="how-it-differs-from-the-launcher">
+<h2>How It Differs from the Launcher<a class="headerlink" href="#how-it-differs-from-the-launcher" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>nemo-evaluator</strong>: Core evaluation engine, adapter system, and evaluation containers. This component focuses on correctness, repeatability, and benchmark definitions.</p></li>
+<li><p><strong>nemo-evaluator-launcher</strong>: Orchestration layer on top of the core engine. It adds a unified CLI, multi-backend execution (local/Slurm/hosted), job monitoring, and exporters. Refer to the <a class="reference internal" href="../nemo-evaluator-launcher/index.html"><span class="std std-doc">NeMo Evaluator Launcher documentation</span></a> for more information.</p></li>
+</ul>
+</section>
+<section id="key-capabilities">
+<h2>Key Capabilities<a class="headerlink" href="#key-capabilities" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>Adapter/Interceptor Architecture</strong>: Standardizes how requests and responses flow to your endpoint (OpenAI-compatible) and through optional logging/caching layers</p></li>
+<li><p><strong>Benchmarks and Containers</strong>: Curated evaluation harnesses packaged as reproducible containers</p>
+<ul>
+<li><p>Browse available containers: <a class="reference internal" href="reference/containers.html"><span class="std std-doc">Container Reference</span></a></p></li>
+</ul>
+</li>
+<li><p><strong>Flexible Configuration</strong>: Fully resolved configs per run enable exact replays and comparisons</p></li>
+<li><p><strong>Metrics and Artifacts</strong>: Consistent result schemas and artifact layouts for downstream analysis</p></li>
+</ul>
+</section>
+<section id="architecture-overview">
+<h2>Architecture Overview<a class="headerlink" href="#architecture-overview" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Targets an OpenAI-compatible endpoint for the model under test.</p></li>
+<li><p>Applies optional interceptors (request/response logging, caching, and others).</p></li>
+<li><p>Executes benchmark tasks using the corresponding containerized framework.</p></li>
+<li><p>Produces metrics, logs, and artifacts in a standard directory structure.</p></li>
+</ul>
+</section>
+<section id="using-the-core-library">
+<h2>Using the Core Library<a class="headerlink" href="#using-the-core-library" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>Python API</strong>: Programmatic access to core evaluation functionality</p>
+<ul>
+<li><p>API reference: <a class="reference internal" href="reference/api.html"><span class="std std-doc">API Reference</span></a></p></li>
+</ul>
+</li>
+<li><p><strong>Containers</strong>: Run evaluations using the published containers for each framework</p>
+<ul>
+<li><p>Container reference: <a class="reference internal" href="reference/containers.html"><span class="std std-doc">Container Reference</span></a></p></li>
+</ul>
+</li>
+</ul>
+<p>For end-to-end CLI and multi-backend orchestration, use the <a class="reference internal" href="../nemo-evaluator-launcher/index.html"><span class="std std-doc">NeMo Evaluator Launcher</span></a>.</p>
+</section>
+<section id="extending">
+<h2>Extending<a class="headerlink" href="#extending" title="Link to this heading">#</a></h2>
+<p>Add your own benchmark or framework by defining its configuration and interfaces:</p>
+<ul class="simple">
+<li><p>Extension guide: <a class="reference internal" href="extending/framework-definition-file.html"><span class="std std-doc">Framework Definition File</span></a>.</p></li>
+</ul>
+</section>
+<section id="next-steps">
+<h2>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Read the architecture details and glossary in the main docs.</p></li>
+<li><p>Explore containers and pick the benchmarks you need: <a class="reference internal" href="reference/containers.html"><span class="std std-doc">Container Reference</span></a>.</p></li>
+<li><p>If you want a turnkey CLI, start with the <a class="reference internal" href="../nemo-evaluator-launcher/tutorial.html"><span class="std std-doc">NeMo Evaluator Launcher Tutorial</span></a>.</p></li>
+</ul>
+</section>
+<section id="nvidia-ngc-containers">
+<h2>NVIDIA NGC Containers<a class="headerlink" href="#nvidia-ngc-containers" title="Link to this heading">#</a></h2>
+<p>NeMo Evaluator provides pre-built evaluation containers through the NVIDIA NGC catalog:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Container</p></th>
+<th class="head"><p>Description</p></th>
+<th class="head"><p>NGC Catalog</p></th>
+<th class="head"><p>Latest Tag</p></th>
+<th class="head"><p>Supported Benchmarks</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>agentic_eval</strong></p></td>
+<td><p>Agentic AI evaluation framework</p></td>
+<td><p><a class="reference external" href="https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/agentic_eval">Link</a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">25.08.1</span></code></p></td>
+<td><p>agentic_eval_answer_accuracy, agentic_eval_goal_accuracy_with_reference, agentic_eval_goal_accuracy_without_reference, agentic_eval_topic_adherence, agentic_eval_tool_call_accuracy</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>bfcl</strong></p></td>
+<td><p>Function calling</p></td>
+<td><p><a class="reference external" href="https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl">Link</a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">25.08.1</span></code></p></td>
+<td><p>bfclv2, bfclv2_ast, bfclv2_ast_prompting, bfclv3, bfclv3_ast, bfclv3_ast_prompting</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>bigcode-evaluation-harness</strong></p></td>
+<td><p>Code generation evaluation</p></td>
+<td><p><a class="reference external" href="https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bigcode-evaluation-harness">Link</a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">25.08.1</span></code></p></td>
+<td><p>humaneval, humaneval_instruct, humanevalplus, mbpp, mbppplus, mbppplus_nemo, multiple-cpp, multiple-cs, multiple-d, multiple-go, multiple-java, multiple-jl, multiple-js, multiple-lua, multiple-php, multiple-pl, multiple-py, multiple-r, multiple-rb, multiple-rkt, multiple-rs, multiple-scala, multiple-sh, multiple-swift, multiple-ts</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>garak</strong></p></td>
+<td><p>Safety and vulnerability testing</p></td>
+<td><p><a class="reference external" href="https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/garak">Link</a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">25.08.1</span></code></p></td>
+<td><p>garak</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>helm</strong></p></td>
+<td><p>Holistic evaluation framework</p></td>
+<td><p><a class="reference external" href="https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/helm">Link</a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">25.08.1</span></code></p></td>
+<td><p>ci_bench, ehr_sql, head_qa, med_dialog_healthcaremagic, med_dialog_icliniq, medbullets, medcalc_bench, medec, medhallu, medi_qa, medication_qa, mtsamples_procedures, mtsamples_replicate, pubmed_qa, race_based_med</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>hle</strong></p></td>
+<td><p>Academic knowledge and problem solving</p></td>
+<td><p>Link: TBD</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">25.08.1</span></code></p></td>
+<td><p>hle</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>ifbench</strong></p></td>
+<td><p>Instruction following</p></td>
+<td><p>Link: TBD</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">25.08.1</span></code></p></td>
+<td><p>ifbench</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>livecodebench</strong></p></td>
+<td><p>Coding</p></td>
+<td><p>Link: TBD</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">25.08.1</span></code></p></td>
+<td><p>AA_codegeneration, codeexecution_v2, codeexecution_v2_cot, codegeneration_notfast, codegeneration_release_latest, codegeneration_release_v1, codegeneration_release_v2, codegeneration_release_v3, codegeneration_release_v4, codegeneration_release_v5, codegeneration_release_v6, livecodebench_0724_0125, livecodebench_0824_0225</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>lm-evaluation-harness</strong></p></td>
+<td><p>Language model benchmarks</p></td>
+<td><p><a class="reference external" href="https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/lm-evaluation-harness">Link</a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">25.08.1</span></code></p></td>
+<td><p>adlr_arc_challenge_llama, adlr_gsm8k_fewshot_cot, adlr_humaneval_greedy, adlr_humanevalplus_greedy, adlr_mbpp_sanitized_3shot_greedy, adlr_mbppplus_greedy_sanitized, adlr_minerva_math_nemo, adlr_mmlu_pro_5_shot_base, adlr_race, adlr_truthfulqa_mc2, agieval, arc_challenge, arc_challenge_chat, arc_multilingual, bbh, bbh_instruct, bbq, commonsense_qa, frames_naive, frames_naive_with_links, frames_oracle, global_mmlu, global_mmlu_ar, global_mmlu_bn, global_mmlu_de, global_mmlu_en, global_mmlu_es, global_mmlu_fr, global_mmlu_full, global_mmlu_full_am, global_mmlu_full_ar, global_mmlu_full_bn, global_mmlu_full_cs, global_mmlu_full_de, global_mmlu_full_el, global_mmlu_full_en, global_mmlu_full_es, global_mmlu_full_fa, global_mmlu_full_fil, global_mmlu_full_fr, global_mmlu_full_ha, global_mmlu_full_he, global_mmlu_full_hi, global_mmlu_full_id, global_mmlu_full_ig, global_mmlu_full_it, global_mmlu_full_ja, global_mmlu_full_ko, global_mmlu_full_ky, global_mmlu_full_lt, global_mmlu_full_mg, global_mmlu_full_ms, global_mmlu_full_ne, global_mmlu_full_nl, global_mmlu_full_ny, global_mmlu_full_pl, global_mmlu_full_pt, global_mmlu_full_ro, global_mmlu_full_ru, global_mmlu_full_si, global_mmlu_full_sn, global_mmlu_full_so, global_mmlu_full_sr, global_mmlu_full_sv, global_mmlu_full_sw, global_mmlu_full_te, global_mmlu_full_tr, global_mmlu_full_uk, global_mmlu_full_vi, global_mmlu_full_yo, global_mmlu_full_zh, global_mmlu_hi, global_mmlu_id, global_mmlu_it, global_mmlu_ja, global_mmlu_ko, global_mmlu_pt, global_mmlu_sw, global_mmlu_yo, global_mmlu_zh, gpqa, gpqa_diamond_cot, gpqa_diamond_cot_5_shot, gsm8k, gsm8k_cot_instruct, gsm8k_cot_llama, gsm8k_cot_zeroshot, gsm8k_cot_zeroshot_llama, hellaswag, hellaswag_multilingual, humaneval_instruct, ifeval, m_mmlu_id_str, mbpp_plus, mgsm, mgsm_cot, mmlu, mmlu_cot_0_shot_chat, mmlu_instruct, mmlu_logits, mmlu_pro, mmlu_pro_instruct, mmlu_prox, mmlu_prox_de, mmlu_prox_es, mmlu_prox_fr, mmlu_prox_it, mmlu_prox_ja, mmlu_redux, mmlu_redux_instruct, musr, openbookqa, piqa, social_iqa, truthfulqa, wikilingua, winogrande</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>mmath</strong></p></td>
+<td><p>Multilingual math reasoning</p></td>
+<td><p>Link: TBD</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">25.08.1</span></code></p></td>
+<td><p>mmath_ar, mmath_en, mmath_es, mmath_fr, mmath_ja, mmath_ko, mmath_pt, mmath_th, mmath_vi, mmath_zh</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>mtbench</strong></p></td>
+<td><p>Multi-turn conversation evaluation</p></td>
+<td><p><a class="reference external" href="https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench">Link</a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">25.08.1</span></code></p></td>
+<td><p>mtbench, mtbench-cor1</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>rag_retriever_eval</strong></p></td>
+<td><p>RAG system evaluation</p></td>
+<td><p><a class="reference external" href="https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/rag_retriever_eval">Link</a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">25.08.1</span></code></p></td>
+<td><p>RAG, Retriever</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>safety-harness</strong></p></td>
+<td><p>Safety and bias evaluation</p></td>
+<td><p><a class="reference external" href="https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/safety-harness">Link</a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">25.08.1</span></code></p></td>
+<td><p>aegis_v2, aegis_v2_ar, aegis_v2_de, aegis_v2_es, aegis_v2_fr, aegis_v2_hi, aegis_v2_ja, aegis_v2_reasoning, aegis_v2_th, aegis_v2_zh-CN, bbq_full, bbq_small, wildguard</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>scicode</strong></p></td>
+<td><p>Coding for scientific research</p></td>
+<td><p>Link: TBD</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">25.08.1</span></code></p></td>
+<td><p>aa_scicode, scicode, scicode_background</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>simple-evals</strong></p></td>
+<td><p>Common evaluation tasks</p></td>
+<td><p><a class="reference external" href="https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/simple-evals">Link</a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">25.08.1</span></code></p></td>
+<td><p>AA_AIME_2024, AA_math_test_500, AIME_2024, AIME_2025, aime_2024_nemo, aime_2025_nemo, gpqa_diamond, gpqa_diamond_aa_v2, gpqa_diamond_aa_v2_llama_4, gpqa_diamond_nemo, gpqa_extended, gpqa_main, humaneval, humanevalplus, math_test_500, math_test_500_nemo, mgsm, mmlu, mmlu_am, mmlu_ar, mmlu_ar-lite, mmlu_bn, mmlu_bn-lite, mmlu_cs, mmlu_de, mmlu_de-lite, mmlu_el, mmlu_en, mmlu_en-lite, mmlu_es, mmlu_es-lite, mmlu_fa, mmlu_fil, mmlu_fr, mmlu_fr-lite, mmlu_ha, mmlu_he, mmlu_hi, mmlu_hi-lite, mmlu_id, mmlu_id-lite, mmlu_ig, mmlu_it, mmlu_it-lite, mmlu_ja, mmlu_ja-lite, mmlu_ko, mmlu_ko-lite, mmlu_ky, mmlu_llama_4, mmlu_lt, mmlu_mg, mmlu_ms, mmlu_my-lite, mmlu_ne, mmlu_nl, mmlu_ny, mmlu_pl, mmlu_pro, mmlu_pro_llama_4, mmlu_pt, mmlu_pt-lite, mmlu_ro, mmlu_ru, mmlu_si, mmlu_sn, mmlu_so, mmlu_sr, mmlu_sv, mmlu_sw, mmlu_sw-lite, mmlu_te, mmlu_tr, mmlu_uk, mmlu_vi, mmlu_yo, mmlu_yo-lite, mmlu_zh-lite, simpleqa</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>tooltalk</strong></p></td>
+<td><p>Tool usage evaluation</p></td>
+<td><p><a class="reference external" href="https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk">Link</a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">25.08.1</span></code></p></td>
+<td><p>tooltalk</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>vlmevalkit</strong></p></td>
+<td><p>Vision-language model evaluation</p></td>
+<td><p><a class="reference external" href="https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit">Link</a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">25.08.1</span></code></p></td>
+<td><p>ai2d_judge, chartqa, ocrbench, slidevqa</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="container-usage">
+<h2>Container Usage<a class="headerlink" href="#container-usage" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Pull a container</span>
+docker<span class="w"> </span>pull<span class="w"> </span>nvcr.io/nvidia/eval-factory/&lt;container-name&gt;:&lt;tag&gt;
+
+<span class="c1"># Example: Pull agentic evaluation container</span>
+docker<span class="w"> </span>pull<span class="w"> </span>nvcr.io/nvidia/eval-factory/agentic_eval:25.08.1
+
+<span class="c1"># Run with GPU support</span>
+docker<span class="w"> </span>run<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>-it<span class="w"> </span>nvcr.io/nvidia/eval-factory/&lt;container-name&gt;:&lt;tag&gt;
+</pre></div>
+</div>
+</section>
+<section id="disclaimer">
+<h2>Disclaimer<a class="headerlink" href="#disclaimer" title="Link to this heading">#</a></h2>
+<p>This project will download and install additional third-party open source software projects. Review the license terms of these open source projects before use.</p>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../nemo-evaluator-launcher/index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">NeMo Evaluator Launcher</p>
+      </div>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-it-differs-from-the-launcher">How It Differs from the Launcher</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#key-capabilities">Key Capabilities</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture-overview">Architecture Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-the-core-library">Using the Core Library</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#extending">Extending</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-steps">Next Steps</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#nvidia-ngc-containers">NVIDIA NGC Containers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#container-usage">Container Usage</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#disclaimer">Disclaimer</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025, NVIDIA Corporation.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+<div class="extra_footer">
+  
+  
+    <script type="text/javascript">if (typeof _satellite !== "undefined") {_satellite.pageBottom();}</script>
+    
+  
+</div></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>

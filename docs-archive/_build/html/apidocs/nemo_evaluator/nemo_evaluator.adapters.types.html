@@ -1,0 +1,850 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>nemo_evaluator.adapters.types &#8212; NeMo Eval</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'apidocs/nemo_evaluator/nemo_evaluator.adapters.types';</script>
+    <script>
+        DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.1.0';
+        DOCUMENTATION_OPTIONS.show_version_warning_banner =
+            false;
+        </script>
+    <link rel="icon" href="../../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+
+
+    <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js" ></script>
+    
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-2"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-2"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-2"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-2">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA-NeMo/Eval" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-3"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-3"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-3"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-3">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA-NeMo/Eval" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Home</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Libraries</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../nemo-evaluator-launcher/index.html">NeMo Evaluator Launcher</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../nemo-evaluator/index.html">NeMo Evaluator</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_evaluator.adapters.types</span></code></span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="module-nemo_evaluator.adapters.types">
+<span id="nemo-evaluator-adapters-types"></span><h1><a class="reference internal" href="#module-nemo_evaluator.adapters.types" title="nemo_evaluator.adapters.types"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_evaluator.adapters.types</span></code></a><a class="headerlink" href="#module-nemo_evaluator.adapters.types" title="Link to this heading">#</a></h1>
+<section id="module-contents">
+<h2>Module Contents<a class="headerlink" href="#module-contents" title="Link to this heading">#</a></h2>
+<section id="classes">
+<h3>Classes<a class="headerlink" href="#classes" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table table-left">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.types.AdapterGlobalContext" title="nemo_evaluator.adapters.types.AdapterGlobalContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AdapterGlobalContext</span></code></a></p></td>
+<td><p>Global context passed to all interceptors containing server-level configuration.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.types.AdapterRequestContext" title="nemo_evaluator.adapters.types.AdapterRequestContext"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AdapterRequestContext</span></code></a></p></td>
+<td><p>This is passed with the <em>whole</em> chain from request back to response.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.types.AdapterRequest" title="nemo_evaluator.adapters.types.AdapterRequest"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AdapterRequest</span></code></a></p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.types.AdapterResponse" title="nemo_evaluator.adapters.types.AdapterResponse"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AdapterResponse</span></code></a></p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.types.RequestInterceptor" title="nemo_evaluator.adapters.types.RequestInterceptor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestInterceptor</span></code></a></p></td>
+<td><p>Interface for providing interception of requests.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.types.RequestToResponseInterceptor" title="nemo_evaluator.adapters.types.RequestToResponseInterceptor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RequestToResponseInterceptor</span></code></a></p></td>
+<td><p>Interface for interceptors that can either continue the request chain or return a response.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.types.ResponseInterceptor" title="nemo_evaluator.adapters.types.ResponseInterceptor"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ResponseInterceptor</span></code></a></p></td>
+<td><p>Interface for providing interception of responses.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.types.PostEvalHook" title="nemo_evaluator.adapters.types.PostEvalHook"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PostEvalHook</span></code></a></p></td>
+<td><p>Interface for post-evaluation hooks that run after the evaluation completes.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="api">
+<h3>API<a class="headerlink" href="#api" title="Link to this heading">#</a></h3>
+<dl class="py class">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.AdapterGlobalContext">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.types.</span></span><span class="sig-name descname"><span class="pre">AdapterGlobalContext</span></span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/types.html#AdapterGlobalContext"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.types.AdapterGlobalContext" title="Link to this definition">#</a></dt>
+<dd><p>Global context passed to all interceptors containing server-level configuration.</p>
+<p>This context contains information that is available throughout the entire
+request-response cycle and is shared across all interceptors.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.AdapterGlobalContext.output_dir">
+<span class="sig-name descname"><span class="pre">output_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#nemo_evaluator.adapters.types.AdapterGlobalContext.output_dir" title="Link to this definition">#</a></dt>
+<dd><p>None</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.AdapterGlobalContext.url">
+<span class="sig-name descname"><span class="pre">url</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#nemo_evaluator.adapters.types.AdapterGlobalContext.url" title="Link to this definition">#</a></dt>
+<dd><p>None</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.AdapterGlobalContext.metrics_path">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">metrics_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">pathlib.Path</span></em><a class="headerlink" href="#nemo_evaluator.adapters.types.AdapterGlobalContext.metrics_path" title="Link to this definition">#</a></dt>
+<dd><p>Path to the eval_factory_metrics.json file.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.AdapterRequestContext">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.types.</span></span><span class="sig-name descname"><span class="pre">AdapterRequestContext</span></span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/types.html#AdapterRequestContext"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.types.AdapterRequestContext" title="Link to this definition">#</a></dt>
+<dd><p>This is passed with the <em>whole</em> chain from request back to response.</p>
+<p>Add here any useful information.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.AdapterRequestContext.cache_hit">
+<span class="sig-name descname"><span class="pre">cache_hit</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#nemo_evaluator.adapters.types.AdapterRequestContext.cache_hit" title="Link to this definition">#</a></dt>
+<dd><p>False</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.AdapterRequestContext.cache_key">
+<span class="sig-name descname"><span class="pre">cache_key</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#nemo_evaluator.adapters.types.AdapterRequestContext.cache_key" title="Link to this definition">#</a></dt>
+<dd><p>None</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.AdapterRequestContext.request_id">
+<span class="sig-name descname"><span class="pre">request_id</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#nemo_evaluator.adapters.types.AdapterRequestContext.request_id" title="Link to this definition">#</a></dt>
+<dd><p>None</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.AdapterRequest">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.types.</span></span><span class="sig-name descname"><span class="pre">AdapterRequest</span></span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/types.html#AdapterRequest"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.types.AdapterRequest" title="Link to this definition">#</a></dt>
+<dd><dl class="py attribute">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.AdapterRequest.r">
+<span class="sig-name descname"><span class="pre">r</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">flask.Request</span></em><a class="headerlink" href="#nemo_evaluator.adapters.types.AdapterRequest.r" title="Link to this definition">#</a></dt>
+<dd><p>None</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.AdapterRequest.rctx">
+<span class="sig-name descname"><span class="pre">rctx</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#nemo_evaluator.adapters.types.AdapterRequestContext" title="nemo_evaluator.adapters.types.AdapterRequestContext"><span class="pre">nemo_evaluator.adapters.types.AdapterRequestContext</span></a></em><a class="headerlink" href="#nemo_evaluator.adapters.types.AdapterRequest.rctx" title="Link to this definition">#</a></dt>
+<dd><p>None</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.AdapterResponse">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.types.</span></span><span class="sig-name descname"><span class="pre">AdapterResponse</span></span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/types.html#AdapterResponse"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.types.AdapterResponse" title="Link to this definition">#</a></dt>
+<dd><dl class="py attribute">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.AdapterResponse.r">
+<span class="sig-name descname"><span class="pre">r</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">requests.Response</span></em><a class="headerlink" href="#nemo_evaluator.adapters.types.AdapterResponse.r" title="Link to this definition">#</a></dt>
+<dd><p>None</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.AdapterResponse.rctx">
+<span class="sig-name descname"><span class="pre">rctx</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#nemo_evaluator.adapters.types.AdapterRequestContext" title="nemo_evaluator.adapters.types.AdapterRequestContext"><span class="pre">nemo_evaluator.adapters.types.AdapterRequestContext</span></a></em><a class="headerlink" href="#nemo_evaluator.adapters.types.AdapterResponse.rctx" title="Link to this definition">#</a></dt>
+<dd><p>None</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.AdapterResponse.latency_ms">
+<span class="sig-name descname"><span class="pre">latency_ms</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#nemo_evaluator.adapters.types.AdapterResponse.latency_ms" title="Link to this definition">#</a></dt>
+<dd><p>None</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.FatalErrorException">
+<em class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.types.</span></span><span class="sig-name descname"><span class="pre">FatalErrorException</span></span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/types.html#FatalErrorException"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.types.FatalErrorException" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-obj docutils literal notranslate"><span class="pre">Exception</span></code></p>
+<p>Exception raised when an interceptor encounters a fatal error that should kill the process.</p>
+<p class="rubric">Initialization</p>
+<p>Initialize self.  See help(type(self)) for accurate signature.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.RequestInterceptor">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.types.</span></span><span class="sig-name descname"><span class="pre">RequestInterceptor</span></span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/types.html#RequestInterceptor"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.types.RequestInterceptor" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-obj docutils literal notranslate"><span class="pre">abc.ABC</span></code></p>
+<p>Interface for providing interception of requests.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.RequestInterceptor.intercept_request">
+<em class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">intercept_request</span></span><span class="sig-paren">(</span>
+
+<dl>
+<dd><em class="sig-param"><span class="n"><span class="pre">req</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#nemo_evaluator.adapters.types.AdapterRequest" title="nemo_evaluator.adapters.types.AdapterRequest"><span class="pre">nemo_evaluator.adapters.types.AdapterRequest</span></a></span></em>,</dd>
+<dd><em class="sig-param"><span class="n"><span class="pre">context</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#nemo_evaluator.adapters.types.AdapterGlobalContext" title="nemo_evaluator.adapters.types.AdapterGlobalContext"><span class="pre">nemo_evaluator.adapters.types.AdapterGlobalContext</span></a></span></em>,</dd>
+</dl>
+
+<span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#nemo_evaluator.adapters.types.AdapterRequest" title="nemo_evaluator.adapters.types.AdapterRequest"><span class="pre">nemo_evaluator.adapters.types.AdapterRequest</span></a></span></span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/types.html#RequestInterceptor.intercept_request"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.types.RequestInterceptor.intercept_request" title="Link to this definition">#</a></dt>
+<dd><p>Function that will be called by <code class="docutils literal notranslate"><span class="pre">AdapterServer</span></code> on the way upstream.</p>
+<p>This interceptor can modify the request but must return an AdapterRequest
+to continue the chain upstream.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>req</strong> – The adapter request to intercept</p></li>
+<li><p><strong>context</strong> – Global context containing server-level configuration</p></li>
+</ul>
+</dd>
+</dl>
+<p>Ex.: This is used for request preprocessing, logging, etc.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.RequestToResponseInterceptor">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.types.</span></span><span class="sig-name descname"><span class="pre">RequestToResponseInterceptor</span></span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/types.html#RequestToResponseInterceptor"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.types.RequestToResponseInterceptor" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-obj docutils literal notranslate"><span class="pre">abc.ABC</span></code></p>
+<p>Interface for interceptors that can either continue the request chain or return a response.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.RequestToResponseInterceptor.intercept_request">
+<em class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">intercept_request</span></span><span class="sig-paren">(</span>
+
+<dl>
+<dd><em class="sig-param"><span class="n"><span class="pre">req</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#nemo_evaluator.adapters.types.AdapterRequest" title="nemo_evaluator.adapters.types.AdapterRequest"><span class="pre">nemo_evaluator.adapters.types.AdapterRequest</span></a></span></em>,</dd>
+<dd><em class="sig-param"><span class="n"><span class="pre">context</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#nemo_evaluator.adapters.types.AdapterGlobalContext" title="nemo_evaluator.adapters.types.AdapterGlobalContext"><span class="pre">nemo_evaluator.adapters.types.AdapterGlobalContext</span></a></span></em>,</dd>
+</dl>
+
+<span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#nemo_evaluator.adapters.types.AdapterRequest" title="nemo_evaluator.adapters.types.AdapterRequest"><span class="pre">nemo_evaluator.adapters.types.AdapterRequest</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="#nemo_evaluator.adapters.types.AdapterResponse" title="nemo_evaluator.adapters.types.AdapterResponse"><span class="pre">nemo_evaluator.adapters.types.AdapterResponse</span></a></span></span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/types.html#RequestToResponseInterceptor.intercept_request"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.types.RequestToResponseInterceptor.intercept_request" title="Link to this definition">#</a></dt>
+<dd><p>Function that will be called by <code class="docutils literal notranslate"><span class="pre">AdapterServer</span></code> on the way upstream.</p>
+<p>If the return type is <code class="docutils literal notranslate"><span class="pre">AdapterRequest</span></code>, the chain will continue upstream.
+If the return type is <code class="docutils literal notranslate"><span class="pre">AdapterResponse</span></code>, the <code class="docutils literal notranslate"><span class="pre">AdapterServer</span></code> will consider the
+chain finished and start the reverse chain of responses.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>req</strong> – The adapter request to intercept</p></li>
+<li><p><strong>context</strong> – Global context containing server-level configuration</p></li>
+</ul>
+</dd>
+</dl>
+<p>Ex.: the latter case is e.g. how caching interceptor works. For cache miss
+it will continue the chain, passing request unchanged. For cache hit,
+it will go for the response.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.ResponseInterceptor">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.types.</span></span><span class="sig-name descname"><span class="pre">ResponseInterceptor</span></span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/types.html#ResponseInterceptor"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.types.ResponseInterceptor" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-obj docutils literal notranslate"><span class="pre">abc.ABC</span></code></p>
+<p>Interface for providing interception of responses.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.ResponseInterceptor.intercept_response">
+<em class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">intercept_response</span></span><span class="sig-paren">(</span>
+
+<dl>
+<dd><em class="sig-param"><span class="n"><span class="pre">resp</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#nemo_evaluator.adapters.types.AdapterResponse" title="nemo_evaluator.adapters.types.AdapterResponse"><span class="pre">nemo_evaluator.adapters.types.AdapterResponse</span></a></span></em>,</dd>
+<dd><em class="sig-param"><span class="n"><span class="pre">context</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#nemo_evaluator.adapters.types.AdapterGlobalContext" title="nemo_evaluator.adapters.types.AdapterGlobalContext"><span class="pre">nemo_evaluator.adapters.types.AdapterGlobalContext</span></a></span></em>,</dd>
+</dl>
+
+<span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#nemo_evaluator.adapters.types.AdapterResponse" title="nemo_evaluator.adapters.types.AdapterResponse"><span class="pre">nemo_evaluator.adapters.types.AdapterResponse</span></a></span></span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/types.html#ResponseInterceptor.intercept_response"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.types.ResponseInterceptor.intercept_response" title="Link to this definition">#</a></dt>
+<dd><p>Function that will be called by <code class="docutils literal notranslate"><span class="pre">AdapterServer</span></code> on the way downstream.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>resp</strong> – The adapter response to intercept</p></li>
+<li><p><strong>context</strong> – Global context containing server-level configuration</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.PostEvalHook">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.types.</span></span><span class="sig-name descname"><span class="pre">PostEvalHook</span></span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/types.html#PostEvalHook"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.types.PostEvalHook" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-obj docutils literal notranslate"><span class="pre">abc.ABC</span></code></p>
+<p>Interface for post-evaluation hooks that run after the evaluation completes.</p>
+<p>Post-evaluation hooks are executed after the main evaluation has finished,
+allowing for cleanup, report generation, or other post-processing tasks.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.types.PostEvalHook.post_eval_hook">
+<em class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">post_eval_hook</span></span><span class="sig-paren">(</span>
+
+<dl>
+<dd><em class="sig-param"><span class="n"><span class="pre">context</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#nemo_evaluator.adapters.types.AdapterGlobalContext" title="nemo_evaluator.adapters.types.AdapterGlobalContext"><span class="pre">nemo_evaluator.adapters.types.AdapterGlobalContext</span></a></span></em>,</dd>
+</dl>
+
+<span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/types.html#PostEvalHook.post_eval_hook"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.types.PostEvalHook.post_eval_hook" title="Link to this definition">#</a></dt>
+<dd><p>Function that will be called by the evaluation system after evaluation completes.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>context</strong> – Global context containing server-level configuration and evaluation results</p>
+</dd>
+</dl>
+<p>Ex.: This is used for report generation, cleanup, metrics collection, etc.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-contents">Module Contents</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#classes">Classes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#api">API</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.AdapterGlobalContext"><code class="docutils literal notranslate"><span class="pre">AdapterGlobalContext</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.AdapterGlobalContext.output_dir"><code class="docutils literal notranslate"><span class="pre">output_dir</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.AdapterGlobalContext.url"><code class="docutils literal notranslate"><span class="pre">url</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.AdapterGlobalContext.metrics_path"><code class="docutils literal notranslate"><span class="pre">metrics_path</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.AdapterRequestContext"><code class="docutils literal notranslate"><span class="pre">AdapterRequestContext</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.AdapterRequestContext.cache_hit"><code class="docutils literal notranslate"><span class="pre">cache_hit</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.AdapterRequestContext.cache_key"><code class="docutils literal notranslate"><span class="pre">cache_key</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.AdapterRequestContext.request_id"><code class="docutils literal notranslate"><span class="pre">request_id</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.AdapterRequest"><code class="docutils literal notranslate"><span class="pre">AdapterRequest</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.AdapterRequest.r"><code class="docutils literal notranslate"><span class="pre">r</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.AdapterRequest.rctx"><code class="docutils literal notranslate"><span class="pre">rctx</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.AdapterResponse"><code class="docutils literal notranslate"><span class="pre">AdapterResponse</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.AdapterResponse.r"><code class="docutils literal notranslate"><span class="pre">r</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.AdapterResponse.rctx"><code class="docutils literal notranslate"><span class="pre">rctx</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.AdapterResponse.latency_ms"><code class="docutils literal notranslate"><span class="pre">latency_ms</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.FatalErrorException"><code class="docutils literal notranslate"><span class="pre">FatalErrorException</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.RequestInterceptor"><code class="docutils literal notranslate"><span class="pre">RequestInterceptor</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.RequestInterceptor.intercept_request"><code class="docutils literal notranslate"><span class="pre">intercept_request()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.RequestToResponseInterceptor"><code class="docutils literal notranslate"><span class="pre">RequestToResponseInterceptor</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.RequestToResponseInterceptor.intercept_request"><code class="docutils literal notranslate"><span class="pre">intercept_request()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.ResponseInterceptor"><code class="docutils literal notranslate"><span class="pre">ResponseInterceptor</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.ResponseInterceptor.intercept_response"><code class="docutils literal notranslate"><span class="pre">intercept_response()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.PostEvalHook"><code class="docutils literal notranslate"><span class="pre">PostEvalHook</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.types.PostEvalHook.post_eval_hook"><code class="docutils literal notranslate"><span class="pre">post_eval_hook()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025, NVIDIA Corporation.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+<div class="extra_footer">
+  
+  
+    <script type="text/javascript">if (typeof _satellite !== "undefined") {_satellite.pageBottom();}</script>
+    
+  
+</div></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>

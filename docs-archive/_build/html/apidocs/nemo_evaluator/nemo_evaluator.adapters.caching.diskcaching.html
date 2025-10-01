@@ -1,0 +1,1602 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>nemo_evaluator.adapters.caching.diskcaching &#8212; NeMo Eval</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'apidocs/nemo_evaluator/nemo_evaluator.adapters.caching.diskcaching';</script>
+    <script>
+        DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.1.0';
+        DOCUMENTATION_OPTIONS.show_version_warning_banner =
+            false;
+        </script>
+    <link rel="icon" href="../../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+
+
+    <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js" ></script>
+    
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-2"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-2"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-2"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-2">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA-NeMo/Eval" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-3"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-3"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-3"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-3">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA-NeMo/Eval" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Home</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Libraries</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../nemo-evaluator-launcher/index.html">NeMo Evaluator Launcher</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../nemo-evaluator/index.html">NeMo Evaluator</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_evaluator.adapters.caching.diskcaching</span></code></span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="module-nemo_evaluator.adapters.caching.diskcaching">
+<span id="nemo-evaluator-adapters-caching-diskcaching"></span><h1><a class="reference internal" href="#module-nemo_evaluator.adapters.caching.diskcaching" title="nemo_evaluator.adapters.caching.diskcaching"><code class="xref py py-mod docutils literal notranslate"><span class="pre">nemo_evaluator.adapters.caching.diskcaching</span></code></a><a class="headerlink" href="#module-nemo_evaluator.adapters.caching.diskcaching" title="Link to this heading">#</a></h1>
+<p>Core disk and file backed cache API.
+source: https://github.com/grantjenks/python-diskcache
+changes:</p>
+<ul class="simple">
+<li><p>instead of pickle, use raw bytes.</p></li>
+</ul>
+<p>The assumption
+is that we will cache requests responses, which are bytes.</p>
+<section id="module-contents">
+<h2>Module Contents<a class="headerlink" href="#module-contents" title="Link to this heading">#</a></h2>
+<section id="classes">
+<h3>Classes<a class="headerlink" href="#classes" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table table-left">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.Constant" title="nemo_evaluator.adapters.caching.diskcaching.Constant"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Constant</span></code></a></p></td>
+<td><p>Pretty display of immutable constant.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.Disk" title="nemo_evaluator.adapters.caching.diskcaching.Disk"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Disk</span></code></a></p></td>
+<td><p>Cache key and value serialization for SQLite database and files.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.JSONDisk" title="nemo_evaluator.adapters.caching.diskcaching.JSONDisk"><code class="xref py py-obj docutils literal notranslate"><span class="pre">JSONDisk</span></code></a></p></td>
+<td><p>Cache key and value using JSON serialization with zlib compression.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.Cache" title="nemo_evaluator.adapters.caching.diskcaching.Cache"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Cache</span></code></a></p></td>
+<td><p>Disk and file backed cache.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="functions">
+<h3>Functions<a class="headerlink" href="#functions" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table table-left">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.full_name" title="nemo_evaluator.adapters.caching.diskcaching.full_name"><code class="xref py py-obj docutils literal notranslate"><span class="pre">full_name</span></code></a></p></td>
+<td><p>Return full name of <code class="docutils literal notranslate"><span class="pre">func</span></code> by adding the module and function name.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.args_to_key" title="nemo_evaluator.adapters.caching.diskcaching.args_to_key"><code class="xref py py-obj docutils literal notranslate"><span class="pre">args_to_key</span></code></a></p></td>
+<td><p>Create cache key out of function arguments.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="data">
+<h3>Data<a class="headerlink" href="#data" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table table-left">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.DBNAME" title="nemo_evaluator.adapters.caching.diskcaching.DBNAME"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DBNAME</span></code></a></p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.ENOVAL" title="nemo_evaluator.adapters.caching.diskcaching.ENOVAL"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ENOVAL</span></code></a></p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.UNKNOWN" title="nemo_evaluator.adapters.caching.diskcaching.UNKNOWN"><code class="xref py py-obj docutils literal notranslate"><span class="pre">UNKNOWN</span></code></a></p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.MODE_NONE" title="nemo_evaluator.adapters.caching.diskcaching.MODE_NONE"><code class="xref py py-obj docutils literal notranslate"><span class="pre">MODE_NONE</span></code></a></p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.MODE_RAW" title="nemo_evaluator.adapters.caching.diskcaching.MODE_RAW"><code class="xref py py-obj docutils literal notranslate"><span class="pre">MODE_RAW</span></code></a></p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.MODE_JSON" title="nemo_evaluator.adapters.caching.diskcaching.MODE_JSON"><code class="xref py py-obj docutils literal notranslate"><span class="pre">MODE_JSON</span></code></a></p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.DEFAULT_SETTINGS" title="nemo_evaluator.adapters.caching.diskcaching.DEFAULT_SETTINGS"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DEFAULT_SETTINGS</span></code></a></p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.METADATA" title="nemo_evaluator.adapters.caching.diskcaching.METADATA"><code class="xref py py-obj docutils literal notranslate"><span class="pre">METADATA</span></code></a></p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.EVICTION_POLICY" title="nemo_evaluator.adapters.caching.diskcaching.EVICTION_POLICY"><code class="xref py py-obj docutils literal notranslate"><span class="pre">EVICTION_POLICY</span></code></a></p></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="api">
+<h3>API<a class="headerlink" href="#api" title="Link to this heading">#</a></h3>
+<dl class="py function">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.full_name">
+<span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.</span></span><span class="sig-name descname"><span class="pre">full_name</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#full_name"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.full_name" title="Link to this definition">#</a></dt>
+<dd><p>Return full name of <code class="docutils literal notranslate"><span class="pre">func</span></code> by adding the module and function name.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Constant">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.</span></span><span class="sig-name descname"><span class="pre">Constant</span></span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Constant"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Constant" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-obj docutils literal notranslate"><span class="pre">tuple</span></code></p>
+<p>Pretty display of immutable constant.</p>
+<p class="rubric">Initialization</p>
+<p>Initialize self.  See help(type(self)) for accurate signature.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Constant.__new__">
+<span class="sig-name descname"><span class="pre">__new__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Constant.__new__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Constant.__new__" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Constant.__repr__">
+<span class="sig-name descname"><span class="pre">__repr__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Constant.__repr__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Constant.__repr__" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.DBNAME">
+<span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.</span></span><span class="sig-name descname"><span class="pre">DBNAME</span></span><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.DBNAME" title="Link to this definition">#</a></dt>
+<dd><p>‘cache.db’</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.ENOVAL">
+<span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.</span></span><span class="sig-name descname"><span class="pre">ENOVAL</span></span><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.ENOVAL" title="Link to this definition">#</a></dt>
+<dd><p>‘Constant(…)’</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.UNKNOWN">
+<span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.</span></span><span class="sig-name descname"><span class="pre">UNKNOWN</span></span><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.UNKNOWN" title="Link to this definition">#</a></dt>
+<dd><p>‘Constant(…)’</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.MODE_NONE">
+<span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.</span></span><span class="sig-name descname"><span class="pre">MODE_NONE</span></span><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.MODE_NONE" title="Link to this definition">#</a></dt>
+<dd><p>0</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.MODE_RAW">
+<span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.</span></span><span class="sig-name descname"><span class="pre">MODE_RAW</span></span><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.MODE_RAW" title="Link to this definition">#</a></dt>
+<dd><p>1</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.MODE_JSON">
+<span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.</span></span><span class="sig-name descname"><span class="pre">MODE_JSON</span></span><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.MODE_JSON" title="Link to this definition">#</a></dt>
+<dd><p>2</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.DEFAULT_SETTINGS">
+<span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.</span></span><span class="sig-name descname"><span class="pre">DEFAULT_SETTINGS</span></span><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.DEFAULT_SETTINGS" title="Link to this definition">#</a></dt>
+<dd><p>None</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.METADATA">
+<span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.</span></span><span class="sig-name descname"><span class="pre">METADATA</span></span><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.METADATA" title="Link to this definition">#</a></dt>
+<dd><p>None</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.EVICTION_POLICY">
+<span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.</span></span><span class="sig-name descname"><span class="pre">EVICTION_POLICY</span></span><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.EVICTION_POLICY" title="Link to this definition">#</a></dt>
+<dd><p>None</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Disk">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.</span></span><span class="sig-name descname"><span class="pre">Disk</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_file_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Disk"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Disk" title="Link to this definition">#</a></dt>
+<dd><p>Cache key and value serialization for SQLite database and files.</p>
+<p class="rubric">Initialization</p>
+<p>Initialize disk instance.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>directory</strong> (<em>str</em>) – directory path</p></li>
+<li><p><strong>min_file_size</strong> (<em>int</em>) – minimum size for file use</p></li>
+<li><p><strong>json_indent</strong> (<em>int</em>) – JSON indentation for serialization</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Disk.hash">
+<span class="sig-name descname"><span class="pre">hash</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Disk.hash"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Disk.hash" title="Link to this definition">#</a></dt>
+<dd><p>Compute portable hash for <code class="docutils literal notranslate"><span class="pre">key</span></code>.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>key</strong> – key to hash</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>hash value</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Disk.put">
+<span class="sig-name descname"><span class="pre">put</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Disk.put"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Disk.put" title="Link to this definition">#</a></dt>
+<dd><p>Convert <code class="docutils literal notranslate"><span class="pre">key</span></code> to fields key and raw for Cache table.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>key</strong> – key to convert</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>(database key, raw boolean) pair</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Disk.get">
+<span class="sig-name descname"><span class="pre">get</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">raw</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Disk.get"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Disk.get" title="Link to this definition">#</a></dt>
+<dd><p>Convert fields <code class="docutils literal notranslate"><span class="pre">key</span></code> and <code class="docutils literal notranslate"><span class="pre">raw</span></code> from Cache table to key.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key</strong> – database key to convert</p></li>
+<li><p><strong>raw</strong> (<em>bool</em>) – flag indicating raw database storage</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>corresponding Python key</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Disk.store">
+<span class="sig-name descname"><span class="pre">store</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">read</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">UNKNOWN</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Disk.store"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Disk.store" title="Link to this definition">#</a></dt>
+<dd><p>Convert <code class="docutils literal notranslate"><span class="pre">value</span></code> to fields size, mode, filename, and value for Cache
+table.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>value</strong> – value to convert</p></li>
+<li><p><strong>read</strong> (<em>bool</em>) – True when value is file-like object</p></li>
+<li><p><strong>key</strong> – key for item (default UNKNOWN)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>(size, mode, filename, value) tuple for Cache table</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Disk._write">
+<span class="sig-name descname"><span class="pre">_write</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">full_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">iterator</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">encoding</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Disk._write"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Disk._write" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Disk.fetch">
+<span class="sig-name descname"><span class="pre">fetch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">read</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Disk.fetch"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Disk.fetch" title="Link to this definition">#</a></dt>
+<dd><p>Convert fields <code class="docutils literal notranslate"><span class="pre">mode</span></code>, <code class="docutils literal notranslate"><span class="pre">filename</span></code>, and <code class="docutils literal notranslate"><span class="pre">value</span></code> from Cache table to
+value.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>mode</strong> (<em>int</em>) – value mode raw, binary, text, or pickle</p></li>
+<li><p><strong>filename</strong> (<em>str</em>) – filename of corresponding value</p></li>
+<li><p><strong>value</strong> – database value</p></li>
+<li><p><strong>read</strong> (<em>bool</em>) – when True, return an open file handle</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>corresponding Python value</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p>IOError if the value cannot be read</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Disk.filename">
+<span class="sig-name descname"><span class="pre">filename</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">UNKNOWN</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">UNKNOWN</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Disk.filename"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Disk.filename" title="Link to this definition">#</a></dt>
+<dd><p>Return filename and full-path tuple for file storage.</p>
+<p>Filename will be a randomly generated 28 character hexadecimal string
+with “.val” suffixed. Two levels of sub-directories will be used to
+reduce the size of directories. On older filesystems, lookups in
+directories with many files may be slow.</p>
+<p>The default implementation ignores the <code class="docutils literal notranslate"><span class="pre">key</span></code> and <code class="docutils literal notranslate"><span class="pre">value</span></code> parameters.</p>
+<p>In some scenarios, for example :meth:<code class="docutils literal notranslate"><span class="pre">Cache.push</span> <span class="pre">&lt;diskcache.Cache.push&gt;</span></code>, the <code class="docutils literal notranslate"><span class="pre">key</span></code> or <code class="docutils literal notranslate"><span class="pre">value</span></code> may not be known when the
+item is stored in the cache.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key</strong> – key for item (default UNKNOWN)</p></li>
+<li><p><strong>value</strong> – value for item (default UNKNOWN)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Disk.remove">
+<span class="sig-name descname"><span class="pre">remove</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Disk.remove"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Disk.remove" title="Link to this definition">#</a></dt>
+<dd><p>Remove a file given by <code class="docutils literal notranslate"><span class="pre">file_path</span></code>.</p>
+<p>This method is cross-thread and cross-process safe. If an OSError
+occurs, it is suppressed.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>file_path</strong> (<em>str</em>) – relative path to file</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.JSONDisk">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.</span></span><span class="sig-name descname"><span class="pre">JSONDisk</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compress_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#JSONDisk"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.JSONDisk" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.Disk" title="nemo_evaluator.adapters.caching.diskcaching.Disk"><code class="xref py py-obj docutils literal notranslate"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.Disk</span></code></a></p>
+<p>Cache key and value using JSON serialization with zlib compression.</p>
+<p class="rubric">Initialization</p>
+<p>Initialize JSON disk instance.</p>
+<p>Keys and values are compressed using the zlib library. The
+<code class="docutils literal notranslate"><span class="pre">compress_level</span></code> is an integer from 0 to 9 controlling the level of
+compression; 1 is fastest and produces the least compression, 9 is
+slowest and produces the most compression, and 0 is no compression.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>directory</strong> (<em>str</em>) – directory path</p></li>
+<li><p><strong>compress_level</strong> (<em>int</em>) – zlib compression level (default 1)</p></li>
+<li><p><strong>kwargs</strong> – super class arguments</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.JSONDisk.put">
+<span class="sig-name descname"><span class="pre">put</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#JSONDisk.put"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.JSONDisk.put" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.JSONDisk.get">
+<span class="sig-name descname"><span class="pre">get</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">raw</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#JSONDisk.get"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.JSONDisk.get" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.JSONDisk.store">
+<span class="sig-name descname"><span class="pre">store</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">read</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">UNKNOWN</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#JSONDisk.store"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.JSONDisk.store" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.JSONDisk.fetch">
+<span class="sig-name descname"><span class="pre">fetch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">read</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#JSONDisk.fetch"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.JSONDisk.fetch" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Timeout">
+<em class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.</span></span><span class="sig-name descname"><span class="pre">Timeout</span></span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Timeout"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Timeout" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-obj docutils literal notranslate"><span class="pre">Exception</span></code></p>
+<p>Database timeout expired.</p>
+<p class="rubric">Initialization</p>
+<p>Initialize self.  See help(type(self)) for accurate signature.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.UnknownFileWarning">
+<em class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.</span></span><span class="sig-name descname"><span class="pre">UnknownFileWarning</span></span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#UnknownFileWarning"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.UnknownFileWarning" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-obj docutils literal notranslate"><span class="pre">UserWarning</span></code></p>
+<p>Warning used by Cache.check for unknown files.</p>
+<p class="rubric">Initialization</p>
+<p>Initialize self.  See help(type(self)) for accurate signature.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.EmptyDirWarning">
+<em class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.</span></span><span class="sig-name descname"><span class="pre">EmptyDirWarning</span></span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#EmptyDirWarning"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.EmptyDirWarning" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-obj docutils literal notranslate"><span class="pre">UserWarning</span></code></p>
+<p>Warning used by Cache.check for empty directories.</p>
+<p class="rubric">Initialization</p>
+<p>Initialize self.  See help(type(self)) for accurate signature.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.args_to_key">
+<span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.</span></span><span class="sig-name descname"><span class="pre">args_to_key</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kwargs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">typed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ignore</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#args_to_key"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.args_to_key" title="Link to this definition">#</a></dt>
+<dd><p>Create cache key out of function arguments.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>base</strong> (<em>tuple</em>) – base of key</p></li>
+<li><p><strong>args</strong> (<em>tuple</em>) – function arguments</p></li>
+<li><p><strong>kwargs</strong> (<em>dict</em>) – function keyword arguments</p></li>
+<li><p><strong>typed</strong> (<em>bool</em>) – include types in cache key</p></li>
+<li><p><strong>ignore</strong> (<em>set</em>) – positional or keyword args to ignore</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>cache key tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">nemo_evaluator.adapters.caching.diskcaching.</span></span><span class="sig-name descname"><span class="pre">Cache</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">disk</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">Disk</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">settings</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache" title="Link to this definition">#</a></dt>
+<dd><p>Disk and file backed cache.</p>
+<p class="rubric">Initialization</p>
+<p>Initialize cache instance.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>directory</strong> (<em>str</em>) – cache directory</p></li>
+<li><p><strong>timeout</strong> (<em>float</em>) – SQLite connection timeout</p></li>
+<li><p><strong>disk</strong> – Disk type or subclass for serialization</p></li>
+<li><p><strong>settings</strong> – any of DEFAULT_SETTINGS</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.directory">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">directory</span></span><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.directory" title="Link to this definition">#</a></dt>
+<dd><p>Cache directory.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.timeout">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">timeout</span></span><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.timeout" title="Link to this definition">#</a></dt>
+<dd><p>SQLite connection timeout value in seconds.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.disk">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">disk</span></span><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.disk" title="Link to this definition">#</a></dt>
+<dd><p>Disk used for serialization.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache._con">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">_con</span></span><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache._con" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache._sql">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">_sql</span></span><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache._sql" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache._sql_retry">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">_sql_retry</span></span><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache._sql_retry" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.transact">
+<span class="sig-name descname"><span class="pre">transact</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">retry</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.transact"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.transact" title="Link to this definition">#</a></dt>
+<dd><p>Context manager to perform a transaction by locking the cache.</p>
+<p>While the cache is locked, no other write operation is permitted.
+Transactions should therefore be as short as possible. Read and write
+operations performed in a transaction are atomic. Read operations may
+occur concurrent to a transaction.</p>
+<p>Transactions may be nested and may not be shared between threads.</p>
+<p>Raises :exc:<code class="docutils literal notranslate"><span class="pre">Timeout</span></code> error when database timeout occurs and <code class="docutils literal notranslate"><span class="pre">retry</span></code> is
+<code class="docutils literal notranslate"><span class="pre">False</span></code> (default).</p>
+<blockquote>
+<div><blockquote>
+<div><blockquote>
+<div><p>cache = Cache()
+with cache.transact():  # Atomically increment two keys.
+…     _ = cache.incr(‘total’, 123.4)
+…     _ = cache.incr(‘count’, 1)
+with cache.transact():  # Atomically calculate average.
+…     average = cache[‘total’] / cache[‘count’]
+average
+123.4</p>
+</div></blockquote>
+</div></blockquote>
+</div></blockquote>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>retry</strong> (<em>bool</em>) – retry if database timeout occurs (default False)</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>context manager for use in <code class="docutils literal notranslate"><span class="pre">with</span></code> statement</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.Timeout" title="nemo_evaluator.adapters.caching.diskcaching.Timeout"><strong>Timeout</strong></a> – if database timeout occurs</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache._transact">
+<span class="sig-name descname"><span class="pre">_transact</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">retry</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache._transact"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache._transact" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.set">
+<span class="sig-name descname"><span class="pre">set</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expire</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">read</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retry</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.set"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.set" title="Link to this definition">#</a></dt>
+<dd><p>Set <code class="docutils literal notranslate"><span class="pre">key</span></code> and <code class="docutils literal notranslate"><span class="pre">value</span></code> item in cache.</p>
+<p>When <code class="docutils literal notranslate"><span class="pre">read</span></code> is <code class="docutils literal notranslate"><span class="pre">True</span></code>, <code class="docutils literal notranslate"><span class="pre">value</span></code> should be a file-like object opened
+for reading in binary mode.</p>
+<p>Raises :exc:<code class="docutils literal notranslate"><span class="pre">Timeout</span></code> error when database timeout occurs and <code class="docutils literal notranslate"><span class="pre">retry</span></code> is
+<code class="docutils literal notranslate"><span class="pre">False</span></code> (default).</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key</strong> – key for item</p></li>
+<li><p><strong>value</strong> – value for item</p></li>
+<li><p><strong>expire</strong> (<em>float</em>) – seconds until item expires
+(default None, no expiry)</p></li>
+<li><p><strong>read</strong> (<em>bool</em>) – read value as bytes from file (default False)</p></li>
+<li><p><strong>tag</strong> (<em>str</em>) – text to associate with key (default None)</p></li>
+<li><p><strong>retry</strong> (<em>bool</em>) – retry if database timeout occurs (default False)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if item was set</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.Timeout" title="nemo_evaluator.adapters.caching.diskcaching.Timeout"><strong>Timeout</strong></a> – if database timeout occurs</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.__setitem__">
+<span class="sig-name descname"><span class="pre">__setitem__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.__setitem__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__setitem__" title="Link to this definition">#</a></dt>
+<dd><p>Set <code class="docutils literal notranslate"><span class="pre">value</span></code> for <code class="docutils literal notranslate"><span class="pre">key</span></code> in cache.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache._row_update">
+<span class="sig-name descname"><span class="pre">_row_update</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rowid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">now</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache._row_update"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache._row_update" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache._row_insert">
+<span class="sig-name descname"><span class="pre">_row_insert</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">raw</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">now</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache._row_insert"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache._row_insert" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache._cull">
+<span class="sig-name descname"><span class="pre">_cull</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">now</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sql</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cleanup</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">limit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache._cull"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache._cull" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.touch">
+<span class="sig-name descname"><span class="pre">touch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expire</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retry</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.touch"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.touch" title="Link to this definition">#</a></dt>
+<dd><p>Touch <code class="docutils literal notranslate"><span class="pre">key</span></code> in cache and update <code class="docutils literal notranslate"><span class="pre">expire</span></code> time.</p>
+<p>Raises :exc:<code class="docutils literal notranslate"><span class="pre">Timeout</span></code> error when database timeout occurs and <code class="docutils literal notranslate"><span class="pre">retry</span></code> is
+<code class="docutils literal notranslate"><span class="pre">False</span></code> (default).</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key</strong> – key for item</p></li>
+<li><p><strong>expire</strong> (<em>float</em>) – seconds until item expires
+(default None, no expiry)</p></li>
+<li><p><strong>retry</strong> (<em>bool</em>) – retry if database timeout occurs (default False)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if key was touched</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.Timeout" title="nemo_evaluator.adapters.caching.diskcaching.Timeout"><strong>Timeout</strong></a> – if database timeout occurs</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.add">
+<span class="sig-name descname"><span class="pre">add</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expire</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">read</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retry</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.add"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.add" title="Link to this definition">#</a></dt>
+<dd><p>Add <code class="docutils literal notranslate"><span class="pre">key</span></code> and <code class="docutils literal notranslate"><span class="pre">value</span></code> item to cache.</p>
+<p>Similar to <code class="docutils literal notranslate"><span class="pre">set</span></code>, but only add to cache if key not present.</p>
+<p>Operation is atomic. Only one concurrent add operation for a given key
+will succeed.</p>
+<p>When <code class="docutils literal notranslate"><span class="pre">read</span></code> is <code class="docutils literal notranslate"><span class="pre">True</span></code>, <code class="docutils literal notranslate"><span class="pre">value</span></code> should be a file-like object opened
+for reading in binary mode.</p>
+<p>Raises :exc:<code class="docutils literal notranslate"><span class="pre">Timeout</span></code> error when database timeout occurs and <code class="docutils literal notranslate"><span class="pre">retry</span></code> is
+<code class="docutils literal notranslate"><span class="pre">False</span></code> (default).</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key</strong> – key for item</p></li>
+<li><p><strong>value</strong> – value for item</p></li>
+<li><p><strong>expire</strong> (<em>float</em>) – seconds until the key expires
+(default None, no expiry)</p></li>
+<li><p><strong>read</strong> (<em>bool</em>) – read value as bytes from file (default False)</p></li>
+<li><p><strong>tag</strong> (<em>str</em>) – text to associate with key (default None)</p></li>
+<li><p><strong>retry</strong> (<em>bool</em>) – retry if database timeout occurs (default False)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if item was added</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.Timeout" title="nemo_evaluator.adapters.caching.diskcaching.Timeout"><strong>Timeout</strong></a> – if database timeout occurs</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.incr">
+<span class="sig-name descname"><span class="pre">incr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retry</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.incr"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.incr" title="Link to this definition">#</a></dt>
+<dd><p>Increment value by delta for item with key.</p>
+<p>If key is missing and default is None then raise KeyError. Else if key
+is missing and default is not None then use default for value.</p>
+<p>Operation is atomic. All concurrent increment operations will be
+counted individually.</p>
+<p>Assumes value may be stored in a SQLite column. Most builds that target
+machines with 64-bit pointer widths will support 64-bit signed
+integers.</p>
+<p>Raises :exc:<code class="docutils literal notranslate"><span class="pre">Timeout</span></code> error when database timeout occurs and <code class="docutils literal notranslate"><span class="pre">retry</span></code> is
+<code class="docutils literal notranslate"><span class="pre">False</span></code> (default).</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key</strong> – key for item</p></li>
+<li><p><strong>delta</strong> (<em>int</em>) – amount to increment (default 1)</p></li>
+<li><p><strong>default</strong> (<em>int</em>) – value if key is missing (default 0)</p></li>
+<li><p><strong>retry</strong> (<em>bool</em>) – retry if database timeout occurs (default False)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>new value for item</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>KeyError</strong> – if key is not found and default is None</p></li>
+<li><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.Timeout" title="nemo_evaluator.adapters.caching.diskcaching.Timeout"><strong>Timeout</strong></a> – if database timeout occurs</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.decr">
+<span class="sig-name descname"><span class="pre">decr</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retry</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.decr"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.decr" title="Link to this definition">#</a></dt>
+<dd><p>Decrement value by delta for item with key.</p>
+<p>If key is missing and default is None then raise KeyError. Else if key
+is missing and default is not None then use default for value.</p>
+<p>Operation is atomic. All concurrent decrement operations will be
+counted individually.</p>
+<p>Unlike Memcached, negative values are supported. Value may be
+decremented below zero.</p>
+<p>Assumes value may be stored in a SQLite column. Most builds that target
+machines with 64-bit pointer widths will support 64-bit signed
+integers.</p>
+<p>Raises :exc:<code class="docutils literal notranslate"><span class="pre">Timeout</span></code> error when database timeout occurs and <code class="docutils literal notranslate"><span class="pre">retry</span></code> is
+<code class="docutils literal notranslate"><span class="pre">False</span></code> (default).</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key</strong> – key for item</p></li>
+<li><p><strong>delta</strong> (<em>int</em>) – amount to decrement (default 1)</p></li>
+<li><p><strong>default</strong> (<em>int</em>) – value if key is missing (default 0)</p></li>
+<li><p><strong>retry</strong> (<em>bool</em>) – retry if database timeout occurs (default False)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>new value for item</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>KeyError</strong> – if key is not found and default is None</p></li>
+<li><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.Timeout" title="nemo_evaluator.adapters.caching.diskcaching.Timeout"><strong>Timeout</strong></a> – if database timeout occurs</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.get">
+<span class="sig-name descname"><span class="pre">get</span></span><span class="sig-paren">(</span>
+
+<dl>
+<dd><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>,</dd>
+<dd><em class="sig-param"><span class="n"><span class="pre">default</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>,</dd>
+<dd><em class="sig-param"><span class="n"><span class="pre">read</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,</dd>
+<dd><em class="sig-param"><span class="n"><span class="pre">expire_time</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,</dd>
+<dd><em class="sig-param"><span class="n"><span class="pre">tag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,</dd>
+<dd><em class="sig-param"><span class="n"><span class="pre">retry</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,</dd>
+</dl>
+
+<span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.get"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.get" title="Link to this definition">#</a></dt>
+<dd><p>Retrieve value from cache. If <code class="docutils literal notranslate"><span class="pre">key</span></code> is missing, return <code class="docutils literal notranslate"><span class="pre">default</span></code>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.__getitem__">
+<span class="sig-name descname"><span class="pre">__getitem__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.__getitem__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__getitem__" title="Link to this definition">#</a></dt>
+<dd><p>Return corresponding value for <code class="docutils literal notranslate"><span class="pre">key</span></code> from cache.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.create_tag_index">
+<span class="sig-name descname"><span class="pre">create_tag_index</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.create_tag_index"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.create_tag_index" title="Link to this definition">#</a></dt>
+<dd><p>Create tag index on cache database.</p>
+<p>It is better to initialize cache with <code class="docutils literal notranslate"><span class="pre">tag_index=True</span></code> than use this.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.Timeout" title="nemo_evaluator.adapters.caching.diskcaching.Timeout"><strong>Timeout</strong></a> – if database timeout occurs</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.drop_tag_index">
+<span class="sig-name descname"><span class="pre">drop_tag_index</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.drop_tag_index"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.drop_tag_index" title="Link to this definition">#</a></dt>
+<dd><p>Drop tag index on cache database.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.Timeout" title="nemo_evaluator.adapters.caching.diskcaching.Timeout"><strong>Timeout</strong></a> – if database timeout occurs</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.evict">
+<span class="sig-name descname"><span class="pre">evict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tag</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retry</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.evict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.evict" title="Link to this definition">#</a></dt>
+<dd><p>Remove items with matching <code class="docutils literal notranslate"><span class="pre">tag</span></code> from cache.</p>
+<p>Removing items is an iterative process. In each iteration, a subset of
+items is removed. Concurrent writes may occur between iterations.</p>
+<p>If a :exc:<code class="docutils literal notranslate"><span class="pre">Timeout</span></code> occurs, the first element of the exception’s
+<code class="docutils literal notranslate"><span class="pre">args</span></code> attribute will be the number of items removed before the
+exception occurred.</p>
+<p>Raises :exc:<code class="docutils literal notranslate"><span class="pre">Timeout</span></code> error when database timeout occurs and <code class="docutils literal notranslate"><span class="pre">retry</span></code> is
+<code class="docutils literal notranslate"><span class="pre">False</span></code> (default).</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>tag</strong> (<em>str</em>) – tag identifying items</p></li>
+<li><p><strong>retry</strong> (<em>bool</em>) – retry if database timeout occurs (default False)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>count of rows removed</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.Timeout" title="nemo_evaluator.adapters.caching.diskcaching.Timeout"><strong>Timeout</strong></a> – if database timeout occurs</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.expire">
+<span class="sig-name descname"><span class="pre">expire</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">now</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retry</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.expire"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.expire" title="Link to this definition">#</a></dt>
+<dd><p>Remove expired items from cache.</p>
+<p>Removing items is an iterative process. In each iteration, a subset of
+items is removed. Concurrent writes may occur between iterations.</p>
+<p>If a :exc:<code class="docutils literal notranslate"><span class="pre">Timeout</span></code> occurs, the first element of the exception’s
+<code class="docutils literal notranslate"><span class="pre">args</span></code> attribute will be the number of items removed before the
+exception occurred.</p>
+<p>Raises :exc:<code class="docutils literal notranslate"><span class="pre">Timeout</span></code> error when database timeout occurs and <code class="docutils literal notranslate"><span class="pre">retry</span></code> is
+<code class="docutils literal notranslate"><span class="pre">False</span></code> (default).</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>now</strong> (<em>float</em>) – current time (default None, <code class="docutils literal notranslate"><span class="pre">time.time()</span></code> used)</p></li>
+<li><p><strong>retry</strong> (<em>bool</em>) – retry if database timeout occurs (default False)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>count of items removed</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.Timeout" title="nemo_evaluator.adapters.caching.diskcaching.Timeout"><strong>Timeout</strong></a> – if database timeout occurs</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.cull">
+<span class="sig-name descname"><span class="pre">cull</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">retry</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.cull"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.cull" title="Link to this definition">#</a></dt>
+<dd><p>Cull items from cache until volume is less than size limit.</p>
+<p>Removing items is an iterative process. In each iteration, a subset of
+items is removed. Concurrent writes may occur between iterations.</p>
+<p>If a :exc:<code class="docutils literal notranslate"><span class="pre">Timeout</span></code> occurs, the first element of the exception’s
+<code class="docutils literal notranslate"><span class="pre">args</span></code> attribute will be the number of items removed before the
+exception occurred.</p>
+<p>Raises :exc:<code class="docutils literal notranslate"><span class="pre">Timeout</span></code> error when database timeout occurs and <code class="docutils literal notranslate"><span class="pre">retry</span></code> is
+<code class="docutils literal notranslate"><span class="pre">False</span></code> (default).</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>retry</strong> (<em>bool</em>) – retry if database timeout occurs (default False)</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>count of items removed</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.Timeout" title="nemo_evaluator.adapters.caching.diskcaching.Timeout"><strong>Timeout</strong></a> – if database timeout occurs</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.clear">
+<span class="sig-name descname"><span class="pre">clear</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">retry</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.clear"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.clear" title="Link to this definition">#</a></dt>
+<dd><p>Remove all items from cache.</p>
+<p>Removing items is an iterative process. In each iteration, a subset of
+items is removed. Concurrent writes may occur between iterations.</p>
+<p>If a :exc:<code class="docutils literal notranslate"><span class="pre">Timeout</span></code> occurs, the first element of the exception’s
+<code class="docutils literal notranslate"><span class="pre">args</span></code> attribute will be the number of items removed before the
+exception occurred.</p>
+<p>Raises :exc:<code class="docutils literal notranslate"><span class="pre">Timeout</span></code> error when database timeout occurs and <code class="docutils literal notranslate"><span class="pre">retry</span></code> is
+<code class="docutils literal notranslate"><span class="pre">False</span></code> (default).</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>retry</strong> (<em>bool</em>) – retry if database timeout occurs (default False)</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>count of rows removed</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.Timeout" title="nemo_evaluator.adapters.caching.diskcaching.Timeout"><strong>Timeout</strong></a> – if database timeout occurs</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache._select_delete">
+<span class="sig-name descname"><span class="pre">_select_delete</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">select</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">row_index</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">arg_index</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retry</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache._select_delete"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache._select_delete" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.iterkeys">
+<span class="sig-name descname"><span class="pre">iterkeys</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">reverse</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.iterkeys"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.iterkeys" title="Link to this definition">#</a></dt>
+<dd><p>Iterate Cache keys in database sort order.</p>
+<blockquote>
+<div><blockquote>
+<div><blockquote>
+<div><p>cache = Cache()
+for key in [4, 1, 3, 0, 2]:
+…     cache[key] = key
+list(cache.iterkeys())
+[0, 1, 2, 3, 4]
+list(cache.iterkeys(reverse=True))
+[4, 3, 2, 1, 0]</p>
+</div></blockquote>
+</div></blockquote>
+</div></blockquote>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>reverse</strong> (<em>bool</em>) – reverse sort order (default False)</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>iterator of Cache keys</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache._iter">
+<span class="sig-name descname"><span class="pre">_iter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ascending</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache._iter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache._iter" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.__iter__">
+<span class="sig-name descname"><span class="pre">__iter__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.__iter__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__iter__" title="Link to this definition">#</a></dt>
+<dd><p>Iterate keys in cache including expired items.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.__reversed__">
+<span class="sig-name descname"><span class="pre">__reversed__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.__reversed__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__reversed__" title="Link to this definition">#</a></dt>
+<dd><p>Reverse iterate keys in cache including expired items.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.stats">
+<span class="sig-name descname"><span class="pre">stats</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">enable</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.stats"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.stats" title="Link to this definition">#</a></dt>
+<dd><p>Return cache statistics hits and misses.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>enable</strong> (<em>bool</em>) – enable collecting statistics (default True)</p></li>
+<li><p><strong>reset</strong> (<em>bool</em>) – reset hits and misses to 0 (default False)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>(hits, misses)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.volume">
+<span class="sig-name descname"><span class="pre">volume</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.volume"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.volume" title="Link to this definition">#</a></dt>
+<dd><p>Return estimated total size of cache on disk.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>size in bytes</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.close" title="Link to this definition">#</a></dt>
+<dd><p>Close database connection.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.__enter__">
+<span class="sig-name descname"><span class="pre">__enter__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.__enter__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__enter__" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.__exit__">
+<span class="sig-name descname"><span class="pre">__exit__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">exception</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.__exit__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__exit__" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.__len__">
+<span class="sig-name descname"><span class="pre">__len__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.__len__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__len__" title="Link to this definition">#</a></dt>
+<dd><p>Return number of items in cache.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.__getstate__">
+<span class="sig-name descname"><span class="pre">__getstate__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.__getstate__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__getstate__" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.__setstate__">
+<span class="sig-name descname"><span class="pre">__setstate__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.__setstate__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__setstate__" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">ENOVAL</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">update</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.reset" title="Link to this definition">#</a></dt>
+<dd><p>Reset <code class="docutils literal notranslate"><span class="pre">key</span></code> and <code class="docutils literal notranslate"><span class="pre">value</span></code> item from Settings table.</p>
+<p>Use <code class="docutils literal notranslate"><span class="pre">reset</span></code> to update the value of Cache settings correctly. Cache
+settings are stored in the Settings table of the SQLite database. If
+<code class="docutils literal notranslate"><span class="pre">update</span></code> is <code class="docutils literal notranslate"><span class="pre">False</span></code> then no attempt is made to update the database.</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">value</span></code> is not given, it is reloaded from the Settings
+table. Otherwise, the Settings table is updated.</p>
+<p>Settings with the <code class="docutils literal notranslate"><span class="pre">disk_</span></code> prefix correspond to Disk
+attributes. Updating the value will change the unprefixed attribute on
+the associated Disk instance.</p>
+<p>Settings with the <code class="docutils literal notranslate"><span class="pre">sqlite_</span></code> prefix correspond to SQLite
+pragmas. Updating the value will execute the corresponding PRAGMA
+statement.</p>
+<p>SQLite PRAGMA statements may be executed before the Settings table
+exists in the database by setting <code class="docutils literal notranslate"><span class="pre">update</span></code> to <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key</strong> (<em>str</em>) – Settings key for item</p></li>
+<li><p><strong>value</strong> – value for item (optional)</p></li>
+<li><p><strong>update</strong> (<em>bool</em>) – update database Settings table (default True)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>updated value for item</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#nemo_evaluator.adapters.caching.diskcaching.Timeout" title="nemo_evaluator.adapters.caching.diskcaching.Timeout"><strong>Timeout</strong></a> – if database timeout occurs</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.__delitem__">
+<span class="sig-name descname"><span class="pre">__delitem__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.__delitem__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__delitem__" title="Link to this definition">#</a></dt>
+<dd><p>Delete corresponding item for <code class="docutils literal notranslate"><span class="pre">key</span></code> from cache.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="nemo_evaluator.adapters.caching.diskcaching.Cache.__contains__">
+<span class="sig-name descname"><span class="pre">__contains__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/nemo_evaluator/adapters/caching/diskcaching.html#Cache.__contains__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__contains__" title="Link to this definition">#</a></dt>
+<dd><p>Return True if <code class="docutils literal notranslate"><span class="pre">key</span></code> in cache.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-contents">Module Contents</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#classes">Classes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#data">Data</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#api">API</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.full_name"><code class="docutils literal notranslate"><span class="pre">full_name()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Constant"><code class="docutils literal notranslate"><span class="pre">Constant</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Constant.__new__"><code class="docutils literal notranslate"><span class="pre">__new__()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Constant.__repr__"><code class="docutils literal notranslate"><span class="pre">__repr__()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.DBNAME"><code class="docutils literal notranslate"><span class="pre">DBNAME</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.ENOVAL"><code class="docutils literal notranslate"><span class="pre">ENOVAL</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.UNKNOWN"><code class="docutils literal notranslate"><span class="pre">UNKNOWN</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.MODE_NONE"><code class="docutils literal notranslate"><span class="pre">MODE_NONE</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.MODE_RAW"><code class="docutils literal notranslate"><span class="pre">MODE_RAW</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.MODE_JSON"><code class="docutils literal notranslate"><span class="pre">MODE_JSON</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.DEFAULT_SETTINGS"><code class="docutils literal notranslate"><span class="pre">DEFAULT_SETTINGS</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.METADATA"><code class="docutils literal notranslate"><span class="pre">METADATA</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.EVICTION_POLICY"><code class="docutils literal notranslate"><span class="pre">EVICTION_POLICY</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Disk"><code class="docutils literal notranslate"><span class="pre">Disk</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Disk.hash"><code class="docutils literal notranslate"><span class="pre">hash()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Disk.put"><code class="docutils literal notranslate"><span class="pre">put()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Disk.get"><code class="docutils literal notranslate"><span class="pre">get()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Disk.store"><code class="docutils literal notranslate"><span class="pre">store()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Disk._write"><code class="docutils literal notranslate"><span class="pre">_write()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Disk.fetch"><code class="docutils literal notranslate"><span class="pre">fetch()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Disk.filename"><code class="docutils literal notranslate"><span class="pre">filename()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Disk.remove"><code class="docutils literal notranslate"><span class="pre">remove()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.JSONDisk"><code class="docutils literal notranslate"><span class="pre">JSONDisk</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.JSONDisk.put"><code class="docutils literal notranslate"><span class="pre">put()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.JSONDisk.get"><code class="docutils literal notranslate"><span class="pre">get()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.JSONDisk.store"><code class="docutils literal notranslate"><span class="pre">store()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.JSONDisk.fetch"><code class="docutils literal notranslate"><span class="pre">fetch()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Timeout"><code class="docutils literal notranslate"><span class="pre">Timeout</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.UnknownFileWarning"><code class="docutils literal notranslate"><span class="pre">UnknownFileWarning</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.EmptyDirWarning"><code class="docutils literal notranslate"><span class="pre">EmptyDirWarning</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.args_to_key"><code class="docutils literal notranslate"><span class="pre">args_to_key()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache"><code class="docutils literal notranslate"><span class="pre">Cache</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.directory"><code class="docutils literal notranslate"><span class="pre">directory</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.timeout"><code class="docutils literal notranslate"><span class="pre">timeout</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.disk"><code class="docutils literal notranslate"><span class="pre">disk</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache._con"><code class="docutils literal notranslate"><span class="pre">_con</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache._sql"><code class="docutils literal notranslate"><span class="pre">_sql</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache._sql_retry"><code class="docutils literal notranslate"><span class="pre">_sql_retry</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.transact"><code class="docutils literal notranslate"><span class="pre">transact()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache._transact"><code class="docutils literal notranslate"><span class="pre">_transact()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.set"><code class="docutils literal notranslate"><span class="pre">set()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__setitem__"><code class="docutils literal notranslate"><span class="pre">__setitem__()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache._row_update"><code class="docutils literal notranslate"><span class="pre">_row_update()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache._row_insert"><code class="docutils literal notranslate"><span class="pre">_row_insert()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache._cull"><code class="docutils literal notranslate"><span class="pre">_cull()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.touch"><code class="docutils literal notranslate"><span class="pre">touch()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.add"><code class="docutils literal notranslate"><span class="pre">add()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.incr"><code class="docutils literal notranslate"><span class="pre">incr()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.decr"><code class="docutils literal notranslate"><span class="pre">decr()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.get"><code class="docutils literal notranslate"><span class="pre">get()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__getitem__"><code class="docutils literal notranslate"><span class="pre">__getitem__()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.create_tag_index"><code class="docutils literal notranslate"><span class="pre">create_tag_index()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.drop_tag_index"><code class="docutils literal notranslate"><span class="pre">drop_tag_index()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.evict"><code class="docutils literal notranslate"><span class="pre">evict()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.expire"><code class="docutils literal notranslate"><span class="pre">expire()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.cull"><code class="docutils literal notranslate"><span class="pre">cull()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.clear"><code class="docutils literal notranslate"><span class="pre">clear()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache._select_delete"><code class="docutils literal notranslate"><span class="pre">_select_delete()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.iterkeys"><code class="docutils literal notranslate"><span class="pre">iterkeys()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache._iter"><code class="docutils literal notranslate"><span class="pre">_iter()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__iter__"><code class="docutils literal notranslate"><span class="pre">__iter__()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__reversed__"><code class="docutils literal notranslate"><span class="pre">__reversed__()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.stats"><code class="docutils literal notranslate"><span class="pre">stats()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.volume"><code class="docutils literal notranslate"><span class="pre">volume()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.close"><code class="docutils literal notranslate"><span class="pre">close()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__enter__"><code class="docutils literal notranslate"><span class="pre">__enter__()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__exit__"><code class="docutils literal notranslate"><span class="pre">__exit__()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__len__"><code class="docutils literal notranslate"><span class="pre">__len__()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__getstate__"><code class="docutils literal notranslate"><span class="pre">__getstate__()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__setstate__"><code class="docutils literal notranslate"><span class="pre">__setstate__()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.reset"><code class="docutils literal notranslate"><span class="pre">reset()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__delitem__"><code class="docutils literal notranslate"><span class="pre">__delitem__()</span></code></a></li>
+<li class="toc-h5 nav-item toc-entry"><a class="reference internal nav-link" href="#nemo_evaluator.adapters.caching.diskcaching.Cache.__contains__"><code class="docutils literal notranslate"><span class="pre">__contains__()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025, NVIDIA Corporation.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+<div class="extra_footer">
+  
+  
+    <script type="text/javascript">if (typeof _satellite !== "undefined") {_satellite.pageBottom();}</script>
+    
+  
+</div></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,1183 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>nemo_evaluator.adapters.interceptors.reasoning_interceptor &#8212; NeMo Eval</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/styles/nvidia-sphinx-theme.css?v=df3ac72c" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/copybutton.css?v=76b2166b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../../_static/copybutton.js?v=f281be69"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";
+window.addEventListener("load", () => mermaid.run());
+</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/nemo_evaluator/adapters/interceptors/reasoning_interceptor';</script>
+    <script>
+        DOCUMENTATION_OPTIONS.theme_version = '0.16.1';
+        DOCUMENTATION_OPTIONS.theme_switcher_json_url = '../versions1.json';
+        DOCUMENTATION_OPTIONS.theme_switcher_version_match = '0.1.0';
+        DOCUMENTATION_OPTIONS.show_version_warning_banner =
+            false;
+        </script>
+    <link rel="icon" href="../../../../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+
+
+    <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js" ></script>
+    
+
+
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="../../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-2"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-2"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-2"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-2">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA-NeMo/Eval" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="NeMo Eval - Home"/>
+    <img src="../../../../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="NeMo Eval - Home"/>
+  
+  
+    <p class="title logo__title">NeMo Eval</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+
+
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-3"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-3"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-3"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-3">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA-NeMo/Eval" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../index.html">Home</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Libraries</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../nemo-evaluator-launcher/index.html">NeMo Evaluator Launcher</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../nemo-evaluator/index.html">NeMo Evaluator</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">nemo_evaluator.adapters.interceptors.reasoning_interceptor</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for nemo_evaluator.adapters.interceptors.reasoning_interceptor</h1><div class="highlight"><pre>
+<span></span><span class="c1"># SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION &amp; AFFILIATES. All rights reserved.</span>
+<span class="c1"># SPDX-License-Identifier: Apache-2.0</span>
+<span class="c1">#</span>
+<span class="c1"># Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);</span>
+<span class="c1"># you may not use this file except in compliance with the License.</span>
+<span class="c1"># You may obtain a copy of the License at</span>
+<span class="c1">#</span>
+<span class="c1"># http://www.apache.org/licenses/LICENSE-2.0</span>
+<span class="c1">#</span>
+<span class="c1"># Unless required by applicable law or agreed to in writing, software</span>
+<span class="c1"># distributed under the License is distributed on an &quot;AS IS&quot; BASIS,</span>
+<span class="c1"># WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.</span>
+<span class="c1"># See the License for the specific language governing permissions and</span>
+<span class="c1"># limitations under the License.</span>
+
+<span class="sd">&quot;&quot;&quot;Reasoning interceptor that strips reasoning from responses and tracks reasoning information.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">final</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.adapters.caching.diskcaching</span><span class="w"> </span><span class="kn">import</span> <span class="n">Cache</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.adapters.decorators</span><span class="w"> </span><span class="kn">import</span> <span class="n">register_for_adapter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.adapters.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AdapterGlobalContext</span><span class="p">,</span>
+    <span class="n">AdapterResponse</span><span class="p">,</span>
+    <span class="n">PostEvalHook</span><span class="p">,</span>
+    <span class="n">ResponseInterceptor</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nemo_evaluator.logging</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseLoggingParams</span><span class="p">,</span> <span class="n">get_logger</span>
+
+
+<div class="viewcode-block" id="ResponseReasoningInterceptor">
+<a class="viewcode-back" href="../../../../apidocs/nemo_evaluator/nemo_evaluator.adapters.interceptors.reasoning_interceptor.html#nemo_evaluator.adapters.interceptors.reasoning_interceptor.ResponseReasoningInterceptor">[docs]</a>
+<span class="nd">@register_for_adapter</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;reasoning&quot;</span><span class="p">,</span>
+    <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Processes reasoning content in API responses&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nd">@final</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ResponseReasoningInterceptor</span><span class="p">(</span><span class="n">ResponseInterceptor</span><span class="p">,</span> <span class="n">PostEvalHook</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Adds reasoning information to responses and tracks reasoning metrics.</span>
+
+<span class="sd">    Tracks the following statistics:</span>
+<span class="sd">    - Total responses processed</span>
+<span class="sd">    - Responses with reasoning content</span>
+<span class="sd">    - Reasoning completion status (started/finished)</span>
+<span class="sd">    - Word counts for reasoning, original content, and updated content</span>
+<span class="sd">    - Maximum reasoning length</span>
+<span class="sd">    - Average reasoning and content lengths</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="ResponseReasoningInterceptor.Params">
+<a class="viewcode-back" href="../../../../apidocs/nemo_evaluator/nemo_evaluator.adapters.interceptors.reasoning_interceptor.html#nemo_evaluator.adapters.interceptors.reasoning_interceptor.ResponseReasoningInterceptor.Params">[docs]</a>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Params</span><span class="p">(</span><span class="n">BaseLoggingParams</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Configuration parameters for reasoning interceptor.&quot;&quot;&quot;</span>
+
+        <span class="n">end_reasoning_token</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+            <span class="n">default</span><span class="o">=</span><span class="s2">&quot;&lt;/think&gt;&quot;</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Token that marks the end of reasoning section, not used if reasoning_content is provided&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">start_reasoning_token</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+            <span class="n">default</span><span class="o">=</span><span class="s2">&quot;&lt;think&gt;&quot;</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Token that marks the start of reasoning section, used for tracking if reasoning has started&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">add_reasoning</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+            <span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Whether to add reasoning information&quot;</span>
+        <span class="p">)</span>
+        <span class="n">migrate_reasoning_content</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+            <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="s2">&quot;If reasoning traces are found in `reasoning_content`, they will be moved to `content` field end surrounded by start_reasoning_token and end_reasoning_token&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">enable_reasoning_tracking</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+            <span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Enable reasoning tracking and logging&quot;</span>
+        <span class="p">)</span>
+        <span class="n">include_if_not_finished</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+            <span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Include reasoning content if reasoning is not finished (end token not found)&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">stats_file_saving_interval</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+            <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="s2">&quot;How often (every how many responses) to save stats to a file. If None, stats are only saved via post_eval_hook.&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">enable_caching</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+            <span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Whether to enable caching of individual request reasoning statistics and aggregated reasoning stats. Useful for resuming interrupted runs.&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">cache_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+            <span class="n">default</span><span class="o">=</span><span class="s2">&quot;/tmp/reasoning_interceptor&quot;</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Custom cache directory for reasoning stats interceptor.&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">logging_aggregated_stats_interval</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+            <span class="n">default</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="s2">&quot;How often (every how many responses) to log aggregated reasoning statistics. Default is 100.&quot;</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+    <span class="n">end_reasoning_token</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">start_reasoning_token</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">add_reasoning</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">migrate_reasoning_content</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">enable_reasoning_tracking</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">include_if_not_finished</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">enable_caching</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">cache_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+    <span class="n">_request_stats_cache</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Cache</span><span class="p">]</span>
+    <span class="n">stats_file_saving_interval</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>
+    <span class="n">logging_aggregated_stats_interval</span><span class="p">:</span> <span class="nb">int</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="n">Params</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize the reasoning interceptor.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            params: Configuration parameters</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">end_reasoning_token</span> <span class="o">=</span> <span class="n">params</span><span class="o">.</span><span class="n">end_reasoning_token</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">start_reasoning_token</span> <span class="o">=</span> <span class="n">params</span><span class="o">.</span><span class="n">start_reasoning_token</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">add_reasoning</span> <span class="o">=</span> <span class="n">params</span><span class="o">.</span><span class="n">add_reasoning</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">migrate_reasoning_content</span> <span class="o">=</span> <span class="n">params</span><span class="o">.</span><span class="n">migrate_reasoning_content</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">enable_reasoning_tracking</span> <span class="o">=</span> <span class="n">params</span><span class="o">.</span><span class="n">enable_reasoning_tracking</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">include_if_not_finished</span> <span class="o">=</span> <span class="n">params</span><span class="o">.</span><span class="n">include_if_not_finished</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stats_file_saving_interval</span> <span class="o">=</span> <span class="n">params</span><span class="o">.</span><span class="n">stats_file_saving_interval</span>
+        <span class="c1"># Get logger for this interceptor with interceptor context</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">enable_caching</span> <span class="o">=</span> <span class="n">params</span><span class="o">.</span><span class="n">enable_caching</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cache_dir</span> <span class="o">=</span> <span class="n">params</span><span class="o">.</span><span class="n">cache_dir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logging_aggregated_stats_interval</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">params</span><span class="o">.</span><span class="n">logging_aggregated_stats_interval</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>
+
+        <span class="c1"># Initialize reasoning stats first, before cache loading</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;total_responses&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s2">&quot;responses_with_reasoning&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s2">&quot;reasoning_finished_count&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s2">&quot;reasoning_started_count&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s2">&quot;avg_reasoning_words&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;avg_original_content_words&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;avg_updated_content_words&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;max_reasoning_words&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;max_original_content_words&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;max_updated_content_words&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;max_reasoning_tokens&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;avg_reasoning_tokens&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;max_updated_content_tokens&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;avg_updated_content_tokens&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">&quot;total_reasoning_words&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s2">&quot;total_original_content_words&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s2">&quot;total_updated_content_words&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s2">&quot;total_reasoning_tokens&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s2">&quot;total_updated_content_tokens&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="c1"># Initialize cache if enabled</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">enable_caching</span><span class="p">:</span>
+            <span class="n">cache_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cache_dir</span><span class="p">)</span>
+            <span class="n">cache_path</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_request_stats_cache</span> <span class="o">=</span> <span class="n">Cache</span><span class="p">(</span><span class="n">cache_path</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_load_and_aggregate_cached_stats</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_request_stats_cache</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">&quot;Reasoning interceptor initialized&quot;</span><span class="p">,</span>
+            <span class="n">end_reasoning_token</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">end_reasoning_token</span><span class="p">,</span>
+            <span class="n">start_reasoning_token</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">start_reasoning_token</span><span class="p">,</span>
+            <span class="n">add_reasoning</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">add_reasoning</span><span class="p">,</span>
+            <span class="n">migrate_reasoning_content</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">migrate_reasoning_content</span><span class="p">,</span>
+            <span class="n">enable_reasoning_tracking</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">enable_reasoning_tracking</span><span class="p">,</span>
+            <span class="n">include_if_not_finished</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">include_if_not_finished</span><span class="p">,</span>
+            <span class="n">stats_file_saving_interval</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">stats_file_saving_interval</span><span class="p">,</span>
+            <span class="n">enable_caching</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">enable_caching</span><span class="p">,</span>
+            <span class="n">cache_dir</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cache_dir</span><span class="p">,</span>
+            <span class="n">logging_aggregated_stats_interval</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">logging_aggregated_stats_interval</span><span class="p">,</span>
+        <span class="p">)</span>
+
+<div class="viewcode-block" id="ResponseReasoningInterceptor._load_and_aggregate_cached_stats">
+<a class="viewcode-back" href="../../../../apidocs/nemo_evaluator/nemo_evaluator.adapters.interceptors.reasoning_interceptor.html#nemo_evaluator.adapters.interceptors.reasoning_interceptor.ResponseReasoningInterceptor._load_and_aggregate_cached_stats">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_load_and_aggregate_cached_stats</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Load and aggregate past reasoning stats from the cache.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request_stats_cache</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="c1"># Use iterator to get cached keys</span>
+        <span class="n">cached_keys</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_request_stats_cache</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">cached_keys</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;No cached reasoning stats found to aggregate&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">cached_keys</span><span class="p">)</span><span class="si">}</span><span class="s2"> cached reasoning stats to aggregate&quot;</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Aggregate all cached stats</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">cached_keys</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">cached_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_request_stats_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">cached_data</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cached_data</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                        <span class="n">cached_data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">cached_data</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_update_reasoning_stats</span><span class="p">(</span><span class="n">cached_data</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Failed to process cached reasoning stats for key </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+
+        <span class="c1"># Log summary of what was loaded</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">&quot;Cached reasoning stats loaded and aggregated&quot;</span><span class="p">,</span>
+            <span class="n">total_responses</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="s2">&quot;total_responses&quot;</span><span class="p">],</span>
+            <span class="n">responses_with_reasoning</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="s2">&quot;responses_with_reasoning&quot;</span><span class="p">],</span>
+            <span class="n">max_reasoning_words</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="s2">&quot;max_reasoning_words&quot;</span><span class="p">],</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ResponseReasoningInterceptor._cache_reasoning_stats">
+<a class="viewcode-back" href="../../../../apidocs/nemo_evaluator/nemo_evaluator.adapters.interceptors.reasoning_interceptor.html#nemo_evaluator.adapters.interceptors.reasoning_interceptor.ResponseReasoningInterceptor._cache_reasoning_stats">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_cache_reasoning_stats</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">request_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">stats</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">any</span><span class="p">],</span> <span class="n">context</span><span class="p">:</span> <span class="n">AdapterGlobalContext</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Cache individual reasoning stats by request ID.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">enable_caching</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">stats_json</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">stats</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_request_stats_cache</span><span class="p">[</span><span class="n">request_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">stats_json</span>
+
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to cache reasoning stats: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ResponseReasoningInterceptor._update_reasoning_stats">
+<a class="viewcode-back" href="../../../../apidocs/nemo_evaluator/nemo_evaluator.adapters.interceptors.reasoning_interceptor.html#nemo_evaluator.adapters.interceptors.reasoning_interceptor.ResponseReasoningInterceptor._update_reasoning_stats">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update_reasoning_stats</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reasoning_info</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Update reasoning statistics with new data (thread-safe).&quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="s2">&quot;total_responses&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+            <span class="c1"># Get values</span>
+            <span class="n">reasoning_words</span> <span class="o">=</span> <span class="n">reasoning_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;reasoning_words&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">original_words</span> <span class="o">=</span> <span class="n">reasoning_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;original_content_words&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">updated_words</span> <span class="o">=</span> <span class="n">reasoning_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;updated_content_words&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">reasoning_tokens</span> <span class="o">=</span> <span class="n">reasoning_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;reasoning_tokens&quot;</span><span class="p">,</span> <span class="s2">&quot;unknown&quot;</span><span class="p">)</span>
+            <span class="n">updated_content_tokens</span> <span class="o">=</span> <span class="n">reasoning_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                <span class="s2">&quot;updated_content_tokens&quot;</span><span class="p">,</span> <span class="s2">&quot;unknown&quot;</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Increment counters</span>
+            <span class="k">if</span> <span class="n">reasoning_words</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="s2">&quot;responses_with_reasoning&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">reasoning_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;reasoning_started&quot;</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="s2">&quot;reasoning_started_count&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">reasoning_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;reasoning_finished&quot;</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="s2">&quot;reasoning_finished_count&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+            <span class="c1"># Update running averages</span>
+            <span class="k">for</span> <span class="n">stat_key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="p">[</span>
+                <span class="p">(</span><span class="s2">&quot;avg_reasoning_words&quot;</span><span class="p">,</span> <span class="n">reasoning_words</span><span class="p">),</span>
+                <span class="p">(</span><span class="s2">&quot;avg_original_content_words&quot;</span><span class="p">,</span> <span class="n">original_words</span><span class="p">),</span>
+                <span class="p">(</span><span class="s2">&quot;avg_updated_content_words&quot;</span><span class="p">,</span> <span class="n">updated_words</span><span class="p">),</span>
+                <span class="p">(</span><span class="s2">&quot;avg_reasoning_tokens&quot;</span><span class="p">,</span> <span class="n">reasoning_tokens</span><span class="p">),</span>
+                <span class="p">(</span><span class="s2">&quot;avg_updated_content_tokens&quot;</span><span class="p">,</span> <span class="n">updated_content_tokens</span><span class="p">),</span>
+            <span class="p">]:</span>
+                <span class="k">if</span> <span class="n">value</span> <span class="o">!=</span> <span class="s2">&quot;unknown&quot;</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="n">stat_key</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="n">stat_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="n">stat_key</span><span class="p">]</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span>
+                            <span class="p">(</span>
+                                <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="n">stat_key</span><span class="p">]</span>
+                                <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="s2">&quot;total_responses&quot;</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+                                <span class="o">+</span> <span class="n">value</span>
+                            <span class="p">)</span>
+                            <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="s2">&quot;total_responses&quot;</span><span class="p">],</span>
+                            <span class="mi">2</span><span class="p">,</span>
+                        <span class="p">)</span>
+
+            <span class="c1"># Update max reasoning words</span>
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span>
+                <span class="s2">&quot;reasoning_words&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;original_content_words&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;updated_content_words&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;reasoning_tokens&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;updated_content_tokens&quot;</span><span class="p">,</span>
+            <span class="p">]:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">reasoning_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">value</span> <span class="o">!=</span> <span class="s2">&quot;unknown&quot;</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;max_</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span>
+                        <span class="ow">or</span> <span class="n">value</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;max_</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span>
+                    <span class="p">):</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;max_</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+            <span class="c1"># Update total statistics</span>
+            <span class="k">if</span> <span class="n">reasoning_words</span> <span class="o">!=</span> <span class="s2">&quot;unknown&quot;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="s2">&quot;total_reasoning_words&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="n">reasoning_words</span>
+            <span class="k">if</span> <span class="n">original_words</span> <span class="o">!=</span> <span class="s2">&quot;unknown&quot;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="s2">&quot;total_original_content_words&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="n">original_words</span>
+            <span class="k">if</span> <span class="n">updated_words</span> <span class="o">!=</span> <span class="s2">&quot;unknown&quot;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="s2">&quot;total_updated_content_words&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="n">updated_words</span>
+            <span class="k">if</span> <span class="n">reasoning_tokens</span> <span class="o">!=</span> <span class="s2">&quot;unknown&quot;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="s2">&quot;total_reasoning_tokens&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="n">reasoning_tokens</span>
+            <span class="k">if</span> <span class="n">updated_content_tokens</span> <span class="o">!=</span> <span class="s2">&quot;unknown&quot;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="s2">&quot;total_updated_content_tokens&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="p">(</span>
+                    <span class="n">updated_content_tokens</span>
+                <span class="p">)</span>
+
+            <span class="c1"># Log aggregated stats at specified interval</span>
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="s2">&quot;total_responses&quot;</span><span class="p">]</span>
+                <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">logging_aggregated_stats_interval</span>
+                <span class="o">==</span> <span class="mi">0</span>
+            <span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ResponseReasoningInterceptor._process_reasoning_message">
+<a class="viewcode-back" href="../../../../apidocs/nemo_evaluator/nemo_evaluator.adapters.interceptors.reasoning_interceptor.html#nemo_evaluator.adapters.interceptors.reasoning_interceptor.ResponseReasoningInterceptor._process_reasoning_message">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_process_reasoning_message</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">usage</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Process reasoning in the message and return modified message with reasoning info.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            msg: The message object containing content and potentially reasoning_content</span>
+<span class="sd">            usage: Optional usage data from the response for token tracking</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple: (modified_message, reasoning_info) where reasoning_info has keys:</span>
+<span class="sd">                   reasoning_words, original_content_words, updated_content_words, reasoning_finished, reasoning_started</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">modified_msg</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">content</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;content&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">updated_content_tokens</span> <span class="o">=</span> <span class="s2">&quot;unknown&quot;</span>
+        <span class="n">reasoning_tokens</span> <span class="o">=</span> <span class="s2">&quot;unknown&quot;</span>
+
+        <span class="c1"># Check if reasoning_content exists in the message and is not empty</span>
+        <span class="k">if</span> <span class="s2">&quot;reasoning_content&quot;</span> <span class="ow">in</span> <span class="n">msg</span><span class="p">:</span>
+            <span class="n">reasoning_content</span> <span class="o">=</span> <span class="n">msg</span><span class="p">[</span><span class="s2">&quot;reasoning_content&quot;</span><span class="p">]</span>
+            <span class="n">updated_message_content</span> <span class="o">=</span> <span class="n">content</span>
+            <span class="n">reasoning_started</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="kc">True</span>
+                <span class="k">if</span> <span class="n">reasoning_content</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">reasoning_content</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">!=</span> <span class="s2">&quot;&quot;</span>
+                <span class="k">else</span> <span class="kc">False</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">content</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;&quot;</span><span class="p">:</span>
+                <span class="n">reasoning_finished</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">reasoning_finished</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">if</span> <span class="n">usage</span><span class="p">:</span>
+                <span class="c1"># First try to get reasoning_tokens directly from usage</span>
+                <span class="n">reasoning_tokens</span> <span class="o">=</span> <span class="n">usage</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;reasoning_tokens&quot;</span><span class="p">,</span> <span class="s2">&quot;unknown&quot;</span><span class="p">)</span>
+                <span class="n">updated_content_tokens</span> <span class="o">=</span> <span class="n">usage</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;content_tokens&quot;</span><span class="p">,</span> <span class="s2">&quot;unknown&quot;</span><span class="p">)</span>
+
+                <span class="c1"># If not found, check in completion_tokens_details and output_tokens_details</span>
+                <span class="k">if</span> <span class="n">reasoning_tokens</span> <span class="o">==</span> <span class="s2">&quot;unknown&quot;</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;completion_tokens_details&quot;</span><span class="p">,</span> <span class="s2">&quot;output_tokens_details&quot;</span><span class="p">]:</span>
+                        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">usage</span><span class="p">:</span>
+                            <span class="n">details</span> <span class="o">=</span> <span class="n">usage</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+                            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">details</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                                <span class="n">reasoning_tokens</span> <span class="o">=</span> <span class="n">details</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                                    <span class="s2">&quot;reasoning_tokens&quot;</span><span class="p">,</span> <span class="s2">&quot;unknown&quot;</span>
+                                <span class="p">)</span>
+                                <span class="k">if</span> <span class="n">reasoning_tokens</span> <span class="o">!=</span> <span class="s2">&quot;unknown&quot;</span><span class="p">:</span>
+                                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                                        <span class="sa">f</span><span class="s2">&quot;Found reasoning_tokens in </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">reasoning_tokens</span><span class="si">}</span><span class="s2">&quot;</span>
+                                    <span class="p">)</span>
+                                    <span class="k">break</span>
+
+                <span class="c1"># Log if reasoning tokens were found</span>
+                <span class="k">if</span> <span class="n">reasoning_tokens</span> <span class="o">!=</span> <span class="s2">&quot;unknown&quot;</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Reasoning tokens extracted: </span><span class="si">{</span><span class="n">reasoning_tokens</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;No reasoning tokens found in usage data&quot;</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">reasoning_finished</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_reasoning_token</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">reasoning_started</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_reasoning_token</span> <span class="ow">in</span> <span class="n">content</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">reasoning_started</span> <span class="o">=</span> <span class="s2">&quot;unknown&quot;</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_reasoning_token</span> <span class="ow">in</span> <span class="n">content</span><span class="p">:</span>
+                <span class="n">reasoning_finished</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="n">reasoning_started</span> <span class="o">=</span> <span class="kc">True</span>
+
+            <span class="c1"># Split content using reasoning token</span>
+            <span class="k">if</span> <span class="n">reasoning_finished</span><span class="p">:</span>
+                <span class="n">cleaned_content</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_strip_reasoning</span><span class="p">(</span><span class="n">content</span><span class="p">)</span>
+                <span class="n">reasoning_content</span> <span class="o">=</span> <span class="n">content</span><span class="p">[:</span> <span class="n">content</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end_reasoning_token</span><span class="p">)]</span>
+                <span class="n">updated_message_content</span> <span class="o">=</span> <span class="n">cleaned_content</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">reasoning_started</span> <span class="o">==</span> <span class="s2">&quot;unknown&quot;</span><span class="p">:</span>
+                    <span class="n">reasoning_content</span> <span class="o">=</span> <span class="s2">&quot;unknown&quot;</span>
+                <span class="k">elif</span> <span class="n">reasoning_started</span><span class="p">:</span>
+                    <span class="n">reasoning_content</span> <span class="o">=</span> <span class="n">content</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">reasoning_content</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">include_if_not_finished</span><span class="p">:</span>
+                    <span class="n">updated_message_content</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">updated_message_content</span> <span class="o">=</span> <span class="n">content</span>
+
+        <span class="c1"># Assign the updated message content</span>
+        <span class="n">modified_msg</span><span class="p">[</span><span class="s2">&quot;content&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">updated_message_content</span>
+
+        <span class="c1"># Calculate lengths and reasoning status</span>
+        <span class="k">if</span> <span class="n">reasoning_content</span> <span class="ow">and</span> <span class="n">reasoning_content</span> <span class="o">!=</span> <span class="s2">&quot;unknown&quot;</span><span class="p">:</span>
+            <span class="n">reasoning_words</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">reasoning_content</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+        <span class="k">elif</span> <span class="n">reasoning_started</span> <span class="o">==</span> <span class="s2">&quot;unknown&quot;</span><span class="p">:</span>
+            <span class="n">reasoning_words</span> <span class="o">=</span> <span class="s2">&quot;unknown&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">reasoning_words</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="n">reasoning_info</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;reasoning_words&quot;</span><span class="p">:</span> <span class="n">reasoning_words</span><span class="p">,</span>
+            <span class="s2">&quot;original_content_words&quot;</span><span class="p">:</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">content</span><span class="o">.</span><span class="n">split</span><span class="p">())</span> <span class="k">if</span> <span class="n">content</span> <span class="k">else</span> <span class="mi">0</span><span class="p">),</span>
+            <span class="s2">&quot;updated_content_words&quot;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">modified_msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;content&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+                <span class="k">if</span> <span class="n">modified_msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;content&quot;</span><span class="p">)</span>
+                <span class="k">else</span> <span class="mi">0</span>
+            <span class="p">),</span>
+            <span class="s2">&quot;reasoning_finished&quot;</span><span class="p">:</span> <span class="n">reasoning_finished</span><span class="p">,</span>
+            <span class="s2">&quot;reasoning_started&quot;</span><span class="p">:</span> <span class="n">reasoning_started</span><span class="p">,</span>
+            <span class="s2">&quot;reasoning_tokens&quot;</span><span class="p">:</span> <span class="n">reasoning_tokens</span><span class="p">,</span>
+            <span class="s2">&quot;updated_content_tokens&quot;</span><span class="p">:</span> <span class="n">updated_content_tokens</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">modified_msg</span><span class="p">,</span> <span class="n">reasoning_info</span></div>
+
+
+<div class="viewcode-block" id="ResponseReasoningInterceptor._strip_reasoning">
+<a class="viewcode-back" href="../../../../apidocs/nemo_evaluator/nemo_evaluator.adapters.interceptors.reasoning_interceptor.html#nemo_evaluator.adapters.interceptors.reasoning_interceptor.ResponseReasoningInterceptor._strip_reasoning">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_strip_reasoning</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Remove everything between start and end reasoning tokens.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">return</span> <span class="s2">&quot;&quot;</span>
+
+        <span class="c1"># Remove everything between start and end reasoning tokens</span>
+        <span class="c1"># Also handle cases where only end token is present</span>
+        <span class="n">cleaned_content</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span>
+            <span class="sa">r</span><span class="s2">&quot;.*?&quot;</span> <span class="o">+</span> <span class="n">re</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end_reasoning_token</span><span class="p">),</span>
+            <span class="s2">&quot;&quot;</span><span class="p">,</span>
+            <span class="n">text</span><span class="p">,</span>
+            <span class="n">flags</span><span class="o">=</span><span class="n">re</span><span class="o">.</span><span class="n">DOTALL</span><span class="p">,</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cleaned_content</span></div>
+
+
+<div class="viewcode-block" id="ResponseReasoningInterceptor._migrate_reasoning_content">
+<a class="viewcode-back" href="../../../../apidocs/nemo_evaluator/nemo_evaluator.adapters.interceptors.reasoning_interceptor.html#nemo_evaluator.adapters.interceptors.reasoning_interceptor.ResponseReasoningInterceptor._migrate_reasoning_content">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_migrate_reasoning_content</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Migrate reasoning content to the content field with reasoning tokens.&quot;&quot;&quot;</span>
+        <span class="n">modified_msg</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="s2">&quot;reasoning_content&quot;</span> <span class="ow">in</span> <span class="n">msg</span>
+            <span class="ow">and</span> <span class="n">msg</span><span class="p">[</span><span class="s2">&quot;reasoning_content&quot;</span><span class="p">]</span>
+            <span class="ow">and</span> <span class="n">msg</span><span class="p">[</span><span class="s2">&quot;reasoning_content&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="p">):</span>
+            <span class="n">reasoning_content</span> <span class="o">=</span> <span class="n">msg</span><span class="p">[</span><span class="s2">&quot;reasoning_content&quot;</span><span class="p">]</span>
+            <span class="n">content</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;content&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+            <span class="n">updated_message_content</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">start_reasoning_token</span>
+                <span class="o">+</span> <span class="n">reasoning_content</span>
+                <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_reasoning_token</span>
+                <span class="o">+</span> <span class="n">content</span>
+            <span class="p">)</span>
+            <span class="n">modified_msg</span><span class="p">[</span><span class="s2">&quot;content&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">updated_message_content</span>
+            <span class="k">return</span> <span class="n">modified_msg</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">msg</span></div>
+
+
+<div class="viewcode-block" id="ResponseReasoningInterceptor.intercept_response">
+<a class="viewcode-back" href="../../../../apidocs/nemo_evaluator/nemo_evaluator.adapters.interceptors.reasoning_interceptor.html#nemo_evaluator.adapters.interceptors.reasoning_interceptor.ResponseReasoningInterceptor.intercept_response">[docs]</a>
+    <span class="nd">@final</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">intercept_response</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">resp</span><span class="p">:</span> <span class="n">AdapterResponse</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="n">AdapterGlobalContext</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AdapterResponse</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Remove reasoning tokens from assistant message content in the response and track reasoning info.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">add_reasoning</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">migrate_reasoning_content</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                    <span class="s2">&quot;Reasoning processing disabled, but migrating `reasoning_content` back to `content`.&quot;</span>
+                <span class="p">)</span>
+                <span class="n">response_data</span> <span class="o">=</span> <span class="n">resp</span><span class="o">.</span><span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+                <span class="k">for</span> <span class="n">choice</span> <span class="ow">in</span> <span class="n">response_data</span><span class="p">[</span><span class="s2">&quot;choices&quot;</span><span class="p">]:</span>
+                    <span class="n">msg</span> <span class="o">=</span> <span class="n">choice</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;message&quot;</span><span class="p">)</span>
+                    <span class="n">modified_msg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_migrate_reasoning_content</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+                    <span class="n">msg</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">modified_msg</span><span class="p">)</span>
+
+                <span class="n">resp</span><span class="o">.</span><span class="n">r</span><span class="o">.</span><span class="n">_content</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">response_data</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                    <span class="s2">&quot;Reasoning processing disabled, returning response as-is&quot;</span>
+                <span class="p">)</span>
+            <span class="k">return</span> <span class="n">resp</span>
+        <span class="k">if</span> <span class="n">resp</span><span class="o">.</span><span class="n">rctx</span><span class="o">.</span><span class="n">cache_hit</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Response was from cache, skipping reasoning processing&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">resp</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">response_data</span> <span class="o">=</span> <span class="n">resp</span><span class="o">.</span><span class="n">r</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">response_data</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="s2">&quot;choices&quot;</span> <span class="ow">in</span> <span class="n">response_data</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                    <span class="s2">&quot;Processing response with choices&quot;</span><span class="p">,</span>
+                    <span class="n">choices_count</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">response_data</span><span class="p">[</span><span class="s2">&quot;choices&quot;</span><span class="p">]),</span>
+                <span class="p">)</span>
+
+                <span class="c1"># Extract usage data from response</span>
+                <span class="n">usage_data</span> <span class="o">=</span> <span class="n">response_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;usage&quot;</span><span class="p">,</span> <span class="p">{})</span>
+
+                <span class="k">for</span> <span class="n">choice</span> <span class="ow">in</span> <span class="n">response_data</span><span class="p">[</span><span class="s2">&quot;choices&quot;</span><span class="p">]:</span>
+                    <span class="n">msg</span> <span class="o">=</span> <span class="n">choice</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;message&quot;</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="p">(</span>
+                        <span class="n">msg</span>
+                        <span class="ow">and</span> <span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;role&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;assistant&quot;</span>
+                        <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;content&quot;</span><span class="p">),</span> <span class="nb">str</span><span class="p">)</span>
+                    <span class="p">):</span>
+                        <span class="c1"># Get modified message and reasoning information</span>
+                        <span class="n">modified_msg</span><span class="p">,</span> <span class="n">reasoning_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_process_reasoning_message</span><span class="p">(</span>
+                            <span class="n">msg</span><span class="p">,</span> <span class="n">usage_data</span>
+                        <span class="p">)</span>
+
+                        <span class="c1"># Collect reasoning statistics</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_update_reasoning_stats</span><span class="p">(</span><span class="n">reasoning_info</span><span class="p">)</span>
+
+                        <span class="c1"># Log reasoning information if tracking is enabled</span>
+                        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">enable_reasoning_tracking</span><span class="p">:</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                                <span class="s2">&quot;Reasoning tracking information&quot;</span><span class="p">,</span> <span class="o">**</span><span class="n">reasoning_info</span>
+                            <span class="p">)</span>
+
+                        <span class="c1"># Update the message with the modified content</span>
+                        <span class="n">msg</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">modified_msg</span><span class="p">)</span>
+
+                        <span class="c1"># Save stats to file if interval reached</span>
+                        <span class="k">if</span> <span class="p">(</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">stats_file_saving_interval</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="s2">&quot;total_responses&quot;</span><span class="p">]</span>
+                            <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">stats_file_saving_interval</span>
+                            <span class="o">==</span> <span class="mi">0</span>
+                        <span class="p">):</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">_save_stats_to_file</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
+
+                        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                            <span class="s2">&quot;Message processed&quot;</span><span class="p">,</span>
+                            <span class="n">role</span><span class="o">=</span><span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;role&quot;</span><span class="p">),</span>
+                            <span class="n">original_content_length</span><span class="o">=</span><span class="n">reasoning_info</span><span class="p">[</span>
+                                <span class="s2">&quot;original_content_words&quot;</span>
+                            <span class="p">],</span>
+                            <span class="n">updated_content_length</span><span class="o">=</span><span class="n">reasoning_info</span><span class="p">[</span>
+                                <span class="s2">&quot;updated_content_words&quot;</span>
+                            <span class="p">],</span>
+                            <span class="n">reasoning_words</span><span class="o">=</span><span class="n">reasoning_info</span><span class="p">[</span><span class="s2">&quot;reasoning_words&quot;</span><span class="p">],</span>
+                        <span class="p">)</span>
+
+                <span class="c1"># Cache individual reasoning stats if enabled</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">enable_caching</span><span class="p">:</span>
+                    <span class="n">request_id</span> <span class="o">=</span> <span class="n">resp</span><span class="o">.</span><span class="n">rctx</span><span class="o">.</span><span class="n">request_id</span>
+                    <span class="k">if</span> <span class="n">request_id</span><span class="p">:</span>
+                        <span class="c1"># Cache the individual reasoning stats</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_cache_reasoning_stats</span><span class="p">(</span><span class="n">request_id</span><span class="p">,</span> <span class="n">reasoning_info</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                            <span class="s2">&quot;Cached individual reasoning stats&quot;</span><span class="p">,</span>
+                            <span class="n">request_id</span><span class="o">=</span><span class="n">request_id</span><span class="p">,</span>
+                            <span class="n">individual_stats</span><span class="o">=</span><span class="n">reasoning_info</span><span class="p">,</span>
+                        <span class="p">)</span>
+
+            <span class="n">resp</span><span class="o">.</span><span class="n">r</span><span class="o">.</span><span class="n">_content</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">response_data</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="s2">&quot;Response reasoning processing completed&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Failed to process response reasoning&quot;</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+            <span class="k">pass</span>
+
+        <span class="k">return</span> <span class="n">resp</span></div>
+
+
+<div class="viewcode-block" id="ResponseReasoningInterceptor._save_stats_to_file">
+<a class="viewcode-back" href="../../../../apidocs/nemo_evaluator/nemo_evaluator.adapters.interceptors.reasoning_interceptor.html#nemo_evaluator.adapters.interceptors.reasoning_interceptor.ResponseReasoningInterceptor._save_stats_to_file">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_save_stats_to_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="n">AdapterGlobalContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Save current stats to the same file as post-eval hook.&quot;&quot;&quot;</span>
+        <span class="c1"># Get stats in a thread-safe manner</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
+            <span class="n">stats</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># Don&#39;t create file if no stats collected</span>
+        <span class="k">if</span> <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;total_responses&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;No reasoning statistics collected, skipping file write&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="c1"># Prepare metrics data under adapter name</span>
+        <span class="n">metrics_data</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;reasoning&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Reasoning statistics saved during processing&quot;</span><span class="p">,</span>
+                <span class="o">**</span><span class="n">stats</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
+            <span class="n">context</span><span class="o">.</span><span class="n">metrics_path</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+            <span class="c1"># Read existing metrics if file exists</span>
+            <span class="n">existing_metrics</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">if</span> <span class="n">context</span><span class="o">.</span><span class="n">metrics_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">context</span><span class="o">.</span><span class="n">metrics_path</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                        <span class="n">existing_metrics</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+                <span class="k">except</span> <span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">JSONDecodeError</span><span class="p">,</span> <span class="ne">IOError</span><span class="p">):</span>
+                    <span class="k">pass</span>  <span class="c1"># Start fresh if file is corrupted</span>
+
+            <span class="c1"># Merge with existing metrics</span>
+            <span class="n">merged_metrics</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">existing_metrics</span><span class="p">,</span> <span class="o">**</span><span class="n">metrics_data</span><span class="p">}</span>
+
+            <span class="c1"># Write merged metrics to file</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">context</span><span class="o">.</span><span class="n">metrics_path</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">merged_metrics</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="s2">&quot;Saved reasoning stats to file&quot;</span><span class="p">,</span>
+            <span class="n">path</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">context</span><span class="o">.</span><span class="n">metrics_path</span><span class="p">),</span>
+            <span class="n">response_count</span><span class="o">=</span><span class="n">stats</span><span class="p">[</span><span class="s2">&quot;total_responses&quot;</span><span class="p">],</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ResponseReasoningInterceptor.post_eval_hook">
+<a class="viewcode-back" href="../../../../apidocs/nemo_evaluator/nemo_evaluator.adapters.interceptors.reasoning_interceptor.html#nemo_evaluator.adapters.interceptors.reasoning_interceptor.ResponseReasoningInterceptor.post_eval_hook">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">post_eval_hook</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="n">AdapterGlobalContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Write collected reasoning statistics to eval_factory_metrics.json.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">&quot;Writing reasoning statistics to metrics&quot;</span><span class="p">,</span>
+            <span class="n">total_responses</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_reasoning_stats</span><span class="p">[</span><span class="s2">&quot;total_responses&quot;</span><span class="p">],</span>
+            <span class="n">output_dir</span><span class="o">=</span><span class="n">context</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_save_stats_to_file</span><span class="p">(</span><span class="n">context</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+<div class="bd-sidebar-secondary"></div>
+
+
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../../../../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../../../../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Manage My Privacy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/preferences/start/">Do Not Sell or Share My Data</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025, NVIDIA Corporation.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+<div class="extra_footer">
+  
+  
+    <script type="text/javascript">if (typeof _satellite !== "undefined") {_satellite.pageBottom();}</script>
+    
+  
+</div></div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>

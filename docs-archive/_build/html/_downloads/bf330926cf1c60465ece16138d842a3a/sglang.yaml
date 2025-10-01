@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+type: sglang
+image: lmsysorg/sglang:latest
+checkpoint_path: ???
+served_model_name: ???
+port: 8000
+tensor_parallel_size: 8
+data_parallel_size: 1
+extra_args: ""
+env_vars: {} # {name: value} dict
+
+endpoints:
+  chat: /v1/chat/completions
+  completions: /v1/completions
+  health: /health
+
+command: python3 -m sglang.launch_server
+  --model-path ${oc.select:deployment.hf_model_handle,/checkpoint}
+  --host 0.0.0.0
+  --port ${deployment.port}
+  --served-model-name ${deployment.served_model_name}
+  --tp ${deployment.tensor_parallel_size}
+  --dp ${deployment.data_parallel_size}
+  ${deployment.extra_args}
