@@ -1,11 +1,10 @@
 # Evaluate Automodel Checkpoints Trained by NeMo Framework
 
-This guide provides step-by-step instructions for evaluating checkpoints trained using the NeMo Framework with the Automodel backend. This section specifically covers evaluation with [nvidia-lm-eval](https://pypi.org/project/nvidia-lm-eval/), a wrapper around the [
-lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness/tree/main) tool.
+This guide provides step-by-step instructions for evaluating checkpoints trained using the NeMo Framework with the Automodel backend. This section specifically covers evaluation with [nvidia-lm-eval](https://pypi.org/project/nvidia-lm-eval/), a wrapper around the [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness/tree/main) tool.
 
 Here, we focus on benchmarks within the `lm-evaluation-harness` that depend on text generation. For a detailed comparison between generation-based and log-probability-based benchmarks, refer to ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md).
 
-> **Note:** The current support for evaluation of Automodel checkpoints is limited to generation benchmarks. Support for  log-probability benchmarks will be added in upcoming releases.
+> **Note:** The current support for evaluation of Automodel checkpoints is limited to generation benchmarks. Support for log-probability benchmarks will be added in upcoming releases.
 
 ## Deploy Automodel Checkpoints
 
@@ -24,14 +23,14 @@ python \
   --use_vllm_backend
 ```
 
-The `--model_path` can refer to either a local checkpoint path or a Hugging Face model ID, as shown in the example above. In the example above, checkpoint deployment uses the `vLLM` backend. To enable accelerated inference, install `vLLM` in your environment. To install `vLLM` inside the NeMo Framework container follow the steps below as shared in [Export-Deploy's README](https://github.com/NVIDIA-NeMo/Export-Deploy?tab=readme-ov-file#install-tensorrt-llm-vllm-or-trt-onnx-backend:~:text=cd%20/opt/Export%2DDeploy%0Auv%20sync%20%2D%2Dinexact%20%2D%2Dlink%2Dmode%20symlink%20%2D%2Dlocked%20%2D%2Dextra%20vllm%20%24(cat%20/opt/uv_args.txt)):
+The `--model_path` can refer to either a local checkpoint path or a Hugging Face model ID, as shown in the example above. In the example above, checkpoint deployment uses the `vLLM` backend. To enable accelerated inference, install `vLLM` in your environment. To install `vLLM` inside the NeMo Framework container, follow the steps below as shared in [Export-Deploy's README](https://github.com/NVIDIA-NeMo/Export-Deploy?tab=readme-ov-file#install-tensorrt-llm-vllm-or-trt-onnx-backend:~:text=cd%20/opt/Export%2DDeploy%0Auv%20sync%20%2D%2Dinexact%20%2D%2Dlink%2Dmode%20symlink%20%2D%2Dlocked%20%2D%2Dextra%20vllm%20%24(cat%20/opt/uv_args.txt)):
 
 ```shell
 cd /opt/Export-Deploy
 uv sync --inexact --link-mode symlink --locked --extra vllm $(cat /opt/uv_args.txt)
 ```
 
-To install `vLLM` outside of NeMo Framwork container follow the steps mentioned [here](https://github.com/NVIDIA-NeMo/Export-Deploy?tab=readme-ov-file#install-tensorrt-llm-vllm-or-trt-onnx-backend:~:text=Install%20TransformerEngine%20%2B%20vLLM).
+To install `vLLM` outside of the NeMo Framework container, follow the steps mentioned [here](https://github.com/NVIDIA-NeMo/Export-Deploy?tab=readme-ov-file#install-tensorrt-llm-vllm-or-trt-onnx-backend:~:text=Install%20TransformerEngine%20%2B%20vLLM).
 
 If you prefer to evaluate the Automodel checkpoint without using the `vLLM` backend, remove the `--use_vllm_backend` flag from the command above.
 

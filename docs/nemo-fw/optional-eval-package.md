@@ -62,7 +62,7 @@ Make sure to open two separate terminals within the same container for executing
 4. Run the evalution of your choice.
 
 Below you can find examples for enabling and launching evaluations for different packages.
-Note that all example use only a subset of samples.
+Note that all examples use only a subset of samples.
 To run the evaluation on the whole dataset, remove the `"limit_samples"` parameter.
 
 ## Enable BFCL
@@ -148,14 +148,14 @@ To customize the judge setting, see the instructions for [NVIDIA Eval Factory pa
 pip install nvidia-safety-harness
 ```
 
-2. Deploy the judge model
+2. Deploy the judge model.
 
 In the example below, we use the `aegis_v2` task, which requires the [Llama 3.1 NemoGuard 8B ContentSafety](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/getting-started.html) model to assess your model's responses.
 
 The model is available through NVIDIA NIM.
 See the [instructions](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/getting-started.html) on deploying the judge model.
 
-If you set a gated judge endpoint up, you must export your API key as the `JUDGE_API_KEY` variable:
+If you set up a gated judge endpoint, you must export your API key as the `JUDGE_API_KEY` variable:
 
 ```bash
 export JUDGE_API_KEY=...

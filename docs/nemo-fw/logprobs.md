@@ -25,7 +25,7 @@ Please refer to ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-do
 While the most typical approach to LLM evaluation involves assessing the quality of a model's generated response to a question, an alternative method uses **log-probabilities**.
 
 In this approach, we quantify a model's "surprise" or uncertainty when processing a text sequence.
-This is done by calculating a sum of log-probabilities that the model assigns to each token.
+This is done by calculating the sum of log-probabilities that the model assigns to each token.
 A higher sum indicates the model is more confident about the sequence.
 
 In this evaluation approach:
@@ -71,7 +71,7 @@ When combined with `echo=true`, the model will include the input in its response
 
 This process occurs behind the scenes when running an evaluation on `arc_challenge`.
 
-2. To evaluate your model on `arc_challenge` benchmark, use the following code:
+2. To evaluate your model on the `arc_challenge` benchmark, use the following code:
 
 Make sure to open a new terminal within the same container to execute it.
 
@@ -82,7 +82,7 @@ Make sure to open a new terminal within the same container to execute it.
 :linenos:
 ```
 
-Note in the example above you must provide a path to the tokenizer:
+Note that in the example above, you must provide a path to the tokenizer:
 
 ```
         "extra": {

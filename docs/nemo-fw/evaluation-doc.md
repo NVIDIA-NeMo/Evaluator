@@ -1,6 +1,6 @@
 # Evaluate Checkpoints Trained by NeMo Framework
 
-This guide provides step-by-step instructions for evaluating checkpoints trained using the NeMo Framework with the Megatron-Core backend.  This section specifically covers evaluation with [nvidia-lm-eval](https://pypi.org/project/nvidia-lm-eval/), a wrapper around the [
+This guide provides step-by-step instructions for evaluating checkpoints trained using the NeMo Framework with the Megatron Core backend. This section specifically covers evaluation with [nvidia-lm-eval](https://pypi.org/project/nvidia-lm-eval/), a wrapper around the [
 lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness/tree/main) tool.
 
 Here, we focus on benchmarks in the `lm-evaluation-harness` that rely on text generation.
@@ -39,8 +39,8 @@ lm-evaluation-harness:
 
 The evaluation process employs a server-client approach, comprising two main phases. 
 - **Phase 1: Model Deployment**
-    - Deployment via PyTriton: The NeMo Framework checkpoint is deployed in-framework on a PyTriton server by exposing OpenAI API (OAI) compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed, enabling evaluation on both completion and chat benchmarks.
-    - Deployment via Ray: The NeMo Framework checkpoint can also be deployed in-framework on a Ray server. Ray Serve provides support for multi-instance evaluations, along with OpenAI API (OAI) compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed. For more details on evaluations with Ray Serve, refer to ["Use Ray Serve for Multi-Instance Evaluations"](evaluation-with-ray.md).
+    - Deployment via PyTriton: The NeMo Framework checkpoint is deployed in-framework on a PyTriton server by exposing OpenAI API (OAI)-compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed, enabling evaluation on both completion and chat benchmarks.
+    - Deployment via Ray: The NeMo Framework checkpoint can also be deployed in-framework on a Ray server. Ray Serve provides support for multi-instance evaluations, along with OpenAI API (OAI)-compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed. For more details on evaluations with Ray Serve, refer to ["Use Ray Serve for Multi-Instance Evaluations"](evaluation-with-ray.md).
 
 - **Phase 2: Model Evaluation**
     - Evaluation via OAI Endpoints: Once the model is deployed, evaluation is performed by sending benchmark requests to the exposed OAI-compatible endpoints using their respective port. This allows assessment across a range of tasks and harnesses.
@@ -73,7 +73,7 @@ eval_config = EvaluationConfig(type="mmlu")
 eval_config = EvaluationConfig(type="lm-evaluation-harness.mmlu")
 ```
 
-Subtask of a benchmark (for ex `mmlu_str_high_school_european_history` under `mmlu`), can also be specified similar to above:
+A subtask of a benchmark (e.g., `mmlu_str_high_school_european_history` under `mmlu`) can also be specified similar to above:
 
 ```python
 eval_config = EvaluationConfig(type="mmlu_str_high_school_european_history")
@@ -98,7 +98,7 @@ To evaluate your model on a task without a pre-defined config, see ["Run Evaluat
 
 ## Evaluate Models Locally on Your Workstation
 
-This section outlines the steps to deploy and evaluate a checkpoint trained by Nemo Framework directly using Python commands. This method is quick and easy, making it ideal for evaluation on a local workstation with GPUs, as it facilitates easier debugging. However, for running evaluations on clusters, it is recommended to use NeMo Run for its ease of use (see next section).
+This section outlines the steps to deploy and evaluate a checkpoint trained by NeMo Framework directly using Python commands. This method is quick and easy, making it ideal for evaluation on a local workstation with GPUs, as it facilitates easier debugging. However, for running evaluations on clusters, it is recommended to use NeMo Run for its ease of use (see next section).
 
 The deployment scripts are available inside [`/opt/Export-Deploy/scripts/deploy/nlp/`](https://github.com/NVIDIA-NeMo/Export-Deploy/tree/main/scripts/deploy/nlp) directory. Below is an example command for deployment. It uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to NeMo format. To evaluate a checkpoint saved during [pretraining](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#pretraining) or [fine-tuning](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#fine-tuning), provide the path to the saved checkpoint using the `--nemo_checkpoint` flag in the command below.
 
@@ -166,11 +166,11 @@ python evaluation_with_nemo_run.py --nemo_checkpoint '/workspace/llama3_8b_nemo2
 
 ### Run on Slurm-based Clusters
 
-To run evaluations on Slurm-based clusters, add the `--slurm` flag to your command and specify any custom parameters such as user, host, remote_job_dir, account, mounts, etc. Refer to the evaluation.py script for further details. Below is an example command:
+To run evaluations on Slurm-based clusters, add the `--slurm` flag to your command and specify any custom parameters such as user, host, remote_job_dir, account, mounts, etc. Refer to the `evaluation_with_nemo_run.py` script for further details. Below is an example command:
 
 ```bash
 cd scripts
-python evaluation_with_nemo_run.py --nemo_checkpoint='/workspace/llama3_8b_nemo2' --slurm --nodes 1
---devices 8 --container_image "nvcr.io/nvidia/nemo:25.07" --tensor_parallelism_size 8
+python evaluation_with_nemo_run.py --nemo_checkpoint='/workspace/llama3_8b_nemo2' --slurm --nodes 1 \
+  --devices 8 --container_image "nvcr.io/nvidia/nemo:25.07" --tensor_parallelism_size 8
 ```
 By following these commands, you can successfully run evaluations using NeMo Run on both local and Slurm-based environments.
