@@ -56,7 +56,7 @@ The `command` field uses Jinja2 templating to dynamically generate execution com
 ```yaml
 defaults:
   command: >-
-    {% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}} && {% endif %}
+    {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %}
     example_eval --model {{target.api_endpoint.model_id}} 
     --task {{config.params.task}}
     --url {{target.api_endpoint.url}} 
@@ -74,8 +74,7 @@ defaults:
 #### Key Template Variables
 
 **Target API Endpoint Variables:**
-
-- **`{{target.api_endpoint.api_key}}`**: Name of the environment variable storing API key
+- **`{{target.api_endpoint.api_key_name}}`**: Name of the environment variable storing API key
 - **`{{target.api_endpoint.model_id}}`**: Target model identifier
 - **`{{target.api_endpoint.stream}}`**: Whether responses should be streamed
 - **`{{target.api_endpoint.type}}`**: The type of the target endpoint
@@ -106,10 +105,10 @@ defaults:
 defaults:
   config:
     params:
-      limit_samples: null           # No limit on samples by default
+      limit_samples: null          # No limit on samples by default
       max_new_tokens: 4096         # Maximum tokens to generate
       temperature: 0.0             # Deterministic generation
-      top_p: 0.00001              # Nucleus sampling parameter
+      top_p: 0.00001               # Nucleus sampling parameter
       parallelism: 10              # Number of parallel requests
       max_retries: 5               # Maximum API retry attempts
       request_timeout: 60          # Request timeout in seconds
@@ -220,7 +219,6 @@ your-framework/
 ├── core_evals/
 │   └── your_framework/
 │       ├── framework.yml           # This is your FDF
-│       ├── framework_entrypoint.py # This is an entrypoint to execute evaluation (usually pre-defined)
 │       ├── output.py               # Output parser (custom)
 │       └── __init__.py             # Empty init file
 ├── setup.py                        # Package configuration
