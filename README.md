@@ -14,7 +14,7 @@ NeMo Evaluator is an open-source platform for robust, reproducible, and scalable
 
 [Tutorial](./docs/nemo-evaluator-launcher/tutorial.md) | [Supported Benchmarks](#supported-benchmarks-and-evaluation-harnesses) | [Configuration Examples](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator-launcher/examples) | [Contribution Guide](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/CONTRIBUTING.md)
 
-## Key Pillars
+## ✨ Key Pillars
 
 NeMo Evaluator is built on four core principles to provide a reliable and versatile evaluation experience:
 
@@ -178,7 +178,7 @@ print(results)
 ```
 
 
-## Supported Benchmarks and Evaluation Harnesses
+## 📊 Supported Benchmarks and Evaluation Harnesses
 
 NeMo Evaluator Launcher provides pre-built evaluation containers for different evaluation harnesses through the NVIDIA NGC catalog. Each harness supports a variety of benchmarks, which can then be called via `nemo-evaluator`. This table provides a list of benchmark names per harness. A more detailed list of task names can be found in the [list of NGC containers](./docs/nemo-evaluator/index.md#ngc-containers).
 
