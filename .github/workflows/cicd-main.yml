@@ -176,6 +176,7 @@ jobs:
       - cicd-unit-tests-nemo-evaluator
       - cicd-unit-tests-nemo-evaluator-launcher
       - cicd-e2e-tests-nemo-evaluator
+      - cicd-integration-tests
     if: |
       (
         needs.pre-flight.outputs.docs_only == 'true'
@@ -196,10 +197,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.run_id }}
+          IS_CI_WORKLOAD: ${{ needs.pre-flight.outputs.is_ci_workload == 'true' }}
           SKIPPING_IS_ALLOWED: ${{ needs.pre-flight.outputs.docs_only == 'true' || needs.pre-flight.outputs.is_deployment_workflow == 'true' || needs.pre-flight.outputs.is_ci_workload == 'true' }}
         run: |
-          FAILED_JOBS=$(gh run view $GITHUB_RUN_ID --json jobs --jq '[.jobs[] | select(.status == "completed" and .conclusion != "success")] | length') || echo 0
-
+          if [ "$IS_CI_WORKLOAD" == "true" ]; then
+            FAILED_JOBS=$(gh run view $GITHUB_RUN_ID --json jobs --jq '[.jobs[] | select(.status == "completed" and .conclusion != "success")] | length') || echo 0
+          else
+            FAILED_JOBS=$(gh run view $GITHUB_RUN_ID --json jobs --jq '[.jobs[] | select(.status == "completed" and .conclusion != "success" and .name != "cicd-integration-tests")] | length') || echo 0
+          fi
           if [ "${FAILED_JOBS:-0}" -eq 0 ] || [ "$SKIPPING_IS_ALLOWED" == "true" ]; then
               echo "✅ All previous jobs completed successfully"
               exit 0
