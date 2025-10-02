@@ -41,6 +41,7 @@ from nemo_evaluator_launcher.exporters.utils import (
     get_available_artifacts,
     get_benchmark_info,
     get_task_name,
+    get_artifact_root,
 )
 
 
@@ -213,7 +214,7 @@ class MLflowExporter(BaseExporter):
                 mlflow.log_metrics(accuracy_metrics)
 
                 # Log artifacts
-                artifacts_logged = self.log_artifacts(job_data, mlflow_config)
+                artifacts_logged = self._log_artifacts(job_data, mlflow_config)
 
                 # Build run URL
                 run_url = None
@@ -242,7 +243,7 @@ class MLflowExporter(BaseExporter):
                 success=False, dest="mlflow", message=f"Failed: {str(e)}"
             )
 
-    def log_artifacts(
+    def _log_artifacts(
         self, job_data: JobData, mlflow_config: Dict[str, Any]
     ) -> List[str]:
         """Log evaluation artifacts to MLflow using LocalExporter for transfer."""
@@ -278,46 +279,32 @@ class MLflowExporter(BaseExporter):
             logged_names: list[str] = []
 
             task_name = get_task_name(job_data)
-
-            # Root directory inside MLflow should be "<harness>.<task>"
-            bench_info = get_benchmark_info(job_data)
-            harness = bench_info.get("harness", "unknown")
-            benchmark = bench_info.get("benchmark", task_name)
-            artifact_path = f"{harness}.{benchmark}"
+            artifact_path = get_artifact_root(job_data)  # "<harness>.<benchmark>"
 
             # Log config at root level
             with tempfile.TemporaryDirectory() as tmpdir:
                 cfg_file = Path(tmpdir) / "config.yaml"
                 with cfg_file.open("w") as f:
-                    yaml.dump(
-                        job_data.config or {},
-                        f,
-                        default_flow_style=False,
-                        sort_keys=False,
-                    )
+                    yaml.dump(job_data.config or {}, f, default_flow_style=False, sort_keys=False)
                 mlflow.log_artifact(str(cfg_file))
 
-            # Determine which files to upload from artifacts/
             files_to_upload: list[Path] = []
             if mlflow_config.get("only_required", True):
-                # Only known required + optional artifacts at root
                 for fname in get_available_artifacts(artifacts_dir):
                     p = artifacts_dir / fname
                     if p.exists():
                         files_to_upload.append(p)
             else:
-                # Upload everything under artifacts/ recursively
                 for p in artifacts_dir.rglob("*"):
                     if p.is_file():
                         files_to_upload.append(p)
 
-            # Upload artifacts under "<harness.task>/artifacts/<relative-dir>"
             for fpath in files_to_upload:
                 rel = fpath.relative_to(artifacts_dir).as_posix()
-                parent_dir = os.path.dirname(rel)
+                parent = os.path.dirname(rel)
                 mlflow.log_artifact(
                     str(fpath),
-                    artifact_path=f"{artifact_path}/artifacts/{parent_dir}".rstrip("/"),
+                    artifact_path=f"{artifact_path}/artifacts/{parent}".rstrip("/"),
                 )
                 logged_names.append(rel)
 
@@ -472,7 +459,7 @@ class MLflowExporter(BaseExporter):
                 # Log artifacts from all jobs
                 total_artifacts = 0
                 for job_data in jobs.values():
-                    artifacts_logged = self.log_artifacts(job_data, mlflow_config)
+                    artifacts_logged = self._log_artifacts(job_data, mlflow_config)
                     total_artifacts += len(artifacts_logged)
 
                 # Build run URL

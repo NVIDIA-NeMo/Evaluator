@@ -606,17 +606,15 @@ def _create_slurm_sbatch_script(
 
     # auto-export
     ae_cfg = cfg.execution.get("auto_export")
-    ae_plain = (
-        OmegaConf.to_container(ae_cfg, resolve=True) if ae_cfg is not None else None
-    )
-    if isinstance(ae_plain, list):
-        ae_destinations = ae_plain
-    elif isinstance(ae_plain, dict):
-        ae_destinations = list(ae_plain.get("destinations", []) or [])
-    else:
-        ae_destinations = []
-    if ae_destinations:
-        s += _generate_auto_export_section(cfg, job_id)
+    destinations: list = []
+    if isinstance(ae_cfg, list):
+        destinations = list(ae_cfg)
+    elif isinstance(ae_cfg, dict) or isinstance(ae_cfg, DictConfig):
+        destinations = list(ae_cfg.get("destinations", []) or [])
+
+    if destinations:
+        export_env = dict(cfg.execution.get("env_vars", {}).get("export", {}) or {})
+        s += _generate_auto_export_section(cfg, job_id, destinations, export_env)
 
     return s
 
@@ -624,21 +622,10 @@ def _create_slurm_sbatch_script(
 def _generate_auto_export_section(
     cfg: DictConfig,
     job_id: str,
+    destinations: list,
+    export_env: dict,
 ) -> str:
     """Generate simple auto-export section for sbatch script."""
-    from omegaconf import OmegaConf
-
-    ae_cfg = cfg.execution.get("auto_export")
-    ae_plain = (
-        OmegaConf.to_container(ae_cfg, resolve=True) if ae_cfg is not None else None
-    )
-    if isinstance(ae_plain, list):
-        destinations = ae_plain
-    elif isinstance(ae_plain, dict):
-        destinations = list(ae_plain.get("destinations", []) or [])
-    else:
-        destinations = []
-
     if not destinations:
         return ""
 
@@ -650,39 +637,38 @@ def _generate_auto_export_section(
     s += "    set +x\n"
     s += '    cd "$TASK_DIR/artifacts"\n'
 
-    # Build export_config.yml
-    export_block = OmegaConf.to_container(cfg.get("export") or {}, resolve=True)
-
-    # Host-only env for auto-export comes ONLY from execution.env_vars.export
-    export_env_plain = (
-        OmegaConf.to_container(
-            cfg.execution.get("env_vars", {}).get("export", {}), resolve=True
-        )
-        or {}
+    # Work with DictConfig; convert only for YAML at the end
+    exec_type = cfg.execution.type if hasattr(cfg.execution, "type") else cfg.execution.get("type", "slurm")
+    eval_tasks = (
+        list(cfg.evaluation.tasks)
+        if hasattr(cfg, "evaluation") and hasattr(cfg.evaluation, "tasks")
+        else list((cfg.get("evaluation", {}) or {}).get("tasks", []) or [])
     )
+    export_block = cfg.get("export", {}) or {}
 
     payload = {
         "execution": {
             "auto_export": {
                 "destinations": list(destinations),
-                **({"env_vars": export_env_plain} if export_env_plain else {}),
+                **({"env_vars": dict(export_env)} if export_env else {}),
             },
-            "type": cfg.execution.type,  # Already a string, no need to_container
+            "type": exec_type,
         },
-        "evaluation": {
-            "tasks": OmegaConf.to_container(cfg.evaluation.tasks, resolve=True) or []
-        },
+        "evaluation": {"tasks": eval_tasks},
     }
     if export_block:
-        payload["export"] = export_block
+        # Convert just this block to plain for YAML
+        payload["export"] = OmegaConf.to_object(export_block) if OmegaConf.is_config(export_block) else dict(export_block)
 
-    yaml_str = yaml.safe_dump(payload, sort_keys=False)
+    # Final YAML (single conversion at the end)
+    payload_clean = OmegaConf.to_container(OmegaConf.create(payload), resolve=True)
+    yaml_str = yaml.safe_dump(payload_clean, sort_keys=False)
     s += "    cat > export_config.yml << 'EOF'\n"
     s += yaml_str
     s += "EOF\n"
 
-    # Export host-only env (do not inject into container)
-    for k, v in export_env_plain.items():
+    # Export host-only env before running export commands
+    for k, v in (export_env or {}).items():
         esc = str(v).replace('"', '\\"')
         s += f'    export {k}="{esc}"\n'
 
