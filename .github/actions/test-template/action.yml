@@ -102,15 +102,17 @@ runs:
         cmd=$(cat <<RUN_TEST_EOF
         #!/bin/bash
         docker container rm -f nemo_container_${{ github.run_id }} || true
+
         ARG=("")
         if [[ "${{ inputs.cpu_only == 'true' }}" == "true" ]]; then
           ARG=("--runtime=nvidia --gpus all")
         fi
+
         docker run \
           --rm \
           -d \
           --name nemo_container_${{ github.run_id }} \
-          (${ARG[@]}) \
+          ${ARG[@]} \
           --shm-size=64g \
           --env TRANSFORMERS_OFFLINE=0 \
           --env HYDRA_FULL_ERROR=1 \
