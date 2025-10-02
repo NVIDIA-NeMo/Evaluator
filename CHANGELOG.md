@@ -8,7 +8,7 @@
 
 ### Known Issues
 
-* Very low flexible-extract score with GSM8k due to lack of stop word support in MegatronLLMDeployable. However this does not impact strict-match score
+* Very low flexible-extract score with GSM8k due to lack of stop word support in [MegatronLLMDeployable](stop token in MegatronLLMDeployable). However, this does not impact the strict-match score. 
   
 ## NVIDIA NeMo-Eval 0.1.0a0
 
