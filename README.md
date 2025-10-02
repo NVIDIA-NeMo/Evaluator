@@ -14,7 +14,7 @@ NeMo Evaluator is an open-source platform for robust, reproducible, and scalable
 
 [Tutorial](./docs/nemo-evaluator-launcher/tutorial.md) | [Supported Benchmarks](#supported-benchmarks-and-evaluation-harnesses) | [Configuration Examples](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator-launcher/examples) | [Contribution Guide](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/CONTRIBUTING.md)
 
-### Key Pillars
+## Key Pillars
 
 NeMo Evaluator is built on four core principles to provide a reliable and versatile evaluation experience:
 
@@ -23,7 +23,7 @@ NeMo Evaluator is built on four core principles to provide a reliable and versat
 - **State-of-the-Art Benchmarking**: Access a comprehensive suite of over 100 benchmarks from 18 popular open-source evaluation harnesses. See the full list of [Supported benchmarks and evaluation harnesses](#supported-benchmarks-and-evaluation-harnesses).
 - **Extensible and Customizable**: Integrate new evaluation harnesses, add custom benchmarks with proprietary data, and define custom result exporters for existing MLOps tooling.
 
-### How It Works: Launcher and Core Engine
+## How It Works: Launcher and Core Engine
 
 The platform consists of two main components:
 
@@ -51,7 +51,7 @@ graph TD
 ```
 
 
-### 🚀 Quickstart
+## 🚀 Quickstart
 
 Get your first evaluation result in minutes. This guide uses your local machine to run a small benchmark against an OpenAI API-compatible endpoint.
 
@@ -63,7 +63,7 @@ The launcher is the only package required to get started.
 pip install nemo-evaluator-launcher
 ```
 
-#### 2. Set Up Your Model Endpoint
+### 2. Set Up Your Model Endpoint
 
 NeMo Evaluator works with any model that exposes an OpenAI-compatible endpoint. For this quickstart, we will use the OpenAI API.
 
@@ -84,7 +84,7 @@ To use out-of-the-box build.nvidia.com APIs, you need an API key:
 2. In the Setup menu under Keys/Secrets, generate an API key.
 3. Set the environment variable by executing `export NGC_API_KEY=<YOUR_API_KEY>`.
 
-#### 3. Run Your First Evaluation
+### 3. Run Your First Evaluation
 
 Run a small evaluation on your local machine. The launcher automatically pulls the correct container and executes the benchmark. The list of benchmarks is directly configured in the YAML file.
 
@@ -99,7 +99,7 @@ nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/exampl
 
 After running this command, you will see a `job_id`, which can be used to track the job and its results. All logs will be available in your `<YOUR_OUTPUT_LOCAL_DIR>`.
 
-#### 4. Check Your Results
+### 4. Check Your Results
 
 Results, logs, and run configurations are saved locally. Inspect the status of the evaluation job by using the corresponding `job_id`:
 
@@ -107,7 +107,7 @@ Results, logs, and run configurations are saved locally. Inspect the status of t
 nemo-evaluator-launcher status <job_id_or_invocation_id>
 ```
 
-#### Next Steps
+### Next Steps
 
 - List all supported benchmarks:
 
@@ -120,7 +120,65 @@ nemo-evaluator-launcher status <job_id_or_invocation_id>
 - Learn to evaluate self-hosted models in the extended [Tutorial guide](./docs/nemo-evaluator-launcher/tutorial.md) for nemo-evaluator-launcher.
 - Customize your workflow with [Custom Exporters](./docs/nemo-evaluator-launcher/exporters/overview.md) or by evaluating with [proprietary data](./docs/nemo-evaluator/extending/framework-definition-file.md).
 
-### Supported Benchmarks and Evaluation Harnesses
+
+## Run with NeMo Framework
+
+The NeMo Framework is NVIDIA’s GPU-accelerated, end-to-end training platform for large language models (LLMs), multimodal models, and speech models. It enables seamless scaling of both pretraining and post-training workloads, from a single GPU to clusters with thousands of nodes, supporting Hugging Face/PyTorch and Megatron models. NeMo includes a suite of libraries and curated training recipes to help users build models from start to finish.
+
+The NeMo Evaluator is integrated within NeMo Framework, offering streamlined deployment and advanced evaluation capabilities for models trained using NeMo, leveraging state-of-the-art evaluation harnesses.
+
+### Features
+
+- **Multi-Backend Deployment**: Supports PyTriton and multi-instance evaluations using the Ray Serve deployment backend
+- **Production-Ready**: Supports high-performance inference with CUDA graphs and flash decoding
+- **Multi-GPU and Multi-Node Support**: Enables distributed inference across multiple GPUs and compute nodes
+- **OpenAI-Compatible API**: Provides RESTful endpoints aligned with OpenAI API specifications
+
+### 1. Start NeMo Framework Container
+
+For optimal performance and user experience, use the latest version of the [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags). Please fetch the most recent $TAG and run the following command to start a container:
+
+```bash
+docker run --rm -it -w /workdir -v $(pwd):/workdir \
+  --entrypoint bash \
+  --gpus all \
+  nvcr.io/nvidia/nemo:${TAG}
+```
+
+### 2. Deploy a Model
+
+```bash
+# Deploy a NeMo checkpoint
+python \
+  /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
+  --nemo_checkpoint "/path/to/your/checkpoint" \
+  --model_id megatron_model \
+  --port 8080 \
+  --host 0.0.0.0
+```
+
+### 3. Evaluate the Model
+
+```python
+from nemo_evaluator.api import evaluate
+from nemo_evaluator.api.api_dataclasses import ApiEndpoint, EvaluationConfig, EvaluationTarget
+
+# Configure evaluation
+api_endpoint = ApiEndpoint(
+    url="http://0.0.0.0:8080/v1/completions/",
+    type="completions",
+    model_id="megatron_model"
+)
+target = EvaluationTarget(api_endpoint=api_endpoint)
+config = EvaluationConfig(type="gsm8k", output_dir="results")
+
+# Run evaluation
+results = evaluate(target_cfg=target, eval_cfg=config)
+print(results)
+```
+
+
+## Supported Benchmarks and Evaluation Harnesses
 
 NeMo Evaluator Launcher provides pre-built evaluation containers for different evaluation harnesses through the NVIDIA NGC catalog. Each harness supports a variety of benchmarks, which can then be called via `nemo-evaluator`. This table provides a list of benchmark names per harness. A more detailed list of task names can be found in the [list of NGC containers](./docs/nemo-evaluator/index.md#ngc-containers).
 
@@ -144,6 +202,20 @@ NeMo Evaluator Launcher provides pre-built evaluation containers for different e
 | **tooltalk** | Tool usage evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk) | `25.08.1` | ToolTalk |
 | **vlmevalkit** | Vision-language model evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit) | `25.08.1` | AI2D, ChartQA, OCRBench, SlideVQA |
 
-### Contribution Guide
+
+
+## 🤝 Contribution Guide
 
 We welcome community contributions. Please see our [Contribution Guide](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/CONTRIBUTING.md) for instructions on submitting pull requests, reporting issues, and suggesting features.
+
+
+## 📄 License
+
+This project is licensed under the Apache License 2.0. See the [LICENSE](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/LICENSE) file for details.
+
+
+## 📞 Support
+
+- **Issues**: [GitHub Issues](https://github.com/NVIDIA-NeMo/Evaluator/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/NVIDIA-NeMo/Evaluator/discussions)
+- **Documentation**: [NeMo Documentation](https://docs.nvidia.com/nemo/evaluator/latest/index.html)
