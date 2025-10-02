@@ -35,9 +35,8 @@ from nvidia_eval_commons.api.api_dataclasses import (
 logger = logging.getLogger(__name__)
 
 
-# NOTE(martas): set_env_vars is used as arg to ensure vars are set prior to deployment
 @pytest.fixture(scope="module", autouse=True)
-def deployment_process(set_env_vars):
+def deployment_process():
     """Fixture to deploy the HF model on Ray server."""
     hf_model_id = "meta-llama/Llama-3.2-1B-Instruct"
     model_name = "hf_model"

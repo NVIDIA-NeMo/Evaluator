@@ -35,9 +35,8 @@ from nvidia_eval_commons.api.api_dataclasses import (
 logger = logging.getLogger(__name__)
 
 
-# NOTE(martas): set_env_vars is used as arg to ensure vars are set prior to deployment
 @pytest.fixture(scope="module", autouse=True)
-def deployment_process(set_env_vars):
+def deployment_process():
     """Fixture to deploy the nemo checkpoint on Triton server."""
     nemo2_ckpt_path = "/home/TestData/nemo2_ckpt/llama-3_2-1b-instruct_v2.0"
     model_name = "megatron_model"
