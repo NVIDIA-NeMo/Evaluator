@@ -91,7 +91,24 @@ class Cmd:
                 config_dir=self.config_dir,
             )
 
-        invocation_id = run_eval(config, self.dry_run)
+        # Show job information before running
+        if not self.dry_run:
+            print("📋 Jobs to be submitted:")
+            for idx, task in enumerate(config.evaluation.tasks):
+                print(f"  • Job {idx}: {task.name}")
+            print()
+
+        result = run_eval(config, self.dry_run)
+        invocation_id = result.invocation_id if result else None
+
+        # Handle complete failure case
+        if (
+            not result.overall_success
+            and not result.invocation_id
+            and not result.job_results
+        ):
+            print(f"❌ Job submission failed completely: {result.error_message}")
+            return
 
         # Save the complete configuration to the raw_configs directory
         if not self.dry_run and invocation_id is not None:
@@ -129,9 +146,38 @@ class Cmd:
 
             print(f"Complete run config saved to: {config_path}")
 
-        if invocation_id is not None:
-            print(f"to check status: nemo-evaluator-launcher status {invocation_id}")
-            print(f"to kill all jobs: nemo-evaluator-launcher kill {invocation_id}")
-            print(
-                f"to kill individual jobs: nemo-evaluator-launcher kill <job_id> (e.g., {invocation_id}.0)"
+        if invocation_id is not None and not self.dry_run and result:
+            # Check if all jobs were submitted successfully
+            all_successful = all(job.success for job in result.job_results)
+            success_icon = "✅" if all_successful else "⚠️"
+            status_text = (
+                "All jobs submitted successfully"
+                if all_successful
+                else "Some jobs failed to submit"
             )
+
+            print(f"{success_icon} {status_text} | Invocation ID: {invocation_id}")
+            print("\n📋 Job submission results:")
+
+            for job_result in result.job_results:
+                status_icon = "✅" if job_result.success else "❌"
+                print(
+                    f"  {status_icon} Job {job_result.job_id}: {job_result.task_name}"
+                )
+                if not job_result.success and job_result.error_message:
+                    print(f"    Error: {job_result.error_message}")
+
+            print("\n🔍 Commands:")
+            print(f"  to check status: nemo-evaluator-launcher status {invocation_id}")
+            print(f"  to kill all jobs: nemo-evaluator-launcher kill {invocation_id}")
+            print("\n🔪 Kill individual jobs:")
+            for job_result in result.job_results:
+                if (
+                    job_result.success
+                ):  # Only show kill commands for successfully submitted jobs
+                    print(
+                        f"  nemo-evaluator-launcher kill {job_result.job_id}  # {job_result.task_name}"
+                    )
+        elif self.dry_run:
+            print(f"🔍 Dry run completed | Invocation ID: {invocation_id}")
+            print("No jobs were actually submitted. Remove --dry-run to execute.")

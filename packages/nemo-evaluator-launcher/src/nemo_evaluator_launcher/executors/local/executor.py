@@ -48,8 +48,10 @@ from nemo_evaluator_launcher.common.mapping import (
 )
 from nemo_evaluator_launcher.executors.base import (
     BaseExecutor,
+    ExecutionResult,
     ExecutionState,
     ExecutionStatus,
+    JobSubmissionResult,
 )
 from nemo_evaluator_launcher.executors.registry import register_executor
 
@@ -57,7 +59,7 @@ from nemo_evaluator_launcher.executors.registry import register_executor
 @register_executor("local")
 class LocalExecutor(BaseExecutor):
     @classmethod
-    def execute_eval(cls, cfg: DictConfig, dry_run: bool = False) -> str:
+    def execute_eval(cls, cfg: DictConfig, dry_run: bool = False) -> ExecutionResult:
         """Run evaluation jobs locally using the provided configuration.
 
         Args:
@@ -78,6 +80,24 @@ class LocalExecutor(BaseExecutor):
 
         # Generate invocation ID for this evaluation run
         invocation_id = generate_invocation_id()
+
+        # Check if Docker is available before proceeding
+        try:
+            result = subprocess.run(
+                ["docker", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode != 0:
+                stdout_msg = result.stdout if result.stdout else ""
+                stderr_msg = result.stderr if result.stderr else ""
+                full_output = f"{stdout_msg}\n{stderr_msg}".strip()
+                raise RuntimeError(f"Docker is not available: {full_output}")
+        except FileNotFoundError:
+            raise RuntimeError("Docker is not installed or not in PATH")
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("Docker command timed out")
 
         output_dir = pathlib.Path(cfg.execution.output_dir).absolute() / (
             get_timestamp_string(include_microseconds=False) + "-" + invocation_id
@@ -223,41 +243,60 @@ class LocalExecutor(BaseExecutor):
                     with open(task_output_dir / "run.sh", "r") as f:
                         print(f.read())
             print("\nTo execute, run without --dry-run")
-            return invocation_id
+            # For dry run, all jobs are considered successfully prepared
+            job_results = [
+                JobSubmissionResult(job_id=job_id, task_name=task.name, success=True)
+                for job_id, task in zip(job_ids, cfg.evaluation.tasks)
+            ]
+            return ExecutionResult(
+                invocation_id=invocation_id,
+                job_results=job_results,
+                overall_success=True,
+            )
 
-        # Launch bash scripts with Popen for non-blocking execution.
-        # To ensure subprocess continues after python exits:
-        # - on Unix-like systems, to fully detach the subprocess
-        #   so it does not die when Python exits, pass start_new_session=True;
-        # - on Widnows use creationflags=subprocess.CREATE_NEW_PROCESS_GROUP flag.
+        # Launch bash scripts asynchronously for non-blocking execution
         os_name = platform.system()
+        processes = []
+
         if is_execution_mode_sequential:
             if os_name == "Windows":
-                subprocess.Popen(
+                proc = subprocess.Popen(
                     shlex.split("bash run_all.sequential.sh"),
                     cwd=output_dir,
                     creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
                 )
             else:
-                subprocess.Popen(
+                proc = subprocess.Popen(
                     shlex.split("bash run_all.sequential.sh"),
                     cwd=output_dir,
                     start_new_session=True,
                 )
+            processes.append(("sequential", proc))
         else:
             for task in cfg.evaluation.tasks:
                 if os_name == "Windows":
-                    subprocess.Popen(
+                    proc = subprocess.Popen(
                         shlex.split("bash run.sh"),
                         cwd=output_dir / task.name,
                         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
                     )
                 else:
-                    subprocess.Popen(
+                    proc = subprocess.Popen(
                         shlex.split("bash run.sh"),
                         cwd=output_dir / task.name,
                         start_new_session=True,
                     )
+                processes.append((task.name, proc))
+
+        # Give processes a moment to start, then check for immediate failures
+        time.sleep(2)  # Wait 2 seconds for processes to start
+
+        for task_name, proc in processes:
+            if proc.poll() is not None:  # Process has already terminated
+                # Process failed quickly - likely a startup error like "docker not found"
+                raise RuntimeError(
+                    f"Task {task_name} failed immediately after launch (exit code: {proc.returncode}). Check logs for details."
+                )
 
         print("\nCommands for real-time monitoring:")
         for job_id, evaluation_task in zip(job_ids, evaluation_tasks):
@@ -267,7 +306,34 @@ class LocalExecutor(BaseExecutor):
         print("\nFollow all logs for this invocation:")
         print(f"  tail -f {output_dir}/*/logs/stdout.log")
 
-        return invocation_id
+        # Check if job submission succeeded for each job
+        job_results = []
+        for job_id, task, evaluation_task in zip(
+            job_ids, cfg.evaluation.tasks, evaluation_tasks
+        ):
+            container_name = evaluation_task["container_name"]
+
+            # Check if submission succeeded (got a container name)
+            if container_name is not None:
+                success = True
+                error_message = None
+            else:
+                success = False
+                error_message = "Local job submission failed - no container created"
+
+            job_results.append(
+                JobSubmissionResult(
+                    job_id=job_id,
+                    task_name=task.name,
+                    success=success,
+                    error_message=error_message,
+                )
+            )
+        return ExecutionResult(
+            invocation_id=invocation_id,
+            job_results=job_results,
+            overall_success=all(job.success for job in job_results),
+        )
 
     @staticmethod
     def get_status(id: str) -> List[ExecutionStatus]:
@@ -426,6 +492,15 @@ class LocalExecutor(BaseExecutor):
         )
         if result.returncode == 0:
             killed_something = True
+        elif result.returncode != 0:
+            # If docker stop fails, capture full output for error message
+            stdout_msg = result.stdout if result.stdout else ""
+            stderr_msg = result.stderr if result.stderr else ""
+            full_output = f"{stdout_msg}\n{stderr_msg}".strip()
+            if full_output:  # Only raise if there's actual error output
+                raise RuntimeError(
+                    f"Failed to stop container {container_name}: {full_output}"
+                )
         # Don't raise error if container doesn't exist (might be still pulling)
 
         # Find and kill Docker processes for this container
@@ -437,6 +512,15 @@ class LocalExecutor(BaseExecutor):
         )
         if result.returncode == 0:
             killed_something = True
+        elif result.returncode != 0:
+            # If pkill fails, capture full output for error message
+            stdout_msg = result.stdout if result.stdout else ""
+            stderr_msg = result.stderr if result.stderr else ""
+            full_output = f"{stdout_msg}\n{stderr_msg}".strip()
+            if full_output:  # Only raise if there's actual error output
+                raise RuntimeError(
+                    f"Failed to kill processes for container {container_name}: {full_output}"
+                )
 
         # Mark job as killed in database if we killed something
         if killed_something:

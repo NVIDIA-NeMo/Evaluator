@@ -21,7 +21,7 @@ Defines the abstract interface for all executor implementations and common statu
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 from omegaconf import DictConfig
 
@@ -45,10 +45,30 @@ class ExecutionStatus:
     progress: Optional[dict[str, Any]] = None
 
 
+@dataclass
+class JobSubmissionResult:
+    """Result of a job submission attempt."""
+
+    job_id: str
+    task_name: str
+    success: bool
+    error_message: Optional[str] = None
+
+
+@dataclass
+class ExecutionResult:
+    """Result of an execution run containing invocation ID and job submission results."""
+
+    invocation_id: str
+    job_results: List[JobSubmissionResult]
+    overall_success: bool
+    error_message: Optional[str] = None
+
+
 class BaseExecutor(ABC):
     @staticmethod
     @abstractmethod
-    def execute_eval(cfg: DictConfig, dry_run: bool = False) -> str:
+    def execute_eval(cfg: DictConfig, dry_run: bool = False) -> ExecutionResult:
         """Run an evaluation job using the provided configuration.
 
         Args:
@@ -56,7 +76,7 @@ class BaseExecutor(ABC):
             dry_run: If True, prepare scripts and save them without execution.
 
         Returns:
-            str: The invocation ID for the evaluation run.
+            ExecutionResult: The execution result containing invocation ID and job submission results.
 
         Raises:
             NotImplementedError: If not implemented by a subclass.

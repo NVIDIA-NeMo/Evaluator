@@ -27,6 +27,7 @@ from omegaconf import DictConfig, OmegaConf
 from nemo_evaluator_launcher.api.types import RunConfig
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.common.mapping import load_tasks_mapping
+from nemo_evaluator_launcher.executors.base import ExecutionResult
 from nemo_evaluator_launcher.executors.registry import get_executor
 from nemo_evaluator_launcher.exporters import create_exporter
 
@@ -73,30 +74,6 @@ def _validate_no_missing_values(cfg: Any, path: str = "") -> None:
         for i, value in enumerate(cfg):
             current_path = f"{path}[{i}]"
             _validate_no_missing_values(value, current_path)
-
-
-def run_eval(cfg: RunConfig, dry_run: bool = False) -> Optional[str]:
-    """Run evaluation with specified config and overrides.
-
-    Args:
-        cfg: The configuration object for the evaluation run.
-        dry_run: If True, do not run the evaluation, just prepare scripts and save them.
-
-    Returns:
-        Optional[str]: The invocation ID for the evaluation run.
-
-    Raises:
-        ValueError: If configuration validation fails or MISSING values are found.
-        RuntimeError: If the executor fails to start the evaluation.
-    """
-    # Validate that no MISSING values exist in the configuration
-    _validate_no_missing_values(cfg)
-
-    if dry_run:
-        print(OmegaConf.to_yaml(cfg))
-
-    _check_api_endpoint_when_deployment_is_configured(cfg)
-    return get_executor(cfg.execution.type).execute_eval(cfg, dry_run)
 
 
 def get_status(job_ids: list[str]) -> list[dict[str, Any]]:
@@ -675,4 +652,26 @@ def _check_api_endpoint_when_deployment_is_configured(cfg: RunConfig) -> None:
     if "model_id" in cfg.target.api_endpoint:
         raise ValueError(
             "when deployment is configured, model_id field should not exist in target.api_endpoint"
+        )
+
+
+def run_eval(cfg: RunConfig, dry_run: bool = False) -> ExecutionResult:
+    """Run an evaluation using the specified configuration and return detailed results.
+
+    Args:
+        cfg: The configuration object for the evaluation run.
+        dry_run: If True, prepare scripts and save them without execution.
+
+    Returns:
+        ExecutionResult: The execution result containing invocation ID and job submission results, or None if failed.
+    """
+    try:
+        _check_api_endpoint_when_deployment_is_configured(cfg)
+        return get_executor(cfg.execution.type).execute_eval(cfg, dry_run)
+    except Exception as e:
+        return ExecutionResult(
+            invocation_id="",
+            job_results=[],
+            overall_success=False,
+            error_message=str(e),
         )

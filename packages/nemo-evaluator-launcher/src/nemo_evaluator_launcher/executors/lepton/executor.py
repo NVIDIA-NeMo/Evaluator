@@ -38,8 +38,10 @@ from nemo_evaluator_launcher.common.mapping import (
 )
 from nemo_evaluator_launcher.executors.base import (
     BaseExecutor,
+    ExecutionResult,
     ExecutionState,
     ExecutionStatus,
+    JobSubmissionResult,
 )
 from nemo_evaluator_launcher.executors.registry import register_executor
 
@@ -56,7 +58,7 @@ from .job_helpers import create_lepton_job, delete_lepton_job, get_lepton_job_st
 @register_executor("lepton")
 class LeptonExecutor(BaseExecutor):
     @staticmethod
-    def execute_eval(cfg: DictConfig, dry_run: bool = False) -> str:
+    def execute_eval(cfg: DictConfig, dry_run: bool = False) -> ExecutionResult:
         """Deploy dedicated endpoints for each task on Lepton and run evaluation jobs.
 
         For better resource isolation and parallel execution, each evaluation task
@@ -534,7 +536,37 @@ class LeptonExecutor(BaseExecutor):
             # Note: Jobs will continue running on Lepton infrastructure
             # Status can be checked using nemo-evaluator-launcher status command
 
-            return invocation_id
+            # Create job submission results for all submitted jobs
+            job_results = []
+            for idx, (lepton_job_name, task) in enumerate(
+                zip(lepton_job_names, cfg.evaluation.tasks)
+            ):
+                job_id = generate_job_id(invocation_id, idx)
+
+                # Check if submission succeeded (got a job name)
+                if lepton_job_name is not None:
+                    success = True
+                    error_message = None
+                else:
+                    success = False
+                    error_message = (
+                        "Lepton job submission failed - no job name returned"
+                    )
+
+                job_results.append(
+                    JobSubmissionResult(
+                        job_id=job_id,
+                        task_name=task.name,
+                        success=success,
+                        error_message=error_message,
+                    )
+                )
+
+            return ExecutionResult(
+                invocation_id=invocation_id,
+                job_results=job_results,
+                overall_success=all(job.success for job in job_results),
+            )
 
         except Exception as e:
             # Clean up any created endpoints on failure

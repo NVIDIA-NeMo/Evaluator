@@ -52,8 +52,10 @@ from nemo_evaluator_launcher.common.mapping import (
 )
 from nemo_evaluator_launcher.executors.base import (
     BaseExecutor,
+    ExecutionResult,
     ExecutionState,
     ExecutionStatus,
+    JobSubmissionResult,
 )
 from nemo_evaluator_launcher.executors.registry import register_executor
 
@@ -61,7 +63,7 @@ from nemo_evaluator_launcher.executors.registry import register_executor
 @register_executor("slurm")
 class SlurmExecutor(BaseExecutor):
     @staticmethod
-    def execute_eval(cfg: DictConfig, dry_run: bool = False) -> str:
+    def execute_eval(cfg: DictConfig, dry_run: bool = False) -> ExecutionResult:
         """Submit evaluation jobs to a SLURM cluster using the provided configuration.
 
         Args:
@@ -69,13 +71,8 @@ class SlurmExecutor(BaseExecutor):
             dry_run: If True, prepare scripts and save them without submission.
 
         Returns:
-            str: The invocation ID for the evaluation run.
-
-        Raises:
-            AssertionError: If deployment type is 'none'.
-            RuntimeError: If remote directory creation or sbatch submission fails.
+            ExecutionResult: The execution result containing invocation ID and job submission results.
         """
-
         # Generate invocation ID
         invocation_id = generate_invocation_id()
 
@@ -157,7 +154,7 @@ class SlurmExecutor(BaseExecutor):
                 username=cfg.execution.username,
                 hostname=cfg.execution.hostname,
             )
-            slurm_job_ids = _sbatch_remote_runsubs(
+            slurm_submission_results = _sbatch_remote_runsubs(
                 remote_runsub_paths=remote_runsub_paths,
                 username=cfg.execution.username,
                 hostname=cfg.execution.hostname,
@@ -169,28 +166,94 @@ class SlurmExecutor(BaseExecutor):
                 socket=socket_or_none,
             )
 
-            # save launched jobs metadata
+            # save launched jobs metadata and create job submission results
             db = ExecutionDB()
-            for idx, (slurm_job_id, remote_runsub_path) in enumerate(
-                zip(slurm_job_ids, remote_runsub_paths)
+            job_results = []
+
+            for idx, (
+                (slurm_job_id, error_message),
+                task,
+                remote_runsub_path,
+            ) in enumerate(
+                zip(slurm_submission_results, cfg.evaluation.tasks, remote_runsub_paths)
             ):
-                db.write_job(
-                    job=JobData(
-                        invocation_id=invocation_id,
-                        job_id=generate_job_id(invocation_id, idx),
-                        timestamp=time.time(),
-                        executor="slurm",
-                        data={
-                            "slurm_job_id": slurm_job_id,
-                            "remote_rundir_path": str(remote_runsub_path.parent),
-                            "hostname": cfg.execution.hostname,
-                            "username": cfg.execution.username,
-                            "eval_image": eval_images[idx],
-                        },
-                        config=OmegaConf.to_object(cfg),
+                job_id = generate_job_id(invocation_id, idx)
+
+                # Only save to database if submission succeeded
+                if slurm_job_id is not None:
+                    db.write_job(
+                        job=JobData(
+                            invocation_id=invocation_id,
+                            job_id=job_id,
+                            timestamp=time.time(),
+                            executor="slurm",
+                            data={
+                                "slurm_job_id": slurm_job_id,
+                                "remote_rundir_path": str(remote_runsub_path.parent),
+                                "hostname": cfg.execution.hostname,
+                                "username": cfg.execution.username,
+                                "eval_image": eval_images[idx],
+                            },
+                            config=OmegaConf.to_object(cfg),
+                        )
+                    )
+                    success = True
+                else:
+                    success = False
+
+                job_results.append(
+                    JobSubmissionResult(
+                        job_id=job_id,
+                        task_name=task.name,
+                        success=success,
+                        error_message=error_message,
                     )
                 )
-            return invocation_id
+
+            return ExecutionResult(
+                invocation_id=invocation_id,
+                job_results=job_results,
+                overall_success=all(job.success for job in job_results),
+            )
+
+    @staticmethod
+    def _check_slurm_job_status(
+        slurm_job_id: str, hostname: str, username: str
+    ) -> Optional[dict]:
+        """Check the status of a SLURM job immediately after submission.
+
+        Args:
+            slurm_job_id: The SLURM job ID to check
+            hostname: The hostname of the SLURM cluster
+            username: The username for SSH connection
+
+        Returns:
+            dict: Job status information or None if check failed
+        """
+        try:
+            # Use squeue to check job status
+            cmd = f"squeue -j {slurm_job_id} --format='%.18i %.8T %.10M %.6D %R' --noheader"
+            result = subprocess.run(
+                ["ssh", f"{username}@{hostname}", cmd],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            if result.returncode == 0 and result.stdout.strip():
+                # Parse the output: JOBID STATE TIME NODES REASON
+                parts = result.stdout.strip().split()
+                if len(parts) >= 2:
+                    return {
+                        "job_id": parts[0],
+                        "state": parts[1],
+                        "time": parts[2] if len(parts) > 2 else "",
+                        "nodes": parts[3] if len(parts) > 3 else "",
+                        "reason": parts[4] if len(parts) > 4 else "",
+                    }
+            return None
+        except Exception:
+            return None
 
     @staticmethod
     def get_status(id: str) -> List[ExecutionStatus]:
@@ -674,11 +737,14 @@ def _close_master_connection(
         args=shlex.split(ssh_command), capture_output=True
     )
     if completed_process.returncode != 0:
-        raise RuntimeError(
-            "failed to close the master connection\n{}".format(
-                completed_process.stderr.decode("utf-8")
-            )
+        stdout_msg = (
+            completed_process.stdout.decode("utf-8") if completed_process.stdout else ""
         )
+        stderr_msg = (
+            completed_process.stderr.decode("utf-8") if completed_process.stderr else ""
+        )
+        full_output = f"{stdout_msg}\n{stderr_msg}".strip()
+        raise RuntimeError(full_output)
 
 
 def _make_remote_execution_output_dir(
@@ -694,13 +760,18 @@ def _make_remote_execution_output_dir(
     ssh_command.append(f"{username}@{hostname}")
     ssh_command.append(mkdir_command)
     ssh_command = " ".join(ssh_command)
-    completed_process = subprocess.run(args=shlex.split(ssh_command))
+    completed_process = subprocess.run(
+        args=shlex.split(ssh_command), capture_output=True
+    )
     if completed_process.returncode != 0:
-        raise RuntimeError(
-            "failed to make a remote execution output dir\n{}".format(
-                completed_process.stderr.decode("utf-8")
-            )
+        stdout_msg = (
+            completed_process.stdout.decode("utf-8") if completed_process.stdout else ""
         )
+        stderr_msg = (
+            completed_process.stderr.decode("utf-8") if completed_process.stderr else ""
+        )
+        full_output = f"{stdout_msg}\n{stderr_msg}".strip()
+        raise RuntimeError(full_output)
 
 
 def _rsync_upload_rundirs(
@@ -725,13 +796,18 @@ def _rsync_upload_rundirs(
     remote_destination_str = f"{username}@{hostname}:{remote_target}"
     local_sources_str = " ".join(map(str, local_sources))
     rsync_upload_command = f"rsync -qcaz {local_sources_str} {remote_destination_str}"
-    completed_process = subprocess.run(args=shlex.split(rsync_upload_command))
+    completed_process = subprocess.run(
+        args=shlex.split(rsync_upload_command), capture_output=True
+    )
     if completed_process.returncode != 0:
-        raise RuntimeError(
-            "failed to upload local sources\n{}".format(
-                completed_process.stderr.decode("utf-8")
-            )
+        stdout_msg = (
+            completed_process.stdout.decode("utf-8") if completed_process.stdout else ""
         )
+        stderr_msg = (
+            completed_process.stderr.decode("utf-8") if completed_process.stderr else ""
+        )
+        full_output = f"{stdout_msg}\n{stderr_msg}".strip()
+        raise RuntimeError(full_output)
 
 
 def _sbatch_remote_runsubs(
@@ -739,7 +815,15 @@ def _sbatch_remote_runsubs(
     username: str,
     hostname: str,
     socket: str | None,
-) -> List[str]:
+) -> List[tuple[str | None, str | None]]:
+    """Submit SLURM jobs and return job IDs with error messages.
+
+    Uses fast batch submission but provides individual error tracking.
+
+    Returns:
+        List of tuples: (job_id, error_message) for each job
+    """
+    # Fast approach: submit all jobs at once
     sbatch_commands = [
         "sbatch {}".format(remote_runsub_path)
         for remote_runsub_path in remote_runsub_paths
@@ -754,18 +838,30 @@ def _sbatch_remote_runsubs(
     ssh_command = " ".join(ssh_command)
 
     completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
+        args=shlex.split(ssh_command), capture_output=True, text=True
     )
-    if completed_process.returncode != 0:
-        raise RuntimeError(
-            "failed to submit sbatch scripts for execution\n{}".format(
-                completed_process.stderr.decode("utf-8")
-            )
-        )
 
-    sbatch_output = completed_process.stdout.decode("utf-8")
-    slurm_job_ids = re.findall(r"(?<=Submitted batch job )\d+", sbatch_output)
-    return slurm_job_ids
+    if completed_process.returncode != 0:
+        # SSH or batch submission failed - all jobs failed
+        error_msg = f"SSH/sbatch failed (exit code {completed_process.returncode}): {completed_process.stderr.strip()}"
+        return [(None, error_msg) for _ in remote_runsub_paths]
+
+    # Parse all job IDs from output
+    sbatch_output = completed_process.stdout.strip()
+    job_ids = re.findall(r"Submitted batch job (\d+)", sbatch_output)
+
+    # Create results - if we got fewer job IDs than expected, some failed
+    results = []
+    for i, remote_runsub_path in enumerate(remote_runsub_paths):
+        if i < len(job_ids):
+            # Job submitted successfully
+            results.append((job_ids[i], None))
+        else:
+            # Job failed (not enough job IDs returned)
+            error_msg = f"Job submission failed - no job ID returned for {remote_runsub_path.name}"
+            results.append((None, error_msg))
+
+    return results
 
 
 def _query_slurm_jobs_status(
@@ -803,9 +899,13 @@ def _query_slurm_jobs_status(
         raise RuntimeError(
             "failed to query slurm job status\n{}".format(
                 completed_process.stderr.decode("utf-8")
+                if completed_process.stderr
+                else "No error details available"
             )
         )
-    sacct_output = completed_process.stdout.decode("utf-8")
+    sacct_output = (
+        completed_process.stdout.decode("utf-8") if completed_process.stdout else ""
+    )
     sacct_output_lines = sacct_output.strip().split("\n")
     slurm_jobs_status = {}
     for slurm_job_id in slurm_job_ids:
@@ -841,6 +941,8 @@ def _kill_slurm_job(
         raise RuntimeError(
             "failed to kill slurm job\n{}".format(
                 completed_process.stderr.decode("utf-8")
+                if completed_process.stderr
+                else "No error details available"
             )
         )
     return completed_process
@@ -917,9 +1019,13 @@ def _read_files_from_remote(
         raise RuntimeError(
             "failed to read files from remote\n{}".format(
                 completed_process.stderr.decode("utf-8")
+                if completed_process.stderr
+                else "No error details available"
             )
         )
-    cat_outputs = completed_process.stdout.decode("utf-8")
+    cat_outputs = (
+        completed_process.stdout.decode("utf-8") if completed_process.stdout else ""
+    )
     cat_outputs = cat_outputs.replace("\n", " ")
     matches = re.findall(r"(?<=_START_OF_FILE_)(.*?)(?=_END_OF_FILE_)", cat_outputs)
     outputs = [match.strip() for match in matches]
