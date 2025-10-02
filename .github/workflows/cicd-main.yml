@@ -174,7 +174,7 @@ jobs:
         uses: ./.github/actions/test-template
         with:
           script: Launch_Integration_Tests
-          timeout: ${{ matrix.timeout }}
+          timeout: 60
           type_of_test: "integration_tests"
           cpu-only: false
           use-credentials: true
