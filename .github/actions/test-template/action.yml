@@ -26,13 +26,25 @@ inputs:
     description: "Failure will cancel all other tests if set to true"
     required: false
     default: "false"
-  is_unit_test:
-    description: "Upload coverage as unit test"
+  type_of_test:
+    description: "Type of test to run"
+    required: false
+    default: "unit_tests"
+  package:
+    description: "Package to test. Only required for unit and functional tests."
+    required: false
+  use-credentials:
+    description: "Use credentials for test"
     required: false
     default: "false"
-  package:
-    description: "Package to test"
-    required: true
+  ngc-api-user:
+    description: "NGC API user"
+    required: false
+    default: "false"
+  ngc-api-key:
+    description: "NGC API key"
+    required: false
+    default: "false"
 
 runs:
   using: "composite"
@@ -42,11 +54,41 @@ runs:
       with:
         path: Eval
 
-    - name: Build container
+    - name: Validate type of test
       shell: bash
       run: |
+        echo ::group::Validate type of test
+        if [[ "${{ inputs.type_of_test }}" != "unit_tests" && "${{ inputs.type_of_test }}" != "functional_tests" && "${{ inputs.type_of_test }}" != "integration_tests" ]]; then
+          echo "Invalid type of test: ${{ inputs.type_of_test }}"
+          exit 1
+        fi
+        echo ::endgroup::
+
+    - name: Use credentials
+      shell: bash
+      if: ${{ inputs.type_of_test == 'integration_tests' }}
+      run: |
+        echo ::group::Use credentials
+        echo ${{ inputs.ngc_api_key }} | docker login -u ${{ inputs.ngc_api_user }} --password-stdin nvcr.io
+        echo ::endgroup::
+
+    - name: Build container for unit and functional tests
+      shell: bash
+      if: ${{ inputs.type_of_test != 'integration_tests' }}
+      run: |
         echo ::group::Build test container
-        docker build -f docker/Dockerfile.ci --build-arg PACKAGE=${{ inputs.package }} -t eval .
+        docker build -f docker/Dockerfile.ci \
+          --build-arg PACKAGE=${{ inputs.package }} \
+          -t eval .
+        echo ::endgroup::
+
+    - name: Build container for integration tests
+      shell: bash
+      if: ${{ inputs.type_of_test == 'integration_tests' }}
+      run: |
+        echo ::group::Build test container
+        docker build -f docker/Dockerfile.ci-integration \
+          -t eval .
         echo ::endgroup::
 
     - name: Start container
@@ -80,7 +122,7 @@ runs:
       shell: bash
       run: |
         echo ::group::Create run-script
-        COVERAGE_PREFIX=$([[ "${{ inputs.is_unit_test }}" == "true" ]] && echo "unit-test" || echo "e2e")
+        COVERAGE_PREFIX=$([[ "${{ inputs.type_of_test }}" == "unit_tests" ]] && echo "unit-test" || echo "e2e")
         echo "coverage-prefix=$COVERAGE_PREFIX" | tee -a "$GITHUB_OUTPUT"
 
         cmd=$(cat <<'RUN_TEST_EOF'
@@ -89,7 +131,7 @@ runs:
         docker exec -t nemo_container_${{ github.run_id }} bash -c '
           set -e
           cd packages/${{ inputs.package }}
-          bash tests/${{ inputs.is_unit_test == 'true' && 'unit_tests' || 'functional_tests' }}/${{ inputs.script }}.sh
+          bash tests/${{ inputs.type_of_test == 'unit_tests' && 'unit_tests' || 'functional_tests' }}/${{ inputs.script }}.sh
         '
 
         RUN_TEST_EOF
