@@ -106,7 +106,7 @@ runs:
           --rm \
           -d \
           --name nemo_container_${{ github.run_id }} \
-          ${${{ inputs.cpu_only == 'true' }} && echo "--runtime=nvidia --gpus all" || echo ""} \
+          $([[ "${{ inputs.cpu_only == 'true' }}" == "true" && echo "" || echo "--runtime=nvidia --gpus all" ]]) \
           --shm-size=64g \
           --env TRANSFORMERS_OFFLINE=0 \
           --env HYDRA_FULL_ERROR=1 \
