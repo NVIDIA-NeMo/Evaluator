@@ -32,38 +32,10 @@ def n():
 
 
 @pytest.fixture(autouse=True)
-def installed_modules(n: int):
+def installed_modules(n: int, monkeypatch):
     if not n:
-        # Temporarily uninstall nvidia-simple-evals to make it unavailable
-        import subprocess
-
-        if os.environ.get("UV_PROJECT_ENVIRONMENT"):
-            pip_cmd = ["uv", "pip"]
-            flags = []
-        else:
-            pip_cmd = [sys.executable, "-m", "pip"]
-            flags = ["-y"]
-        try:
-            subprocess.run(
-                pip_cmd + ["uninstall", *flags, "nvidia-simple-evals"],
-                capture_output=False,
-                check=False,
-            )
-        except Exception:
-            pass  # Ignore any errors during uninstall
-
+        monkeypatch.setitem(sys.modules, "core_evals", None)
         yield
-
-        # Reinstall the package
-        try:
-            subprocess.run(
-                pip_cmd + ["install", "nvidia-simple-evals"],
-                capture_output=False,
-                check=False,
-            )
-        except Exception:
-            pass  # Ignore any errors during reinstall
-
         return
 
     pkg = "core_evals"
