@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
+## Deploy
 
-from nemo_eval.api import deploy
+CHECKPOINT_PATH="/checkpoints/llama-3_2-1b-instruct_v2.0"
 
-if __name__ == "__main__":
-    CHECKPOINT_PATH = sys.argv[1]
-    deploy(
-        nemo_checkpoint=CHECKPOINT_PATH,
-        max_input_len=8192,
-    )
+python \
+  /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
+  --nemo_checkpoint ${CHECKPOINT_PATH} \
+  --model_id megatron_model \
+  --port 8080 \
+  --host 0.0.0.0
