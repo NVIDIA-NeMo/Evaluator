@@ -17,8 +17,10 @@ import hashlib
 import os
 import subprocess
 import tempfile
+import time
 from typing import Any, TypeVar
 
+import requests
 import yaml
 
 from nemo_evaluator.logging import get_logger
@@ -169,3 +171,53 @@ def run_command(command, cwd=None, verbose=False, propagate_errors=False):
             )
 
         return rc
+
+
+def check_health(
+    health_url: str, max_retries: int = 600, retry_interval: int = 2
+) -> bool:
+    """
+    Check the health of the server.
+    """
+    for _ in range(max_retries):
+        try:
+            response = requests.get(health_url)
+            if response.status_code == 200:
+                return True
+            logger.info(f"Server replied with status code: {response.status_code}")
+            time.sleep(retry_interval)
+        except requests.exceptions.RequestException:
+            logger.info("Server is not ready")
+            time.sleep(retry_interval)
+    return False
+
+
+def check_endpoint(
+    endpoint_url: str,
+    endpoint_type: str,
+    model_name: str,
+    max_retries: int = 600,
+    retry_interval: int = 2,
+) -> bool:
+    """
+    Check if the endpoint is responsive and ready to accept requests.
+    """
+    payload = {"model": model_name, "max_tokens": 1}
+    if endpoint_type == "completions":
+        payload["prompt"] = "hello, my name is"
+    elif endpoint_type == "chat":
+        payload["messages"] = [{"role": "user", "content": "hello, what is your name?"}]
+    else:
+        raise ValueError(f"Invalid endpoint type: {endpoint_type}")
+
+    for _ in range(max_retries):
+        try:
+            response = requests.post(endpoint_url, json=payload)
+            if response.status_code == 200:
+                return True
+            logger.info(f"Server replied with status code: {response.status_code}")
+            time.sleep(retry_interval)
+        except requests.exceptions.RequestException:
+            logger.info("Server is not ready")
+            time.sleep(retry_interval)
+    return False
