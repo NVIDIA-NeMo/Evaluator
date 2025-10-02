@@ -125,6 +125,8 @@ class LocalExporter(BaseExporter):
                     logger.warning(f"Failed to create {fmt} summary: {e}")
                     msg += " (summary failed)"
 
+            meta["output_dir"] = str(job_export_dir.resolve())
+            
             return ExportResult(
                 success=True, dest=str(job_export_dir), message=msg, metadata=meta
             )

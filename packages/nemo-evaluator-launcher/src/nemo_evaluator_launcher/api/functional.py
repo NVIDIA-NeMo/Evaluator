@@ -452,20 +452,24 @@ def export_results(
                                 yaml.safe_load(ypath_export.read_text(encoding="utf-8"))
                                 or {}
                             )
+                            # execution.auto_export contains auto-export destinations
                             exec_cfg = cfg_yaml.get("execution") or {}
-                            auto_exp = (exp_yaml.get("execution") or {}).get(
-                                "auto_export"
-                            )
+                            auto_exp = (exp_yaml.get("execution") or {}).get("auto_export")
                             if auto_exp is not None:
                                 exec_cfg["auto_export"] = auto_exp
                                 cfg_yaml["execution"] = exec_cfg
+                            
+                            # top-level export block contains exporter config
+                            if "export" in exp_yaml:
+                                cfg_yaml["export"] = exp_yaml["export"]
+
                         # metadata
                         md_job_data = JobData(
                             invocation_id=single_id.split(".")[0],
                             job_id=single_id,
                             timestamp=0.0,
-                            executor="local",  #
-                            data={"output_dir": str(Path.cwd().parent)},
+                            executor="local",  # TODO: update to executor from job_data
+                            data={"output_dir": str(Path.cwd().parent)}, # TODO: update to output_dir from job_data
                             config=cfg_yaml,
                         )
                     except Exception:
@@ -488,6 +492,7 @@ def export_results(
                             "success": job_result.success,
                             "message": job_result.message,
                             "metadata": job_result.metadata or {},
+                            "dest": getattr(job_result, "dest", None),
                         }
                     },
                     "metadata": job_result.metadata or {},

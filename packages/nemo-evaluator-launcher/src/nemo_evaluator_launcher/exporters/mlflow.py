@@ -17,6 +17,7 @@
 
 import shutil
 import tempfile
+import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -212,7 +213,7 @@ class MLflowExporter(BaseExporter):
                 mlflow.log_metrics(accuracy_metrics)
 
                 # Log artifacts
-                artifacts_logged = self._log_artifacts(job_data, mlflow_config)
+                artifacts_logged = self.log_artifacts(job_data, mlflow_config)
 
                 # Build run URL
                 run_url = None
@@ -241,7 +242,7 @@ class MLflowExporter(BaseExporter):
                 success=False, dest="mlflow", message=f"Failed: {str(e)}"
             )
 
-    def _log_artifacts(
+    def log_artifacts(
         self, job_data: JobData, mlflow_config: Dict[str, Any]
     ) -> List[str]:
         """Log evaluation artifacts to MLflow using LocalExporter for transfer."""
@@ -253,37 +254,84 @@ class MLflowExporter(BaseExporter):
         try:
             # Use LocalExporter to get files locally first
             temp_dir = tempfile.mkdtemp(prefix="mlflow_artifacts_")
-            local_exporter = LocalExporter({"output_dir": temp_dir})
+            local_exporter = LocalExporter({
+                "output_dir": temp_dir,
+                "copy_logs": mlflow_config.get("log_logs", mlflow_config.get("copy_logs", False)),
+                "only_required": mlflow_config.get("only_required", True),
+                "format": mlflow_config.get("format", None),
+                "log_metrics": mlflow_config.get("log_metrics", []),
+                "output_filename": mlflow_config.get("output_filename", None),
+            })
             local_result = local_exporter.export_job(job_data)
 
             if not local_result.success:
                 logger.error(f"Failed to download artifacts: {local_result.message}")
                 return []
 
-            artifacts_dir = Path(local_result.dest) / "artifacts"
-            logged_names = []
+            base_dir = Path(local_result.dest)
+            artifacts_dir = base_dir / "artifacts"
+            logs_dir = base_dir / "logs"
+            logged_names: list[str] = []
 
             task_name = get_task_name(job_data)
-            artifact_path = task_name
+
+            # Root directory inside MLflow should be "<harness>.<task>"
+            bench_info = get_benchmark_info(job_data)
+            harness = bench_info.get("harness", "unknown")
+            benchmark = bench_info.get("benchmark", task_name)
+            artifact_path = f"{harness}.{benchmark}"
 
             # Log config at root level
             with tempfile.TemporaryDirectory() as tmpdir:
                 cfg_file = Path(tmpdir) / "config.yaml"
                 with cfg_file.open("w") as f:
-                    yaml.dump(
-                        job_data.config or {},
-                        f,
-                        default_flow_style=False,
-                        sort_keys=False,
-                    )
+                    yaml.dump(job_data.config or {}, f, default_flow_style=False, sort_keys=False)
                 mlflow.log_artifact(str(cfg_file))
 
-            # Then log results files
-            for fname in get_available_artifacts(artifacts_dir):
-                file_path = artifacts_dir / fname
-                if file_path.exists():
-                    mlflow.log_artifact(str(file_path), artifact_path=artifact_path)
-                    logged_names.append(fname)
+            # Determine which files to upload from artifacts/
+            files_to_upload: list[Path] = []
+            if mlflow_config.get("only_required", True):
+                # Only known required + optional artifacts at root
+                for fname in get_available_artifacts(artifacts_dir):
+                    p = artifacts_dir / fname
+                    if p.exists():
+                        files_to_upload.append(p)
+            else:
+                # Upload everything under artifacts/ recursively
+                for p in artifacts_dir.rglob("*"):
+                    if p.is_file():
+                        files_to_upload.append(p)
+
+            # Upload artifacts under "<harness.task>/artifacts/<relative-dir>"
+            for fpath in files_to_upload:
+                rel = fpath.relative_to(artifacts_dir).as_posix()
+                parent_dir = os.path.dirname(rel)
+                mlflow.log_artifact(
+                    str(fpath),
+                    artifact_path=f"{artifact_path}/artifacts/{parent_dir}".rstrip("/"),
+                )
+                logged_names.append(rel)
+
+            # Optionally upload logs under "<harness.task>/logs"
+            if mlflow_config.get("log_logs", False) and logs_dir.exists():
+                for p in logs_dir.rglob("*"):
+                    if p.is_file():
+                        mlflow.log_artifact(
+                            str(p),
+                            artifact_path=f"{artifact_path}/logs",
+                        )
+                        logged_names.append(f"logs/{p.name}")
+
+            # Debug summary of what we uploaded
+            logger.info(
+                f"MLflow upload summary: files={len(logged_names)}, only_required={mlflow_config.get('only_required', True)}, log_logs={mlflow_config.get('log_logs', False)}"
+            )
+            if logger.isEnabledFor(10):  # DEBUG
+                try:
+                    preview = "\n  - " + "\n  - ".join(sorted(logged_names)[:50])
+                    logger.debug(f"Uploaded files preview (first 50):{preview}")
+                except Exception:
+                    pass
 
             # cleanup temp
             shutil.rmtree(temp_dir)
@@ -415,7 +463,7 @@ class MLflowExporter(BaseExporter):
                 # Log artifacts from all jobs
                 total_artifacts = 0
                 for job_data in jobs.values():
-                    artifacts_logged = self._log_artifacts(job_data, mlflow_config)
+                    artifacts_logged = self.log_artifacts(job_data, mlflow_config)
                     total_artifacts += len(artifacts_logged)
 
                 # Build run URL

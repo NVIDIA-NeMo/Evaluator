@@ -141,21 +141,25 @@ def extract_accuracy_metrics(
 # CONFIG EXTRACTION
 # =============================================================================
 
-
 def extract_exporter_config(
     job_data: JobData, exporter_name: str, constructor_config: Dict[str, Any] = None
 ) -> Dict[str, Any]:
     """Extract and merge exporter configuration from multiple sources."""
     config = {}
 
-    # Get config from dedicated field
+    # root-level `export.<exporter-name>`
     if job_data.config:
+        export_block = (job_data.config or {}).get("export", {})
+        yaml_config = (export_block or {}).get(exporter_name, {})
+        if yaml_config:
+            config.update(yaml_config)
+
+    # execution.auto_export.configs.<exporter-name>
+    if job_data.config and not config:
         execution_config = job_data.config.get("execution", {})
         auto_export_config = execution_config.get("auto_export", {})
         exporter_configs = auto_export_config.get("configs", {})
         yaml_config = exporter_configs.get(exporter_name, {})
-
-        # No conversion needed
         config.update(yaml_config)
 
     # From webhook metadata (if triggered by webhook)
@@ -167,8 +171,6 @@ def extract_exporter_config(
             "source_artifact": f"{webhook_data.get('artifact_name', 'unknown')}:{webhook_data.get('artifact_version', 'unknown')}",
             "config_source": webhook_data.get("config_file", "unknown"),
         }
-
-        # For W&B specifically, extract run info if available
         if exporter_name == "wandb" and webhook_data.get("webhook_source") == "wandb":
             wandb_specific = {
                 "entity": webhook_data.get("entity"),
@@ -176,7 +178,6 @@ def extract_exporter_config(
                 "run_id": webhook_data.get("run_id"),
             }
             webhook_config.update({k: v for k, v in wandb_specific.items() if v})
-
         config.update(webhook_config)
 
     # Constructor config: allows CLI overrides

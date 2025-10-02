@@ -89,9 +89,13 @@ class GSheetsExporter(BaseExporter):
             }
 
         try:
+            # Load exporter config from the first job (supports job-embedded config and CLI overrides)
+            first_job = next(iter(jobs.values()))
+            gsheets_config = extract_exporter_config(first_job, "gsheets", self.config)
+
             # Connect to Google Sheets
-            service_account_file = self.config.get("service_account_file")
-            spreadsheet_name = self.config.get(
+            service_account_file = gsheets_config.get("service_account_file")
+            spreadsheet_name = gsheets_config.get(
                 "spreadsheet_name", "NeMo Evaluator Launcher Results"
             )
 
@@ -100,7 +104,7 @@ class GSheetsExporter(BaseExporter):
             else:
                 gc = gspread.service_account()
 
-            # Get or create spreadsheet
+            # Get or create spreadsheet (existing behavior)
             try:
                 sh = gc.open(spreadsheet_name)
                 logger.info(f"Opened existing spreadsheet: {spreadsheet_name}")
@@ -110,7 +114,6 @@ class GSheetsExporter(BaseExporter):
                 sh.share("", perm_type="anyone", role="reader")
 
             worksheet = sh.sheet1
-
             # Extract metrics from ALL jobs first to determine headers
             all_job_metrics = {}
             results = {}

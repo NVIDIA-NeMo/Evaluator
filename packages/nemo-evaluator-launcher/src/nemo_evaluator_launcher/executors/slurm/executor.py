@@ -605,7 +605,15 @@ def _create_slurm_sbatch_script(
         s += "kill $SERVER_PID  # terminate the server to finish gracefully\n\n"
 
     # auto-export
-    if cfg.execution.get("auto_export", {}).get("destinations", []):
+    ae_cfg = cfg.execution.get("auto_export")
+    ae_plain = OmegaConf.to_container(ae_cfg, resolve=True) if ae_cfg is not None else None
+    if isinstance(ae_plain, list):
+        ae_destinations = ae_plain
+    elif isinstance(ae_plain, dict):
+        ae_destinations = list(ae_plain.get("destinations", []) or [])
+    else:
+        ae_destinations = []
+    if ae_destinations:
         s += _generate_auto_export_section(cfg, job_id)
 
     return s
@@ -613,11 +621,19 @@ def _create_slurm_sbatch_script(
 
 def _generate_auto_export_section(
     cfg: DictConfig,
-    job_id: str,  # Complete job_id string
+    job_id: str,
 ) -> str:
     """Generate simple auto-export section for sbatch script."""
-    auto_export_config = cfg.execution.get("auto_export", {})
-    destinations = auto_export_config.get("destinations", [])
+    from omegaconf import OmegaConf
+
+    ae_cfg = cfg.execution.get("auto_export")
+    ae_plain = OmegaConf.to_container(ae_cfg, resolve=True) if ae_cfg is not None else None
+    if isinstance(ae_plain, list):
+        destinations = ae_plain
+    elif isinstance(ae_plain, dict):
+        destinations = list(ae_plain.get("destinations", []) or [])
+    else:
+        destinations = []
 
     if not destinations:
         return ""
@@ -626,18 +642,39 @@ def _generate_auto_export_section(
     s += "EVAL_EXIT_CODE=$?\n"
     s += "if [ $EVAL_EXIT_CODE -eq 0 ]; then\n"
     s += "    echo 'Evaluation completed successfully. Starting auto-export...'\n"
-    s += "    set +e\n"  # per exporter failure allowed
+    s += "    set +e\n"
     s += "    set +x\n"
     s += '    cd "$TASK_DIR/artifacts"\n'
-    auto_export_cfg = OmegaConf.to_container(
-        cfg.execution.get("auto_export", {}), resolve=True
-    )
-    yaml_str = yaml.safe_dump(
-        {"execution": {"auto_export": auto_export_cfg}}, sort_keys=False
-    )
+
+    # Build export_config.yml
+    export_block = OmegaConf.to_container(cfg.get("export") or {}, resolve=True)
+
+    # Host-only env for auto-export comes ONLY from execution.env_vars.export
+    export_env_plain = OmegaConf.to_container(
+        cfg.execution.get("env_vars", {}).get("export", {}), resolve=True
+    ) or {}
+
+    payload = {
+        "execution": {
+            "auto_export": {
+                "destinations": list(destinations),
+                **({"env_vars": export_env_plain} if export_env_plain else {}),
+            }
+        }
+    }
+    if export_block:
+        payload["export"] = export_block
+
+    yaml_str = yaml.safe_dump(payload, sort_keys=False)
     s += "    cat > export_config.yml << 'EOF'\n"
     s += yaml_str
     s += "EOF\n"
+
+    # Export host-only env (do not inject into container)
+    for k, v in export_env_plain.items():
+        esc = str(v).replace('"', '\\"')
+        s += f'    export {k}="{esc}"\n'
+
     for dest in destinations:
         s += f"    echo 'Exporting to {dest}...'\n"
         s += f"    nemo-evaluator-launcher export {job_id} --dest {dest} || echo 'Export to {dest} failed'\n"
