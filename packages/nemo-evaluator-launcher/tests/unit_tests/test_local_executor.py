@@ -19,7 +19,7 @@ import os
 import pathlib
 import re
 import time
-from unittest.mock import mock_open, patch
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -130,8 +130,8 @@ class TestLocalExecutorDryRun:
 
                 # Verify invocation ID format
                 assert isinstance(invocation_id, str)
-                assert len(invocation_id) == 8
-                assert re.match(r"^[a-f0-9]{8}$", invocation_id)
+                assert len(invocation_id) == 16
+                assert re.match(r"^[a-f0-9]{16}$", invocation_id)
 
                 # Verify output directory structure was created
                 output_base = pathlib.Path(sample_config.execution.output_dir)

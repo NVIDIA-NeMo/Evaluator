@@ -48,7 +48,7 @@ def test_id_generation():
     inv_id = generate_invocation_id()
     job_id = generate_job_id(inv_id, 0)
 
-    assert len(inv_id) == 8  # 8 hex characters
+    assert len(inv_id) == 16
     assert job_id == f"{inv_id}.0"
 
     # Test uniqueness
@@ -130,7 +130,7 @@ def test_write_job_with_null_job_id(mock_execdb):
 
 def test_get_nonexistent_job(mock_execdb):
     """Test getting a job that doesn't exist."""
-    result = ExecutionDB().get_job("job-nonexistent")
+    result = ExecutionDB().get_job("nonexist.0")
     assert result is None
 
 
@@ -139,15 +139,15 @@ def test_load_existing_jobs(mock_execdb):
     # Create existing job data
     existing_jobs = [
         {
-            "invocation_id": "inv-11111111",
-            "job_id": "job-22222222",
+            "invocation_id": "abcdef",
+            "job_id": "abcdef.0",
             "timestamp": 1234567890,
             "executor": "local",
             "data": {"test": "data1"},
         },
         {
-            "invocation_id": "inv-33333333",
-            "job_id": "job-44444444",
+            "invocation_id": "fedcba",
+            "job_id": "fedcba.0",
             "timestamp": 1234567891,
             "executor": "gitlab",
             "data": {"test": "data2"},
@@ -163,17 +163,17 @@ def test_load_existing_jobs(mock_execdb):
     _ = ExecutionDB()
 
     # Verify jobs are loaded
-    result1 = ExecutionDB().get_job("job-22222222")
+    result1 = ExecutionDB().get_job("abcdef.0")
     assert result1 is not None
     assert isinstance(result1, JobData)
-    assert result1.invocation_id == "inv-11111111"
+    assert result1.invocation_id == "abcdef"
     assert result1.executor == "local"
     assert result1.data == {"test": "data1"}
 
-    result2 = ExecutionDB().get_job("job-44444444")
+    result2 = ExecutionDB().get_job("fedcba.0")
     assert result2 is not None
     assert isinstance(result2, JobData)
-    assert result2.invocation_id == "inv-33333333"
+    assert result2.invocation_id == "fedcba"
     assert result2.executor == "gitlab"
     assert result2.data == {"test": "data2"}
 
@@ -183,23 +183,23 @@ def test_load_existing_jobs_with_invalid_json(mock_execdb):
     execdb.EXEC_DB_DIR.mkdir(parents=True, exist_ok=True)
     with open(execdb.EXEC_DB_FILE, "w") as f:
         f.write(
-            '{"invocation_id": "inv-11111111", "job_id": "job-22222222", "timestamp": 1234567890, "executor": "local", "data": {}}\n'
+            '{"invocation_id": "abcdef", "job_id": "abcdef.0", "timestamp": 1234567890, "executor": "local", "data": {}}\n'
         )
         f.write("invalid json line\n")
         f.write(
-            '{"invocation_id": "inv-33333333", "job_id": "job-44444444", "timestamp": 1234567891, "executor": "gitlab", "data": {}}\n'
+            '{"invocation_id": "fedcba", "job_id": "fedcba.0", "timestamp": 1234567891, "executor": "gitlab", "data": {}}\n'
         )
 
     _ = ExecutionDB()
 
-    assert ExecutionDB().get_job("job-22222222") is not None
-    assert ExecutionDB().get_job("job-44444444") is not None
+    assert ExecutionDB().get_job("abcdef.0") is not None
+    assert ExecutionDB().get_job("fedcba.0") is not None
 
 
 def test_multiple_jobs_same_id(mock_execdb):
     """Test that writing multiple jobs with same ID overwrites the previous one."""
-    invocation_id = "inv-12345678"
-    job_id = "job-87654321"
+    invocation_id = "abcdef"
+    job_id = "abcdef.1"
     job1 = JobData(
         invocation_id=invocation_id,
         job_id=job_id,
@@ -232,15 +232,15 @@ def test_multiple_jobs_same_id(mock_execdb):
 def test_empty_data(mock_execdb):
     """Test writing job with empty data."""
     job = JobData(
-        invocation_id="inv-12345678",
-        job_id="job-87654321",
+        invocation_id="abcdef",
+        job_id="abcdef.0",
         timestamp=time.time(),
         executor="local",
         data={},
     )
     ExecutionDB().write_job(job)
 
-    result = ExecutionDB().get_job("job-87654321")
+    result = ExecutionDB().get_job("abcdef.0")
     assert result is not None
     assert isinstance(result, JobData)
     assert result.data == {}
