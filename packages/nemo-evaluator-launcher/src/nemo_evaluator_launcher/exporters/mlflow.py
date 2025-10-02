@@ -15,9 +15,9 @@
 #
 """Evaluation results exporter for MLflow tracking."""
 
+import os
 import shutil
 import tempfile
-import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -254,14 +254,18 @@ class MLflowExporter(BaseExporter):
         try:
             # Use LocalExporter to get files locally first
             temp_dir = tempfile.mkdtemp(prefix="mlflow_artifacts_")
-            local_exporter = LocalExporter({
-                "output_dir": temp_dir,
-                "copy_logs": mlflow_config.get("log_logs", mlflow_config.get("copy_logs", False)),
-                "only_required": mlflow_config.get("only_required", True),
-                "format": mlflow_config.get("format", None),
-                "log_metrics": mlflow_config.get("log_metrics", []),
-                "output_filename": mlflow_config.get("output_filename", None),
-            })
+            local_exporter = LocalExporter(
+                {
+                    "output_dir": temp_dir,
+                    "copy_logs": mlflow_config.get(
+                        "log_logs", mlflow_config.get("copy_logs", False)
+                    ),
+                    "only_required": mlflow_config.get("only_required", True),
+                    "format": mlflow_config.get("format", None),
+                    "log_metrics": mlflow_config.get("log_metrics", []),
+                    "output_filename": mlflow_config.get("output_filename", None),
+                }
+            )
             local_result = local_exporter.export_job(job_data)
 
             if not local_result.success:
@@ -285,7 +289,12 @@ class MLflowExporter(BaseExporter):
             with tempfile.TemporaryDirectory() as tmpdir:
                 cfg_file = Path(tmpdir) / "config.yaml"
                 with cfg_file.open("w") as f:
-                    yaml.dump(job_data.config or {}, f, default_flow_style=False, sort_keys=False)
+                    yaml.dump(
+                        job_data.config or {},
+                        f,
+                        default_flow_style=False,
+                        sort_keys=False,
+                    )
                 mlflow.log_artifact(str(cfg_file))
 
             # Determine which files to upload from artifacts/

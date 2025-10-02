@@ -606,7 +606,9 @@ def _create_slurm_sbatch_script(
 
     # auto-export
     ae_cfg = cfg.execution.get("auto_export")
-    ae_plain = OmegaConf.to_container(ae_cfg, resolve=True) if ae_cfg is not None else None
+    ae_plain = (
+        OmegaConf.to_container(ae_cfg, resolve=True) if ae_cfg is not None else None
+    )
     if isinstance(ae_plain, list):
         ae_destinations = ae_plain
     elif isinstance(ae_plain, dict):
@@ -627,7 +629,9 @@ def _generate_auto_export_section(
     from omegaconf import OmegaConf
 
     ae_cfg = cfg.execution.get("auto_export")
-    ae_plain = OmegaConf.to_container(ae_cfg, resolve=True) if ae_cfg is not None else None
+    ae_plain = (
+        OmegaConf.to_container(ae_cfg, resolve=True) if ae_cfg is not None else None
+    )
     if isinstance(ae_plain, list):
         destinations = ae_plain
     elif isinstance(ae_plain, dict):
@@ -650,17 +654,24 @@ def _generate_auto_export_section(
     export_block = OmegaConf.to_container(cfg.get("export") or {}, resolve=True)
 
     # Host-only env for auto-export comes ONLY from execution.env_vars.export
-    export_env_plain = OmegaConf.to_container(
-        cfg.execution.get("env_vars", {}).get("export", {}), resolve=True
-    ) or {}
+    export_env_plain = (
+        OmegaConf.to_container(
+            cfg.execution.get("env_vars", {}).get("export", {}), resolve=True
+        )
+        or {}
+    )
 
     payload = {
         "execution": {
             "auto_export": {
                 "destinations": list(destinations),
                 **({"env_vars": export_env_plain} if export_env_plain else {}),
-            }
-        }
+            },
+            "type": cfg.execution.type,  # Already a string, no need to_container
+        },
+        "evaluation": {
+            "tasks": OmegaConf.to_container(cfg.evaluation.tasks, resolve=True) or []
+        },
     }
     if export_block:
         payload["export"] = export_block

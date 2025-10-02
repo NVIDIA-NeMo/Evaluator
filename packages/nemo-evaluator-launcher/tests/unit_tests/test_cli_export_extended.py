@@ -521,8 +521,6 @@ class TestExportCmdEdgeCases:
         assert "Summary:" not in captured.out
 
 
-
-
 class TestExportCmdOverrides:
     """Test export command override functionality."""
 
@@ -535,7 +533,7 @@ class TestExportCmdOverrides:
                 "success": True,
                 "jobs": {"test123.0": {"success": True, "message": "Success"}},
             }
-            
+
             cmd = ExportCmd(
                 invocation_ids=["test123"],
                 dest="mlflow",
@@ -550,7 +548,7 @@ class TestExportCmdOverrides:
         # Verify overrides were applied correctly
         call_args = mock_export.call_args
         config = call_args[0][2]  # Third argument is config
-        
+
         assert config["tracking_uri"] == "http://mlflow:5000"
         assert config["experiment_name"] == "test-exp"
         assert config["log_logs"] is True
@@ -564,7 +562,7 @@ class TestExportCmdOverrides:
                 "success": True,
                 "jobs": {"test123.0": {"success": True, "message": "Success"}},
             }
-            
+
             cmd = ExportCmd(
                 invocation_ids=["test123"],
                 dest="wandb",
@@ -577,7 +575,7 @@ class TestExportCmdOverrides:
 
         call_args = mock_export.call_args
         config = call_args[0][2]
-        
+
         assert config["entity"] == "org-name"
         assert config["project"] == "proj-name"
 
@@ -590,7 +588,7 @@ class TestExportCmdOverrides:
                 "success": True,
                 "jobs": {"test123.0": {"success": True, "message": "Success"}},
             }
-            
+
             cmd = ExportCmd(
                 invocation_ids=["test123"],
                 dest="wandb",
@@ -604,7 +602,7 @@ class TestExportCmdOverrides:
 
         call_args = mock_export.call_args
         config = call_args[0][2]
-        
+
         # Verify list parsing works correctly
         assert isinstance(config["tags"], list)
         assert "exp1" in config["tags"]
@@ -620,7 +618,7 @@ class TestExportCmdOverrides:
                 "success": True,
                 "jobs": {"test123.0": {"success": True, "message": "Success"}},
             }
-            
+
             cmd = ExportCmd(
                 invocation_ids=["test123"],
                 dest="mlflow",
@@ -633,7 +631,7 @@ class TestExportCmdOverrides:
 
         call_args = mock_export.call_args
         config = call_args[0][2]
-        
+
         assert config["tags"]["framework"] == "vllm"
         assert config["tags"]["precision"] == "bf16"
 
@@ -674,7 +672,7 @@ class TestExportCmdOverrides:
                 "success": True,
                 "jobs": {"test123.0": {"success": True, "message": "Success"}},
             }
-            
+
             cmd = ExportCmd(
                 invocation_ids=["test123"],
                 dest="local",
@@ -689,7 +687,7 @@ class TestExportCmdOverrides:
 
         call_args = mock_export.call_args
         config = call_args[0][2]
-        
+
         # Both CLI flags and overrides should be present
         assert config["output_dir"] == "/tmp/results"
         assert config["format"] == "json"
@@ -705,7 +703,7 @@ class TestExportCmdOverrides:
                 "success": True,
                 "jobs": {"test123.0": {"success": True, "message": "Success"}},
             }
-            
+
             cmd = ExportCmd(
                 invocation_ids=["test123"],
                 dest="mlflow",
@@ -718,7 +716,7 @@ class TestExportCmdOverrides:
 
         call_args = mock_export.call_args
         config = call_args[0][2]
-        
+
         assert config["timeout"] == 300
         assert config["max_retries"] == 3
 
@@ -731,7 +729,7 @@ class TestExportCmdOverrides:
                 "success": True,
                 "jobs": {"test123.0": {"success": True, "message": "Success"}},
             }
-            
+
             cmd = ExportCmd(
                 invocation_ids=["test123"],
                 dest="wandb",
@@ -744,7 +742,7 @@ class TestExportCmdOverrides:
 
         call_args = mock_export.call_args
         config = call_args[0][2]
-        
+
         # Last override should win
         assert config["entity"] == "second-org"
 
@@ -757,7 +755,7 @@ class TestExportCmdOverrides:
                 "success": True,
                 "jobs": {"test123.0": {"success": True, "message": "Success"}},
             }
-            
+
             cmd = ExportCmd(
                 invocation_ids=["test123"],
                 dest="mlflow",
@@ -770,7 +768,7 @@ class TestExportCmdOverrides:
 
         call_args = mock_export.call_args
         config = call_args[0][2]
-        
+
         assert config["log_artifacts"] is False
         assert config["log_logs"] is True
 
@@ -783,7 +781,7 @@ class TestExportCmdOverrides:
                 "success": True,
                 "jobs": {"test123.0": {"success": True, "message": "Success"}},
             }
-            
+
             cmd = ExportCmd(
                 invocation_ids=["test123"],
                 dest="local",
@@ -873,13 +871,20 @@ class TestExportCmdOverrideEdgeCases:
 
     def test_override_with_urls_and_special_chars(self, capsys):
         """Test override handles URLs with ports, paths, special characters."""
-        with patch("nemo_evaluator_launcher.api.functional.export_results") as mock_export:
-            mock_export.return_value = {"success": True, "jobs": {"t.0": {"success": True, "message": "ok"}}}
-            
+        with patch(
+            "nemo_evaluator_launcher.api.functional.export_results"
+        ) as mock_export:
+            mock_export.return_value = {
+                "success": True,
+                "jobs": {"t.0": {"success": True, "message": "ok"}},
+            }
+
             cmd = ExportCmd(
                 invocation_ids=["test123"],
                 dest="mlflow",
-                override=["export.mlflow.tracking_uri=http://mlflow.example.com:5000/api/v2"],
+                override=[
+                    "export.mlflow.tracking_uri=http://mlflow.example.com:5000/api/v2"
+                ],
             )
             cmd.execute()
 
@@ -888,9 +893,14 @@ class TestExportCmdOverrideEdgeCases:
 
     def test_override_destination_mismatch_raises_err(self, capsys):
         """Test that override for wrong destination raises clear error."""
-        with patch("nemo_evaluator_launcher.api.functional.export_results") as mock_export:
-            mock_export.return_value = {"success": True, "jobs": {"t.0": {"success": True, "message": "ok"}}}
-            
+        with patch(
+            "nemo_evaluator_launcher.api.functional.export_results"
+        ) as mock_export:
+            mock_export.return_value = {
+                "success": True,
+                "jobs": {"t.0": {"success": True, "message": "ok"}},
+            }
+
             cmd = ExportCmd(
                 invocation_ids=["test123"],
                 dest="mlflow",
@@ -908,9 +918,14 @@ class TestExportCmdOverrideEdgeCases:
 
     def test_override_nested_metadata_paths(self, capsys):
         """Test deep nested paths for complex metadata."""
-        with patch("nemo_evaluator_launcher.api.functional.export_results") as mock_export:
-            mock_export.return_value = {"success": True, "jobs": {"t.0": {"success": True, "message": "ok"}}}
-            
+        with patch(
+            "nemo_evaluator_launcher.api.functional.export_results"
+        ) as mock_export:
+            mock_export.return_value = {
+                "success": True,
+                "jobs": {"t.0": {"success": True, "message": "ok"}},
+            }
+
             cmd = ExportCmd(
                 invocation_ids=["test123"],
                 dest="wandb",
@@ -929,9 +944,14 @@ class TestExportCmdOverrideEdgeCases:
 
     def test_plain_keys_shortcut_works(self, capsys):
         """Test that plain keys (no prefix) work as shortcut for current destination."""
-        with patch("nemo_evaluator_launcher.api.functional.export_results") as mock_export:
-            mock_export.return_value = {"success": True, "jobs": {"t.0": {"success": True, "message": "ok"}}}
-            
+        with patch(
+            "nemo_evaluator_launcher.api.functional.export_results"
+        ) as mock_export:
+            mock_export.return_value = {
+                "success": True,
+                "jobs": {"t.0": {"success": True, "message": "ok"}},
+            }
+
             cmd = ExportCmd(
                 invocation_ids=["test123"],
                 dest="mlflow",
@@ -948,9 +968,14 @@ class TestExportCmdOverrideEdgeCases:
 
     def test_override_precedence_over_cli_flags(self, capsys):
         """Test that -o overrides take precedence over convenience flags (documented behavior)."""
-        with patch("nemo_evaluator_launcher.api.functional.export_results") as mock_export:
-            mock_export.return_value = {"success": True, "jobs": {"t.0": {"success": True, "message": "ok"}}}
-            
+        with patch(
+            "nemo_evaluator_launcher.api.functional.export_results"
+        ) as mock_export:
+            mock_export.return_value = {
+                "success": True,
+                "jobs": {"t.0": {"success": True, "message": "ok"}},
+            }
+
             cmd = ExportCmd(
                 invocation_ids=["test123"],
                 dest="local",
@@ -965,9 +990,14 @@ class TestExportCmdOverrideEdgeCases:
 
     def test_default_destination_used_when_not_specified(self, capsys):
         """Test that default destination (local) is used when --dest not provided."""
-        with patch("nemo_evaluator_launcher.api.functional.export_results") as mock_export:
-            mock_export.return_value = {"success": True, "jobs": {"t.0": {"success": True, "message": "ok"}}}
-            
+        with patch(
+            "nemo_evaluator_launcher.api.functional.export_results"
+        ) as mock_export:
+            mock_export.return_value = {
+                "success": True,
+                "jobs": {"t.0": {"success": True, "message": "ok"}},
+            }
+
             # Don't specify --dest, should default to "local"
             cmd = ExportCmd(
                 invocation_ids=["test123"],

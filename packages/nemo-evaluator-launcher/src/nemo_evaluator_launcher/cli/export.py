@@ -45,7 +45,7 @@ class ExportCmd:
     override: List[str] = field(
         default_factory=list,
         action="append",
-        nargs="?", 
+        nargs="?",
         alias=["-o", "--override"],
         help="Hydra-style overrides for exporter config. Use `export.<dest>.key=value` (e.g., -o export.wandb.entity=org-name).",
     )
@@ -85,12 +85,15 @@ class ExportCmd:
         """Execute export."""
         # Import heavy dependencies only when needed
         from omegaconf import OmegaConf
+
         from nemo_evaluator_launcher.api.functional import export_results
 
         # Validation: ensure IDs are provided
         if not self.invocation_ids:
             print("Error: No IDs provided. Specify one or more invocation or job IDs.")
-            print("Usage: nemo-evaluator-launcher export <id> [<id>...] --dest <destination>")
+            print(
+                "Usage: nemo-evaluator-launcher export <id> [<id>...] --dest <destination>"
+            )
             return
 
         config: dict[str, Any] = {
@@ -129,6 +132,7 @@ class ExportCmd:
 
             # Expand env vars in override vals ($VAR / ${VAR})
             import os
+
             expanded_overrides: list[str] = []
             for ov in flat_overrides:
                 if "=" in ov:
@@ -138,6 +142,7 @@ class ExportCmd:
                     expanded_overrides.append(os.path.expandvars(ov))
 
             from omegaconf import OmegaConf
+
             dot_cfg = OmegaConf.from_dotlist(expanded_overrides)
             as_dict = OmegaConf.to_container(dot_cfg, resolve=True) or {}
             if isinstance(as_dict, dict) and "export" in as_dict:
@@ -167,14 +172,18 @@ class ExportCmd:
             if self.dest == "mlflow":
                 if "tracking_uri" in str(err).lower():
                     print("\nMLflow requires 'tracking_uri' to be configured.")
-                    print("Set it via: -o export.mlflow.tracking_uri=http://mlflow-server:5000")
+                    print(
+                        "Set it via: -o export.mlflow.tracking_uri=http://mlflow-server:5000"
+                    )
                 elif "not installed" in str(err).lower():
                     print("\nMLflow package not installed.")
                     print("Install via: pip install nemo-evaluator-launcher[mlflow]")
             elif self.dest == "wandb":
                 if "entity" in str(err).lower() or "project" in str(err).lower():
                     print("\nW&B requires 'entity' and 'project' to be configured.")
-                    print("Set via: -o export.wandb.entity=my-org -o export.wandb.project=my-proj")
+                    print(
+                        "Set via: -o export.wandb.entity=my-org -o export.wandb.project=my-proj"
+                    )
                 elif "not installed" in str(err).lower():
                     print("\nW&B package not installed.")
                     print("Install via: pip install nemo-evaluator-launcher[wandb]")
@@ -225,16 +234,18 @@ class ExportCmd:
 
     def _validate_overrides(self, overrides: List[str], dest: str) -> None:
         """Validate override list for destination consistency.
-        
+
         Raises:
             ValueError: If overrides specify wrong destination or have other issues.
         """
         if not overrides:
-            return # nothing to validate
-        
+            return  # nothing to validate
+
         # Check each override for destination mismatch
         for override_str in overrides:
-            if override_str.startswith("export."): # check if override starts with export.
+            if override_str.startswith(
+                "export."
+            ):  # check if override starts with export.
                 # Extract destination from override path
                 try:
                     key_part = override_str.split("=")[0]  # Get left side before =

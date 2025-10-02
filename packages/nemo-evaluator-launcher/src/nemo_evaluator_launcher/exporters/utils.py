@@ -141,6 +141,7 @@ def extract_accuracy_metrics(
 # CONFIG EXTRACTION
 # =============================================================================
 
+
 def extract_exporter_config(
     job_data: JobData, exporter_name: str, constructor_config: Dict[str, Any] = None
 ) -> Dict[str, Any]:
@@ -524,6 +525,8 @@ def ssh_download_artifacts(
 def _get_artifacts_dir(paths: Dict[str, Any]) -> Path:
     """Get artifacts directory from paths."""
     if paths["storage_type"] == "local_filesystem":
+        return paths["artifacts_dir"]
+    elif paths["storage_type"] == "remote_local":
         return paths["artifacts_dir"]
     elif paths["storage_type"] == "gitlab_ci_local":
         return paths["artifacts_dir"]
