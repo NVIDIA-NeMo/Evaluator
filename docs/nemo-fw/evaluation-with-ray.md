@@ -71,7 +71,7 @@ For a comparison between generation benchmarks and log-probability benchmarks, r
 Make sure to open a new terminal within the same container to execute it.
 
 
-```{literalinclude} ../scripts/snippets/arc_challenge.py
+```{literalinclude} ../../scripts/snippets/arc_challenge.py
 :language: python
 :start-after: "## Run the evaluation"
 :linenos:

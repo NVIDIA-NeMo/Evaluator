@@ -50,7 +50,7 @@ pip install nvidia-lm-eval
 
 1. Deploy your model:
 
-```{literalinclude} ../scripts/snippets/deploy.sh
+```{literalinclude} ../../scripts/snippets/deploy.sh
 :language: shell
 :start-after: "## Deploy"
 ```
@@ -76,7 +76,7 @@ This process occurs behind the scenes when running an evaluation on `arc_challen
 Make sure to open a new terminal within the same container to execute it.
 
 
-```{literalinclude} ../scripts/snippets/arc_challenge.py
+```{literalinclude} ../../scripts/snippets/arc_challenge.py
 :language: python
 :start-after: "## Run the evaluation"
 :linenos:
