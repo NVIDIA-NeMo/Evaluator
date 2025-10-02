@@ -165,25 +165,5 @@ class ExecutionDB:
         return dict(self._jobs)
 
 
-def write_job(job: JobData) -> None:
-    db = ExecutionDB()
-    db.write_job(job)
-
-
-def get_job(job_id: str) -> Optional[JobData]:
-    db = ExecutionDB()
-    return db.get_job(job_id)
-
-
-def get_jobs(invocation_id: str) -> Dict[str, JobData]:
-    db = ExecutionDB()
-    return db.get_jobs(invocation_id)
-
-
-def get_all_jobs() -> Dict[str, JobData]:
-    db = ExecutionDB()
-    return db.get_all_jobs()
-
-
 # Ensure all the paths
 _DB = ExecutionDB()
