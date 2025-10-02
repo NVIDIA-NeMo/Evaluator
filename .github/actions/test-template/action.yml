@@ -73,7 +73,7 @@ runs:
       if: ${{ inputs.type_of_test == 'integration_tests' }}
       run: |
         echo ::group::Use credentials
-        echo ${{ inputs.ngc_api_key }} | docker login -u ${{ inputs.ngc_api_user }} --password-stdin nvcr.io
+        echo ${{ inputs.ngc-api-key }} | docker login -u ${{ inputs.ngc-api-user }} --password-stdin nvcr.io
         echo ::endgroup::
 
     - name: Build container for unit and functional tests
