@@ -16,7 +16,6 @@
 """Weights & Biases results exporter."""
 
 import os
-import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -39,10 +38,10 @@ from nemo_evaluator_launcher.exporters.registry import register_exporter
 from nemo_evaluator_launcher.exporters.utils import (
     extract_accuracy_metrics,
     extract_exporter_config,
+    get_artifact_root,
     get_available_artifacts,
     get_benchmark_info,
     get_task_name,
-    get_artifact_root,
 )
 
 
@@ -165,7 +164,10 @@ class WandBExporter(BaseExporter):
             return {"success": False, "error": f"W&B export failed: {str(e)}"}
 
     def _log_artifacts(
-        self, job_data: JobData, wandb_config: Dict[str, Any], artifact, 
+        self,
+        job_data: JobData,
+        wandb_config: Dict[str, Any],
+        artifact,
         register_stage_dir=None,
     ) -> List[str]:
         """Log evaluation artifacts to WandB using LocalExporter for transfer."""
@@ -175,14 +177,18 @@ class WandBExporter(BaseExporter):
             temp_dir = tempfile.mkdtemp(prefix="wandb_artifacts_")
             if callable(register_stage_dir):
                 register_stage_dir(temp_dir)
-            local_exporter = LocalExporter({
-                "output_dir": temp_dir,
-                "copy_logs": wandb_config.get("log_logs", wandb_config.get("copy_logs", False)),
-                "only_required": wandb_config.get("only_required", True),
-                "format": wandb_config.get("format"),
-                "log_metrics": wandb_config.get("log_metrics", []),
-                "output_filename": wandb_config.get("output_filename"),
-            })
+            local_exporter = LocalExporter(
+                {
+                    "output_dir": temp_dir,
+                    "copy_logs": wandb_config.get(
+                        "log_logs", wandb_config.get("copy_logs", False)
+                    ),
+                    "only_required": wandb_config.get("only_required", True),
+                    "format": wandb_config.get("format"),
+                    "log_metrics": wandb_config.get("log_metrics", []),
+                    "output_filename": wandb_config.get("output_filename"),
+                }
+            )
             local_result = local_exporter.export_job(job_data)
 
             if not local_result.success:
@@ -194,7 +200,6 @@ class WandBExporter(BaseExporter):
             logs_dir = base_dir / "logs"
             logged_names: list[str] = []
 
-            task_name = get_task_name(job_data)
             artifact_root = get_artifact_root(job_data)  # "<harness>.<benchmark>"
 
             files_to_upload: list[Path] = []
@@ -220,7 +225,6 @@ class WandBExporter(BaseExporter):
                         artifact.add_file(str(p), name=f"{artifact_root}/logs/{rel}")
                         logged_names.append(f"logs/{rel}")
 
-            # shutil.rmtree(temp_dir)
             return logged_names
         except Exception as e:
             logger.error(f"Error logging artifacts: {e}")
@@ -346,7 +350,7 @@ class WandBExporter(BaseExporter):
 
         def register_staging_dir(path: str) -> None:
             if path and os.path.isdir(path):
-               staging_dirs.append(path)
+                staging_dirs.append(path)
 
         # In multi_task, aggregate lists after init (no overwrite)
         if log_mode == "multi_task":
@@ -387,8 +391,9 @@ class WandBExporter(BaseExporter):
         artifact.add_file(cfg_path, name="config.yaml")
         os.unlink(cfg_path)
 
-        logged_artifacts = self._log_artifacts(job_data, config, 
-        artifact, register_staging_dir)
+        logged_artifacts = self._log_artifacts(
+            job_data, config, artifact, register_staging_dir
+        )
         try:
             run.log_artifact(artifact)
             # charts for each logged metric

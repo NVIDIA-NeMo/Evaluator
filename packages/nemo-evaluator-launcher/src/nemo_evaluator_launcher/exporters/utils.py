@@ -141,6 +141,7 @@ def extract_accuracy_metrics(
 # CONFIG EXTRACTION
 # =============================================================================
 
+
 def extract_exporter_config(
     job_data: JobData, exporter_name: str, constructor_config: Dict[str, Any] = None
 ) -> Dict[str, Any]:
@@ -269,6 +270,7 @@ def get_container_from_mapping(job_data: JobData) -> str:
         logger.warning(f"Failed to get container from mapping: {e}")
         return None
 
+
 def get_artifact_root(job_data: JobData) -> str:
     """Get artifact root from job data."""
     bench = get_benchmark_info(job_data)
@@ -296,6 +298,7 @@ def download_gitlab_artifacts(
         Dictionary mapping artifact names to local file paths
     """
     raise NotImplementedError("Downloading from gitlab is not implemented")
+
 
 # =============================================================================
 # SSH UTILS
@@ -445,11 +448,11 @@ def ssh_download_artifacts(
 def _get_artifacts_dir(paths: Dict[str, Any]) -> Path:
     """Get artifacts directory from paths."""
     storage_type = paths.get("storage_type")
-    
+
     # For SSH-based remote access, artifacts aren't available locally yet
     if storage_type == "remote_ssh":
         return None
-    
+
     # For all local access (local_filesystem, remote_local, gitlab_ci_local)
     # return the artifacts_dir from paths
     return paths.get("artifacts_dir")

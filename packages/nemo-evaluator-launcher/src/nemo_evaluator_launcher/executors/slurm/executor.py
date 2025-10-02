@@ -638,7 +638,11 @@ def _generate_auto_export_section(
     s += '    cd "$TASK_DIR/artifacts"\n'
 
     # Work with DictConfig; convert only for YAML at the end
-    exec_type = cfg.execution.type if hasattr(cfg.execution, "type") else cfg.execution.get("type", "slurm")
+    exec_type = (
+        cfg.execution.type
+        if hasattr(cfg.execution, "type")
+        else cfg.execution.get("type", "slurm")
+    )
     eval_tasks = (
         list(cfg.evaluation.tasks)
         if hasattr(cfg, "evaluation") and hasattr(cfg.evaluation, "tasks")
@@ -658,7 +662,11 @@ def _generate_auto_export_section(
     }
     if export_block:
         # Convert just this block to plain for YAML
-        payload["export"] = OmegaConf.to_object(export_block) if OmegaConf.is_config(export_block) else dict(export_block)
+        payload["export"] = (
+            OmegaConf.to_object(export_block)
+            if OmegaConf.is_config(export_block)
+            else dict(export_block)
+        )
 
     # Final YAML (single conversion at the end)
     payload_clean = OmegaConf.to_container(OmegaConf.create(payload), resolve=True)

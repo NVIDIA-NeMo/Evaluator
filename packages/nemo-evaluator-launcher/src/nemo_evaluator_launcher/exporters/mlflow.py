@@ -38,10 +38,10 @@ from nemo_evaluator_launcher.exporters.registry import register_exporter
 from nemo_evaluator_launcher.exporters.utils import (
     extract_accuracy_metrics,
     extract_exporter_config,
+    get_artifact_root,
     get_available_artifacts,
     get_benchmark_info,
     get_task_name,
-    get_artifact_root,
 )
 
 
@@ -278,14 +278,18 @@ class MLflowExporter(BaseExporter):
             logs_dir = base_dir / "logs"
             logged_names: list[str] = []
 
-            task_name = get_task_name(job_data)
             artifact_path = get_artifact_root(job_data)  # "<harness>.<benchmark>"
 
             # Log config at root level
             with tempfile.TemporaryDirectory() as tmpdir:
                 cfg_file = Path(tmpdir) / "config.yaml"
                 with cfg_file.open("w") as f:
-                    yaml.dump(job_data.config or {}, f, default_flow_style=False, sort_keys=False)
+                    yaml.dump(
+                        job_data.config or {},
+                        f,
+                        default_flow_style=False,
+                        sort_keys=False,
+                    )
                 mlflow.log_artifact(str(cfg_file))
 
             files_to_upload: list[Path] = []
