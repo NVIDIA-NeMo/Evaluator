@@ -63,7 +63,7 @@ class Cmd:
         default=None,
         alias=["--config-output"],
         metadata={
-            "help": "Directory to save the complete run config. Defaults to current working directory."
+            "help": "Directory to save the complete run config. Defaults to ~/.nemo-evaluator/run_configs/"
         },
     )
 
@@ -107,8 +107,9 @@ class Cmd:
                 # Use custom directory specified by --config-output
                 config_dir = pathlib.Path(self.config_output)
             else:
-                # Default to current working directory
-                config_dir = pathlib.Path.cwd()
+                # Default to original location: ~/.nemo-evaluator/run_configs
+                home_dir = pathlib.Path.home()
+                config_dir = home_dir / ".nemo-evaluator" / "run_configs"
 
             # Ensure the directory exists
             config_dir.mkdir(parents=True, exist_ok=True)
