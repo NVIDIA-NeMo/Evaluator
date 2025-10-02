@@ -138,17 +138,17 @@ class Cmd:
             print(" | ".join(formatted_row))
 
     def _format_status_with_indicators(self, status: str) -> str:
-        """Format status with visual indicators and colors."""
+        """Format status with Unicode visual indicators only."""
         # Status mapping based on ExecutionState enum
         status_formats = {
-            ExecutionState.SUCCESS.value: "\033[32m✓ SUCCESS\033[0m",  # Green checkmark
-            ExecutionState.FAILED.value: "\033[31m✗ FAILED\033[0m",  # Red X
-            ExecutionState.RUNNING.value: "\033[33m🔄 RUNNING\033[0m",  # Yellow spinning arrows (active)
-            ExecutionState.PENDING.value: "\033[36m⏳ PENDING\033[0m",  # Cyan hourglass (waiting)
-            ExecutionState.KILLED.value: "\033[35m✗ KILLED\033[0m",  # Magenta X
+            ExecutionState.SUCCESS.value: "\033[32m✓ SUCCESS\033[0m",  # Green Unicode checkmark
+            ExecutionState.FAILED.value: "\033[31m✗ FAILED\033[0m",  # Red Unicode X
+            ExecutionState.RUNNING.value: "\033[33m▶ RUNNING\033[0m",  # Yellow Unicode play button
+            ExecutionState.PENDING.value: "\033[36m⏳ PENDING\033[0m",  # Cyan Unicode hourglass
+            ExecutionState.KILLED.value: "\033[35m✗ KILLED\033[0m",  # Magenta Unicode X
             # Additional states for error handling
             "not_found": "\033[90m? NOT FOUND\033[0m",  # Gray question mark
-            "error": "\033[31m✗ ERROR\033[0m",  # Red X
+            "error": "\033[31m✗ ERROR\033[0m",  # Red Unicode X
         }
 
         return status_formats.get(status.lower(), f"\033[90m? {status.upper()}\033[0m")
