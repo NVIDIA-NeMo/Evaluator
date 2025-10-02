@@ -12,7 +12,7 @@ target:
   api_endpoint:
     model_id: your-model-name
     url: https://your-endpoint.com/v1/chat/completions
-    api_key: your-api-key
+    api_key_name: your-env-variable-holding-the-api-key
 ```
 
 ## Key Settings
@@ -20,11 +20,11 @@ target:
 - **`type: none`**: Indicates no deployment will be performed
 - **`target.api_endpoint.model_id`**: Name/identifier of your model
 - **`target.api_endpoint.url`**: Full URL to your OpenAI-compatible endpoint
-- **`target.api_endpoint.api_key`**: API key for authentication
+- **`target.api_endpoint.api_key_name`**: The name of the environment variable holding the API key for authentication
 
 **Note**: 
 - Do not provide the exact value of your API key in the config file - use environment variable names instead
-- If your model does not require an API key, you can skip the `api_key` field entirely
+- If your model does not require an API key, you can skip the `api_key_name` field entirely
 
 Examples:
 - [Local None Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml) - Local evaluation with existing endpoint
