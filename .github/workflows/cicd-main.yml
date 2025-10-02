@@ -30,8 +30,19 @@ permissions:
   contents: read
 
 jobs:
+  # pre-flight:
+  #   uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@v0.53.0
+
   pre-flight:
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@v0.53.0
+    runs-on: ubuntu-latest
+    outputs:
+      is_ci_workload: "true"
+      force_run_all: "false"
+      docs_only: "false"
+      is_deployment_workflow: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
   linting:
     runs-on: ubuntu-latest
