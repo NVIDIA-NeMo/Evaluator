@@ -23,7 +23,6 @@ from typing import Optional
 
 import nemo_run as run
 from helpers import wait_and_evaluate
-from nemo_eval.api import deploy
 from nemo_evaluator.api.api_dataclasses import (
     ApiEndpoint,
     ConfigParams,
@@ -32,6 +31,37 @@ from nemo_evaluator.api.api_dataclasses import (
 )
 
 ENDPOINT_TYPES = {"chat": "chat/completions/", "completions": "completions/"}
+
+TRITON_DEPLOY_SCRIPT = """
+python \
+  /opt/Export-Deploy/scripts/deploy/nlp/deploy_inframework_triton.py \
+  --nemo_checkpoint {nemo_checkpoint} \
+  --triton_model_name megatron_model \
+  --server_address {server_address} \
+  --server_port {server_port} \
+  --num_gpus {devices} \
+  --num_nodes {nodes} \
+  --tensor_parallelism_size {tensor_model_parallel_size} \
+  --pipeline_parallelism_size {pipeline_model_parallel_size} \
+  --max_batch_size {max_batch_size} \
+  {additional_args}
+"""
+
+RAY_DEPLOY_SCRIPT = """
+python \
+  /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
+  --nemo_checkpoint {nemo_checkpoint} \
+  --model_id megatron_model \
+  --port {server_port} \
+  --host {server_address} \
+  --num_gpus {devices} \
+  --num_nodes {nodes} \
+  --tensor_model_parallel_size {tensor_model_parallel_size} \
+  --pipeline_model_parallel_size {pipeline_model_parallel_size} \
+  --max_batch_size {max_batch_size} \
+  --num_replicas {num_replicas} \
+  {additional_args}
+"""
 
 
 def get_parser():
@@ -107,6 +137,12 @@ def get_parser():
         type=int,
         default=2,
         help="Batch size for deployment and evaluation",
+    )
+    parser.add_argument(
+        "--additional_args",
+        type=str,
+        default="",
+        help="Additional arguments to pass to the deployment script. Refer to the deploy script for more details.",
     )
     parser.add_argument(
         "--eval_task",
@@ -244,25 +280,41 @@ def main():
     if args.tag and not args.tag.startswith("-"):
         args.tag = "-" + args.tag
 
+    additional_args = args.additional_args
+    commons_args = {
+        "nemo_checkpoint": args.nemo_checkpoint,
+        "server_port": args.server_port,
+        "server_address": args.server_address,
+        "max_input_len": args.max_input_len,
+        "tensor_model_parallel_size": args.tensor_parallelism_size,
+        "pipeline_model_parallel_size": args.pipeline_parallelism_size,
+        "max_batch_size": args.batch_size,
+        "devices": args.devices,
+        "nodes": args.nodes,
+        "num_replicas": args.num_replicas,
+    }
+
     exp_name = "NeMoEvaluation"
-    deploy_fn = run.Partial(
-        deploy,
-        nemo_checkpoint=args.nemo_checkpoint,
-        serving_backend=args.serving_backend,
-        server_port=args.server_port,
-        server_address=args.server_address,
-        triton_address=args.triton_address,
-        triton_port=args.triton_port,
-        num_replicas=args.num_replicas,
-        num_cpus=args.num_cpus_per_replica,
-        max_input_len=args.max_input_len,
-        tensor_parallelism_size=args.tensor_parallelism_size,
-        pipeline_parallelism_size=args.pipeline_parallelism_size,
-        max_batch_size=args.batch_size,
-        num_gpus=args.devices,
-        num_nodes=args.nodes,
-        include_dashboard=False,
-    )
+    if args.serving_backend == "pytriton":
+        additional_args += (
+            f" --triton_port {args.triton_port}"
+            f" --triton_http_address {args.triton_address}"
+            f" --inference_max_seq_length {args.max_input_len}"
+        )
+        deploy_script = TRITON_DEPLOY_SCRIPT.format(
+            **commons_args, additional_args=additional_args
+        )
+    elif args.serving_backend == "ray":
+        if args.num_cpus_per_replica:
+            additional_args += f" --num_cpus_per_replica {args.num_cpus_per_replica}"
+        deploy_script = RAY_DEPLOY_SCRIPT.format(
+            **commons_args, additional_args=additional_args
+        )
+    else:
+        raise ValueError(f"Invalid serving backend: {args.serving_backend}")
+    print(deploy_script)
+
+    deploy_run_script = run.Script(inline=deploy_script)
 
     api_endpoint = run.Config(
         ApiEndpoint,
@@ -317,14 +369,17 @@ def main():
     with run.Experiment(f"{exp_name}{args.tag}") as exp:
         if args.slurm:
             exp.add(
-                [deploy_fn, eval_fn],
+                [deploy_run_script, eval_fn],
                 executor=[executor, executor_eval],
                 name=exp_name,
                 tail_logs=False,
             )
         else:
             exp.add(
-                deploy_fn, executor=executor, name=f"{exp_name}_deploy", tail_logs=True
+                deploy_run_script,
+                executor=executor,
+                name=f"{exp_name}_deploy",
+                tail_logs=True,
             )
             exp.add(
                 eval_fn, executor=executor, name=f"{exp_name}_evaluate", tail_logs=True
