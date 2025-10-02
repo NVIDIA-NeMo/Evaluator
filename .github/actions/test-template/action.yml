@@ -45,6 +45,10 @@ inputs:
     description: "NGC API key"
     required: false
     default: "false"
+  cpu-only:
+    description: "CPU only"
+    required: false
+    default: "true"
 
 runs:
   using: "composite"
@@ -102,6 +106,7 @@ runs:
           --rm \
           -d \
           --name nemo_container_${{ github.run_id }} \
+          ${${{ inputs.cpu_only == 'true' }} && echo "--runtime=nvidia --gpus all" || echo ""} \
           --shm-size=64g \
           --env TRANSFORMERS_OFFLINE=0 \
           --env HYDRA_FULL_ERROR=1 \

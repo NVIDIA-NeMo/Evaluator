@@ -161,7 +161,6 @@ jobs:
   cicd-integration-tests:
     needs:
       - cicd-unit-tests-nemo-evaluator
-      - cicd-unit-tests-nemo-evaluator-launcher
     environment: main
     runs-on: self-hosted-nemo
     if: |
