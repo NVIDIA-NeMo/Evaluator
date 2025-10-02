@@ -75,8 +75,8 @@ class ExportCmd:
         alias=["--log-metrics"],
         help="Filter metrics by name (repeatable). Examples: score, f1, mmlu_score_micro.",
     )
-    only_required: bool = field(
-        default=True,
+    only_required: Optional[bool] = field(
+        default=None,
         alias=["--only-required"],
         help="Copy only required+optional artifacts (default: True). Set to False to copy all available artifacts.",
     )
@@ -98,7 +98,6 @@ class ExportCmd:
 
         config: dict[str, Any] = {
             "copy_logs": self.copy_logs,
-            "only_required": self.only_required,
         }
 
         # Output handling
@@ -112,6 +111,10 @@ class ExportCmd:
             config["format"] = self.format
         if self.log_metrics:
             config["log_metrics"] = self.log_metrics
+
+        # Add only_required if explicitly passed via CLI
+        if self.only_required is not None:
+            config["only_required"] = self.only_required
 
         # Parse and validate overrides
         if self.override:
@@ -158,6 +161,9 @@ class ExportCmd:
             print(
                 "Note: --format is only used by --dest local. It will be ignored for other destinations."
             )
+
+        if "only_required" in config and self.only_required is True:
+            config.pop("only_required", None)
 
         print(
             f"Exporting {len(self.invocation_ids)} {'invocations' if len(self.invocation_ids) > 1 else 'invocation'} to {self.dest}..."

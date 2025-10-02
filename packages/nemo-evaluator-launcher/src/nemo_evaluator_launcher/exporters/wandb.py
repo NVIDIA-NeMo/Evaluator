@@ -19,7 +19,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -168,15 +168,15 @@ class WandBExporter(BaseExporter):
         job_data: JobData,
         wandb_config: Dict[str, Any],
         artifact,
-        register_stage_dir=None,
+        register_staging_dir=None,
     ) -> List[str]:
-        """Log evaluation artifacts to WandB using LocalExporter for transfer."""
+        """Log evaluation artifacts to WandB using LocalExporter for staging."""
         if not wandb_config.get("log_artifacts", True):
             return []
         try:
             temp_dir = tempfile.mkdtemp(prefix="wandb_artifacts_")
-            if callable(register_stage_dir):
-                register_stage_dir(temp_dir)
+            if callable(register_staging_dir):
+                register_staging_dir(temp_dir)
             local_exporter = LocalExporter(
                 {
                     "output_dir": temp_dir,
@@ -209,7 +209,7 @@ class WandBExporter(BaseExporter):
                     if p.exists():
                         files_to_upload.append(p)
             else:
-                for p in artifacts_dir.rglob("*"):
+                for p in artifacts_dir.iterdir():
                     if p.is_file():
                         files_to_upload.append(p)
 
@@ -232,7 +232,7 @@ class WandBExporter(BaseExporter):
 
     def _check_existing_run(
         self, identifier: str, job_data: JobData, config: Dict[str, Any]
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, Optional[str]]:
         """Check if run exists based on webhook metadata then name patterns."""
         try:
             import wandb

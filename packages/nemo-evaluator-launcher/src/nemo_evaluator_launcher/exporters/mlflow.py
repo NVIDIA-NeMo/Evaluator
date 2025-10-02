@@ -299,7 +299,7 @@ class MLflowExporter(BaseExporter):
                     if p.exists():
                         files_to_upload.append(p)
             else:
-                for p in artifacts_dir.rglob("*"):
+                for p in artifacts_dir.iterdir():
                     if p.is_file():
                         files_to_upload.append(p)
 
