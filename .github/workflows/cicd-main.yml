@@ -177,6 +177,7 @@ jobs:
           timeout: ${{ matrix.timeout }}
           type_of_test: "integration_tests"
           cpu-only: false
+          use-credentials: true
           ngc-api-user: ${{ secrets.NGC_API_USER }}
           ngc-api-key: ${{ secrets.NGC_API_KEY }}
 

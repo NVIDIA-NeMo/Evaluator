@@ -70,7 +70,7 @@ runs:
 
     - name: Use credentials
       shell: bash
-      if: ${{ inputs.type_of_test == 'integration_tests' }}
+      if: ${{ inputs.use-credentials == 'true' }}
       run: |
         echo ::group::Use credentials
         echo ${{ inputs.ngc-api-key }} | docker login -u ${{ inputs.ngc-api-user }} --password-stdin nvcr.io
