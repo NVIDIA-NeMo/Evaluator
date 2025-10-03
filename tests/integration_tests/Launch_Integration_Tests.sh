@@ -16,7 +16,11 @@ set -xeuo pipefail # Exit immediately if a command exits with a non-zero status
 export CUDA_VISIBLE_DEVICES="0"
 export HF_HOME="/home/TestData/HF_HOME"
 export HF_DATASETS_OFFLINE="1"
+export TRANSFORMERS_OFFLINE="1"
 export HF_DATASETS_CACHE="${HF_HOME}/datasets"
+
+mkdir -p /checkpoints && \
+ln -s /home/TestData/nemo2_ckpt/llama-3_2-1b-instruct_v2.0 /checkpoints/llama-3_2-1b-instruct_v2.0
 
 
 SCRIPT_DIR=$(dirname "$0")
@@ -24,7 +28,7 @@ PROJECT_DIR=$SCRIPT_DIR/../../
 cd $PROJECT_DIR
 
 coverage run \
-    --data-file=.coverage.functional_tests \
+    --data-file=.coverage.integration_tests \
     --source=src/ \
     -m pytest \
     -o log_cli=true \
