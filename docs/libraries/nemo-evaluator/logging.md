@@ -15,13 +15,29 @@ export LOG_LEVEL=DEBUG
 export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
 ```
 
-| Level | Description | Use Case |
-|-------|-------------|----------|
-| `INFO` | General information | Normal operation logs |
-| `DEBUG` | Detailed debugging | Development and troubleshooting |
-| `WARNING` | Warning messages | Potential issues |
-| `ERROR` | Error messages | Problems that need attention |
-| `CRITICAL` | Critical errors | Severe problems requiring immediate action |
+```{list-table}
+:header-rows: 1
+:widths: 15 35 50
+
+* - Level
+  - Description
+  - Use Case
+* - `INFO`
+  - General information
+  - Normal operation logs
+* - `DEBUG`
+  - Detailed debugging
+  - Development and troubleshooting
+* - `WARNING`
+  - Warning messages
+  - Potential issues
+* - `ERROR`
+  - Error messages
+  - Problems that need attention
+* - `CRITICAL`
+  - Critical errors
+  - Severe problems requiring immediate action
+```
 
 ## Log Output
 

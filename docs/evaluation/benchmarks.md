@@ -22,14 +22,40 @@ nv-eval ls tasks --json
 ## Benchmark Categories
 
 ###  **Academic and Reasoning**
-| Container | Benchmarks | Description | NGC Catalog |
-|-----------|------------|-------------|-------------|
-| **simple-evals** | MMLU Pro, GSM8K, ARC Challenge | Core academic benchmarks | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/simple-evals) |
-| **lm-evaluation-harness** | MMLU, HellaSwag, TruthfulQA, PIQA | Language model evaluation suite | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/lm-evaluation-harness) |
-| **hle** | Humanity's Last Exam | Multi-modal benchmark at the frontier of human knowledge | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/hle) |
-| **ifbench** | Instruction Following Benchmark | Precise instruction following evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/ifbench) |
-| **mmath** | Multilingual Mathematical Reasoning | Math reasoning across multiple languages | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mmath) |
-| **mtbench** | MT-Bench | Multi-turn conversation evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench) |
+
+```{list-table}
+:header-rows: 1
+:widths: 20 30 30 20
+
+* - Container
+  - Benchmarks
+  - Description
+  - NGC Catalog
+* - **simple-evals**
+  - MMLU Pro, GSM8K, ARC Challenge
+  - Core academic benchmarks
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/simple-evals)
+* - **lm-evaluation-harness**
+  - MMLU, HellaSwag, TruthfulQA, PIQA
+  - Language model evaluation suite
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/lm-evaluation-harness)
+* - **hle**
+  - Humanity's Last Exam
+  - Multi-modal benchmark at the frontier of human knowledge
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/hle)
+* - **ifbench**
+  - Instruction Following Benchmark
+  - Precise instruction following evaluation
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/ifbench)
+* - **mmath**
+  - Multilingual Mathematical Reasoning
+  - Math reasoning across multiple languages
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mmath)
+* - **mtbench**
+  - MT-Bench
+  - Multi-turn conversation evaluation
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench)
+```
 
 **Example Usage:**
 ```bash
@@ -40,12 +66,29 @@ nv-eval run \
     -o 'evaluation.tasks=[{name: mmlu_pro}, {name: gsm8k}, {name: arc_challenge}]'
 ```
 
-###  **Code Generation**  
-| Container | Benchmarks | Description | NGC Catalog |
-|-----------|------------|-------------|-------------|
-| **bigcode-evaluation-harness** | HumanEval, MBPP, APPS | Code generation and completion | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bigcode-evaluation-harness) |
-| **livecodebench** | Live coding contests from LeetCode, AtCoder, CodeForces | Contamination-free coding evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/livecodebench) |
-| **scicode** | Scientific research code generation | Scientific computing and research | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/scicode) |
+###  **Code Generation**
+
+```{list-table}
+:header-rows: 1
+:widths: 25 30 30 15
+
+* - Container
+  - Benchmarks
+  - Description
+  - NGC Catalog
+* - **bigcode-evaluation-harness**
+  - HumanEval, MBPP, APPS
+  - Code generation and completion
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bigcode-evaluation-harness)
+* - **livecodebench**
+  - Live coding contests from LeetCode, AtCoder, CodeForces
+  - Contamination-free coding evaluation
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/livecodebench)
+* - **scicode**
+  - Scientific research code generation
+  - Scientific computing and research
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/scicode)
+```
 
 **Example Usage:**
 ```bash
@@ -57,10 +100,24 @@ nv-eval run \
 ```
 
 ###  **Safety and Security**
-| Container | Benchmarks | Description | NGC Catalog |
-|-----------|------------|-------------|-------------|
-| **safety-harness** | Toxicity, bias, alignment tests | Safety and bias evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/safety-harness) |
-| **garak** | Prompt injection, jailbreaking | Security vulnerability scanning | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/garak) |
+
+```{list-table}
+:header-rows: 1
+:widths: 25 35 25 15
+
+* - Container
+  - Benchmarks
+  - Description
+  - NGC Catalog
+* - **safety-harness**
+  - Toxicity, bias, alignment tests
+  - Safety and bias evaluation
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/safety-harness)
+* - **garak**
+  - Prompt injection, jailbreaking
+  - Security vulnerability scanning
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/garak)
+```
 
 **Example Usage:**
 ```bash
@@ -72,26 +129,76 @@ nv-eval run \
 ```
 
 ###  **Function Calling and Agentic AI**
-| Container | Benchmarks | Description | NGC Catalog |
-|-----------|------------|-------------|-------------|
-| **bfcl** | Berkeley Function Calling Leaderboard | Function calling evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl) |
-| **agentic_eval** | Tool usage, planning tasks | Agentic AI evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/agentic_eval) |
-| **tooltalk** | Tool interaction evaluation | Tool usage assessment | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk) |
+
+```{list-table}
+:header-rows: 1
+:widths: 25 30 30 15
+
+* - Container
+  - Benchmarks
+  - Description
+  - NGC Catalog
+* - **bfcl**
+  - Berkeley Function Calling Leaderboard
+  - Function calling evaluation
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl)
+* - **agentic_eval**
+  - Tool usage, planning tasks
+  - Agentic AI evaluation
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/agentic_eval)
+* - **tooltalk**
+  - Tool interaction evaluation
+  - Tool usage assessment
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk)
+```
 
 ###  **Vision-Language Models**
-| Container | Benchmarks | Description | NGC Catalog |
-|-----------|------------|-------------|-------------|
-| **vlmevalkit** | VQA, image captioning, visual reasoning | Vision-language model evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit) |
+
+```{list-table}
+:header-rows: 1
+:widths: 25 35 25 15
+
+* - Container
+  - Benchmarks
+  - Description
+  - NGC Catalog
+* - **vlmevalkit**
+  - VQA, image captioning, visual reasoning
+  - Vision-language model evaluation
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit)
+```
 
 ###  **Retrieval and RAG**
-| Container | Benchmarks | Description | NGC Catalog |
-|-----------|------------|-------------|-------------|
-| **rag_retriever_eval** | Document retrieval, context relevance | RAG system evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/rag_retriever_eval) |
+
+```{list-table}
+:header-rows: 1
+:widths: 25 35 25 15
+
+* - Container
+  - Benchmarks
+  - Description
+  - NGC Catalog
+* - **rag_retriever_eval**
+  - Document retrieval, context relevance
+  - RAG system evaluation
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/rag_retriever_eval)
+```
 
 ###  **Domain-Specific**
-| Container | Benchmarks | Description | NGC Catalog |
-|-----------|------------|-------------|-------------|
-| **helm** | Medical AI evaluation (MedHELM) | Healthcare-specific benchmarking | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/helm) |
+
+```{list-table}
+:header-rows: 1
+:widths: 25 35 25 15
+
+* - Container
+  - Benchmarks
+  - Description
+  - NGC Catalog
+* - **helm**
+  - Medical AI evaluation (MedHELM)
+  - Healthcare-specific benchmarking
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/helm)
+```
 
 ## Container Details
 

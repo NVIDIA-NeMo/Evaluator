@@ -57,14 +57,32 @@ nv-eval export <invocation_id> --dest gsheets
 ### Container-First Architecture
 Pre-built NGC containers guarantee reproducible results across environments:
 
-| Container | Benchmarks | Use Case |
-|-----------|------------|----------|
-| **simple-evals** | MMLU Pro, GSM8K, ARC | Academic benchmarks |
-| **lm-evaluation-harness** | HellaSwag, TruthfulQA, PIQA | Language model evaluation |
-| **bigcode-evaluation-harness** | HumanEval, MBPP, APPS | Code generation |
-| **safety-harness** | Toxicity, bias, jailbreaking | Safety assessment |
-| **vlmevalkit** | VQA, image captioning | Vision-language models |
-| **agentic_eval** | Tool usage, planning | Agentic AI evaluation |
+```{list-table}
+:header-rows: 1
+:widths: 30 40 30
+
+* - Container
+  - Benchmarks
+  - Use Case
+* - **simple-evals**
+  - MMLU Pro, GSM8K, ARC
+  - Academic benchmarks
+* - **lm-evaluation-harness**
+  - HellaSwag, TruthfulQA, PIQA
+  - Language model evaluation
+* - **bigcode-evaluation-harness**
+  - HumanEval, MBPP, APPS
+  - Code generation
+* - **safety-harness**
+  - Toxicity, bias, jailbreaking
+  - Safety assessment
+* - **vlmevalkit**
+  - VQA, image captioning
+  - Vision-language models
+* - **agentic_eval**
+  - Tool usage, planning
+  - Agentic AI evaluation
+```
 
 ```bash
 # Pull and run any evaluation container

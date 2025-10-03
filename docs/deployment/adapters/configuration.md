@@ -35,9 +35,19 @@ adapter_config = AdapterConfig(
 
 Adds a system message to requests by adding it as a system role message.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `system_message` | `str` | Required | System message to add to requests |
+```{list-table}
+:header-rows: 1
+:widths: 20 15 15 50
+
+* - Parameter
+  - Type
+  - Default
+  - Description
+* - `system_message`
+  - `str`
+  - Required
+  - System message to add to requests
+```
 
 **Example:**
 
@@ -56,18 +66,55 @@ InterceptorConfig(
 
 Processes reasoning content in responses by detecting and removing reasoning tokens, tracking reasoning statistics, and optionally extracting reasoning to separate fields.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `start_reasoning_token` | `str \| None` | `"<think>"` | Token marking start of reasoning section |
-| `end_reasoning_token` | `str` | `"</think>"` | Token marking end of reasoning section |
-| `add_reasoning` | `bool` | `True` | Whether to add reasoning information |
-| `migrate_reasoning_content` | `bool` | `False` | Migrate reasoning_content to content field with tokens |
-| `enable_reasoning_tracking` | `bool` | `True` | Enable reasoning tracking and logging |
-| `include_if_not_finished` | `bool` | `True` | Include reasoning if end token not found |
-| `enable_caching` | `bool` | `True` | Cache individual request reasoning statistics |
-| `cache_dir` | `str` | `"/tmp/reasoning_interceptor"` | Cache directory for reasoning stats |
-| `stats_file_saving_interval` | `int \| None` | `None` | Save stats to file every N responses (None = only save via post_eval_hook) |
-| `logging_aggregated_stats_interval` | `int` | `100` | Log aggregated stats every N responses |
+```{list-table}
+:header-rows: 1
+:widths: 25 15 20 40
+
+* - Parameter
+  - Type
+  - Default
+  - Description
+* - `start_reasoning_token`
+  - `str \| None`
+  - `"<think>"`
+  - Token marking start of reasoning section
+* - `end_reasoning_token`
+  - `str`
+  - `"</think>"`
+  - Token marking end of reasoning section
+* - `add_reasoning`
+  - `bool`
+  - `True`
+  - Whether to add reasoning information
+* - `migrate_reasoning_content`
+  - `bool`
+  - `False`
+  - Migrate reasoning_content to content field with tokens
+* - `enable_reasoning_tracking`
+  - `bool`
+  - `True`
+  - Enable reasoning tracking and logging
+* - `include_if_not_finished`
+  - `bool`
+  - `True`
+  - Include reasoning if end token not found
+* - `enable_caching`
+  - `bool`
+  - `True`
+  - Cache individual request reasoning statistics
+* - `cache_dir`
+  - `str`
+  - `"/tmp/reasoning_interceptor"`
+  - Cache directory for reasoning stats
+* - `stats_file_saving_interval`
+  - `int \| None`
+  - `None`
+  - Save stats to file every N responses (None = only save via post_eval_hook)
+* - `logging_aggregated_stats_interval`
+  - `int`
+  - `100`
+  - Log aggregated stats every N responses
+```
 
 **Example:**
 
@@ -88,11 +135,27 @@ InterceptorConfig(
 
 Logs incoming requests with configurable limits and detail levels.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `log_request_body` | `bool` | `True` | Whether to log request body |
-| `log_request_headers` | `bool` | `True` | Whether to log request headers |
-| `max_requests` | `int \| None` | `2` | Maximum requests to log (None for unlimited) |
+```{list-table}
+:header-rows: 1
+:widths: 20 15 15 50
+
+* - Parameter
+  - Type
+  - Default
+  - Description
+* - `log_request_body`
+  - `bool`
+  - `True`
+  - Whether to log request body
+* - `log_request_headers`
+  - `bool`
+  - `True`
+  - Whether to log request headers
+* - `max_requests`
+  - `int \| None`
+  - `2`
+  - Maximum requests to log (None for unlimited)
+```
 
 **Example:**
 
@@ -112,11 +175,27 @@ InterceptorConfig(
 
 Logs outgoing responses with configurable limits and detail levels.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `log_response_body` | `bool` | `True` | Whether to log response body |
-| `log_response_headers` | `bool` | `True` | Whether to log response headers |
-| `max_responses` | `int \| None` | `None` | Maximum responses to log (None for unlimited) |
+```{list-table}
+:header-rows: 1
+:widths: 20 15 15 50
+
+* - Parameter
+  - Type
+  - Default
+  - Description
+* - `log_response_body`
+  - `bool`
+  - `True`
+  - Whether to log response body
+* - `log_response_headers`
+  - `bool`
+  - `True`
+  - Whether to log response headers
+* - `max_responses`
+  - `int \| None`
+  - `None`
+  - Maximum responses to log (None for unlimited)
+```
 
 **Example:**
 
@@ -136,14 +215,39 @@ InterceptorConfig(
 
 Caches requests and responses to disk with options for reusing cached responses.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `cache_dir` | `str` | `"/tmp"` | Directory to store cache files |
-| `reuse_cached_responses` | `bool` | `False` | Whether to reuse cached responses |
-| `save_requests` | `bool` | `False` | Whether to save requests to cache |
-| `save_responses` | `bool` | `True` | Whether to save responses to cache |
-| `max_saved_requests` | `int \| None` | `None` | Maximum requests to save (None for unlimited) |
-| `max_saved_responses` | `int \| None` | `None` | Maximum responses to save (None for unlimited) |
+```{list-table}
+:header-rows: 1
+:widths: 25 15 15 45
+
+* - Parameter
+  - Type
+  - Default
+  - Description
+* - `cache_dir`
+  - `str`
+  - `"/tmp"`
+  - Directory to store cache files
+* - `reuse_cached_responses`
+  - `bool`
+  - `False`
+  - Whether to reuse cached responses
+* - `save_requests`
+  - `bool`
+  - `False`
+  - Whether to save requests to cache
+* - `save_responses`
+  - `bool`
+  - `True`
+  - Whether to save responses to cache
+* - `max_saved_requests`
+  - `int \| None`
+  - `None`
+  - Maximum requests to save (None for unlimited)
+* - `max_saved_responses`
+  - `int \| None`
+  - `None`
+  - Maximum responses to save (None for unlimited)
+```
 
 **Notes:**
 
@@ -168,12 +272,31 @@ InterceptorConfig(
 
 Tracks evaluation progress by counting processed samples and optionally sending updates to a webhook.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `progress_tracking_url` | `str \| None` | `"http://localhost:8000"` | URL to post progress updates. Supports shell variable expansion. |
-| `progress_tracking_interval` | `int` | `1` | Update every N samples |
-| `request_method` | `str` | `"PATCH"` | HTTP method for progress updates |
-| `output_dir` | `str \| None` | `None` | Directory to save progress file (creates a `progress` file in this directory) |
+```{list-table}
+:header-rows: 1
+:widths: 25 15 20 40
+
+* - Parameter
+  - Type
+  - Default
+  - Description
+* - `progress_tracking_url`
+  - `str \| None`
+  - `"http://localhost:8000"`
+  - URL to post progress updates. Supports shell variable expansion.
+* - `progress_tracking_interval`
+  - `int`
+  - `1`
+  - Update every N samples
+* - `request_method`
+  - `str`
+  - `"PATCH"`
+  - HTTP method for progress updates
+* - `output_dir`
+  - `str \| None`
+  - `None`
+  - Directory to save progress file (creates a `progress` file in this directory)
+```
 
 **Example:**
 

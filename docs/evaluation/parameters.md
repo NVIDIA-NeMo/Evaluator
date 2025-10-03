@@ -38,26 +38,82 @@ These parameters are available for all evaluation tasks regardless of the underl
 
 ### Core Generation Parameters
 
-| Parameter | Type | Description | Example Values | Notes |
-|-----------|------|-------------|----------------|-------|
-| `temperature` | `float` | Sampling randomness | `0` (deterministic), `0.7` (creative) | Use `0` for reproducible results |
-| `top_p` | `float` | Nucleus sampling threshold | `1.0` (disabled), `0.9` (selective) | Controls diversity of generated text |
-| `max_new_tokens` | `int` | Maximum response length | `256`, `512`, `1024` | Limits generation length |
+```{list-table}
+:header-rows: 1
+:widths: 15 10 30 25 20
+
+* - Parameter
+  - Type
+  - Description
+  - Example Values
+  - Notes
+* - `temperature`
+  - `float`
+  - Sampling randomness
+  - `0` (deterministic), `0.7` (creative)
+  - Use `0` for reproducible results
+* - `top_p`
+  - `float`
+  - Nucleus sampling threshold
+  - `1.0` (disabled), `0.9` (selective)
+  - Controls diversity of generated text
+* - `max_new_tokens`
+  - `int`
+  - Maximum response length
+  - `256`, `512`, `1024`
+  - Limits generation length
+```
 
 ### Evaluation Control Parameters
 
-| Parameter | Type | Description | Example Values | Notes |
-|-----------|------|-------------|----------------|-------|
-| `limit_samples` | `int/float` | Evaluation subset size | `100` (count), `0.1` (10% of dataset) | Use for quick testing or resource limits |
-| `task` | `str` | Task-specific identifier | `"custom_task"` | Used by some harnesses for task routing |
+```{list-table}
+:header-rows: 1
+:widths: 15 10 30 25 20
+
+* - Parameter
+  - Type
+  - Description
+  - Example Values
+  - Notes
+* - `limit_samples`
+  - `int/float`
+  - Evaluation subset size
+  - `100` (count), `0.1` (10% of dataset)
+  - Use for quick testing or resource limits
+* - `task`
+  - `str`
+  - Task-specific identifier
+  - `"custom_task"`
+  - Used by some harnesses for task routing
+```
 
 ### Performance Parameters
 
-| Parameter | Type | Description | Example Values | Notes |
-|-----------|------|-------------|----------------|-------|
-| `parallelism` | `int` | Concurrent request threads | `1`, `8`, `16` | Balance against server capacity |
-| `max_retries` | `int` | Retry attempts for failed requests | `3`, `5`, `10` | Increases robustness for network issues |
-| `request_timeout` | `int` | Request timeout (seconds) | `60`, `120`, `300` | Adjust for model response time |
+```{list-table}
+:header-rows: 1
+:widths: 15 10 30 25 20
+
+* - Parameter
+  - Type
+  - Description
+  - Example Values
+  - Notes
+* - `parallelism`
+  - `int`
+  - Concurrent request threads
+  - `1`, `8`, `16`
+  - Balance against server capacity
+* - `max_retries`
+  - `int`
+  - Retry attempts for failed requests
+  - `3`, `5`, `10`
+  - Increases robustness for network issues
+* - `request_timeout`
+  - `int`
+  - Request timeout (seconds)
+  - `60`, `120`, `300`
+  - Adjust for model response time
+```
 
 ## Framework-Specific Parameters
 
@@ -65,43 +121,155 @@ Framework-specific parameters are passed through the `extra` dictionary within `
 
 ### LM-Evaluation-Harness Parameters
 
-| Parameter | Type | Description | Example Values | Use Cases |
-|-----------|------|-------------|----------------|-----------|
-| `num_fewshot` | `int` | Few-shot examples count | `0`, `5`, `25` | Academic benchmarks |
-| `tokenizer` | `str` | Tokenizer path | `"/path/to/tokenizer"` | Log-probability tasks |
-| `tokenizer_backend` | `str` | Tokenizer implementation | `"huggingface"`, `"sentencepiece"` | Custom tokenizer setups |
-| `trust_remote_code` | `bool` | Allow remote code execution | `True`, `False` | For custom tokenizers |
-| `add_bos_token` | `bool` | Add beginning-of-sequence token | `True`, `False` | Model-specific formatting |
-| `add_eos_token` | `bool` | Add end-of-sequence token | `True`, `False` | Model-specific formatting |
-| `fewshot_delimiter` | `str` | Separator between examples | `"\\n\\n"`, `"\\n---\\n"` | Custom prompt formatting |
-| `fewshot_seed` | `int` | Reproducible example selection | `42`, `1337` | Ensures consistent few-shot examples |
-| `description` | `str` | Custom prompt prefix | `"Answer the question:"` | Task-specific instructions |
-| `bootstrap_iters` | `int` | Statistical bootstrap iterations | `1000`, `10000` | For confidence intervals |
+```{list-table}
+:header-rows: 1
+:widths: 15 10 30 25 20
+
+* - Parameter
+  - Type
+  - Description
+  - Example Values
+  - Use Cases
+* - `num_fewshot`
+  - `int`
+  - Few-shot examples count
+  - `0`, `5`, `25`
+  - Academic benchmarks
+* - `tokenizer`
+  - `str`
+  - Tokenizer path
+  - `"/path/to/tokenizer"`
+  - Log-probability tasks
+* - `tokenizer_backend`
+  - `str`
+  - Tokenizer implementation
+  - `"huggingface"`, `"sentencepiece"`
+  - Custom tokenizer setups
+* - `trust_remote_code`
+  - `bool`
+  - Allow remote code execution
+  - `True`, `False`
+  - For custom tokenizers
+* - `add_bos_token`
+  - `bool`
+  - Add beginning-of-sequence token
+  - `True`, `False`
+  - Model-specific formatting
+* - `add_eos_token`
+  - `bool`
+  - Add end-of-sequence token
+  - `True`, `False`
+  - Model-specific formatting
+* - `fewshot_delimiter`
+  - `str`
+  - Separator between examples
+  - `"\\n\\n"`, `"\\n---\\n"`
+  - Custom prompt formatting
+* - `fewshot_seed`
+  - `int`
+  - Reproducible example selection
+  - `42`, `1337`
+  - Ensures consistent few-shot examples
+* - `description`
+  - `str`
+  - Custom prompt prefix
+  - `"Answer the question:"`
+  - Task-specific instructions
+* - `bootstrap_iters`
+  - `int`
+  - Statistical bootstrap iterations
+  - `1000`, `10000`
+  - For confidence intervals
+```
 
 ### Simple-Evals Parameters
 
-| Parameter | Type | Description | Example Values | Use Cases |
-|-----------|------|-------------|----------------|-----------|
-| `pass_at_k` | `list[int]` | Code evaluation metrics | `[1, 5, 10]` | Code generation tasks |
-| `timeout` | `int` | Code execution timeout | `5`, `10`, `30` | Code generation tasks |
-| `max_workers` | `int` | Parallel execution workers | `4`, `8`, `16` | Code execution parallelism |
-| `languages` | `list[str]` | Target programming languages | `["python", "java", "cpp"]` | Multi-language evaluation |
+```{list-table}
+:header-rows: 1
+:widths: 15 10 30 25 20
+
+* - Parameter
+  - Type
+  - Description
+  - Example Values
+  - Use Cases
+* - `pass_at_k`
+  - `list[int]`
+  - Code evaluation metrics
+  - `[1, 5, 10]`
+  - Code generation tasks
+* - `timeout`
+  - `int`
+  - Code execution timeout
+  - `5`, `10`, `30`
+  - Code generation tasks
+* - `max_workers`
+  - `int`
+  - Parallel execution workers
+  - `4`, `8`, `16`
+  - Code execution parallelism
+* - `languages`
+  - `list[str]`
+  - Target programming languages
+  - `["python", "java", "cpp"]`
+  - Multi-language evaluation
+```
 
 ### BigCode-Evaluation-Harness Parameters
 
-| Parameter | Type | Description | Example Values | Use Cases |
-|-----------|------|-------------|----------------|-----------|
-| `num_workers` | `int` | Parallel execution workers | `4`, `8`, `16` | Code execution parallelism |
-| `eval_metric` | `str` | Evaluation metric | `"pass_at_k"`, `"bleu"` | Different scoring methods |
-| `languages` | `list[str]` | Programming languages | `["python", "javascript"]` | Language-specific evaluation |
+```{list-table}
+:header-rows: 1
+:widths: 15 10 30 25 20
+
+* - Parameter
+  - Type
+  - Description
+  - Example Values
+  - Use Cases
+* - `num_workers`
+  - `int`
+  - Parallel execution workers
+  - `4`, `8`, `16`
+  - Code execution parallelism
+* - `eval_metric`
+  - `str`
+  - Evaluation metric
+  - `"pass_at_k"`, `"bleu"`
+  - Different scoring methods
+* - `languages`
+  - `list[str]`
+  - Programming languages
+  - `["python", "javascript"]`
+  - Language-specific evaluation
+```
 
 ### Safety and Specialized Harnesses
 
-| Parameter | Type | Description | Example Values | Use Cases |
-|-----------|------|-------------|----------------|-----------|
-| `probes` | `str` | Garak security probes | `"ansiescape.AnsiEscaped"` | Security evaluation |
-| `detectors` | `str` | Garak security detectors | `"base.TriggerListDetector"` | Security evaluation |
-| `generations` | `int` | Number of generations per prompt | `1`, `5`, `10` | Safety evaluation |
+```{list-table}
+:header-rows: 1
+:widths: 15 10 30 25 20
+
+* - Parameter
+  - Type
+  - Description
+  - Example Values
+  - Use Cases
+* - `probes`
+  - `str`
+  - Garak security probes
+  - `"ansiescape.AnsiEscaped"`
+  - Security evaluation
+* - `detectors`
+  - `str`
+  - Garak security detectors
+  - `"base.TriggerListDetector"`
+  - Security evaluation
+* - `generations`
+  - `int`
+  - Number of generations per prompt
+  - `1`, `5`, `10`
+  - Safety evaluation
+```
 
 ## Configuration Patterns
 

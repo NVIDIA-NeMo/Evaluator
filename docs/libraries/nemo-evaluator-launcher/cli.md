@@ -14,14 +14,25 @@ nv-eval --version                 # Show version information
 
 ## Commands Overview
 
-| Command | Description |
-|---------|-------------|
-| `run` | Run evaluations with specified configuration |
-| `status` | Check status of jobs or invocations |
-| `kill` | Kill a job or invocation |
-| `ls` | List tasks or runs |
-| `export` | Export evaluation results to various destinations |
-| `version` | Show version information |
+```{list-table}
+:header-rows: 1
+:widths: 20 80
+
+* - Command
+  - Description
+* - `run`
+  - Run evaluations with specified configuration
+* - `status`
+  - Check status of jobs or invocations
+* - `kill`
+  - Kill a job or invocation
+* - `ls`
+  - List tasks or runs
+* - `export`
+  - Export evaluation results to various destinations
+* - `version`
+  - Show version information
+```
 
 ## run - Run Evaluations
 
@@ -292,11 +303,23 @@ nv-eval --version
 
 The CLI respects environment variables for logging and task-specific authentication:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NEMO_EVALUATOR_LOG_LEVEL` | Logging level for the launcher (DEBUG, INFO, WARNING, ERROR, CRITICAL) | `WARNING` |
-| `LOG_LEVEL` | Alternative log level variable | Uses `NEMO_EVALUATOR_LOG_LEVEL` if set |
-| `LOG_DISABLE_REDACTION` | Disable credential redaction in logs (set to 1, true, or yes) | Not set |
+```{list-table}
+:header-rows: 1
+:widths: 30 50 20
+
+* - Variable
+  - Description
+  - Default
+* - `NEMO_EVALUATOR_LOG_LEVEL`
+  - Logging level for the launcher (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  - `WARNING`
+* - `LOG_LEVEL`
+  - Alternative log level variable
+  - Uses `NEMO_EVALUATOR_LOG_LEVEL` if set
+* - `LOG_DISABLE_REDACTION`
+  - Disable credential redaction in logs (set to 1, true, or yes)
+  - Not set
+```
 
 ### Task-Specific Environment Variables
 

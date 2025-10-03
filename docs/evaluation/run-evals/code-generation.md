@@ -139,11 +139,27 @@ nv-eval ls tasks | grep -E "(mbpp|humaneval)"
 
 The BigCode harness provides these programming benchmarks:
 
-| Task | Description | Language | Endpoint Type |
-|------|-------------|----------|---------------|
-| `mbpp` | Mostly Basic Programming Problems | Python | chat |
-| `mbppplus` | Extended MBPP with additional test cases | Python | chat |
-| `humaneval` | Hand-written programming problems | Python | completions |
+```{list-table}
+:header-rows: 1
+:widths: 20 40 20 20
+
+* - Task
+  - Description
+  - Language
+  - Endpoint Type
+* - `mbpp`
+  - Mostly Basic Programming Problems
+  - Python
+  - chat
+* - `mbppplus`
+  - Extended MBPP with additional test cases
+  - Python
+  - chat
+* - `humaneval`
+  - Hand-written programming problems
+  - Python
+  - completions
+```
 
 ## Basic Code Generation Evaluation
 
