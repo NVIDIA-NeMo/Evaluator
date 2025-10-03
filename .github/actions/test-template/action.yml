@@ -97,8 +97,16 @@ runs:
 
     - name: Start container
       shell: bash
+      env:
+        MOUNT_FS: ${{ inputs.type_of_test == 'integration_tests' }}
       run: |
-        echo ::group::Start test container
+        echo "::group::Start test container"
+        if [[ "$MOUNT_FS" == "true" ]]; then
+          VOLUME_ARGS="--volume /mnt/datadrive/TestData:/home/TestData"
+        else
+          VOLUME_ARGS=""
+        fi
+
         cmd=$(cat <<RUN_TEST_EOF
         #!/bin/bash
         docker container rm -f nemo_container_${{ github.run_id }} || true
@@ -119,6 +127,7 @@ runs:
           --env HF_HOME=/home/TestData/HF_HOME \
           --env RUN_ID=${{ github.run_id }} \
           --volume $(pwd)/Eval:/workspace \
+          $VOLUME_ARGS \
           eval \
           bash -c "sleep $(( ${{ inputs.timeout }} * 60 + 60 ))"
         RUN_TEST_EOF
