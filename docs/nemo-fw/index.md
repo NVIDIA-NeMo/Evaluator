@@ -4,7 +4,7 @@ The NeMo Framework is NVIDIA’s GPU-accelerated, end-to-end training platform f
 
 The NeMo Evaluator is integrated within NeMo Framework, offering streamlined deployment and advanced evaluation capabilities for models trained using NeMo, leveraging state-of-the-art evaluation harnesses.
 
-![image](../NeMo_Repo_Overview_Eval.png)
+![image](../../NeMo_Repo_Overview_Eval.png)
 
 ## ✨ Features
 
@@ -17,7 +17,7 @@ The NeMo Evaluator is integrated within NeMo Framework, offering streamlined dep
 
 ### 1. Start NeMo Framework Container
 
-For optimal performance and user experience, use the latest version of the [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags). Please fetch the most recent $TAG and run the following command to start a container:
+For optimal performance and user experience, use the latest version of the [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags). Please fetch the most recent `$TAG` and run the following command to start a container:
 
 ```bash
 docker run --rm -it -w /workdir -v $(pwd):/workdir \
@@ -73,9 +73,11 @@ print(results)
 - **PyTriton Backend**: Provides high-performance inference through the NVIDIA Triton Inference Server, with OpenAI API compatibility via a FastAPI interface. Supports model parallelism across single-node and multi-node configurations. Note: Multi-instance evaluation is not supported.
 - **Ray Backend**: Enables multi-instance evaluation with model parallelism on a single node using Ray Serve, while maintaining OpenAI API compatibility. Multi-node support is coming soon.
 
+For more information on the deployment, please see [NeMo Export-Deploy](https://github.com/NVIDIA-NeMo/Export-Deploy).
+
 #### 2. Evaluation Layer
 
-- **NeMo Evaluator**: Provides standardized benchmark evaluations using packages from NVIDIA Eval Factory, bundled in the NeMo Framework container. The `lm-evaluation-harness` is pre-installed by default, and additional tools listed in the [support matrix](#-support-matrix) can be added as needed. For more information, see the [documentation](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/docs/nemo-fw).
+- **NeMo Evaluator**: Provides standardized benchmark evaluations using packages from NVIDIA Eval Factory, bundled in the NeMo Framework container. The `lm-evaluation-harness` is pre-installed by default, and additional tools listed in the [support matrix](#-support-matrix) can be added as needed. For more information, see the [documentation](evaluation-doc).
 
 
 ## 📖 Usage Examples
@@ -108,11 +110,16 @@ api_endpoint = ApiEndpoint(
 # Evaluation target configuration
 target = EvaluationTarget(api_endpoint=api_endpoint)
 # Configure EvaluationConfig with type, number of samples to evaluate on, etc.
-config = EvaluationConfig(type="gsm8k",
-            output_dir="results",
-            params=ConfigParams(
-                    limit_samples=10
-                ))
+config = EvaluationConfig(
+    type="gsm8k",
+    output_dir="results",
+    params=ConfigParams(
+        parallelism=4,      # number of concurrent requests to the server
+        temperature=0,      # sampling temperature
+        top_p=0,            # sampling top_p
+        limit_samples=10,   # number of samples to evaluate on
+    )
+)
 
 # Run evaluation
 results = evaluate(target_cfg=target, eval_cfg=config)
@@ -136,8 +143,8 @@ python \
 
 ### Deploy with Ray
 
-```python
-# Deploy using Ray Serve
+```bash
+# Deploy 2 model replicas on 2 GPUs using Ray Serve
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
   --nemo_checkpoint "/path/to/checkpoint" \

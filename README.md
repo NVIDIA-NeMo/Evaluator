@@ -121,7 +121,7 @@ nemo-evaluator-launcher status <job_id_or_invocation_id>
 - Customize your workflow with [Custom Exporters](./docs/nemo-evaluator-launcher/exporters/overview.md) or by evaluating with [proprietary data](./docs/nemo-evaluator/extending/framework-definition-file.md).
 
 
-## Run with NeMo Framework
+## 🧩 Run with NeMo Framework
 
 The NeMo Framework is NVIDIA’s GPU-accelerated, end-to-end training platform for large language models (LLMs), multimodal models, and speech models. It enables seamless scaling of both pretraining and post-training workloads, from a single GPU to clusters with thousands of nodes, supporting Hugging Face/PyTorch and Megatron models. NeMo includes a suite of libraries and curated training recipes to help users build models from start to finish.
 
@@ -136,7 +136,7 @@ The NeMo Evaluator is integrated within NeMo Framework, offering streamlined dep
 
 ### 1. Start NeMo Framework Container
 
-For optimal performance and user experience, use the latest version of the [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags). Please fetch the most recent $TAG and run the following command to start a container:
+For optimal performance and user experience, use the latest version of the [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags). Please fetch the most recent `$TAG` and run the following command to start a container:
 
 ```bash
 docker run --rm -it -w /workdir -v $(pwd):/workdir \
