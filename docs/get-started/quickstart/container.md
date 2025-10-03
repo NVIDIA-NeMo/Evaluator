@@ -70,10 +70,18 @@ ls -la ./results/
 
 For automated workflows, you can run everything in a single command:
 
-```{literalinclude} ../_snippets/container_run.sh
-:language: bash
-:start-after: "# [snippet-start]"
-:end-before: "# [snippet-end]"
+```bash
+# Run evaluation directly in container
+docker run --rm --gpus all \
+    -v $(pwd)/results:/workspace/results \
+    -e MY_API_KEY="${MY_API_KEY}" \
+    nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
+    eval-factory run_eval \
+        --eval_type mmlu_pro \
+        --model_url https://integrate.api.nvidia.com/v1/chat/completions \
+        --model_id meta/llama-3.1-8b-instruct \
+        --api_key_name MY_API_KEY \
+        --output_dir /workspace/results
 ```
 
 ## Key Features

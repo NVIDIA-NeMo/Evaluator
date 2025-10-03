@@ -1,7 +1,7 @@
 #!/bin/bash
 # Run evaluation using NGC containers directly
 
-# Prerequisites
+# Set container version (or use environment variable)
 DOCKER_TAG="${DOCKER_TAG:-25.08.1}"
 export MY_API_KEY="${MY_API_KEY:-your-api-key}"
 

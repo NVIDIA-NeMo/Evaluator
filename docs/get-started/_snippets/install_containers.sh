@@ -1,7 +1,7 @@
 #!/bin/bash
 # Pull pre-built evaluation containers from NVIDIA NGC
 
-# Note: Replace {{ docker_compose_latest }} with actual version like 25.08.1
+# Set container version (or use environment variable)
 DOCKER_TAG="${DOCKER_TAG:-25.08.1}"
 
 # [snippet-start]

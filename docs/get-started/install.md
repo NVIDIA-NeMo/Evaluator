@@ -101,11 +101,11 @@ Quick verification:
 
 Use pre-built evaluation containers from NVIDIA NGC for guaranteed reproducibility:
 
-```{literalinclude} _snippets/install_containers.sh
-:language: bash
-:start-after: "# [snippet-start]"
-:end-before: "# [snippet-end]"
-:dedent: 0
+```bash
+# Pull evaluation containers (no local installation needed)
+docker pull nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
+docker pull nvcr.io/nvidia/eval-factory/lm-evaluation-harness:{{ docker_compose_latest }}
+docker pull nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_compose_latest }}
 ```
 
 ```bash
