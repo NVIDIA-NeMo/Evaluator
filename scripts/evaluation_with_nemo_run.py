@@ -304,17 +304,18 @@ def main():
         deploy_script = TRITON_DEPLOY_SCRIPT.format(
             **commons_args, additional_args=additional_args
         )
+        deploy_run_script = run.Script(inline=deploy_script)
     elif args.serving_backend == "ray":
         if args.num_cpus_per_replica:
             additional_args += f" --num_cpus_per_replica {args.num_cpus_per_replica}"
         deploy_script = RAY_DEPLOY_SCRIPT.format(
             **commons_args, additional_args=additional_args
         )
+        deploy_run_script = run.Script(inline=deploy_script, metadata={"use_with_ray_cluster": True})
     else:
         raise ValueError(f"Invalid serving backend: {args.serving_backend}")
-    print(deploy_script)
 
-    deploy_run_script = run.Script(inline=deploy_script)
+    print(deploy_script)
 
     api_endpoint = run.Config(
         ApiEndpoint,
