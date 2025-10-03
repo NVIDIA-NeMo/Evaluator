@@ -28,7 +28,7 @@ Hosted Endpoints (Fastest):
   nemo-evaluator-launcher run --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
-    -o target.api_endpoint.api_key_name=API_KEY
+    -o target.api_endpoint.api_key_name=NGC_API_KEY
   ```
 
   For NVIDIA API access, refer to [Setting up API Keys](https://docs.omniverse.nvidia.com/guide-sdg/latest/setup.html#preview-and-set-up-an-api-key).
