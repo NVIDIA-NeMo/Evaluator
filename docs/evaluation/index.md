@@ -15,6 +15,80 @@ Before you run evaluations, ensure you have:
 
 ---
 
+## Quick Start: Academic Benchmarks
+
+:::{admonition} Fastest path to evaluate academic benchmarks
+:class: tip
+
+**For researchers and data scientists**: Evaluate your model on standard academic benchmarks in 3 steps.
+
+**Step 1: Choose Your Approach**
+- **Launcher CLI** (Recommended): `nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct`
+- **Python API**: Direct programmatic control with `evaluate()` function
+
+**Step 2: Select Benchmarks**
+
+Common academic suites:
+- **Language Understanding**: `mmlu_pro`, `arc_challenge`, `hellaswag`, `truthfulqa`
+- **Mathematical Reasoning**: `gsm8k`, `math`
+- **Instruction Following**: `ifeval`, `gpqa_diamond`
+
+Discover all available tasks:
+```bash
+nv-eval ls tasks
+```
+
+**Step 3: Run Evaluation**
+
+Using Launcher CLI:
+```bash
+nv-eval run \
+    --config-dir examples \
+    --config-name local_llama_3_1_8b_instruct \
+    -o 'evaluation.tasks=["mmlu_pro", "gsm8k", "arc_challenge"]' \
+    -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
+    -o target.api_endpoint.api_key=${YOUR_API_KEY}
+```
+
+Using Python API:
+```python
+from nemo_evaluator.core.evaluate import evaluate
+from nemo_evaluator.api.api_dataclasses import (
+    EvaluationConfig, EvaluationTarget, ApiEndpoint, ConfigParams, EndpointType
+)
+
+# Configure and run
+eval_config = EvaluationConfig(
+    type="mmlu_pro",
+    output_dir="./results",
+    params=ConfigParams(
+        limit_samples=100,      # Start with subset
+        temperature=0.01,       # Near-deterministic
+        max_new_tokens=512,
+        parallelism=4
+    )
+)
+
+target_config = EvaluationTarget(
+    api_endpoint=ApiEndpoint(
+        url="https://integrate.api.nvidia.com/v1/chat/completions",
+        model_id="meta/llama-3.1-8b-instruct",
+        type=EndpointType.CHAT,
+        api_key="YOUR_API_KEY"
+    )
+)
+
+result = evaluate(eval_cfg=eval_config, target_cfg=target_config)
+```
+
+**Next Steps**:
+- {ref}`text-gen` - Complete text generation guide
+- {ref}`eval-parameters` - Optimize configuration parameters
+- {ref}`eval-benchmarks` - Explore all available benchmarks
+:::
+
+---
+
 ## Evaluation Workflows
 
 Select a workflow based on your environment and desired level of control.

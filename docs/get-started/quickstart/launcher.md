@@ -20,13 +20,15 @@ pip install nemo-evaluator-launcher
 nv-eval ls tasks
 
 # 3. Run evaluation against a hosted endpoint
-nv-eval run \
-    --config-dir examples \
-    --config-name local_llama_3_1_8b_instruct \
-    -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
-    -o target.api_endpoint.api_key_name=YOUR_API_KEY \
-    -o execution.output_dir=./results
+```
 
+```{literalinclude} ../_snippets/launcher_basic.sh
+:language: bash
+:start-after: "# [snippet-start]"
+:end-before: "# [snippet-end]"
+```
+
+```bash
 # 4. Check status and results
 nv-eval status <invocation_id>
 ```
@@ -35,25 +37,10 @@ nv-eval status <invocation_id>
 
 Here's a complete example using NVIDIA Build (build.nvidia.com):
 
-```bash
-# Set up your API key
-export NGC_API_KEY="nvapi-your-key-here"
-
-# Run a quick test evaluation with limited samples
-nv-eval run \
-    --config-dir examples \
-    --config-name local_llama_3_1_8b_instruct \
-    -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
-    -o target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
-    -o target.api_endpoint.api_key_name=NGC_API_KEY \
-    -o execution.output_dir=./results \
-    -o config.params.limit_samples=10
-
-# Monitor progress (replace with actual invocation_id from output)
-nv-eval status <invocation_id>
-
-# View results
-ls -la ./results/<invocation_id>/
+```{literalinclude} ../_snippets/launcher_full_example.sh
+:language: bash
+:start-after: "# [snippet-start]"
+:end-before: "# [snippet-end]"
 ```
 
 **What happens:**

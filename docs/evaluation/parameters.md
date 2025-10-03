@@ -4,6 +4,22 @@
 
 Comprehensive reference for configuring evaluation tasks in {{ product_name_short }}, covering universal parameters, framework-specific settings, and optimization patterns.
 
+:::{admonition} Quick Navigation
+:class: info
+
+**Looking for task-specific guides?**
+- {ref}`text-gen` - Text generation evaluation
+- {ref}`log-probability` - Log-probability evaluation
+- {ref}`code-generation` - Code generation evaluation
+- {ref}`safety-security` - Safety and security evaluation
+
+**Looking for available benchmarks?**
+- {ref}`eval-benchmarks` - Browse available benchmarks by category
+
+**Need help getting started?**
+- {ref}`evaluation-overview` - Overview of evaluation workflows
+- {ref}`eval-run` - Step-by-step evaluation guides
+:::
 
 ## Overview
 
@@ -290,7 +306,7 @@ Framework-specific parameters are passed through the `extra` dictionary within `
 
 ```python
 academic_params = ConfigParams(
-    temperature=0,          # Deterministic generation
+    temperature=0.01,      # Near-deterministic generation (0.0 not supported by all endpoints)
     top_p=1.0,             # No nucleus sampling
     max_new_tokens=256,    # Moderate response length
     limit_samples=None,    # Full dataset evaluation
@@ -361,7 +377,7 @@ logprob_params = ConfigParams(
 
 ```python
 performance_params = ConfigParams(
-    temperature=0,         # Deterministic for speed
+    temperature=0.01,      # Near-deterministic for speed
     parallelism=16,       # High concurrency
     max_retries=5,        # Robust retry policy
     request_timeout=120,  # Generous timeout
@@ -380,7 +396,7 @@ performance_params = ConfigParams(
 ### By Evaluation Type
 
 **Text Generation Tasks**:
-- Use `temperature=0` for deterministic, reproducible results
+- Use `temperature=0.01` for near-deterministic, reproducible results (most endpoints don't support exactly 0.0)
 - Set appropriate `max_new_tokens` based on expected response length
 - Configure `parallelism` based on server capacity
 
@@ -413,7 +429,7 @@ performance_params = ConfigParams(
 
 **Development/Testing**:
 - Use `limit_samples=10-100` for quick validation
-- Set `temperature=0` for consistent results
+- Set `temperature=0.01` for consistent results
 - Enable verbose logging in `extra` if available
 
 ## Common Configuration Errors
@@ -506,7 +522,7 @@ params = ConfigParams(
 
 ### Production Evaluation
 
-1. **Deterministic Settings**: Use `temperature=0` for consistent results
+1. **Deterministic Settings**: Use `temperature=0.01` for consistent results
 2. **Full Datasets**: Remove `limit_samples` for complete evaluation
 3. **Robust Configuration**: Set appropriate retries and timeouts
 4. **Resource Planning**: Scale `parallelism` based on available infrastructure

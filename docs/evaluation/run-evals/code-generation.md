@@ -20,6 +20,20 @@ Ensure you have:
 - **API Access**: Valid API key for your model endpoint
 - **Sufficient Context**: Models with adequate context length for code problems
 
+### Pre-Flight Check
+
+Verify your setup before running code evaluation:
+
+```{literalinclude} ../_snippets/prerequisites/endpoint_check.py
+:language: python
+:start-after: "# [snippet-start]"
+:end-before: "# [snippet-end]"
+```
+
+:::{tip}
+**Run this script directly**: `python docs/evaluation/_snippets/prerequisites/endpoint_check.py`
+:::
+
 ---
 
 ## Choose Your Approach

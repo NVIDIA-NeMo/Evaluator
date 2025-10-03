@@ -7,17 +7,47 @@ Comprehensive catalog of 100+ benchmarks across 18 evaluation harnesses, all ava
 
 ## Overview
 
-NeMo Evaluator provides access to 100+ benchmarks through pre-built NGC containers and the unified launcher CLI. Each container specializes in different evaluation domains while maintaining consistent interfaces and reproducible results.
+NeMo Evaluator provides access to benchmarks across multiple domains through pre-built NGC containers and the unified launcher CLI. Each container specializes in different evaluation domains while maintaining consistent interfaces and reproducible results.
 
 ## Available via Launcher
 
-```bash
-# List all available benchmarks
-nv-eval ls tasks
-
-# Output as JSON for programmatic filtering
-nv-eval ls tasks --json
+```{literalinclude} _snippets/commands/list_tasks.sh
+:language: bash
+:start-after: "# [snippet-start]"
+:end-before: "# [snippet-end]"
 ```
+
+## Choosing Benchmarks for Academic Research
+
+:::{admonition} Benchmark Selection Guide
+:class: tip
+
+**For Language Understanding & General Knowledge**:
+Recommended suite for comprehensive model evaluation:
+- `mmlu_pro` - Expert-level knowledge across 14 domains
+- `arc_challenge` - Complex reasoning and science questions
+- `hellaswag` - Commonsense reasoning about situations
+- `truthfulqa` - Factual accuracy vs. plausibility
+
+```bash
+nv-eval run \
+    --config-dir examples \
+    --config-name local_academic_suite \
+    -o 'evaluation.tasks=["mmlu_pro", "arc_challenge", "hellaswag", "truthfulqa"]'
+```
+
+**For Mathematical & Quantitative Reasoning**:
+- `gsm8k` - Grade school math word problems
+- `math` - Competition-level mathematics
+- `mgsm` - Multilingual math reasoning
+
+**For Instruction Following & Alignment**:
+- `ifeval` - Precise instruction following
+- `gpqa_diamond` - Graduate-level science questions
+- `mtbench` - Multi-turn conversation quality
+
+**See benchmark details below** for complete task descriptions and requirements.
+:::
 
 ## Benchmark Categories
 
@@ -63,7 +93,20 @@ nv-eval ls tasks --json
 nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
-    -o 'evaluation.tasks=[{name: mmlu_pro}, {name: gsm8k}, {name: arc_challenge}]'
+    -o 'evaluation.tasks=["mmlu_pro", "gsm8k", "arc_challenge"]'
+```
+
+**Python API Example:**
+```python
+# Evaluate multiple academic benchmarks
+academic_tasks = ["mmlu_pro", "gsm8k", "arc_challenge"]
+for task in academic_tasks:
+    eval_config = EvaluationConfig(
+        type=task,
+        output_dir=f"./results/{task}/",
+        params=ConfigParams(temperature=0.01, parallelism=4)
+    )
+    result = evaluate(eval_cfg=eval_config, target_cfg=target_config)
 ```
 
 ###  **Code Generation**
@@ -96,7 +139,7 @@ nv-eval run \
 nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
-    -o 'evaluation.tasks=[{name: humaneval}, {name: mbpp}]'
+    -o 'evaluation.tasks=["humaneval", "mbpp"]'
 ```
 
 ###  **Safety and Security**
@@ -125,7 +168,7 @@ nv-eval run \
 nv-eval run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
-    -o 'evaluation.tasks=[{name: aegis_v2}, {name: garak}]'
+    -o 'evaluation.tasks=["aegis_v2", "garak"]'
 ```
 
 ###  **Function Calling and Agentic AI**
@@ -250,9 +293,54 @@ docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_lates
 # See the Python API documentation for details
 ```
 
+## Benchmark Selection Best Practices
+
+### For Academic Publications
+
+**Recommended Core Suite**:
+1. **MMLU Pro** or **MMLU** - Broad knowledge assessment
+2. **GSM8K** - Mathematical reasoning
+3. **ARC Challenge** - Scientific reasoning
+4. **HellaSwag** - Commonsense reasoning
+5. **TruthfulQA** - Factual accuracy
+
+This suite provides comprehensive coverage across major evaluation dimensions.
+
+### For Model Development
+
+**Iterative Testing**:
+- Start with `limit_samples=100` for quick feedback during development
+- Run full evaluations before major releases
+- Track metrics over time to measure improvement
+
+**Configuration**:
+```python
+# Development testing
+params = ConfigParams(
+    limit_samples=100,      # Quick iteration
+    temperature=0.01,       # Deterministic
+    parallelism=4
+)
+
+# Production evaluation
+params = ConfigParams(
+    limit_samples=None,     # Full dataset
+    temperature=0.01,       # Deterministic
+    parallelism=8          # Higher throughput
+)
+```
+
+### For Specialized Domains
+
+- **Code Models**: Focus on `humaneval`, `mbpp`, `livecodebench`
+- **Instruction Models**: Emphasize `ifeval`, `mtbench`, `gpqa_diamond`
+- **Multilingual Models**: Include `arc_multilingual`, `hellaswag_multilingual`, `mgsm`
+- **Safety-Critical**: Prioritize `safety-harness` and `garak` evaluations
+
 ## Next Steps
 
-- **Start Evaluating**: Use {ref}`launcher-quickstart` for immediate access to all benchmarks
-- **Container Details**: Browse the complete {ref}`nemo-evaluator-containers` for specifications
-- **Custom Benchmarks**: Learn to create custom evaluations with {ref}`framework-definition-file`
-- **Advanced Usage**: Explore {ref}`executors <lib-launcher>` for multi-backend execution at scale
+- **Quick Start**: See {ref}`evaluation-overview` for the fastest path to your first evaluation
+- **Task-Specific Guides**: Explore {ref}`eval-run` for detailed evaluation workflows
+- **Configuration**: Review {ref}`eval-parameters` for optimizing evaluation settings
+- **Container Details**: Browse {ref}`nemo-evaluator-containers` for complete specifications
+- **Custom Benchmarks**: Learn {ref}`framework-definition-file` for custom evaluations

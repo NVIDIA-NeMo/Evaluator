@@ -12,88 +12,18 @@ The NeMo Evaluator Core provides direct Python API access for custom configurati
 
 ## Quick Start
 
-```python
-from nemo_evaluator.core.evaluate import evaluate
-from nemo_evaluator.api.api_dataclasses import (
-    EvaluationConfig, 
-    EvaluationTarget, 
-    ApiEndpoint, 
-    EndpointType,
-    ConfigParams
-)
-
-# Configure evaluation
-eval_config = EvaluationConfig(
-    type="mmlu_pro",
-    output_dir="./results",
-    params=ConfigParams(
-        limit_samples=10,
-        temperature=0.0,
-        max_new_tokens=1024,
-        parallelism=1
-    )
-)
-
-# Configure target endpoint
-target_config = EvaluationTarget(
-    api_endpoint=ApiEndpoint(
-        url="https://integrate.api.nvidia.com/v1/chat/completions",
-        model_id="meta/llama-3.1-8b-instruct",
-        api_key="your_api_key_here",
-        type=EndpointType.CHAT
-    )
-)
-
-# Run evaluation
-result = evaluate(eval_cfg=eval_config, target_cfg=target_config)
-print(f"Evaluation completed: {result}")
+```{literalinclude} ../_snippets/core_basic.py
+:language: python
+:start-after: "# [snippet-start]"
+:end-before: "# [snippet-end]"
 ```
 
 ## Complete Working Example
 
-```python
-import os
-from nemo_evaluator.core.evaluate import evaluate
-from nemo_evaluator.api.api_dataclasses import (
-    EvaluationConfig, 
-    EvaluationTarget, 
-    ApiEndpoint, 
-    EndpointType, 
-    ConfigParams
-)
-
-# Set up environment
-os.environ["NGC_API_KEY"] = "nvapi-your-key-here"
-
-# Configure evaluation
-eval_config = EvaluationConfig(
-    type="mmlu_pro",
-    output_dir="./results",
-    params=ConfigParams(
-        limit_samples=3,
-        temperature=0.0,
-        max_new_tokens=1024,
-        parallelism=1,
-        max_retries=5
-    )
-)
-
-# Configure target
-target_config = EvaluationTarget(
-    api_endpoint=ApiEndpoint(
-        model_id="meta/llama-3.1-8b-instruct",
-        url="https://integrate.api.nvidia.com/v1/chat/completions",
-        type=EndpointType.CHAT,
-        api_key=os.environ["NGC_API_KEY"]
-    )
-)
-
-# Run evaluation
-try:
-    result = evaluate(eval_cfg=eval_config, target_cfg=target_config)
-    print(f"Evaluation completed. Results saved to: {eval_config.output_dir}")
-except Exception as e:
-    print(f"Evaluation failed: {e}")
+```{literalinclude} ../_snippets/core_full_example.py
+:language: python
+:start-after: "# [snippet-start]"
+:end-before: "# [snippet-end]"
 ```
 
 ## Key Features
@@ -121,19 +51,10 @@ except Exception as e:
 
 ### Multi-Benchmark Evaluation
 
-```python
-benchmarks = ["gsm8k", "hellaswag", "arc_easy"]
-results = {}
-
-for benchmark in benchmarks:
-    config = EvaluationConfig(
-        type=benchmark,
-        output_dir=f"./results/{benchmark}",
-        params=ConfigParams(limit_samples=10)
-    )
-    
-    result = evaluate(eval_cfg=config, target_cfg=target_config)
-    results[benchmark] = result
+```{literalinclude} ../_snippets/core_multi_benchmark.py
+:language: python
+:start-after: "# [snippet-start]"
+:end-before: "# [snippet-end]"
 ```
 
 ### Discovering Available Benchmarks

@@ -24,6 +24,20 @@ Ensure you have:
 - **API Access**: Valid API key for your model endpoint
 - **Authentication**: Hugging Face token for gated datasets and tokenizers
 
+### Pre-Flight Check
+
+Verify your completions endpoint before running log-probability evaluation:
+
+```{literalinclude} ../_snippets/prerequisites/logprob_endpoint_check.py
+:language: python
+:start-after: "# [snippet-start]"
+:end-before: "# [snippet-end]"
+```
+
+:::{tip}
+**Run this script directly**: `python docs/evaluation/_snippets/prerequisites/logprob_endpoint_check.py`
+:::
+
 ---
 
 ## Choose Your Approach

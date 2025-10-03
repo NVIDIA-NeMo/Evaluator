@@ -15,6 +15,20 @@ Ensure you have:
 3. **Installed Packages**: NeMo Evaluator or access to evaluation containers
 4. **Sufficient Resources**: Adequate compute for your chosen benchmarks
 
+### Pre-Flight Check
+
+Verify your setup before running full evaluation:
+
+```{literalinclude} ../_snippets/prerequisites/endpoint_check.py
+:language: python
+:start-after: "# [snippet-start]"
+:end-before: "# [snippet-end]"
+```
+
+:::{tip}
+**Run this script directly**: `python docs/evaluation/_snippets/prerequisites/endpoint_check.py`
+:::
+
 ---
 
 ## Evaluation Approach
@@ -126,12 +140,13 @@ eval-factory run_eval \
 
 Use the launcher CLI to discover all available text generation tasks:
 
-```bash
-# List all available benchmarks
-nv-eval ls tasks
+```{literalinclude} ../_snippets/commands/list_tasks.sh
+:language: bash
+:start-after: "# [snippet-start]"
+:end-before: "# [snippet-end]"
 ```
 
-Run this command to discover the complete list of available benchmarks across all installed frameworks.
+Run these commands to discover the complete list of available benchmarks across all installed frameworks.
 
 ## Text Generation Task Categories
 
@@ -294,10 +309,141 @@ results = evaluate(target_cfg=target, eval_cfg=config)
 
 ### Configuration Parameters
 
-For comprehensive parameter reference including all available settings, optimization patterns, and framework-specific options, refer to {ref}`eval-parameters`.
+**Quick Reference - Essential Parameters**:
+
+```{literalinclude} ../_snippets/parameters/academic_minimal.py
+:language: python
+:start-after: "# [snippet-start]"
+:end-before: "# [snippet-end]"
+```
+
+:::{seealso}
+**Complete Parameter Reference**
+
+This guide shows minimal configuration for getting started. For comprehensive parameter options including:
+- Framework-specific parameters (`num_fewshot`, `tokenizer`, etc.)
+- Optimization patterns for different scenarios
+- Troubleshooting common configuration issues
+- Performance tuning guidelines
+
+See {ref}`eval-parameters`.
+:::
 
 **Key Parameters for Text Generation**:
-- `temperature`: Use low values (0.01-0.1) for deterministic, reproducible results
+- `temperature`: Use 0.01 for near-deterministic, reproducible results
 - `max_new_tokens`: Controls maximum response length
 - `limit_samples`: Limits evaluation to a subset for testing
 - `parallelism`: Balances speed with server capacity
+
+## Understanding Results
+
+After evaluation completes, you'll receive structured results with task-level metrics:
+
+```{literalinclude} ../_snippets/api-examples/result_access.py
+:language: python
+:start-after: "# [snippet-start]"
+:end-before: "# [snippet-end]"
+```
+
+### Common Metrics
+
+- **`acc` (Accuracy)**: Percentage of correct responses
+- **`acc_norm` (Normalized Accuracy)**: Length-normalized scoring (often more reliable)
+- **`exact_match`**: Exact string match percentage
+- **`f1`**: F1 score for token-level overlap
+
+Each metric includes statistics (mean, stderr) for confidence intervals.
+
+## Multi-Task Evaluation
+
+Evaluate across multiple academic benchmarks in a single workflow:
+
+```{literalinclude} ../_snippets/api-examples/multi_task.py
+:language: python
+:start-after: "# [snippet-start]"
+:end-before: "# [snippet-end]"
+```
+
+:::{tip}
+**Run this example**: `python docs/evaluation/_snippets/api-examples/multi_task.py`
+:::
+
+## Common Issues
+
+::::{dropdown} "Temperature cannot be 0.0" Error
+:icon: alert
+
+Some endpoints don't support exact 0.0 temperature. Use 0.01 instead:
+
+```python
+params = ConfigParams(temperature=0.01)  # Near-deterministic
+```
+::::
+
+::::{dropdown} Slow Evaluation Performance
+:icon: alert
+
+**Symptoms**: Evaluation takes too long or times out
+
+**Solutions**:
+- Increase `parallelism` (start with 4, scale to 8-16 based on endpoint capacity)
+- Reduce `request_timeout` if requests hang
+- Use `limit_samples` for initial testing before full runs
+- Check endpoint health and availability
+
+```python
+# Optimized configuration
+params = ConfigParams(
+    parallelism=8,           # Higher concurrency
+    request_timeout=120,     # Appropriate timeout
+    limit_samples=100,       # Test subset first
+    max_retries=3           # Retry failed requests
+)
+```
+::::
+
+::::{dropdown} API Authentication Errors
+:icon: alert
+
+**Symptoms**: 401 or 403 errors during evaluation
+
+**Solutions**:
+- Verify `api_key` parameter contains the environment variable NAME, not the key value
+- Ensure the environment variable is set: `export YOUR_API_KEY="actual_key_value"`
+- Check API key has necessary permissions
+
+```bash
+# Correct setup
+export MY_API_KEY="nvapi-..."
+```
+
+```python
+# Use environment variable name
+api_endpoint=ApiEndpoint(
+    api_key="MY_API_KEY"  # Name of env var, not the value
+)
+```
+::::
+
+::::{dropdown} Task Not Found Error
+:icon: alert
+
+**Symptoms**: Task name not recognized
+
+**Solutions**:
+- Verify task name with `nv-eval ls tasks`
+- Check if evaluation framework is installed
+- Use framework-qualified names for ambiguous tasks (e.g., `lm-evaluation-harness.mmlu`)
+
+```bash
+# Discover available tasks
+nv-eval ls tasks | grep mmlu
+```
+::::
+
+## Next Steps
+
+- **Optimize Configuration**: See {ref}`eval-parameters` for advanced parameter tuning
+- **Custom Tasks**: Learn {ref}`eval-custom-tasks` for specialized evaluations
+- **Troubleshooting**: Refer to {ref}`troubleshooting-index` for detailed issue resolution
+- **Benchmarks**: Browse {ref}`eval-benchmarks` for more evaluation tasks
