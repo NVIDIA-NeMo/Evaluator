@@ -26,13 +26,29 @@ inputs:
     description: "Failure will cancel all other tests if set to true"
     required: false
     default: "false"
-  is_unit_test:
-    description: "Upload coverage as unit test"
+  type_of_test:
+    description: "Type of test to run"
+    required: false
+    default: "unit_tests"
+  package:
+    description: "Package to test. Only required for unit and functional tests."
+    required: false
+  use-credentials:
+    description: "Use credentials for test"
     required: false
     default: "false"
-  package:
-    description: "Package to test"
-    required: true
+  ngc-api-user:
+    description: "NGC API user"
+    required: false
+    default: "false"
+  ngc-api-key:
+    description: "NGC API key"
+    required: false
+    default: "false"
+  cpu-only:
+    description: "CPU only"
+    required: false
+    default: "true"
 
 runs:
   using: "composite"
@@ -42,30 +58,77 @@ runs:
       with:
         path: Eval
 
-    - name: Build container
+    - name: Validate type of test
       shell: bash
       run: |
+        echo ::group::Validate type of test
+        if [[ "${{ inputs.type_of_test }}" != "unit_tests" && "${{ inputs.type_of_test }}" != "functional_tests" && "${{ inputs.type_of_test }}" != "integration_tests" ]]; then
+          echo "Invalid type of test: ${{ inputs.type_of_test }}"
+          exit 1
+        fi
+        echo ::endgroup::
+
+    - name: Use credentials
+      shell: bash
+      if: ${{ inputs.use-credentials == 'true' }}
+      run: |
+        echo ::group::Use credentials
+        echo ${{ inputs.ngc-api-key }} | docker login -u '${{ inputs.ngc-api-user }}' --password-stdin nvcr.io
+        echo ::endgroup::
+
+    - name: Build container for unit and functional tests
+      shell: bash
+      if: ${{ inputs.type_of_test != 'integration_tests' }}
+      run: |
         echo ::group::Build test container
-        docker build -f docker/Dockerfile.ci --build-arg PACKAGE=${{ inputs.package }} -t eval .
+        docker build -f docker/Dockerfile.ci \
+          --build-arg PACKAGE=${{ inputs.package }} \
+          -t eval .
+        echo ::endgroup::
+
+    - name: Build container for integration tests
+      shell: bash
+      if: ${{ inputs.type_of_test == 'integration_tests' }}
+      run: |
+        echo ::group::Build test container
+        docker build -f docker/Dockerfile.ci-integration \
+          -t eval .
         echo ::endgroup::
 
     - name: Start container
       shell: bash
+      env:
+        MOUNT_FS: ${{ inputs.type_of_test == 'integration_tests' }}
       run: |
-        echo ::group::Start test container
+        echo "::group::Start test container"
+        if [[ "$MOUNT_FS" == "true" ]]; then
+          VOLUME_ARGS="--volume /mnt/datadrive/TestData:/home/TestData"
+        else
+          VOLUME_ARGS=""
+        fi
+
         cmd=$(cat <<RUN_TEST_EOF
         #!/bin/bash
         docker container rm -f nemo_container_${{ github.run_id }} || true
+
+        ARG=("")
+        if [[ "${{ inputs.cpu_only == 'true' }}" == "true" ]]; then
+          ARG=("--runtime=nvidia --gpus all")
+        fi
+
         docker run \
           --rm \
           -d \
           --name nemo_container_${{ github.run_id }} \
+          ${ARG[@]} \
           --shm-size=64g \
-          --env TRANSFORMERS_OFFLINE=0 \
+          --env TRANSFORMERS_OFFLINE=1 \
           --env HYDRA_FULL_ERROR=1 \
+          --env HF_HUB_CACHE_PATH=/home/TestData/HF_HOME/hub \
           --env HF_HOME=/home/TestData/HF_HOME \
           --env RUN_ID=${{ github.run_id }} \
           --volume $(pwd)/Eval:/workspace \
+          $VOLUME_ARGS \
           eval \
           bash -c "sleep $(( ${{ inputs.timeout }} * 60 + 60 ))"
         RUN_TEST_EOF
@@ -80,7 +143,7 @@ runs:
       shell: bash
       run: |
         echo ::group::Create run-script
-        COVERAGE_PREFIX=$([[ "${{ inputs.is_unit_test }}" == "true" ]] && echo "unit-test" || echo "e2e")
+        COVERAGE_PREFIX=$([[ "${{ inputs.type_of_test }}" == "unit_tests" ]] && echo "unit-test" || echo "e2e")
         echo "coverage-prefix=$COVERAGE_PREFIX" | tee -a "$GITHUB_OUTPUT"
 
         cmd=$(cat <<'RUN_TEST_EOF'
@@ -88,8 +151,12 @@ runs:
 
         docker exec -t nemo_container_${{ github.run_id }} bash -c '
           set -e
-          cd packages/${{ inputs.package }}
-          bash tests/${{ inputs.is_unit_test == 'true' && 'unit_tests' || 'functional_tests' }}/${{ inputs.script }}.sh
+          if [[ "${{ inputs.type_of_test }}" != "integration_tests" ]]; then
+            cd packages/${{ inputs.package }}
+            bash tests/${{ inputs.type_of_test == 'unit_tests' && 'unit_tests' || 'functional_tests' }}/${{ inputs.script }}.sh
+          else
+            bash tests/integration_tests/Launch_Integration_Tests.sh
+          fi
         '
 
         RUN_TEST_EOF
