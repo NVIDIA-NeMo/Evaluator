@@ -204,7 +204,7 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
         except Exception as e:
             self.logger.warning(f"Failed to load aggregated reasoning stats: {e}")
 
-        # Fallback: if no aggregated stats, process individual cached requests
+        # if no aggregated stats, process individual cached requests
         cached_keys = [
             k for k in self._request_stats_cache.iterkeys() if not k.startswith("_")
         ]
@@ -665,4 +665,3 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
             output_dir=context.output_dir,
         )
         self._save_stats_to_file(context)
-        self._save_aggregated_stats()  # Save final aggregated stats
