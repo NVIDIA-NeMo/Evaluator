@@ -52,7 +52,7 @@ def run_eval() -> None:
     It does not take parameters directly - all configuration is passed through CLI arguments.
     
     CLI Arguments:
-        --eval_type: Type of evaluation to run (such as "mmlu_pro", "gsm8k")
+        --eval_type: Type of evaluation to run (such as "mmlu_pro", "gpqa_diamond")
         --model_id: Model identifier (such as "meta/llama-3.1-8b-instruct")
         --model_url: API endpoint URL (such as "https://integrate.api.NVIDIA.com/v1/chat/completions" for chat endpoint type)
         --model_type: Endpoint type ("chat", "completions", "vlm", "embedding")

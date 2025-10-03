@@ -46,11 +46,11 @@ def test_cli_example(tmp_path, use_cli):
 def test_cli_example_with_existing_files(tmp_path):
     content = "This is a test file"
     (tmp_path / "core_evals" / "my_cool_package").mkdir(parents=True, exist_ok=True)
-    for target in ["__init__.py", "framework.yml", "framework_entrypoint.py"]:
+    for target in ["__init__.py", "framework.yml"]:
         with open(tmp_path / "core_evals" / "my_cool_package" / target, "w") as f:
             f.write(content)
 
     add_example_files(package_name="my_cool_package", destination_folder=tmp_path)
-    for target in ["__init__.py", "framework.yml", "framework_entrypoint.py"]:
+    for target in ["__init__.py", "framework.yml"]:
         with open(tmp_path / "core_evals" / "my_cool_package" / target, "r") as f:
             assert f.read() == content

@@ -85,14 +85,14 @@ def add_example_files(package_name: str, destination_folder: str | None = None) 
                 out_f.write(template_rendered)
             logger.info(f"Created: {target_path}")
 
-        logger.info(
-            "The Eval Factory compatibility package was initialized! Please ensure the following:\n"
-            + f"1) Implement the core_evals/{package_name}/framework.yml according to contributing guide\n"
-            + "2) Add core_evals module in your build config to be included in your wheel\n"
-            + f"3) Implement output parsing logic in core_evals/{package_name}/output.py\n"
-            + "4) Add `nemo_evaluator` to your package dependencies\n"
-            + "Please also consult the documentation. Good luck and happy packaging!\n"
-        )
+    logger.info(
+        "The Eval Factory compatibility package was initialized! Please ensure the following:\n"
+        + f"1) Implement the core_evals/{package_name}/framework.yml according to contributing guide\n"
+        + "2) Add core_evals module in your build config to be included in your wheel\n"
+        + f"3) Implement output parsing logic in core_evals/{package_name}/output.py\n"
+        + "4) Add `nemo_evaluator` to your package dependencies\n"
+        + "Please also consult the documentation. Good luck and happy packaging!\n"
+    )
 
 
 def main():

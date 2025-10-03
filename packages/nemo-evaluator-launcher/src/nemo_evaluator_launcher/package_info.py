@@ -16,7 +16,7 @@
 # Below is the _next_ version that will be published, not the currently published one.
 MAJOR = 0
 MINOR = 1
-PATCH = 6
+PATCH = 9
 PRE_RELEASE = ""
 
 # Use the following formatting: (major, minor, patch, pre-release)
@@ -31,7 +31,7 @@ __contact_names__ = "NVIDIA"
 __contact_emails__ = "nemo-toolkit@nvidia.com"
 __homepage__ = "https://github.com/NVIDIA-NeMo/Eval"
 __repository_url__ = "https://github.com/NVIDIA-NeMo/Eval"
-__download_url__ = "https://github.com/NVIDIA-NeMo/Eval/releases"
+__download_url__ = "https://github.com/NVIDIA-NeMo/Evaluator/releases"
 __description__ = "Launcher for the evaluations provided by NeMo Evaluator containers with different runtime backends"
 __license__ = "Apache2"
 __keywords__ = "deep learning, evaluations, machine learning, gpu, NLP, pytorch, torch"
