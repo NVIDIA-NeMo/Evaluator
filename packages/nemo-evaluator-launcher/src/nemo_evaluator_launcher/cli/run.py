@@ -59,6 +59,13 @@ class Cmd:
         alias=["-n", "--dry-run"],
         metadata={"help": "Do not run the evaluation, just print the config."},
     )
+    config_output: str | None = field(
+        default=None,
+        alias=["--config-output"],
+        metadata={
+            "help": "Directory to save the complete run config. Defaults to ~/.nemo-evaluator/run_configs/"
+        },
+    )
 
     def execute(self) -> None:
         # Import heavy dependencies only when needed
@@ -93,12 +100,19 @@ class Cmd:
 
         invocation_id = run_eval(config, self.dry_run)
 
-        # Save the complete configuration to the raw_configs directory
+        # Save the complete configuration
         if not self.dry_run and invocation_id is not None:
-            # Create ~/.nemo-evaluator/run_configs directory
-            home_dir = pathlib.Path.home()
-            run_configs_dir = home_dir / ".nemo-evaluator" / "run_configs"
-            run_configs_dir.mkdir(parents=True, exist_ok=True)
+            # Determine config output directory
+            if self.config_output:
+                # Use custom directory specified by --config-output
+                config_dir = pathlib.Path(self.config_output)
+            else:
+                # Default to original location: ~/.nemo-evaluator/run_configs
+                home_dir = pathlib.Path.home()
+                config_dir = home_dir / ".nemo-evaluator" / "run_configs"
+
+            # Ensure the directory exists
+            config_dir.mkdir(parents=True, exist_ok=True)
 
             # Convert DictConfig to dict and save as YAML
             config_dict = OmegaConf.to_container(config, resolve=True)
@@ -108,7 +122,7 @@ class Cmd:
 
             # Create config filename with invocation ID
             config_filename = f"{invocation_id}_config.yml"
-            config_path = run_configs_dir / config_filename
+            config_path = config_dir / config_filename
 
             # Save the complete Hydra configuration
             with open(config_path, "w") as f:
