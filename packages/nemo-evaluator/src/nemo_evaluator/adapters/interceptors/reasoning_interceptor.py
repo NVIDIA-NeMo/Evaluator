@@ -256,11 +256,22 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
     def _save_aggregated_stats(self) -> None:
         """Save aggregated reasoning stats to cache for efficient loading."""
         if not self.enable_caching or self._request_stats_cache is None:
+            self.logger.debug(
+                "Skipping aggregated stats save: caching disabled or no cache"
+            )
             return
 
         try:
             stats_json = json.dumps(self._reasoning_stats, ensure_ascii=False)
             self._request_stats_cache["_aggregated_reasoning_stats"] = stats_json
+            self.logger.debug(
+                "Saved aggregated reasoning stats to cache",
+                total_responses=self._reasoning_stats["total_responses"],
+                responses_with_reasoning=self._reasoning_stats[
+                    "responses_with_reasoning"
+                ],
+                stats_size_bytes=len(stats_json),
+            )
         except Exception as e:
             self.logger.warning(f"Failed to save aggregated reasoning stats: {e}")
 
@@ -564,7 +575,6 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
                             == 0
                         ):
                             self._save_stats_to_file(context)
-                            self._save_aggregated_stats()  # Save aggregated stats periodically
 
                         self.logger.debug(
                             "Message processed",
@@ -589,6 +599,7 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
                             request_id=request_id,
                             individual_stats=reasoning_info,
                         )
+                self._save_aggregated_stats()  # Save aggregated stats periodically
 
             resp.r._content = json.dumps(response_data).encode()
 
