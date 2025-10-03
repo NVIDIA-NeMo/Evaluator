@@ -130,7 +130,7 @@ class DummyExecutor(BaseExecutor):
         db = ExecutionDB()
 
         # If id looks like an invocation_id (8 hex digits, no dot), get all jobs for it
-        if len(id) == 8 and "." not in id:
+        if "." not in id:
             jobs = db.get_jobs(id)
             statuses = []
             for job_id, job_data in jobs.items():
@@ -392,12 +392,12 @@ def extract_invocation_id(mock_print) -> str:
     for c in mock_print.mock_calls:
         if c.args:
             s = str(c.args[0])
-            m = re.search(r"nemo-evaluator-launcher status\s+([0-9a-f]{8})\b", s)
+            m = re.search(r"nemo-evaluator-launcher status\s+([0-9a-f]{16})\b", s)
             if m:
                 return m.group(1)
     for c in mock_print.mock_calls:
         if c.args:
-            m = re.search(r"\b([0-9a-f]{8})\b", str(c.args[0]))
+            m = re.search(r"\b([0-9a-f]{16})\b", str(c.args[0]))
             if m:
                 return m.group(1)
     raise AssertionError("invocation id not found in output")
