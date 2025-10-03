@@ -185,26 +185,6 @@ class LocalExecutor(BaseExecutor):
             run_all_sequentially_sh_content
         )
 
-        # Save launched jobs metadata
-        db = ExecutionDB()
-        for job_id, task, evaluation_task in zip(
-            job_ids, cfg.evaluation.tasks, evaluation_tasks
-        ):
-            db.write_job(
-                job=JobData(
-                    invocation_id=invocation_id,
-                    job_id=job_id,
-                    timestamp=time.time(),
-                    executor="local",
-                    data={
-                        "output_dir": str(evaluation_task["output_dir"]),
-                        "container": evaluation_task["container_name"],
-                        "eval_image": evaluation_task["eval_image"],
-                    },
-                    config=OmegaConf.to_object(cfg),
-                )
-            )
-
         if dry_run:
             print("\n\n=============================================\n\n")
             print(f"DRY RUN: Scripts prepared and saved to {output_dir}")
@@ -224,6 +204,26 @@ class LocalExecutor(BaseExecutor):
                         print(f.read())
             print("\nTo execute, run without --dry-run")
             return invocation_id
+
+        # Save launched jobs metadata
+        db = ExecutionDB()
+        for job_id, task, evaluation_task in zip(
+            job_ids, cfg.evaluation.tasks, evaluation_tasks
+        ):
+            db.write_job(
+                job=JobData(
+                    invocation_id=invocation_id,
+                    job_id=job_id,
+                    timestamp=time.time(),
+                    executor="local",
+                    data={
+                        "output_dir": str(evaluation_task["output_dir"]),
+                        "container": evaluation_task["container_name"],
+                        "eval_image": evaluation_task["eval_image"],
+                    },
+                    config=OmegaConf.to_object(cfg),
+                )
+            )
 
         # Launch bash scripts with Popen for non-blocking execution.
         # To ensure subprocess continues after python exits:
@@ -281,8 +281,8 @@ class LocalExecutor(BaseExecutor):
         """
         db = ExecutionDB()
 
-        # If id looks like an invocation_id (8 hex digits, no dot), get all jobs for it
-        if len(id) == 8 and "." not in id:
+        # If id looks like an invocation_id (no dot), get all jobs for it
+        if "." not in id:
             jobs = db.get_jobs(id)
             statuses: List[ExecutionStatus] = []
             for job_id, _ in jobs.items():

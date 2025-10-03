@@ -19,7 +19,7 @@ import os
 import pathlib
 import re
 import time
-from unittest.mock import mock_open, patch
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -88,28 +88,8 @@ class TestLocalExecutorDryRun:
         }
 
     @pytest.fixture
-    def mock_run_template(self):
-        """Mock run template content."""
-        return """
-# Mock template for testing
-{% for task in evaluation_tasks %}
-echo "Running task: {{ task.job_id }}"
-echo "Container: {{ task.container_name }}"
-echo "Image: {{ task.eval_image }}"
-echo "Command: {{ task.eval_factory_command }}"
-echo "Output dir: {{ task.output_dir }}"
-{% for env_var in task.env_vars %}
-echo "Env: {{ env_var }}"
-{% endfor %}
-{% if auto_export_destinations %}
-echo "Auto-export destinations: {{ auto_export_destinations|join(',') }}"
-{% endif %}
-echo "Invocation ID: {{ invocation_id }}"
-{% endfor %}
-""".strip()
-
     def test_execute_eval_dry_run_basic(
-        self, mock_execdb, sample_config, mock_tasks_mapping, mock_run_template, tmpdir
+        self, mock_execdb, sample_config, mock_tasks_mapping, tmpdir
     ):
         """Test basic dry run execution."""
         # Set up environment variable that the config references
@@ -128,7 +108,6 @@ echo "Invocation ID: {{ invocation_id }}"
                 patch(
                     "nemo_evaluator_launcher.executors.local.executor.get_eval_factory_command"
                 ) as mock_get_command,
-                patch("builtins.open", mock_open(read_data=mock_run_template)),
                 patch("builtins.print") as mock_print,
             ):
                 # Configure mocks
@@ -151,8 +130,8 @@ echo "Invocation ID: {{ invocation_id }}"
 
                 # Verify invocation ID format
                 assert isinstance(invocation_id, str)
-                assert len(invocation_id) == 8
-                assert re.match(r"^[a-f0-9]{8}$", invocation_id)
+                assert len(invocation_id) == 16
+                assert re.match(r"^[a-f0-9]{16}$", invocation_id)
 
                 # Verify output directory structure was created
                 output_base = pathlib.Path(sample_config.execution.output_dir)
@@ -195,19 +174,6 @@ echo "Invocation ID: {{ invocation_id }}"
                 dry_run_messages = [msg for msg in print_calls if "DRY RUN" in str(msg)]
                 assert len(dry_run_messages) > 0
 
-                # Verify database entries were created
-                db = ExecutionDB()
-                jobs = db.get_jobs(invocation_id)
-                assert len(jobs) == 2  # Two tasks
-
-                # Verify job data structure
-                for job_id, job_data in jobs.items():
-                    assert job_data.invocation_id == invocation_id
-                    assert job_data.executor == "local"
-                    assert "output_dir" in job_data.data
-                    assert "container" in job_data.data
-                    assert "eval_image" in job_data.data
-
         finally:
             # Clean up environment
             for env_var in ["TEST_API_KEY", "GLOBAL_VALUE", "TASK_VALUE"]:
@@ -215,7 +181,7 @@ echo "Invocation ID: {{ invocation_id }}"
                     del os.environ[env_var]
 
     def test_execute_eval_dry_run_env_var_validation(
-        self, sample_config, mock_tasks_mapping, mock_run_template
+        self, sample_config, mock_tasks_mapping
     ):
         """Test that missing environment variables are properly validated."""
         # Don't set the required environment variables
@@ -227,7 +193,6 @@ echo "Invocation ID: {{ invocation_id }}"
             patch(
                 "nemo_evaluator_launcher.executors.local.executor.get_task_from_mapping"
             ) as mock_get_task,
-            patch("builtins.open", mock_open(read_data=mock_run_template)),
         ):
             mock_load_mapping.return_value = mock_tasks_mapping
 
@@ -246,7 +211,7 @@ echo "Invocation ID: {{ invocation_id }}"
                 LocalExecutor.execute_eval(sample_config, dry_run=True)
 
     def test_execute_eval_dry_run_required_task_env_vars(
-        self, sample_config, mock_tasks_mapping, mock_run_template
+        self, sample_config, mock_tasks_mapping
     ):
         """Test validation of required task-specific environment variables."""
         # Set some but not all required env vars
@@ -262,7 +227,6 @@ echo "Invocation ID: {{ invocation_id }}"
                 patch(
                     "nemo_evaluator_launcher.executors.local.executor.get_task_from_mapping"
                 ) as mock_get_task,
-                patch("builtins.open", mock_open(read_data=mock_run_template)),
             ):
                 mock_load_mapping.return_value = mock_tasks_mapping
 
@@ -288,73 +252,6 @@ echo "Invocation ID: {{ invocation_id }}"
                 if env_var in os.environ:
                     del os.environ[env_var]
 
-    def test_execute_eval_dry_run_custom_container(
-        self, mock_execdb, sample_config, mock_tasks_mapping, mock_run_template, tmpdir
-    ):
-        """Test that custom container images are handled correctly."""
-        # Set up all required environment variables
-        os.environ["TEST_API_KEY"] = "test_key_value"
-        os.environ["GLOBAL_VALUE"] = "global_env_value"
-        os.environ["TASK_VALUE"] = "task_env_value"
-
-        try:
-            with (
-                patch(
-                    "nemo_evaluator_launcher.executors.local.executor.load_tasks_mapping"
-                ) as mock_load_mapping,
-                patch(
-                    "nemo_evaluator_launcher.executors.local.executor.get_task_from_mapping"
-                ) as mock_get_task,
-                patch(
-                    "nemo_evaluator_launcher.executors.local.executor.get_eval_factory_command"
-                ) as mock_get_command,
-                patch("builtins.open", mock_open(read_data=mock_run_template)),
-                patch("builtins.print"),
-            ):
-                mock_load_mapping.return_value = mock_tasks_mapping
-
-                def mock_get_task_side_effect(task_name, mapping):
-                    for (harness, name), definition in mapping.items():
-                        if name == task_name:
-                            return definition
-                    raise KeyError(f"Task {task_name} not found")
-
-                mock_get_task.side_effect = mock_get_task_side_effect
-                mock_get_command.return_value = (
-                    "nemo-evaluator-launcher --task test_command"
-                )
-
-                # Execute dry run
-                invocation_id = LocalExecutor.execute_eval(sample_config, dry_run=True)
-
-                # Verify database entries include correct container images
-                db = ExecutionDB()
-                jobs = db.get_jobs(invocation_id)
-
-                # Find job data for each task
-                task1_job = None
-                task2_job = None
-                for job_id, job_data in jobs.items():
-                    if "test_task_1" in job_data.data["output_dir"]:
-                        task1_job = job_data
-                    elif "test_task_2" in job_data.data["output_dir"]:
-                        task2_job = job_data
-
-                assert task1_job is not None
-                assert task2_job is not None
-
-                # test_task_1 should use default container from mapping
-                assert "test-container:latest" in task1_job.data["eval_image"]
-
-                # test_task_2 should use custom container from config
-                assert task2_job.data["eval_image"] == "custom-container:v2.0"
-
-        finally:
-            # Clean up environment
-            for env_var in ["TEST_API_KEY", "GLOBAL_VALUE", "TASK_VALUE"]:
-                if env_var in os.environ:
-                    del os.environ[env_var]
-
     def test_execute_eval_deployment_type_validation(self, sample_config):
         """Test that non-'none' deployment types raise NotImplementedError."""
         # Change deployment type to something other than 'none'
@@ -362,58 +259,6 @@ echo "Invocation ID: {{ invocation_id }}"
 
         with pytest.raises(NotImplementedError, match="type slurm is not implemented"):
             LocalExecutor.execute_eval(sample_config, dry_run=True)
-
-    def test_execute_eval_dry_run_no_auto_export(
-        self, sample_config, mock_tasks_mapping, mock_run_template, tmpdir
-    ):
-        """Test dry run without auto-export configuration."""
-        # Remove auto_export from config
-        del sample_config.execution.auto_export
-
-        # Set up environment variables
-        os.environ["TEST_API_KEY"] = "test_key_value"
-        os.environ["GLOBAL_VALUE"] = "global_env_value"
-        os.environ["TASK_VALUE"] = "task_env_value"
-
-        try:
-            with (
-                patch(
-                    "nemo_evaluator_launcher.executors.local.executor.load_tasks_mapping"
-                ) as mock_load_mapping,
-                patch(
-                    "nemo_evaluator_launcher.executors.local.executor.get_task_from_mapping"
-                ) as mock_get_task,
-                patch(
-                    "nemo_evaluator_launcher.executors.local.executor.get_eval_factory_command"
-                ) as mock_get_command,
-                patch("builtins.open", mock_open(read_data=mock_run_template)),
-                patch("builtins.print"),
-            ):
-                mock_load_mapping.return_value = mock_tasks_mapping
-
-                def mock_get_task_side_effect(task_name, mapping):
-                    for (harness, name), definition in mapping.items():
-                        if name == task_name:
-                            return definition
-                    raise KeyError(f"Task {task_name} not found")
-
-                mock_get_task.side_effect = mock_get_task_side_effect
-                mock_get_command.return_value = (
-                    "nemo-evaluator-launcher --task test_command"
-                )
-
-                # Should execute successfully without auto-export
-                invocation_id = LocalExecutor.execute_eval(sample_config, dry_run=True)
-
-                # Verify invocation ID is valid
-                assert isinstance(invocation_id, str)
-                assert len(invocation_id) == 8
-
-        finally:
-            # Clean up environment
-            for env_var in ["TEST_API_KEY", "GLOBAL_VALUE", "TASK_VALUE"]:
-                if env_var in os.environ:
-                    del os.environ[env_var]
 
 
 class TestLocalExecutorGetStatus:

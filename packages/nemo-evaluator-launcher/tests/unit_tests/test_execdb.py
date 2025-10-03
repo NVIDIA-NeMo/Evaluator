@@ -25,9 +25,6 @@ from nemo_evaluator_launcher.common.execdb import (
     JobData,
     generate_invocation_id,
     generate_job_id,
-    get_job,
-    get_jobs,
-    write_job,
 )
 
 
@@ -51,7 +48,7 @@ def test_id_generation():
     inv_id = generate_invocation_id()
     job_id = generate_job_id(inv_id, 0)
 
-    assert len(inv_id) == 8  # 8 hex characters
+    assert len(inv_id) == 16
     assert job_id == f"{inv_id}.0"
 
     # Test uniqueness
@@ -78,7 +75,7 @@ def test_write_and_get_job(mock_execdb):
     )
 
     # Write job
-    write_job(job)
+    ExecutionDB().write_job(job)
 
     # Verify job was written to file
     assert execdb.EXEC_DB_FILE.exists()
@@ -95,7 +92,7 @@ def test_write_and_get_job(mock_execdb):
         assert "timestamp" in record
 
     # Get job and verify
-    result = get_job(job_id)
+    result = ExecutionDB().get_job(job_id)
     assert result is not None
     assert isinstance(result, JobData)
     assert result.invocation_id == invocation_id
@@ -119,7 +116,7 @@ def test_write_job_with_null_job_id(mock_execdb):
     )
 
     # Write job
-    write_job(job)
+    ExecutionDB().write_job(job)
 
     # Verify job was written to file
     with open(execdb.EXEC_DB_FILE, "r") as f:
@@ -133,7 +130,7 @@ def test_write_job_with_null_job_id(mock_execdb):
 
 def test_get_nonexistent_job(mock_execdb):
     """Test getting a job that doesn't exist."""
-    result = get_job("job-nonexistent")
+    result = ExecutionDB().get_job("nonexist.0")
     assert result is None
 
 
@@ -142,15 +139,15 @@ def test_load_existing_jobs(mock_execdb):
     # Create existing job data
     existing_jobs = [
         {
-            "invocation_id": "inv-11111111",
-            "job_id": "job-22222222",
+            "invocation_id": "abcdef",
+            "job_id": "abcdef.0",
             "timestamp": 1234567890,
             "executor": "local",
             "data": {"test": "data1"},
         },
         {
-            "invocation_id": "inv-33333333",
-            "job_id": "job-44444444",
+            "invocation_id": "fedcba",
+            "job_id": "fedcba.0",
             "timestamp": 1234567891,
             "executor": "gitlab",
             "data": {"test": "data2"},
@@ -166,17 +163,17 @@ def test_load_existing_jobs(mock_execdb):
     _ = ExecutionDB()
 
     # Verify jobs are loaded
-    result1 = get_job("job-22222222")
+    result1 = ExecutionDB().get_job("abcdef.0")
     assert result1 is not None
     assert isinstance(result1, JobData)
-    assert result1.invocation_id == "inv-11111111"
+    assert result1.invocation_id == "abcdef"
     assert result1.executor == "local"
     assert result1.data == {"test": "data1"}
 
-    result2 = get_job("job-44444444")
+    result2 = ExecutionDB().get_job("fedcba.0")
     assert result2 is not None
     assert isinstance(result2, JobData)
-    assert result2.invocation_id == "inv-33333333"
+    assert result2.invocation_id == "fedcba"
     assert result2.executor == "gitlab"
     assert result2.data == {"test": "data2"}
 
@@ -186,23 +183,23 @@ def test_load_existing_jobs_with_invalid_json(mock_execdb):
     execdb.EXEC_DB_DIR.mkdir(parents=True, exist_ok=True)
     with open(execdb.EXEC_DB_FILE, "w") as f:
         f.write(
-            '{"invocation_id": "inv-11111111", "job_id": "job-22222222", "timestamp": 1234567890, "executor": "local", "data": {}}\n'
+            '{"invocation_id": "abcdef", "job_id": "abcdef.0", "timestamp": 1234567890, "executor": "local", "data": {}}\n'
         )
         f.write("invalid json line\n")
         f.write(
-            '{"invocation_id": "inv-33333333", "job_id": "job-44444444", "timestamp": 1234567891, "executor": "gitlab", "data": {}}\n'
+            '{"invocation_id": "fedcba", "job_id": "fedcba.0", "timestamp": 1234567891, "executor": "gitlab", "data": {}}\n'
         )
 
     _ = ExecutionDB()
 
-    assert get_job("job-22222222") is not None
-    assert get_job("job-44444444") is not None
+    assert ExecutionDB().get_job("abcdef.0") is not None
+    assert ExecutionDB().get_job("fedcba.0") is not None
 
 
 def test_multiple_jobs_same_id(mock_execdb):
     """Test that writing multiple jobs with same ID overwrites the previous one."""
-    invocation_id = "inv-12345678"
-    job_id = "job-87654321"
+    invocation_id = "abcdef"
+    job_id = "abcdef.1"
     job1 = JobData(
         invocation_id=invocation_id,
         job_id=job_id,
@@ -218,10 +215,10 @@ def test_multiple_jobs_same_id(mock_execdb):
         data={"data": "second"},
     )
 
-    write_job(job1)
-    write_job(job2)
+    ExecutionDB().write_job(job1)
+    ExecutionDB().write_job(job2)
 
-    result = get_job(job_id)
+    result = ExecutionDB().get_job(job_id)
     assert result is not None
     assert isinstance(result, JobData)
     assert result.executor == "gitlab"
@@ -235,15 +232,15 @@ def test_multiple_jobs_same_id(mock_execdb):
 def test_empty_data(mock_execdb):
     """Test writing job with empty data."""
     job = JobData(
-        invocation_id="inv-12345678",
-        job_id="job-87654321",
+        invocation_id="abcdef",
+        job_id="abcdef.0",
         timestamp=time.time(),
         executor="local",
         data={},
     )
-    write_job(job)
+    ExecutionDB().write_job(job)
 
-    result = get_job("job-87654321")
+    result = ExecutionDB().get_job("abcdef.0")
     assert result is not None
     assert isinstance(result, JobData)
     assert result.data == {}
@@ -274,12 +271,12 @@ def test_get_jobs_by_invocation_id(mock_execdb):
         data={"task": "task3"},
     )
 
-    write_job(job1)
-    write_job(job2)
-    write_job(job3)
+    ExecutionDB().write_job(job1)
+    ExecutionDB().write_job(job2)
+    ExecutionDB().write_job(job3)
 
     # Get jobs for the specific invocation
-    jobs = get_jobs(invocation_id)
+    jobs = ExecutionDB().get_jobs(invocation_id)
 
     assert len(jobs) == 2
     assert generate_job_id(invocation_id, 0) in jobs
@@ -292,7 +289,7 @@ def test_get_jobs_by_invocation_id(mock_execdb):
 
 def test_get_jobs_nonexistent_invocation(mock_execdb):
     """Test getting jobs for a nonexistent invocation."""
-    jobs = get_jobs("inv-nonexistent")
+    jobs = ExecutionDB().get_jobs("inv-nonexistent")
     assert jobs == {}
 
 
@@ -326,7 +323,7 @@ def test_invocation_mapping_consistency(mock_execdb):
     assert generate_job_id(invocation_id, 1) in job_ids
 
     # Check that jobs can be retrieved
-    jobs = get_jobs(invocation_id)
+    jobs = ExecutionDB().get_jobs(invocation_id)
     assert len(jobs) == 2
     assert generate_job_id(invocation_id, 0) in jobs
     assert generate_job_id(invocation_id, 1) in jobs
