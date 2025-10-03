@@ -29,7 +29,7 @@ graph TD
     B -- " " --> D{Slurm};
     B -- " " --> E{Lepton};
     subgraph Execution Environment
-        C -- "Launches Container" --> F[Evaluation Container];        
+        C -- "Launches Container" --> F[Evaluation Container];
         D -- "Launches Container" --> F;
         E -- "Launches Container" --> F;
     end
@@ -95,6 +95,10 @@ Results, logs, and run configurations are saved locally. Inspect the status of t
 ```bash
 nemo-evaluator-launcher status <job_id_or_invocation_id>
 ```
+
+/// note | About invocation and job IDs
+It is possible to use short version of IDs in `status` command, for example `abcd` instead of a full `abcdef0123456` or `ab.0` instead of `abcdef0123456.0`, so long as there are no collisions. This is a syntactic sugar allowing for a slightly easier usage.
+///
 
 ## Next Steps
 
