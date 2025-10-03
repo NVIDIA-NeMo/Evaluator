@@ -237,6 +237,8 @@ def slurm_executor(
     if custom_env_vars:
         env_vars |= custom_env_vars
 
+    # Recommended to use this over run.Packager() as it can lead to fiddle serialization errors importing 
+    # 'wait_and_evaluate' method from 'helpers'
     packager = run.Config(run.GitArchivePackager, subpath="scripts")
 
     executor = run.SlurmExecutor(
