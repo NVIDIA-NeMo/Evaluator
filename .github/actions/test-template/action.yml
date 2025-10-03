@@ -141,8 +141,12 @@ runs:
 
         docker exec -t nemo_container_${{ github.run_id }} bash -c '
           set -e
-          cd packages/${{ inputs.package }}
-          bash tests/${{ inputs.type_of_test == 'unit_tests' && 'unit_tests' || 'functional_tests' }}/${{ inputs.script }}.sh
+          if [[ "${{ inputs.test_of_type }}" != "integration_tests" ]]; then
+            cd packages/${{ inputs.package }}
+            bash tests/${{ inputs.type_of_test == 'unit_tests' && 'unit_tests' || 'functional_tests' }}/${{ inputs.script }}.sh
+          else
+            bash tests/integration_tests/Launch_Integration_Tests.sh
+          fi
         '
 
         RUN_TEST_EOF
