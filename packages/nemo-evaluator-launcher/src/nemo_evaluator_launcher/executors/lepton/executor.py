@@ -559,7 +559,7 @@ class LeptonExecutor(BaseExecutor):
         db = ExecutionDB()
 
         # If id looks like an invocation_id (8 hex digits, no dot), get all jobs for it
-        if len(id) == 8 and "." not in id:
+        if "." not in id:
             return _get_statuses_for_invocation_id(id=id, db=db)
         # Otherwise, treat as job_id
         job_data = db.get_job(id)

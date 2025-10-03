@@ -29,15 +29,15 @@ EXEC_DB_FILE = EXEC_DB_DIR / "exec.v1.jsonl"
 
 
 def generate_invocation_id() -> str:
-    """Generate a unique invocation ID as an 8-digit hex string."""
-    return secrets.token_hex(4)
+    """Generate a unique invocation ID as an 16-digit hex string."""
+    return secrets.token_hex(8)
 
 
 def generate_job_id(invocation_id: str, index: int) -> str:
     """Generate a job ID as <invocation_id>.<n>.
 
     Args:
-        invocation_id: The invocation group ID (8-digit hex).
+        invocation_id: The invocation group ID (16-digit hex).
         index: The job index (0-based integer).
     Returns:
         The job ID string.
@@ -50,7 +50,7 @@ class JobData:
     """Data structure for job execution information.
 
     Attributes:
-        invocation_id: 8-digit hex string.
+        invocation_id: 16-digit hex string.
         job_id: <invocation_id>.<n> string.
         timestamp: Unix timestamp when the job was created.
         executor: Name of the executor that handled this job.
@@ -148,41 +148,135 @@ class ExecutionDB:
             )
             raise
 
+    def _resolve_invocation_id(self, short_id: str) -> Optional[str]:
+        """Resolve a short invocation ID to the full one.
+
+        Args:
+            short_id: Partial or full invocation ID.
+
+        Returns:
+            Full invocation ID if found uniquely, None if not found.
+
+        Raises:
+            ValueError: If the short_id matches multiple invocation IDs.
+        """
+        if not short_id:
+            return None
+
+        short_id = short_id.lower()
+
+        # NOTE(agronskiy): this is a non-optimized implementation that assumes small amount
+        # of jobs in ExecDB(), a typical scenario. Speeding up would involve building a
+        # prefix tree when loading invocations/jobs.
+        matches = [
+            inv_id
+            for inv_id in self._invocations.keys()
+            if inv_id.lower().startswith(short_id)
+        ]
+
+        if len(matches) == 1:
+            return matches[0]
+        elif len(matches) > 1:
+            raise ValueError(f"Ambiguous invocation ID '{short_id}': matches {matches}")
+        else:
+            return None
+
+    def _resolve_job_id(self, short_job_id: str) -> Optional[str]:
+        """Resolve a short job ID to the full one.
+
+        Args:
+            short_job_id: Partial or full job ID.
+
+        Returns:
+            Full job ID if found uniquely, None if not found.
+
+        Raises:
+            ValueError: If the short_job_id matches multiple job IDs.
+        """
+        if not short_job_id:
+            return None
+
+        # Normalize to lowercase for case-insensitive matching
+        short_job_id = short_job_id.lower()
+
+        if "." in short_job_id:
+            parts = short_job_id.split(".", 1)
+            short_inv_id, job_index = parts[0], parts[1]
+
+            # Resolve the invocation part
+            full_inv_id = self._resolve_invocation_id(short_inv_id)
+            if full_inv_id:
+                candidate_job_id = f"{full_inv_id}.{job_index}"
+                if candidate_job_id in self._jobs:
+                    return candidate_job_id
+
+        # NOTE(agronskiy): unfortunately, due to legacy, there exist usecases where
+        # job_id is the same format as invocation_id
+        candidate_job_id = self._resolve_invocation_id(short_job_id)
+        if candidate_job_id and candidate_job_id in self._jobs:
+            return candidate_job_id
+
+        return None
+
     def get_job(self, job_id: str) -> Optional[JobData]:
-        return self._jobs.get(job_id)
+        """Get job by full or partial job ID.
+
+        Args:
+            job_id: Full or partial job ID.
+
+        Returns:
+            JobData if found, None otherwise.
+
+        Raises:
+            ValueError: If the job_id matches multiple jobs.
+        """
+        resolved_id = self._resolve_job_id(job_id)
+        if resolved_id:
+            return self._jobs.get(resolved_id)
+
+        return None
 
     def get_jobs(self, invocation_id: str) -> Dict[str, JobData]:
-        job_ids = self._invocations.get(invocation_id, [])
+        """Get all jobs for a full or partial invocation ID.
+
+        Args:
+            invocation_id: Full or partial invocation ID.
+
+        Returns:
+            Dictionary mapping job_id to JobData for all jobs in the invocation.
+
+        Raises:
+            ValueError: If the invocation_id matches multiple invocations.
+        """
+        resolved_inv_id = self._resolve_invocation_id(invocation_id)
+        if not resolved_inv_id:
+            return {}
+
+        job_ids = self._invocations.get(resolved_inv_id, [])
         return {
             job_id: self._jobs[job_id] for job_id in job_ids if job_id in self._jobs
         }
 
     def get_invocation_jobs(self, invocation_id: str) -> List[str]:
-        return self._invocations.get(invocation_id, [])
+        """Get job IDs for a full or partial invocation ID.
+
+        Args:
+            invocation_id: Full or partial invocation ID.
+
+        Returns:
+            List of job IDs for the invocation.
+
+        Raises:
+            ValueError: If the invocation_id matches multiple invocations.
+        """
+        resolved_inv_id = self._resolve_invocation_id(invocation_id)
+        if not resolved_inv_id:
+            return []
+        return self._invocations.get(resolved_inv_id, [])
 
     def get_all_jobs(self) -> Dict[str, JobData]:
         """Return a copy of all jobs in the execution DB."""
         return dict(self._jobs)
-
-
-def write_job(job: JobData) -> None:
-    db = ExecutionDB()
-    db.write_job(job)
-
-
-def get_job(job_id: str) -> Optional[JobData]:
-    db = ExecutionDB()
-    return db.get_job(job_id)
-
-
-def get_jobs(invocation_id: str) -> Dict[str, JobData]:
-    db = ExecutionDB()
-    return db.get_jobs(invocation_id)
-
-
-def get_all_jobs() -> Dict[str, JobData]:
-    db = ExecutionDB()
-    return db.get_all_jobs()
 
 
 # Ensure all the paths
