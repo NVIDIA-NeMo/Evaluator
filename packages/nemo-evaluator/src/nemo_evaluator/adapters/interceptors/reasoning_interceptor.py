@@ -158,7 +158,7 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
             cache_path = Path(self.cache_dir)
             cache_path.mkdir(parents=True, exist_ok=True)
             self._request_stats_cache = Cache(cache_path)
-            self._load_and_aggregate_cached_stats()
+            self._load_aggregated_cached_stats()
         else:
             self._request_stats_cache = None
 
@@ -176,22 +176,47 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
             logging_aggregated_stats_interval=self.logging_aggregated_stats_interval,
         )
 
-    def _load_and_aggregate_cached_stats(self) -> None:
-        """Load and aggregate past reasoning stats from the cache."""
+    def _load_aggregated_cached_stats(self) -> None:
+        """Load aggregated reasoning stats from cache instead of processing individual requests."""
         if not self._request_stats_cache:
             return
 
-        # Use iterator to get cached keys
-        cached_keys = list(self._request_stats_cache)
+        # Try to load aggregated stats
+        try:
+            aggregated_data = self._request_stats_cache.get(
+                "_aggregated_reasoning_stats"
+            )
+            if aggregated_data:
+                if isinstance(aggregated_data, str):
+                    aggregated_data = json.loads(aggregated_data)
+
+                # Restore aggregated stats
+                self._reasoning_stats.update(aggregated_data)
+                self.logger.info(
+                    "Loaded aggregated reasoning stats from cache",
+                    total_responses=self._reasoning_stats["total_responses"],
+                    responses_with_reasoning=self._reasoning_stats[
+                        "responses_with_reasoning"
+                    ],
+                    max_reasoning_words=self._reasoning_stats["max_reasoning_words"],
+                )
+                return
+        except Exception as e:
+            self.logger.warning(f"Failed to load aggregated reasoning stats: {e}")
+
+        # Fallback: if no aggregated stats, process individual cached requests
+        cached_keys = [
+            k for k in self._request_stats_cache.iterkeys() if not k.startswith("_")
+        ]
         if not cached_keys:
             self.logger.info("No cached reasoning stats found to aggregate")
             return
 
         self.logger.info(
-            f"Found {len(cached_keys)} cached reasoning stats to aggregate"
+            f"No aggregated stats found, processing {len(cached_keys)} individual cached requests"
         )
 
-        # Aggregate all cached stats
+        # Aggregate individual cached stats (fallback for older cache format)
         for key in cached_keys:
             try:
                 cached_data = self._request_stats_cache.get(key)
@@ -203,6 +228,9 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
                 self.logger.warning(
                     f"Failed to process cached reasoning stats for key {key}: {e}"
                 )
+
+        # Save the aggregated stats for next time
+        self._save_aggregated_stats()
 
         # Log summary of what was loaded
         self.logger.info(
@@ -224,6 +252,17 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
 
         except Exception as e:
             self.logger.warning(f"Failed to cache reasoning stats: {e}")
+
+    def _save_aggregated_stats(self) -> None:
+        """Save aggregated reasoning stats to cache for efficient loading."""
+        if not self.enable_caching or self._request_stats_cache is None:
+            return
+
+        try:
+            stats_json = json.dumps(self._reasoning_stats, ensure_ascii=False)
+            self._request_stats_cache["_aggregated_reasoning_stats"] = stats_json
+        except Exception as e:
+            self.logger.warning(f"Failed to save aggregated reasoning stats: {e}")
 
     def _update_reasoning_stats(self, reasoning_info: dict) -> None:
         """Update reasoning statistics with new data (thread-safe)."""
@@ -525,6 +564,7 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
                             == 0
                         ):
                             self._save_stats_to_file(context)
+                            self._save_aggregated_stats()  # Save aggregated stats periodically
 
                         self.logger.debug(
                             "Message processed",
@@ -614,3 +654,4 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
             output_dir=context.output_dir,
         )
         self._save_stats_to_file(context)
+        self._save_aggregated_stats()  # Save final aggregated stats
