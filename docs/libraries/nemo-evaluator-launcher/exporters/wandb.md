@@ -25,11 +25,11 @@ nv-eval export 8abcd123 --dest wandb
 nv-eval export 8abcd123 --dest wandb --log-metrics accuracy f1_score
 ```
 
-:::{note}
+```{note}
 Specify W&B configuration (entity, project, tags, etc.) in your evaluation YAML configuration file under `execution.auto_export.configs.wandb`. The CLI export command reads these settings from the stored job configuration.
-:::
+```
 
-::::
+:::
 
 :::{tab-item} Python
 
