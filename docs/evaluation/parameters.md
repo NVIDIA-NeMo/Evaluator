@@ -119,7 +119,8 @@ These parameters are available for all evaluation tasks regardless of the underl
 
 Framework-specific parameters are passed through the `extra` dictionary within `ConfigParams`.
 
-### LM-Evaluation-Harness Parameters
+::::{dropdown} LM-Evaluation-Harness Parameters
+:icon: code-square
 
 ```{list-table}
 :header-rows: 1
@@ -182,7 +183,10 @@ Framework-specific parameters are passed through the `extra` dictionary within `
   - For confidence intervals
 ```
 
-### Simple-Evals Parameters
+::::
+
+::::{dropdown} Simple-Evals Parameters
+:icon: code-square
 
 ```{list-table}
 :header-rows: 1
@@ -215,7 +219,10 @@ Framework-specific parameters are passed through the `extra` dictionary within `
   - Multi-language evaluation
 ```
 
-### BigCode-Evaluation-Harness Parameters
+::::
+
+::::{dropdown} BigCode-Evaluation-Harness Parameters
+:icon: code-square
 
 ```{list-table}
 :header-rows: 1
@@ -243,7 +250,10 @@ Framework-specific parameters are passed through the `extra` dictionary within `
   - Language-specific evaluation
 ```
 
-### Safety and Specialized Harnesses
+::::
+
+::::{dropdown} Safety and Specialized Harnesses
+:icon: code-square
 
 ```{list-table}
 :header-rows: 1
@@ -271,9 +281,12 @@ Framework-specific parameters are passed through the `extra` dictionary within `
   - Safety evaluation
 ```
 
+::::
+
 ## Configuration Patterns
 
-### Academic Benchmarks (Deterministic)
+::::{dropdown} Academic Benchmarks (Deterministic)
+:icon: code-square
 
 ```python
 academic_params = ConfigParams(
@@ -289,7 +302,10 @@ academic_params = ConfigParams(
 )
 ```
 
-### Creative Tasks (Controlled Randomness)
+::::
+
+::::{dropdown} Creative Tasks (Controlled Randomness)
+:icon: code-square
 
 ```python
 creative_params = ConfigParams(
@@ -303,7 +319,10 @@ creative_params = ConfigParams(
 )
 ```
 
-### Code Generation (Balanced)
+::::
+
+::::{dropdown} Code Generation (Balanced)
+:icon: code-square
 
 ```python
 code_params = ConfigParams(
@@ -318,7 +337,10 @@ code_params = ConfigParams(
 )
 ```
 
-### Log-Probability Tasks
+::::
+
+::::{dropdown} Log-Probability Tasks
+:icon: code-square
 
 ```python
 logprob_params = ConfigParams(
@@ -332,7 +354,10 @@ logprob_params = ConfigParams(
 )
 ```
 
-### High-Throughput Evaluation
+::::
+
+::::{dropdown} High-Throughput Evaluation
+:icon: code-square
 
 ```python
 performance_params = ConfigParams(
@@ -347,6 +372,8 @@ performance_params = ConfigParams(
     }
 )
 ```
+
+::::
 
 ## Parameter Selection Guidelines
 

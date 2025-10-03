@@ -26,7 +26,7 @@ import sys
 # Add custom extensions directory to Python path
 sys.path.insert(0, os.path.abspath('_extensions'))
 
-project = "NeMo Evaluator"
+project = "NeMo Evaluator SDK"
 copyright = "2025, NVIDIA Corporation"
 author = "NVIDIA Corporation"
 release = "0.1.0"

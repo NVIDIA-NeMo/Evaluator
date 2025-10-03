@@ -17,7 +17,9 @@ nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct --dr
 
 **Common Issues**:
 
-1. **Missing Required Fields**:
+::::{dropdown} Missing Required Fields
+:icon: code-square
+
 ```
 Error: Missing required field 'execution.output_dir'
 ```
@@ -27,7 +29,11 @@ nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
   -o execution.output_dir=./results
 ```
 
-2. **Invalid Task Names**:
+::::
+
+::::{dropdown} Invalid Task Names
+:icon: code-square
+
 ```
 Error: Unknown task 'invalid_task'. Available tasks: hellaswag, arc_challenge, ...
 ```
@@ -36,11 +42,17 @@ Error: Unknown task 'invalid_task'. Available tasks: hellaswag, arc_challenge, .
 nv-eval ls tasks
 ```
 
-3. **Configuration Conflicts**:
+::::
+
+::::{dropdown} Configuration Conflicts
+:icon: code-square
+
 ```
 Error: Cannot specify both 'api_key' and 'api_key_name' in target.api_endpoint
 ```
 **Fix**: Use only one authentication method in configuration.
+
+::::
 
 ### Hydra Configuration Errors
 
@@ -132,11 +144,13 @@ nv-eval kill <job_id>
 
 ## Multi-Backend Execution Issues
 
-### Local Executor Problems
+::::{dropdown} Local Executor Problems
+:icon: code-square
 
 **Problem**: Docker-related execution failures
 
 **Common Issues**:
+
 1. **Docker Not Running**:
 ```
 Error: Cannot connect to Docker daemon
@@ -154,7 +168,10 @@ Error: Failed to pull container image
 ```
 **Fix**: Check network connectivity and container registry access.
 
-### Slurm Executor Problems
+::::
+
+::::{dropdown} Slurm Executor Problems
+:icon: code-square
 
 **Problem**: Jobs fail to submit to Slurm cluster
 
@@ -169,6 +186,7 @@ sinfo -p <partition_name>
 ```
 
 **Common Issues**:
+
 1. **Invalid Partition**:
 ```
 Error: Invalid partition name 'gpu'
@@ -191,7 +209,10 @@ execution:
   walltime: "2:00:00"
 ```
 
-### Lepton Executor Problems
+::::
+
+::::{dropdown} Lepton Executor Problems
+:icon: code-square
 
 **Problem**: Lepton deployment or execution failures
 
@@ -205,6 +226,7 @@ lep deployment list
 ```
 
 **Common Issues**:
+
 1. **Authentication Failure**:
 ```
 Error: Invalid Lepton credentials
@@ -219,6 +241,8 @@ lep login -c <workspace_name>:<your_token>
 Error: Deployment failed to reach Ready state
 ```
 **Fix**: Check Lepton workspace capacity and deployment status.
+
+::::
 
 ## Export Issues
 

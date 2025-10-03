@@ -185,7 +185,8 @@ Your endpoint must support the following generation parameters for compatibility
 
 Before running evaluations, verify your endpoint is working as expected.
 
-### Test Completions Endpoint
+::::{dropdown} Test Completions Endpoint
+:icon: code-square
 
 ```bash
 # Basic test (no authentication)
@@ -214,7 +215,10 @@ curl -X POST http://localhost:8080/v1/completions \
   }'
 ```
 
-### Test Chat Completions Endpoint
+::::
+
+::::{dropdown} Test Chat Completions Endpoint
+:icon: code-square
 
 ```bash
 # Basic test (no authentication)
@@ -252,6 +256,8 @@ curl -X POST http://localhost:8080/v1/chat/completions \
     "stream": false
   }'
 ```
+
+::::
 
 :::{note}
 Each evaluation task requires a specific endpoint type. Verify your endpoint supports the correct type for your chosen tasks. Use `nemo-evaluator-launcher ls tasks` to see which endpoint type each task requires.
@@ -261,7 +267,8 @@ Each evaluation task requires a specific endpoint type. Verify your endpoint sup
 
 Your endpoint must implement the OpenAI API format:
 
-### Completions Endpoint
+::::{dropdown} Completions Endpoint Format
+:icon: code-square
 
 **Request**: `POST /v1/completions`
 
@@ -296,7 +303,10 @@ Your endpoint must implement the OpenAI API format:
 }
 ```
 
-### Chat Completions Endpoint
+::::
+
+::::{dropdown} Chat Completions Endpoint Format
+:icon: code-square
 
 **Request**: `POST /v1/chat/completions`
 
@@ -335,6 +345,8 @@ Your endpoint must implement the OpenAI API format:
   }
 }
 ```
+
+::::
 
 ## Troubleshooting
 

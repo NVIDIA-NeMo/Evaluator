@@ -6,7 +6,8 @@ This section covers common issues encountered when creating and using Framework 
 
 ## Common Issues
 
-### Template Errors
+::::{dropdown} Template Errors
+:icon: code-square
 
 **Symptom**: Template rendering fails with syntax errors.
 
@@ -36,7 +37,10 @@ Verify conditional statements are properly formatted:
 {% if config.params.limit_samples != none %} --first_n {{config.params.limit_samples}}{% end %}
 ```
 
-### Parameter Conflicts
+::::
+
+::::{dropdown} Parameter Conflicts
+:icon: code-square
 
 **Symptom**: Parameters are not overriding as expected.
 
@@ -66,7 +70,10 @@ temperature: 0.7        # Float
 temperature: "0.7"      # String
 ```
 
-### Type Mismatches
+::::
+
+::::{dropdown} Type Mismatches
+:icon: code-square
 
 **Symptom**: Validation errors about incorrect parameter types.
 
@@ -91,7 +98,10 @@ max_new_tokens: "1024"        # String instead of integer
 add_system_prompt: "false"    # String instead of boolean
 ```
 
-### Missing Fields
+::::
+
+::::{dropdown} Missing Fields
+:icon: code-square
 
 **Symptom**: Validation fails with "required field missing" errors.
 
@@ -123,6 +133,8 @@ evaluations:
         supported_endpoint_types:      # Required
           - chat
 ```
+
+::::
 
 ## Debug Mode
 

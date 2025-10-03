@@ -160,7 +160,8 @@ For additional code generation tasks, refer to {ref}`code-generation`.
 
 ## Advanced Configuration Patterns
 
-### Custom Few-Shot Configuration
+::::{dropdown} Custom Few-Shot Configuration
+:icon: code-square
 
 ```python
 # Configure custom few-shot settings
@@ -175,7 +176,10 @@ params = ConfigParams(
 )
 ```
 
-### Performance Optimization
+::::
+
+::::{dropdown} Performance Optimization
+:icon: code-square
 
 ```python
 # Optimize for high-throughput evaluation
@@ -191,7 +195,10 @@ params = ConfigParams(
 )
 ```
 
-### Custom Tokenizer Configuration
+::::
+
+::::{dropdown} Custom Tokenizer Configuration
+:icon: code-square
 
 ```python
 # Configure task-specific tokenizers
@@ -212,7 +219,10 @@ params = ConfigParams(
 )
 ```
 
-### Task-Specific Generation Settings
+::::
+
+::::{dropdown} Task-Specific Generation Settings
+:icon: code-square
 
 ```python
 # Configure generation for different task types
@@ -241,6 +251,8 @@ code_params = ConfigParams(
     extra={"stop_sequences": ["```", "\\n\\n"]}
 )
 ```
+
+::::
 
 ## Configuration Reference
 

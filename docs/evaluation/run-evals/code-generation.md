@@ -171,7 +171,8 @@ Code generation evaluations typically report pass@k metrics that indicate what p
 
 ## Advanced Configuration
 
-### Custom Evaluation Parameters
+::::{dropdown} Custom Evaluation Parameters
+:icon: code-square
 
 ```python
 # Advanced configuration for code generation
@@ -189,7 +190,10 @@ eval_config = EvaluationConfig(
 )
 ```
 
-### Multiple Task Evaluation
+::::
+
+::::{dropdown} Multiple Task Evaluation
+:icon: code-square
 
 Evaluate across different code generation benchmarks:
 
@@ -228,6 +232,8 @@ for task in code_tasks:
         target_cfg=target_config
     )
 ```
+
+::::
 
 ## Understanding Metrics
 
