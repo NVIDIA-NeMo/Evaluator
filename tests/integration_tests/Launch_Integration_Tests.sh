@@ -28,7 +28,7 @@ PROJECT_DIR=$SCRIPT_DIR/../../
 cd $PROJECT_DIR
 
 coverage run \
-    --data-file=.coverage.functional_tests \
+    --data-file=.coverage.integration_tests \
     --source=src/ \
     -m pytest \
     -o log_cli=true \
