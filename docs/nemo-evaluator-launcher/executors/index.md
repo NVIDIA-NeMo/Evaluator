@@ -20,7 +20,7 @@ Executors run evaluations by using the appropriate Docker image (which contains 
 |---------|-------|-------|--------|
 | **Evaluation** | ✅ | ✅ | ✅ |
 | **Deployment + Evaluation** | ❌ | ✅ | ✅ |
-| **Resuming** | ✅ (Manual) | ✅ (Automatic) | — |
+| **Resuming** | ✅ (Manual) | ✅ (Automatic) | ✅ |
 | **Cloud‑native** | ❌ | ❌ | ✅ |
 | **Automatic scaling** | ❌ | ❌ | ✅ |
 | **Best For** | Development and testing | HPC clusters | Cloud scale |
@@ -117,7 +117,7 @@ All executors generate standardized output with time‑stamped directories. The 
 
 - Configuration saved to `$HOME/.nemo-evaluator-launcher/run_configs`.
 - Time‑stamped run directories: `output_dir/2024-01-15-10-30-45-abc12345/`.
-- **Artifacts**: Evaluation results, metrics, predictions, and task‑specific outputs.
+- **Artifacts**: Evaluation results, metrics, and task‑specific outputs.
 - **Logs**: Execution logs, error messages, and status information.
 
 **Example structure:**

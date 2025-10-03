@@ -29,9 +29,9 @@ Use the following tips to configure Lepton execution:
 
 Use the following examples as starting points:
 
-- [Lepton vLLM example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/lepton_vllm_llama_3_1_8b_instruct.yaml): Lepton execution with vLLM deployment.
-- [Lepton NIM example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml): Lepton execution with NIM deployment.
-- [Lepton `none` example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/lepton_none_llama_3_1_8b_instruct.yaml): Lepton execution with an endpoint already deployed in Lepton.
+- [Lepton vLLM example](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/lepton_vllm_llama_3_1_8b_instruct.yaml): Lepton execution with vLLM deployment.
+- [Lepton NIM example](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml): Lepton execution with NIM deployment.
+- [Lepton `none` example](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/lepton_none_llama_3_1_8b_instruct.yaml): Lepton execution with an endpoint already deployed in Lepton.
 
 ## Reference
 

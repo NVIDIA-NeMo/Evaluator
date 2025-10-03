@@ -10,7 +10,7 @@ framework:
 defaults:
   # COMPLETE: provide a jinja-templated command which runs your eval once the package is installed, eg. for simple-evals:
   # command: >-
-  #   {% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}} && {% endif %}
+  #   {% if target.api_endpoint.api_key_name is not none %}export API_KEY=${{target.api_endpoint.api_key_name}} && {% endif %}
   #   simple_evals --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}}
   #   --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}}
   #   --max_tokens {{config.params.max_new_tokens}} --out_dir {{config.output_dir}} --cache_dir {{config.output_dir}}/cache

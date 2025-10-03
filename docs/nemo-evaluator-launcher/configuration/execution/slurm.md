@@ -35,10 +35,10 @@ Refer to the default configuration file: [Default Slurm configuration (YAML)](..
 
 ## Examples
 
-- Slurm with vLLM and a local checkpoint: [slurm_llama_3_1_8b_instruct.yaml](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml).
-- Slurm with vLLM and a model from Hugging Face: [slurm_llama_3_1_8b_instruct_hf.yaml](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct_hf.yaml).
-- Slurm with an existing endpoint (no deployment): [slurm_no_deployment_llama_3_1_8b_instruct.yaml](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/slurm_no_deployment_llama_3_1_8b_instruct.yaml).
-- Slurm example for a benchmark model: [benchmark configuration YAML](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks.yaml).
+- Slurm with vLLM and a local checkpoint: [slurm_llama_3_1_8b_instruct.yaml](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml).
+- Slurm with vLLM and a model from Hugging Face: [slurm_llama_3_1_8b_instruct_hf.yaml](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct_hf.yaml).
+- Slurm with an existing endpoint (no deployment): [slurm_no_deployment_llama_3_1_8b_instruct.yaml](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/slurm_no_deployment_llama_3_1_8b_instruct.yaml).
+- Slurm example for a benchmark model: [benchmark configuration YAML](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks.yaml).
 
 ## Reference
 
