@@ -399,7 +399,6 @@ Core <libraries/nemo-evaluator/index>
 About Troubleshooting <troubleshooting/index>
 Setup & Installation <troubleshooting/setup-issues/index>
 Runtime & Execution <troubleshooting/runtime-issues/index>
-Advanced & Debugging <troubleshooting/advanced/index>
 :::
 
 :::{toctree}
