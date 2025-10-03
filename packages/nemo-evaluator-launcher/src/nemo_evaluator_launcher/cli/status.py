@@ -17,6 +17,8 @@ from dataclasses import dataclass
 
 from simple_parsing import field
 
+from nemo_evaluator_launcher.executors.base import ExecutionState
+
 
 @dataclass
 class Cmd:
@@ -96,10 +98,14 @@ class Cmd:
             else:
                 location = ""
 
+            # Format status with visual indicators and colors
+            status = job.get("status", "")
+            formatted_status = self._format_status_with_indicators(status)
+
             rows.append(
                 [
                     job.get("job_id", ""),
-                    job.get("status", ""),
+                    formatted_status,
                     # job.get("progress", ""), temporarily disabled as this is a WIP feature
                     executor_info,
                     location,
@@ -108,7 +114,10 @@ class Cmd:
 
         # Calculate column widths and print
         widths = [
-            max(len(str(headers[i])), max(len(str(row[i])) for row in rows))
+            max(
+                len(str(headers[i])),
+                max(len(self._strip_ansi_codes(str(row[i]))) for row in rows),
+            )
             for i in range(len(headers))
         ]
 
@@ -119,4 +128,34 @@ class Cmd:
         print("-" * len(header_row))
 
         for row in rows:
-            print(" | ".join(str(row[i]).ljust(widths[i]) for i in range(len(row))))
+            # Adjust padding for ANSI color codes
+            formatted_row = []
+            for i in range(len(row)):
+                content = str(row[i])
+                visible_length = len(self._strip_ansi_codes(content))
+                padding = widths[i] - visible_length
+                formatted_row.append(content + " " * padding)
+            print(" | ".join(formatted_row))
+
+    def _format_status_with_indicators(self, status: str) -> str:
+        """Format status with Unicode visual indicators only."""
+        # Status mapping based on ExecutionState enum
+        status_formats = {
+            ExecutionState.SUCCESS.value: "\033[32m✓ SUCCESS\033[0m",  # Green Unicode checkmark
+            ExecutionState.FAILED.value: "\033[31m✗ FAILED\033[0m",  # Red Unicode X
+            ExecutionState.RUNNING.value: "\033[33m▶ RUNNING\033[0m",  # Yellow Unicode play button
+            ExecutionState.PENDING.value: "\033[36m⏳ PENDING\033[0m",  # Cyan Unicode hourglass
+            ExecutionState.KILLED.value: "\033[35m✗ KILLED\033[0m",  # Magenta Unicode X
+            # Additional states for error handling
+            "not_found": "\033[90m? NOT FOUND\033[0m",  # Gray question mark
+            "error": "\033[31m✗ ERROR\033[0m",  # Red Unicode X
+        }
+
+        return status_formats.get(status.lower(), f"\033[90m? {status.upper()}\033[0m")
+
+    def _strip_ansi_codes(self, text: str) -> str:
+        """Remove ANSI color codes from text for length calculation."""
+        import re
+
+        ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+        return ansi_escape.sub("", text)
