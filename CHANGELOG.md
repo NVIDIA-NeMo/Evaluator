@@ -8,7 +8,7 @@
 
 ### Known Issues
 
-* Very low flexible-extract score with GSM8k due to lack of stop word support in [MegatronLLMDeployable](stop token in MegatronLLMDeployable). However, this does not impact the strict-match score. 
+* Very low flexible-extract score with GSM8k for evaluation of NeMo 2.0 models due to lack of stop word support in [MegatronLLMDeployableNemo2](https://github.com/NVIDIA-NeMo/Export-Deploy/blob/main/nemo_deploy/nlp/megatronllm_deployable.py#L119). However, this does not impact the strict-match score. 
   
 ## NVIDIA NeMo-Eval 0.1.0a0
 
