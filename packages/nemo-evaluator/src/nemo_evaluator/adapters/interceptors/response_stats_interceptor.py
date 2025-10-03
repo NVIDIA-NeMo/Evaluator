@@ -219,21 +219,6 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
         else:
             self.logger.info("No cached interceptor state found")
 
-    def _calculate_inference_time(self, run_data: dict) -> float:
-        """Calculate inference time ensuring timestamps are floats."""
-        last_time = run_data["last_request_time"]
-        first_time = run_data["first_request_time"]
-
-        # Ensure timestamps are floats
-        if isinstance(last_time, str):
-            last_time = datetime.datetime.fromisoformat(last_time).timestamp()
-            run_data["last_request_time"] = last_time
-        if isinstance(first_time, str):
-            first_time = datetime.datetime.fromisoformat(first_time).timestamp()
-            run_data["first_request_time"] = first_time
-
-        return last_time - first_time
-
     def _update_basic_stats(self, resp: AdapterResponse, current_time: float) -> None:
         """Update basic statistics with thread safety."""
         with self._lock:
@@ -448,10 +433,10 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
                     status_code=status_code,
                 )
 
-        except (json.JSONDecodeError, Exception):
+        except (json.JSONDecodeError, Exception) as e:
             # Handle both JSON parsing errors and other exceptions
             # In case of any error, only basic stats are collected
-            pass
+            self.logger.warning(f"Error parsing response body for token counting: {e}")
 
         # Save stats to file if interval reached
         if (

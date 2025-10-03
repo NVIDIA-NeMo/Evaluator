@@ -1243,3 +1243,90 @@ def test_save_stats_creates_file(tmp_path):
         assert "reasoning" in metrics
         assert metrics["reasoning"]["total_responses"] == 1
         assert metrics["reasoning"]["responses_with_reasoning"] == 1
+
+
+@pytest.mark.parametrize(
+    "test_scenario,setup_data,expected_stats",
+    [
+        (
+            "aggregated_stats_loading",
+            {
+                "aggregated": {
+                    "total_responses": 5,
+                    "responses_with_reasoning": 3,
+                    "max_reasoning_words": 150,
+                    "total_reasoning_words": 300,
+                }
+            },
+            {
+                "total_responses": 5,
+                "responses_with_reasoning": 3,
+                "max_reasoning_words": 150,
+                "total_reasoning_words": 300,
+            },
+        ),
+        (
+            "fallback_individual_stats",
+            {
+                "individual": [
+                    {
+                        "reasoning_content": "Some reasoning",
+                        "reasoning_words": 10,
+                        "has_reasoning": True,
+                    },
+                    {
+                        "reasoning_content": "More reasoning",
+                        "reasoning_words": 15,
+                        "has_reasoning": True,
+                    },
+                ]
+            },
+            {
+                "total_responses": 2,
+                "responses_with_reasoning": 2,
+                "total_reasoning_words": 25,
+            },
+        ),
+    ],
+)
+def test_aggregated_stats_caching_scenarios(
+    tmp_path, test_scenario, setup_data, expected_stats
+):
+    """Test aggregated stats caching and loading scenarios."""
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+
+    # Setup cache data based on scenario
+    interceptor1 = ResponseReasoningInterceptor(
+        params=ResponseReasoningInterceptor.Params(
+            enable_caching=True,
+            cache_dir=str(cache_dir),
+            enable_reasoning_tracking=True,
+        )
+    )
+
+    if "aggregated" in setup_data:
+        # Set up aggregated stats
+        for key, value in setup_data["aggregated"].items():
+            interceptor1._reasoning_stats[key] = value
+        interceptor1._save_aggregated_stats()
+    elif "individual" in setup_data:
+        # Set up individual cached stats (old format)
+        for i, stats in enumerate(setup_data["individual"]):
+            interceptor1._request_stats_cache[f"request_{i}"] = json.dumps(stats)
+
+    # Create new interceptor that should load the stats
+    interceptor2 = ResponseReasoningInterceptor(
+        params=ResponseReasoningInterceptor.Params(
+            enable_caching=True,
+            cache_dir=str(cache_dir),
+            enable_reasoning_tracking=True,
+        )
+    )
+
+    # Verify expected stats
+    for key, expected_value in expected_stats.items():
+        assert interceptor2._reasoning_stats[key] == expected_value
+
+    # Verify aggregated stats are always saved after loading
+    assert "_aggregated_reasoning_stats" in interceptor2._request_stats_cache
