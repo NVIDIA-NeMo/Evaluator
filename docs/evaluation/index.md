@@ -74,7 +74,7 @@ Explore 100+ available benchmarks across 18 evaluation harnesses and their speci
 :::
 
 :::{grid-item-card} {octicon}`plus;1.5em;sd-mr-1` Extend Framework
-:link: ../libraries/nemo-evaluator/extending/framework_definition_file
+:link: ../libraries/nemo-evaluator/extending/framework-definition-file/index
 :link-type: doc
 Add custom evaluation frameworks using Framework Definition Files for specialized benchmarks.
 :::

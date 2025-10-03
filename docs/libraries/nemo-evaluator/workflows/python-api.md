@@ -161,5 +161,5 @@ print(f"Evaluation completed: {result}")
 ## Related Documentation
 
 - **API Reference**: For complete API documentation, refer to the [API Reference](../api.md) page
-- **Adapter Configuration**: For detailed interceptor configuration options, refer to the [Adapter Usage](../../deployment/adapters/usage.md) page
+- **Adapter Configuration**: For detailed interceptor configuration options, refer to the {ref}`adapters-usage` page
 - **Interceptor Documentation**: For information about available interceptors, refer to the [Interceptors](../interceptors/index.md) page

@@ -1,3 +1,5 @@
+(extending-evaluator)=
+
 # Extending NeMo Evaluator
 
 Extend NeMo Evaluator with custom benchmarks, evaluation frameworks, and integrations. Learn how to define new evaluation frameworks and integrate them into the NeMo Evaluator ecosystem using standardized configuration patterns.

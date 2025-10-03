@@ -19,22 +19,22 @@ command: >-
 ### Common Conditional Patterns
 
 **Check for null/none values**:
-```yaml
+```jinja
 {% if config.params.limit_samples is not none %} --first_n {{config.params.limit_samples}}{% endif %}
 ```
 
 **Check for boolean flags**:
-```yaml
+```jinja
 {% if config.params.extra.add_system_prompt %} --add_system_prompt {% endif %}
 ```
 
 **Check if variable is defined**:
-```yaml
+```jinja
 {% if config.params.extra.args is defined %} {{ config.params.extra.args }} {% endif %}
 ```
 
 **Check for specific values**:
-```yaml
+```jinja
 {% if target.api_endpoint.type == "chat" %} --use_chat_format {% endif %}
 ```
 
@@ -120,12 +120,12 @@ command: >-
 ## Environment Variable Handling
 
 **Export API keys conditionally**:
-```yaml
+```jinja
 {% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}} && {% endif %}
 ```
 
 **Set multiple environment variables**:
-```yaml
+```jinja
 {% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}} && {% endif %}
 {% if config.params.extra.custom_env is defined %}export CUSTOM_VAR={{config.params.extra.custom_env}} && {% endif %}
 ```

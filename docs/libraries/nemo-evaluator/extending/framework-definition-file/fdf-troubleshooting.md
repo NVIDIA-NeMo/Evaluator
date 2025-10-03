@@ -28,7 +28,7 @@ Check that all template variables use correct syntax:
 ```
 
 Verify conditional statements are properly formatted:
-```yaml
+```jinja
 # Correct
 {% if config.params.limit_samples is not none %} --first_n {{config.params.limit_samples}}{% endif %}
 
