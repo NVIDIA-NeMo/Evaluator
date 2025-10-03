@@ -393,13 +393,20 @@ performance_params = ConfigParams(
 
 ### Tokenizer Issues
 
- **Problem**: Missing tokenizer for log-probability tasks
+:::{admonition} Problem
+:class: error
+Missing tokenizer for log-probability tasks
+
 ```python
 # Incorrect - missing tokenizer
 params = ConfigParams(extra={})
 ```
+:::
 
- **Solution**: Always specify tokenizer for log-probability tasks
+:::{admonition} Solution
+:class: tip
+Always specify tokenizer for log-probability tasks
+
 ```python
 # Correct
 params = ConfigParams(
@@ -409,24 +416,36 @@ params = ConfigParams(
     }
 )
 ```
+:::
 
 ### Performance Issues
 
- **Problem**: Excessive parallelism overwhelming server
+:::{admonition} Problem
+:class: error
+Excessive parallelism overwhelming server
+
 ```python
 # Incorrect - too many concurrent requests
 params = ConfigParams(parallelism=100)
 ```
+:::
 
- **Solution**: Start conservative and scale up
+:::{admonition} Solution
+:class: tip
+Start conservative and scale up
+
 ```python
 # Correct - reasonable concurrency
 params = ConfigParams(parallelism=8, max_retries=3)
 ```
+:::
 
 ### Parameter Conflicts
 
- **Problem**: Mixing generation and log-probability parameters
+:::{admonition} Problem
+:class: error
+Mixing generation and log-probability parameters
+
 ```python
 # Incorrect - generation params unused for log-probability
 params = ConfigParams(
@@ -434,8 +453,12 @@ params = ConfigParams(
     extra={"tokenizer": "/path"}
 )
 ```
+:::
 
- **Solution**: Use appropriate parameters for task type
+:::{admonition} Solution
+:class: tip
+Use appropriate parameters for task type
+
 ```python
 # Correct - only relevant parameters
 params = ConfigParams(
@@ -443,6 +466,7 @@ params = ConfigParams(
     extra={"tokenizer": "/path"}  # Required for log-probability
 )
 ```
+:::
 
 ## Best Practices
 

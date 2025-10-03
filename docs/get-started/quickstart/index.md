@@ -14,7 +14,7 @@ All paths require:
 
 Select the approach that best matches your workflow and technical requirements:
 
-::::{grid} 1 2 2 3
+::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` NeMo Evaluator Launcher

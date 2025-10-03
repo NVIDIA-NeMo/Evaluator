@@ -74,7 +74,9 @@ def run_eval() -> None:
     """
 ```
 
-**Note**: The `run_eval()` function is designed as a CLI entry point. For programmatic usage, you should use the `evaluate()` function directly with configuration objects.
+:::{note}
+The `run_eval()` function is designed as a CLI entry point. For programmatic usage, you should use the `evaluate()` function directly with configuration objects.
+:::
 
 ### `evaluate`
 

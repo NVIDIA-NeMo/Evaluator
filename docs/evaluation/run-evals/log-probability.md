@@ -184,7 +184,9 @@ This approach eliminates the need for complex instruction-following and provides
 | `openbookqa` | Open-book science questions | 500 | Science knowledge |
 | `piqa` | Physical interaction Q&A | 1,838 | Physical reasoning |
 
-**Note**: For tasks not listed in the pre-configured set, you can access additional LM Evaluation Harness tasks using the framework-qualified format: `lm-evaluation-harness.<task_name>` (e.g., `lm-evaluation-harness.lambada_openai`). Refer to {ref}`eval-custom-tasks` for more details.
+:::{note}
+For tasks not listed in the pre-configured set, you can access additional LM Evaluation Harness tasks using the framework-qualified format: `lm-evaluation-harness.<task_name>` (e.g., `lm-evaluation-harness.lambada_openai`). Refer to {ref}`eval-custom-tasks` for more details.
+:::
 
 ### Factual Knowledge Tasks
 
@@ -481,13 +483,20 @@ export HF_DATASETS_CACHE="$HF_HOME/datasets"
 
 ### Missing Tokenizer
 
-**Problem**: Missing tokenizer for log-probability tasks
+:::{admonition} Problem
+:class: error
+Missing tokenizer for log-probability tasks
+
 ```python
 # Incorrect - missing tokenizer
 params = ConfigParams(extra={})
 ```
+:::
 
-**Solution**: Always specify tokenizer for log-probability tasks
+:::{admonition} Solution
+:class: tip
+Always specify tokenizer for log-probability tasks
+
 ```python
 # Correct
 params = ConfigParams(
@@ -497,10 +506,14 @@ params = ConfigParams(
     }
 )
 ```
+:::
 
 ### Wrong Endpoint Type
 
-**Problem**: Using chat endpoint for log-probability tasks
+:::{admonition} Problem
+:class: error
+Using chat endpoint for log-probability tasks
+
 ```python
 # Incorrect - log-probability requires completions
 api_endpoint = ApiEndpoint(
@@ -508,8 +521,12 @@ api_endpoint = ApiEndpoint(
     type=EndpointType.CHAT
 )
 ```
+:::
 
-**Solution**: Use completions endpoint
+:::{admonition} Solution
+:class: tip
+Use completions endpoint
+
 ```python
 # Correct
 api_endpoint = ApiEndpoint(
@@ -517,6 +534,7 @@ api_endpoint = ApiEndpoint(
     type=EndpointType.COMPLETIONS
 )
 ```
+:::
 
 ---
 

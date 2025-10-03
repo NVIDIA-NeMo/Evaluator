@@ -13,11 +13,13 @@ Manual deployment involves:
 - Managing infrastructure, scaling, and monitoring yourself
 - Using either the launcher or core library to run evaluations against your endpoints
 
-**Note**: This guide focuses on NeMo Evaluator configuration. For specific serving framework installation and deployment instructions, refer to their official documentation:
+:::{note}
+This guide focuses on NeMo Evaluator configuration. For specific serving framework installation and deployment instructions, refer to their official documentation:
 
 - [vLLM Documentation](https://docs.vllm.ai/)
 - [TensorRT-LLM Documentation](https://nvidia.github.io/TensorRT-LLM/)
 - [Hugging Face TGI Documentation](https://huggingface.co/docs/text-generation-inference/)
+:::
 
 ## Using Manual Deployments with NeMo Evaluator
 
@@ -251,7 +253,9 @@ curl -X POST http://localhost:8080/v1/chat/completions \
   }'
 ```
 
-**Note**: Each evaluation task requires a specific endpoint type. Verify your endpoint supports the correct type for your chosen tasks. Use `nemo-evaluator-launcher ls tasks` to see which endpoint type each task requires.
+:::{note}
+Each evaluation task requires a specific endpoint type. Verify your endpoint supports the correct type for your chosen tasks. Use `nemo-evaluator-launcher ls tasks` to see which endpoint type each task requires.
+:::
 
 ## OpenAI API Compatibility
 

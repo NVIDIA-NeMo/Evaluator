@@ -48,9 +48,14 @@ else:
 
 ###  Problem: Chat evaluation fails with base model
 
-**Issue**: Base models don't have chat templates
+:::{admonition} Issue
+:class: error
+Base models don't have chat templates
+:::
 
-**Solution**: Use completions endpoint instead:
+:::{admonition} Solution
+:class: tip
+Use completions endpoint instead:
 
 ```python
 from nemo_evaluator import ApiEndpoint, EvaluationConfig, EndpointType
@@ -64,6 +69,7 @@ api_endpoint = ApiEndpoint(
 # Use completion-based tasks
 config = EvaluationConfig(type="mmlu")
 ```
+:::
 
 ### Endpoint Configuration Examples
 

@@ -46,7 +46,9 @@ Custom tasks require explicit harness specification using the format:
 - `"simple-evals.humaneval"` - Simple-Evals harness task  
 - `"bigcode-evaluation-harness.humaneval"` - BigCode harness task
 
-**Note**: These examples demonstrate accessing tasks from upstream evaluation harnesses. Pre-configured tasks with optimized settings are available through the launcher CLI (`nv-eval ls tasks`). Custom task configuration is useful when you need non-standard parameters or when evaluating tasks not yet integrated into the pre-configured catalog.
+:::{note}
+These examples demonstrate accessing tasks from upstream evaluation harnesses. Pre-configured tasks with optimized settings are available through the launcher CLI (`nv-eval ls tasks`). Custom task configuration is useful when you need non-standard parameters or when evaluating tasks not yet integrated into the pre-configured catalog.
+:::
 
 ## lambada_openai (Log-Probability Task)
 
@@ -116,7 +118,9 @@ eval_config = EvaluationConfig(
 results = evaluate(target_cfg=target_config, eval_cfg=eval_config)
 ```
 
-**Note**: Replace `<task_name>` with any task available in the upstream [LM Evaluation Harness](https://github.com/EleutherAI/lm-evaluation-harness). Not all upstream tasks have been tested or pre-configured. For pre-configured tasks, refer to {ref}`log-probability` and {ref}`text-gen`.
+:::{note}
+Replace `<task_name>` with any task available in the upstream [LM Evaluation Harness](https://github.com/EleutherAI/lm-evaluation-harness). Not all upstream tasks have been tested or pre-configured. For pre-configured tasks, refer to {ref}`log-probability` and {ref}`text-gen`.
+:::
 
 ## HumanEval (Code Generation)
 

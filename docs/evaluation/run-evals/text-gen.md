@@ -167,7 +167,9 @@ Run this command to discover the complete list of available benchmarks across al
   - Language-specific text generation and assessment
 ```
 
-**Note**: Task availability depends on installed frameworks. Use `nv-eval ls tasks` to see the complete list for your environment.
+:::{note}
+Task availability depends on installed frameworks. Use `nv-eval ls tasks` to see the complete list for your environment.
+:::
 
 ## Task Naming and Framework Specification
 
