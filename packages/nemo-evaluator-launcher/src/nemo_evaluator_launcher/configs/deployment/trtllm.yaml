@@ -1,0 +1,24 @@
+type: trtllm
+image: nvcr.io/nvidia/tensorrt-llm/release:1.0.0
+checkpoint_path: ???
+served_model_name: ???
+port: 8000
+tensor_parallel_size: 4
+pipeline_parallel_size: 1
+extra_args: ""
+
+endpoints:
+  chat: /v1/chat/completions
+  completions: /v1/completions
+  health: /health
+
+command:
+  mpirun --allow-run-as-root --oversubscribe
+  trtllm-serve serve /checkpoint
+  --tp_size=${deployment.tensor_parallel_size}
+  --pp_size=${deployment.pipeline_parallel_size}
+  --host 0.0.0.0
+  --port ${deployment.port}
+  --backend pytorch
+  --trust_remote_code
+  ${deployment.extra_args}
