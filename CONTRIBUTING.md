@@ -10,6 +10,15 @@ We welcome contributions to the NeMo Evaluator projects! This document provides 
 - [UV](https://github.com/astral-sh/uv) for fast Python package management
 - Git for version control
 
+### Project Structure
+
+This is a monorepo containing two packages:
+
+- **`packages/nemo-evaluator`** - Core evaluation library (required for building docs)
+- **`packages/nemo-evaluator-launcher`** - CLI and orchestration layer
+
+Each package has its own virtual environment managed by UV. Choose your setup based on what you're contributing to.
+
 ### Setup
 
 1. **Install UV**
@@ -22,22 +31,37 @@ We welcome contributions to the NeMo Evaluator projects! This document provides 
 
    ```bash
    git clone <repository-url>
+   cd Evaluator
    ```
 
 3. **Set up development environment**
 
-   For example for **nemo-evaluator-launcher**:
+   Choose the setup that matches your contribution:
+
+   **For Launcher Development:**
 
    ```bash
-   cd nemo_evaluator_launcher
+   cd packages/nemo-evaluator-launcher
    uv sync --all-extras
-   ```
-
-4. **Install pre-commit hooks**
-
-   ```bash
    uv run pre-commit install
    ```
+
+   **For Core Library Development:**
+
+   ```bash
+   cd packages/nemo-evaluator
+   uv sync --all-extras
+   uv run pre-commit install
+   ```
+
+   **For Documentation:**
+
+   ```bash
+   cd packages/nemo-evaluator
+   uv sync --group docs
+   ```
+
+   Then build documentation with `make docs-html` from the repository root.
 
 ### Development Tools
 
@@ -109,6 +133,25 @@ uv run pytest --disable-network
 2. **Test isolation**: Each test should be independent and not rely on others
 3. **Clear assertions**: Use descriptive assertion messages
 4. **Mock external dependencies**: Use `pytest` fixtures and mocking for external services
+
+## Validating Documentation Snippets (Optional)
+
+Documentation builds without executing code snippets, but you may want to validate that snippets are syntactically correct and have valid imports.
+
+To validate snippets that import from both packages:
+
+```bash
+# Set up launcher environment with core library
+cd packages/nemo-evaluator-launcher
+uv sync --all-extras
+uv pip install -e ../nemo-evaluator/
+
+# Activate environment and validate a snippet
+source .venv/bin/activate
+python -m py_compile docs/evaluation/_snippets/api-examples/basic_evaluate.py
+```
+
+**Note**: Most snippets require actual model endpoints to run, so validation only checks syntax and imports, not execution.
 
 ## Pull Request Guidelines
 
