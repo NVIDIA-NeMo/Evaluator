@@ -528,11 +528,13 @@ def export_results(
         else:
             # Multiple IDs - parse and group
             db = ExecutionDB()
-            grouped_jobs: dict[
-                str, dict[str, Any]
-            ] = {}  # invocation_id -> {job_id: job_data}
+            grouped_jobs: dict[str, dict[str, Any]] = (
+                {}
+            )  # invocation_id -> {job_id: job_data}
             invocation_only = set()  # invocation_ids with no specific jobs
-            all_jobs_for_consolidated = {}  # job_id -> job_data (for consolidated export)
+            all_jobs_for_consolidated = (
+                {}
+            )  # job_id -> job_data (for consolidated export)
 
             # Parse and group IDs
             for id_str in invocation_ids:

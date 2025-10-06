@@ -240,6 +240,7 @@ class LocalExecutor(BaseExecutor):
                     config=OmegaConf.to_object(cfg),
                 )
             )
+            print(f"✓ Job submitted successfully | Job ID: {job_id}")
 
         # Launch bash scripts with Popen for non-blocking execution.
         # To ensure subprocess continues after python exits:
