@@ -199,6 +199,10 @@ You can check:
 
 The status command returns JSON output with job status information.
 
+/// note | About invocation and job IDs
+It is possible to use short version of IDs in `status` command, for example `abcd` instead of a full `abcdef0123456` or `ab.0` instead of `abcdef0123456.0`, so long as there are no collisions. This is a syntactic sugar allowing for a slightly easier usage.
+///
+
 ### 4. Export Results
 
 Export evaluation results to various destinations:

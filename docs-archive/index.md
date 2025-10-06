@@ -96,6 +96,10 @@ Results, logs, and run configurations are saved locally. Inspect the status of t
 nemo-evaluator-launcher status <job_id_or_invocation_id>
 ```
 
+/// note | About invocation and job IDs
+It is possible to use short version of IDs in `status` command, for example `abcd` instead of a full `abcdef0123456` or `ab.0` instead of `abcdef0123456.0`, so long as there are no collisions. This is a syntactic sugar allowing for a slightly easier usage.
+///
+
 ## Next Steps
 
 - List all supported benchmarks:

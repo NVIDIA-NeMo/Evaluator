@@ -62,7 +62,7 @@ class TestCLIWorkflowIntegration:
             invocation_id = extract_invocation_id(mock_print)
 
             # Verify invocation ID format
-            assert len(invocation_id) == 8
+            assert len(invocation_id) == 16
             assert all(c in "0123456789abcdef" for c in invocation_id)
 
             # Step 2: Check status
@@ -354,7 +354,7 @@ class TestCLIWorkflowIntegration:
             _ = extract_invocation_id(mock_print)
 
             # Query nonexistent job and invocation
-            status_cmd = StatusCmd(job_ids=["nonexistent_job", "12345678"])
+            status_cmd = StatusCmd(job_ids=["nonexist.0", "nonexist"])
 
             with patch("builtins.print") as mock_status_print:
                 status_cmd.execute()
@@ -365,16 +365,16 @@ class TestCLIWorkflowIntegration:
                 # The actual status data is returned by get_status, let's check that directly
                 from nemo_evaluator_launcher.api.functional import get_status
 
-                status_data = get_status(["nonexistent_job", "12345678"])
+                status_data = get_status(["nonexist.0", "nonexist"])
                 assert len(status_data) == 2
 
                 # Check nonexistent job result
-                assert status_data[0]["job_id"] == "nonexistent_job"
+                assert status_data[0]["job_id"] == "nonexist.0"
                 assert status_data[0]["status"] == "not_found"
                 assert status_data[0]["invocation"] is None
 
                 # Check nonexistent invocation result
-                assert status_data[1]["invocation"] == "12345678"
+                assert status_data[1]["invocation"] == "nonexist"
                 assert status_data[1]["status"] == "not_found"
                 assert status_data[1]["job_id"] is None
 

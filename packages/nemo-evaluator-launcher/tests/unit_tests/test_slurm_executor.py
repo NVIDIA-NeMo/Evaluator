@@ -618,8 +618,8 @@ class TestSlurmExecutorDryRun:
 
                 # Verify invocation ID format
                 assert isinstance(invocation_id, str)
-                assert len(invocation_id) == 8
-                assert re.match(r"^[a-f0-9]{8}$", invocation_id)
+                assert len(invocation_id) == 16
+                assert re.match(r"^[a-f0-9]{16}$", invocation_id)
 
                 # Verify print was called with dry run information
                 mock_print.assert_called()
@@ -757,7 +757,7 @@ class TestSlurmExecutorDryRun:
 
                 # Verify invocation ID is valid
                 assert isinstance(invocation_id, str)
-                assert len(invocation_id) == 8
+                assert len(invocation_id) == 16
 
         finally:
             # Clean up environment
@@ -816,7 +816,7 @@ class TestSlurmExecutorDryRun:
 
                 # Verify invocation ID is valid
                 assert isinstance(invocation_id, str)
-                assert len(invocation_id) == 8
+                assert len(invocation_id) == 16
 
         finally:
             # Clean up environment
@@ -960,7 +960,7 @@ class TestSlurmExecutorGetStatus:
 
     def test_get_status_invocation_empty_jobs(self):
         """Test get_status for invocation with no jobs."""
-        statuses = SlurmExecutor.get_status("nonexist1")
+        statuses = SlurmExecutor.get_status("nonexist.1")
         assert statuses == []
 
     def test_map_slurm_state_to_execution_state(self):
@@ -1310,8 +1310,8 @@ class TestSlurmExecutorSystemCalls:
 
                 # Verify invocation ID format
                 assert isinstance(invocation_id, str)
-                assert len(invocation_id) == 8
-                assert re.match(r"^[a-f0-9]{8}$", invocation_id)
+                assert len(invocation_id) == 16
+                assert re.match(r"^[a-f0-9]{16}$", invocation_id)
 
                 # Verify job was saved to database
                 db = ExecutionDB()
@@ -1402,7 +1402,7 @@ class TestSlurmExecutorSystemCalls:
                 invocation_id = SlurmExecutor.execute_eval(sample_config, dry_run=False)
 
                 assert isinstance(invocation_id, str)
-                assert len(invocation_id) == 8
+                assert len(invocation_id) == 16
 
         finally:
             # Clean up environment
