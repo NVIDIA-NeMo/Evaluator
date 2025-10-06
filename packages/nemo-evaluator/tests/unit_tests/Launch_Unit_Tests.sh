@@ -14,6 +14,10 @@
 set -xeuo pipefail # Exit immediately if a command exits with a non-zero status
 
 export CUDA_VISIBLE_DEVICES=""
+export HF_HOME="/home/TestData/HF_HOME"
+export HF_DATASETS_OFFLINE="1"
+export TRANSFORMERS_OFFLINE="1"
+export HF_DATASETS_CACHE="${HF_HOME}/datasets"
 
 SCRIPT_DIR=$(dirname "$0")
 PROJECT_DIR=$SCRIPT_DIR/../../
