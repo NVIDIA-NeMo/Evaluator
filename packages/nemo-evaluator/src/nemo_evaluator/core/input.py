@@ -348,20 +348,38 @@ For example: {framework_handlers[0]}.{evaluation_name}. "
 
 
 def check_type_compatibility(evaluation: Evaluation):
-    if (
-        evaluation.config.supported_endpoint_types is not None
-        and evaluation.target.api_endpoint.type
-        not in evaluation.config.supported_endpoint_types
-    ):
+    # Model endpoint types must be checked against benchmark required capabilities.
+    # All benchmark required capabilities must be present in model endpoint types.
+
+    # If the evaluation does not specify particular endpoint types,
+    # we treat it as 'any's
+
+    # We have to be carefull in terms of types. We might run into turning a stringable
+    # dataclass into a set
+    if evaluation.config.supported_endpoint_types is not None:
+        if not isinstance(evaluation.target.api_endpoint.type, list):
+            evaluation.target.api_endpoint.type = [evaluation.target.api_endpoint.type]
+
+        if not isinstance(evaluation.config.supported_endpoint_types, list):
+            evaluation.config.supported_endpoint_types = [
+                evaluation.config.supported_endpoint_types
+            ]
+        model_types = set(evaluation.target.api_endpoint.type)
+        is_target_compatible = False
+        for benchmark_type_combination in evaluation.config.supported_endpoint_types:
+            if not isinstance(benchmark_type_combination, list):
+                benchmark_type_combination = [benchmark_type_combination]
+
+            if model_types.issuperset(set(benchmark_type_combination)):
+                is_target_compatible = True
+
         if evaluation.target.api_endpoint.type is None:
             raise MisconfigurationError(
                 "target.api_endpoint.type should be defined and match one of the endpoint "
                 f"types supported by the benchmark: '{evaluation.config.supported_endpoint_types}'",
             )
-        if (
-            evaluation.target.api_endpoint.type
-            not in evaluation.config.supported_endpoint_types
-        ):
+
+        if not is_target_compatible:
             raise MisconfigurationError(
                 f"The benchmark '{evaluation.config.type}' does not support the model type '{evaluation.target.api_endpoint.type}'. "
                 f"The benchmark supports '{evaluation.config.supported_endpoint_types}'."
