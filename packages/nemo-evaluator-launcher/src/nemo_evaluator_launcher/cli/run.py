@@ -146,6 +146,9 @@ class Cmd:
         if invocation_id is not None:
             print(f"to check status: nemo-evaluator-launcher status {invocation_id}")
             print(f"to kill all jobs: nemo-evaluator-launcher kill {invocation_id}")
-            print(
-                f"to kill individual jobs: nemo-evaluator-launcher kill <job_id> (e.g., {invocation_id}.0)"
-            )
+
+            # Show actual job IDs and task names
+            print("to kill individual jobs:")
+            for idx, task in enumerate(config.evaluation.tasks):
+                job_id = f"{invocation_id}.{idx}"
+                print(f"  nemo-evaluator-launcher kill {job_id}  # {task.name}")

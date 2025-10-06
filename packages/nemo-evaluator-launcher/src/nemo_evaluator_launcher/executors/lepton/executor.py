@@ -504,7 +504,7 @@ class LeptonExecutor(BaseExecutor):
                     )
                 )
 
-                print(f"✅ Task {task.name}: Submitted evaluation job {job_id}")
+                print(f"\033[32m✓ Job submitted successfully | Job ID: {job_id}\033[0m")
 
             # Jobs submitted successfully - return immediately (non-blocking)
             print(
@@ -538,7 +538,7 @@ class LeptonExecutor(BaseExecutor):
 
         except Exception as e:
             # Clean up any created endpoints on failure
-            print(f"❌ Error during evaluation: {e}")
+            print(f"\033[31m✗ Job submission failed | Error: {e}\033[0m")
             if cfg.deployment.type != "none" and "endpoint_names" in locals():
                 for endpoint_name in endpoint_names:
                     if endpoint_name:
