@@ -12,7 +12,7 @@
 
 NeMo Evaluator is an open-source platform for robust, reproducible, and scalable evaluation of Large Language Models. It enables you to run hundreds of benchmarks across popular evaluation harnesses against any OpenAI-compatible model API. Evaluations execute in open-source Docker containers for auditable and trustworthy results. The platform's containerized architecture allows for the rapid integration of public benchmarks and private datasets.
 
-[Tutorial](./docs/nemo-evaluator-launcher/tutorial.md) | [Supported Benchmarks](#supported-benchmarks-and-evaluation-harnesses) | [Configuration Examples](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator-launcher/examples) | [Contribution Guide](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/CONTRIBUTING.md)
+[Tutorial](./docs/nemo-evaluator-launcher/tutorial.md) | [NeMo FW model evaluations](#-evaluate-checkpoints-trained-by-nemo-framework) | [Supported Benchmarks](#supported-benchmarks-and-evaluation-harnesses) | [Configuration Examples](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator-launcher/examples) | [Contribution Guide](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/CONTRIBUTING.md)
 
 ## ✨ Key Pillars
 
@@ -121,7 +121,7 @@ nemo-evaluator-launcher status <job_id_or_invocation_id>
 - Customize your workflow with [Custom Exporters](./docs/nemo-evaluator-launcher/exporters/overview.md) or by evaluating with [proprietary data](./docs/nemo-evaluator/extending/framework-definition-file.md).
 
 
-## 🧩 Run with NeMo Framework
+## 🧩 Evaluate checkpoints trained by NeMo Framework
 
 The NeMo Framework is NVIDIA’s GPU-accelerated, end-to-end training platform for large language models (LLMs), multimodal models, and speech models. It enables seamless scaling of both pretraining and post-training workloads, from a single GPU to clusters with thousands of nodes, supporting Hugging Face/PyTorch and Megatron models. NeMo includes a suite of libraries and curated training recipes to help users build models from start to finish.
 
@@ -218,4 +218,4 @@ This project is licensed under the Apache License 2.0. See the [LICENSE](https:/
 
 - **Issues**: [GitHub Issues](https://github.com/NVIDIA-NeMo/Evaluator/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/NVIDIA-NeMo/Evaluator/discussions)
-- **Documentation**: [NeMo Documentation](https://docs.nvidia.com/nemo/evaluator/latest/index.html)
+- **Documentation**: [NeMo Evaluator Documentation](https://docs.nvidia.com/nemo/evaluator/latest/index.html)
