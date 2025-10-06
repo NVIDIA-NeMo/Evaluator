@@ -34,7 +34,7 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.pre-start"
 # Docker run with eval factory command
 (
     echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.running"
-    docker run --rm --shm-size=100g \
+    docker run --rm --shm-size=100g --network=host \
       --name {{ task.container_name }} \
       --volume "$artifacts_dir":/results \
       {% for env_var in task.env_vars -%}
