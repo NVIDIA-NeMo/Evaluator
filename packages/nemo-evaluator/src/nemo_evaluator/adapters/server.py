@@ -79,7 +79,7 @@ def is_port_open(host: str, port: int, timeout: float = 0.5) -> bool:
 
 
 def wait_for_server(
-    host: str, port: int, max_wait: float = 10, interval: float = 0.2
+    host: str, port: int, max_wait: float = 300, interval: float = 0.2
 ) -> bool:
     """Wait for server to be ready with timeout.
 

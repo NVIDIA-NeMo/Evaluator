@@ -15,11 +15,10 @@ Tips:
 - local execution is ideal for development and testing
 
 Examples:
-- [Local vLLM Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml) - Local execution with vLLM deployment
-- [Local None Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml) - Local execution with existing endpoint
-- [Local with Metadata](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/local_with_user_provided_metadata.yaml) - Local execution with custom metadata
-- [Auto Export Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/local_auto_export_llama_3_1_8b_instruct.yaml) - Local execution with automatic result export
-- [Limit Samples Example](https://github.com/NVIDIA-NeMo/Eval/tree/main/packages/nemo-evaluator-launcher/examples/local_limit_samples.yaml) - Local execution with limited samples
+- [Local vLLM Example](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml) - Local execution with vLLM deployment
+- [Local None Example](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml) - Local execution with existing endpoint
+- [Auto Export Example](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/local_auto_export_llama_3_1_8b_instruct.yaml) - Local execution with automatic result export
+- [Limit Samples Example](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/local_limit_samples.yaml) - Local execution with limited samples
 
 ## Reference
 
