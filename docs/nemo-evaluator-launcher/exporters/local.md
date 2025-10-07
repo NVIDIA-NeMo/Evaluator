@@ -9,7 +9,7 @@ Exports artifacts and optional summaries to the local filesystem (and stages fro
   - Use with auto-export to collect results automatically after runs finish
 
 - Options:
-  - `output_dir` (alias `-o`): where results go (default: `./nemo-evaluator-launcher-results`)
+  - `output_dir` (CLI: `--output-dir` or `-out`): where results go (default: `./nemo-evaluator-launcher-results`)
   - `format`: `json` or `csv` to produce summaries (omit for artifacts-only)
   - `log_metrics`: select which metrics to include
   - `only_required`: copy minimal, relevant files (default: true)
@@ -27,13 +27,18 @@ Exports artifacts and optional summaries to the local filesystem (and stages fro
 - Examples (CLI):
 ```bash
 # Single invocation → artifacts + JSON summary
-nemo-evaluator-launcher export 8abcd123 --dest local --format json -o ./results
+nemo-evaluator-launcher export 8abcd123 --dest local --format json -output-dir ./results
 
 # Single job → artifacts only
-nemo-evaluator-launcher export 8abcd123.0 --dest local -o ./results
+nemo-evaluator-launcher export 8abcd123.0 --dest local --output-dir ./results
 
 # Multiples → one consolidated CSV summary
-nemo-evaluator-launcher export 8abcd123 9def4567 0abcdabcd.3 --dest local --format csv -o ./results
+nemo-evaluator-launcher export 8abcd123 9def4567 0abcdabcd.3 --dest local --format csv --output-dir ./results
+
+# With CLI overrides
+nemo-evaluator-launcher export 8abcd123 --dest local \
+  -o export.local.format=json \
+  -o export.local.output_dir=./custom-results
 ```
 
 - Examples (API):
@@ -48,8 +53,9 @@ export_results(["8abcd123", "9def4567"], dest="local", config={"format": "csv", 
 execution:
   auto_export:
     destinations: ["local"]
-    configs:
-      local:
-        format: "json"
-        output_dir: "./results"
+
+export:
+  local:
+    format: "json"
+    output_dir: "./results"
 ```

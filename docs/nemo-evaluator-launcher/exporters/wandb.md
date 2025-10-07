@@ -19,37 +19,54 @@ Export metrics and artifacts to W&B for experiment tracking. Inherits all core f
 - `description`: run description text
 - `job_type`: run type classification (default: "evaluation")
 - `log_metrics`: filter specific metrics (default: all available metrics)
-- `log_artifacts`: include artifacts (default: true), including the run config `config.yaml` for reproducibility
+- `log_artifacts`: include artifacts and config.yaml (default: true)
+- `log_logs`: include execution logs (default: false)
+- `only_required`: copy only required artifacts (default: true)
 - `extra_metadata`: user-defined custom fields merged into W&B run.config
 - Webhook-related: `triggered_by_webhook`, `webhook_source`, `source_artifact`, `config_source`
 
-**Tip:** We recommend `auto-export` for the extensive support of configuration and customization.
+**Tip:** We recommend `auto-export` for extensive configuration and customization support.
 
-**Example (YAML excerpt):**
+**Example (YAML):**
 ```yaml
 execution:
   auto_export:
     destinations: ["wandb"]
-    configs:
-      wandb:
-        entity: "nvidia"
-        project: "nemo-evaluator-launcher-test"
-        group: "exporter-testing"
-        job_type: "evaluation"
-        tags: ["Nemotron-H", "multi-task", "exporter-test"]
-        description: "Test Run"
-        log_metrics: ["accuracy", "score", "pass@1"]
-        log_mode: "multi_task"
+  
+  # Export-related env vars (placeholders expanded at runtime)
+  env_vars:
+    export:
+      WANDB_API_KEY: WANDB_API_KEY
+      PATH: "/path/to/conda/env/bin:$PATH"
 
-        extra_metadata: 
-          execution_type: "slurm"
-          model_tag: "nemotrons"
-          hardware: "super-gpu9000s"
+export:
+  wandb:
+    entity: "nvidia"
+    project: "nemo-evaluator-launcher-test"
+    group: "exporter-testing"
+    job_type: "evaluation"
+    tags: ["Nemotron-H", "multi-task"]
+    description: "Test Run"
+    log_metrics: ["accuracy", "score", "pass@1"]
+    log_mode: "multi_task"
+    log_logs: true
+    only_required: false
+    
+    extra_metadata: 
+      execution_type: "slurm"
+      model_tag: "nemotrons"
+      hardware: "H100"
 ```
 
 **Examples (CLI):**
 ```bash
+# Basic export
 nemo-evaluator-launcher export 8abcd123 --dest wandb
+
+# With overrides
+nemo-evaluator-launcher export 8abcd123 --dest wandb \
+  -o export.wandb.entity=myorg \
+  -o export.wandb.project=evals
 ```
 
 **Examples (API):**
