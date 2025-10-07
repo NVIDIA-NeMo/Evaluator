@@ -204,7 +204,7 @@ class SlurmExecutor(BaseExecutor):
         """
         db = ExecutionDB()
 
-        # If id looks like an invocation_id (no dot), get all jobs for it
+        # If id looks like an invocation_id
         if "." not in id:
             jobs = db.get_jobs(id)
             if not jobs:
@@ -635,6 +635,7 @@ def _generate_auto_export_section(
     s += "    echo 'Evaluation completed successfully. Starting auto-export...'\n"
     s += "    set +e\n"
     s += "    set +x\n"
+    s += "    set +u\n"
     s += '    cd "$TASK_DIR/artifacts"\n'
 
     # Work with DictConfig; convert only for YAML at the end
@@ -675,10 +676,21 @@ def _generate_auto_export_section(
     s += yaml_str
     s += "EOF\n"
 
-    # Export host-only env before running export commands
+    # write launcher config as config.yml for exporters (no core command)
+    submitted_yaml = yaml.safe_dump(
+        OmegaConf.to_container(cfg, resolve=True), sort_keys=False
+    )
+    s += "    cat > config.yml << 'EOF'\n"
+    s += submitted_yaml
+    s += "EOF\n"
+
+    # Export host only env before running auto export
     for k, v in (export_env or {}).items():
-        esc = str(v).replace('"', '\\"')
-        s += f'    export {k}="{esc}"\n'
+        if isinstance(v, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", v):
+            s += f'    export {k}="${{{v}}}"\n'
+        else:
+            esc = str(v).replace('"', '\\"')
+            s += f'    export {k}="{esc}"\n'
 
     for dest in destinations:
         s += f"    echo 'Exporting to {dest}...'\n"

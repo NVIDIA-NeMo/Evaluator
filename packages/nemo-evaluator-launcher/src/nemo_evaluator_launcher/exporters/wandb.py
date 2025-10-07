@@ -202,6 +202,31 @@ class WandBExporter(BaseExporter):
 
             artifact_root = get_artifact_root(job_data)  # "<harness>.<benchmark>"
 
+            # Add config file only when artifacts logging is enabled
+            if wandb_config.get("log_artifacts", True):
+                cfg_added = False
+                for fname in ("config.yml", "run_config.yml"):
+                    p = artifacts_dir / fname
+                    if p.exists():
+                        artifact.add_file(str(p), name=f"{artifact_root}/{fname}")
+                        logged_names.append(fname)
+                        cfg_added = True
+                        break
+                if not cfg_added:
+                    with tempfile.NamedTemporaryFile(
+                        "w", suffix=".yaml", delete=False
+                    ) as tmp_cfg:
+                        yaml.dump(
+                            job_data.config or {},
+                            tmp_cfg,
+                            default_flow_style=False,
+                            sort_keys=False,
+                        )
+                        cfg_path = tmp_cfg.name
+                    artifact.add_file(cfg_path, name=f"{artifact_root}/config.yaml")
+                    os.unlink(cfg_path)
+                    logged_names.append("config.yaml")
+
             files_to_upload: list[Path] = []
             if wandb_config.get("only_required", True):
                 for fname in get_available_artifacts(artifacts_dir):
@@ -385,15 +410,11 @@ class WandBExporter(BaseExporter):
                 "harness": harness,
             },
         )
-        with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as tmp_cfg:
-            yaml.dump(job_data.config or {}, tmp_cfg, default_flow_style=False)
-            cfg_path = tmp_cfg.name
-        artifact.add_file(cfg_path, name="config.yaml")
-        os.unlink(cfg_path)
 
         logged_artifacts = self._log_artifacts(
-            job_data, config, artifact, register_staging_dir
+            job_data, config, artifact, register_staging_dir=register_staging_dir
         )
+
         try:
             run.log_artifact(artifact)
             # charts for each logged metric

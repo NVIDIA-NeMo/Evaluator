@@ -126,7 +126,6 @@ class ExportCmd:
                 else:
                     flat_overrides.append(str(item))
 
-            # Validate overrides
             try:
                 self._validate_overrides(flat_overrides, self.dest)
             except ValueError as e:
@@ -136,6 +135,8 @@ class ExportCmd:
             # Expand env vars in override vals ($VAR / ${VAR})
             import os
 
+            from omegaconf import OmegaConf
+
             expanded_overrides: list[str] = []
             for ov in flat_overrides:
                 if "=" in ov:
@@ -143,8 +144,6 @@ class ExportCmd:
                     expanded_overrides.append(f"{k}={os.path.expandvars(v)}")
                 else:
                     expanded_overrides.append(os.path.expandvars(ov))
-
-            from omegaconf import OmegaConf
 
             dot_cfg = OmegaConf.from_dotlist(expanded_overrides)
             as_dict = OmegaConf.to_container(dot_cfg, resolve=True) or {}

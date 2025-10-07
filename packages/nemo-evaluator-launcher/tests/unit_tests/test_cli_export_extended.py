@@ -96,7 +96,7 @@ class TestExportCmdConfiguration:
         assert "output_filename" not in config
         assert "format" not in config
         assert config["copy_logs"] is False
-        assert config["only_required"] is True
+        assert "only_required" not in config
         assert "log_metrics" not in config  # Empty list should not be included
 
 

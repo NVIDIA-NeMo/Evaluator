@@ -155,14 +155,6 @@ def extract_exporter_config(
         if yaml_config:
             config.update(yaml_config)
 
-    # execution.auto_export.configs.<exporter-name>
-    if job_data.config and not config:
-        execution_config = job_data.config.get("execution", {})
-        auto_export_config = execution_config.get("auto_export", {})
-        exporter_configs = auto_export_config.get("configs", {})
-        yaml_config = exporter_configs.get(exporter_name, {})
-        config.update(yaml_config)
-
     # From webhook metadata (if triggered by webhook)
     if "webhook_metadata" in job_data.data:
         webhook_data = job_data.data["webhook_metadata"]
@@ -181,7 +173,7 @@ def extract_exporter_config(
             webhook_config.update({k: v for k, v in wandb_specific.items() if v})
         config.update(webhook_config)
 
-    # Constructor config: allows CLI overrides
+    # allows CLI overrides
     if constructor_config:
         config.update(constructor_config)
 

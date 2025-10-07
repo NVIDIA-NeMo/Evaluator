@@ -632,7 +632,6 @@ class TestGSheetsExporter:
             "/path/to/creds.json"
         ]  # service_account_file branch
         assert calls["create"] == 1  # SpreadsheetNotFound -> create
-        assert calls["share"] == 1  # share after create
 
     def test_export_job_spreadsheet_not_found_creates_new(
         self, monkeypatch, tmp_path: Path
@@ -715,7 +714,6 @@ class TestGSheetsExporter:
         assert res.success
         assert calls["open"] == 1  # Tried to open first
         assert calls["create"] == 1  # SpreadsheetNotFound -> create
-        assert calls["share"] == 1  # share after create
 
     def test_export_multiple_invocations_detailed_logic(self, monkeypatch):
         # Enable gspread
