@@ -50,7 +50,7 @@ Uses [Hydra's defaults list](https://hydra.cc/docs/advanced/defaults_list/) to c
 
 **Available Options:**
 - **Execution**: `local`, `slurm`, `lepton`
-- **Deployment**: `vllm`, `sglang`, `nim`, `none`
+- **Deployment**: `vllm`, `sglang`, `nim`, `generic`, `none`
 
 # 2. Execution
 Defines how and where to run evaluations. See [Execution Overview](execution/index.md) for details.
@@ -65,6 +65,7 @@ Defines how to deploy and serve your model. See [Deployment Overview](deployment
 - **[vLLM](deployment/vllm.md)**: Fast LLM inference and serving
 - **[SGLang](deployment/sglang.md)**: Fast serving framework for LLMs and VLMs
 - **[NIM](deployment/nim.md)**: NVIDIA Inference Microservices
+- **[Generic](deployment/generic.md)**: Custom server deployment with flexible configuration
 - **[None](deployment/none.md)**: Use existing endpoint (no deployment)
 
 # 4. Target
@@ -109,12 +110,15 @@ nemo-evaluator-launcher run --config-dir configs --config-name your_config --dry
 Enable debug logging for detailed error information and troubleshooting:
 
 ```bash
-# Set environment variable (recommended)
-export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
+# Using the verbose flag (recommended)
+nemo-evaluator-launcher -v run --config-name your_config --config-dir your_configs_dir
 
-# Run your evaluation
-nemo-evaluator-launcher run --config-name your_config
+# Or using environment variable
+export LOG_LEVEL=DEBUG
+nemo-evaluator-launcher run --config-name your_config --config-dir your_configs_dir
 ```
+
+The `-v`/`--verbose` flag is available on all commands and automatically sets `LOG_LEVEL=DEBUG` for comprehensive logging.
 
 ### Log failed requests responses pair 
 

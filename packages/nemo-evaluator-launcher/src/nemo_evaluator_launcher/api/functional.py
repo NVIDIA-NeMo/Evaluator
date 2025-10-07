@@ -99,11 +99,13 @@ def run_eval(cfg: RunConfig, dry_run: bool = False) -> Optional[str]:
     return get_executor(cfg.execution.type).execute_eval(cfg, dry_run)
 
 
-def get_status(job_ids: list[str]) -> list[dict[str, Any]]:
+def get_status(ids_or_prefixes: list[str]) -> list[dict[str, Any]]:
     """Get status of jobs by their IDs or invocation IDs.
 
     Args:
-        job_ids: List of job IDs or invocation IDs to check status for.
+        job_ids: List of job IDs or invocation IDs to check status for. Short ones are allowed,
+                 we would try to match the full ones from prefixes if no collisions are
+                 present.
 
     Returns:
         list[dict[str, Any]]: List of status dictionaries for each job or invocation.
@@ -114,14 +116,14 @@ def get_status(job_ids: list[str]) -> list[dict[str, Any]]:
     db = ExecutionDB()
     results: List[dict[str, Any]] = []
 
-    for job_id in job_ids:
-        # If id looks like an invocation_id (8 hex digits, no dot), get all jobs for it
-        if len(job_id) == 8 and "." not in job_id:
-            jobs = db.get_jobs(job_id)
+    for id_or_prefix in ids_or_prefixes:
+        # If id looks like an invocation_id (no dot), get all jobs for it
+        if "." not in id_or_prefix:
+            jobs = db.get_jobs(id_or_prefix)
             if not jobs:
                 results.append(
                     {
-                        "invocation": job_id,
+                        "invocation": id_or_prefix,
                         "job_id": None,
                         "status": "not_found",
                         "data": {},
@@ -136,7 +138,7 @@ def get_status(job_ids: list[str]) -> list[dict[str, Any]]:
             except ValueError as e:
                 results.append(
                     {
-                        "invocation": job_id,
+                        "invocation": id_or_prefix,
                         "job_id": None,
                         "status": "error",
                         "data": {"error": str(e)},
@@ -146,7 +148,7 @@ def get_status(job_ids: list[str]) -> list[dict[str, Any]]:
 
             # Get status from the executor for all jobs in the invocation
             try:
-                status_list = executor_cls.get_status(job_id)
+                status_list = executor_cls.get_status(id_or_prefix)
 
                 # Create a result for each job in the invocation
                 for job_id_in_invocation, job_data in jobs.items():
@@ -161,7 +163,7 @@ def get_status(job_ids: list[str]) -> list[dict[str, Any]]:
 
                     results.append(
                         {
-                            "invocation": job_id,
+                            "invocation": job_data.invocation_id,
                             "job_id": job_id_in_invocation,
                             "status": (
                                 job_status if job_status is not None else "unknown"
@@ -176,7 +178,7 @@ def get_status(job_ids: list[str]) -> list[dict[str, Any]]:
             except Exception as e:
                 results.append(
                     {
-                        "invocation": job_id,
+                        "invocation": id_or_prefix,
                         "job_id": None,
                         "status": "error",
                         "data": {"error": str(e)},
@@ -184,13 +186,13 @@ def get_status(job_ids: list[str]) -> list[dict[str, Any]]:
                 )
         else:
             # Otherwise, treat as job_id
-            single_job_data: Optional[JobData] = db.get_job(job_id)
+            single_job_data: Optional[JobData] = db.get_job(id_or_prefix)
 
             if single_job_data is None:
                 results.append(
                     {
                         "invocation": None,
-                        "job_id": job_id,
+                        "job_id": id_or_prefix,
                         "status": "not_found",
                         "data": {},
                     }
@@ -204,7 +206,7 @@ def get_status(job_ids: list[str]) -> list[dict[str, Any]]:
                 results.append(
                     {
                         "invocation": None,
-                        "job_id": job_id,
+                        "job_id": id_or_prefix,
                         "status": "error",
                         "data": {"error": str(e)},
                     }
@@ -213,13 +215,13 @@ def get_status(job_ids: list[str]) -> list[dict[str, Any]]:
 
             # Get status from the executor
             try:
-                status_list = executor_cls.get_status(job_id)
+                status_list = executor_cls.get_status(id_or_prefix)
 
                 if not status_list:
                     results.append(
                         {
                             "invocation": single_job_data.invocation_id,
-                            "job_id": job_id,
+                            "job_id": single_job_data.job_id,
                             "status": "unknown",
                             "data": single_job_data.data,
                         }
@@ -229,7 +231,7 @@ def get_status(job_ids: list[str]) -> list[dict[str, Any]]:
                     results.append(
                         {
                             "invocation": single_job_data.invocation_id,
-                            "job_id": job_id,
+                            "job_id": single_job_data.job_id,
                             "status": (
                                 status_list[0].state.value if status_list else "unknown"
                             ),
@@ -246,7 +248,9 @@ def get_status(job_ids: list[str]) -> list[dict[str, Any]]:
                         "invocation": (
                             single_job_data.invocation_id if single_job_data else None
                         ),
-                        "job_id": job_id,
+                        "job_id": (
+                            single_job_data.job_id if single_job_data else id_or_prefix
+                        ),
                         "status": "error",
                         "data": {"error": str(e)},
                     }

@@ -204,8 +204,8 @@ class SlurmExecutor(BaseExecutor):
         """
         db = ExecutionDB()
 
-        # If id looks like an invocation_id (8 hex digits, no dot), get all jobs for it
-        if len(id) == 8 and "." not in id:
+        # If id looks like an invocation_id (no dot), get all jobs for it
+        if "." not in id:
             jobs = db.get_jobs(id)
             if not jobs:
                 return []
