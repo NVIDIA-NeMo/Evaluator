@@ -218,4 +218,4 @@ This project is licensed under the Apache License 2.0. See the [LICENSE](https:/
 
 - **Issues**: [GitHub Issues](https://github.com/NVIDIA-NeMo/Evaluator/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/NVIDIA-NeMo/Evaluator/discussions)
-- **Documentation**: [NeMo Evaluator Documentation](https://docs.nvidia.com/nemo/evaluator/latest/index.html)
+- **Documentation**: [NeMo Evaluator Documentation](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/docs/index.md)
