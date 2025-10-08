@@ -25,7 +25,7 @@ Examples:
 
 You can customize your local executor by specifying `extra_docker_args`.
 This parameter allows you to pass any flag to the `docker run` command that is executed by the NeMo Evaluator Launcher.
-You can use it to mount additional volumes, set environment variables or customize your netowrk settings.
+You can use it to mount additional volumes, set environment variables or customize your network settings.
 
 For example, if you would like your job to use a specific docker network, you can specify:
 
