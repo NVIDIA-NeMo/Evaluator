@@ -112,7 +112,7 @@ runs:
         echo ::endgroup::
 
     - name: Azure Fileshare
-      if: ${{ inputs.has-azure-credentials == 'true' && inputs.is_unit_test == 'false' }}
+      if: ${{ inputs.has-azure-credentials == 'true' && inputs.type_of_test != 'unit-tests' }}
       shell: bash
       id: azure-fileshare
       run: |
