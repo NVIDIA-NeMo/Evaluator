@@ -76,21 +76,6 @@ class LocalExecutor(BaseExecutor):
                 f"type {cfg.deployment.type} is not implemented -- add deployment support"
             )
 
-        # Quick check if Docker is available
-        try:
-            subprocess.run(
-                ["docker", "--version"], capture_output=True, check=True, timeout=5
-            )
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            raise RuntimeError(
-                "Docker is not installed or not working. Local executor requires Docker to run evaluation containers.\n"
-                "Please install Docker Desktop: https://www.docker.com/products/docker-desktop/"
-            )
-        except subprocess.TimeoutExpired:
-            raise RuntimeError(
-                "Docker command timed out. Please check if Docker is running properly."
-            )
-
         # Generate invocation ID for this evaluation run
         invocation_id = generate_invocation_id()
 
@@ -235,7 +220,6 @@ class LocalExecutor(BaseExecutor):
                         "output_dir": str(evaluation_task["output_dir"]),
                         "container": evaluation_task["container_name"],
                         "eval_image": evaluation_task["eval_image"],
-                        "task_name": task.name,
                     },
                     config=OmegaConf.to_object(cfg),
                 )
@@ -246,51 +230,62 @@ class LocalExecutor(BaseExecutor):
         # - on Unix-like systems, to fully detach the subprocess
         #   so it does not die when Python exits, pass start_new_session=True;
         # - on Widnows use creationflags=subprocess.CREATE_NEW_PROCESS_GROUP flag.
-        try:
-            os_name = platform.system()
-            if is_execution_mode_sequential:
+        os_name = platform.system()
+        processes = []
+
+        if is_execution_mode_sequential:
+            if os_name == "Windows":
+                proc = subprocess.Popen(
+                    shlex.split("bash run_all.sequential.sh"),
+                    cwd=output_dir,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                )
+            else:
+                proc = subprocess.Popen(
+                    shlex.split("bash run_all.sequential.sh"),
+                    cwd=output_dir,
+                    start_new_session=True,
+                )
+            processes.append(("run_all.sequential.sh", proc, output_dir))
+        else:
+            for task in cfg.evaluation.tasks:
                 if os_name == "Windows":
-                    subprocess.Popen(
-                        shlex.split("bash run_all.sequential.sh"),
-                        cwd=output_dir,
+                    proc = subprocess.Popen(
+                        shlex.split("bash run.sh"),
+                        cwd=output_dir / task.name,
                         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
                     )
                 else:
-                    subprocess.Popen(
-                        shlex.split("bash run_all.sequential.sh"),
-                        cwd=output_dir,
+                    proc = subprocess.Popen(
+                        shlex.split("bash run.sh"),
+                        cwd=output_dir / task.name,
                         start_new_session=True,
                     )
-            else:
-                for task in cfg.evaluation.tasks:
-                    if os_name == "Windows":
-                        subprocess.Popen(
-                            shlex.split("bash run.sh"),
-                            cwd=output_dir / task.name,
-                            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
-                        )
-                    else:
-                        subprocess.Popen(
-                            shlex.split("bash run.sh"),
-                            cwd=output_dir / task.name,
-                            start_new_session=True,
-                        )
-        except FileNotFoundError as e:
-            if "docker" in str(e).lower():
-                raise RuntimeError(
-                    "Docker is not installed. Local executor requires Docker to run evaluation containers.\n"
-                    "Please install Docker Desktop: https://www.docker.com/products/docker-desktop/"
+                processes.append((task.name, proc, output_dir / task.name))
+
+        # Wait briefly and check if bash scripts exited immediately (which means error)
+        time.sleep(0.3)
+
+        for name, proc, work_dir in processes:
+            exit_code = proc.poll()
+            if exit_code is not None:
+                # Bash script already exited - this indicates an error
+                log_file = work_dir / "logs" / "stdout.log"
+                error_msg = (
+                    f"Script for {name} exited immediately with code {exit_code}"
                 )
-            else:
-                raise RuntimeError(f"Required command not found: {e}")
-        except Exception as e:
-            if "docker" in str(e).lower():
-                raise RuntimeError(
-                    f"Docker error: {e}\n"
-                    "Please ensure Docker is installed and running properly."
-                )
-            else:
-                raise
+
+                # Try to read the log to get error details
+                if log_file.exists():
+                    try:
+                        with open(log_file, "r") as f:
+                            log_content = f.read().strip()
+                            if log_content:
+                                error_msg += f"\n   Error: {log_content}"
+                    except Exception:
+                        pass
+
+                raise RuntimeError(f"✗ Job startup failed | {error_msg}")
 
         print("\nCommands for real-time monitoring:")
         for job_id, evaluation_task in zip(job_ids, evaluation_tasks):
