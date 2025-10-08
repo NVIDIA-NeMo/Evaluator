@@ -70,7 +70,7 @@ class Cmd:
         first_data = jobs[0].get("data", {}) if jobs else {}
         executor_key = next((k for k in executor_headers if k in first_data), None)
         info_header = executor_headers.get(executor_key, "Executor Info")
-        headers = ["Job ID", "Task Name", "Status", info_header, "Location"]
+        headers = ["Job ID", "Status", info_header, "Location"]
 
         # Build rows
         rows = []
@@ -103,12 +103,10 @@ class Cmd:
             formatted_status = self._format_status_with_indicators(status)
 
             # Extract task name
-            task_name = data.get("task_name", "unknown")
 
             rows.append(
                 [
                     job.get("job_id", ""),
-                    task_name,
                     formatted_status,
                     # job.get("progress", ""), temporarily disabled as this is a WIP feature
                     executor_info,
