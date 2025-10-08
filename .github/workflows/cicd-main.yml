@@ -157,6 +157,10 @@ jobs:
           type_of_test: "functional_tests"
           cpu-only: true
           package: nemo-evaluator
+          has-azure-credentials: true
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   cicd-integration-tests:
     needs:
