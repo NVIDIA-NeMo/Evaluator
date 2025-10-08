@@ -29,16 +29,8 @@ execution:
 
   # Export results to W&B, MLFlow, GSheets and S3 automatically
   auto_export:
-    destinations: ["wandb", "mlflow", "gsheets", "s3"]
+    destinations: ["wandb", "mlflow", "gsheets"]
     configs:
-      s3:
-        # default: posts whole run directory to s3
-        bucket: "nemo-evaluator-launcher-test"
-        endpoint_url: "https://pdx.s8k.io"
-        region_name: "us-east-1"
-        access_key_id: ${oc.env:AWS_ACCESS_KEY_ID}
-        secret_access_key: ${oc.env:NV_CSS_S3_TOKEN}
-
       wandb:
         # Special wandb parameters
         entity: "nvidia"
