@@ -169,7 +169,7 @@ class LeptonExecutor(BaseExecutor):
                                 (
                                     idx,
                                     False,
-                                    f"Failed to create endpoint {endpoint_name} | Task: {task.name}",
+                                    f"Failed to create endpoint {endpoint_name}",
                                     None,
                                     None,
                                 )
@@ -193,7 +193,7 @@ class LeptonExecutor(BaseExecutor):
                                 (
                                     idx,
                                     False,
-                                    f"Endpoint {endpoint_name} failed to become ready | Task: {task.name} | Timeout: {endpoint_timeout}s",
+                                    f"Endpoint {endpoint_name} failed to become ready",
                                     None,
                                     None,
                                 )
@@ -207,7 +207,7 @@ class LeptonExecutor(BaseExecutor):
                                 (
                                     idx,
                                     False,
-                                    f"Could not get URL for endpoint {endpoint_name} | Task: {task.name}",
+                                    f"Could not get URL for endpoint {endpoint_name}",
                                     None,
                                     None,
                                 )
@@ -535,9 +535,8 @@ class LeptonExecutor(BaseExecutor):
 
             return invocation_id
 
-        except Exception as e:
+        except Exception:
             # Clean up any created endpoints on failure
-            print(f"\033[31m✗ Job submission failed | Error: {e}\033[0m")
             if cfg.deployment.type != "none" and "endpoint_names" in locals():
                 for endpoint_name in endpoint_names:
                     if endpoint_name:
