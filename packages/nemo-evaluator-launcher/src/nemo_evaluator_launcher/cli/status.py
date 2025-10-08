@@ -33,10 +33,6 @@ class Cmd:
         action="store_true",
         help="Print output as JSON instead of table format",
     )
-    tail: int = field(
-        default=0,
-        help="Show last N lines of logs for each job (0 = disabled)",
-    )
 
     def execute(self) -> None:
         # Import heavy dependencies only when needed
@@ -55,11 +51,6 @@ class Cmd:
             print(json.dumps(filtered_res, indent=2))
         else:
             self._print_table(res)
-
-            # Show log tail if requested
-            if self.tail > 0:
-                print()  # Empty line for separation
-                self._print_log_tails(res)
 
     def _print_table(self, jobs: list[dict]) -> None:
         """Print job status as a table."""
@@ -172,83 +163,3 @@ class Cmd:
 
         ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
         return ansi_escape.sub("", text)
-
-    def _print_log_tails(self, jobs: list[dict]) -> None:
-        """Print log tails for each job."""
-        import pathlib
-        import subprocess
-
-        for job in jobs:
-            job_id = job.get("job_id", "")
-            data = job.get("data", {})
-            task_name = data.get("task_name", "unknown")
-
-            # Get executor type from job data
-            executor_type = None
-            if "slurm_job_id" in data:
-                executor_type = "slurm"
-            elif "container" in data:
-                executor_type = "local"
-            elif "lepton_job_name" in data:
-                executor_type = "lepton"
-
-            print(f"\n{'=' * 80}")
-            print(f"📋 Job: {job_id} | Task: {task_name}")
-            print(f"{'=' * 80}")
-
-            # Get log content based on executor type
-            log_content = None
-
-            if executor_type == "local" or executor_type == "lepton":
-                # Local filesystem logs
-                output_dir = pathlib.Path(data.get("output_dir", ""))
-                log_file = output_dir / "logs" / "stdout.log"
-
-                if log_file.exists():
-                    try:
-                        with open(log_file, "r") as f:
-                            lines = f.readlines()
-                            log_content = "".join(lines[-self.tail :])
-                    except Exception as e:
-                        log_content = f"Error reading log: {e}"
-                else:
-                    log_content = f"Log file not found: {log_file}"
-
-            elif executor_type == "slurm":
-                # Remote logs via SSH
-                remote_path = data.get("remote_rundir_path", "")
-                hostname = data.get("hostname", "")
-                username = data.get("username", "")
-
-                if remote_path and hostname and username:
-                    log_file = f"{remote_path}/logs/stdout.log"
-                    ssh_cmd = f"ssh {username}@{hostname} 'tail -n {self.tail} {log_file} 2>&1'"
-
-                    try:
-                        result = subprocess.run(
-                            ssh_cmd,
-                            shell=True,
-                            capture_output=True,
-                            text=True,
-                            timeout=10,
-                        )
-                        if result.returncode == 0:
-                            log_content = result.stdout
-                        else:
-                            log_content = f"Error reading remote log: {result.stderr}"
-                    except subprocess.TimeoutExpired:
-                        log_content = "Timeout reading remote log"
-                    except Exception as e:
-                        log_content = f"Error: {e}"
-                else:
-                    log_content = "Remote path information not available"
-            else:
-                log_content = f"Unknown executor type: {executor_type}"
-
-            # Print log content
-            if log_content:
-                print(log_content)
-            else:
-                print("(empty log)")
-
-        print(f"\n{'=' * 80}")
