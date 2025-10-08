@@ -103,7 +103,7 @@ class TestInterceptorIntegration:
 
         with tempfile.TemporaryDirectory() as temp_dir:
             cmd = [
-                "eval-factory",
+                "nemo-evaluator",
                 "run_eval",
                 "--eval_type",
                 "mmlu_pro",
@@ -188,7 +188,7 @@ class TestInterceptorIntegration:
             cache_dir = f"{output_dir}/cache"
 
         return [
-            "eval-factory",
+            "nemo-evaluator",
             "run_eval",
             "--eval_type",
             "mmlu_pro",
