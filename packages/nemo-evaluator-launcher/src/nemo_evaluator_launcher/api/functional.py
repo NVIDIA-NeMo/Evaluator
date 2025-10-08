@@ -97,12 +97,7 @@ def run_eval(cfg: RunConfig, dry_run: bool = False) -> Optional[str]:
 
     _check_api_endpoint_when_deployment_is_configured(cfg)
 
-    try:
-        return get_executor(cfg.execution.type).execute_eval(cfg, dry_run)
-    except Exception as e:
-        # Print nice error message with red X icon
-        print(f"\033[31m✗ Job submission failed | Error: {e}\033[0m")
-        raise
+    return get_executor(cfg.execution.type).execute_eval(cfg, dry_run)
 
 
 def get_status(ids_or_prefixes: list[str]) -> list[dict[str, Any]]:

@@ -193,7 +193,6 @@ class SlurmExecutor(BaseExecutor):
                         config=OmegaConf.to_object(cfg),
                     )
                 )
-                print(f"\033[32m✓ Job submitted successfully | Job ID: {job_id}\033[0m")
             return invocation_id
 
     @staticmethod

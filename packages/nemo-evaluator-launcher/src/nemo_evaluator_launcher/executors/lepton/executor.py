@@ -169,7 +169,7 @@ class LeptonExecutor(BaseExecutor):
                                 (
                                     idx,
                                     False,
-                                    f"Failed to create endpoint {endpoint_name}",
+                                    f"Failed to create endpoint {endpoint_name} | Task: {task.name}",
                                     None,
                                     None,
                                 )
@@ -193,7 +193,7 @@ class LeptonExecutor(BaseExecutor):
                                 (
                                     idx,
                                     False,
-                                    f"Endpoint {endpoint_name} failed to become ready",
+                                    f"Endpoint {endpoint_name} failed to become ready | Task: {task.name} | Timeout: {endpoint_timeout}s",
                                     None,
                                     None,
                                 )
@@ -207,7 +207,7 @@ class LeptonExecutor(BaseExecutor):
                                 (
                                     idx,
                                     False,
-                                    f"Could not get URL for endpoint {endpoint_name}",
+                                    f"Could not get URL for endpoint {endpoint_name} | Task: {task.name}",
                                     None,
                                     None,
                                 )
@@ -482,7 +482,8 @@ class LeptonExecutor(BaseExecutor):
 
                 if not job_success:
                     raise RuntimeError(
-                        f"Failed to submit Lepton job for task: {task.name}. Error: {error_msg}"
+                        f"Failed to submit Lepton job | Task: {task.name} | Job ID: {job_id} | "
+                        f"Lepton job name: {lepton_job_name} | Error: {error_msg}"
                     )
 
                 # Store job metadata in database (with task-specific endpoint info)
@@ -503,8 +504,6 @@ class LeptonExecutor(BaseExecutor):
                         config=OmegaConf.to_object(cfg),  # type: ignore[arg-type]
                     )
                 )
-
-                print(f"\033[32m✓ Job submitted successfully | Job ID: {job_id}\033[0m")
 
             # Jobs submitted successfully - return immediately (non-blocking)
             print(

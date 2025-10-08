@@ -98,7 +98,17 @@ class Cmd:
                 config_dir=self.config_dir,
             )
 
-        invocation_id = run_eval(config, self.dry_run)
+        try:
+            invocation_id = run_eval(config, self.dry_run)
+        except Exception as e:
+            print(f"\033[31m✗ Job submission failed | Error: {e}\033[0m")
+            raise
+
+        # Print general success message with invocation ID
+        if invocation_id is not None and not self.dry_run:
+            print(
+                f"\033[32m✓ Job submission successful | Invocation ID: {invocation_id}\033[0m"
+            )
 
         # Save the complete configuration
         if not self.dry_run and invocation_id is not None:
