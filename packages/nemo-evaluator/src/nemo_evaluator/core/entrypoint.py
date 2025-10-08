@@ -148,6 +148,14 @@ def run(args) -> None:
 def run_eval() -> None:
     args = get_args()
 
+    if sys.argv[0].endswith("eval-factory"):
+        from nemo_evaluator.logging import get_logger
+
+        logger = get_logger(__name__)
+        logger.warning(
+            "You appear to be using a deprecated eval_factory command. Please use nemo-evaluator instead with the same arguments. eval-factory command is going to be removed before 25.12 containers are released."
+        )
+
     if args.command == "ls":
         show_available_tasks()
     elif args.command == "run_eval":
