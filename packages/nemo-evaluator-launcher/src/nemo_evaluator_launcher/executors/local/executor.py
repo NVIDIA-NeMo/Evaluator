@@ -23,6 +23,7 @@ import os
 import pathlib
 import platform
 import shlex
+import shutil
 import subprocess
 import time
 from typing import List, Optional
@@ -74,6 +75,13 @@ class LocalExecutor(BaseExecutor):
         if cfg.deployment.type != "none":
             raise NotImplementedError(
                 f"type {cfg.deployment.type} is not implemented -- add deployment support"
+            )
+
+        # Check if docker is available
+        if shutil.which("docker") is None:
+            raise RuntimeError(
+                "Docker is not installed or not in PATH. "
+                "Please install Docker to run local evaluations."
             )
 
         # Generate invocation ID for this evaluation run
@@ -233,7 +241,7 @@ class LocalExecutor(BaseExecutor):
         # To ensure subprocess continues after python exits:
         # - on Unix-like systems, to fully detach the subprocess
         #   so it does not die when Python exits, pass start_new_session=True;
-        # - on Widnows use creationflags=subprocess.CREATE_NEW_PROCESS_GROUP flag.
+        # - on Windows use creationflags=subprocess.CREATE_NEW_PROCESS_GROUP flag.
         os_name = platform.system()
         processes = []
 
@@ -272,24 +280,9 @@ class LocalExecutor(BaseExecutor):
 
         for name, proc, work_dir in processes:
             exit_code = proc.poll()
-            if exit_code is not None:
-                # Bash script already exited - this indicates an error
-                log_file = work_dir / "logs" / "stdout.log"
-                error_msg = (
-                    f"Script for {name} exited immediately with code {exit_code}"
-                )
-
-                # Try to read the log to get error details
-                if log_file.exists():
-                    try:
-                        with open(log_file, "r") as f:
-                            log_content = f.read().strip()
-                            if log_content:
-                                error_msg += f"\n   Error: {log_content}"
-                    except Exception:
-                        pass
-
-                raise RuntimeError(f"✗ Job startup failed | {error_msg}")
+            if exit_code is not None and exit_code != 0:
+                error_msg = f"Script for {name} exited with code {exit_code}"
+                raise RuntimeError(f"Job startup failed | {error_msg}")
 
         print("\nCommands for real-time monitoring:")
         for job_id, evaluation_task in zip(job_ids, evaluation_tasks):
