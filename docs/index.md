@@ -94,7 +94,7 @@ Gain full control over the container environment with volume mounting, environme
 
 ::::
 
-## Evaluation Workflows
+<!-- ## Evaluation Workflows
 
 Explore different evaluation methodologies tailored to specific model capabilities and use cases.
 
@@ -136,9 +136,9 @@ Assess tool use capabilities, API calling accuracy, and structured output genera
 
 :::
 
-::::
+:::: -->
 
-## Model Deployment
+<!-- ## Model Deployment
 
 Choose your deployment strategy based on your infrastructure needs and operational preferences.
 
@@ -157,9 +157,9 @@ Let the launcher handle model deployment and evaluation orchestration automatica
 Deploy and manage model serving yourself, then point NeMo Evaluator to your endpoint for full infrastructure control.
 :::
 
-::::
+:::: -->
 
-### Evaluation Adapters
+<!-- ### Evaluation Adapters
 
 Customize model behavior during evaluation with interceptors for preprocessing, post-processing, and response modification.
 
@@ -202,7 +202,7 @@ Control logging volume for requests and responses.
 View available `AdapterConfig` options and defaults.
 :::
 
-::::
+:::: -->
 
 ## Libraries
 
@@ -356,14 +356,14 @@ Install Eval <get-started/install>
 Quickstart <get-started/quickstart/index>
 :::
 
-:::{toctree}
+<!-- :::{toctree}
 :caption: Tutorials
 :hidden:
 
 About Tutorials <tutorials/index>
-:::
+::: -->
 
-:::{toctree}
+<!-- :::{toctree}
 :caption: Evaluation
 :hidden:
 
@@ -371,9 +371,16 @@ About Model Evaluation <evaluation/index>
 Run Evals <evaluation/run-evals/index>
 Custom Task Configuration <evaluation/custom-tasks>
 Benchmark Catalog <evaluation/benchmarks>
-:::
+::: -->
 
-:::{toctree}
+<!-- :::{toctree}
+:caption: NeMo Framework
+:hidden:
+
+About NeMo Framework <nemo-fw/index>
+::: -->
+
+<!-- :::{toctree}
 :caption: Model Deployment
 :hidden:
 
@@ -381,7 +388,7 @@ About Model Deployment <deployment/index>
 Launcher-Orchestrated <deployment/launcher-orchestrated/index>
 Bring-Your-Own-Endpoint <deployment/bring-your-own-endpoint/index>
 Evaluation Adapters <deployment/adapters/index>
-:::
+::: -->
 
 :::{toctree}
 :caption: Libraries
@@ -392,16 +399,16 @@ Launcher <libraries/nemo-evaluator-launcher/index>
 Core <libraries/nemo-evaluator/index>
 :::
 
-:::{toctree}
+<!-- :::{toctree}
 :caption: Troubleshooting
 :hidden:
 
 About Troubleshooting <troubleshooting/index>
 Setup & Installation <troubleshooting/setup-issues/index>
 Runtime & Execution <troubleshooting/runtime-issues/index>
-:::
+::: -->
 
-:::{toctree}
+<!-- :::{toctree}
 :caption: References
 :hidden:
 
@@ -409,4 +416,4 @@ About References <references/index>
 Eval Parameters <evaluation/parameters>
 Eval Utils <references/evaluation-utils>
 API Documentation <apidocs/index.rst>
-:::
+::: -->
