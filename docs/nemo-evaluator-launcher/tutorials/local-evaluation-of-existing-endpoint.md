@@ -79,7 +79,7 @@ target:
   api_endpoint:
     model_id: meta/llama-3.1-8b-instruct  # TODO: update to the model you want to evaluate
     url: https://integrate.api.nvidia.com/v1/chat/completions  # TODO: update to the endpoint you want to evaluate
-    api_key_name: API_KEY  # API Key with access to build.nvidia.com or model of your choice
+    api_key_name: NGC_API_KEY  # API Key with access to build.nvidia.com or model of your choice
 
 # specify the benchmarks to evaluate
 evaluation:
