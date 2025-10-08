@@ -92,6 +92,11 @@ def run_eval(cfg: RunConfig, dry_run: bool = False) -> Optional[str]:
     # Validate that no MISSING values exist in the configuration
     _validate_no_missing_values(cfg)
 
+    # Normalize evaluation config format: convert list to dict with 'tasks' key
+    # This allows tests to use shorthand format while keeping executors simple
+    if OmegaConf.is_list(cfg.evaluation):
+        cfg.evaluation = OmegaConf.create({"tasks": cfg.evaluation})
+
     if dry_run:
         print(OmegaConf.to_yaml(cfg))
 
