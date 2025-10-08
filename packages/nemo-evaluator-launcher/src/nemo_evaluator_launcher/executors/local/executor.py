@@ -77,8 +77,8 @@ class LocalExecutor(BaseExecutor):
                 f"type {cfg.deployment.type} is not implemented -- add deployment support"
             )
 
-        # Check if docker is available
-        if shutil.which("docker") is None:
+        # Check if docker is available (skip in dry_run mode)
+        if not dry_run and shutil.which("docker") is None:
             raise RuntimeError(
                 "Docker is not installed or not in PATH. "
                 "Please install Docker to run local evaluations."
