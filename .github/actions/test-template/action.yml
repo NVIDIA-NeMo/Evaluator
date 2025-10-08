@@ -179,6 +179,7 @@ runs:
       run: |
         echo "::group::Start test container"
         if [[ "$MOUNT_FS" == "true" ]]; then
+          ls -al /mnt/datadrive/TestData
           VOLUME_ARGS="--volume /mnt/datadrive/TestData:/home/TestData"
         else
           VOLUME_ARGS=""
