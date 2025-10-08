@@ -769,7 +769,6 @@ def _sbatch_remote_runsubs(
     )
     if completed_process.returncode != 0:
         error_msg = completed_process.stderr.decode("utf-8")
-        print(f"\033[31m✗ Job submission failed | Error: {error_msg}\033[0m")
         raise RuntimeError(
             "failed to submit sbatch scripts for execution\n{}".format(error_msg)
         )
