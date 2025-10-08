@@ -175,7 +175,6 @@ class SlurmExecutor(BaseExecutor):
                 zip(slurm_job_ids, remote_runsub_paths)
             ):
                 job_id = generate_job_id(invocation_id, idx)
-                task = cfg.evaluation.tasks[idx]
                 db.write_job(
                     job=JobData(
                         invocation_id=invocation_id,
@@ -188,7 +187,6 @@ class SlurmExecutor(BaseExecutor):
                             "hostname": cfg.execution.hostname,
                             "username": cfg.execution.username,
                             "eval_image": eval_images[idx],
-                            "task_name": task.name,
                         },
                         config=OmegaConf.to_object(cfg),
                     )
