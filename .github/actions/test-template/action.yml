@@ -132,10 +132,7 @@ runs:
         STORAGE_ACCOUNT_NAME="nemocistorageaccount2"
         FILE_SHARE_NAME="fileshare"
 
-        MNT_ROOT="/media"
-        MNT_PATH="$MNT_ROOT/$STORAGE_ACCOUNT_NAME/$FILE_SHARE_NAME"
-
-        echo "MNT_PATH=$MNT_PATH" | tee -a "$GITHUB_OUTPUT"
+        MNT_PATH="/mnt/datadrive"
 
         sudo mkdir -p $MNT_PATH
 
