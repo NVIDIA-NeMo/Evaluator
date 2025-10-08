@@ -96,7 +96,6 @@ def run_eval(cfg: RunConfig, dry_run: bool = False) -> Optional[str]:
         print(OmegaConf.to_yaml(cfg))
 
     _check_api_endpoint_when_deployment_is_configured(cfg)
-
     return get_executor(cfg.execution.type).execute_eval(cfg, dry_run)
 
 
@@ -528,13 +527,11 @@ def export_results(
         else:
             # Multiple IDs - parse and group
             db = ExecutionDB()
-            grouped_jobs: dict[str, dict[str, Any]] = (
-                {}
-            )  # invocation_id -> {job_id: job_data}
+            grouped_jobs: dict[
+                str, dict[str, Any]
+            ] = {}  # invocation_id -> {job_id: job_data}
             invocation_only = set()  # invocation_ids with no specific jobs
-            all_jobs_for_consolidated = (
-                {}
-            )  # job_id -> job_data (for consolidated export)
+            all_jobs_for_consolidated = {}  # job_id -> job_data (for consolidated export)
 
             # Parse and group IDs
             for id_str in invocation_ids:
