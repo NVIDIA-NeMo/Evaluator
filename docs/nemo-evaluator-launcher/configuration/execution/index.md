@@ -15,12 +15,11 @@ execution:
   type: local  # or slurm, lepton
   output_dir: /path/to/results  # Common: where to save results (mounted as /results in evaluation container, must be creatable on the given executor)
   auto_export:                   # Common: automatic result export
-    destinations: ["wandb", "mlflow", "gsheets", "s3"]
+    destinations: ["wandb", "mlflow", "gsheets"]
     configs:
       wandb: {}
       mlflow: {}
       gsheets: {}
-      s3: {}
   # Executor-specific parameters (see individual executor docs):
 ```
 
@@ -31,7 +30,6 @@ On the executor level, we can define results export methods. The `auto_export` f
 - **W&B**: Weights & Biases experiment tracking
 - **MLFlow**: ML experiment management
 - **GSheets**: Google Sheets integration
-- **S3**: AWS S3 storage
 
 For detailed configuration options, see the {doc}`Exporters Documentation <../../exporters/overview>`.
 
