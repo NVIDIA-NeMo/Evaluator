@@ -18,7 +18,7 @@ Models deployed with the frameworks listed below should work with nemo_evaluator
 
 ## Quick Setup Options
 
-# vLLM
+### vLLM
 
 vLLM is a fast and easy-to-use library for LLM inference and serving..
 
@@ -32,7 +32,7 @@ docker run --gpus all -p 8000:8000 vllm/vllm-openai:latest \
 - [vLLM Documentation](https://docs.vllm.ai/en/latest/)
 - [vLLM Docker Deployment](https://docs.vllm.ai/en/stable/deployment/docker.html)
 
-# SGLang
+### SGLang
 
 SGLang is a fast serving framework for large language models and vision language models. It makes your interaction with models faster and more controllable by co-designing the backend runtime and frontend language. The core features include:
 
@@ -40,7 +40,7 @@ SGLang is a fast serving framework for large language models and vision language
 - [SGLang Documentation](https://docs.sglang.ai/)
 - [SGLang Docker Deployment](https://github.com/sgl-project/sglang/tree/main/benchmark/deepseek_v3#using-docker-recommended)
 
-# NeMo
+### NeMo
 
 NeMo Framework is NVIDIA's GPU accelerated, end-to-end training framework for large language models (LLMs), multi-modal models and speech models. The Export-Deploy library ("NeMo Export-Deploy") provides tools and APIs for exporting and deploying NeMo and 🤗Hugging Face models to production environments. It supports various deployment paths including TensorRT, TensorRT-LLM, and vLLM deployment through NVIDIA Triton Inference Server.
 
@@ -49,7 +49,7 @@ NeMo Framework is NVIDIA's GPU accelerated, end-to-end training framework for la
 - [NeMo Export-Deploy](https://github.com/NVIDIA-NeMo/Export-Deploy)
 - [NeMo Export-Deploy Scripts](https://github.com/NVIDIA-NeMo/Export-Deploy/tree/main/scripts)
 
-# TRT-LLM
+### TRT-LLM
 
 TRT-LLM provides optimized inference with OpenAI-compatible server through the `trtllm-serve` command.
 
@@ -57,7 +57,7 @@ TRT-LLM provides optimized inference with OpenAI-compatible server through the `
 - [TensorRT-LLM Documentation](https://docs.nvidia.com/tensorrt-llm/index.html)
 - [TRT-LLM Server](https://nvidia.github.io/TensorRT-LLM/commands/trtllm-serve.html)
 
-# NIM (NVIDIA Inference Microservices)
+### NIM (NVIDIA Inference Microservices)
 
 NIM provides optimized inference microservices with OpenAI-compatible APIs.
 
@@ -69,3 +69,49 @@ NIM provides optimized inference microservices with OpenAI-compatible APIs.
 **Next Steps:**
 - [Local Evaluation of Existing Endpoint](../local-evaluation-of-existing-endpoint.md) - Learn how to run evaluations
 - [Testing Endpoint Compatibility](testing-endpoint-oai-compatibility.md) - Test your deployed endpoint with curl requests
+
+
+## Advance settings
+
+If you are deploying the model locally with Docker, you can use a dedicated docker network.
+This will provide a secure connetion between deployment and evaluation docker containers.
+
+```shell
+docker network create my-custom-network
+
+docker run --gpus all --network my-custom-network --name my-phi-container vllm/vllm-openai:latest \
+    --model microsoft/Phi-4-mini-instruct
+```
+
+Then use the same network in the evaluator config:
+
+```yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: my_phi_test
+  extra_docker_args: "--network my-custom-network"
+
+target:
+  api_endpoint:
+    model_id: microsoft/Phi-4-mini-instruct
+    url: http://my-phi-container:8000/v1/chat/completions
+    api_key_name: null
+
+evaluation:
+  tasks:
+    - name: simple_evals.mmlu_pro
+      overrides:
+        config.params.limit_samples: 10 # TEST ONLY: Limits to 10 samples for quick testing
+        config.params.parallelism: 1
+```
+
+Alternatively you can expose ports as shown in the examples above and use the host network:
+
+```yaml
+execution:
+  extra_docker_args: "--network host"
+```
