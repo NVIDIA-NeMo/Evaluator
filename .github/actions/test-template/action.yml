@@ -98,7 +98,7 @@ runs:
     - name: Start container
       shell: bash
       env:
-        MOUNT_FS: ${{ inputs.type_of_test == 'integration_tests' }}
+        MOUNT_FS: ${{ inputs.type_of_test == 'integration_tests' || inputs.type_of_test == 'functional_tests' }}
       run: |
         echo "::group::Start test container"
         if [[ "$MOUNT_FS" == "true" ]]; then
