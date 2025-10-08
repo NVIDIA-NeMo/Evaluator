@@ -17,10 +17,14 @@
 MAJOR = 0
 MINOR = 1
 <<<<<<< HEAD
+<<<<<<< HEAD
 PATCH = 12
 =======
 PATCH = 11
 >>>>>>> a4e9c2a (beep boop 🤖: Bumping nemo_evaluator to v0.1.11)
+=======
+PATCH = 12
+>>>>>>> a2bd116 (beep boop 🤖: Bumping nemo_evaluator to v0.1.12)
 PRE_RELEASE = ""
 
 # Use the following formatting: (major, minor, patch, pre-release)
