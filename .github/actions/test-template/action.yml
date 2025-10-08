@@ -49,6 +49,22 @@ inputs:
     description: "CPU only"
     required: false
     default: "true"
+  has-azure-credentials:
+    description: "Has Azure credentials"
+    required: false
+    default: "false"
+  azure-client-id:
+    description: "Azure client ID"
+    required: false
+    default: "false"
+  azure-tenant-id:
+    description: "Azure tenant ID"
+    required: false
+    default: "false"
+  azure-subscription-id:
+    description: "Azure subscription ID"
+    required: false
+    default: "false"
 
 runs:
   using: "composite"
