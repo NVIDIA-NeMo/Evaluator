@@ -89,14 +89,6 @@ def test_empty_dicts():
         ([EndpointType.CHAT, EndpointType.COMPLETIONS], EndpointType.CHAT),
         (EndpointType.CHAT, [[EndpointType.CHAT], [EndpointType.COMPLETIONS]]),
         (
-            [EndpointType.CHAT, EndpointType.COMPLETIONS],
-            [EndpointType.CHAT, EndpointType.COMPLETIONS],
-        ),
-        (
-            [EndpointType.CHAT, EndpointType.COMPLETIONS, EndpointType.VLM],
-            [EndpointType.CHAT, EndpointType.COMPLETIONS],
-        ),
-        (
             [EndpointType.CHAT, EndpointType.VLM],
             [
                 [EndpointType.COMPLETIONS, EndpointType.VLM],
@@ -146,5 +138,44 @@ def test_endpoint_type_single_incompatible(model_types, benchmark_types):
     )
     with pytest.raises(
         MisconfigurationError, match=r".* does not support the model type .*"
+    ):
+        check_type_compatibility(evaluation)
+
+
+@pytest.mark.parametrize(
+    "model_types,benchmark_types",
+    [
+        (
+            [EndpointType.CHAT, EndpointType.COMPLETIONS],
+            [EndpointType.CHAT, EndpointType.COMPLETIONS],
+        ),
+        (
+            [EndpointType.CHAT, EndpointType.COMPLETIONS, EndpointType.VLM],
+            [EndpointType.CHAT, EndpointType.COMPLETIONS],
+        ),
+        (
+            [EndpointType.CHAT, EndpointType.COMPLETIONS, EndpointType.VLM],
+            [
+                [EndpointType.COMPLETIONS, EndpointType.VLM],
+                [EndpointType.CHAT, EndpointType.VLM],
+            ],
+        ),
+    ],
+)
+def test_endpoint_type_raise_on_more_than_one(model_types, benchmark_types):
+    evaluation_config = EvaluationConfig(supported_endpoint_types=benchmark_types)
+    target_config = EvaluationTarget(
+        api_endpoint=ApiEndpoint(type=model_types, url="localhost", model_id="my_model")
+    )
+    evaluation = Evaluation(
+        config=evaluation_config,
+        target=target_config,
+        command="",
+        pkg_name="",
+        framework_name="",
+    )
+    with pytest.raises(
+        MisconfigurationError,
+        match=r".* is compatible with more than one combination of model capabilities .*",
     ):
         check_type_compatibility(evaluation)

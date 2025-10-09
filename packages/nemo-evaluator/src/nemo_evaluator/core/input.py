@@ -371,7 +371,12 @@ def check_type_compatibility(evaluation: Evaluation):
                 benchmark_type_combination = [benchmark_type_combination]
 
             if model_types.issuperset(set(benchmark_type_combination)):
-                is_target_compatible = True
+                if is_target_compatible:
+                    raise MisconfigurationError(
+                        f"The benchmark {evaluation.config.type} is compatible with more than one combination of model capabilities {evaluation.target.api_endpoint.type} and needs a specification. Please override model capabilities for this benchmark to match only one combination."
+                    )
+                else:
+                    is_target_compatible = True
 
         if evaluation.target.api_endpoint.type is None:
             raise MisconfigurationError(
