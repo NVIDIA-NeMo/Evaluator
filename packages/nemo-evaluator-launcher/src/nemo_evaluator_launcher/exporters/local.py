@@ -74,6 +74,9 @@ class LocalExporter(BaseExporter):
             # Stage artifacts per storage type
             if paths["storage_type"] == "local_filesystem":
                 exported_files = self._copy_local_artifacts(paths, job_export_dir, cfg)
+            elif paths["storage_type"] == "remote_local":
+                # Same as local_filesystem (we're on the remote machine, accessing locally)
+                exported_files = self._copy_local_artifacts(paths, job_export_dir, cfg)
             elif paths["storage_type"] == "remote_ssh":
                 exported_files = ssh_download_artifacts(
                     paths, job_export_dir, cfg, None
@@ -124,6 +127,8 @@ class LocalExporter(BaseExporter):
                 except Exception as e:
                     logger.warning(f"Failed to create {fmt} summary: {e}")
                     msg += " (summary failed)"
+
+            meta["output_dir"] = str(job_export_dir.resolve())
 
             return ExportResult(
                 success=True, dest=str(job_export_dir), message=msg, metadata=meta
