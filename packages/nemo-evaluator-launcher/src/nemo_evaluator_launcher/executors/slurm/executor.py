@@ -174,10 +174,11 @@ class SlurmExecutor(BaseExecutor):
             for idx, (slurm_job_id, remote_runsub_path) in enumerate(
                 zip(slurm_job_ids, remote_runsub_paths)
             ):
+                job_id = generate_job_id(invocation_id, idx)
                 db.write_job(
                     job=JobData(
                         invocation_id=invocation_id,
-                        job_id=generate_job_id(invocation_id, idx),
+                        job_id=job_id,
                         timestamp=time.time(),
                         executor="slurm",
                         data={
@@ -710,7 +711,9 @@ def _open_master_connection(
     socket: str,
 ) -> str | None:
     ssh_command = f"ssh -MNf -S {socket} {username}@{hostname}"
-    completed_process = subprocess.run(args=shlex.split(ssh_command))
+    completed_process = subprocess.run(
+        args=shlex.split(ssh_command), capture_output=True
+    )
     if completed_process.returncode == 0:
         return socket
     return None
@@ -748,12 +751,17 @@ def _make_remote_execution_output_dir(
     ssh_command.append(f"{username}@{hostname}")
     ssh_command.append(mkdir_command)
     ssh_command = " ".join(ssh_command)
-    completed_process = subprocess.run(args=shlex.split(ssh_command))
+    completed_process = subprocess.run(
+        args=shlex.split(ssh_command), capture_output=True
+    )
     if completed_process.returncode != 0:
+        error_msg = (
+            completed_process.stderr.decode("utf-8")
+            if completed_process.stderr
+            else "Unknown error"
+        )
         raise RuntimeError(
-            "failed to make a remote execution output dir\n{}".format(
-                completed_process.stderr.decode("utf-8")
-            )
+            "failed to make a remote execution output dir\n{}".format(error_msg)
         )
 
 
@@ -779,13 +787,16 @@ def _rsync_upload_rundirs(
     remote_destination_str = f"{username}@{hostname}:{remote_target}"
     local_sources_str = " ".join(map(str, local_sources))
     rsync_upload_command = f"rsync -qcaz {local_sources_str} {remote_destination_str}"
-    completed_process = subprocess.run(args=shlex.split(rsync_upload_command))
+    completed_process = subprocess.run(
+        args=shlex.split(rsync_upload_command), capture_output=True
+    )
     if completed_process.returncode != 0:
-        raise RuntimeError(
-            "failed to upload local sources\n{}".format(
-                completed_process.stderr.decode("utf-8")
-            )
+        error_msg = (
+            completed_process.stderr.decode("utf-8")
+            if completed_process.stderr
+            else "Unknown error"
         )
+        raise RuntimeError("failed to upload local sources\n{}".format(error_msg))
 
 
 def _sbatch_remote_runsubs(
@@ -811,10 +822,9 @@ def _sbatch_remote_runsubs(
         args=shlex.split(ssh_command), capture_output=True
     )
     if completed_process.returncode != 0:
+        error_msg = completed_process.stderr.decode("utf-8")
         raise RuntimeError(
-            "failed to submit sbatch scripts for execution\n{}".format(
-                completed_process.stderr.decode("utf-8")
-            )
+            "failed to submit sbatch scripts for execution\n{}".format(error_msg)
         )
 
     sbatch_output = completed_process.stdout.decode("utf-8")
