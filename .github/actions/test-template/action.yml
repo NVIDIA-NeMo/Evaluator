@@ -185,14 +185,14 @@ runs:
           VOLUME_ARGS=""
         fi
 
-        cmd=$(cat <<RUN_TEST_EOF
-        #!/bin/bash
-        docker container rm -f nemo_container_${{ github.run_id }} || true
-
         ARG=("")
         if [[ "${{ inputs.type_of_test }}" == "integration_tests" ]]; then
           ARG=("--runtime=nvidia --gpus all")
         fi
+
+        cmd=$(cat <<RUN_TEST_EOF
+        #!/bin/bash
+        docker container rm -f nemo_container_${{ github.run_id }} || true
 
         docker run \
           --rm \
