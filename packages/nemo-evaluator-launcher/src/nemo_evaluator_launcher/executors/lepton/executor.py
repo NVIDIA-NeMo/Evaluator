@@ -482,7 +482,8 @@ class LeptonExecutor(BaseExecutor):
 
                 if not job_success:
                     raise RuntimeError(
-                        f"Failed to submit Lepton job for task: {task.name}. Error: {error_msg}"
+                        f"Failed to submit Lepton job | Task: {task.name} | Job ID: {job_id} | "
+                        f"Lepton job name: {lepton_job_name} | Error: {error_msg}"
                     )
 
                 # Store job metadata in database (with task-specific endpoint info)
@@ -503,8 +504,6 @@ class LeptonExecutor(BaseExecutor):
                         config=OmegaConf.to_object(cfg),  # type: ignore[arg-type]
                     )
                 )
-
-                print(f"✅ Task {task.name}: Submitted evaluation job {job_id}")
 
             # Jobs submitted successfully - return immediately (non-blocking)
             print(
@@ -536,9 +535,8 @@ class LeptonExecutor(BaseExecutor):
 
             return invocation_id
 
-        except Exception as e:
+        except Exception:
             # Clean up any created endpoints on failure
-            print(f"❌ Error during evaluation: {e}")
             if cfg.deployment.type != "none" and "endpoint_names" in locals():
                 for endpoint_name in endpoint_names:
                     if endpoint_name:

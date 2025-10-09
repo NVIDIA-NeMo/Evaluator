@@ -102,6 +102,8 @@ class Cmd:
             status = job.get("status", "")
             formatted_status = self._format_status_with_indicators(status)
 
+            # Extract task name
+
             rows.append(
                 [
                     job.get("job_id", ""),
@@ -144,7 +146,7 @@ class Cmd:
             ExecutionState.SUCCESS.value: "\033[32m✓ SUCCESS\033[0m",  # Green Unicode checkmark
             ExecutionState.FAILED.value: "\033[31m✗ FAILED\033[0m",  # Red Unicode X
             ExecutionState.RUNNING.value: "\033[33m▶ RUNNING\033[0m",  # Yellow Unicode play button
-            ExecutionState.PENDING.value: "\033[36m⏳ PENDING\033[0m",  # Cyan Unicode hourglass
+            ExecutionState.PENDING.value: "\033[36m⧗ PENDING\033[0m",  # Cyan Unicode hourglass (U+29D7)
             ExecutionState.KILLED.value: "\033[35m✗ KILLED\033[0m",  # Magenta Unicode X
             # Additional states for error handling
             "not_found": "\033[90m? NOT FOUND\033[0m",  # Gray question mark
