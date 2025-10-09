@@ -98,7 +98,17 @@ class Cmd:
                 config_dir=self.config_dir,
             )
 
-        invocation_id = run_eval(config, self.dry_run)
+        try:
+            invocation_id = run_eval(config, self.dry_run)
+        except Exception as e:
+            print(f"\033[31m✗ Job submission failed | Error: {e}\033[0m")
+            raise
+
+        # Print general success message with invocation ID
+        if invocation_id is not None and not self.dry_run:
+            print(
+                f"\033[32m✓ Job submission successful | Invocation ID: {invocation_id}\033[0m"
+            )
 
         # Save the complete configuration
         if not self.dry_run and invocation_id is not None:
@@ -146,6 +156,15 @@ class Cmd:
         if invocation_id is not None:
             print(f"to check status: nemo-evaluator-launcher status {invocation_id}")
             print(f"to kill all jobs: nemo-evaluator-launcher kill {invocation_id}")
-            print(
-                f"to kill individual jobs: nemo-evaluator-launcher kill <job_id> (e.g., {invocation_id}.0)"
+
+            # Show actual job IDs and task names
+            print("to kill individual jobs:")
+            # Access tasks - will work after normalization in run_eval
+            tasks = (
+                config.evaluation.tasks
+                if hasattr(config.evaluation, "tasks")
+                else config.evaluation
             )
+            for idx, task in enumerate(tasks):
+                job_id = f"{invocation_id}.{idx}"
+                print(f"  nemo-evaluator-launcher kill {job_id}  # {task.name}")
