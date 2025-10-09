@@ -13,7 +13,7 @@
 # limitations under the License.
 set -xeuo pipefail # Exit immediately if a command exits with a non-zero status
 
-export CUDA_VISIBLE_DEVICES=""
+export CUDA_VISIBLE_DEVICES="0"
 export HF_HOME="/home/TestData/HF_HOME"
 export HF_DATASETS_OFFLINE="1"
 export TRANSFORMERS_OFFLINE="1"
@@ -23,12 +23,28 @@ SCRIPT_DIR=$(dirname "$0")
 PROJECT_DIR=$SCRIPT_DIR/../../
 cd $PROJECT_DIR
 
+nemo2_ckpt_path="/home/TestData/nemo2_ckpt/llama-3_2-1b-instruct_v2.0"
+model_name="megatron_model"
+port=8886
+
+python /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
+  --nemo_checkpoint $nemo2_ckpt_path \
+  --num_gpus 1 \
+  --tensor_model_parallel_size 1 \
+  --pipeline_model_parallel_size 1 \
+  --model_id $model_name \
+  --port $port &
+
+deploy_pid=$!
+
 coverage run \
-    --data-file=.coverage.functional_tests \
+    --data-file=.coverage.integration_tests \
     --source=src/ \
     -m pytest \
     -o log_cli=true \
     -o log_cli_level=INFO \
     -m "not pleasefixme" \
-   tests/functional_tests
-coverage combine -q
+    -v -s \
+   tests/integration_tests/nemo_fw/test_deployment.py
+
+kill $deploy_pid
