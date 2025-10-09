@@ -198,7 +198,7 @@ runs:
           --rm \
           -d \
           --name nemo_container_${{ github.run_id }} \
-          ${ARG[@]} \
+          "${ARG[@]}" \
           --shm-size=64g \
           --env TRANSFORMERS_OFFLINE=1 \
           --env HYDRA_FULL_ERROR=1 \
