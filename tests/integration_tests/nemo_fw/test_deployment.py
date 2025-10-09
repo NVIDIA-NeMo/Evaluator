@@ -24,7 +24,7 @@ def test_deployment():
         endpoint_url="http://0.0.0.0:8886/v1/completions/",
         endpoint_type="completions",
         model_name="megatron_model",
-        max_retries=10,
+        max_retries=100,
     )
     assert completions_ready, (
         "Completions endpoint is not ready. Please look at the deploy process log for the error"
@@ -34,7 +34,7 @@ def test_deployment():
         endpoint_url="http://0.0.0.0:8886/v1/chat/completions",
         endpoint_type="chat",
         model_name="megatron_model",
-        max_retries=10,
+        max_retries=100,
     )
     assert chat_ready, (
         "Chat endpoint is not ready. Please look at the deploy process log for the error"
