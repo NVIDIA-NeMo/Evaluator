@@ -204,7 +204,7 @@ class SlurmExecutor(BaseExecutor):
         """
         db = ExecutionDB()
 
-        # If id looks like an invocation_id (no dot), get all jobs for it
+        # If id looks like an invocation_id
         if "." not in id:
             jobs = db.get_jobs(id)
             if not jobs:
@@ -605,20 +605,27 @@ def _create_slurm_sbatch_script(
         s += "kill $SERVER_PID  # terminate the server to finish gracefully\n\n"
 
     # auto-export
-    if cfg.execution.get("auto_export", {}).get("destinations", []):
-        s += _generate_auto_export_section(cfg, job_id)
+    ae_cfg = cfg.execution.get("auto_export")
+    destinations: list = []
+    if isinstance(ae_cfg, list):
+        destinations = list(ae_cfg)
+    elif isinstance(ae_cfg, dict) or isinstance(ae_cfg, DictConfig):
+        destinations = list(ae_cfg.get("destinations", []) or [])
+
+    if destinations:
+        export_env = dict(cfg.execution.get("env_vars", {}).get("export", {}) or {})
+        s += _generate_auto_export_section(cfg, job_id, destinations, export_env)
 
     return s
 
 
 def _generate_auto_export_section(
     cfg: DictConfig,
-    job_id: str,  # Complete job_id string
+    job_id: str,
+    destinations: list,
+    export_env: dict,
 ) -> str:
     """Generate simple auto-export section for sbatch script."""
-    auto_export_config = cfg.execution.get("auto_export", {})
-    destinations = auto_export_config.get("destinations", [])
-
     if not destinations:
         return ""
 
@@ -626,18 +633,65 @@ def _generate_auto_export_section(
     s += "EVAL_EXIT_CODE=$?\n"
     s += "if [ $EVAL_EXIT_CODE -eq 0 ]; then\n"
     s += "    echo 'Evaluation completed successfully. Starting auto-export...'\n"
-    s += "    set +e\n"  # per exporter failure allowed
+    s += "    set +e\n"
     s += "    set +x\n"
+    s += "    set +u\n"
     s += '    cd "$TASK_DIR/artifacts"\n'
-    auto_export_cfg = OmegaConf.to_container(
-        cfg.execution.get("auto_export", {}), resolve=True
+
+    # Work with DictConfig; convert only for YAML at the end
+    exec_type = (
+        cfg.execution.type
+        if hasattr(cfg.execution, "type")
+        else cfg.execution.get("type", "slurm")
     )
-    yaml_str = yaml.safe_dump(
-        {"execution": {"auto_export": auto_export_cfg}}, sort_keys=False
+    eval_tasks = (
+        list(cfg.evaluation.tasks)
+        if hasattr(cfg, "evaluation") and hasattr(cfg.evaluation, "tasks")
+        else list((cfg.get("evaluation", {}) or {}).get("tasks", []) or [])
     )
+    export_block = cfg.get("export", {}) or {}
+
+    payload = {
+        "execution": {
+            "auto_export": {
+                "destinations": list(destinations),
+                **({"env_vars": dict(export_env)} if export_env else {}),
+            },
+            "type": exec_type,
+        },
+        "evaluation": {"tasks": eval_tasks},
+    }
+    if export_block:
+        # Convert just this block to plain for YAML
+        payload["export"] = (
+            OmegaConf.to_object(export_block)
+            if OmegaConf.is_config(export_block)
+            else dict(export_block)
+        )
+
+    # Final YAML (single conversion at the end)
+    payload_clean = OmegaConf.to_container(OmegaConf.create(payload), resolve=True)
+    yaml_str = yaml.safe_dump(payload_clean, sort_keys=False)
     s += "    cat > export_config.yml << 'EOF'\n"
     s += yaml_str
     s += "EOF\n"
+
+    # write launcher config as config.yml for exporters (no core command)
+    submitted_yaml = yaml.safe_dump(
+        OmegaConf.to_container(cfg, resolve=True), sort_keys=False
+    )
+    s += "    cat > config.yml << 'EOF'\n"
+    s += submitted_yaml
+    s += "EOF\n"
+
+    # Export host only env before running auto export
+    for k, v in (export_env or {}).items():
+        if isinstance(v, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", v):
+            s += f'    export {k}="${{{v}}}"\n'
+        else:
+            esc = str(v).replace('"', '\\"')
+            s += f'    export {k}="{esc}"\n'
+
     for dest in destinations:
         s += f"    echo 'Exporting to {dest}...'\n"
         s += f"    nemo-evaluator-launcher export {job_id} --dest {dest} || echo 'Export to {dest} failed'\n"

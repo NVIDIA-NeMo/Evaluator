@@ -31,14 +31,10 @@ class TestConfigExtraction:
             executor="local",
             data={},
             config={
-                "execution": {
-                    "auto_export": {
-                        "configs": {
-                            "wandb": {
-                                "entity": "test-entity",
-                                "project": "test-project",
-                            }
-                        }
+                "export": {
+                    "wandb": {
+                        "entity": "test-entity",
+                        "project": "test-project",
                     }
                 }
             },

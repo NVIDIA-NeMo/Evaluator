@@ -148,15 +148,12 @@ def extract_exporter_config(
     """Extract and merge exporter configuration from multiple sources."""
     config = {}
 
-    # Get config from dedicated field
+    # root-level `export.<exporter-name>`
     if job_data.config:
-        execution_config = job_data.config.get("execution", {})
-        auto_export_config = execution_config.get("auto_export", {})
-        exporter_configs = auto_export_config.get("configs", {})
-        yaml_config = exporter_configs.get(exporter_name, {})
-
-        # No conversion needed
-        config.update(yaml_config)
+        export_block = (job_data.config or {}).get("export", {})
+        yaml_config = (export_block or {}).get(exporter_name, {})
+        if yaml_config:
+            config.update(yaml_config)
 
     # From webhook metadata (if triggered by webhook)
     if "webhook_metadata" in job_data.data:
@@ -167,8 +164,6 @@ def extract_exporter_config(
             "source_artifact": f"{webhook_data.get('artifact_name', 'unknown')}:{webhook_data.get('artifact_version', 'unknown')}",
             "config_source": webhook_data.get("config_file", "unknown"),
         }
-
-        # For W&B specifically, extract run info if available
         if exporter_name == "wandb" and webhook_data.get("webhook_source") == "wandb":
             wandb_specific = {
                 "entity": webhook_data.get("entity"),
@@ -176,10 +171,9 @@ def extract_exporter_config(
                 "run_id": webhook_data.get("run_id"),
             }
             webhook_config.update({k: v for k, v in wandb_specific.items() if v})
-
         config.update(webhook_config)
 
-    # Constructor config: allows CLI overrides
+    # allows CLI overrides
     if constructor_config:
         config.update(constructor_config)
 
@@ -269,6 +263,14 @@ def get_container_from_mapping(job_data: JobData) -> str:
         return None
 
 
+def get_artifact_root(job_data: JobData) -> str:
+    """Get artifact root from job data."""
+    bench = get_benchmark_info(job_data)
+    h = bench.get("harness", "unknown")
+    b = bench.get("benchmark", get_task_name(job_data))
+    return f"{h}.{b}"
+
+
 # =============================================================================
 # GITLAB DOWNLOAD
 # =============================================================================
@@ -288,91 +290,6 @@ def download_gitlab_artifacts(
         Dictionary mapping artifact names to local file paths
     """
     raise NotImplementedError("Downloading from gitlab is not implemented")
-    # TODO: rework this logic
-    # pipeline_id = paths["pipeline_id"]
-    # project_id = paths["project_id"]
-    # gitlab_token = os.getenv("GITLAB_TOKEN")
-    #
-    # if not gitlab_token:
-    #     raise RuntimeError(
-    #         "GITLAB_TOKEN environment variable required for GitLab remote downloads"
-    #     )
-    #
-    # # GitLab API endpoint for artifacts
-    # base_url = "TODO: replace"
-    # artifacts_url = "TODO: replace"
-    #
-    # headers = {"Private-Token": gitlab_token}
-    # downloaded_artifacts = {}
-    #
-    # try:
-    #     # Get pipeline jobs
-    #     response = requests.get(artifacts_url, headers=headers, timeout=30)
-    #     response.raise_for_status()
-    #     jobs = response.json()
-    #
-    #     for job in jobs:
-    #         if job.get("artifacts_file"):
-    #             job_id = job["id"]
-    #             job_name = job.get("name", f"job_{job_id}")
-    #             artifacts_download_url = (
-    #                 f"{base_url}/api/v4/projects/{project_id}/jobs/{job_id}/artifacts"
-    #             )
-    #
-    #             logger.info(f"Downloading artifacts from job: {job_name}")
-    #
-    #             # Download job artifacts
-    #             response = requests.get(
-    #                 artifacts_download_url, headers=headers, timeout=300
-    #             )
-    #             response.raise_for_status()
-    #
-    #             if extract_specific:
-    #                 # Extract specific files from ZIP
-    #                 with tempfile.NamedTemporaryFile(
-    #                     suffix=".zip", delete=False
-    #                 ) as temp_zip:
-    #                     temp_zip.write(response.content)
-    #                     temp_zip_path = temp_zip.name
-    #
-    #                 try:
-    #                     with zipfile.ZipFile(temp_zip_path, "r") as zip_ref:
-    #                         # Create artifacts directory
-    #                         artifacts_dir = export_dir / "artifacts"
-    #                         artifacts_dir.mkdir(parents=True, exist_ok=True)
-    #
-    #                         # Extract to be logged artifacts
-    #                         for member in zip_ref.namelist():
-    #                             filename = Path(member).name
-    #                             if filename in get_relevant_artifacts():
-    #                                 # Extract the file
-    #                                 source = zip_ref.open(member)
-    #                                 target_path = artifacts_dir / filename
-    #                                 with open(target_path, "wb") as f:
-    #                                     f.write(source.read())
-    #                                 source.close()
-    #
-    #                                 downloaded_artifacts[filename] = target_path
-    #                                 logger.info(f"Extracted: {filename}")
-    #                 finally:
-    #                     os.unlink(temp_zip_path)
-    #             else:
-    #                 # Save as ZIP files (original behavior)
-    #                 artifacts_zip = export_dir / f"job_{job_id}_artifacts.zip"
-    #                 with open(artifacts_zip, "wb") as f:
-    #                     f.write(response.content)
-    #
-    #                 downloaded_artifacts[f"job_{job_id}_artifacts.zip"] = artifacts_zip
-    #                 logger.info(f"Downloaded: {artifacts_zip.name}")
-    #
-    # except requests.RequestException as e:
-    #     logger.error(f"GitLab API request failed: {e}")
-    #     raise RuntimeError(f"GitLab API request failed: {e}")
-    # except Exception as e:
-    #     logger.error(f"GitLab remote download failed: {e}")
-    #     raise RuntimeError(f"GitLab remote download failed: {e}")
-    #
-    # return downloaded_artifacts
 
 
 # =============================================================================
@@ -522,15 +439,15 @@ def ssh_download_artifacts(
 
 def _get_artifacts_dir(paths: Dict[str, Any]) -> Path:
     """Get artifacts directory from paths."""
-    if paths["storage_type"] == "local_filesystem":
-        return paths["artifacts_dir"]
-    elif paths["storage_type"] == "gitlab_ci_local":
-        return paths["artifacts_dir"]
-    elif paths["storage_type"] == "remote_ssh":
+    storage_type = paths.get("storage_type")
+
+    # For SSH-based remote access, artifacts aren't available locally yet
+    if storage_type == "remote_ssh":
         return None
-    else:
-        logger.error(f"Unsupported storage type: {paths['storage_type']}")
-        return None
+
+    # For all local access (local_filesystem, remote_local, gitlab_ci_local)
+    # return the artifacts_dir from paths
+    return paths.get("artifacts_dir")
 
 
 def _extract_metrics_from_results(results: dict) -> Dict[str, float]:

@@ -15,6 +15,7 @@
 #
 """Evaluation results exporter for MLflow tracking."""
 
+import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -37,6 +38,7 @@ from nemo_evaluator_launcher.exporters.registry import register_exporter
 from nemo_evaluator_launcher.exporters.utils import (
     extract_accuracy_metrics,
     extract_exporter_config,
+    get_artifact_root,
     get_available_artifacts,
     get_benchmark_info,
     get_task_name,
@@ -100,6 +102,21 @@ class MLflowExporter(BaseExporter):
             # Extract config using common utility
             mlflow_config = extract_exporter_config(job_data, "mlflow", self.config)
 
+            # resolve tracking_uri with fallbacks
+            tracking_uri = mlflow_config.get("tracking_uri")
+            if not tracking_uri:
+                tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
+            # allow env var name
+            if tracking_uri and "://" not in tracking_uri:
+                tracking_uri = os.getenv(tracking_uri, tracking_uri)
+
+            if not tracking_uri:
+                return ExportResult(
+                    success=False,
+                    dest="mlflow",
+                    message="tracking_uri is required (set export.mlflow.tracking_uri or MLFLOW_TRACKING_URI)",
+                )
+
             # Extract metrics
             log_metrics = mlflow_config.get("log_metrics", [])
             accuracy_metrics = extract_accuracy_metrics(
@@ -112,12 +129,6 @@ class MLflowExporter(BaseExporter):
                 )
 
             # Set up MLflow
-            tracking_uri = mlflow_config.get("tracking_uri")
-            if not tracking_uri:
-                return ExportResult(
-                    success=False, dest="mlflow", message="tracking_uri is required"
-                )
-
             tracking_uri = tracking_uri.rstrip("/")
             mlflow.set_tracking_uri(tracking_uri)
 
@@ -253,37 +264,91 @@ class MLflowExporter(BaseExporter):
         try:
             # Use LocalExporter to get files locally first
             temp_dir = tempfile.mkdtemp(prefix="mlflow_artifacts_")
-            local_exporter = LocalExporter({"output_dir": temp_dir})
+            local_exporter = LocalExporter(
+                {
+                    "output_dir": temp_dir,
+                    "copy_logs": mlflow_config.get(
+                        "log_logs", mlflow_config.get("copy_logs", False)
+                    ),
+                    "only_required": mlflow_config.get("only_required", True),
+                    "format": mlflow_config.get("format", None),
+                    "log_metrics": mlflow_config.get("log_metrics", []),
+                    "output_filename": mlflow_config.get("output_filename", None),
+                }
+            )
             local_result = local_exporter.export_job(job_data)
 
             if not local_result.success:
                 logger.error(f"Failed to download artifacts: {local_result.message}")
                 return []
 
-            artifacts_dir = Path(local_result.dest) / "artifacts"
-            logged_names = []
+            base_dir = Path(local_result.dest)
+            artifacts_dir = base_dir / "artifacts"
+            logs_dir = base_dir / "logs"
+            logged_names: list[str] = []
 
-            task_name = get_task_name(job_data)
-            artifact_path = task_name
+            artifact_path = get_artifact_root(job_data)  # "<harness>.<benchmark>"
 
             # Log config at root level
-            with tempfile.TemporaryDirectory() as tmpdir:
-                cfg_file = Path(tmpdir) / "config.yaml"
-                with cfg_file.open("w") as f:
-                    yaml.dump(
-                        job_data.config or {},
-                        f,
-                        default_flow_style=False,
-                        sort_keys=False,
-                    )
-                mlflow.log_artifact(str(cfg_file))
+            cfg_logged = False
+            for fname in ("config.yml", "run_config.yml"):
+                p = artifacts_dir / fname
+                if p.exists():
+                    mlflow.log_artifact(str(p))
+                    cfg_logged = True
+                    break
+            if not cfg_logged:
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    cfg_file = Path(tmpdir) / "config.yaml"
+                    with cfg_file.open("w") as f:
+                        yaml.dump(
+                            job_data.config or {},
+                            f,
+                            default_flow_style=False,
+                            sort_keys=False,
+                        )
+                    mlflow.log_artifact(str(cfg_file))
 
-            # Then log results files
-            for fname in get_available_artifacts(artifacts_dir):
-                file_path = artifacts_dir / fname
-                if file_path.exists():
-                    mlflow.log_artifact(str(file_path), artifact_path=artifact_path)
-                    logged_names.append(fname)
+            files_to_upload: list[Path] = []
+            if mlflow_config.get("only_required", True):
+                for fname in get_available_artifacts(artifacts_dir):
+                    p = artifacts_dir / fname
+                    if p.exists():
+                        files_to_upload.append(p)
+            else:
+                for p in artifacts_dir.iterdir():
+                    if p.is_file():
+                        files_to_upload.append(p)
+
+            for fpath in files_to_upload:
+                rel = fpath.relative_to(artifacts_dir).as_posix()
+                parent = os.path.dirname(rel)
+                mlflow.log_artifact(
+                    str(fpath),
+                    artifact_path=f"{artifact_path}/artifacts/{parent}".rstrip("/"),
+                )
+                logged_names.append(rel)
+
+            # Optionally upload logs under "<harness.task>/logs"
+            if mlflow_config.get("log_logs", False) and logs_dir.exists():
+                for p in logs_dir.rglob("*"):
+                    if p.is_file():
+                        mlflow.log_artifact(
+                            str(p),
+                            artifact_path=f"{artifact_path}/logs",
+                        )
+                        logged_names.append(f"logs/{p.name}")
+
+            # Debug summary of what we uploaded
+            logger.info(
+                f"MLflow upload summary: files={len(logged_names)}, only_required={mlflow_config.get('only_required', True)}, log_logs={mlflow_config.get('log_logs', False)}"
+            )
+            if logger.isEnabledFor(10):  # DEBUG
+                try:
+                    preview = "\n  - " + "\n  - ".join(sorted(logged_names)[:50])
+                    logger.debug(f"Uploaded files preview (first 50):{preview}")
+                except Exception:
+                    pass
 
             # cleanup temp
             shutil.rmtree(temp_dir)
@@ -312,6 +377,18 @@ class MLflowExporter(BaseExporter):
             # Extract config using common utility
             mlflow_config = extract_exporter_config(first_job, "mlflow", self.config)
 
+            # resolve tracking_uri with fallbacks
+            tracking_uri = mlflow_config.get("tracking_uri") or os.getenv(
+                "MLFLOW_TRACKING_URI"
+            )
+            if tracking_uri and "://" not in tracking_uri:
+                tracking_uri = os.getenv(tracking_uri, tracking_uri)
+            if not tracking_uri:
+                return {
+                    "success": False,
+                    "error": "tracking_uri is required (set export.mlflow.tracking_uri or MLFLOW_TRACKING_URI)",
+                }
+
             # Collect metrics from ALL jobs
             all_metrics = {}
             for job_id, job_data in jobs.items():
@@ -328,10 +405,6 @@ class MLflowExporter(BaseExporter):
                 }
 
             # Set up MLflow
-            tracking_uri = mlflow_config.get("tracking_uri")
-            if not tracking_uri:
-                return {"success": False, "error": "tracking_uri is required"}
-
             tracking_uri = tracking_uri.rstrip("/")
             mlflow.set_tracking_uri(tracking_uri)
 
