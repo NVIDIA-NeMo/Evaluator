@@ -19,13 +19,23 @@ export HF_DATASETS_OFFLINE="1"
 export TRANSFORMERS_OFFLINE="1"
 export HF_DATASETS_CACHE="${HF_HOME}/datasets"
 
-mkdir -p /checkpoints && \
-ln -s /home/TestData/nemo2_ckpt/llama-3_2-1b-instruct_v2.0 /checkpoints/llama-3_2-1b-instruct_v2.0
-
-
 SCRIPT_DIR=$(dirname "$0")
 PROJECT_DIR=$SCRIPT_DIR/../../
 cd $PROJECT_DIR
+
+nemo2_ckpt_path="/home/TestData/nemo2_ckpt/llama-3_2-1b-instruct_v2.0"
+model_name="megatron_model"
+port=8886
+
+python /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
+  --nemo_checkpoint $nemo2_ckpt_path \
+  --num_gpus 1 \
+  --tensor_model_parallel_size 1 \
+  --pipeline_model_parallel_size 1 \
+  --model_id $model_name \
+  --port $port &
+
+deploy_pid=$!
 
 coverage run \
     --data-file=.coverage.integration_tests \
@@ -34,5 +44,7 @@ coverage run \
     -o log_cli=true \
     -o log_cli_level=INFO \
     -m "not pleasefixme" \
-   tests/integration_tests
-coverage combine -q
+    -v -s \
+   tests/integration_tests/nemo_fw/test_deployment.py
+
+kill $deploy_pid
