@@ -92,4 +92,4 @@ deployment:
 
 evaluation:
   tasks:
-    - name: simple_evals.gpqa_diamond
+    - name: ifeval
