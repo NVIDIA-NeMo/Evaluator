@@ -190,7 +190,7 @@ runs:
         docker container rm -f nemo_container_${{ github.run_id }} || true
 
         ARG=("")
-        if [[ "${{ inputs.cpu_only == 'true' }}" == "true" ]]; then
+        if [[ "${{ inputs.type_of_test == 'integration_tests' }}" == "true" ]]; then
           ARG=("--runtime=nvidia --gpus all")
         fi
 
