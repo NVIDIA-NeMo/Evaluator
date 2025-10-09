@@ -1,6 +1,7 @@
 # NeMo Evaluator
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg)](https://github.com/NVIDIA-NeMo/Eval/blob/main/LICENSE)
+[![codecov](https://codecov.io/github/NVIDIA-NeMo/Eval/graph/badge.svg)](https://codecov.io/github/NVIDIA-NeMo/Eval)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-green)](https://www.python.org/downloads/)
 [![Tests](https://github.com/NVIDIA-NeMo/Eval/actions/workflows/cicd-main.yml/badge.svg)](https://github.com/NVIDIA-NeMo/Eval/actions/workflows/cicd-main.yml)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
