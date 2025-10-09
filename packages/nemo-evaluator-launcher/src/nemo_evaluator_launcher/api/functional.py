@@ -456,6 +456,7 @@ def export_results(
                                 yaml.safe_load(ypath_export.read_text(encoding="utf-8"))
                                 or {}
                             )
+                            # execution.auto_export contains auto-export destinations
                             exec_cfg = cfg_yaml.get("execution") or {}
                             auto_exp = (exp_yaml.get("execution") or {}).get(
                                 "auto_export"
@@ -463,15 +464,39 @@ def export_results(
                             if auto_exp is not None:
                                 exec_cfg["auto_export"] = auto_exp
                                 cfg_yaml["execution"] = exec_cfg
+
+                            # top-level export block contains exporter config
+                            if "export" in exp_yaml:
+                                cfg_yaml["export"] = exp_yaml["export"]
+
+                            # Merge evaluation.tasks from export_config (Slurm writes it there)
+                            if "evaluation" in exp_yaml and exp_yaml["evaluation"]:
+                                eval_cfg = cfg_yaml.get("evaluation") or {}
+                                eval_cfg.update(exp_yaml["evaluation"])
+                                cfg_yaml["evaluation"] = eval_cfg
+
                         # metadata
+                        executor_name = (cfg_yaml.get("execution") or {}).get(
+                            "type", "local"
+                        )
+
                         md_job_data = JobData(
                             invocation_id=single_id.split(".")[0],
                             job_id=single_id,
                             timestamp=0.0,
-                            executor="local",  #
-                            data={"output_dir": str(Path.cwd().parent)},
+                            executor=executor_name,
+                            data={
+                                "output_dir": str(Path.cwd().parent),
+                                "storage_type": "remote_local",
+                            },
                             config=cfg_yaml,
                         )
+                        # DEBUG: print what we loaded
+                        print(f"DEBUG: cfg_yaml keys: {list(cfg_yaml.keys())}")
+                        if "evaluation" in cfg_yaml:
+                            print(
+                                f"DEBUG: evaluation.tasks: {cfg_yaml.get('evaluation', {}).get('tasks')}"
+                            )
                     except Exception:
                         md_job_data = None
                 # fallback to execDB only
@@ -492,6 +517,7 @@ def export_results(
                             "success": job_result.success,
                             "message": job_result.message,
                             "metadata": job_result.metadata or {},
+                            "dest": getattr(job_result, "dest", None),
                         }
                     },
                     "metadata": job_result.metadata or {},
