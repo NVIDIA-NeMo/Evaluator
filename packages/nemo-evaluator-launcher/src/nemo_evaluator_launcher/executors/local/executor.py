@@ -164,10 +164,13 @@ class LocalExecutor(BaseExecutor):
             auto_export_config = cfg.execution.get("auto_export", {})
             auto_export_destinations = auto_export_config.get("destinations", [])
 
+            extra_docker_args = cfg.execution.get("extra_docker_args", "")
+
             run_sh_content = (
                 eval_template.render(
                     evaluation_tasks=[evaluation_task],
                     auto_export_destinations=auto_export_destinations,
+                    extra_docker_args=extra_docker_args,
                 ).rstrip("\n")
                 + "\n"
             )
@@ -178,6 +181,7 @@ class LocalExecutor(BaseExecutor):
             eval_template.render(
                 evaluation_tasks=evaluation_tasks,
                 auto_export_destinations=auto_export_destinations,
+                extra_docker_args=extra_docker_args,
             ).rstrip("\n")
             + "\n"
         )

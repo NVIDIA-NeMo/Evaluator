@@ -36,10 +36,16 @@ execution:
     # evaluation:
       # env vars needed by evaluation container
     export:
-      # env vars needed by auto-export step
+      # env vars needed by auto-export
       WANDB_API_KEY: WANDB_API_KEY
-      MLFLOW_TRACKING_URI: MLFLOW_TRACKING_URI # tracking_uri can also be set in the exporter config
+      MLFLOW_TRACKING_URI: MLFLOW_TRACKING_URI # either set here or in the exporter config via tracking_uri
       PATH: "/path/to/env/bin:$PATH" # needed to load nemo-evaluator-launcher binaries on host machine
+
+target:
+  api_endpoint:
+    model_id: meta/llama-3.1-8b-instruct
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    api_key_name: NGC_API_KEY
 
 evaluation:
   tasks:
@@ -49,7 +55,7 @@ evaluation:
       env_vars:
         HF_TOKEN: HF_TOKEN
 
-# Exporter configurations
+# Exporter configurations (for auto-export only)
 export:
   wandb:
     entity: "nvidia"
@@ -92,9 +98,3 @@ export:
   gsheets:
     spreadsheet_name: "LLM Evaluation Results"
     log_metrics: ["accuracy", "pass@1"]
-
-target:
-  api_endpoint:
-    model_id: meta/llama-3.1-8b-instruct
-    url: https://integrate.api.nvidia.com/v1/chat/completions
-    api_key_name: NGC_API_KEY
