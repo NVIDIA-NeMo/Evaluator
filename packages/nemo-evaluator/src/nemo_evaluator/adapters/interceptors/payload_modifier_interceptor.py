@@ -109,10 +109,19 @@ class PayloadParamsModifierInterceptor(RequestInterceptor):
         new_data = original_data.copy()
 
         # Remove specified parameters
+        def _remove_param_recursively(data: Any, param: str):
+            if isinstance(data, dict):
+                if param in data:
+                    del data[param]
+                    self.logger.debug("Removed parameter", parameter=param)
+                for value in data.values():
+                    _remove_param_recursively(value, param)
+            elif isinstance(data, list):
+                for item in data:
+                    _remove_param_recursively(item, param)
+
         for param in self._params_to_remove:
-            if param in new_data:
-                del new_data[param]
-                self.logger.debug("Removed parameter", parameter=param)
+            _remove_param_recursively(new_data, param)
 
         # Add new parameters
         new_data.update(self._params_to_add)
