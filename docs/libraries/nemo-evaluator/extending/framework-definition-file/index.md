@@ -19,7 +19,7 @@ Before creating an FDF, you should:
 
 **Creating your first FDF?** Follow this sequence:
 
-// 1. Start with the {ref}`create-framework-definition-file` tutorial for a hands-on walkthrough
+<!-- 1. Start with the {ref}`create-framework-definition-file` tutorial for a hands-on walkthrough -->
 1. {ref}`framework-section` - Define framework metadata
 2. {ref}`defaults-section` - Configure command templates and parameters
 3. {ref}`evaluations-section` - Define evaluation tasks

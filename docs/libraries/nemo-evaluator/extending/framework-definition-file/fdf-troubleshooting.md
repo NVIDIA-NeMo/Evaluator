@@ -48,6 +48,7 @@ Verify conditional statements are properly formatted:
 - Incorrect parameter paths in overrides
 - Type mismatches between default and override values
 - Missing parameter definitions in defaults section
+- Incorrect indentation in the YAML config
 
 **Solutions**:
 
@@ -68,6 +69,23 @@ temperature: 0.7        # Float
 
 # Incorrect
 temperature: "0.7"      # String
+```
+
+Make sure to use the correct indentation:
+```yaml
+# Correct
+defaults:
+  config:
+    params:
+      limit_samples: null
+      max_new_tokens: 4096   # max_new_tokens belongs to params
+
+# Incorrect
+defaults:
+  config:
+    params:
+      limit_samples: null
+    max_new_tokens: 4096     # max_new_tokens is outside of params
 ```
 
 ::::

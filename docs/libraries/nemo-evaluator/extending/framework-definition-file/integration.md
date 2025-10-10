@@ -64,19 +64,16 @@ Once your FDF is properly located and validated, the Eval Factory system automat
 After successful integration, you can use your framework with the Eval Factory CLI:
 
 ```bash
-# List available frameworks
-eval-factory list_frameworks
-
-# List evaluations for your framework
-eval-factory list_evals --framework your_framework
+# List available frameworks and tasks
+nemo-evaluator ls
 
 # Run an evaluation
-nemo-evaluator run_eval --framework your_framework --eval_type your_evaluation
+nemo-evaluator run_eval --eval_type your_evaluation --model_id my-model ...
 ```
 
 ## Package Configuration
 
-Ensure your `setup.py` includes the FDF in package data:
+Ensure your `setup.py` or `pyproject.toml` includes the FDF in package data:
 
 ```python
 from setuptools import setup, find_packages
@@ -85,10 +82,15 @@ setup(
     name="your-framework",
     packages=find_packages(),
     package_data={
-        "": ["core_evals/**/framework.yml", "core_evals/**/*.py"],
+        "core_evals": ["**/*.yml"],
     },
     include_package_data=True,
 )
+```
+
+```toml
+[tool.setuptools.package-data]
+core_evals = ["**/*.yml"]
 ```
 
 ## Best Practices
