@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import jinja2
 from pydantic import BaseModel, ConfigDict, Field
@@ -46,7 +46,7 @@ class ApiEndpoint(BaseModel):
     stream: Optional[bool] = Field(
         description="Whether responses should be streamed", default=None
     )
-    type: Optional[EndpointType] = Field(
+    type: Optional[Union[EndpointType, list[EndpointType]]] = Field(
         description="The type of the target", default=None
     )
     url: Optional[str] = Field(description="Url of the model", default=None)
@@ -100,7 +100,9 @@ class EvaluationConfig(BaseModel):
     params: Optional[ConfigParams] = Field(
         description="Parameters to be used for evaluation", default=None
     )
-    supported_endpoint_types: Optional[list[str]] = Field(
+    supported_endpoint_types: Optional[
+        Union[EndpointType, list[Union[EndpointType, list[EndpointType]]]]
+    ] = Field(
         description="Supported endpoint types like chat or completions", default=None
     )
     type: Optional[str] = Field(description="Type of the task", default=None)
