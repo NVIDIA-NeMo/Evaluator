@@ -116,7 +116,7 @@ docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/bigcode-evaluation-ha
 export MY_API_KEY=your_api_key_here
 
 # Run code generation evaluation
-eval-factory run_eval \
+nemo-evaluator run_eval \
     --eval_type mbpp \
     --model_id meta/llama-3.1-8b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \

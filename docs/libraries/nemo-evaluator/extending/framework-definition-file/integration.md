@@ -71,7 +71,7 @@ eval-factory list_frameworks
 eval-factory list_evals --framework your_framework
 
 # Run an evaluation
-eval-factory run_eval --framework your_framework --eval_type your_evaluation
+nemo-evaluator run_eval --framework your_framework --eval_type your_evaluation
 ```
 
 ## Package Configuration

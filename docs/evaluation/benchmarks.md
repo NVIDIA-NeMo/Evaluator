@@ -271,7 +271,7 @@ For a complete list of available tasks in each container:
 
 ```bash
 # List tasks in any container
-docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} eval-factory ls
+docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} nemo-evaluator ls
 
 # Or use the launcher for unified access
 nv-eval ls tasks
@@ -287,7 +287,7 @@ nv-eval ls tasks
 nv-eval run --config-dir examples --config-name local_mmlu_evaluation
 
 # Container direct execution
-docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} eval-factory ls
+docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} nemo-evaluator ls
 
 # Python API (for programmatic control)
 # See the Python API documentation for details

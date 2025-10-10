@@ -122,7 +122,7 @@ export MY_API_KEY=your_api_key_here
 export HF_TOKEN=your_hf_token_here
 
 # Run log-probability evaluation using eval-factory (nemo-evaluator CLI)
-eval-factory run_eval \
+nemo-evaluator run_eval \
     --eval_type adlr_arc_challenge_llama \
     --model_id megatron_model \
     --model_url http://0.0.0.0:8080/v1/completions \

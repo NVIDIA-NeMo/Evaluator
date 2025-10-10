@@ -123,7 +123,7 @@ docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:{{ docke
 export MY_API_KEY=your_api_key_here
 
 # Run evaluation
-eval-factory run_eval \
+nemo-evaluator run_eval \
     --eval_type mmlu_pro \
     --model_id meta/llama-3.1-8b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \

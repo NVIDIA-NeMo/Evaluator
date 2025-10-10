@@ -142,11 +142,11 @@ Enable debug logging to see how your FDF is processed. Use the `--debug` flag or
 
 ```bash
 # Using debug flag
-eval-factory run_eval --eval_type your_evaluation --debug
+nemo-evaluator run_eval --eval_type your_evaluation --debug
 
 # Or set log level environment variable
 export LOG_LEVEL=DEBUG
-eval-factory run_eval --eval_type your_evaluation
+nemo-evaluator run_eval --eval_type your_evaluation
 ```
 
 ### Debug Output

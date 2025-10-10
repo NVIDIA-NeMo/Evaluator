@@ -119,7 +119,7 @@ Programmatic evaluation using Python API for integration into ML pipelines and c
 :::
 
 :::{grid-item-card} {octicon}`package;1.5em;sd-mr-1` Container Workflows
-:link: ../libraries/nemo-evaluator/workflows/using_containers
+:link: ../libraries/nemo-evaluator/workflows/using-containers
 :link-type: doc
 Direct container access for specialized use cases and custom evaluation environments.
 :::

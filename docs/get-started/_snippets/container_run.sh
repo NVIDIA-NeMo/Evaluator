@@ -11,7 +11,7 @@ docker run --rm --gpus all \
     -v $(pwd)/results:/workspace/results \
     -e MY_API_KEY="${MY_API_KEY}" \
     nvcr.io/nvidia/eval-factory/simple-evals:${DOCKER_TAG} \
-    eval-factory run_eval \
+    nemo-evaluator run_eval \
         --eval_type mmlu_pro \
         --model_url https://integrate.api.nvidia.com/v1/chat/completions \
         --model_id meta/llama-3.1-8b-instruct \

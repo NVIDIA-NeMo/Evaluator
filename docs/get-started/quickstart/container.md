@@ -24,7 +24,7 @@ export MY_API_KEY=nvapi-your-key-here
 export HF_TOKEN=hf_your-token-here  # If using Hugging Face models
 
 # 4. Run evaluation
-eval-factory run_eval \
+nemo-evaluator run_eval \
     --eval_type mmlu_pro \
     --model_id meta/llama-3.1-8b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
@@ -52,7 +52,7 @@ docker run --rm -it --gpus all \
     nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} bash
 
 # 3. Inside container - run evaluation
-eval-factory run_eval \
+nemo-evaluator run_eval \
     --eval_type mmlu_pro \
     --model_id meta/llama-3.1-8b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
@@ -76,7 +76,7 @@ docker run --rm --gpus all \
     -v $(pwd)/results:/workspace/results \
     -e MY_API_KEY="${MY_API_KEY}" \
     nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
-    eval-factory run_eval \
+    nemo-evaluator run_eval \
         --eval_type mmlu_pro \
         --model_url https://integrate.api.nvidia.com/v1/chat/completions \
         --model_id meta/llama-3.1-8b-instruct \
@@ -138,7 +138,7 @@ services:
     environment:
       - MY_API_KEY=${NGC_API_KEY}
     command: |
-      eval-factory run_eval 
+      nemo-evaluator run_eval 
         --eval_type mmlu_pro 
         --model_id meta/llama-3.1-8b-instruct 
         --model_url https://integrate.api.nvidia.com/v1/chat/completions 
@@ -164,7 +164,7 @@ for benchmark in "${BENCHMARKS[@]}"; do
         -e MY_API_KEY=$API_KEY \
         -e HF_TOKEN=$HF_TOKEN \
         nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
-        eval-factory run_eval \
+        nemo-evaluator run_eval \
             --eval_type $benchmark \
             --model_id meta/llama-3.1-8b-instruct \
             --model_url https://integrate.api.nvidia.com/v1/chat/completions \
