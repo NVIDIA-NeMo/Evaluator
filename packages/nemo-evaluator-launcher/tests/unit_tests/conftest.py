@@ -469,3 +469,29 @@ def mlflow_fake(monkeypatch):
         "nemo_evaluator_launcher.exporters.mlflow.mlflow", _ML, raising=True
     )
     return _ML, _RunCtx
+
+
+@pytest.fixture
+def setup_env_vars(monkeypatch):
+    """Mock environment variables for testing - returns dummy values for all env vars."""
+    import os
+
+    # Create a dict that returns dummy values for any key
+    class MockEnviron(dict):
+        def __getitem__(self, key):
+            try:
+                return super().__getitem__(key)
+            except KeyError:
+                # Return dummy value for any missing key
+                return "dummy_value_for_testing"
+
+        def get(self, key, default=None):
+            try:
+                return self[key]
+            except KeyError:
+                return default if default is not None else "dummy_value_for_testing"
+
+    # Copy current environment, ensuring all keys are strings
+    current_env = {k: v for k, v in os.environ.items() if isinstance(k, str)}
+    mock_env = MockEnviron(current_env)
+    monkeypatch.setattr("os.environ", mock_env)
