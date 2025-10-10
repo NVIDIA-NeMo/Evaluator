@@ -11,7 +11,7 @@ The `CachingInterceptor` implements aREHRJ sophisticated caching system that can
 ### CLI Configuration
 
 ```bash
---overrides 'target.api_endpoint.adapter_config.interceptors=[{"name":"caching","enabled":true,"config":{"cache_dir":"./cache","reuse_cached_responses":true}}]'
+--overrides 'target.api_endpoint.adapter_config.use_caching=True,target.api_endpoint.adapter_config.caching_dir=./cache,target.api_endpoint.adapter_config.reuse_cached_responses=True'
 ```
 
 ### YAML Configuration
@@ -71,8 +71,8 @@ cache_key = hashlib.sha256(data_str.encode("utf-8")).hexdigest()
 
 The caching interceptor stores data in three separate disk-backed key-value stores within the configured cache directory:
 
-- **Response Cache** (`{cache_dir}/responses/`): Stores raw response content (bytes) keyed by cache key
-- **Headers Cache** (`{cache_dir}/headers/`): Stores response headers (dictionary) keyed by cache key  
+- **Response Cache** (`{cache_dir}/responses/`): Stores raw response content (bytes) keyed by cache key (when `save_responses=True` or `reuse_cached_responses=True`)
+- **Headers Cache** (`{cache_dir}/headers/`): Stores response headers (dictionary) keyed by cache key (when `save_requests=True`)
 - **Request Cache** (`{cache_dir}/requests/`): Stores request data (dictionary) keyed by cache key (when `save_requests=True`)
 
 Each cache uses a SHA256 hash of the request data as the lookup key. When a cache hit occurs, the interceptor retrieves both the response content and headers using the same cache key.
