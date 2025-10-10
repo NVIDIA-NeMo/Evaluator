@@ -118,6 +118,57 @@ evaluation:
 
 For detailed adapter configuration options, refer to {ref}`adapters`.
 
+
+### Advanced settings
+
+If you are deploying the model locally with Docker, you can use a dedicated docker network.
+This will provide a secure connetion between deployment and evaluation docker containers.
+
+```shell
+docker network create my-custom-network
+
+docker run --gpus all --network my-custom-network --name my-phi-container vllm/vllm-openai:latest \
+    --model microsoft/Phi-4-mini-instruct
+```
+
+Then use the same network in the evaluator config:
+
+```yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: my_phi_test
+  extra_docker_args: "--network my-custom-network"
+
+target:
+  api_endpoint:
+    model_id: microsoft/Phi-4-mini-instruct
+    url: http://my-phi-container:8000/v1/chat/completions
+    api_key_name: null
+
+evaluation:
+  tasks:
+    - name: simple_evals.mmlu_pro
+      overrides:
+        config.params.limit_samples: 10 # TEST ONLY: Limits to 10 samples for quick testing
+        config.params.parallelism: 1
+```
+
+Alternatively you can expose ports and use the host network:
+
+```shell
+docker run --gpus all -p 8000:8000 vllm/vllm-openai:latest \
+    --model microsoft/Phi-4-mini-instruct
+```
+
+```yaml
+execution:
+  extra_docker_args: "--network host"
+```
+
 ## Command-Line Usage
 
 ### Basic Commands
