@@ -19,11 +19,11 @@ Before creating an FDF, you should:
 
 **Creating your first FDF?** Follow this sequence:
 
-1. Start with the {ref}`create-framework-definition-file` tutorial for a hands-on walkthrough
-2. {ref}`framework-section` - Define framework metadata
-3. {ref}`defaults-section` - Configure command templates and parameters
-4. {ref}`evaluations-section` - Define evaluation tasks
-5. {ref}`integration` - Integrate with Eval Factory
+// 1. Start with the {ref}`create-framework-definition-file` tutorial for a hands-on walkthrough
+1. {ref}`framework-section` - Define framework metadata
+2. {ref}`defaults-section` - Configure command templates and parameters
+3. {ref}`evaluations-section` - Define evaluation tasks
+4. {ref}`integration` - Integrate with Eval Factory
 
 **Need help?** Refer to {ref}`fdf-troubleshooting` for debugging common issues.
 
