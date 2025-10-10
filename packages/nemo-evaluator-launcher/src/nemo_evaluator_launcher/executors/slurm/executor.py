@@ -386,12 +386,74 @@ class SlurmExecutor(BaseExecutor):
 
     @staticmethod
     def kill_job(job_id: str) -> None:
-        """Kill a SLURM job.
+        """Kill a SLURM job or all jobs in an invocation.
 
         Args:
-            job_id: The job ID to kill.
+            job_id: The job ID (e.g., abc123.0) or invocation ID (e.g., abc123) to kill.
         """
         db = ExecutionDB()
+
+        # Check if this is an invocation ID (no dot) - batch kill all jobs
+        if "." not in job_id:
+            jobs = db.get_jobs(job_id)
+            if not jobs:
+                raise ValueError(f"No jobs found for invocation {job_id}")
+
+            # Filter for SLURM jobs only
+            slurm_jobs = {
+                jid: jdata for jid, jdata in jobs.items() if jdata.executor == "slurm"
+            }
+            if not slurm_jobs:
+                raise ValueError(f"No SLURM jobs found for invocation {job_id}")
+
+            # OPTIMIZATION: Get status AND kill in ONE SSH call
+            first_job = next(iter(slurm_jobs.values()))
+            slurm_job_ids = [
+                jdata.data.get("slurm_job_id") for jdata in slurm_jobs.values()
+            ]
+
+            statuses_map, kill_result = _query_and_kill_slurm_jobs(
+                slurm_job_ids=slurm_job_ids,
+                username=first_job.data.get("username"),
+                hostname=first_job.data.get("hostname"),
+                socket=first_job.data.get("socket"),
+            )
+
+            # Mark all jobs as killed
+            for job_data in slurm_jobs.values():
+                job_data.data["killed"] = True
+                db.write_job(job_data)
+
+            if kill_result.returncode != 0:
+                # Use pre-fetched statuses for better error message
+                failed_jobs = []
+                for jid, jdata in slurm_jobs.items():
+                    slurm_id = jdata.data.get("slurm_job_id")
+                    if slurm_id in statuses_map:
+                        status = statuses_map[slurm_id]
+                        if status == "COMPLETED":
+                            failed_jobs.append(
+                                f"{jid} (already completed successfully)"
+                            )
+                        elif status == "FAILED":
+                            failed_jobs.append(f"{jid} (already failed)")
+                        else:
+                            failed_jobs.append(jid)
+                    else:
+                        failed_jobs.append(jid)
+
+                if failed_jobs:
+                    raise RuntimeError(
+                        f"Failed to kill some jobs: {', '.join(failed_jobs[:5])}"
+                    )
+                else:
+                    raise RuntimeError(
+                        f"Failed to kill some jobs in invocation {job_id}"
+                    )
+
+            return
+
+        # Single job kill
         job_data = db.get_job(job_id)
 
         if job_data is None:
@@ -419,9 +481,13 @@ class SlurmExecutor(BaseExecutor):
             job_data.data["killed"] = True
             db.write_job(job_data)
         else:
-            raise RuntimeError(
-                f"Could not find or kill job {job_id} (slurm_job_id: {job_data.data.get('slurm_job_id')})"
+            # Use common helper to get informative error message based on job status
+            error_msg = BaseExecutor.get_kill_failure_message(
+                SlurmExecutor,
+                job_id,
+                f"slurm_job_id: {job_data.data.get('slurm_job_id')}",
             )
+            raise RuntimeError(error_msg)
 
 
 def _create_slurm_sbatch_script(
@@ -908,6 +974,53 @@ def _kill_slurm_job(
             )
         )
     return completed_process
+
+
+def _query_and_kill_slurm_jobs(
+    slurm_job_ids: List[str], username: str, hostname: str, socket: str | None
+) -> tuple[Dict[str, str], subprocess.CompletedProcess]:
+    """Query status AND kill SLURM jobs in ONE SSH call for maximum efficiency.
+
+    Args:
+        slurm_job_ids: List of SLURM job IDs to query and kill.
+        username: SSH username.
+        hostname: SSH hostname.
+        socket: control socket location or None
+
+    Returns:
+        Tuple of (statuses_dict, kill_result) where statuses_dict maps job_id to status string
+    """
+    if len(slurm_job_ids) == 0:
+        return {}, subprocess.CompletedProcess(args=[], returncode=0)
+
+    # Combine both commands in one SSH call: query THEN kill
+    jobs_str = ",".join(slurm_job_ids)
+    combined_command = (
+        f"sacct -j {jobs_str} --noheader --format=JobID,State,Elapsed,ExitCode "
+        f"--parsable2 2>/dev/null; "
+        f"scancel {jobs_str}"
+    )
+
+    ssh_command = ["ssh"]
+    if socket is not None:
+        ssh_command.append(f"-S {socket}")
+    ssh_command.append(f"{username}@{hostname}")
+    ssh_command.append(combined_command)
+    ssh_command = " ".join(ssh_command)
+
+    completed_process = subprocess.run(
+        args=shlex.split(ssh_command), capture_output=True
+    )
+
+    # Parse the sacct output (before scancel runs)
+    sacct_output = completed_process.stdout.decode("utf-8")
+    sacct_output_lines = sacct_output.strip().split("\n")
+    slurm_jobs_status = {}
+    for slurm_job_id in slurm_job_ids:
+        slurm_job_status = _parse_slurm_job_status(slurm_job_id, sacct_output_lines)
+        slurm_jobs_status[slurm_job_id] = slurm_job_status
+
+    return slurm_jobs_status, completed_process
 
 
 def _parse_slurm_job_status(slurm_job_id: str, sacct_output_lines: List[str]) -> str:

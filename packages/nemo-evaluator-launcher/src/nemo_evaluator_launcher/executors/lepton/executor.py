@@ -703,17 +703,23 @@ class LeptonExecutor(BaseExecutor):
 
         # Cancel the specific Lepton job
         lepton_job_name = job_data.data.get("lepton_job_name")
-        if lepton_job_name:
-            success = delete_lepton_job(lepton_job_name)
-            if success:
-                print(f"✅ Cancelled Lepton job: {lepton_job_name}")
-            else:
-                print(f"⚠️  Failed to cancel Lepton job: {lepton_job_name}")
 
-        # Mark job as killed in database
-        job_data.data["status"] = "killed"
-        job_data.data["killed_time"] = time.time()
-        db.write_job(job_data)
+        if lepton_job_name:
+            cancel_success = delete_lepton_job(lepton_job_name)
+            if cancel_success:
+                print(f"✅ Cancelled Lepton job: {lepton_job_name}")
+                # Mark job as killed in database
+                job_data.data["status"] = "killed"
+                job_data.data["killed_time"] = time.time()
+                db.write_job(job_data)
+            else:
+                # Use common helper to get informative error message based on job status
+                error_msg = BaseExecutor.get_kill_failure_message(
+                    LeptonExecutor, job_id, f"lepton_job: {lepton_job_name}"
+                )
+                raise RuntimeError(error_msg)
+        else:
+            raise ValueError(f"No Lepton job name found for job {job_id}")
 
         print(f"🛑 Killed Lepton job {job_id}")
 

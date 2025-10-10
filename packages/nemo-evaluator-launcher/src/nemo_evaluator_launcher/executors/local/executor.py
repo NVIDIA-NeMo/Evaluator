@@ -415,16 +415,65 @@ class LocalExecutor(BaseExecutor):
 
     @staticmethod
     def kill_job(job_id: str) -> None:
-        """Kill a local job by stopping its Docker container and related processes.
+        """Kill a local job or all jobs in an invocation.
 
         Args:
-            job_id: The job ID to kill.
+            job_id: The job ID (e.g., abc123.0) or invocation ID (e.g., abc123) to kill.
 
         Raises:
             ValueError: If job is not found or invalid.
             RuntimeError: If Docker container cannot be stopped.
         """
         db = ExecutionDB()
+
+        # Check if this is an invocation ID (no dot) - batch kill all jobs
+        if "." not in job_id:
+            jobs = db.get_jobs(job_id)
+            if not jobs:
+                raise ValueError(f"No jobs found for invocation {job_id}")
+
+            # Filter for local jobs only
+            local_jobs = {
+                jid: jdata for jid, jdata in jobs.items() if jdata.executor == "local"
+            }
+            if not local_jobs:
+                raise ValueError(f"No local jobs found for invocation {job_id}")
+
+            # Batch kill all containers and processes
+            container_names = [
+                jdata.data.get("container")
+                for jdata in local_jobs.values()
+                if jdata.data.get("container")
+            ]
+
+            if container_names:
+                # Kill all containers in one command
+                containers_str = " ".join(container_names)
+                subprocess.run(
+                    shlex.split(f"docker stop {containers_str}"),
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+
+                # Kill all docker processes in one command
+                for container in container_names:
+                    subprocess.run(
+                        shlex.split(f"pkill -f 'docker run.*{container}'"),
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+
+            # Mark all jobs as killed and add to killed_jobs.txt
+            for jid, job_data in local_jobs.items():
+                job_data.data["killed"] = True
+                db.write_job(job_data)
+                LocalExecutor._add_to_killed_jobs(job_id, jid)
+
+            return
+
+        # Single job kill
         job_data = db.get_job(job_id)
 
         if job_data is None:
@@ -463,14 +512,54 @@ class LocalExecutor(BaseExecutor):
         if result.returncode == 0:
             killed_something = True
 
-        # Mark job as killed in database if we killed something
+        # If we successfully killed something, mark as killed
         if killed_something:
             job_data.data["killed"] = True
             db.write_job(job_data)
-        else:
-            raise RuntimeError(
-                f"Could not find or kill job {job_id} (container: {container_name})"
-            )
+            LocalExecutor._add_to_killed_jobs(job_data.invocation_id, job_id)
+            return
+
+        # If nothing was killed, check if this is a pending job
+        status_list = LocalExecutor.get_status(job_id)
+        if status_list and status_list[0].state == ExecutionState.PENDING:
+            # For pending jobs, mark as killed even though there's nothing to kill yet
+            job_data.data["killed"] = True
+            db.write_job(job_data)
+            LocalExecutor._add_to_killed_jobs(job_data.invocation_id, job_id)
+            return
+
+        # Use common helper to get informative error message based on job status
+        error_msg = BaseExecutor.get_kill_failure_message(
+            LocalExecutor, job_id, f"container: {container_name}"
+        )
+        raise RuntimeError(error_msg)
+
+    @staticmethod
+    def _add_to_killed_jobs(invocation_id: str, job_id: str) -> None:
+        """Add a job ID to the killed jobs file for this invocation.
+
+        Args:
+            invocation_id: The invocation ID.
+            job_id: The job ID to mark as killed.
+        """
+        db = ExecutionDB()
+        jobs = db.get_jobs(invocation_id)
+        if not jobs:
+            return
+
+        # Get invocation output directory from any job's output_dir
+        first_job_data = next(iter(jobs.values()))
+        job_output_dir = pathlib.Path(first_job_data.data.get("output_dir", ""))
+        if not job_output_dir.exists():
+            return
+
+        # Invocation dir is parent of job output dir
+        invocation_dir = job_output_dir.parent
+        killed_jobs_file = invocation_dir / "killed_jobs.txt"
+
+        # Append job_id to file
+        with open(killed_jobs_file, "a") as f:
+            f.write(f"{job_id}\n")
 
 
 def _get_progress(artifacts_dir: pathlib.Path) -> Optional[float]:
