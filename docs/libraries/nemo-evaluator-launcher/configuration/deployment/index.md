@@ -67,5 +67,7 @@ deployment:
 vLLM <vllm>
 SGLang <sglang>
 NIM <nim>
+TensorRT-LLM <trtllm>
+Generic <generic>
 None (External) <none>
 ```

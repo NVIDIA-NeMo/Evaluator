@@ -1,4 +1,4 @@
-(deployment-gemeric)=
+(deployment-generic)=
 
 # Generic Deployment
 
