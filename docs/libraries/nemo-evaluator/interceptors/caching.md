@@ -10,31 +10,6 @@ The `CachingInterceptor` implements a sophisticated caching system that can stor
 
 ## Configuration
 
-### Interceptor Configuration
-
-Configure the caching interceptor through the interceptors list in AdapterConfig:
-
-```python
-from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
-
-adapter_config = AdapterConfig(
-    interceptors=[
-        InterceptorConfig(
-            name="caching",
-            enabled=True,
-            config={
-                "cache_dir": "./evaluation_cache",
-                "reuse_cached_responses": True,
-                "save_requests": True,
-                "save_responses": True,
-                "max_saved_requests": 1000,
-                "max_saved_responses": 1000
-            }
-        )
-    ]
-)
-```
-
 ### CLI Configuration
 
 ```bash
@@ -57,6 +32,9 @@ target:
             save_responses: true
             max_saved_requests: 1000
             max_saved_responses: 1000
+        - name: "endpoint"
+          enabled: true
+          config: {}
 ```
 
 ## Configuration Options
