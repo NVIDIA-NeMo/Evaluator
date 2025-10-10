@@ -1,15 +1,8 @@
 # Request Logging Interceptor
 
-Captures and logs incoming API requests for debugging, analysis, and audit purposes. This interceptor is essential for troubleshooting evaluation issues and understanding request patterns.
-
 ## Overview
 
-The `RequestLoggingInterceptor` 
-
-- Logs request payloads and metadata
-- Configurable request limits
-- Logging of failed requests
-
+The `RequestLoggingInterceptor` captures and logs incoming API requests for debugging, analysis, and audit purposes. This interceptor is essential for troubleshooting evaluation issues and understanding request patterns.
 
 ## Configuration
 

@@ -2,11 +2,9 @@
 
 # Caching
 
-The caching interceptor stores and retrieves responses to improve performance, reduce API costs, and enable reproducible evaluations.
-
 ## Overview
 
-The `CachingInterceptor` implements a sophisticated caching system that can store responses based on request content, enabling faster re-runs of evaluations and reducing costs when using paid APIs.
+The `CachingInterceptor` implements aREHRJ sophisticated caching system that can store responses based on request content, enabling faster re-runs of evaluations and reducing costs when using paid APIs.
 
 ## Configuration
 
