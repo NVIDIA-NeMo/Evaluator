@@ -124,7 +124,7 @@ export_results(
 
 :::
 
-::{tab-item} Manual Export (CLI)
+:::{tab-item} Manual Export (CLI)
 
 Export results after evaluation completes:
 
