@@ -8,7 +8,7 @@ The `framework` section contains basic identification and metadata for your eval
 
 ```yaml
 framework:
-  name: example-evaluation-framework          # Internal framework identifier
+  name: example-evaluation-framework         # Internal framework identifier
   pkg_name: example_evaluation_framework     # Python package name
   full_name: Example Evaluation Framework    # Human-readable display name
   description: A comprehensive example...    # Detailed description

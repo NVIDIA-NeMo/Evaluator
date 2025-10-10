@@ -6,7 +6,7 @@ export NGC_API_KEY="${NGC_API_KEY:-nvapi-your-key-here}"
 
 # [snippet-start]
 # Run a quick test evaluation with limited samples
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -19,6 +19,6 @@ nv-eval run \
 # Note: Replace <invocation_id> with actual ID from output
 echo ""
 echo "Evaluation started! Next steps:"
-echo "1. Monitor progress: nv-eval status <invocation_id>"
+echo "1. Monitor progress: nemo-evaluator-launcher status <invocation_id>"
 echo "2. View results: ls -la ./results/<invocation_id>/"
 

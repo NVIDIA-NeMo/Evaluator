@@ -21,7 +21,7 @@ Local execution:
 
 ```bash
 # Run evaluation against existing endpoint
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct
 ```
@@ -118,24 +118,75 @@ evaluation:
 
 For detailed adapter configuration options, refer to {ref}`adapters`.
 
+
+### Advanced settings
+
+If you are deploying the model locally with Docker, you can use a dedicated docker network.
+This will provide a secure connetion between deployment and evaluation docker containers.
+
+```shell
+docker network create my-custom-network
+
+docker run --gpus all --network my-custom-network --name my-phi-container vllm/vllm-openai:latest \
+    --model microsoft/Phi-4-mini-instruct
+```
+
+Then use the same network in the evaluator config:
+
+```yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: my_phi_test
+  extra_docker_args: "--network my-custom-network"
+
+target:
+  api_endpoint:
+    model_id: microsoft/Phi-4-mini-instruct
+    url: http://my-phi-container:8000/v1/chat/completions
+    api_key_name: null
+
+evaluation:
+  tasks:
+    - name: simple_evals.mmlu_pro
+      overrides:
+        config.params.limit_samples: 10 # TEST ONLY: Limits to 10 samples for quick testing
+        config.params.parallelism: 1
+```
+
+Alternatively you can expose ports and use the host network:
+
+```shell
+docker run --gpus all -p 8000:8000 vllm/vllm-openai:latest \
+    --model microsoft/Phi-4-mini-instruct
+```
+
+```yaml
+execution:
+  extra_docker_args: "--network host"
+```
+
 ## Command-Line Usage
 
 ### Basic Commands
 
 ```bash
 # Run evaluation
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct
 
 # Dry run to preview configuration
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     --dry-run
 
 # Override endpoint URL
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=http://localhost:8080/v1/chat/completions
@@ -145,19 +196,19 @@ nv-eval run \
 
 ```bash
 # Check job status
-nv-eval status <job_id>
+nemo-evaluator-launcher status <job_id>
 
 # Check entire invocation
-nv-eval status <invocation_id>
+nemo-evaluator-launcher status <invocation_id>
 
 # Kill running job
-nv-eval kill <job_id>
+nemo-evaluator-launcher kill <job_id>
 
 # List available tasks
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 
 # List recent runs
-nv-eval ls runs
+nemo-evaluator-launcher ls runs
 ```
 
 ## Requirements
@@ -227,7 +278,7 @@ Check logs in the output directory:
 tail -f <output_dir>/<task_name>/logs/stdout.log
 
 # Kill and restart if needed
-nv-eval kill <job_id>
+nemo-evaluator-launcher kill <job_id>
 ```
 
 **Tasks fail with errors:**
@@ -240,7 +291,7 @@ nv-eval kill <job_id>
 
 ```bash
 # Validate configuration before running
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     --dry-run

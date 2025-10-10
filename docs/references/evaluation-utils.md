@@ -74,10 +74,10 @@ To filter tasks using the CLI:
 
 ```bash
 # List all tasks
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 
 # Filter for specific tasks
-nv-eval ls tasks | grep mmlu
+nemo-evaluator-launcher ls tasks | grep mmlu
 ```
 
 #### Check Installation Status
@@ -212,7 +212,7 @@ When a task name is provided by more than one framework (for example, both `lm-e
 
 ```bash
 # Use explicit framework.task format in your configuration overrides
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["lm-evaluation-harness.mmlu"]'
 ```
 
@@ -235,13 +235,13 @@ tasks = get_tasks_list()
 
 ```bash
 # List all tasks
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 
 # List recent evaluation runs
-nv-eval ls runs
+nemo-evaluator-launcher ls runs
 
 # Get detailed help
-nv-eval --help
+nemo-evaluator-launcher --help
 ```
 
 ---

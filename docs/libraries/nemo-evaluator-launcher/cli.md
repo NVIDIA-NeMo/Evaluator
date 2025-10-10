@@ -1,15 +1,15 @@
-# NeMo Evaluator Launcher CLI Reference (nv-eval)
+# NeMo Evaluator Launcher CLI Reference (nemo-evaluator-launcher)
 
 The NeMo Evaluator Launcher provides a command-line interface for running evaluations, managing jobs, and exporting results. The CLI is available through two commands:
 
-- `nv-eval` (short alias, recommended)
+- `nemo-evaluator-launcher` (short alias, recommended)
 - `nemo-evaluator-launcher` (full command name)
 
 ## Global Options
 
 ```bash
-nv-eval --help                    # Show help
-nv-eval --version                 # Show version information
+nemo-evaluator-launcher --help                    # Show help
+nemo-evaluator-launcher --version                 # Show version information
 ```
 
 ## Commands Overview
@@ -42,10 +42,10 @@ Execute evaluations using Hydra configuration management.
 
 ```bash
 # Using example configurations
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
 
 # With output directory override
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
   -o execution.output_dir=/path/to/results
 ```
 
@@ -53,10 +53,10 @@ nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
 
 ```bash
 # Using custom config directory
-nv-eval run --config-dir my_configs --config-name my_evaluation
+nemo-evaluator-launcher run --config-dir my_configs --config-name my_evaluation
 
 # Multiple overrides (Hydra syntax)
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
   -o execution.output_dir=results \
   -o target.api_endpoint.model_id=my-model \
   -o +config.params.limit_samples=10
@@ -67,7 +67,7 @@ nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
 Preview the full resolved configuration without executing:
 
 ```bash
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct --dry-run
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct --dry-run
 ```
 
 ### Test Runs
@@ -75,7 +75,7 @@ nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct --dr
 Run with limited samples for testing:
 
 ```bash
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
   -o +config.params.limit_samples=10
 ```
 
@@ -84,14 +84,14 @@ nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
 **Local Execution:**
 
 ```bash
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
   -o execution.output_dir=./local_results
 ```
 
 **Slurm Execution:**
 
 ```bash
-nv-eval run --config-dir examples --config-name slurm_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct \
   -o execution.output_dir=/shared/results
 ```
 
@@ -99,10 +99,10 @@ nv-eval run --config-dir examples --config-name slurm_llama_3_1_8b_instruct \
 
 ```bash
 # With model deployment
-nv-eval run --config-dir examples --config-name lepton_nim_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir examples --config-name lepton_nim_llama_3_1_8b_instruct
 
 # Using existing endpoint
-nv-eval run --config-dir examples --config-name lepton_none_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir examples --config-name lepton_none_llama_3_1_8b_instruct
 ```
 
 ## status - Check Job Status
@@ -113,13 +113,13 @@ Check the status of running or completed evaluations.
 
 ```bash
 # Check status of specific invocation (returns all jobs in that invocation)
-nv-eval status abc12345
+nemo-evaluator-launcher status abc12345
 
 # Check status of specific job
-nv-eval status abc12345.0
+nemo-evaluator-launcher status abc12345.0
 
 # Output as JSON
-nv-eval status abc12345 --json
+nemo-evaluator-launcher status abc12345 --json
 ```
 
 ### Output Formats
@@ -165,10 +165,10 @@ Stop running evaluations.
 
 ```bash
 # Kill entire invocation
-nv-eval kill abc12345
+nemo-evaluator-launcher kill abc12345
 
 # Kill specific job
-nv-eval kill abc12345.0
+nemo-evaluator-launcher kill abc12345.0
 ```
 
 The command outputs JSON with the results of the kill operation.
@@ -181,10 +181,10 @@ List available tasks or runs.
 
 ```bash
 # List all available evaluation tasks
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 
 # List tasks with JSON output
-nv-eval ls tasks --json
+nemo-evaluator-launcher ls tasks --json
 ```
 
 **Output Format:**
@@ -210,17 +210,17 @@ winogrande             completions
 
 ```bash
 # List recent evaluation runs
-nv-eval ls runs
+nemo-evaluator-launcher ls runs
 
 # Limit number of results
-nv-eval ls runs --limit 10
+nemo-evaluator-launcher ls runs --limit 10
 
 # Filter by executor
-nv-eval ls runs --executor local
+nemo-evaluator-launcher ls runs --executor local
 
 # Filter by date
-nv-eval ls runs --since "2024-01-01"
-nv-eval ls runs --since "2024-01-01T12:00:00"
+nemo-evaluator-launcher ls runs --since "2024-01-01"
+nemo-evaluator-launcher ls runs --since "2024-01-01T12:00:00"
 ```
 
 **Output Format:**
@@ -239,47 +239,47 @@ Export evaluation results to various destinations.
 
 ```bash
 # Export to local files (JSON format)
-nv-eval export abc12345 --dest local --format json
+nemo-evaluator-launcher export abc12345 --dest local --format json
 
 # Export to specific directory
-nv-eval export abc12345 --dest local --format json --output-dir ./results
+nemo-evaluator-launcher export abc12345 --dest local --format json --output-dir ./results
 
 # Specify custom filename
-nv-eval export abc12345 --dest local --format json --output-filename results.json
+nemo-evaluator-launcher export abc12345 --dest local --format json --output-filename results.json
 ```
 
 ### Export Options
 
 ```bash
 # Available destinations
-nv-eval export abc12345 --dest local      # Local file system
-nv-eval export abc12345 --dest mlflow     # MLflow tracking
-nv-eval export abc12345 --dest wandb      # Weights & Biases
-nv-eval export abc12345 --dest gsheets    # Google Sheets
-nv-eval export abc12345 --dest jet        # JET (internal)
+nemo-evaluator-launcher export abc12345 --dest local      # Local file system
+nemo-evaluator-launcher export abc12345 --dest mlflow     # MLflow tracking
+nemo-evaluator-launcher export abc12345 --dest wandb      # Weights & Biases
+nemo-evaluator-launcher export abc12345 --dest gsheets    # Google Sheets
+nemo-evaluator-launcher export abc12345 --dest jet        # JET (internal)
 
 # Format options (for local destination only)
-nv-eval export abc12345 --dest local --format json
-nv-eval export abc12345 --dest local --format csv
+nemo-evaluator-launcher export abc12345 --dest local --format json
+nemo-evaluator-launcher export abc12345 --dest local --format csv
 
 # Include logs when exporting
-nv-eval export abc12345 --dest local --format json --copy-logs
+nemo-evaluator-launcher export abc12345 --dest local --format json --copy-logs
 
 # Filter metrics by name
-nv-eval export abc12345 --dest local --format json --log-metrics score --log-metrics accuracy
+nemo-evaluator-launcher export abc12345 --dest local --format json --log-metrics score --log-metrics accuracy
 
 # Copy all artifacts (not just required ones)
-nv-eval export abc12345 --dest local --only-required False
+nemo-evaluator-launcher export abc12345 --dest local --only-required False
 ```
 
 ### Exporting Multiple Invocations
 
 ```bash
 # Export several runs together
-nv-eval export abc12345 def67890 ghi11111 --dest local --format json
+nemo-evaluator-launcher export abc12345 def67890 ghi11111 --dest local --format json
 
 # Export several runs with custom output
-nv-eval export abc12345 def67890 --dest local --format csv \
+nemo-evaluator-launcher export abc12345 def67890 --dest local --format csv \
   --output-dir ./all-results --output-filename combined.csv
 ```
 
@@ -293,10 +293,10 @@ Display version and build information.
 
 ```bash
 # Show version
-nv-eval version
+nemo-evaluator-launcher version
 
 # Alternative
-nv-eval --version
+nemo-evaluator-launcher --version
 ```
 
 ## Environment Variables
@@ -331,7 +331,7 @@ export HF_TOKEN="hf_..."              # For Hugging Face datasets
 export API_KEY="nvapi-..."            # For NVIDIA API endpoints
 
 # Run evaluation
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
 ```
 
 The specific environment variables required depend on the tasks and endpoints you're using. Refer to the example configuration files for details on which variables are needed.
@@ -356,7 +356,7 @@ cp examples/local_llama_3_1_8b_instruct.yaml my_config.yaml
 
 # Edit the configuration as needed
 # Then run with your config
-nv-eval run --config-dir . --config-name my_config
+nemo-evaluator-launcher run --config-dir . --config-name my_config
 ```
 
 Refer to the {ref}`configuration documentation <configuration-overview>` for detailed information on all available configuration options.
@@ -369,7 +369,7 @@ Refer to the {ref}`configuration documentation <configuration-overview>` for det
 
 ```bash
 # Validate configuration without running
-nv-eval run --config-dir examples --config-name my_config --dry-run
+nemo-evaluator-launcher run --config-dir examples --config-name my_config --dry-run
 ```
 
 **Permission Errors:**
@@ -379,7 +379,7 @@ nv-eval run --config-dir examples --config-name my_config --dry-run
 ls -la examples/my_config.yaml
 
 # Use absolute paths
-nv-eval run --config-dir /absolute/path/to/configs --config-name my_config
+nemo-evaluator-launcher run --config-dir /absolute/path/to/configs --config-name my_config
 ```
 
 **Network Issues:**
@@ -396,11 +396,11 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 ```bash
 # Set log level to DEBUG for detailed output
 export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
 
 # Or use single-letter shorthand
 export NEMO_EVALUATOR_LOG_LEVEL=D
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
 
 # Logs are written to ~/.nemo-evaluator/logs/
 ```
@@ -409,12 +409,12 @@ nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct
 
 ```bash
 # Command-specific help
-nv-eval run --help
-nv-eval export --help
-nv-eval ls --help
+nemo-evaluator-launcher run --help
+nemo-evaluator-launcher export --help
+nemo-evaluator-launcher ls --help
 
 # General help
-nv-eval --help
+nemo-evaluator-launcher --help
 ```
 
 ## See Also

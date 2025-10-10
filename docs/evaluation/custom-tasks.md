@@ -47,7 +47,7 @@ Custom tasks require explicit harness specification using the format:
 - `"bigcode-evaluation-harness.humaneval"` - BigCode harness task
 
 :::{note}
-These examples demonstrate accessing tasks from upstream evaluation harnesses. Pre-configured tasks with optimized settings are available through the launcher CLI (`nv-eval ls tasks`). Custom task configuration is useful when you need non-standard parameters or when evaluating tasks not yet integrated into the pre-configured catalog.
+These examples demonstrate accessing tasks from upstream evaluation harnesses. Pre-configured tasks with optimized settings are available through the launcher CLI (`nemo-evaluator-launcher ls tasks`). Custom task configuration is useful when you need non-standard parameters or when evaluating tasks not yet integrated into the pre-configured catalog.
 :::
 
 ## lambada_openai (Log-Probability Task)

@@ -21,19 +21,26 @@ Configure MLflow export to run automatically after evaluation completes. Add MLf
 execution:
   auto_export:
     destinations: ["mlflow"]
-    configs:
-      mlflow:
-        tracking_uri: "http://mlflow.example.com:5000"
-        experiment_name: "llm-evaluation"
-        description: "Llama 3.1 8B evaluation"
-        log_metrics: ["accuracy", "f1"]
-        tags:
-          model_family: "llama"
-          version: "3.1"
-        extra_metadata:
-          hardware: "A100"
-          batch_size: 32
-        log_artifacts: true
+  
+  # Export-related env vars (placeholders expanded at runtime)
+  env_vars:
+    export:
+      MLFLOW_TRACKING_URI: MLFLOW_TRACKING_URI # or set tracking_uri under export.mflow
+      PATH: "/path/to/conda/env/bin:$PATH"
+
+export:
+  mlflow:
+    tracking_uri: "http://mlflow.example.com:5000"
+    experiment_name: "llm-evaluation"
+    description: "Llama 3.1 8B evaluation"
+    log_metrics: ["accuracy", "f1"]
+    tags:
+      model_family: "llama"
+      version: "3.1"
+    extra_metadata:
+      hardware: "A100"
+      batch_size: 32
+    log_artifacts: true
 
 target:
   api_endpoint:
@@ -117,6 +124,26 @@ export_results(
 
 :::
 
+:::{tab-item} Manual Export (CLI)
+
+Export results after evaluation completes:
+
+```shell
+# Default export
+nemo-evaluator-launcher export 8abcd123 --dest mlflow
+
+# With overrides
+nemo-evaluator-launcher export 8abcd123 --dest mlflow \
+  -o export.mlflow.tracking_uri=http://mlflow:5000 \
+  -o export.mlflow.experiment_name=my-exp
+
+# With metric filtering
+nemo-evaluator-launcher export 8abcd123 --dest mlflow --log-metrics accuracy pass@1
+```
+
+:::
+
+
 ::::
 
 ## Configuration Parameters
@@ -132,7 +159,7 @@ export_results(
 * - `tracking_uri`
   - str
   - MLflow tracking server URI
-  - Required
+  - Required if env var `MLFLOW_TRACKING_URI` is not set
 * - `experiment_name`
   - str
   - MLflow experiment name
@@ -155,7 +182,7 @@ export_results(
   - None
 * - `skip_existing`
   - bool
-  - Skip export if run exists for invocation
+  - Skip export if run exists for invocation. Useful to avoid creating duplicate runs when re-exporting.
   - `false`
 * - `log_metrics`
   - list[str]
@@ -164,5 +191,13 @@ export_results(
 * - `log_artifacts`
   - bool
   - Upload evaluation artifacts
+  - `true`
+* - `log_logs`
+  - bool
+  - Upload execution logs
+  - `false`
+* - `only_required`
+  - bool
+  - Copy only required artifacts
   - `true`
 ```

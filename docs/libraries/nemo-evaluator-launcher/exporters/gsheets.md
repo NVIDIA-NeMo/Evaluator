@@ -19,11 +19,12 @@ Export results from a specific evaluation run to Google Sheets:
 
 ```bash
 # Export results using default spreadsheet name
-nv-eval export 8abcd123 --dest gsheets
+nemo-evaluator-launcher export 8abcd123 --dest gsheets
 
-# Export with custom spreadsheet name and service account
-nv-eval export 8abcd123 --dest gsheets \
-  --config '{"spreadsheet_name": "My Evaluation Results", "service_account_file": "/path/to/service-account.json"}'
+# Export with custom spreadsheet name and ID
+nemo-evaluator-launcher export 8abcd123 --dest gsheets \
+  -o export.gsheets.spreadsheet_name="My Results" \
+  -o export.gsheets.spreadsheet_id=1ABC...XYZ
 ```
 
 :::
@@ -58,6 +59,28 @@ export_results(
 
 :::
 
+:::{tab-item} YAML Config
+
+Configure Google Sheets export in your evaluation YAML file for automatic export on completion:
+
+```yaml
+execution:
+  auto_export:
+    destinations: ["gsheets"]
+  
+  # Export-related env vars (optional for GSheets)
+  env_vars:
+    export:
+      PATH: "/path/to/conda/env/bin:$PATH"
+
+export:
+  gsheets:
+    spreadsheet_name: "LLM Evaluation Results"
+    spreadsheet_id: "1ABC...XYZ"  # optional: use existing sheet
+    service_account_file: "/path/to/service-account.json"
+    log_metrics: ["accuracy", "pass@1"]
+```
+
 ::::
 
 ## Key Configuration
@@ -76,8 +99,12 @@ export_results(
   - Uses default credentials if omitted
 * - `spreadsheet_name`
   - str, optional
-  - Target spreadsheet name
+  - Target spreadsheet name. Used to open existing sheets or name new ones.
   - Default: "NeMo Evaluator Launcher Results"
+* - `spreadsheet_id`
+  - str, optional
+  - Target spreadsheet ID. Find it in the spreadsheet URL: `https://docs.google.com/spreadsheets/d/<spreadsheet_id>/edit`
+  - Required if your service account can't create sheets due to quota limits.
 * - `log_metrics`
   - list[str], optional
   - Filter metrics to log

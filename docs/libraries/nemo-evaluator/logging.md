@@ -60,7 +60,7 @@ Specify a custom log directory using the `NEMO_EVALUATOR_LOG_DIR` environment va
 export NEMO_EVALUATOR_LOG_DIR=/path/to/logs/
 
 # Run evaluation (logs will be written to the specified directory)
-eval-factory run_eval ...
+nemo-evaluator run_eval ...
 ```
 
 If `NEMO_EVALUATOR_LOG_DIR` is not set, logs appear in the console (stderr) without file output.
@@ -119,7 +119,7 @@ export LOG_LEVEL=DEBUG
 export LOG_LEVEL=DEBUG
 
 # Run evaluation with logging
-eval-factory run_eval --eval_type mmlu_pro --model_id gpt-4 ...
+nemo-evaluator run_eval --eval_type mmlu_pro --model_id gpt-4 ...
 ```
 
 ### Custom log directory
@@ -129,7 +129,7 @@ eval-factory run_eval --eval_type mmlu_pro --model_id gpt-4 ...
 export NEMO_EVALUATOR_LOG_DIR=./my_logs/
 
 # Run evaluation with logging to custom directory
-eval-factory run_eval --eval_type mmlu_pro ...
+nemo-evaluator run_eval --eval_type mmlu_pro ...
 ```
 
 ### Environment verification

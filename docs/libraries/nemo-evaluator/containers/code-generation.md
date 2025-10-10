@@ -37,59 +37,6 @@ docker pull nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_com
 
 ---
 
-## BFCL Container
-
-**NGC Catalog**: [bfcl](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl)
-
-Container for Berkeley Function-Calling Leaderboard evaluation framework.
-
-**Use Cases:**
-- Tool usage evaluation
-- Multi-turn interactions
-- Native support for function/tool calling
-- Function calling evaluation
-
-**Pull Command:**
-```bash
-docker pull nvcr.io/nvidia/eval-factory/bfcl:{{ docker_compose_latest }}
-```
-
-**Default Parameters:**
-
-| Parameter | Value |
-|-----------|-------|
-| `limit_samples` | `None` |
-| `parallelism` | `10` |
-| `native_calling` | `False` |
-| `custom_dataset` | `{'path': None, 'format': None, 'data_template_path': None}` |
-
----
-
-## ToolTalk Container
-
-**NGC Catalog**: [tooltalk](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk)
-
-Container for evaluating AI models' ability to use tools and APIs effectively.
-
-**Use Cases:**
-- Tool usage evaluation
-- API interaction assessment
-- Function calling evaluation
-- External tool integration testing
-
-**Pull Command:**
-```bash
-docker pull nvcr.io/nvidia/eval-factory/tooltalk:{{ docker_compose_latest }}
-```
-
-**Default Parameters:**
-
-| Parameter | Value |
-|-----------|-------|
-| `limit_samples` | `None` |
-
----
-
 ## LiveCodeBench Container
 
 **NGC Catalog**: [livecodebench](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/livecodebench)

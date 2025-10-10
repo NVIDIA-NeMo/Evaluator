@@ -86,13 +86,13 @@ curl -X POST "https://integrate.api.nvidia.com/v1/chat/completions" \
     }'
 
 # 2. Run a dry-run to validate configuration
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     --dry-run
 
 # 3. Run a minimal test with very few samples
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o +config.params.limit_samples=1 \
@@ -134,7 +134,7 @@ docker pull nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
 export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
 
 # Check available evaluation types
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 ```
 :::
 
@@ -149,7 +149,7 @@ find ./results -name "*.yml" -type f
 cat ./results/<invocation_id>/<task_name>/artifacts/results.yml
 
 # Or export and view processed results
-nv-eval export <invocation_id> --dest local --format json
+nemo-evaluator-launcher export <invocation_id> --dest local --format json
 cat ./results/<invocation_id>/processed_results.json
 ```
 :::
@@ -167,10 +167,10 @@ After completing your quickstart:
 
 ```bash
 # List all available tasks
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 
 # Run with limited samples for quick testing
-nv-eval run --config-dir examples --config-name local_limit_samples
+nemo-evaluator-launcher run --config-dir examples --config-name local_limit_samples
 ```
 :::
 
@@ -179,16 +179,16 @@ nv-eval run --config-dir examples --config-name local_limit_samples
 
 ```bash
 # Export to MLflow
-nv-eval export <invocation_id> --dest mlflow
+nemo-evaluator-launcher export <invocation_id> --dest mlflow
 
 # Export to Weights & Biases  
-nv-eval export <invocation_id> --dest wandb
+nemo-evaluator-launcher export <invocation_id> --dest wandb
 
 # Export to Google Sheets
-nv-eval export <invocation_id> --dest gsheets
+nemo-evaluator-launcher export <invocation_id> --dest gsheets
 
 # Export to local files
-nv-eval export <invocation_id> --dest local --format json
+nemo-evaluator-launcher export <invocation_id> --dest local --format json
 ```
 :::
 
@@ -197,10 +197,10 @@ nv-eval export <invocation_id> --dest local --format json
 
 ```bash
 # Run on Slurm cluster
-nv-eval run --config-dir examples --config-name slurm_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct
 
 # Run on Lepton AI
-nv-eval run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruct
 ```
 :::
 
@@ -210,10 +210,10 @@ nv-eval run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruc
 
 | Task | Command |
 |------|---------|
-| List benchmarks | `nv-eval ls tasks` |
-| Run evaluation | `nv-eval run --config-dir examples --config-name <config>` |
-| Check status | `nv-eval status <invocation_id>` |
-| Export results | `nv-eval export <invocation_id> --dest local --format json` |
+| List benchmarks | `nemo-evaluator-launcher ls tasks` |
+| Run evaluation | `nemo-evaluator-launcher run --config-dir examples --config-name <config>` |
+| Check status | `nemo-evaluator-launcher status <invocation_id>` |
+| Export results | `nemo-evaluator-launcher export <invocation_id> --dest local --format json` |
 | Dry run | Add `--dry-run` to any run command |
 | Test with limited samples | Add `-o +config.params.limit_samples=3` |
 

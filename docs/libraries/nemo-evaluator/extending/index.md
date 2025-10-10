@@ -38,7 +38,7 @@ The primary extension mechanism uses YAML configuration files to define:
 
 ## Start with Extensions
 
-**New to FDFs?** Start with the {ref}`create-framework-definition-file` tutorial for a hands-on walkthrough.
+<!-- **New to FDFs?** Start with the {ref}`create-framework-definition-file` tutorial for a hands-on walkthrough. -->
 
 **Building a production framework?** Follow these steps:
 

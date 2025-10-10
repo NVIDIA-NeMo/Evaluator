@@ -8,16 +8,16 @@ The `evaluations` section defines the specific evaluation types available in you
 
 ```yaml
 evaluations:
-  - name: example_task_1                    # Evaluation identifier
+  - name: example_task_1                    # Evaluation name
     description: Basic functionality demo   # Human-readable description
     defaults:
       config:
-        type: "example_task_1"             # Evaluation type identifier
+        type: "example_task_1"             # Evaluation identifier
         supported_endpoint_types:          # Supported endpoints for this task
           - chat
           - completions
         params:
-          task: "example_task_1"           # Task-specific identifier
+          task: "example_task_1"           # Task identifier used by the harness
           temperature: 0.0                 # Task-specific temperature
           max_new_tokens: 1024             # Task-specific token limit
           extra:
@@ -31,11 +31,11 @@ evaluations:
 **Type**: String  
 **Required**: Yes
 
-Unique identifier for the evaluation type. This is used to reference the evaluation in CLI commands and configurations.
+Name for the evaluation type.
 
 **Example**:
 ```yaml
-name: humaneval
+name: HumanEval
 ```
 
 ### description
@@ -55,7 +55,7 @@ description: Evaluates code generation capabilities using the HumanEval benchmar
 **Type**: String  
 **Required**: Yes
 
-Internal type identifier used by the framework. This typically matches the `name` field but may differ based on your framework's conventions.
+Unique configuration identifier used by the framework. This is used to reference the evaluation in CLI commands and configurations. This typically matches the `name` field but may differ based on your framework's conventions.
 
 **Example**:
 ```yaml

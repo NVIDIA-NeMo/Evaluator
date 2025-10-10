@@ -18,7 +18,7 @@ docker run --rm -it nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_l
 export HF_TOKEN=hf_xxx
 export MY_API_KEY=nvapi-xxx
 
-eval-factory run_eval \
+nemo-evaluator run_eval \
     --eval_type mmlu_pro \
     --model_id meta/llama-3.1-8b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
@@ -35,7 +35,7 @@ The adapter system uses interceptors to modify requests and responses. Configure
 ### Enable Request Logging
 
 ```bash
-eval-factory run_eval \
+nemo-evaluator run_eval \
     --eval_type mmlu_pro \
     --model_id meta/llama-3.1-8b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
@@ -48,7 +48,7 @@ eval-factory run_eval \
 ### Enable Caching
 
 ```bash
-eval-factory run_eval \
+nemo-evaluator run_eval \
     --eval_type mmlu_pro \
     --model_id meta/llama-3.1-8b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
@@ -63,7 +63,7 @@ eval-factory run_eval \
 Combine multiple interceptors in a single command:
 
 ```bash
-eval-factory run_eval \
+nemo-evaluator run_eval \
     --eval_type mmlu_pro \
     --model_id meta/llama-3.1-8b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \

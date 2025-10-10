@@ -41,6 +41,15 @@ Deploy models using the SGLang serving framework.
 Deploy models using NVIDIA Inference Microservices.
 :::
 
+
+:::{grid-item-card} {octicon}`shield;1.5em;sd-mr-1` TRT-LLM
+:link: trtllm
+:link-type: doc
+
+
+Deploy models using NVIDIA TensorRT LLM.
+:::
+
 ::::
 
 ## Quick Reference
@@ -58,5 +67,7 @@ deployment:
 vLLM <vllm>
 SGLang <sglang>
 NIM <nim>
+TensorRT-LLM <trtllm>
+Generic <generic>
 None (External) <none>
 ```

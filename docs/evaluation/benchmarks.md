@@ -30,7 +30,7 @@ Recommended suite for comprehensive model evaluation:
 - `truthfulqa` - Factual accuracy vs. plausibility
 
 ```bash
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_academic_suite \
     -o 'evaluation.tasks=["mmlu_pro", "arc_challenge", "hellaswag", "truthfulqa"]'
@@ -90,7 +90,7 @@ nv-eval run \
 **Example Usage:**
 ```bash
 # Run academic benchmark suite
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["mmlu_pro", "gsm8k", "arc_challenge"]'
@@ -136,7 +136,7 @@ for task in academic_tasks:
 **Example Usage:**
 ```bash
 # Run code generation evaluation
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["humaneval", "mbpp"]'
@@ -165,7 +165,7 @@ nv-eval run \
 **Example Usage:**
 ```bash
 # Run comprehensive safety evaluation
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["aegis_v2", "garak"]'
@@ -271,10 +271,10 @@ For a complete list of available tasks in each container:
 
 ```bash
 # List tasks in any container
-docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} eval-factory ls
+docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} nemo-evaluator ls
 
 # Or use the launcher for unified access
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 ```
 
 ## Integration Patterns
@@ -283,11 +283,11 @@ NeMo Evaluator provides multiple integration options to fit your workflow:
 
 ```bash
 # Launcher CLI (recommended for most users)
-nv-eval ls tasks
-nv-eval run --config-dir examples --config-name local_mmlu_evaluation
+nemo-evaluator-launcher ls tasks
+nemo-evaluator-launcher run --config-dir examples --config-name local_mmlu_evaluation
 
 # Container direct execution
-docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} eval-factory ls
+docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} nemo-evaluator ls
 
 # Python API (for programmatic control)
 # See the Python API documentation for details

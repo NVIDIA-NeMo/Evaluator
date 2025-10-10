@@ -50,11 +50,11 @@ Verify your completions endpoint before running log-probability evaluation:
 
 ```bash
 # List available log-probability tasks
-nv-eval ls tasks | grep -E "(arc|hellaswag|winogrande|truthfulqa)"
+nemo-evaluator-launcher ls tasks | grep -E "(arc|hellaswag|winogrande|truthfulqa)"
 
 # Run ARC Challenge evaluation with existing endpoint
 # Note: Configure tokenizer parameters in your YAML config file
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=http://0.0.0.0:8080/v1/completions \
@@ -122,7 +122,7 @@ export MY_API_KEY=your_api_key_here
 export HF_TOKEN=your_hf_token_here
 
 # Run log-probability evaluation using eval-factory (nemo-evaluator CLI)
-eval-factory run_eval \
+nemo-evaluator run_eval \
     --eval_type adlr_arc_challenge_llama \
     --model_id megatron_model \
     --model_url http://0.0.0.0:8080/v1/completions \
@@ -152,13 +152,13 @@ Use the launcher CLI to discover all available log-probability tasks:
 
 ```bash
 # List all available benchmarks
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 
 # Filter for log-probability tasks
-nv-eval ls tasks | grep -E "(arc|hellaswag|winogrande|truthfulqa)"
+nemo-evaluator-launcher ls tasks | grep -E "(arc|hellaswag|winogrande|truthfulqa)"
 
 # Get detailed information about a specific task (if supported)
-nv-eval ls tasks --task adlr_arc_challenge_llama
+nemo-evaluator-launcher ls tasks --task adlr_arc_challenge_llama
 ```
 
 ## How Log-Probability Evaluation Works

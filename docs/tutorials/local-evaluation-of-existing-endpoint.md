@@ -39,7 +39,7 @@ For this tutorial we will use `meta/llama-3.1-8b-instruct` from [build.nvidia.co
 Choose which benchmarks to evaluate. Available tasks include:
 
 ```bash
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 ```
 
 For a comprehensive list of supported tasks and descriptions, see {ref}`nemo-evaluator-containers`.
@@ -75,7 +75,7 @@ target:
   api_endpoint:
     model_id: meta/llama-3.1-8b-instruct  # TODO: update to the model you want to evaluate
     url: https://integrate.api.nvidia.com/v1/chat/completions  # TODO: update to the endpoint you want to evaluate
-    api_key_name: API_KEY  # API Key with access to build.nvidia.com or model of your choice
+    api_key_name: NGC_API_KEY  # API Key with access to build.nvidia.com or model of your choice
 
 # specify the benchmarks to evaluate
 evaluation:
@@ -89,21 +89,21 @@ evaluation:
 ### 4. Run Evaluation
 
 ```bash
-nv-eval run --config-dir configs --config-name local_endpoint \
-  -o target.api_endpoint.api_key_name=API_KEY
+nemo-evaluator-launcher run --config-dir configs --config-name local_endpoint \
+  -o target.api_endpoint.api_key_name=NGC_API_KEY
 ```
 
 ### 5. Run the Same Evaluation for a Different Model (Using CLI Overrides)
 
 ```bash
-export API_KEY=<YOUR MODEL API KEY>
+export NGC_API_KEY=<YOUR MODEL API KEY>
 MODEL_NAME=<YOUR_MODEL_NAME>
 URL=<YOUR_ENDPOINT_URL>  # Note: endpoint URL needs to be FULL (e.g., https://api.example.com/v1/chat/completions)
 
-nv-eval run --config-dir configs --config-name local_endpoint \
+nemo-evaluator-launcher run --config-dir configs --config-name local_endpoint \
   -o target.api_endpoint.model_id=$MODEL_NAME \
   -o target.api_endpoint.url=$URL \
-  -o target.api_endpoint.api_key_name=API_KEY
+  -o target.api_endpoint.api_key_name=NGC_API_KEY
 ```
 
 After launching, you can view logs and job status. When jobs finish, you can display results and export them using the available exporters. Refer to {ref}`exporters-overview` for available export options.

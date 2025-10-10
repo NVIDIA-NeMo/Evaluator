@@ -34,10 +34,10 @@ Ensure you have:
 
 ```bash
 # List available function calling tasks
-nv-eval ls tasks | grep -E "(bfcl|function)"
+nemo-evaluator-launcher ls tasks | grep -E "(bfcl|function)"
 
 # Run BFCL AST prompting evaluation
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["bfclv3_ast_prompting"]' \
@@ -100,7 +100,7 @@ docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/bfcl:{{ docker_compos
 export MY_API_KEY=your_api_key_here
 
 # Run function calling evaluation
-eval-factory run_eval \
+nemo-evaluator run_eval \
     --eval_type bfclv3_ast_prompting \
     --model_id meta/llama-3.1-8b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
@@ -126,10 +126,10 @@ Use the launcher CLI to discover all available function calling tasks:
 
 ```bash
 # List all available benchmarks
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 
 # Filter for function calling tasks
-nv-eval ls tasks | grep -E "(bfcl|function)"
+nemo-evaluator-launcher ls tasks | grep -E "(bfcl|function)"
 ```
 
 ## Available Function Calling Tasks

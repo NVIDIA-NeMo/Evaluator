@@ -18,7 +18,7 @@ The launcher supports multiple deployment backends and execution environments.
 
 ```bash
 # Deploy model and run evaluation in one command (Slurm example)
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name slurm_llama_3_1_8b_instruct \
     -o deployment.checkpoint_path=/path/to/your/model

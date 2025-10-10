@@ -78,7 +78,7 @@ config:
 
 **CLI overrides**:
 ```bash
-eval-factory run_eval --overrides config.params.temperature=1.0
+nemo-evaluator run_eval --overrides config.params.temperature=1.0
 # Overrides all previous values
 ```
 

@@ -140,5 +140,5 @@ Executors <configuration/executors/index>
 Configuration <configuration/index>
 Exporters <exporters/index>
 Python API <api>
-CLI Reference (nv-eval) <cli>
+CLI Reference (nemo-evaluator-launcher) <cli>
 :::

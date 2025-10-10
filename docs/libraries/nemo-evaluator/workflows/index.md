@@ -8,7 +8,7 @@ Learn how to use NeMo Evaluator through different workflow patterns. Whether you
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`container;1.5em;sd-mr-1` Using Containers
-:link: using_containers
+:link: using-containers
 :link-type: doc
 
 Run evaluations using the pre-built NGC containers directly with Docker or container orchestration platforms.
@@ -34,6 +34,6 @@ Both approaches use the same underlying evaluation containers and produce identi
 :caption: Container Workflows
 :hidden:
 
-Using Containers <using_containers>
+Using Containers <using-containers>
 Python API <python-api>
 :::

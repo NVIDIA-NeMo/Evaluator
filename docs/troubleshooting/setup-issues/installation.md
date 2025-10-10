@@ -30,7 +30,7 @@ show_available_tasks()
 
 Or use the CLI:
 ```bash
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 ```
 
 **Solution**:

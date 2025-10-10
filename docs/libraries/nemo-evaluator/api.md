@@ -585,7 +585,7 @@ target:
 To use the above, save it as `config.yaml` and run:
 
 ```bash
-eval-factory run_eval \
+nemo-evaluator run_eval \
     --eval_type mmlu_pro \
     --model_id meta/llama-3.1-8b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \

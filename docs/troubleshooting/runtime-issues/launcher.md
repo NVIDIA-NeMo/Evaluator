@@ -12,7 +12,7 @@ Troubleshooting guide for NeMo Evaluator Launcher-specific problems including co
 
 ```bash
 # Validate configuration without running
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct --dry-run
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct --dry-run
 ```
 
 **Common Issues**:
@@ -25,7 +25,7 @@ Error: Missing required field 'execution.output_dir'
 ```
 **Fix**: Add output directory to config or override:
 ```bash
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
   -o execution.output_dir=./results
 ```
 
@@ -39,7 +39,7 @@ Error: Unknown task 'invalid_task'. Available tasks: hellaswag, arc_challenge, .
 ```
 **Fix**: List available tasks and use correct names:
 ```bash
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 ```
 
 ::::
@@ -84,7 +84,7 @@ defaults:
 
 3. **Use Absolute Paths**:
 ```bash
-nv-eval run --config-dir /absolute/path/to/configs --config-name my_config
+nemo-evaluator-launcher run --config-dir /absolute/path/to/configs --config-name my_config
 ```
 
 ## Job Management Issues
@@ -96,13 +96,13 @@ nv-eval run --config-dir /absolute/path/to/configs --config-name my_config
 **Diagnosis**:
 ```bash
 # Check job status
-nv-eval status <invocation_id>
+nemo-evaluator-launcher status <invocation_id>
 
 # List all runs
-nv-eval ls runs
+nemo-evaluator-launcher ls runs
 
 # Check specific job
-nv-eval status <job_id>
+nemo-evaluator-launcher status <job_id>
 ```
 
 **Common Issues**:
@@ -113,7 +113,7 @@ Error: Invocation 'abc123' not found
 ```
 **Fix**: Use correct invocation ID from run output or list recent runs:
 ```bash
-nv-eval ls runs
+nemo-evaluator-launcher ls runs
 ```
 
 2. **Stale Job Database**:
@@ -130,10 +130,10 @@ ls -la ~/.nemo-evaluator/exec-db/exec.v1.jsonl
 **Solutions**:
 ```bash
 # Kill entire invocation
-nv-eval kill <invocation_id>
+nemo-evaluator-launcher kill <invocation_id>
 
 # Kill specific job
-nv-eval kill <job_id>
+nemo-evaluator-launcher kill <job_id>
 ```
 
 **Executor-Specific Issues**:
@@ -253,10 +253,10 @@ Error: Deployment failed to reach Ready state
 **Diagnosis**:
 ```bash
 # List completed runs
-nv-eval ls runs
+nemo-evaluator-launcher ls runs
 
 # Try export
-nv-eval export <invocation_id> --dest local --format json
+nemo-evaluator-launcher export <invocation_id> --dest local --format json
 ```
 
 **Common Issues**:
@@ -289,13 +289,13 @@ When reporting launcher issues, include:
 1. **Configuration Details**:
 ```bash
 # Show resolved configuration
-nv-eval run --config-dir examples --config-name <config> --dry-run
+nemo-evaluator-launcher run --config-dir examples --config-name <config> --dry-run
 ```
 
 2. **System Information**:
 ```bash
 # Launcher version
-nv-eval --version
+nemo-evaluator-launcher --version
 
 # System info
 python --version
@@ -307,10 +307,10 @@ lep workspace list # For Lepton executor
 3. **Job Information**:
 ```bash
 # Job status
-nv-eval status <invocation_id>
+nemo-evaluator-launcher status <invocation_id>
 
 # Recent runs
-nv-eval ls runs
+nemo-evaluator-launcher ls runs
 ```
 
 4. **Log Files**:
