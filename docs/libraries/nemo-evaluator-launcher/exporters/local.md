@@ -75,6 +75,21 @@ export_results(
 
 :::
 
+:::{tab-item} YAML Config
+
+Configure local export in your evaluation YAML file for automatic export on completion:
+
+```yaml
+execution:
+  auto_export:
+    destinations: ["local"]
+
+export:
+  local:
+    format: "json"
+    output_dir: "./results"
+```
+
 ::::
 
 ## Key Configuration

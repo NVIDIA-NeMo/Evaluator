@@ -91,20 +91,31 @@ Configure W&B export in your evaluation YAML file for automatic export on comple
 execution:
   auto_export:
     destinations: ["wandb"]
-    configs:
-      wandb:
-        entity: "myorg"
-        project: "llm-benchmarks"
-        name: "llama-3.1-8b-instruct-v1"
-        group: "baseline-evals"
-        tags: ["llama-3.1", "baseline"]
-        description: "Baseline evaluation"
-        log_mode: "multi_task"
-        log_metrics: ["accuracy"]
-        log_artifacts: true
-        extra_metadata:
-          hardware: "H100"
-          checkpoint: "path/to/checkpoint"
+  
+  # Export-related env vars (placeholders expanded at runtime)
+  env_vars:
+    export:
+      WANDB_API_KEY: WANDB_API_KEY
+      PATH: "/path/to/conda/env/bin:$PATH"
+
+export:
+  wandb:
+    entity: "myorg"
+    project: "llm-benchmarks"
+    name: "llama-3.1-8b-instruct-v1"
+    group: "baseline-evals"
+    tags: ["llama-3.1", "baseline"]
+    description: "Baseline evaluation"
+    log_mode: "multi_task"
+    log_metrics: ["accuracy"]
+    log_artifacts: true
+    log_logs: true
+    only_required: false
+    
+    extra_metadata:
+      hardware: "H100"
+      checkpoint: "path/to/checkpoint"
+
 ```
 
 :::
@@ -156,6 +167,14 @@ execution:
 * - `log_artifacts`
   - bool
   - Whether to upload evaluation artifacts (results files, configs) to W&B
+  - `true`
+* - `log_logs`
+  - bool
+  - Upload execution logs
+  - `false`
+* - `only_required`
+  - bool
+  - Copy only required artifacts
   - `true`
 * - `extra_metadata`
   - dict
