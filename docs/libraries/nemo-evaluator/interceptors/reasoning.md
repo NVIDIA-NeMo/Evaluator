@@ -2,8 +2,6 @@
 
 # Reasoning
 
-The reasoning interceptor processes chain-of-thought reasoning from model responses by removing reasoning tokens from content and tracking reasoning statistics.
-
 ## Overview
 
 The `ResponseReasoningInterceptor` handles models that generate explicit reasoning steps, typically enclosed in special tokens. It removes reasoning content from the final response and tracks reasoning metrics for analysis.
@@ -12,28 +10,10 @@ The `ResponseReasoningInterceptor` handles models that generate explicit reasoni
 
 ### Python Configuration
 
-```python
-from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
-
-adapter_config = AdapterConfig(
-    interceptors=[
-        InterceptorConfig(
-            name="reasoning",
-            config={
-                "start_reasoning_token": "<think>",
-                "end_reasoning_token": "</think>",
-                "add_reasoning": True,
-                "enable_reasoning_tracking": True
-            }
-        )
-    ]
-)
-```
-
 ### CLI Configuration
 
 ```bash
---overrides 'target.api_endpoint.adapter_config.interceptors=[{"name":"reasoning","config":{"start_reasoning_token":"<think>","end_reasoning_token":"</think>"}}]'
+--overrides 'target.api_endpoint.adapter_config.use_reasoning=True,target.api_endpoint.adapter_config.end_reasoning_token="</think>",target.api_endpoint.adapter_config.start_reasoning_token="<think>"'
 ```
 
 ### YAML Configuration
@@ -49,6 +29,9 @@ target:
             end_reasoning_token: "</think>"
             add_reasoning: true
             enable_reasoning_tracking: true
+        - name: "endpoint"
+          enabled: true
+          config: {}
 ```
 
 ## Configuration Options
@@ -111,48 +94,31 @@ The interceptor automatically tracks the following statistics:
 | `avg_updated_content_tokens` | Average token count in updated content |
 | `max_reasoning_words` | Maximum word count in reasoning content |
 | `max_reasoning_tokens` | Maximum token count in reasoning content |
+| `max_original_content_words` | |
+| `max_updated_content_words` | |
 | `max_updated_content_tokens` | Maximum token count in updated content |
 | `total_reasoning_words` | Total word count across all reasoning content |
 | `total_reasoning_tokens` | Total token count across all reasoning content |
+| `total_original_content_words` | Total word count in original content (before processing) |
+| `total_updated_content_words` | Total word count in updated content (after processing) |
+| `total_updated_content_tokens` | Total token count in updated content |
 
 These statistics are saved to `eval_factory_metrics.json` under the `reasoning` key after evaluation completes.
 
 ## Example: Custom Reasoning Tokens
 
-```python
-from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
-
-# For models using different reasoning tokens
-adapter_config = AdapterConfig(
-    interceptors=[
-        InterceptorConfig(
-            name="reasoning",
-            config={
-                "start_reasoning_token": "[REASONING]",
-                "end_reasoning_token": "[/REASONING]"
-            }
-        )
-    ]
-)
-```
-
-## Example: Combined with Other Interceptors
-
-```python
-from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
-
-adapter_config = AdapterConfig(
-    interceptors=[
-        InterceptorConfig(name="request_logging", config={"max_requests": 50}),
-        InterceptorConfig(name="response_logging", config={"max_responses": 50}),
-        InterceptorConfig(
-            name="reasoning",
-            config={
-                "start_reasoning_token": "<think>",
-                "end_reasoning_token": "</think>",
-                "enable_reasoning_tracking": True
-            }
-        )
-    ]
-)
+```yaml
+target:
+  api_endpoint:
+    adapter_config:
+      interceptors:
+        - name: reasoning
+          config:
+            start_reasoning_token: "[REASONING]"
+            end_reasoning_token: "[/REASONING]"
+            add_reasoning: true
+            enable_reasoning_tracking: true
+        - name: "endpoint"
+          enabled: true
+          config: {}
 ```

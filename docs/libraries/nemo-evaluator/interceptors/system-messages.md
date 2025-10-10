@@ -3,29 +3,15 @@
 
 # System Messages
 
-The system message interceptor injects custom system prompts into evaluation requests, enabling consistent prompting and role-specific behavior across evaluations.
-
 ## Overview
 
 The `SystemMessageInterceptor` modifies incoming requests to include custom system messages. This interceptor works with chat-format requests, replacing any existing system messages with the configured message.
 
 ## Configuration
 
-### Python Configuration
-
-```python
-from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
-
-adapter_config = AdapterConfig(
-    interceptors=[
-        InterceptorConfig(
-            name="system_message",
-            config={
-                "system_message": "You are a helpful AI assistant."
-            }
-        )
-    ]
-)
+### CLI Configuration
+```bash
+--overrides 'target.api_endpoint.adapter_config.use_system_prompt=True,target.api_endpoint.adapter_config.custom_system_prompt="You are a helpful assistant."'
 ```
 
 ### YAML Configuration
@@ -38,6 +24,9 @@ target:
         - name: system_message
           config:
             system_message: "You are a helpful AI assistant."
+        - name: "endpoint"
+          enabled: true
+          config: {}
 ```
 
 ## Configuration Options
@@ -91,28 +80,4 @@ If an existing system message is present, the interceptor replaces it:
         {"role": "user", "content": "What is 2+2?"}
     ]
 }
-```
-
-## Usage Example
-
-```python
-from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
-
-# System message with other interceptors
-adapter_config = AdapterConfig(
-    interceptors=[
-        InterceptorConfig(
-            name="system_message",
-            config={
-                "system_message": "You are an expert problem solver."
-            }
-        ),
-        InterceptorConfig(
-            name="caching",
-            config={
-                "cache_dir": "./cache"
-            }
-        )
-    ]
-)
 ```

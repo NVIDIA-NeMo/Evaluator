@@ -2,14 +2,16 @@
 
 # Payload Modification
 
-Adds, removes, or modifies request parameters before sending them to the model endpoint.
+## Overview
+
+`PayloadParamsModifierInterceptor` adds, removes, or modifies request parameters before sending them to the model endpoint.
 
 ## Configuration
 
 ### CLI Configuration
 
 ```bash
---overrides 'target.api_endpoint.adapter_config.interceptors=[{"name":"payload_modifier","enabled":true,"config":{"params_to_add":{"temperature":0.7},"params_to_remove":["top_k"]}}]'
+--overrides 'target.api_endpoint.adapter_config.params_to_add={"temperature":0.7},target.api_endpoint.adapter_config.params_to_remove=["max_tokens"]'
 ```
 
 ### YAML Configuration

@@ -1,8 +1,15 @@
 # Progress Tracking
 
-Tracks evaluation progress by counting processed samples and optionally sending updates to a webhook endpoint.
+## Overview
+`ProgressTrackingInterceptor` tracks evaluation progress by counting processed samples and optionally sending updates to a webhook endpoint.
 
 ## Configuration
+
+### CLI Configuration
+
+```bash
+--overrides 'target.api_endpoint.adapter_config.use_progress_tracking=True,target.api_endpoint.adapter_config.progress_tracking_url=http://monitoring:3828/progress'
+```
 
 ### YAML Configuration
 
@@ -17,25 +24,6 @@ interceptors:
       output_dir: "/tmp/output"
 ```
 
-### Python Configuration
-
-```python
-from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
-
-adapter_config = AdapterConfig(
-    interceptors=[
-        InterceptorConfig(
-            name="progress_tracking",
-            config={
-                "progress_tracking_url": "http://monitoring:3828/progress",
-                "progress_tracking_interval": 10,
-                "request_method": "PATCH",
-                "output_dir": "/tmp/output"
-            }
-        )
-    ]
-)
-```
 
 ## Configuration Options
 

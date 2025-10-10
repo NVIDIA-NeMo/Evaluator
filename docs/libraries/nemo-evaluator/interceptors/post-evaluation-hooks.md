@@ -2,7 +2,7 @@
 
 Run processing or reporting tasks after evaluations complete.
 
-Post-evaluation hooks execute after the main evaluation finishes. The built-in `post_eval_report` hook generates HTML and JSON reports from cached request-response pairs.
+Post-evaluation hooks execute after the main evaluation finishes. The built-in `PostEvalReportHook` hook generates HTML and JSON reports from cached request-response pairs.
 
 ## Report Generation
 
@@ -11,18 +11,21 @@ Generate HTML and JSON reports with evaluation request-response examples.
 ### YAML Configuration
 
 ```yaml
-post_eval_hooks:
-  - name: "post_eval_report"
-    enabled: true
-    config:
-      report_types: ["html", "json"]
-      html_report_size: 10
+target:
+  api_endpoint:
+    adapter_config:
+      post_eval_hooks:
+      - name: "post_eval_report"
+        enabled: true
+        config:
+          report_types: ["html", "json"]
+          html_report_size: 10
 ```
 
 ### CLI Configuration
 
 ```bash
---overrides 'target.api_endpoint.adapter_config.post_eval_hooks=[{"name":"post_eval_report","enabled":true,"config":{"report_types":["html","json"]}}]'
+--overrides 'target.api_endpoint.adapter_config.generate_html_report=True'
 ```
 
 ## Configuration Options

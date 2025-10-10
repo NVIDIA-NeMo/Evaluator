@@ -48,6 +48,21 @@ graph LR
 Cache requests and responses to improve performance and reduce API calls.
 :::
 
+:::{grid-item-card} {octicon}`cache;1.5em;sd-mr-1` Request Logging
+:link: request-logging
+:link-type: doc
+
+Logs requests for debugging, analysis, and audit purposes.
+:::
+
+
+:::{grid-item-card} {octicon}`cache;1.5em;sd-mr-1` Response Logging
+:link: request-logging
+:link-type: doc
+
+Logs responses for debugging, analysis, and audit purposes.
+:::
+
 ::::
 
 ## Specialized Interceptors
@@ -104,6 +119,8 @@ Run additional processing, reporting, or cleanup after evaluations complete.
 :hidden:
 
 Caching <caching>
+Request Logging <request-logging>
+Response Logging <response-logging>
 System Messages <system-messages>
 Payload Modification <payload-modification>
 Reasoning <reasoning>
