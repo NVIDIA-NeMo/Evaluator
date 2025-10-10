@@ -1,3 +1,4 @@
+(interceptor-request-logging)=
 # Request Logging Interceptor
 
 ## Overview
@@ -23,7 +24,7 @@ target:
         - name: "request_logging"
             enabled: true
             config:
-                max_requests: 10
+              max_requests: 1000
         - name: "endpoint"
           enabled: true
           config: {}
