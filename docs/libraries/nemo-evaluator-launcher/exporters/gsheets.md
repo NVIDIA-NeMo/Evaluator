@@ -19,7 +19,7 @@ Export results from a specific evaluation run to Google Sheets:
 
 ```bash
 # Export results using default spreadsheet name
-nv-eval export 8abcd123 --dest gsheets
+nemo-evaluator-launcher export 8abcd123 --dest gsheets
 
 # Export with custom spreadsheet name and ID
 nemo-evaluator-launcher export 8abcd123 --dest gsheets \

@@ -46,10 +46,10 @@ Verify your setup before running code evaluation:
 
 ```bash
 # List available code generation tasks
-nv-eval ls tasks | grep -E "(mbpp|humaneval)"
+nemo-evaluator-launcher ls tasks | grep -E "(mbpp|humaneval)"
 
 # Run MBPP evaluation
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["mbpp"]' \
@@ -57,7 +57,7 @@ nv-eval run \
     -o target.api_endpoint.api_key=${YOUR_API_KEY}
 
 # Run multiple code generation benchmarks
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["mbpp", "humaneval"]'
@@ -143,10 +143,10 @@ Use the launcher CLI to discover all available code generation tasks:
 
 ```bash
 # List all available benchmarks
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 
 # Filter for code generation tasks
-nv-eval ls tasks | grep -E "(mbpp|humaneval)"
+nemo-evaluator-launcher ls tasks | grep -E "(mbpp|humaneval)"
 ```
 
 ## Available Tasks

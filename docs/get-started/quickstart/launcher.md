@@ -17,7 +17,7 @@ The NeMo Evaluator Launcher provides the simplest way to run evaluations with au
 pip install nemo-evaluator-launcher
 
 # 2. List available benchmarks
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 
 # 3. Run evaluation against a hosted endpoint
 ```
@@ -30,7 +30,7 @@ nv-eval ls tasks
 
 ```bash
 # 4. Check status and results
-nv-eval status <invocation_id>
+nemo-evaluator-launcher status <invocation_id>
 ```
 
 ## Complete Working Example
@@ -77,7 +77,7 @@ Here's a complete example using NVIDIA Build (build.nvidia.com):
 
 ## Next Steps
 
-- Explore different evaluation types: `nv-eval ls tasks`
+- Explore different evaluation types: `nemo-evaluator-launcher ls tasks`
 - Try advanced configurations in the `examples/` directory
 - Export results to your preferred tracking platform
 - Scale to cluster execution with Slurm or cloud providers

@@ -21,7 +21,7 @@ Local execution:
 
 ```bash
 # Run evaluation against existing endpoint
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct
 ```
@@ -175,18 +175,18 @@ execution:
 
 ```bash
 # Run evaluation
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct
 
 # Dry run to preview configuration
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     --dry-run
 
 # Override endpoint URL
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=http://localhost:8080/v1/chat/completions
@@ -196,19 +196,19 @@ nv-eval run \
 
 ```bash
 # Check job status
-nv-eval status <job_id>
+nemo-evaluator-launcher status <job_id>
 
 # Check entire invocation
-nv-eval status <invocation_id>
+nemo-evaluator-launcher status <invocation_id>
 
 # Kill running job
-nv-eval kill <job_id>
+nemo-evaluator-launcher kill <job_id>
 
 # List available tasks
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 
 # List recent runs
-nv-eval ls runs
+nemo-evaluator-launcher ls runs
 ```
 
 ## Requirements
@@ -278,7 +278,7 @@ Check logs in the output directory:
 tail -f <output_dir>/<task_name>/logs/stdout.log
 
 # Kill and restart if needed
-nv-eval kill <job_id>
+nemo-evaluator-launcher kill <job_id>
 ```
 
 **Tasks fail with errors:**
@@ -291,7 +291,7 @@ nv-eval kill <job_id>
 
 ```bash
 # Validate configuration before running
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     --dry-run

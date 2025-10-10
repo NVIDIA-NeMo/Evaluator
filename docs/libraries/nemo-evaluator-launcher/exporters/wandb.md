@@ -19,10 +19,10 @@ Basic export to W&B using credentials and project settings from your evaluation 
 
 ```bash
 # Export to W&B (uses config from evaluation run)
-nv-eval export 8abcd123 --dest wandb
+nemo-evaluator-launcher export 8abcd123 --dest wandb
 
 # Filter metrics to export specific measurements
-nv-eval export 8abcd123 --dest wandb --log-metrics accuracy f1_score
+nemo-evaluator-launcher export 8abcd123 --dest wandb --log-metrics accuracy f1_score
 ```
 
 ```{note}

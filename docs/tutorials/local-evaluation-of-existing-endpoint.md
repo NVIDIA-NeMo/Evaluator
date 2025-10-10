@@ -39,7 +39,7 @@ For this tutorial we will use `meta/llama-3.1-8b-instruct` from [build.nvidia.co
 Choose which benchmarks to evaluate. Available tasks include:
 
 ```bash
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 ```
 
 For a comprehensive list of supported tasks and descriptions, see {ref}`nemo-evaluator-containers`.
@@ -89,7 +89,7 @@ evaluation:
 ### 4. Run Evaluation
 
 ```bash
-nv-eval run --config-dir configs --config-name local_endpoint \
+nemo-evaluator-launcher run --config-dir configs --config-name local_endpoint \
   -o target.api_endpoint.api_key_name=NGC_API_KEY
 ```
 
@@ -100,7 +100,7 @@ export NGC_API_KEY=<YOUR MODEL API KEY>
 MODEL_NAME=<YOUR_MODEL_NAME>
 URL=<YOUR_ENDPOINT_URL>  # Note: endpoint URL needs to be FULL (e.g., https://api.example.com/v1/chat/completions)
 
-nv-eval run --config-dir configs --config-name local_endpoint \
+nemo-evaluator-launcher run --config-dir configs --config-name local_endpoint \
   -o target.api_endpoint.model_id=$MODEL_NAME \
   -o target.api_endpoint.url=$URL \
   -o target.api_endpoint.api_key_name=NGC_API_KEY

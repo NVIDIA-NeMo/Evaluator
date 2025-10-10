@@ -11,7 +11,7 @@ Exporters move evaluation results and artifacts from completed runs to external 
 :::{tab-item} CLI
 
 ```bash
-nv-eval export <id1> [<id2> ...] \
+nemo-evaluator-launcher export <id1> [<id2> ...] \
   --dest <local|gsheets|wandb|mlflow> \
   [options]
 ```

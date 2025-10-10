@@ -11,9 +11,9 @@ pip install nemo-evaluator-launcher[all]
 # [snippet-end]
 
 # Verify installation
-if command -v nv-eval &> /dev/null; then
+if command -v nemo-evaluator-launcher &> /dev/null; then
     echo "✓ NeMo Evaluator Launcher installed successfully"
-    nv-eval --version
+    nemo-evaluator-launcher --version
 else
     echo "✗ Installation failed"
     exit 1

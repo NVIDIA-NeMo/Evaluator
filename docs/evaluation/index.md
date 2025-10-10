@@ -27,7 +27,7 @@ Before you run evaluations, ensure you have:
 **For researchers and data scientists**: Evaluate your model on standard academic benchmarks in 3 steps.
 
 **Step 1: Choose Your Approach**
-- **Launcher CLI** (Recommended): `nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct`
+- **Launcher CLI** (Recommended): `nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct`
 - **Python API**: Direct programmatic control with `evaluate()` function
 
 **Step 2: Select Benchmarks**
@@ -39,14 +39,14 @@ Common academic suites:
 
 Discover all available tasks:
 ```bash
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 ```
 
 **Step 3: Run Evaluation**
 
 Using Launcher CLI:
 ```bash
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["mmlu_pro", "gsm8k", "arc_challenge"]' \

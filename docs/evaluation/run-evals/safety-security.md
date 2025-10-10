@@ -35,10 +35,10 @@ Ensure you have:
 
 ```bash
 # List available safety tasks
-nv-eval ls tasks | grep -E "(safety|aegis|garak)"
+nemo-evaluator-launcher ls tasks | grep -E "(safety|aegis|garak)"
 
 # Run Aegis safety evaluation
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["aegis_v2"]' \
@@ -46,7 +46,7 @@ nv-eval run \
     -o target.api_endpoint.api_key=${YOUR_API_KEY}
 
 # Run safety and security evaluation
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["aegis_v2", "garak"]'
@@ -156,13 +156,13 @@ Use the launcher CLI to discover all available safety and security tasks:
 
 ```bash
 # List all available benchmarks
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 
 # Filter for safety and security tasks
-nv-eval ls tasks | grep -E "(safety|aegis|garak)"
+nemo-evaluator-launcher ls tasks | grep -E "(safety|aegis|garak)"
 
 # Get detailed information about a specific task (if supported)
-nv-eval ls tasks --task aegis_v2
+nemo-evaluator-launcher ls tasks --task aegis_v2
 ```
 
 ## Available Safety Tasks

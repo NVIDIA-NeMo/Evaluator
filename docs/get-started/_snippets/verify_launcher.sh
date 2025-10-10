@@ -3,10 +3,10 @@
 
 # [snippet-start]
 # Verify installation
-nv-eval --version
+nemo-evaluator-launcher --version
 
 # Test basic functionality - list available tasks
-nv-eval ls tasks | head -10
+nemo-evaluator-launcher ls tasks | head -10
 # [snippet-end]
 
 echo "✓ Launcher installed successfully"

@@ -17,7 +17,7 @@ Slurm launcher-orchestrated deployment:
 
 ```bash
 # Deploy and evaluate on Slurm cluster
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name slurm_llama_3_1_8b_instruct \
     -o deployment.checkpoint_path=/shared/models/llama-3.1-8b-instruct \
@@ -145,12 +145,12 @@ evaluation:
 
 ```bash
 # Submit job with configuration
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name slurm_llama_3_1_8b_instruct
 
 # Submit with configuration overrides
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name slurm_llama_3_1_8b_instruct \
     -o execution.walltime="04:00:00" \
@@ -161,17 +161,17 @@ nv-eval run \
 
 ```bash
 # Check job status
-nv-eval status <job_id>
+nemo-evaluator-launcher status <job_id>
 
 # List all runs (optionally filter by executor)
-nv-eval ls runs --executor slurm
+nemo-evaluator-launcher ls runs --executor slurm
 ```
 
 ### Managing Jobs
 
 ```bash
 # Cancel job
-nv-eval kill <job_id>
+nemo-evaluator-launcher kill <job_id>
 ```
 
 ### Native Slurm Commands
@@ -248,7 +248,7 @@ sinfo -p gpu
 
 ```bash
 # Check job status
-nv-eval status <job_id>
+nemo-evaluator-launcher status <job_id>
 
 # View Slurm job details
 scontrol show job <slurm_job_id>

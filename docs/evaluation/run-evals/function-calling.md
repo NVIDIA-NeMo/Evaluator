@@ -34,10 +34,10 @@ Ensure you have:
 
 ```bash
 # List available function calling tasks
-nv-eval ls tasks | grep -E "(bfcl|function)"
+nemo-evaluator-launcher ls tasks | grep -E "(bfcl|function)"
 
 # Run BFCL AST prompting evaluation
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["bfclv3_ast_prompting"]' \
@@ -126,10 +126,10 @@ Use the launcher CLI to discover all available function calling tasks:
 
 ```bash
 # List all available benchmarks
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 
 # Filter for function calling tasks
-nv-eval ls tasks | grep -E "(bfcl|function)"
+nemo-evaluator-launcher ls tasks | grep -E "(bfcl|function)"
 ```
 
 ## Available Function Calling Tasks

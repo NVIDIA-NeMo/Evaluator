@@ -3,7 +3,7 @@
 # Framework Definition Files
 
 ::::{note}
-**Who needs this?** This documentation is for framework developers and organizations creating custom evaluation frameworks. If you're running existing evaluation tasks using {ref}`nv-eval <lib-launcher>` (NeMo Evaluator Launcher CLI) or {ref}`nemo-evaluator <nemo-evaluator-cli>` (NeMo Evaluator CLI), you don't need to create FDFs—they're already provided by framework packages.
+**Who needs this?** This documentation is for framework developers and organizations creating custom evaluation frameworks. If you're running existing evaluation tasks using {ref}`nemo-evaluator-launcher <lib-launcher>` (NeMo Evaluator Launcher CLI) or {ref}`nemo-evaluator <nemo-evaluator-cli>` (NeMo Evaluator CLI), you don't need to create FDFs—they're already provided by framework packages.
 ::::
 
 A Framework Definition File (FDF) is a YAML configuration file that serves as the single source of truth for integrating evaluation frameworks into the NeMo Evaluator ecosystem. FDFs define how evaluation frameworks are configured, executed, and integrated with the Eval Factory system.

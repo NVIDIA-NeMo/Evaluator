@@ -53,10 +53,10 @@ For log-probability methods, see the [Log-Probability Evaluation guide](../run-e
 
 ```bash
 # List available text generation tasks
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 
 # Run MMLU Pro evaluation
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["mmlu_pro"]' \
@@ -64,7 +64,7 @@ nv-eval run \
     -o target.api_endpoint.api_key=${YOUR_API_KEY}
 
 # Run multiple text generation benchmarks
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_text_generation_suite \
     -o 'evaluation.tasks=["mmlu_pro", "arc_challenge", "hellaswag", "truthfulqa"]'
@@ -183,7 +183,7 @@ Run these commands to discover the complete list of available benchmarks across 
 ```
 
 :::{note}
-Task availability depends on installed frameworks. Use `nv-eval ls tasks` to see the complete list for your environment.
+Task availability depends on installed frameworks. Use `nemo-evaluator-launcher ls tasks` to see the complete list for your environment.
 :::
 
 ## Task Naming and Framework Specification
@@ -240,10 +240,10 @@ Or use the CLI for programmatic access:
 
 ```bash
 # List all tasks with framework information
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 
 # Filter for specific tasks
-nv-eval ls tasks | grep mmlu
+nemo-evaluator-launcher ls tasks | grep mmlu
 ```
 
 This helps you:
@@ -431,13 +431,13 @@ api_endpoint=ApiEndpoint(
 **Symptoms**: Task name not recognized
 
 **Solutions**:
-- Verify task name with `nv-eval ls tasks`
+- Verify task name with `nemo-evaluator-launcher ls tasks`
 - Check if evaluation framework is installed
 - Use framework-qualified names for ambiguous tasks (e.g., `lm-evaluation-harness.mmlu`)
 
 ```bash
 # Discover available tasks
-nv-eval ls tasks | grep mmlu
+nemo-evaluator-launcher ls tasks | grep mmlu
 ```
 ::::
 
