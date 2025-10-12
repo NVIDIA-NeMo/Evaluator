@@ -98,32 +98,23 @@ class BaseExecutor(ABC):
 
     @staticmethod
     def get_kill_failure_message(
-        executor_cls, job_id: str, container_or_id: str
+        job_id: str, container_or_id: str, status: Optional[ExecutionState] = None
     ) -> str:
         """Generate an informative error message when kill fails based on job status.
 
-        This helper checks the job status and provides context about why the kill
-        might have failed (e.g., job already completed, already failed).
-
         Args:
-            executor_cls: The executor class to use for status checking.
             job_id: The job ID that failed to kill.
             container_or_id: Container name, SLURM job ID, or other identifier.
+            status: Optional execution state of the job.
 
         Returns:
             str: An informative error message with job status context.
         """
-        try:
-            status_list = executor_cls.get_status(job_id)
-            if status_list:
-                current_state = status_list[0].state
-                if current_state == ExecutionState.SUCCESS:
-                    return f"Could not find or kill job {job_id} ({container_or_id}) - job already completed successfully"
-                elif current_state == ExecutionState.FAILED:
-                    return f"Could not find or kill job {job_id} ({container_or_id}) - job already failed"
-        except Exception:
-            # If status check fails, fall back to generic message
-            pass
-
+        if status == ExecutionState.SUCCESS:
+            return f"Could not find or kill job {job_id} ({container_or_id}) - job already completed successfully"
+        elif status == ExecutionState.FAILED:
+            return f"Could not find or kill job {job_id} ({container_or_id}) - job already failed"
+        elif status == ExecutionState.KILLED:
+            return f"Could not find or kill job {job_id} ({container_or_id}) - job was already killed"
         # Generic error message
         return f"Could not find or kill job {job_id} ({container_or_id})"

@@ -415,65 +415,16 @@ class LocalExecutor(BaseExecutor):
 
     @staticmethod
     def kill_job(job_id: str) -> None:
-        """Kill a local job or all jobs in an invocation.
+        """Kill a local job.
 
         Args:
-            job_id: The job ID (e.g., abc123.0) or invocation ID (e.g., abc123) to kill.
+            job_id: The job ID (e.g., abc123.0) to kill.
 
         Raises:
             ValueError: If job is not found or invalid.
             RuntimeError: If Docker container cannot be stopped.
         """
         db = ExecutionDB()
-
-        # Check if this is an invocation ID (no dot) - batch kill all jobs
-        if "." not in job_id:
-            jobs = db.get_jobs(job_id)
-            if not jobs:
-                raise ValueError(f"No jobs found for invocation {job_id}")
-
-            # Filter for local jobs only
-            local_jobs = {
-                jid: jdata for jid, jdata in jobs.items() if jdata.executor == "local"
-            }
-            if not local_jobs:
-                raise ValueError(f"No local jobs found for invocation {job_id}")
-
-            # Batch kill all containers and processes
-            container_names = [
-                jdata.data.get("container")
-                for jdata in local_jobs.values()
-                if jdata.data.get("container")
-            ]
-
-            if container_names:
-                # Kill all containers in one command
-                containers_str = " ".join(container_names)
-                subprocess.run(
-                    shlex.split(f"docker stop {containers_str}"),
-                    capture_output=True,
-                    text=True,
-                    timeout=60,
-                )
-
-                # Kill all docker processes in one command
-                for container in container_names:
-                    subprocess.run(
-                        shlex.split(f"pkill -f 'docker run.*{container}'"),
-                        capture_output=True,
-                        text=True,
-                        timeout=10,
-                    )
-
-            # Mark all jobs as killed and add to killed_jobs.txt
-            for jid, job_data in local_jobs.items():
-                job_data.data["killed"] = True
-                db.write_job(job_data)
-                LocalExecutor._add_to_killed_jobs(job_id, jid)
-
-            return
-
-        # Single job kill
         job_data = db.get_job(job_id)
 
         if job_data is None:
@@ -529,8 +480,9 @@ class LocalExecutor(BaseExecutor):
             return
 
         # Use common helper to get informative error message based on job status
+        current_status = status_list[0].state if status_list else None
         error_msg = BaseExecutor.get_kill_failure_message(
-            LocalExecutor, job_id, f"container: {container_name}"
+            job_id, f"container: {container_name}", current_status
         )
         raise RuntimeError(error_msg)
 
