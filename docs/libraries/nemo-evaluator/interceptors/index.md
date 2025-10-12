@@ -57,11 +57,19 @@ Logs requests for debugging, analysis, and audit purposes.
 
 
 :::{grid-item-card} {octicon}`cache;1.5em;sd-mr-1` Response Logging
-:link: request-logging
+:link: response-logging
 :link-type: doc
 
 Logs responses for debugging, analysis, and audit purposes.
 :::
+
+:::{grid-item-card} {octicon}`cache;1.5em;sd-mr-1` Raising on Client Errors
+:link: raise-client-error
+:link-type: doc
+
+Allows to fail fast on non-retryable client errors
+:::
+
 
 ::::
 
@@ -98,6 +106,13 @@ Handle reasoning tokens and track reasoning metrics.
 Track evaluation progress and status updates.
 :::
 
+:::{grid-item-card} {octicon}`cache;1.5em;sd-mr-1` Response Statistics
+:link: response-stats
+:link-type: doc
+
+Collects statistics from API responses for metrics collection and analysis.
+:::
+
 ::::
 
 ## Process Post-Evaluation Results
@@ -121,9 +136,11 @@ Run additional processing, reporting, or cleanup after evaluations complete.
 Caching <caching>
 Request Logging <request-logging>
 Response Logging <response-logging>
+Raising on Client Errors <raise-client-errora>
 System Messages <system-messages>
 Payload Modification <payload-modification>
 Reasoning <reasoning>
 Progress Tracking <progress-tracking>
+Response Statistics <response-stats>
 Post-Evaluation Hooks <post-evaluation-hooks>
 :::
