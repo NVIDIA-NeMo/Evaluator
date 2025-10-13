@@ -23,6 +23,7 @@ import os
 import pathlib
 import platform
 import shlex
+import shutil
 import subprocess
 import time
 from typing import List, Optional
@@ -74,6 +75,13 @@ class LocalExecutor(BaseExecutor):
         if cfg.deployment.type != "none":
             raise NotImplementedError(
                 f"type {cfg.deployment.type} is not implemented -- add deployment support"
+            )
+
+        # Check if docker is available (skip in dry_run mode)
+        if not dry_run and shutil.which("docker") is None:
+            raise RuntimeError(
+                "Docker is not installed or not in PATH. "
+                "Please install Docker to run local evaluations."
             )
 
         # Generate invocation ID for this evaluation run
@@ -233,35 +241,48 @@ class LocalExecutor(BaseExecutor):
         # To ensure subprocess continues after python exits:
         # - on Unix-like systems, to fully detach the subprocess
         #   so it does not die when Python exits, pass start_new_session=True;
-        # - on Widnows use creationflags=subprocess.CREATE_NEW_PROCESS_GROUP flag.
+        # - on Windows use creationflags=subprocess.CREATE_NEW_PROCESS_GROUP flag.
         os_name = platform.system()
+        processes = []
+
         if is_execution_mode_sequential:
             if os_name == "Windows":
-                subprocess.Popen(
+                proc = subprocess.Popen(
                     shlex.split("bash run_all.sequential.sh"),
                     cwd=output_dir,
                     creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
                 )
             else:
-                subprocess.Popen(
+                proc = subprocess.Popen(
                     shlex.split("bash run_all.sequential.sh"),
                     cwd=output_dir,
                     start_new_session=True,
                 )
+            processes.append(("run_all.sequential.sh", proc, output_dir))
         else:
             for task in cfg.evaluation.tasks:
                 if os_name == "Windows":
-                    subprocess.Popen(
+                    proc = subprocess.Popen(
                         shlex.split("bash run.sh"),
                         cwd=output_dir / task.name,
                         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
                     )
                 else:
-                    subprocess.Popen(
+                    proc = subprocess.Popen(
                         shlex.split("bash run.sh"),
                         cwd=output_dir / task.name,
                         start_new_session=True,
                     )
+                processes.append((task.name, proc, output_dir / task.name))
+
+        # Wait briefly and check if bash scripts exited immediately (which means error)
+        time.sleep(0.3)
+
+        for name, proc, work_dir in processes:
+            exit_code = proc.poll()
+            if exit_code is not None and exit_code != 0:
+                error_msg = f"Script for {name} exited with code {exit_code}"
+                raise RuntimeError(f"Job startup failed | {error_msg}")
 
         print("\nCommands for real-time monitoring:")
         for job_id, evaluation_task in zip(job_ids, evaluation_tasks):
