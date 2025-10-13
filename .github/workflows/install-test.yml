@@ -170,12 +170,17 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Install both packages
+      - name: Install nemo-evaluator with test dependencies
+        working-directory: packages/nemo-evaluator
         run: |
-          uv pip install --system -e packages/nemo-evaluator
-          uv pip install --system -e packages/nemo-evaluator-launcher
-          uv pip install --system --group test -r packages/nemo-evaluator/pyproject.toml
-          uv pip install --system --group dev -r packages/nemo-evaluator-launcher/pyproject.toml
+          uv pip install --system -e .
+          uv pip install --system --group test
+
+      - name: Install nemo-evaluator-launcher with dev dependencies
+        working-directory: packages/nemo-evaluator-launcher
+        run: |
+          uv pip install --system -e .
+          uv pip install --system --group dev
 
       - name: Run integration tests
         run: |
