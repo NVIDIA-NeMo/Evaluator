@@ -1,9 +1,6 @@
 # NeMo Evaluator Launcher CLI Reference (nemo-evaluator-launcher)
 
-The NeMo Evaluator Launcher provides a command-line interface for running evaluations, managing jobs, and exporting results. The CLI is available through two commands:
-
-- `nemo-evaluator-launcher` (short alias, recommended)
-- `nemo-evaluator-launcher` (full command name)
+The NeMo Evaluator Launcher provides a command-line interface for running evaluations, managing jobs, and exporting results. The CLI is available through `nemo-evaluator-launcher` command.
 
 ## Global Options
 
@@ -256,7 +253,6 @@ nemo-evaluator-launcher export abc12345 --dest local      # Local file system
 nemo-evaluator-launcher export abc12345 --dest mlflow     # MLflow tracking
 nemo-evaluator-launcher export abc12345 --dest wandb      # Weights & Biases
 nemo-evaluator-launcher export abc12345 --dest gsheets    # Google Sheets
-nemo-evaluator-launcher export abc12345 --dest jet        # JET (internal)
 
 # Format options (for local destination only)
 nemo-evaluator-launcher export abc12345 --dest local --format json
@@ -310,12 +306,9 @@ The CLI respects environment variables for logging and task-specific authenticat
 * - Variable
   - Description
   - Default
-* - `NEMO_EVALUATOR_LOG_LEVEL`
+* - `LOG_LEVEL`
   - Logging level for the launcher (DEBUG, INFO, WARNING, ERROR, CRITICAL)
   - `WARNING`
-* - `LOG_LEVEL`
-  - Alternative log level variable
-  - Uses `NEMO_EVALUATOR_LOG_LEVEL` if set
 * - `LOG_DISABLE_REDACTION`
   - Disable credential redaction in logs (set to 1, true, or yes)
   - Not set
@@ -342,8 +335,13 @@ The NeMo Evaluator Launcher includes several example configuration files that de
 
 - `local_llama_3_1_8b_instruct.yaml` - Local execution with an existing endpoint
 - `local_limit_samples.yaml` - Local execution with limited samples for testing
+- `local_nvidia_nemotron_nano_9b_v2.yaml` - Local execution with Nvidia Nemotron Nano 9B v2
+- `local_auto_export_llama_3_1_8b_instruct.yaml` - Local execution with auto-export for Llama 3.1 8B
+- `local_custom_config_seed_oss_36b_instruct.yaml` - Local execution with advanced interceptors
 - `slurm_llama_3_1_8b_instruct.yaml` - Slurm execution with model deployment
+- `slurm_llama_3_1_8b_instruct_hf.yaml` - Slurm execution with deployment using Hugging Face model handle
 - `slurm_no_deployment_llama_3_1_8b_instruct.yaml` - Slurm execution with existing endpoint
+- `slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks.yaml` - Slurm execution with Llama-3.3-Nemotron-Super
 - `lepton_nim_llama_3_1_8b_instruct.yaml` - Lepton AI execution with NIM deployment
 - `lepton_vllm_llama_3_1_8b_instruct.yaml` - Lepton AI execution with vLLM deployment
 - `lepton_none_llama_3_1_8b_instruct.yaml` - Lepton AI execution with existing endpoint
@@ -395,11 +393,11 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 
 ```bash
 # Set log level to DEBUG for detailed output
-export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
+export LOG_LEVEL=DEBUG
 nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
 
 # Or use single-letter shorthand
-export NEMO_EVALUATOR_LOG_LEVEL=D
+export LOG_LEVEL=D
 nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
 
 # Logs are written to ~/.nemo-evaluator/logs/
