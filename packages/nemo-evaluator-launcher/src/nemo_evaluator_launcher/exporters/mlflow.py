@@ -39,6 +39,7 @@ from nemo_evaluator_launcher.exporters.utils import (
     get_available_artifacts,
     get_benchmark_info,
     get_task_name,
+    mlflow_sanitize,
 )
 
 
@@ -188,10 +189,13 @@ class MLflowExporter(BaseExporter):
                     }
                 )
 
-            # Truncate params
+            # Sanitize params
             safe_params = {
-                str(k)[:250]: str(v)[:250] for k, v in all_params.items() if v
+                mlflow_sanitize(k, "param_key"): mlflow_sanitize(v, "param_value")
+                for k, v in (all_params or {}).items()
+                if v is not None
             }
+
             # Prepare tags
             tags = {}
             if mlflow_config.get("tags"):
@@ -216,8 +220,12 @@ class MLflowExporter(BaseExporter):
                 }
             )
 
-            # Truncate tags
-            safe_tags = {str(k)[:250]: str(v)[:5000] for k, v in tags.items() if v}
+            # Sanitize tags
+            safe_tags = {
+                mlflow_sanitize(k, "tag_key"): mlflow_sanitize(v, "tag_value")
+                for k, v in (tags or {}).items()
+                if v is not None
+            }
 
             # skip run if it already exists
             exists, existing_run_id = self._get_existing_run_info(
@@ -236,23 +244,29 @@ class MLflowExporter(BaseExporter):
                 if safe_tags:
                     mlflow.set_tags(safe_tags)
 
-                # Set run name)
+                # Set run name
                 run_name = (
                     mlflow_config.get("run_name")
                     or f"eval-{job_data.invocation_id}-{benchmark}"
                 )
-                mlflow.set_tag("mlflow.runName", run_name)
+                mlflow.set_tag("mlflow.runName", mlflow_sanitize(run_name, "tag_value"))
 
                 # Set description only if provided
                 description = mlflow_config.get("description")
                 if description:
-                    mlflow.set_tag("mlflow.note.content", str(description)[:5000])
+                    mlflow.set_tag(
+                        "mlflow.note.content", mlflow_sanitize(description, "tag_value")
+                    )
 
                 # Log parameters
                 mlflow.log_params(safe_params)
 
-                # Log metrics
-                mlflow.log_metrics(accuracy_metrics)
+                # Sanitize metric keys before logging
+                safe_metrics = {
+                    mlflow_sanitize(k, "metric"): v
+                    for k, v in (accuracy_metrics or {}).items()
+                }
+                mlflow.log_metrics(safe_metrics)
 
                 # Log artifacts
                 artifacts_logged = self._log_artifacts(
@@ -548,18 +562,24 @@ class MLflowExporter(BaseExporter):
 
                 # Set run name
                 run_name = mlflow_config.get("run_name") or f"eval-{invocation_id}"
-                mlflow.set_tag("mlflow.runName", run_name)
+                mlflow.set_tag("mlflow.runName", mlflow_sanitize(run_name, "tag_value"))
 
                 # Set description
                 description = mlflow_config.get("description")
                 if description:
-                    mlflow.set_tag("mlflow.note.content", str(description)[:5000])
+                    mlflow.set_tag(
+                        "mlflow.note.content", mlflow_sanitize(description, "tag_value")
+                    )
 
                 # Log parameters
                 mlflow.log_params(safe_params)
 
-                # Log ALL metrics
-                mlflow.log_metrics(all_metrics)
+                # Sanitize metric keys
+                safe_all_metrics = {
+                    mlflow_sanitize(k, "metric"): v
+                    for k, v in (all_metrics or {}).items()
+                }
+                mlflow.log_metrics(safe_all_metrics)
 
                 # Log artifacts from all jobs
                 total_artifacts = 0

@@ -16,6 +16,7 @@
 """Shared utilities for metrics and configuration handling."""
 
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple
@@ -597,3 +598,41 @@ def _safe_update_metrics(
     """Update target from source safely, raising on collisions with detailed values."""
     for k, v in source.items():
         _safe_set_metric(target, k, v, context)
+
+
+# =============================================================================
+# MLFLOW FUNCTIONS
+# =============================================================================
+
+# MLflow constants
+_MLFLOW_KEY_MAX = 250
+_MLFLOW_PARAM_VAL_MAX = 250
+_MLFLOW_TAG_VAL_MAX = 5000
+
+_INVALID_KEY_CHARS = re.compile(r"[^/\w.\- ]")
+_MULTI_UNDERSCORE = re.compile(r"_+")
+
+
+def mlflow_sanitize(s: Any, kind: str = "key") -> str:
+    """
+    Sanitize strings for MLflow logging.
+
+    kind:
+      - "key", "metric", "tag_key", "param_key": apply key rules
+      - "tag_value": apply tag value rules
+      - "param_value": apply param value rules
+    """
+    s = "" if s is None else str(s)
+
+    if kind in ("key", "metric", "tag_key", "param_key"):
+        # common replacements
+        s = s.replace("pass@", "pass_at_")
+        # drop disallowed chars, collapse underscores, trim
+        s = _INVALID_KEY_CHARS.sub("_", s)
+        s = _MULTI_UNDERSCORE.sub("_", s).strip()
+        return s[:_MLFLOW_KEY_MAX] or "key"
+
+    # values: normalize whitespace, enforce length
+    s = s.replace("\n", " ").replace("\r", " ").strip()
+    max_len = _MLFLOW_TAG_VAL_MAX if kind == "tag_value" else _MLFLOW_PARAM_VAL_MAX
+    return s[:max_len]
