@@ -181,6 +181,42 @@ jobs:
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
+  check-imports:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: ["nemo-evaluator", "nemo-evaluator-launcher"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout FW-CI-templates
+        uses: actions/checkout@v4
+        with:
+          repository: NVIDIA-NeMo/FW-CI-templates
+          path: ./FW-CI-templates
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install package
+        working-directory: packages/${{ matrix.package }}
+        run: |
+          uv pip install --system -e .
+
+      - name: Check imports
+        uses: ./FW-CI-templates/.github/actions/check-imports
+        with:
+          package-name: ${{ matrix.package }}
+          python-binary: python3
+
   lint:
     runs-on: ubuntu-latest
     steps:
