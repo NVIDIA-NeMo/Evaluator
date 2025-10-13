@@ -108,6 +108,11 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
+      - name: Install nemo-evaluator (dependency)
+        working-directory: packages/nemo-evaluator
+        run: |
+          uv pip install --system -e .
+
       - name: Install nemo-evaluator-launcher
         working-directory: packages/nemo-evaluator-launcher
         run: |
@@ -117,6 +122,11 @@ jobs:
         working-directory: packages/nemo-evaluator-launcher
         run: |
           uv pip install --system --group dev
+
+      - name: Install optional dependencies (for testing)
+        working-directory: packages/nemo-evaluator-launcher
+        run: |
+          uv pip install --system -e ".[all]"
 
       - name: Verify installation
         run: |
@@ -205,6 +215,12 @@ jobs:
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install nemo-evaluator (if needed)
+        if: matrix.package == 'nemo-evaluator-launcher'
+        working-directory: packages/nemo-evaluator
+        run: |
+          uv pip install --system -e .
 
       - name: Install package
         working-directory: packages/${{ matrix.package }}
