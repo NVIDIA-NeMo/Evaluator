@@ -195,7 +195,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        package: ["nemo-evaluator", "nemo-evaluator-launcher"]
+        include:
+          - package: "nemo-evaluator"
+            module: "nemo_evaluator"
+          - package: "nemo-evaluator-launcher"
+            module: "nemo_evaluator_launcher"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -230,7 +234,7 @@ jobs:
       - name: Check imports
         uses: ./FW-CI-templates/.github/actions/check-imports
         with:
-          package-name: ${{ matrix.package }}
+          package-name: ${{ matrix.module }}
           python-binary: python3
 
   lint:
