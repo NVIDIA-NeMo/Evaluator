@@ -79,9 +79,7 @@ graph TD
 Lepton executor configurations require:
 
 - **Execution backend**: `execution: lepton/default`
-- **Deployment type**: One of `vllm`, `sglang`, `nim`, or `none`
 - **Lepton platform settings**: Node groups, resource shapes, secrets, and storage mounts
-- **Evaluation tasks**: List of tasks to run
 
 Refer to the complete working examples in the `examples/` directory:
 

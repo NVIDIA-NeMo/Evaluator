@@ -50,6 +50,14 @@ Deploy models using NVIDIA Inference Microservices.
 Deploy models using NVIDIA TensorRT LLM.
 :::
 
+:::{grid-item-card} {octicon}`shield;1.5em;sd-mr-1` Generic
+:link: generic
+:link-type: doc
+
+
+Deploy models using a fully custom setup.
+:::
+
 ::::
 
 ## Quick Reference

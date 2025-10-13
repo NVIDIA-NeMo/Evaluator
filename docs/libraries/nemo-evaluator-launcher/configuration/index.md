@@ -27,7 +27,7 @@ Every configuration has four main sections:
 ```yaml
 defaults:
   - execution: local     # Where to run: local, lepton, slurm
-  - deployment: none     # How to deploy: none, vllm, sglang, nim
+  - deployment: none     # How to deploy: none, vllm, sglang, nim, trtllm, generic
   - _self_
 
 execution:
@@ -77,6 +77,22 @@ Fast serving framework optimized for structured generation and high-throughput i
 :link-type: doc
 
 NVIDIA-optimized inference microservices with automatic scaling, optimization, and enterprise-grade features.
+:::
+
+:::{grid-item-card} {octicon}`shield;1.5em;sd-mr-1` TRT-LLM
+:link: deployment/trtllm
+:link-type: doc
+
+
+NVIDIA TensorRT LLM.
+:::
+
+:::{grid-item-card} {octicon}`shield;1.5em;sd-mr-1` Generic
+:link: deployment/generic
+:link-type: doc
+
+
+Deploy models using a fully custom setup.
 :::
 
 ::::

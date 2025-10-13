@@ -114,7 +114,6 @@ bash run.sh
 ## Key Features
 
 - **Docker-based execution**: Isolated, reproducible runs
-- **OpenAI-compatible endpoint support**: Works with any OpenAI-compatible endpoint
 - **Script generation**: Reusable scripts for rerunning evaluations
 - **Real-time logs**: Status tracking via log files
 
