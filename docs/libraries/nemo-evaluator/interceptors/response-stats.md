@@ -8,6 +8,7 @@ The `ResponseStatsInterceptor` collects comprehensive aggregated statistics from
 This interceptor is essential for understanding API performance, cost analysis, and monitoring evaluation runs. It provides both real-time aggregated statistics and detailed per-request tracking capabilities.
 
 **Key Statistics Tracked:**
+
 - Token usage (prompt, completion, total) with averages and maximums
 - Response status codes and counts
 - Finish reasons and stop reasons
@@ -17,6 +18,12 @@ This interceptor is essential for understanding API performance, cost analysis, 
 - Inference run times and timing analysis
 
 ## Configuration
+
+### CLI Configuration
+
+```bash
+--overrides 'target.api_endpoint.adapter_config.tracking_requests_stats=True,target.api_endpoint.adapter_config.response_stats_cache=/tmp/response_stats_interceptor,target.api_endpoint.adapter_config.logging_aggregated_stats_interval=100'
+```
 
 ### YAML Configuration
 
