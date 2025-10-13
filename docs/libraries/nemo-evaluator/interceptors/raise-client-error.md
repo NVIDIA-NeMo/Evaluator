@@ -12,7 +12,7 @@ This interceptor is useful when you want to fail fast on client errors that indi
 ### CLI Configuration
 
 ```bash
---overrides 'target.api_endpoint.adapter_config.use_raise_client_errors=True
+--overrides 'target.api_endpoint.adapter_config.use_raise_client_errors=True'
 ```
 
 ### YAML Configuration

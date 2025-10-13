@@ -136,7 +136,7 @@ Run additional processing, reporting, or cleanup after evaluations complete.
 Caching <caching>
 Request Logging <request-logging>
 Response Logging <response-logging>
-Raising on Client Errors <raise-client-errora>
+Raising on Client Errors <raise-client-error>
 System Messages <system-messages>
 Payload Modification <payload-modification>
 Reasoning <reasoning>
