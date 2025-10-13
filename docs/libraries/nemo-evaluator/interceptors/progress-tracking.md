@@ -14,14 +14,20 @@
 ### YAML Configuration
 
 ```yaml
-interceptors:
-  - name: "progress_tracking"
-    enabled: true
-    config:
-      progress_tracking_url: "http://monitoring:3828/progress"
-      progress_tracking_interval: 10
-      request_method: "PATCH"
-      output_dir: "/tmp/output"
+target:
+  api_endpoint:
+    adapter_config:
+      interceptors:
+        - name: "progress_tracking"
+          enabled: true
+          config:
+            progress_tracking_url: "http://monitoring:3828/progress"
+            progress_tracking_interval: 10
+            request_method: "PATCH"
+            output_dir: "/tmp/output"
+        - name: "endpoint"
+          enabled: true
+          config: {}
 ```
 
 

@@ -31,6 +31,9 @@ target:
               - "top_k"
             params_to_rename:
               old_param: "new_param"
+        - name: "endpoint"
+          enabled: true
+          config: {}
 ```
 
 ## Configuration Options
