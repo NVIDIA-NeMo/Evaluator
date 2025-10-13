@@ -78,6 +78,18 @@ class LeptonExecutor(BaseExecutor):
                 "LeptonExecutor supports deployment types: 'vllm', 'sglang', 'nim', 'none'"
             )
 
+        # Load tasks mapping
+        tasks_mapping = load_tasks_mapping()
+        job_ids = []
+        lepton_job_names = []
+        endpoint_names = []  # Track multiple endpoints
+        db = ExecutionDB()
+
+        # DRY-RUN mode
+        if dry_run:
+            _dry_run_lepton(cfg, tasks_mapping)
+            return None
+
         # Generate invocation ID
         invocation_id = generate_invocation_id()
 
@@ -88,13 +100,6 @@ class LeptonExecutor(BaseExecutor):
             print(f"✅ Using shared endpoint: {shared_endpoint_url}")
 
         try:
-            # Load tasks mapping
-            tasks_mapping = load_tasks_mapping()
-            job_ids = []
-            lepton_job_names = []
-            endpoint_names = []  # Track multiple endpoints
-            db = ExecutionDB()
-
             # Create local directory for outputs
             output_dir = Path(cfg.execution.output_dir).absolute() / invocation_id
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -139,8 +144,13 @@ class LeptonExecutor(BaseExecutor):
                     task_index = str(idx)
                     endpoint_name = f"{cfg.deployment.type}-{short_task_name}-{task_index}-{short_invocation}"
 
-                    # Ensure we don't exceed 36 character limit
                     if len(endpoint_name) > 36:
+                        logger.info(
+                            "Lepton endpoint name will be deployed under name {task_name}",
+                            task_name=task.name,
+                            original=endpoint_name,
+                            limit=36,
+                        )
                         # Truncate task name further if needed
                         max_task_len = (
                             36
@@ -151,7 +161,19 @@ class LeptonExecutor(BaseExecutor):
                         )  # 3 hyphens
                         short_task_name = sanitized_task_name[:max_task_len]
                         endpoint_name = f"{cfg.deployment.type}-{short_task_name}-{task_index}-{short_invocation}"
+                        logger.info(
+                            "Lepton endpoint name is auto-generated",
+                            task_name=task.name,
+                            original=endpoint_name,
+                            truncated=endpoint_name,
+                            limit=36,
+                        )
 
+                    logger.info(
+                        "Lepton endpoint name (auto-generated)",
+                        task_name=task.name,
+                        endpoint_name=endpoint_name,
+                    )
                     endpoint_names.append(endpoint_name)
                     endpoint_creation_tasks.append((idx, task, endpoint_name))
 
@@ -298,20 +320,6 @@ class LeptonExecutor(BaseExecutor):
                     f"✅ All {len(cfg.evaluation.tasks)} endpoints created successfully!"
                 )
 
-            if dry_run:
-                print("🔍 DRY RUN: Lepton job configurations prepared")
-                print(f"   - Tasks: {len(cfg.evaluation.tasks)}")
-                for idx, task in enumerate(cfg.evaluation.tasks):
-                    if cfg.deployment.type == "none":
-                        print(f"   - Task {idx}: {task.name} using shared endpoint")
-                    else:
-                        print(
-                            f"   - Task {idx}: {task.name} with endpoint {endpoint_names[idx]}"
-                        )
-                print(f"   - Output directory: {output_dir}")
-                print("\nTo submit jobs, run the executor without --dry-run")
-                return invocation_id
-
             # ================================================================
             # JOB SUBMISSION (Sequential, as before)
             # ================================================================
@@ -334,8 +342,18 @@ class LeptonExecutor(BaseExecutor):
                 max_base_length = 36 - 1 - len(suffix)  # -1 for the hyphen
                 if len(base_job_name) > max_base_length:
                     base_job_name = base_job_name[:max_base_length]
+                    logger.info(
+                        "Lepton job auto-generated name",
+                        task_name=task.name,
+                        job_name=f"{base_job_name}-{suffix}",
+                    )
 
                 lepton_job_name = f"{base_job_name}-{suffix}"
+                logger.info(
+                    "Lepton job name (auto-generated)",
+                    task_name=task.name,
+                    job_name=lepton_job_name,
+                )
                 job_ids.append(job_id)
                 lepton_job_names.append(lepton_job_name)
 
@@ -825,6 +843,79 @@ exit 0
 """
 
     return script
+
+
+def _dry_run_lepton(cfg: DictConfig, tasks_mapping: dict) -> None:
+    print("DRY RUN: Validating Lepton job configurations...")
+    try:
+        # validate tasks
+        for task in cfg.evaluation.tasks:
+            get_task_from_mapping(task.name, tasks_mapping)
+
+        # nice-to-have checks (existing endpoint URL or endpoints mapping)
+        if getattr(cfg.deployment, "type", None) == "none":
+            tgt = getattr(cfg, "target", {})
+            api = (
+                tgt.get("api_endpoint")
+                if isinstance(tgt, dict)
+                else getattr(tgt, "api_endpoint", None)
+            ) or {}
+            url = api.get("url") if isinstance(api, dict) else getattr(api, "url", None)
+            if not url or not str(url).strip():
+                raise ValueError(
+                    "target.api_endpoint.url must be set when deployment.type == 'none'"
+                )
+        else:
+            endpoints_cfg = getattr(cfg.deployment, "endpoints", {}) or {}
+            for task in cfg.evaluation.tasks:
+                td = get_task_from_mapping(task.name, tasks_mapping)
+                etype = td.get("endpoint_type")
+                if etype not in endpoints_cfg:
+                    raise ValueError(
+                        f"deployment.endpoints missing path for endpoint_type '{etype}' (task '{task.name}')"
+                    )
+                path = endpoints_cfg.get(etype)
+                if not isinstance(path, str) or not path.startswith("/"):
+                    raise ValueError(
+                        f"deployment.endpoints['{etype}'] must be a non-empty path starting with '/'"
+                    )
+
+        # lepton env var presence (reference-level)
+        tasks_cfg = getattr(cfg.execution, "lepton_platform", {}).get("tasks", {}) or {}
+        lepton_env_vars = tasks_cfg.get("env_vars", {}) or {}
+        api_key_name = getattr(
+            getattr(cfg, "target", {}).get("api_endpoint", {}), "api_key_name", None
+        )
+        for task in cfg.evaluation.tasks:
+            td = get_task_from_mapping(task.name, tasks_mapping)
+            required = td.get("required_env_vars", []) or []
+            for var in required:
+                if var == "API_KEY":
+                    if not (("API_KEY" in lepton_env_vars) or bool(api_key_name)):
+                        raise ValueError(
+                            f"Task '{task.name}' requires API_KEY: set execution.lepton_platform.tasks.env_vars.API_KEY "
+                            "or target.api_endpoint.api_key_name"
+                        )
+                else:
+                    if var not in lepton_env_vars:
+                        raise ValueError(
+                            f"Task '{task.name}' requires {var}: set it under execution.lepton_platform.tasks.env_vars"
+                        )
+
+        # success
+        print("✅ Configuration valid")
+        print(f"   - Tasks: {len(cfg.evaluation.tasks)}")
+        for idx, task in enumerate(cfg.evaluation.tasks):
+            print(f"   - Task {idx}: {task.name}")
+        preview_output_dir = (
+            Path(cfg.execution.output_dir).absolute() / "<invocation_id>"
+        )
+        print(f"   - Output directory: {preview_output_dir}")
+        print("\nTo run evaluation, execute run command without --dry-run")
+    except Exception as e:
+        print(f"❌ Configuration invalid: {e}")
+        logger.error("Lepton dry-run validation failed", error=str(e))
+        return
 
 
 def _get_statuses_for_invocation_id(id: str, db: ExecutionDB) -> List[ExecutionStatus]:
