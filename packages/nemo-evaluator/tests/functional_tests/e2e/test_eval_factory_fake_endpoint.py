@@ -15,6 +15,7 @@
 """End-to-end tests for eval-factory using fake endpoint."""
 
 import pytest
+
 from nemo_evaluator.logging.utils import logger
 
 
