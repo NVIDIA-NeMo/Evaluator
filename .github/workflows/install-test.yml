@@ -24,6 +24,8 @@ on:
   push:
     branches:
       - main
+      - "pull-request/[0-9]+"
+      - "deploy-release/*"
   workflow_dispatch:
 
 concurrency:
