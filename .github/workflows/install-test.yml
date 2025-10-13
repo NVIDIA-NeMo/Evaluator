@@ -18,82 +18,192 @@
 name: Installation Test
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
-      - "pull-request/[0-9]+"
-      - "deploy-release/*"
-env:
-  UV_PROJECT_ENVIRONMENT: "./venv"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  pre-flight:
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@v0.64.2
-
-  pip-test:
+  test-nemo-evaluator:
     runs-on: ubuntu-latest
-    name: Pip - Python${{ matrix.python-version }} - ${{ matrix.package }} - AMD64/Linux - Ubuntu Latest
-    needs: [pre-flight]
-    if: |
-      !(needs.pre-flight.outputs.docs_only == 'true'
-      || needs.pre-flight.outputs.is_deployment_workflow == 'true')
-    container:
-      image: ubuntu:24.04
-    environment: nemo-ci
     strategy:
-      fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
-        package: ["nemo-evaluator"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install ${{ matrix.package }}
-        shell: bash -x -e -u -o pipefail {0}
-        run: bash docker/common/install.sh --package ${{ matrix.package }} --python-version "${{ matrix.python-version }}"
-
-      - name: Checkout check-imports
-        uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
         with:
-          repository: NVIDIA-NeMo/FW-CI-templates
-          ref: v0.39.0
-          path: FW-CI-templates
+          python-version: ${{ matrix.python-version }}
 
-      - name: Check imports for nemo_evaluator
-        uses: ./FW-CI-templates/.github/actions/check-imports
-        with:
-          package-name: nemo_evaluator
-          python-binary: /opt/venv/bin/python
-
-  install-test-summary:
-    needs: [pre-flight, pip-test]
-    runs-on: ubuntu-latest
-    name: Install test summary
-    if: |
-      (
-        needs.pre-flight.outputs.docs_only == 'true'
-        || needs.pre-flight.outputs.is_deployment_workflow == 'true'
-        || always()
-      )
-      && !cancelled()
-    steps:
-      - name: Get workflow result
-        id: result
-        shell: bash -x -e -u -o pipefail {0}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ github.run_id }}
-          SKIPPING_IS_ALLOWED: ${{ needs.pre-flight.outputs.docs_only == 'true' || needs.pre-flight.outputs.is_deployment_workflow == 'true' }}
+      - name: Install uv
         run: |
-          FAILED_JOBS=$(gh run view $GITHUB_RUN_ID --json jobs --jq '[.jobs[] | select(.status == "completed" and .conclusion != "success")] | length') || echo 0
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-          if [ "${FAILED_JOBS:-0}" -eq 0 ] || [ "$SKIPPING_IS_ALLOWED" == "true" ]; then
-              echo "✅ All previous jobs completed successfully"
-              exit 0
-          else
-              echo "❌ Found $FAILED_JOBS failed job(s)"
-              # Show which jobs failed
-              gh run view $GITHUB_RUN_ID --json jobs --jq '.jobs[] | select(.status == "completed" and .conclusion != "success") | .name'
-              exit 1
-          fi
+      - name: Install nemo-evaluator
+        working-directory: packages/nemo-evaluator
+        run: |
+          uv pip install --system -e .
+
+      - name: Install test dependencies
+        working-directory: packages/nemo-evaluator
+        run: |
+          uv pip install --system --group test
+
+      - name: Verify installation
+        run: |
+          python -c "import nemo_evaluator; print(f'nemo-evaluator version: {nemo_evaluator.__version__}')"
+          which nemo-evaluator
+          which eval-factory
+          nemo-evaluator --help
+
+      - name: Run unit tests
+        working-directory: packages/nemo-evaluator
+        run: |
+          pytest tests/unit_tests -v --cov=nemo_evaluator --cov-report=xml --cov-report=term
+
+      - name: Run functional tests
+        working-directory: packages/nemo-evaluator
+        run: |
+          pytest tests/functional_tests -v
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.10'
+        uses: codecov/codecov-action@v4
+        with:
+          file: packages/nemo-evaluator/coverage.xml
+          flags: nemo-evaluator
+          name: nemo-evaluator-${{ matrix.python-version }}
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  test-nemo-evaluator-launcher:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install nemo-evaluator-launcher
+        working-directory: packages/nemo-evaluator-launcher
+        run: |
+          uv pip install --system -e .
+
+      - name: Install dev dependencies
+        working-directory: packages/nemo-evaluator-launcher
+        run: |
+          uv pip install --system --group dev
+
+      - name: Verify installation
+        run: |
+          python -c "import nemo_evaluator_launcher; print(f'nemo-evaluator-launcher version: {nemo_evaluator_launcher.__version__}')"
+          which nemo-evaluator-launcher
+          which nv-eval
+          nemo-evaluator-launcher --help
+
+      - name: Run unit tests
+        working-directory: packages/nemo-evaluator-launcher
+        run: |
+          pytest tests/unit_tests -v --cov=nemo_evaluator_launcher --cov-report=xml --cov-report=term
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.10'
+        uses: codecov/codecov-action@v4
+        with:
+          file: packages/nemo-evaluator-launcher/coverage.xml
+          flags: nemo-evaluator-launcher
+          name: nemo-evaluator-launcher-${{ matrix.python-version }}
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  test-integration:
+    runs-on: ubuntu-latest
+    needs: [test-nemo-evaluator, test-nemo-evaluator-launcher]
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install both packages
+        run: |
+          uv pip install --system -e packages/nemo-evaluator
+          uv pip install --system -e packages/nemo-evaluator-launcher
+          uv pip install --system --group test -r packages/nemo-evaluator/pyproject.toml
+          uv pip install --system --group dev -r packages/nemo-evaluator-launcher/pyproject.toml
+
+      - name: Run integration tests
+        run: |
+          pytest tests/integration_tests -v --cov --cov-report=xml --cov-report=term
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.10'
+        uses: codecov/codecov-action@v4
+        with:
+          file: coverage.xml
+          flags: integration
+          name: integration-${{ matrix.python-version }}
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install ruff and flake8
+        run: |
+          uv pip install --system ruff flake8
+
+      - name: Run ruff check
+        run: |
+          ruff check packages/
+
+      - name: Run flake8
+        run: |
+          flake8 packages/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 packages/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
