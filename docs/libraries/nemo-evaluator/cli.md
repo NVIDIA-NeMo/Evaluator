@@ -7,7 +7,7 @@ This document provides a comprehensive reference for the `nemo-evaluator` comman
 ## Prerequisites
 
 - **Container way**: Use evaluation containers mentioned in {ref}`nemo-evaluator-containers`
-- **Python way**:
+- **Package way**:
 
   ```bash
   pip install nemo-evaluator
@@ -20,7 +20,7 @@ This document provides a comprehensive reference for the `nemo-evaluator` comman
 
 ## Overview
 
-The CLI provides a unified interface for managing evaluations and frameworks. It's built on top of the Python API and provides both interactive and non-interactive modes.
+The CLI provides a unified interface for managing evaluations and frameworks. It's built on top of the Python API and provides full feature parity with it.
 
 ## Command Structure
 
@@ -40,10 +40,9 @@ nemo-evaluator ls
 
 **Output Example:**
 ```
-mmlu_pro: 
+nvidia-simple-evals: 
   * mmlu_pro
-gsm8k: 
-  * gsm8k
+...
 human_eval: 
   * human_eval
 ```

@@ -138,7 +138,10 @@ adapter_config = AdapterConfig(
         # Enable progress tracking
         InterceptorConfig(
             name="progress_tracking"
-        )
+        ),
+        InterceptorConfig(
+            name="endpoint"
+        ),
     ]
 )
 
