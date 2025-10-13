@@ -1,17 +1,17 @@
 (workflows-overview)=
 
-# Container Workflows
+# Workflows
 
-Learn how to use NeMo Evaluator through different workflow patterns. Whether you prefer programmatic control through Python APIs or direct container usage, these guides provide practical examples for integrating evaluations into your ML pipelines.
+Learn how to use NeMo Evaluator through different workflow patterns. Whether you prefer programmatic control through Python APIs or CLI, these guides provide practical examples for integrating evaluations into your ML pipelines.
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
-:::{grid-item-card} {octicon}`container;1.5em;sd-mr-1` Using Containers
-:link: using-containers
+:::{grid-item-card} {octicon}`container;1.5em;sd-mr-1` CLI
+:link: cli
 :link-type: doc
 
-Run evaluations using the pre-built NGC containers directly with Docker or container orchestration platforms.
+Run evaluations using the pre-built NGC containers and command line interface.
 :::
 
 :::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Python API
@@ -26,14 +26,14 @@ Use the NeMo Evaluator Python API to integrate evaluations directly into your ex
 ## Choose Your Workflow
 
 - **Python API**: Integrate evaluations directly into your existing Python applications when you need dynamic configuration management or programmatic control
-- **Container Usage**: Use pre-built containers when you work with CI/CD systems, container orchestration platforms, or need complete control over the container environment
+- **CLI**: Use CLI when you work with CI/CD systems, container orchestration platforms, or other non-interactive workflows.
 
-Both approaches use the same underlying evaluation containers and produce identical, reproducible results. Choose based on your integration requirements and preferred level of abstraction.
+Both approaches use the same underlying evaluation package and produce identical, reproducible results. Choose based on your integration requirements and preferred level of abstraction.
 
 :::{toctree}
-:caption: Container Workflows
+:caption: Workflows
 :hidden:
 
-Using Containers <using-containers>
+CLI <cli>
 Python API <python-api>
 :::
