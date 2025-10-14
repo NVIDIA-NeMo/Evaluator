@@ -115,7 +115,7 @@ nemo-evaluator-launcher status <job_id_or_invocation_id>
   nemo-evaluator-launcher ls tasks
   ```
 
-- Explore the [Supported Benchmarks](#supported-benchmarks-and-evaluation-harnesses) to see all available harnesses and benchmarks.
+- Explore the [Supported Benchmarks](#-supported-benchmarks-and-evaluation-harnesses) to see all available harnesses and benchmarks.
 - Scale up your evaluations using the [Slurm Executor](./docs/nemo-evaluator-launcher/executors/slurm.md) or [Lepton Executor](./docs/nemo-evaluator-launcher/executors/lepton.md).
 - Learn to evaluate self-hosted models in the extended [Tutorial guide](./docs/nemo-evaluator-launcher/tutorial.md) for nemo-evaluator-launcher.
 - Customize your workflow with [Custom Exporters](./docs/nemo-evaluator-launcher/exporters/overview.md) or by evaluating with [proprietary data](./docs/nemo-evaluator/extending/framework-definition-file.md).
