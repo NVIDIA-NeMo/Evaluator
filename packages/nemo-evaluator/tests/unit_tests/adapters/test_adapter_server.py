@@ -554,7 +554,6 @@ def test_evaluate_function_url_replacement():
 
         # Mock the evaluation result
         mock_result = mock_parse_output.return_value
-        mock_monitor.return_value = (mock_result, {})
 
         # Mock the adapter process context manager to simulate URL replacement
         def context_manager_side_effect():
@@ -571,7 +570,13 @@ def test_evaluate_function_url_replacement():
             # Execute the command
             cmd = mock_evaluation.render_command()
             mock_run_command(cmd, verbose=True)
-            return mock_result
+
+            # Create the _EvaluationResultWithRunCmd object that monitor_memory_usage should return
+            from nemo_evaluator.core.evaluate import _EvaluationResultWithRunCmd
+
+            return _EvaluationResultWithRunCmd(
+                evaluation_result=mock_result, cmd_used=cmd
+            )
 
         mock_monitor.side_effect = lambda func, **kwargs: (
             context_manager_side_effect(),
@@ -617,4 +622,4 @@ def test_evaluate_function_url_replacement():
         assert call_args[1]["verbose"]
 
         # Verify that the evaluation result is returned
-        assert result == mock_result
+        assert result.evaluation_result == mock_result
