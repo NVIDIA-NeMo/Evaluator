@@ -48,6 +48,29 @@ graph LR
 Cache requests and responses to improve performance and reduce API calls.
 :::
 
+:::{grid-item-card} {octicon}`sign-in;1.5em;sd-mr-1` Request Logging
+:link: request-logging
+:link-type: doc
+
+Logs requests for debugging, analysis, and audit purposes.
+:::
+
+
+:::{grid-item-card} {octicon}`sign-out;1.5em;sd-mr-1` Response Logging
+:link: response-logging
+:link-type: doc
+
+Logs responses for debugging, analysis, and audit purposes.
+:::
+
+:::{grid-item-card} {octicon}`alert;1.5em;sd-mr-1` Raising on Client Errors
+:link: raise-client-error
+:link-type: doc
+
+Allows to fail fast on non-retryable client errors
+:::
+
+
 ::::
 
 ## Specialized Interceptors
@@ -62,14 +85,14 @@ Cache requests and responses to improve performance and reduce API calls.
 Modify system messages and prompts in requests.
 :::
 
-:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Payload Modification
+:::{grid-item-card} {octicon}`pencil;1.5em;sd-mr-1` Payload Modification
 :link: payload-modification
 :link-type: doc
 
 Add, remove, or modify request parameters.
 :::
 
-:::{grid-item-card} {octicon}`brain;1.5em;sd-mr-1` Reasoning
+:::{grid-item-card} {octicon}`comment-discussion;1.5em;sd-mr-1` Reasoning
 :link: reasoning
 :link-type: doc
 
@@ -81,6 +104,13 @@ Handle reasoning tokens and track reasoning metrics.
 :link-type: doc
 
 Track evaluation progress and status updates.
+:::
+
+:::{grid-item-card} {octicon}`meter;1.5em;sd-mr-1` Response Statistics
+:link: response-stats
+:link-type: doc
+
+Collects statistics from API responses for metrics collection and analysis.
 :::
 
 ::::
@@ -104,9 +134,13 @@ Run additional processing, reporting, or cleanup after evaluations complete.
 :hidden:
 
 Caching <caching>
+Request Logging <request-logging>
+Response Logging <response-logging>
+Raising on Client Errors <raise-client-error>
 System Messages <system-messages>
 Payload Modification <payload-modification>
 Reasoning <reasoning>
 Progress Tracking <progress-tracking>
+Response Statistics <response-stats>
 Post-Evaluation Hooks <post-evaluation-hooks>
 :::

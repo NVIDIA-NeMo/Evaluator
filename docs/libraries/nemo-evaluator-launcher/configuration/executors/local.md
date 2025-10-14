@@ -62,7 +62,30 @@ The Local executor uses Docker volume mounts for data persistence:
 ### Docker Volumes
 
 - **Results Mount**: Each task's artifacts directory mounts as `/results` in evaluation containers
-- **No Custom Mounts**: Local executor doesn't support custom volume mounts
+- **Custom Mounts**: Use to `extra_docker_args` field to define custom volume mounts (see [Advanced configuration](#advanced-configuration) )
+
+## Advanced configuration
+
+You can customize your local executor by specifying `extra_docker_args`.
+This parameter allows you to pass any flag to the `docker run` command that is executed by the NeMo Evaluator Launcher.
+You can use it to mount additional volumes, set environment variables or customize your network settings.
+
+For example, if you would like your job to use a specific docker network, you can specify:
+
+```yaml
+execution:
+  extra_docker_args: "--network my-custom-network"
+```
+
+Replace `my-custom-network` with `host` to access the host network.
+
+To mount additional custom volumes, do:
+
+```yaml
+execution:
+  extra_docker_args: "--volume /my/local/path:/my/container/path"
+```
+
 
 ## Rerunning Evaluations
 
@@ -91,7 +114,6 @@ bash run.sh
 ## Key Features
 
 - **Docker-based execution**: Isolated, reproducible runs
-- **OpenAI-compatible endpoint support**: Works with any OpenAI-compatible endpoint
 - **Script generation**: Reusable scripts for rerunning evaluations
 - **Real-time logs**: Status tracking via log files
 

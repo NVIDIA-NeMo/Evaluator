@@ -14,7 +14,7 @@ Select a library for your evaluation workflow:
 **Start here** - Unified CLI and Python API for running evaluations across local, cluster, and hosted environments.
 :::
 
-:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` NeMo Evaluator
+:::{grid-item-card} {octicon}`beaker;1.5em;sd-mr-1` NeMo Evaluator
 :link: nemo-evaluator/index
 :link-type: doc
 

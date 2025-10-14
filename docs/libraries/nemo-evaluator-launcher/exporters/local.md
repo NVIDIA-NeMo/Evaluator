@@ -16,16 +16,16 @@ Export artifacts and generate summary reports locally:
 
 ```bash
 # Basic export to current directory
-nv-eval export 8abcd123 --dest local
+nemo-evaluator-launcher export 8abcd123 --dest local
 
 # Export with JSON summary to custom directory
-nv-eval export 8abcd123 --dest local --format json --output-dir ./evaluation-results/
+nemo-evaluator-launcher export 8abcd123 --dest local --format json --output-dir ./evaluation-results/
 
 # Export multiple runs with CSV summary and logs included
-nv-eval export 8abcd123 9def4567 --dest local --format csv --copy-logs --output-dir ./results
+nemo-evaluator-launcher export 8abcd123 9def4567 --dest local --format csv --copy-logs --output-dir ./results
 
 # Export only specific metrics to a custom filename
-nv-eval export 8abcd123 --dest local --format json --log-metrics accuracy --log-metrics bleu --output-filename model_metrics.json
+nemo-evaluator-launcher export 8abcd123 --dest local --format json --log-metrics accuracy --log-metrics bleu --output-filename model_metrics.json
 ```
 
 :::
@@ -74,6 +74,21 @@ export_results(
 ```
 
 :::
+
+:::{tab-item} YAML Config
+
+Configure local export in your evaluation YAML file for automatic export on completion:
+
+```yaml
+execution:
+  auto_export:
+    destinations: ["local"]
+
+export:
+  local:
+    format: "json"
+    output_dir: "./results"
+```
 
 ::::
 

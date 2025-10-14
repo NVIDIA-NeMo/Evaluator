@@ -69,14 +69,14 @@ For multi-model comparison, run separate evaluations for each model and compare 
 
 ```bash
 # Evaluate first model
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
     -o execution.output_dir=./results/llama-3.1-8b
 
 # Evaluate second model
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.model_id=meta/llama-3.1-70b-instruct \
@@ -121,11 +121,11 @@ results = evaluate(target_cfg=target, eval_cfg=config)
 
 ### NVIDIA Build CLI Usage
 
-Use `nv-eval` (recommended) or `nemo-evaluator-launcher`:
+Use `nemo-evaluator-launcher` (recommended) or `nemo-evaluator-launcher`:
 
 ```bash
 # Basic evaluation
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -133,7 +133,7 @@ nv-eval run \
     -o target.api_endpoint.api_key=${NGC_API_KEY}
 
 # Large model evaluation with limited samples
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.model_id=meta/llama-3.1-405b-instruct \
@@ -213,11 +213,11 @@ evaluation:
 
 ### OpenAI CLI Usage
 
-Use `nv-eval` (recommended) or `nemo-evaluator-launcher`:
+Use `nemo-evaluator-launcher` (recommended) or `nemo-evaluator-launcher`:
 
 ```bash
 # GPT-4 evaluation
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://api.openai.com/v1/chat/completions \
@@ -225,7 +225,7 @@ nv-eval run \
     -o target.api_endpoint.api_key=${OPENAI_API_KEY}
 
 # Cost-effective GPT-3.5 evaluation
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.model_id=gpt-3.5-turbo \

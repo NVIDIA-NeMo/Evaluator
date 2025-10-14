@@ -119,7 +119,7 @@ docker run --rm --gpus all \
     -v $(pwd)/results:/workspace/results \
     -e MY_API_KEY=your-api-key \
     nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
-    eval-factory run_eval \
+    nemo-evaluator run_eval \
         --eval_type mmlu_pro \
         --model_url https://integrate.api.nvidia.com/v1/chat/completions \
         --model_id meta/llama-3.1-8b-instruct \
@@ -132,7 +132,7 @@ Quick verification:
 ```bash
 # Test container access
 docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
-    eval-factory ls | head -5
+    nemo-evaluator ls | head -5
 echo " Container access verified"
 ```
 

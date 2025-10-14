@@ -24,7 +24,7 @@ import os
 import sys
 
 # Add custom extensions directory to Python path
-sys.path.insert(0, os.path.abspath('_extensions'))
+sys.path.insert(0, os.path.abspath("_extensions"))
 
 project = "NeMo Evaluator SDK"
 copyright = "2025, NVIDIA Corporation"
@@ -43,7 +43,7 @@ extensions = [
     "sphinx_copybutton",  # For copy button in code blocks,
     "sphinx_design",  # For grid layout
     "sphinx.ext.ifconfig",  # For conditional content
-    "content_gating",  # Unified content gating extension 
+    "content_gating",  # Unified content gating extension
     "myst_codeblock_substitutions",  # Our custom MyST substitutions in code blocks
     "json_output",  # Generate JSON output for each page
     "search_assets",  # Enhanced search assets extension
@@ -54,26 +54,41 @@ extensions = [
 
 templates_path = ["_templates"]
 exclude_patterns = [
-    "_build", 
-    "Thumbs.db", 
+    "_build",
+    "Thumbs.db",
     ".DS_Store",
-    "_extensions/*/README.md",     # Exclude README files in extension directories
-    "_extensions/README.md",       # Exclude main extensions README
-    "_extensions/*/__pycache__",   # Exclude Python cache directories
-    "_extensions/*/*/__pycache__", # Exclude nested Python cache directories
+    "_extensions/*/README.md",  # Exclude README files in extension directories
+    "_extensions/README.md",  # Exclude main extensions README
+    "_extensions/*/__pycache__",  # Exclude Python cache directories
+    "_extensions/*/*/__pycache__",  # Exclude nested Python cache directories
 ]
 
 # -- Options for Intersphinx -------------------------------------------------
 # Cross-references to external NVIDIA documentation
 intersphinx_mapping = {
-    "ctk": ("https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest", None),
-    "gpu-op": ("https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest", None),
+    "ctk": (
+        "https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest",
+        None,
+    ),
+    "gpu-op": (
+        "https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest",
+        None,
+    ),
     "ngr-tk": ("https://docs.nvidia.com/nemo/guardrails/latest", None),
-    "nim-cs": ("https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/", None),
-    "nim-tc": ("https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-topiccontrol/latest/", None),
+    "nim-cs": (
+        "https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/",
+        None,
+    ),
+    "nim-tc": (
+        "https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-topiccontrol/latest/",
+        None,
+    ),
     "nim-jd": ("https://docs.nvidia.com/nim/nemoguard-jailbreakdetect/latest/", None),
     "nim-llm": ("https://docs.nvidia.com/nim/large-language-models/latest/", None),
-    "driver-linux": ("https://docs.nvidia.com/datacenter/tesla/driver-installation-guide", None),
+    "driver-linux": (
+        "https://docs.nvidia.com/datacenter/tesla/driver-installation-guide",
+        None,
+    ),
     "nim-op": ("https://docs.nvidia.com/nim-operator/latest", None),
 }
 
@@ -83,7 +98,7 @@ intersphinx_timeout = 30
 # -- Options for JSON Output -------------------------------------------------
 # Configure the JSON output extension for comprehensive search indexes
 json_output_settings = {
-    'enabled': True,
+    "enabled": True,
 }
 
 # -- Options for AI Assistant -------------------------------------------------
@@ -103,8 +118,8 @@ myst_enable_extensions = [
     "deflist",  # Supports definition lists with term: definition format
     "fieldlist",  # Enables field lists for metadata like :author: Name
     "tasklist",  # Adds support for GitHub-style task lists with [ ] and [x]
-    "attrs_inline", # Enables inline attributes for markdown
-    "substitution", # Enables substitution for markdown
+    "attrs_inline",  # Enables inline attributes for markdown
+    "substitution",  # Enables substitution for markdown
 ]
 
 myst_heading_anchors = 5  # Generates anchor links for headings up to level 5
@@ -121,18 +136,14 @@ myst_substitutions = {
     "support_email": "update-me",
     "min_python_version": "3.8",
     "recommended_cuda": "12.0+",
-    "docker_compose_latest": "25.08.1"
+    "docker_compose_latest": "25.09.1",
 }
 
 # Enable figure numbering
 numfig = True
 
 # Optional: customize numbering format
-numfig_format = {
-    'figure': 'Figure %s',
-    'table': 'Table %s',
-    'code-block': 'Listing %s'
-}
+numfig_format = {"figure": "Figure %s", "table": "Table %s", "code-block": "Listing %s"}
 
 # Optional: number within sections
 numfig_secnum_depth = 1  # Gives you "Figure 1.1, 1.2, 2.1, etc."
@@ -141,9 +152,10 @@ numfig_secnum_depth = 1  # Gives you "Figure 1.1, 1.2, 2.1, etc."
 # Suppress expected warnings for conditional content builds
 suppress_warnings = [
     "toc.not_included",  # Expected when video docs are excluded from GA builds
-    "toc.no_title",      # Expected for helm docs that include external README files
-    "docutils",          # Expected for autodoc2-generated content with regex patterns and complex syntax
-    "ref.python",        # Expected for ambiguous autodoc2 cross-references (e.g., multiple 'Params' classes)
+    "toc.no_title",  # Expected for helm docs that include external README files
+    "docutils",  # Expected for autodoc2-generated content with regex patterns and complex syntax
+    "ref.python",  # Expected for ambiguous autodoc2 cross-references (e.g., multiple 'Params' classes)
+    "myst.xref_missing",  # Expected for Pydantic BaseModel docstrings that reference Pydantic's own documentation
 ]
 
 # -- Options for Autodoc2 ---------------------------------------------------
@@ -153,9 +165,7 @@ sys.path.insert(0, os.path.abspath("../packages/nemo-evaluator/src"))
 # Conditional autodoc2 configuration - only enable if packages exist
 # Note: We point to the parent package rather than individual subpackages because
 # the subpackages have relative imports between them (e.g., api imports from core)
-autodoc2_packages_list = [
-    "../packages/nemo-evaluator/src/nemo_evaluator/"
-]
+autodoc2_packages_list = ["../packages/nemo-evaluator/src/nemo_evaluator/"]
 
 # Check if any of the packages actually exist before enabling autodoc2
 autodoc2_packages = []
@@ -168,37 +178,37 @@ for pkg_path in autodoc2_packages_list:
 if autodoc2_packages:
     if "autodoc2" not in extensions:
         extensions.append("autodoc2")
-    
+
     autodoc2_render_plugin = "myst"  # Use MyST for rendering docstrings
     autodoc2_output_dir = "apidocs"  # Output directory for autodoc2 (relative to docs/)
-    
+
     # ==================== GOOD DEFAULTS FOR CLEANER DOCS ====================
-    
+
     # Hide implementation details - good defaults for cleaner docs
     autodoc2_hidden_objects = [
-        "dunder",     # Hide __methods__ like __init__, __str__, etc.  
-        "private",    # Hide _private methods and variables
+        "dunder",  # Hide __methods__ like __init__, __str__, etc.
+        "private",  # Hide _private methods and variables
         "inherited",  # Hide inherited methods to reduce clutter
     ]
-    
+
     # Enable module summaries for better organization
     autodoc2_module_summary = True
-    
+
     # Sort by name for consistent organization
     autodoc2_sort_names = True
-    
+
     # Enhanced docstring processing for better formatting
     autodoc2_docstrings = "all"  # Include all docstrings for comprehensive docs
-    
+
     # Include class inheritance information - useful for users
     autodoc2_class_inheritance = True
-    
+
     # Handle class docstrings properly (merge __init__ with class doc)
     autodoc2_class_docstring = "merge"
-    
+
     # Better type annotation handling
     autodoc2_type_guard_imports = True
-    
+
     # Replace common type annotations for better readability
     autodoc2_replace_annotations = [
         ("typing.Union", "Union"),
@@ -207,23 +217,25 @@ if autodoc2_packages:
         ("typing.Dict", "Dict"),
         ("typing.Any", "Any"),
     ]
-    
+
     # Don't require __all__ to be defined - document all public members
     autodoc2_module_all_regexes = []  # Empty list means don't require __all__
-    
+
     # Skip common test and internal modules - customize for your project
     autodoc2_skip_module_regexes = [
-        r".*\.tests?.*",           # Skip test modules
-        r".*\.test_.*",            # Skip test files  
-        r".*\._.*",                # Skip private modules
-        r".*\.conftest",           # Skip conftest files
+        r".*\.tests?.*",  # Skip test modules
+        r".*\.test_.*",  # Skip test files
+        r".*\._.*",  # Skip private modules
+        r".*\.conftest",  # Skip conftest files
     ]
-    
+
     # Load index template from external file for better maintainability
-    template_path = os.path.join(os.path.dirname(__file__), "_templates", "autodoc2_index.rst")
+    template_path = os.path.join(
+        os.path.dirname(__file__), "_templates", "autodoc2_index.rst"
+    )
     with open(template_path) as f:
         autodoc2_index_template = f.read()
-    
+
     # This is a workaround that uses the parser located in autodoc2_docstrings_parser.py to allow autodoc2 to
     # render google style docstrings.
     # Related Issue: https://github.com/sphinx-extensions2/sphinx-autodoc2/issues/33
@@ -272,10 +284,10 @@ html_theme_options = {
     },
 }
 
-# Add our static files directory  
+# Add our static files directory
 # html_static_path = ["_static"]
 
 html_extra_path = ["project.json", "versions1.json"]
 
-# Note: JSON output configuration has been moved to the consolidated 
+# Note: JSON output configuration has been moved to the consolidated
 # json_output_settings dictionary above for better organization and new features!

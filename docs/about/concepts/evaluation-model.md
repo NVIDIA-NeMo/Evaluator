@@ -14,7 +14,7 @@ NeMo Evaluator supports several evaluation approaches through containerized harn
 - **Function Calling**: Models generate structured outputs for tool use and API interaction scenarios.
 - **Safety & Security**: Evaluation against adversarial prompts and safety benchmarks to test model alignment and robustness.
 
-One or more evaluation harnesses implement each approach. To discover available tasks for each approach, use `nv-eval ls tasks`.
+One or more evaluation harnesses implement each approach. To discover available tasks for each approach, use `nemo-evaluator-launcher ls tasks`.
 
 ## Endpoint Compatibility
 
@@ -25,7 +25,7 @@ NeMo Evaluator targets OpenAI-compatible API endpoints. The platform supports th
 - **`vlm`**: Vision-language model endpoints supporting image inputs.
 - **`embedding`**: Embedding generation endpoints for retrieval evaluation.
 
-Each evaluation task specifies which endpoint types it supports. Verify compatibility using `nv-eval ls tasks`.
+Each evaluation task specifies which endpoint types it supports. Verify compatibility using `nemo-evaluator-launcher ls tasks`.
 
 ## Metrics
 

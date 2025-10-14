@@ -17,9 +17,9 @@ Run evaluations anywhere with unified configuration and monitoring:
 
 ```bash
 # Single command, multiple backends
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct
-nv-eval run --config-dir examples --config-name slurm_llama_3_1_8b_instruct  
-nv-eval run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct  
+nemo-evaluator-launcher run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruct
 ```
 
 ### 100+ Benchmarks Across 17 Harnesses
@@ -27,14 +27,14 @@ Access comprehensive benchmark suite with single CLI:
 
 ```bash
 # Discover available benchmarks
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 
 # Run academic benchmarks
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
   -o 'evaluation.tasks=["mmlu_pro", "gsm8k", "arc_challenge"]'
 
 # Run safety evaluation
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
   -o 'evaluation.tasks=["aegis_v2", "garak"]'
 ```
 
@@ -43,13 +43,13 @@ First-class integration with MLOps platforms:
 
 ```bash
 # Export to MLflow
-nv-eval export <invocation_id> --dest mlflow
+nemo-evaluator-launcher export <invocation_id> --dest mlflow
 
 # Export to Weights & Biases
-nv-eval export <invocation_id> --dest wandb
+nemo-evaluator-launcher export <invocation_id> --dest wandb
 
 # Export to Google Sheets
-nv-eval export <invocation_id> --dest gsheets
+nemo-evaluator-launcher export <invocation_id> --dest gsheets
 ```
 
 ##  **Core Evaluation Engine (NeMo Evaluator Core)**
@@ -313,7 +313,7 @@ Built-in safety assessment through specialized containers:
 
 ```bash
 # Run safety evaluation suite
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["aegis_v2", "garak"]'
@@ -331,10 +331,10 @@ Monitor evaluation progress across all backends:
 
 ```bash
 # Check evaluation status
-nv-eval status <invocation_id>
+nemo-evaluator-launcher status <invocation_id>
 
 # Kill running evaluations
-nv-eval kill <invocation_id>
+nemo-evaluator-launcher kill <invocation_id>
 ```
 
 ### Result Export and Analysis
@@ -342,11 +342,11 @@ Export evaluation results to MLOps platforms for downstream analysis:
 
 ```bash
 # Export to MLflow for experiment tracking
-nv-eval export <invocation_id> --dest mlflow
+nemo-evaluator-launcher export <invocation_id> --dest mlflow
 
 # Export to Weights & Biases for visualization
-nv-eval export <invocation_id> --dest wandb
+nemo-evaluator-launcher export <invocation_id> --dest wandb
 
 # Export to Google Sheets for sharing
-nv-eval export <invocation_id> --dest gsheets
+nemo-evaluator-launcher export <invocation_id> --dest gsheets
 ```

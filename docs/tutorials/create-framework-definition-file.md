@@ -19,7 +19,7 @@ Learn by building a complete FDF for a simple evaluation framework.
 By the end, you'll have integrated your evaluation framework with {{ product_name_short }}, allowing users to run:
 
 ```bash
-eval-factory run_eval \
+nemo-evaluator run_eval \
   --eval_type domain_specific_task \
   --model_id meta/llama-3.1-8b-instruct \
   --model_url https://integrate.api.nvidia.com/v1/chat/completions \
@@ -233,7 +233,7 @@ pip install -e .
 eval-factory list_evals --framework domain-eval
 
 # Run a test evaluation
-eval-factory run_eval \
+nemo-evaluator run_eval \
   --eval_type medical_qa \
   --model_id gpt-3.5-turbo \
   --model_url https://api.openai.com/v1/chat/completions \

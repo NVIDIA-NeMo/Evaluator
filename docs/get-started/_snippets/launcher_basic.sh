@@ -6,7 +6,7 @@ export NGC_API_KEY="${NGC_API_KEY:-your-api-key-here}"
 
 # [snippet-start]
 # Run evaluation against a hosted endpoint
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -14,5 +14,5 @@ nv-eval run \
     -o execution.output_dir=./results
 # [snippet-end]
 
-echo "Evaluation started. Use 'nv-eval status <invocation_id>' to check progress."
+echo "Evaluation started. Use 'nemo-evaluator-launcher status <invocation_id>' to check progress."
 

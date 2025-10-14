@@ -100,7 +100,7 @@ graph LR
 Use the launcher to handle both model deployment and evaluation:
 
 ```bash
-nv-eval run \
+nemo-evaluator-launcher run \
   --config-dir examples \
   --config-name local_llama_3_1_8b_instruct \
   -o deployment.checkpoint_path=/path/to/model \
@@ -112,7 +112,7 @@ nv-eval run \
 Point the launcher to an existing API endpoint:
 
 ```bash
-nv-eval run \
+nemo-evaluator-launcher run \
   --config-dir examples \
   --config-name local_llama_3_1_8b_instruct \
   -o target.api_endpoint.url=http://localhost:8080/v1/completions \

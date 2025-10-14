@@ -20,16 +20,16 @@ Before diving into specific problem areas, run these basic checks to verify your
 
 ```bash
 # Verify launcher installation and basic functionality
-nv-eval --version
+nemo-evaluator-launcher --version
 
 # List available tasks
-nv-eval ls tasks
+nemo-evaluator-launcher ls tasks
 
 # Validate configuration without running
-nv-eval run --config-dir examples --config-name local_llama_3_1_8b_instruct --dry-run
+nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct --dry-run
 
 # Check recent runs
-nv-eval ls runs
+nemo-evaluator-launcher ls runs
 ```
 
 :::

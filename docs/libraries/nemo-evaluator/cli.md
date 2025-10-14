@@ -1,13 +1,13 @@
 (nemo-evaluator-cli)=
 
-# NeMo Evaluator CLI Reference (eval-factory)
+# NeMo Evaluator CLI Reference (nemo-evaluator)
 
 This document provides a comprehensive reference for the `nemo-evaluator` command-line interface, which is the primary way to interact with NeMo Evaluator from the terminal.
 
 ## Prerequisites
 
 - **Container way**: Use evaluation containers mentioned in {ref}`nemo-evaluator-containers`
-- **Python way**:
+- **Package way**:
 
   ```bash
   pip install nemo-evaluator
@@ -20,7 +20,7 @@ This document provides a comprehensive reference for the `nemo-evaluator` comman
 
 ## Overview
 
-The CLI provides a unified interface for managing evaluations and frameworks. It's built on top of the Python API and provides both interactive and non-interactive modes.
+The CLI provides a unified interface for managing evaluations and frameworks. It's built on top of the Python API and provides full feature parity with it.
 
 ## Command Structure
 
@@ -35,15 +35,14 @@ eval-factory [command] [options]
 List all available evaluation types and frameworks.
 
 ```bash
-eval-factory ls
+nemo-evaluator ls
 ```
 
 **Output Example:**
 ```
-mmlu_pro: 
+nvidia-simple-evals: 
   * mmlu_pro
-gsm8k: 
-  * gsm8k
+...
 human_eval: 
   * human_eval
 ```
@@ -53,12 +52,12 @@ human_eval:
 Execute an evaluation with the specified configuration.
 
 ```bash
-eval-factory run_eval [options]
+nemo-evaluator run_eval [options]
 ```
 
 To see the list of options, run:
 ```bash
-eval-factory run_eval --help
+nemo-evaluator run_eval --help
 ```
 
 **Required Options:**
@@ -78,7 +77,7 @@ eval-factory run_eval --help
 **Example Usage:**
 ```bash
 # Basic evaluation
-eval-factory run_eval \
+nemo-evaluator run_eval \
   --eval_type mmlu_pro \
   --model_id "meta/llama-3.1-8b-instruct" \
   --model_url "https://integrate.api.nvidia.com/v1/chat/completions" \
@@ -87,7 +86,7 @@ eval-factory run_eval \
   --output_dir ./results
 
 # With parameter overrides
-eval-factory run_eval \
+nemo-evaluator run_eval \
   --eval_type mmlu_pro \
   --model_id "meta/llama-3.1-8b-instruct" \
   --model_url "https://integrate.api.nvidia.com/v1/chat/completions" \
@@ -97,7 +96,7 @@ eval-factory run_eval \
   --overrides "config.params.limit_samples=100,config.params.temperature=0.1"
 
 # Dry run to see configuration
-eval-factory run_eval \
+nemo-evaluator run_eval \
   --eval_type mmlu_pro \
   --model_id "meta/llama-3.1-8b-instruct" \
   --model_url "https://integrate.api.nvidia.com/v1/chat/completions" \
@@ -110,12 +109,12 @@ eval-factory run_eval \
 For execution with run configuration:
 ```bash
 # Using YAML configuration file
-eval-factory run_eval \
+nemo-evaluator run_eval \
   --eval_type mmlu_pro \
   --output_dir ./results \
   --run_config ./config/eval_config.yml
 ```
-To check the structure of the run configuration, see the [Run Configuration](#run-configuration) section below.
+To check the structure of the run configuration, refer to the [Run Configuration](#run-configuration) section below.
 
 (run-configuration)=
 
@@ -151,7 +150,7 @@ target:
 Run configurations can be specified in YAML files and executed with following syntax:
 
 ```bash
-eval-factory run_eval \
+nemo-evaluator run_eval \
     --run_config config.yml \
     --output_dir `mktemp -d`
 ```
@@ -194,7 +193,7 @@ Enable debug mode for detailed error information:
 export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
 
 # Or use deprecated debug flag
-eval-factory run_eval --debug [options]
+nemo-evaluator run_eval --debug [options]
 ```
 
 ## Examples
@@ -203,10 +202,10 @@ eval-factory run_eval --debug [options]
 
 ```bash
 # 1. List available evaluations
-eval-factory ls
+nemo-evaluator ls
 
 # 2. Run evaluation
-eval-factory run_eval \
+nemo-evaluator run_eval \
   --eval_type mmlu_pro \
   --model_id "meta/llama-3.1-8b-instruct" \
   --model_url "https://integrate.api.nvidia.com/v1/chat/completions" \
@@ -232,7 +231,7 @@ for model in "${models[@]}"; do
   for eval_type in "${eval_types[@]}"; do
     echo "Running $eval_type on $model..."
     
-    eval-factory run_eval \
+    nemo-evaluator run_eval \
       --eval_type "$eval_type" \
       --model_id "$model" \
       --model_url "https://integrate.api.nvidia.com/v1/chat/completions" \
@@ -263,7 +262,7 @@ nemo-evaluator-example my_custom_eval .
 # Edit framework.yml to configure your evaluation
 # Edit output.py to implement result parsing
 # Test your framework
-eval-factory run_eval \
+nemo-evaluator run_eval \
   --eval_type my_custom_eval \
   --model_id "test-model" \
   --model_url "https://api.example.com/v1/chat/completions" \

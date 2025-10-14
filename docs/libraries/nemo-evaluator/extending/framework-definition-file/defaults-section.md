@@ -2,7 +2,7 @@
 
 # Defaults Section
 
-The `defaults` section defines the default configuration and execution command that will be used across all evaluations unless overridden. Overriding is supported either through `--overrides` flag (see {ref}`parameter-overrides`) or {ref}`run-configuration`.
+The `defaults` section defines the default configuration and execution command that will be used across all evaluations unless overridden. Overriding is supported either through `--overrides` flag (refer to {ref}`parameter-overrides`) or {ref}`run-configuration`.
 
 ## Command Template
 
@@ -66,10 +66,9 @@ defaults:
       max_retries: 5               # Maximum API retry attempts
       request_timeout: 60          # Request timeout in seconds
       extra:                       # Framework-specific parameters
-        n_samples: null            # Number of evaluation samples
+        n_samples: null            # Number of sampled responses per input
         downsampling_ratio: null   # Data downsampling ratio
         add_system_prompt: false   # Include system prompt
-        args: null                 # Additional CLI arguments
 ```
 
 ## Parameter Categories
@@ -96,11 +95,10 @@ Task-specific configuration options:
 
 ### Extra Parameters
 
-Custom parameters specific to your framework:
-- `n_samples`: Framework-specific sampling configuration
-- `downsampling_ratio`: Data subset selection
-- `add_system_prompt`: Framework-specific prompt handling
-- `args`: Additional CLI arguments passed directly to your framework
+Custom parameters specific to your framework. Use it for:
+- specifying number of sampled responses per input query
+- judge configuration
+- configuring few-shot settings
 
 ## Target Configuration
 

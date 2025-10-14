@@ -20,7 +20,7 @@ Choose the deployment type for your evaluation:
 Use existing API endpoints. No model deployment needed.
 :::
 
-:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` vLLM
+:::{grid-item-card} {octicon}`broadcast;1.5em;sd-mr-1` vLLM
 :link: vllm
 :link-type: doc
 
@@ -34,11 +34,28 @@ Deploy models using the vLLM serving framework.
 Deploy models using the SGLang serving framework.
 :::
 
-:::{grid-item-card} {octicon}`shield;1.5em;sd-mr-1` NIM
+:::{grid-item-card} {octicon}`cpu;1.5em;sd-mr-1` NIM
 :link: nim
 :link-type: doc
 
 Deploy models using NVIDIA Inference Microservices.
+:::
+
+
+:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` TRT-LLM
+:link: trtllm
+:link-type: doc
+
+
+Deploy models using NVIDIA TensorRT LLM.
+:::
+
+:::{grid-item-card} {octicon}`package;1.5em;sd-mr-1` Generic
+:link: generic
+:link-type: doc
+
+
+Deploy models using a fully custom setup.
 :::
 
 ::::
@@ -58,5 +75,7 @@ deployment:
 vLLM <vllm>
 SGLang <sglang>
 NIM <nim>
+TensorRT-LLM <trtllm>
+Generic <generic>
 None (External) <none>
 ```

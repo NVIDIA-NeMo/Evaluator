@@ -55,7 +55,7 @@ Comprehensive logging setup for evaluation runs, debugging, and audit trails.
 Add custom benchmarks and frameworks by defining configuration and interfaces.
 :::
 
-:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` API Reference
+:::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` API Reference
 :link: api
 :link-type: doc
 

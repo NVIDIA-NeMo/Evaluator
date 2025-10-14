@@ -17,7 +17,7 @@ Lepton launcher-orchestrated deployment:
 
 ```bash
 # Deploy and evaluate on Lepton AI
-nv-eval run \
+nemo-evaluator-launcher run \
     --config-dir examples \
     --config-name lepton_vllm_llama_3_1_8b_instruct \
     -o deployment.checkpoint_path=meta-llama/Llama-3.1-8B-Instruct \
@@ -185,10 +185,10 @@ Use NeMo Evaluator Launcher commands to monitor your evaluations:
 
 ```bash
 # Check status using invocation ID
-nv-eval status <invocation_id>
+nemo-evaluator-launcher status <invocation_id>
 
 # Kill running evaluations and cleanup endpoints
-nv-eval kill <invocation_id>
+nemo-evaluator-launcher kill <invocation_id>
 ```
 
 ### Monitor Lepton Resources
@@ -217,7 +217,7 @@ After evaluation completes, export results using the export command:
 
 ```bash
 # Export results to MLflow
-nv-eval export <invocation_id> --dest mlflow
+nemo-evaluator-launcher export <invocation_id> --dest mlflow
 ```
 
 Refer to the {ref}`exporters-overview` for additional export options and configurations.

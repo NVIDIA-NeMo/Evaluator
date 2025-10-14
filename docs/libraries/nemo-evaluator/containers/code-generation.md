@@ -37,59 +37,6 @@ docker pull nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_com
 
 ---
 
-## BFCL Container
-
-**NGC Catalog**: [bfcl](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl)
-
-Container for Berkeley Function-Calling Leaderboard evaluation framework.
-
-**Use Cases:**
-- Tool usage evaluation
-- Multi-turn interactions
-- Native support for function/tool calling
-- Function calling evaluation
-
-**Pull Command:**
-```bash
-docker pull nvcr.io/nvidia/eval-factory/bfcl:{{ docker_compose_latest }}
-```
-
-**Default Parameters:**
-
-| Parameter | Value |
-|-----------|-------|
-| `limit_samples` | `None` |
-| `parallelism` | `10` |
-| `native_calling` | `False` |
-| `custom_dataset` | `{'path': None, 'format': None, 'data_template_path': None}` |
-
----
-
-## ToolTalk Container
-
-**NGC Catalog**: [tooltalk](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk)
-
-Container for evaluating AI models' ability to use tools and APIs effectively.
-
-**Use Cases:**
-- Tool usage evaluation
-- API interaction assessment
-- Function calling evaluation
-- External tool integration testing
-
-**Pull Command:**
-```bash
-docker pull nvcr.io/nvidia/eval-factory/tooltalk:{{ docker_compose_latest }}
-```
-
-**Default Parameters:**
-
-| Parameter | Value |
-|-----------|-------|
-| `limit_samples` | `None` |
-
----
-
 ## LiveCodeBench Container
 
 **NGC Catalog**: [livecodebench](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/livecodebench)
@@ -134,7 +81,7 @@ docker pull nvcr.io/nvidia/eval-factory/livecodebench:{{ docker_compose_latest }
 
 **NGC Catalog**: [scicode](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/scicode)
 
-SciCode is a challenging benchmark designed to evaluate the capabilities of language models in generating code for solving realistic scientific research problems with diverse coverage across 16 subdomains from 6 domains.
+SciCode is a challenging benchmark designed to evaluate the capabilities of language models in generating code for solving realistic scientific research problems with diverse coverage across 16 subdomains from six domains.
 
 **Use Cases:**
 - Scientific research code generation
@@ -163,4 +110,4 @@ docker pull nvcr.io/nvidia/eval-factory/scicode:{{ docker_compose_latest }}
 | `n_samples` | `1` |
 | `eval_threads` | `None` |
 
-**Supported Domains:** Physics, Math, Material Science, Biology, Chemistry (16 subdomains from 5 domains)
+**Supported Domains:** Physics, Math, Material Science, Biology, Chemistry (16 subdomains from five domains)

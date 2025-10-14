@@ -19,11 +19,11 @@ Before creating an FDF, you should:
 
 **Creating your first FDF?** Follow this sequence:
 
-1. Start with the {ref}`create-framework-definition-file` tutorial for a hands-on walkthrough
-2. {ref}`framework-section` - Define framework metadata
-3. {ref}`defaults-section` - Configure command templates and parameters
-4. {ref}`evaluations-section` - Define evaluation tasks
-5. {ref}`integration` - Integrate with Eval Factory
+<!-- 1. Start with the {ref}`create-framework-definition-file` tutorial for a hands-on walkthrough -->
+1. {ref}`framework-section` - Define framework metadata
+2. {ref}`defaults-section` - Configure command templates and parameters
+3. {ref}`evaluations-section` - Define evaluation tasks
+4. {ref}`integration` - Integrate with Eval Factory
 
 **Need help?** Refer to {ref}`fdf-troubleshooting` for debugging common issues.
 
@@ -84,7 +84,7 @@ evaluations:
 Define framework metadata including name, package information, and repository URL.
 :::
 
-:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Defaults Section
+:::{grid-item-card} {octicon}`list-unordered;1.5em;sd-mr-1` Defaults Section
 :link: defaults-section
 :link-type: ref
 Configure default parameters, command templates, and target endpoint settings.
@@ -96,7 +96,7 @@ Configure default parameters, command templates, and target endpoint settings.
 Define specific evaluation types with task-specific configurations and parameters.
 :::
 
-:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Advanced Features
+:::{grid-item-card} {octicon}`telescope;1.5em;sd-mr-1` Advanced Features
 :link: advanced-features
 :link-type: ref
 Use conditionals, parameter inheritance, and dynamic configuration in your FDF.
@@ -108,7 +108,7 @@ Use conditionals, parameter inheritance, and dynamic configuration in your FDF.
 Learn how to integrate your FDF with the Eval Factory system.
 :::
 
-:::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Troubleshooting
+:::{grid-item-card} {octicon}`question;1.5em;sd-mr-1` Troubleshooting
 :link: fdf-troubleshooting
 :link-type: ref
 Debug common issues with template errors, parameters, and validation.
