@@ -18,6 +18,7 @@ import json
 import os
 import signal
 import sys
+from dataclasses import dataclass
 
 import psutil
 import yaml
@@ -44,6 +45,16 @@ def parse_output(evaluation: Evaluation) -> EvaluationResult:
     # create a module name that is importable
     output_module = importlib.import_module(f"core_evals.{evaluation.pkg_name}.output")
     return output_module.parse_output(evaluation.config.output_dir)
+
+
+@dataclass(frozen=True)
+class _EvaluationResultWithRunCmd:
+    """Named helper to hold the output of the wrapper eval process."""
+
+    # Evalution result as defined by the `parse_output()`
+    evaluation_result: EvaluationResult
+    # Command used
+    cmd_used: str
 
 
 def evaluate(
@@ -83,12 +94,14 @@ def evaluate(
     signal.signal(signal.SIGTERM, kill_all)
     signal.signal(signal.SIGINT, kill_all)
 
-    def run_evaluation_core():
+    def run_evaluation_core() -> _EvaluationResultWithRunCmd:
         with AdapterServerProcess(evaluation):
             cmd = evaluation.render_command()
             run_command(cmd, verbose=True, propagate_errors=True)
             evaluation_result = parse_output(evaluation)
-            return evaluation_result
+            return _EvaluationResultWithRunCmd(
+                evaluation_result=evaluation_result, cmd_used=cmd
+            )
 
     # Get cache directory from caching interceptor configuration
     cache_dir = None
@@ -111,7 +124,7 @@ def evaluate(
     if not cache_dir:
         logger.info("No cache directory configured, token usage will not be collected")
 
-    evaluation_result, metrics = monitor_memory_usage(
+    process_result, metrics = monitor_memory_usage(
         run_evaluation_core,
         interval_ms=100,
         cache_dir=cache_dir,
@@ -188,9 +201,9 @@ def evaluate(
 
     evaluation_result_dict = {
         "git_hash": os.getenv("CORE_EVALS_GIT_HASH"),
-        "command": evaluation.render_command(),
+        "command": process_result.cmd_used,
         **run_config,
-        "results": evaluation_result.model_dump(exclude_none=True),
+        "results": process_result.evaluation_result.model_dump(exclude_none=True),
     }
 
     logger.info(yaml.dump(evaluation_result_dict))
@@ -198,4 +211,4 @@ def evaluate(
     with open(os.path.join(evaluation.config.output_dir, "results.yml"), "w") as f:
         yaml.dump(evaluation_result_dict, f)
 
-    return evaluation_result
+    return process_result

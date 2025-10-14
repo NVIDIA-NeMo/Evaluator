@@ -17,9 +17,10 @@ from enum import Enum
 from typing import Any, Dict, Optional
 
 import jinja2
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
+from nemo_evaluator.logging import get_logger
 
 # NOTE: For ApiEndpoint, EvaluationTarget, ConfigParams, and EvaluationConfig all fields
 #       are Optional and default=None, because depending on the command run (run_eval or
@@ -107,13 +108,28 @@ class EvaluationConfig(BaseModel):
 
 
 class Evaluation(BaseModel):
+    """Class that holds evaluation configuration and useful functions to operate on it."""
+
     command: str = Field(description="jinja template of the command to be executed")
     framework_name: str = Field(description="Name of the framework")
     pkg_name: str = Field(description="Name of the package")
     config: EvaluationConfig
     target: EvaluationTarget
 
+    # We will need to try to warn user of calling render_command more
+    # than once (it affects reproducibility), for which we need to
+    _render_command_called: bool = PrivateAttr(default=False)
+
     def render_command(self):
+        if self._render_command_called:
+            # We decide to not crash but rather warn the use with high severity.
+            get_logger().error(
+                "It is error to call `render_command` more than once. Expect command "
+                "to be logged with discrepancies or refactor the code."
+            )
+
+        self._render_command_called = True
+
         values = self.model_dump()
 
         def recursive_render(tpl):

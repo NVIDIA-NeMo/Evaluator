@@ -20,12 +20,14 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, TypeVar
 
 import psutil
 
 from nemo_evaluator.api.api_dataclasses import EvaluationResult
 from nemo_evaluator.logging.utils import logger
+
+_FuncRetType = TypeVar("_FuncRetType")
 
 
 def get_token_usage_from_cache_db(cache_db_path: str | Path) -> dict:
@@ -196,13 +198,13 @@ def _update_persistent_metrics(
 
 
 def monitor_memory_usage(
-    func,
+    func: Callable[..., _FuncRetType],
     *args,
     interval_ms,
     cache_dir: str | None = None,
     output_dir: str | None = None,
     **kwargs,
-) -> tuple[EvaluationResult, dict[str, Any]]:
+) -> tuple[_FuncRetType, dict[str, Any]]:
     """
     Run func(*args, **kwargs) while polling RSS via psutil.
     Returns (func_return_value, peak_rss_bytes, peak_tree_rss_bytes) where:
