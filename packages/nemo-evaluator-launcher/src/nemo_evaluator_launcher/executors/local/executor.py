@@ -481,7 +481,7 @@ class LocalExecutor(BaseExecutor):
 
         # Use common helper to get informative error message based on job status
         current_status = status_list[0].state if status_list else None
-        error_msg = BaseExecutor.get_kill_failure_message(
+        error_msg = LocalExecutor.get_kill_failure_message(
             job_id, f"container: {container_name}", current_status
         )
         raise RuntimeError(error_msg)

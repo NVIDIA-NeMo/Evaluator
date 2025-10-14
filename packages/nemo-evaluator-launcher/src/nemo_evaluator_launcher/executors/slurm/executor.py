@@ -421,7 +421,7 @@ class SlurmExecutor(BaseExecutor):
                 current_status = SlurmExecutor._map_slurm_state_to_execution_state(
                     slurm_status
                 )
-            error_msg = BaseExecutor.get_kill_failure_message(
+            error_msg = SlurmExecutor.get_kill_failure_message(
                 job_id,
                 f"slurm_job_id: {job_data.data.get('slurm_job_id')}",
                 current_status,
