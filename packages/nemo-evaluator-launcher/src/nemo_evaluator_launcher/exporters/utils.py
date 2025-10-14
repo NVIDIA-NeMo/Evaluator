@@ -16,6 +16,7 @@
 """Shared utilities for metrics and configuration handling."""
 
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple
@@ -306,21 +307,28 @@ def ssh_setup_masters(jobs: Dict[str, JobData]) -> Dict[Tuple[str, str], str]:
     remote_pairs: set[tuple[str, str]] = set()
     for jd in jobs.values():
         try:
-            paths = jd.data.get("paths") or {}
-            if paths.get("storage_type") == "remote_ssh":
-                remote_pairs.add((paths["username"], paths["hostname"]))
+            # Preferred: explicit 'paths' from job data
+            p = (jd.data or {}).get("paths") or {}
+            if (
+                p.get("storage_type") == "remote_ssh"
+                and p.get("username")
+                and p.get("hostname")
+            ):
+                remote_pairs.add((p["username"], p["hostname"]))
+                continue
+            # Fallback: common slurm fields (works with BaseExporter.get_job_paths)
+            d = jd.data or {}
+            if jd.executor == "slurm" and d.get("username") and d.get("hostname"):
+                remote_pairs.add((d["username"], d["hostname"]))
         except Exception:
             pass
 
     if not remote_pairs:
-        return {}  # no remote jobs
+        return {}
 
-    # Ensure connections directory exists (like execDB does)
     CONNECTIONS_DIR.mkdir(parents=True, exist_ok=True)
-
     control_paths: Dict[Tuple[str, str], str] = {}
     for username, hostname in remote_pairs:
-        # Simple socket name
         socket_path = CONNECTIONS_DIR / f"{username}_{hostname}.sock"
         try:
             cmd = [
@@ -371,9 +379,10 @@ def ssh_download_artifacts(
     config: Dict[str, Any] | None = None,
     control_paths: Dict[Tuple[str, str], str] | None = None,
 ) -> List[str]:
-    """Download artifacts via SSH with optional connection reuse."""
+    """Download artifacts/logs via SSH with optional connection reuse."""
     exported_files: List[str] = []
     copy_logs = bool((config or {}).get("copy_logs", False))
+    copy_artifacts = bool((config or {}).get("copy_artifacts", True))
     only_required = bool((config or {}).get("only_required", True))
 
     control_path = None
@@ -390,44 +399,49 @@ def ssh_download_artifacts(
                 str(local_path),
             ]
         )
-        result = subprocess.run(cmd, capture_output=True)
-        return result.returncode == 0
+        return subprocess.run(cmd, capture_output=True).returncode == 0
 
     export_dir.mkdir(parents=True, exist_ok=True)
-    (export_dir / "artifacts").mkdir(parents=True, exist_ok=True)
 
-    available_local = (
-        get_available_artifacts(paths.get("artifacts_dir", Path()))
-        if not only_required
-        else None
-    )
-    artifact_names = (
-        [a for a in get_relevant_artifacts()]
-        if only_required
-        else (available_local or [])
-    )
+    # Artifacts
+    if copy_artifacts:
+        art_dir = export_dir / "artifacts"
+        art_dir.mkdir(parents=True, exist_ok=True)
 
-    for artifact in artifact_names:
-        remote_file = f"{paths['remote_path']}/artifacts/{artifact}"
-        local_file = export_dir / "artifacts" / artifact
-        if scp_file(remote_file, local_file):
-            exported_files.append(str(local_file))
+        if only_required:
+            for artifact in get_relevant_artifacts():
+                remote_file = f"{paths['remote_path']}/artifacts/{artifact}"
+                local_file = art_dir / artifact
+                local_file.parent.mkdir(parents=True, exist_ok=True)
+                if scp_file(remote_file, local_file):
+                    exported_files.append(str(local_file))
+        else:
+            # Copy known files individually to avoid subfolders and satisfy tests
+            for artifact in get_available_artifacts(paths.get("artifacts_dir", Path())):
+                remote_file = f"{paths['remote_path']}/artifacts/{artifact}"
+                local_file = art_dir / artifact
+                if scp_file(remote_file, local_file):
+                    exported_files.append(str(local_file))
 
+    # Logs (top-level only)
     if copy_logs:
-        remote_logs = f"{paths['remote_path']}/logs"
         local_logs = export_dir / "logs"
+        remote_logs = f"{paths['remote_path']}/logs"
         cmd = (
             ["scp", "-r"]
             + ssh_opts
             + [
-                f"{paths['username']}@{paths['hostname']}:{remote_logs}",
+                f"{paths['username']}@{paths['hostname']}:{remote_logs}/.",
                 str(local_logs),
             ]
         )
         if subprocess.run(cmd, capture_output=True).returncode == 0:
-            exported_files.extend(
-                [str(f) for f in local_logs.rglob("*") if f.is_file()]
-            )
+            for p in local_logs.iterdir():
+                if p.is_dir():
+                    import shutil
+
+                    shutil.rmtree(p, ignore_errors=True)
+            exported_files.extend([str(f) for f in local_logs.glob("*") if f.is_file()])
 
     return exported_files
 
@@ -584,3 +598,41 @@ def _safe_update_metrics(
     """Update target from source safely, raising on collisions with detailed values."""
     for k, v in source.items():
         _safe_set_metric(target, k, v, context)
+
+
+# =============================================================================
+# MLFLOW FUNCTIONS
+# =============================================================================
+
+# MLflow constants
+_MLFLOW_KEY_MAX = 250
+_MLFLOW_PARAM_VAL_MAX = 250
+_MLFLOW_TAG_VAL_MAX = 5000
+
+_INVALID_KEY_CHARS = re.compile(r"[^/\w.\- ]")
+_MULTI_UNDERSCORE = re.compile(r"_+")
+
+
+def mlflow_sanitize(s: Any, kind: str = "key") -> str:
+    """
+    Sanitize strings for MLflow logging.
+
+    kind:
+      - "key", "metric", "tag_key", "param_key": apply key rules
+      - "tag_value": apply tag value rules
+      - "param_value": apply param value rules
+    """
+    s = "" if s is None else str(s)
+
+    if kind in ("key", "metric", "tag_key", "param_key"):
+        # common replacements
+        s = s.replace("pass@", "pass_at_")
+        # drop disallowed chars, collapse underscores, trim
+        s = _INVALID_KEY_CHARS.sub("_", s)
+        s = _MULTI_UNDERSCORE.sub("_", s).strip()
+        return s[:_MLFLOW_KEY_MAX] or "key"
+
+    # values: normalize whitespace, enforce length
+    s = s.replace("\n", " ").replace("\r", " ").strip()
+    max_len = _MLFLOW_TAG_VAL_MAX if kind == "tag_value" else _MLFLOW_PARAM_VAL_MAX
+    return s[:max_len]
