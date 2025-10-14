@@ -1,10 +1,11 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA
 # SPDX-License-Identifier: Apache-2.0
 
-import re
 import pytest
+
 from nemo_evaluator_launcher.cli.debug import DebugCmd
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
+
 
 @pytest.mark.usefixtures("mock_execdb")
 def test_logs_locations_local(job_local, capsys):
@@ -15,6 +16,7 @@ def test_logs_locations_local(job_local, capsys):
     assert f"{job_local.job_id}:" in out
     assert "/logs" in out
 
+
 @pytest.mark.usefixtures("mock_execdb")
 def test_artifacts_locations_local(job_local, capsys):
     cmd = DebugCmd(invocation_ids=[job_local.invocation_id])
@@ -23,6 +25,7 @@ def test_artifacts_locations_local(job_local, capsys):
     out = capsys.readouterr().out
     assert f"{job_local.job_id}:" in out
     assert "/artifacts" in out
+
 
 @pytest.mark.usefixtures("mock_execdb")
 def test_config_dump_yaml(job_local, capsys):
@@ -34,6 +37,7 @@ def test_config_dump_yaml(job_local, capsys):
     assert "evaluation:" in out
     assert "tasks:" in out
 
+
 @pytest.mark.usefixtures("mock_execdb")
 def test_no_jobs_found(capsys):
     # No jobs written to DB for this prefix
@@ -41,6 +45,7 @@ def test_no_jobs_found(capsys):
     cmd.execute()
     out = capsys.readouterr().out
     assert "No valid jobs found" in out
+
 
 @pytest.mark.usefixtures("mock_execdb")
 def test_multiple_jobs_under_invocation(job_local, prepare_local_job, capsys):
@@ -68,6 +73,7 @@ def test_multiple_jobs_under_invocation(job_local, prepare_local_job, capsys):
     # second job shows (not found)
     assert "(not found)" in out
 
+
 @pytest.mark.usefixtures("mock_execdb")
 def test_slurm_without_job_id(capsys):
     inv = "decafbadcafefeed"
@@ -82,7 +88,11 @@ def test_slurm_without_job_id(capsys):
             "remote_rundir_path": "/remote/run/dir/mbpp",
             # no slurm_job_id
         },
-        config={"execution": {"type": "slurm"}, "deployment": {"type": "none"}, "evaluation": {"tasks": [{"name": "mbpp"}]}},
+        config={
+            "execution": {"type": "slurm"},
+            "deployment": {"type": "none"},
+            "evaluation": {"tasks": [{"name": "mbpp"}]},
+        },
     )
     ExecutionDB().write_job(jd)
 
@@ -94,6 +104,7 @@ def test_slurm_without_job_id(capsys):
     # no slurm line
     assert "Slurm Job ID:" not in out
 
+
 @pytest.mark.usefixtures("mock_execdb")
 def test_task_missing_index_is_graceful(capsys):
     inv = "feedfacefeedface"
@@ -103,7 +114,11 @@ def test_task_missing_index_is_graceful(capsys):
         timestamp=1_000_000_000.0,
         executor="local",
         data={"output_dir": "/tmp/test-output"},
-        config={"execution": {"type": "local"}, "deployment": {"type": "none"}, "evaluation": {"tasks": [{"name": "mbpp"}]}},
+        config={
+            "execution": {"type": "local"},
+            "deployment": {"type": "none"},
+            "evaluation": {"tasks": [{"name": "mbpp"}]},
+        },
     )
     ExecutionDB().write_job(jd)
 
