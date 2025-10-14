@@ -377,7 +377,7 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
         reasoning_tokens = "unknown"
 
         # Check if reasoning_content exists in the message and is not empty
-        if "reasoning_content" in msg:
+        if "reasoning_content" in msg and msg["reasoning_content"] is not None:
             reasoning_content = msg["reasoning_content"]
             updated_message_content = content
             reasoning_started = (
