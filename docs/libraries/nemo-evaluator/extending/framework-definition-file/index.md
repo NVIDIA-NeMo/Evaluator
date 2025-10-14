@@ -84,7 +84,7 @@ evaluations:
 Define framework metadata including name, package information, and repository URL.
 :::
 
-:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Defaults Section
+:::{grid-item-card} {octicon}`list-unordered;1.5em;sd-mr-1` Defaults Section
 :link: defaults-section
 :link-type: ref
 Configure default parameters, command templates, and target endpoint settings.
@@ -96,7 +96,7 @@ Configure default parameters, command templates, and target endpoint settings.
 Define specific evaluation types with task-specific configurations and parameters.
 :::
 
-:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Advanced Features
+:::{grid-item-card} {octicon}`telescope;1.5em;sd-mr-1` Advanced Features
 :link: advanced-features
 :link-type: ref
 Use conditionals, parameter inheritance, and dynamic configuration in your FDF.
@@ -108,7 +108,7 @@ Use conditionals, parameter inheritance, and dynamic configuration in your FDF.
 Learn how to integrate your FDF with the Eval Factory system.
 :::
 
-:::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Troubleshooting
+:::{grid-item-card} {octicon}`question;1.5em;sd-mr-1` Troubleshooting
 :link: fdf-troubleshooting
 :link-type: ref
 Debug common issues with template errors, parameters, and validation.

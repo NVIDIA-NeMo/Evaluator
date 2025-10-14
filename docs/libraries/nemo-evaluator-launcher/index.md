@@ -13,7 +13,7 @@ The *Orchestration Layer* empowers you to run AI model evaluations at scale. Use
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
-:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Quickstart
+:::{grid-item-card} {octicon}`play;1.5em;sd-mr-1` Quickstart
 :link: quickstart
 :link-type: doc
 
@@ -34,7 +34,7 @@ Complete configuration schema, examples, and advanced patterns for all use cases
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
-:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Executors
+:::{grid-item-card} {octicon}`iterations;1.5em;sd-mr-1` Executors
 :link: configuration/executors/index
 :link-type: doc
 
@@ -48,7 +48,7 @@ Execute evaluations on your local machine, HPC cluster (Slurm), or cloud platfor
 Export results to MLflow, Weights & Biases, Google Sheets, or local files with one command.
 :::
 
-:::{grid-item-card} {octicon}`workflow;1.5em;sd-mr-1` Local Executor
+:::{grid-item-card} {octicon}`device-desktop;1.5em;sd-mr-1` Local Executor
 :link: configuration/executors/local
 :link-type: doc
 

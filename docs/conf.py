@@ -155,6 +155,7 @@ suppress_warnings = [
     "toc.no_title",  # Expected for helm docs that include external README files
     "docutils",  # Expected for autodoc2-generated content with regex patterns and complex syntax
     "ref.python",  # Expected for ambiguous autodoc2 cross-references (e.g., multiple 'Params' classes)
+    "myst.xref_missing",  # Expected for Pydantic BaseModel docstrings that reference Pydantic's own documentation
 ]
 
 # -- Options for Autodoc2 ---------------------------------------------------

@@ -116,7 +116,7 @@ NeMo Evaluator provides a collection of specialized containers for different eva
 Containers for evaluating large language models across academic benchmarks and custom tasks.
 :::
 
-:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Code Generation
+:::{grid-item-card} {octicon}`file-code;1.5em;sd-mr-1` Code Generation
 :link: code-generation
 :link-type: doc
 
@@ -130,7 +130,7 @@ Specialized containers for evaluating code generation and programming capabiliti
 Multimodal evaluation containers for vision-language understanding and reasoning.
 :::
 
-:::{grid-item-card} {octicon}`shield;1.5em;sd-mr-1` Safety & Security
+:::{grid-item-card} {octicon}`shield-check;1.5em;sd-mr-1` Safety & Security
 :link: safety-security
 :link-type: doc
 
