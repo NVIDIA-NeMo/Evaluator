@@ -33,6 +33,14 @@ Unified CLI experience with automated container management, built-in orchestrati
 Programmatic control with full adapter features, custom configurations, and direct API access for integration into existing workflows.
 :::
 
+:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` NeMo Framework Container
+:link: gs-quickstart-nemo-fw
+:link-type: ref
+**For NeMo Framework Users**
+
+End-to-end training and evaluation of large language models (LLMs).
+:::
+
 :::{grid-item-card} {octicon}`container;1.5em;sd-mr-1` Container Direct
 :link: gs-quickstart-container
 :link-type: ref
@@ -223,5 +231,6 @@ nemo-evaluator-launcher run --config-dir examples --config-name lepton_vllm_llam
 
 NeMo Evaluator Launcher <launcher>
 NeMo Evaluator Core <core>
+NeMo Framework Container <nemo-fw>
 Container Direct <container>
 ```
