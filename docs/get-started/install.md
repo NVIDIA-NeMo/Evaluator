@@ -142,155 +142,22 @@ echo " Container access verified"
 
 ---
 
-(optional-packages)=
+## Clone the repository
 
-## Add New Evaluation Frameworks
+Clone the NeMo Evaluator repository to get easy access to our ready-to-use examples:
 
-You can add more evaluation methods by installing additional NVIDIA Eval Factory packages.
+```bash
+git clone https://github.com/NVIDIA-NeMo/Evaluator.git
+```
 
-**Prerequisites**: An OpenAI-compatible model endpoint must be running and accessible.
+Run the example:
 
-For each package:
+```bash
+cd Evaluator/
 
-1. Install the required package.
-
-2. Export any required environment variables (if specified).
-
-3. Run the evaluation of your choice.
-
-Below you can find examples for enabling and launching evaluations for different packages.
-These examples demonstrate functionality using a subset of samples.
-To run the evaluation on the entire dataset, remove the `"limit_samples"` parameter.
-
-::::{tab-set}
-
-:::{tab-item} BFCL
-
-1. Install the [nvidia-bfcl](https://pypi.org/project/nvidia-bfcl/) package:
-
-   ```bash
-   pip install nvidia-bfcl==25.7.1
-   ```
-
-2. Run the evaluation:
-
-   ```{literalinclude} ../scripts/snippets/bfcl.py
-   :language: python
-   :start-after: "## Run the evaluation"
-   :linenos:
-   ```
-
-:::
-
-:::{tab-item} garak
-
-1. Install the [nvidia-eval-factory-garak](https://pypi.org/project/nvidia-eval-factory-garak/) package:
-
-   ```bash
-   pip install nvidia-eval-factory-garak==25.6
-   ```
-
-2. Run the evaluation:
-
-   ```{literalinclude} ../scripts/snippets/garak.py
-   :language: python
-   :start-after: "## Run the evaluation"
-   :linenos:
-   ```
-
-:::
-
-:::{tab-item} BigCode
-
-1. Install the [nvidia-bigcode-eval](https://pypi.org/project/nvidia-bigcode-eval/) package:
-
-   ```bash
-   pip install nvidia-bigcode-eval==25.6
-   ```
-
-2. Run the evaluation:
-
-   ```{literalinclude} ../scripts/snippets/bigcode.py
-   :language: python
-   :start-after: "## Run the evaluation"
-   :linenos:
-   ```
-
-:::
-
-:::{tab-item} simple-evals
-
-1. Install the [nvidia-simple-evals](https://pypi.org/project/nvidia-simple-evals/) package:
-
-   ```bash
-   pip install nvidia-simple-evals==25.7.1
-   ```
-
-In the example below, we use the `AIME_2025` task, which follows the llm-as-a-judge approach for checking the output correctness.
-By default, [Llama 3.3 70B](https://build.nvidia.com/meta/llama-3_3-70b-instruct) NVIDIA NIM is used for judging.
-
-1. To run evaluation, set your [build.nvidia.com](https://build.nvidia.com/) API key as the `JUDGE_API_KEY` variable:
-
-   ```bash
-   export JUDGE_API_KEY=your-api-key-here
-   ```
-
-To customize the judge setting, see the instructions for [NVIDIA Eval Factory package](https://pypi.org/project/nvidia-simple-evals/). 
-
-1. Run the evaluation:
-
-   ```{literalinclude} ../scripts/snippets/simple_evals.py
-   :language: python
-   :start-after: "## Run the evaluation"
-   :linenos:
-   ```
-
-:::
-
-:::{tab-item} safety-harness
-
-1. Install the [nvidia-safety-harness](https://pypi.org/project/nvidia-safety-harness/) package:
-
-   ```bash
-   pip install nvidia-safety-harness==25.6
-   ```
-
-2. Deploy the judge model
-
-   In the example below, we use the `aegis_v2` task, which requires the [Llama 3.1 NemoGuard 8B ContentSafety](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/getting-started.html) model to assess your model's responses.
-
-   The model is available through NVIDIA NIM.
-   See the [instructions](https://docs.nvidia.com/nim/llama-3-1-nemoguard-8b-contentsafety/latest/getting-started.html) on deploying the judge model.
-
-   If you set a gated judge endpoint up, you must export your API key as the ``JUDGE_API_KEY`` variable:
-
-   ```bash
-   export JUDGE_API_KEY=...
-   ```
-
-3. To access the evaluation dataset, you must authenticate with the [Hugging Face Hub](https://huggingface.co/docs/huggingface_hub/quick-start#authentication).
-
-4. Run the evaluation:
-
-   ```{literalinclude} ../scripts/snippets/safety.py
-   :language: python
-   :start-after: "## Run the evaluation"
-   :linenos:
-   ```
-
-   Make sure to modify the judge configuration in the provided snippet to match your Llama 3.1 NemoGuard 8B ContentSafety endpoint:
-
-   ```python
-       params={
-           "extra": {
-               "judge": {
-                   "model_id": "my-llama-3.1-nemoguard-8b-content-safety-endpoint",
-                   "url": "http://my-hostname:1234/v1/completions",
-               }
-           }
-       }
-   ```
-
-:::
-
-::::
+export NGC_API_KEY=nvapi-...  # API Key with access to build.nvidia.com
+nemo-evaluator-launcher run \
+  --config-dir packages/nemo-evaluator-launcher/examples \
+  --config-name local_nvidia_nemotron_nano_9b_v2 \
+  --override execution.output_dir=nemotron-eval
+```
