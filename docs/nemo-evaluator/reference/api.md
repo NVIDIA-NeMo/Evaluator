@@ -373,20 +373,23 @@ interceptor_config = {
                     "enable_thinking": False
                 }
             }
-        }
+        },
+        "params_to_remove": ["field_in_msgs_to_remove"],
+        "params_to_rename": {"max_tokens": "max_completion_tokens"}
     }
 }
 ```
 
 **Explanation:**
 
-This interceptor is particularly useful when custom behavior is needed. In this example, the `enable_thinking` parameter is a custom key that controls the reasoning mode of the model. When set to `False`, it disables the model's internal reasoning/thinking process, which can be useful for scenarios where you want more direct responses without the model's step-by-step reasoning output.
+This interceptor is particularly useful when custom behavior is needed. In this example, the `enable_thinking` parameter is a custom key that controls the reasoning mode of the model. When set to `False`, it disables the model's internal reasoning/thinking process, which can be useful for scenarios where you want more direct responses without the model's step-by-step reasoning output.  
+The `field_in_msgs_to_remove` field would be removed recursively from all messages in the payload.
 
 **Features:**
 
-- Request payload modification
 - Custom parameter injection
-- Flexible configuration options
+- Remove fields recursively at all levels of the payload
+- Rename top-level payload keys
 
 ### 7. Client Error Interceptor
 
