@@ -245,3 +245,49 @@ def test_chat_template_kwargs_with_existing_payload(tmpdir):
     # Verify the complete modified payload structure
     expected_keys = set(original_data.keys())
     assert set(modified_data.keys()) == expected_keys
+
+
+def test_remove_params_recursively(tmpdir):
+    payload_modifier = PayloadParamsModifierInterceptor(
+        params=PayloadParamsModifierInterceptor.Params(
+            params_to_remove=["reasoning_content"]
+        )
+    )
+
+    original_data = {
+        "messages": [
+            {
+                "role": "user",
+                "content": "What is the capital of France?",
+            },
+            {
+                "role": "assistant",
+                "content": "Paris is the capital of France.",
+                "reasoning_content": "I think that Paris is the capital of France.",
+            },
+            {
+                "role": "user",
+                "content": "What is the capital of Germany?",
+            },
+            {
+                "role": "assistant",
+                "content": "Berlin is the capital of Germany.",
+                "reasoning_content": "I think that Berlin is the capital of Germany.",
+            },
+        ]
+    }
+
+    request = Request.from_values(
+        method="POST",
+        headers={"Content-Type": "application/json"},
+        data=json.dumps(original_data),
+    )
+    adapter_request = AdapterRequest(r=request, rctx=AdapterRequestContext())
+
+    modified_request = payload_modifier.intercept_request(
+        adapter_request, mock_context(tmpdir)
+    )
+    modified_data = json.loads(modified_request.r.get_data())
+
+    assert "reasoning_content" not in modified_data["messages"][1]
+    assert "reasoning_content" not in modified_data["messages"][3]
