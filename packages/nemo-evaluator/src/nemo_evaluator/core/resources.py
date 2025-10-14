@@ -24,7 +24,6 @@ from typing import Any, Callable, TypeVar
 
 import psutil
 
-from nemo_evaluator.api.api_dataclasses import EvaluationResult
 from nemo_evaluator.logging.utils import logger
 
 _FuncRetType = TypeVar("_FuncRetType")
