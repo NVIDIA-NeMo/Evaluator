@@ -168,7 +168,7 @@ target:
             enabled: true
             config:
               max_requests: 1000
-        - name: reasoning
+        - name: "reasoning"
           config:
             start_reasoning_token: "<think>"
             end_reasoning_token: "</think>"
@@ -216,6 +216,10 @@ If you encounter adapter server port conflicts:
 export ADAPTER_PORT=3828
 export ADAPTER_HOST=localhost
 ```
+
+:::{note}
+You can manually set the port, or rely on NeMo Evaluator's dynamic port binding feature.
+:::
 
 ### API Key Issues
 

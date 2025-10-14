@@ -162,7 +162,7 @@ docker run --gpus all -it nvcr.io/nvidia/eval-factory/<container-name>:<tag>
 - NVIDIA GPU (for GPU-accelerated evaluation)
 - Sufficient disk space for models and datasets
 
-For detailed usage instructions, see {ref}`container-workflows` guide.
+For detailed usage instructions, see {ref}`cli-workflows` guide.
 
 :::{toctree}
 :caption: Container Reference
