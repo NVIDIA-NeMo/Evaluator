@@ -18,28 +18,18 @@
 # After successful evaluation, results will be automatically exported to W&B, MLFlow, and GSheets, depending on
 # which exporters you have enabled.
 
-# specify default configs for execution and deployment
+# specify default configs for execution, deployment, and export
 defaults:
   - execution: local
   - deployment: none
   - _self_
 
 execution:
-  output_dir: llama_3_1_8b_instruct_results
+  output_dir: llama_3_1_8b_instruct_auto_export_results
   
   # Auto-export destinations
   auto_export:
-    destinations: ["wandb", "mlflow", "gsheets"]
-  
-  # Export-related env vars (for auto-export only)
-  env_vars:
-    # evaluation:
-      # env vars needed by evaluation container
-    export:
-      # env vars needed by auto-export
-      WANDB_API_KEY: WANDB_API_KEY
-      MLFLOW_TRACKING_URI: MLFLOW_TRACKING_URI # either set here or in the exporter config via tracking_uri
-      PATH: "/path/to/env/bin:$PATH" # needed to load nemo-evaluator-launcher binaries on host machine
+    destinations: ["mlflow"]
 
 target:
   api_endpoint:
@@ -49,52 +39,24 @@ target:
 
 evaluation:
   tasks:
-    - name: simple_evals.gpqa_diamond
-      overrides:
-        config.params.limit_samples: 10
+    - name: gpqa_diamond
       env_vars:
-        HF_TOKEN: HF_TOKEN
+        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND 
 
-# Exporter configurations (for auto-export only)
+# Exporter configurations (paired with auto-export only)
 export:
-  wandb:
-    entity: "nvidia"
-    project: "nemo-evaluator-launcher-test"
-    name: "llama-3.1-8b-instruct_experiment-v1.12"
-    group: "eval-formatting"
-    job_type: "evaluation"
-    tags: ["llama-3.1", "experiment-v1.12", "latest"]
-    description: "Evaluation of Llama 3.1 with prompts formatting"
-    log_metrics: ["accuracy", "pass@1"]
-    log_mode: "multi_task"
-    
-    # Additional metadata goes into wandb.config
-    extra_metadata:
-      checkpoint_dir: "path/to/checkpoint"
-      experiment_phase: "baseline"
-      hardware: "H100"
-      custom_param: "any_value"
-
   mlflow:
-    tracking_uri: "http://mlflow.nvidia.com:5000"
-    experiment_name: "AIME-2024_v2"
-    description: "Evaluation of Llama 3.1 with prompts formatting"
+    tracking_uri: "http://mlflow.nvidia.com:5003"
+    experiment_name: "nv-eval"
+    description: "nemo-evaluator-launcher Evaluation test run with auto-export"
     log_metrics: ["accuracy", "pass@1"]
     log_logs: true
     only_required: false
     
     # MLflow tags (key-value pairs)
     tags:
-      framework: "vLLM"
-      precision: "bf16"
+      framework: "none"
     
     # Additional metadata goes into mlflow.log_params()
     extra_metadata:
-      checkpoint_dir: "path/to/checkpoint"
       experiment_phase: "baseline"
-      hardware: "H100"
-      custom_param: "any_value"
-
-  gsheets:
-    spreadsheet_name: "LLM Evaluation Results"
-    log_metrics: ["accuracy", "pass@1"]
