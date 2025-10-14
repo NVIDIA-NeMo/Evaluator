@@ -17,6 +17,11 @@ This interceptor is useful when you want to fail fast on client errors that indi
 
 ### YAML Configuration
 
+::::{tab-set}
+
+:::{tab-item} Default Configuration
+Raises on 4xx status codes except 408 (Request Timeout) and 429 (Too Many Requests).
+
 ```yaml
 target:
   api_endpoint:
@@ -33,6 +38,10 @@ target:
           enabled: true
           config: {}
 ```
+:::
+
+:::{tab-item} Specific Status Codes
+Raises only on specific status codes rather than a range.
 
 ```yaml
 target:
@@ -48,6 +57,10 @@ target:
           enabled: true
           config: {}
 ```
+:::
+
+:::{tab-item} Custom Exclusions
+Uses a status code range with custom exclusions, including 404 Not Found.
 
 ```yaml
 target:
@@ -65,6 +78,9 @@ target:
           enabled: true
           config: {}
 ```
+:::
+
+::::
 
 ## Configuration Options
 
@@ -95,30 +111,40 @@ target:
 
 ## Examples
 
-### Example 1: Authentication Failures Only
+::::{tab-set}
+
+:::{tab-item} Auth Failures Only
+Raises exceptions only on authentication and authorization failures.
+
 ```yaml
 config:
   status_codes: [401, 403]
 ```
-Only raises exceptions on authentication/authorization failures.
+:::
 
-### Example 2: All Client Errors Except Rate Limiting
+:::{tab-item} All Client Errors Except Rate Limiting
+Raises on all 4xx errors except timeout and rate limit errors.
+
 ```yaml
 config:
   status_code_range_start: 400
   status_code_range_end: 499
   exclude_status_codes: [408, 429]
 ```
-Raises on all 4xx errors except timeout and rate limit errors.
+:::
 
-### Example 3: Strict Mode - All Client Errors
+:::{tab-item} Strict Mode - All Client Errors
+Raises exceptions on any 4xx status code without exclusions.
+
 ```yaml
 config:
   status_code_range_start: 400
   status_code_range_end: 499
   exclude_status_codes: []
 ```
-Raises exceptions on any 4xx status code without exclusions.
+:::
+
+::::
 
 ## Common Use Cases
 
