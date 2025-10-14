@@ -81,7 +81,7 @@ docker pull nvcr.io/nvidia/eval-factory/livecodebench:{{ docker_compose_latest }
 
 **NGC Catalog**: [scicode](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/scicode)
 
-SciCode is a challenging benchmark designed to evaluate the capabilities of language models in generating code for solving realistic scientific research problems with diverse coverage across 16 subdomains from 6 domains.
+SciCode is a challenging benchmark designed to evaluate the capabilities of language models in generating code for solving realistic scientific research problems with diverse coverage across 16 subdomains from six domains.
 
 **Use Cases:**
 - Scientific research code generation
@@ -110,4 +110,4 @@ docker pull nvcr.io/nvidia/eval-factory/scicode:{{ docker_compose_latest }}
 | `n_samples` | `1` |
 | `eval_threads` | `None` |
 
-**Supported Domains:** Physics, Math, Material Science, Biology, Chemistry (16 subdomains from 5 domains)
+**Supported Domains:** Physics, Math, Material Science, Biology, Chemistry (16 subdomains from five domains)

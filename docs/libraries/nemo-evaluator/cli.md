@@ -114,7 +114,7 @@ nemo-evaluator run_eval \
   --output_dir ./results \
   --run_config ./config/eval_config.yml
 ```
-To check the structure of the run configuration, see the [Run Configuration](#run-configuration) section below.
+To check the structure of the run configuration, refer to the [Run Configuration](#run-configuration) section below.
 
 (run-configuration)=
 

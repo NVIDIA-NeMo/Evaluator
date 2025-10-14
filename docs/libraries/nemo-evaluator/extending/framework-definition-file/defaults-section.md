@@ -2,7 +2,7 @@
 
 # Defaults Section
 
-The `defaults` section defines the default configuration and execution command that will be used across all evaluations unless overridden. Overriding is supported either through `--overrides` flag (see {ref}`parameter-overrides`) or {ref}`run-configuration`.
+The `defaults` section defines the default configuration and execution command that will be used across all evaluations unless overridden. Overriding is supported either through `--overrides` flag (refer to {ref}`parameter-overrides`) or {ref}`run-configuration`.
 
 ## Command Template
 

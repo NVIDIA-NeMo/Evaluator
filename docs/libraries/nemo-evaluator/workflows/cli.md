@@ -6,7 +6,7 @@ This document explains how to use evaluation containers within NeMo Evaluator wo
 
 ## Overview
 
-Evaluation containers provide consistent, reproducible environments for running AI model evaluations. For a comprehensive list of all available containers, see {ref}`nemo-evaluator-containers`.
+Evaluation containers provide consistent, reproducible environments for running AI model evaluations. For a comprehensive list of all available containers, refer to {ref}`nemo-evaluator-containers`.
 
 ## Basic CLI
 
@@ -60,7 +60,7 @@ nemo-evaluator run_eval \
 
 The adapter system uses interceptors to modify requests and responses. Configure interceptors using the `--overrides` parameter.
 
-For detailed interceptor configuration, see {ref}`nemo-evaluator-interceptors`.
+For detailed interceptor configuration, refer to {ref}`nemo-evaluator-interceptors`.
 
 :::{note}
 Always remember to include `endpoint` Interceptor at the and of your custom Interceptors chain. 

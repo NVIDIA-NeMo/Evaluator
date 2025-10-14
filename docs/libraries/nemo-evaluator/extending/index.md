@@ -47,7 +47,7 @@ The primary extension mechanism uses YAML configuration files to define:
 3. **Test Integration**: Validate that your framework works with NeMo Evaluator workflows
 4. **Container Packaging**: Package your framework as a container for distribution
 
-For detailed reference documentation, see {ref}`framework-definition-file`.
+For detailed reference documentation, refer to {ref}`framework-definition-file`.
 
 :::{toctree}
 :caption: Extending NeMo Evaluator

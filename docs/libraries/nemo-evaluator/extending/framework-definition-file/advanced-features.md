@@ -82,7 +82,7 @@ nemo-evaluator run_eval --overrides config.params.temperature=1.0
 # Overrides all previous values
 ```
 
-For more information on how to use these overrides, see {ref}`parameter-overrides` documentation.
+For more information on how to use these overrides, refer to the {ref}`parameter-overrides` documentation.
 
 ## Dynamic Configuration
 
