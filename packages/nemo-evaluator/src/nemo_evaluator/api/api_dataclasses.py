@@ -121,11 +121,16 @@ class Evaluation(BaseModel):
     _render_command_called: bool = PrivateAttr(default=False)
 
     def render_command(self):
+        warning_prefix = ""
         if self._render_command_called:
             # We decide to not crash but rather warn the use with high severity.
             get_logger().error(
                 "It is error to call `render_command` more than once. Expect command "
                 "to be logged with discrepancies or refactor the code."
+            )
+            warning_prefix = (
+                'echo("Warning, this eval command is potentially '
+                + 'different from the actually used one, see logs") && '
             )
 
         self._render_command_called = True
@@ -146,7 +151,7 @@ class Evaluation(BaseModel):
                 except jinja2.exceptions.UndefinedError as e:
                     raise ValueError(f"Missing required configuration field: {e}")
 
-        return recursive_render(self.command)
+        return warning_prefix + recursive_render(self.command)
 
 
 class ScoreStats(BaseModel):
