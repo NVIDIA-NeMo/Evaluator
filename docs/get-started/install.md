@@ -53,7 +53,6 @@ NeMo Evaluator provides multiple installation paths depending on your needs. Cho
 
 ## Installation Methods
 
-### Use pip
 
 ::::{tab-set}
 
@@ -89,8 +88,8 @@ Install NeMo Evaluator Core for programmatic access:
 
 Quick verification:
 
-```{literalinclude} _snippets/verify_core.py
-:language: python
+```{literalinclude} _snippets/verify_core.sh
+:language: bash
 :start-after: "# [snippet-start]"
 :end-before: "# [snippet-end]"
 ```
