@@ -18,15 +18,11 @@
 name: Installation Test
 
 on:
-  pull_request:
-    branches:
-      - main
   push:
     branches:
       - main
       - "pull-request/[0-9]+"
       - "deploy-release/*"
-  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -128,12 +124,6 @@ jobs:
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Install nemo-evaluator (if needed)
-        if: matrix.package == 'nemo-evaluator-launcher'
-        working-directory: packages/nemo-evaluator
-        run: |
-          uv pip install --system -e .
 
       - name: Install package
         working-directory: packages/${{ matrix.package }}
