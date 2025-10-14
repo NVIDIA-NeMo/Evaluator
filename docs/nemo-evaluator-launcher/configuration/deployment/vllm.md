@@ -16,6 +16,7 @@ See the complete configuration structure in the [vLLM Config File](../../../../p
 - **`tensor_parallel_size`**: Number of GPUs for tensor parallelism (default: 8)
 - **`pipeline_parallel_size`**: Number of pipeline parallel stages (default: 1)
 - **`data_parallel_size`**: Number of replicas for data parallelism (default: 1)
+- **`gpu_memory_utilization`**: Fraction of GPU memory to use for the model (default: 0.95)
 - **`extra_args`**: Additional arguments passed to vLLM server
 - **`env_vars`**: Environment variables for the container
 

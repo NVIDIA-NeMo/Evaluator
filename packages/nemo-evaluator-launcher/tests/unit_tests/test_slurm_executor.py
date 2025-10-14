@@ -1936,11 +1936,11 @@ class TestSlurmExecutorKillJob:
         db = ExecutionDB()
         db.write_job(job_data)
 
-        # Mock _kill_slurm_job to return success
+        # Mock _kill_slurm_job to return success (now returns tuple)
         mock_result = Mock(returncode=0)
         monkeypatch.setattr(
             "nemo_evaluator_launcher.executors.slurm.executor._kill_slurm_job",
-            lambda **kwargs: mock_result,
+            lambda **kwargs: (None, mock_result),
             raising=True,
         )
 
@@ -1987,11 +1987,11 @@ class TestSlurmExecutorKillJob:
         db = ExecutionDB()
         db.write_job(job_data)
 
-        # Mock _kill_slurm_job to return failure
+        # Mock _kill_slurm_job to return failure (now returns tuple)
         mock_result = Mock(returncode=1)
         monkeypatch.setattr(
             "nemo_evaluator_launcher.executors.slurm.executor._kill_slurm_job",
-            lambda **kwargs: mock_result,
+            lambda **kwargs: ("RUNNING", mock_result),
             raising=True,
         )
 

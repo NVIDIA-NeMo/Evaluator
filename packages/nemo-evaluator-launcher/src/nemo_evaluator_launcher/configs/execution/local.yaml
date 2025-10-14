@@ -16,3 +16,4 @@
 type: local
 output_dir: ???
 extra_docker_args: ""
+mode: sequential
