@@ -15,6 +15,8 @@
 
 """Tests for PostEvalHook functionality."""
 
+import os
+
 import pytest
 import requests
 from pydantic import BaseModel, Field
@@ -259,6 +261,8 @@ def test_integration_post_eval_hooks_flow(tmpdir):
     # Create and start adapter server in a separate process
     import multiprocessing
     import time
+
+    os.environ["ADAPTER_PORT"] = "3900"
 
     def run_server():
         adapter = AdapterServer(

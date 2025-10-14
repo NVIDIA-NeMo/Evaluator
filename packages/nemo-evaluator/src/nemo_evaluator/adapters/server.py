@@ -22,7 +22,7 @@ import socket
 import sys
 import time
 from multiprocessing.context import SpawnProcess
-from typing import List
+from typing import List, Tuple
 
 import flask
 import requests
@@ -113,7 +113,6 @@ def _run_adapter_server(
     """Internal function to run the adapter server."""
     # Set up centralized logging using NEMO_EVALUATOR_LOG_DIR environment variable if set
     _setup_file_logging()
-
     adapter = AdapterServer(
         api_url=api_url,
         output_dir=output_dir,
@@ -201,7 +200,6 @@ def spawn_adapter_server(
         daemon=True,
     )
     process.start()
-
     # Wait for the server to be ready
     if wait_for_server(adapter_host, adapter_port):
         logger.info(f"Adapter server started on {adapter_host}:{adapter_port}")
@@ -332,9 +330,7 @@ class AdapterServer:
         self.adapter_host: str = os.environ.get(
             "ADAPTER_HOST", self.DEFAULT_ADAPTER_HOST
         )
-        self.adapter_port: int = int(
-            os.environ.get("ADAPTER_PORT", self.DEFAULT_ADAPTER_PORT)
-        )
+        self.adapter_port, self.socket = self._find_and_reserve_free_port()
 
         self.api_url = api_url
         self.output_dir = output_dir
@@ -359,6 +355,32 @@ class AdapterServer:
 
         # Validate and build chains
         self._validate_and_build_chains()
+
+    def _find_and_reserve_free_port(
+        self, start_port=DEFAULT_ADAPTER_PORT, max_port=65535
+    ) -> Tuple[int, socket.socket]:
+        # If specific port has been requested, try only that one port
+        adapter_server_port_env = int(os.environ.get("ADAPTER_PORT", 0))
+        if adapter_server_port_env:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                s.bind(("127.0.0.1", adapter_server_port_env))
+                return adapter_server_port_env, s
+            except OSError:
+                s.close()
+                raise OSError(
+                    f"Adapter server was requested to start explicitly on {adapter_server_port_env} through 'ADAPTER_PORT' env-var, but the port seems to be taken. Exiting. "
+                )
+        for port in range(start_port, max_port + 1):
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                s.bind(("127.0.0.1", port))
+                # The port is now reserved by the OS while socket is open
+                return port, s
+            except OSError:
+                s.close()
+                continue
+        raise OSError("No free port found in range")
 
     def _validate_and_build_chains(self) -> None:
         """Validate configuration and build interceptor chains"""
@@ -492,6 +514,8 @@ class AdapterServer:
 
     def run(self) -> None:
         """Start the Flask server."""
+        # give way to the server
+        self.socket.close()
         werkzeug.serving.run_simple(
             hostname=self.adapter_host,
             port=self.adapter_port,
