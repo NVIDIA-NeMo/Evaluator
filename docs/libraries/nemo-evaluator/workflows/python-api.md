@@ -20,11 +20,19 @@ The Python API is built on top of NeMo Evaluator and provides:
 |--------------|----------|
 | nvidia-bfcl | https://pypi.org/project/nvidia-bfcl/ |
 | nvidia-bigcode-eval | https://pypi.org/project/nvidia-bigcode-eval/ |
-| nvidia-crfm-helm | https://pypi.org/project/nvidia-crfm-helm/ |
+| nvidia-compute-eval | https://pypi.org/project/nvidia-compute-eval/ |
 | nvidia-eval-factory-garak | https://pypi.org/project/nvidia-eval-factory-garak/ |
+| nvidia-genai-perf-eval | https://pypi.org/project/nvidia-genai-perf-eval/ |
+| nvidia-crfm-helm | https://pypi.org/project/nvidia-crfm-helm/ |
+| nvidia-hle | https://pypi.org/project/nvidia-hle/ |
+| nvidia-ifbench | https://pypi.org/project/nvidia-ifbench/ |
+| nvidia-livecodebench | https://pypi.org/project/nvidia-livecodebench/ |
 | nvidia-lm-eval | https://pypi.org/project/nvidia-lm-eval/ |
+| nvidia-mmath | https://pypi.org/project/nvidia-mmath/ |
 | nvidia-mtbench-evaluator | https://pypi.org/project/nvidia-mtbench-evaluator/ |
+| nvidia-eval-factory-nemo-skills | https://pypi.org/project/nvidia-eval-factory-nemo-skills/ |
 | nvidia-safety-harness | https://pypi.org/project/nvidia-safety-harness/ |
+| nvidia-scicode | https://pypi.org/project/nvidia-scicode/ |
 | nvidia-simple-evals | https://pypi.org/project/nvidia-simple-evals/ |
 | nvidia-tooltalk | https://pypi.org/project/nvidia-tooltalk/ |
 | nvidia-vlmeval | https://pypi.org/project/nvidia-vlmeval/ |
