@@ -17,18 +17,20 @@ deployment:
   port: 8000
 ```
 
-### Parallelism Configuration
+### Performance Settings
 
 ```yaml
 deployment:
   tensor_parallel_size: 8
   pipeline_parallel_size: 1
   data_parallel_size: 1
+  gpu_memory_utilization: 0.95
 ```
 
 - **tensor_parallel_size**: Number of GPUs to split the model across (default: 8)
 - **pipeline_parallel_size**: Number of pipeline stages (default: 1)
 - **data_parallel_size**: Number of model replicas (default: 1)
+- **gpu_memory_utilization**: Fraction of GPU memory to use for the model (default: 0.95)
 
 ### Extra Arguments and Endpoints
 
