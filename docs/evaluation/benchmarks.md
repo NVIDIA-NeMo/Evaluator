@@ -254,15 +254,15 @@ Pull and run any evaluation container directly:
 ```bash
 # Academic benchmarks
 docker pull nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
+docker run --rm -it nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
 
 # Code generation
 docker pull nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_compose_latest }}
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_compose_latest }}
+docker run --rm -it nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_compose_latest }}
 
 # Safety evaluation
 docker pull nvcr.io/nvidia/eval-factory/safety-harness:{{ docker_compose_latest }}
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/safety-harness:{{ docker_compose_latest }}
+docker run --rm -it nvcr.io/nvidia/eval-factory/safety-harness:{{ docker_compose_latest }}
 ```
 
 ### Available Tasks by Container

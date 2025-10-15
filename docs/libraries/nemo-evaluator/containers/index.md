@@ -153,7 +153,7 @@ docker pull nvcr.io/nvidia/eval-factory/<container-name>:<tag>
 docker pull nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
 
 # Run with GPU support
-docker run --gpus all -it nvcr.io/nvidia/eval-factory/<container-name>:<tag>
+docker run -it nvcr.io/nvidia/eval-factory/<container-name>:<tag>
 ```
 
 ### Prerequisites

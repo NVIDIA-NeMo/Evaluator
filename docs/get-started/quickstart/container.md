@@ -17,7 +17,7 @@ The Container Direct approach gives you full control over the container environm
 docker pull nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
 
 # 2. Run container interactively
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} bash
+docker run --rm -it nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} bash
 
 # 3. Inside container - set up environment
 export MY_API_KEY=nvapi-your-key-here
@@ -43,7 +43,7 @@ Here's a complete example with volume mounting and advanced configuration:
 mkdir -p ./results ./cache ./logs
 
 # 2. Run container with volume mounts
-docker run --rm -it --gpus all \
+docker run --rm -it \
     -v $(pwd)/results:/workspace/results \
     -v $(pwd)/cache:/workspace/cache \
     -v $(pwd)/logs:/workspace/logs \
@@ -124,13 +124,6 @@ version: '3.8'
 services:
   nemo-eval:
     image: nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     volumes:
       - ./results:/workspace/results
       - ./cache:/workspace/cache
@@ -159,7 +152,7 @@ API_KEY=${NGC_API_KEY}
 for benchmark in "${BENCHMARKS[@]}"; do
     echo "Running evaluation for $benchmark..."
     
-    docker run --rm --gpus all \
+    docker run --rm \
         -v $(pwd)/results:/workspace/results \
         -e MY_API_KEY=$API_KEY \
         -e HF_TOKEN=$HF_TOKEN \

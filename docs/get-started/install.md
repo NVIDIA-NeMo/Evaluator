@@ -109,12 +109,12 @@ docker pull nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_com
 
 ```bash
 # Run container interactively
-docker run --rm -it --gpus all \
+docker run --rm -it \
     -v $(pwd)/results:/workspace/results \
     nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} bash
 
 # Or run evaluation directly
-docker run --rm --gpus all \
+docker run --rm \
     -v $(pwd)/results:/workspace/results \
     -e MY_API_KEY=your-api-key \
     nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
