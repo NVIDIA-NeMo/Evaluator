@@ -343,7 +343,7 @@ monitoring_result = evaluate(
 ```bash
 # Example NemoGuard deployment (adjust for your environment)
 docker run -d --name safety-judge \
-  \
+  --gpus all \
   -p 9000:8000 \
   nvcr.io/nvidia/nemoguard:latest
 ```
