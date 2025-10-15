@@ -23,77 +23,111 @@ on:
       - main
       - "pull-request/[0-9]+"
       - "deploy-release/*"
-env:
-  UV_PROJECT_ENVIRONMENT: "./venv"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  pre-flight:
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@v0.64.2
-
-  pip-test:
+  test-nemo-evaluator:
     runs-on: ubuntu-latest
-    name: Pip - Python${{ matrix.python-version }} - ${{ matrix.package }} - AMD64/Linux - Ubuntu Latest
-    needs: [pre-flight]
-    if: |
-      !(needs.pre-flight.outputs.docs_only == 'true'
-      || needs.pre-flight.outputs.is_deployment_workflow == 'true')
-    container:
-      image: ubuntu:24.04
-    environment: nemo-ci
     strategy:
-      fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
-        package: ["nemo-evaluator"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install ${{ matrix.package }}
-        shell: bash -x -e -u -o pipefail {0}
-        run: bash docker/common/install.sh --package ${{ matrix.package }} --python-version "${{ matrix.python-version }}"
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
 
-      - name: Checkout check-imports
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install nemo-evaluator
+        working-directory: packages/nemo-evaluator
+        run: |
+          uv pip install --system -e .
+
+      - name: Verify installation
+        run: |
+          python -c "import nemo_evaluator; print(f'nemo-evaluator version: {nemo_evaluator.__version__}')"
+          which nemo-evaluator
+          which eval-factory
+          nemo-evaluator --help
+
+  test-nemo-evaluator-launcher:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install nemo-evaluator-launcher
+        working-directory: packages/nemo-evaluator-launcher
+        run: |
+          uv pip install --system -e .
+
+      - name: Verify installation
+        run: |
+          python -c "import nemo_evaluator_launcher; print(f'nemo-evaluator-launcher version: {nemo_evaluator_launcher.__version__}')"
+          which nemo-evaluator-launcher
+          which nv-eval
+          nemo-evaluator-launcher --help
+
+  check-imports:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        include:
+          - package: "nemo-evaluator"
+            module: "nemo_evaluator"
+          - package: "nemo-evaluator-launcher"
+            module: "nemo_evaluator_launcher"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout FW-CI-templates
         uses: actions/checkout@v4
         with:
           repository: NVIDIA-NeMo/FW-CI-templates
-          ref: v0.39.0
-          path: FW-CI-templates
+          path: ./FW-CI-templates
 
-      - name: Check imports for nemo_evaluator
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install package
+        working-directory: packages/${{ matrix.package }}
+        run: |
+          uv pip install --system -e .
+
+      - name: Check imports
         uses: ./FW-CI-templates/.github/actions/check-imports
         with:
-          package-name: nemo_evaluator
-          python-binary: /opt/venv/bin/python
-
-  install-test-summary:
-    needs: [pre-flight, pip-test]
-    runs-on: ubuntu-latest
-    name: Install test summary
-    if: |
-      (
-        needs.pre-flight.outputs.docs_only == 'true'
-        || needs.pre-flight.outputs.is_deployment_workflow == 'true'
-        || always()
-      )
-      && !cancelled()
-    steps:
-      - name: Get workflow result
-        id: result
-        shell: bash -x -e -u -o pipefail {0}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ github.run_id }}
-          SKIPPING_IS_ALLOWED: ${{ needs.pre-flight.outputs.docs_only == 'true' || needs.pre-flight.outputs.is_deployment_workflow == 'true' }}
-        run: |
-          FAILED_JOBS=$(gh run view $GITHUB_RUN_ID --json jobs --jq '[.jobs[] | select(.status == "completed" and .conclusion != "success")] | length') || echo 0
-
-          if [ "${FAILED_JOBS:-0}" -eq 0 ] || [ "$SKIPPING_IS_ALLOWED" == "true" ]; then
-              echo "✅ All previous jobs completed successfully"
-              exit 0
-          else
-              echo "❌ Found $FAILED_JOBS failed job(s)"
-              # Show which jobs failed
-              gh run view $GITHUB_RUN_ID --json jobs --jq '.jobs[] | select(.status == "completed" and .conclusion != "success") | .name'
-              exit 1
-          fi
+          package-name: ${{ matrix.module }}
+          python-binary: python3
