@@ -79,11 +79,6 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Install nemo-evaluator (dependency)
-        working-directory: packages/nemo-evaluator
-        run: |
-          uv pip install --system -e .
-
       - name: Install nemo-evaluator-launcher
         working-directory: packages/nemo-evaluator-launcher
         run: |
