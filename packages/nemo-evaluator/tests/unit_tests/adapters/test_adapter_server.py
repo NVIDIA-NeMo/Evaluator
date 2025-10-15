@@ -698,3 +698,47 @@ def test_adapter_port_environment_variable(tmp_path):
             os.environ["ADAPTER_PORT"] = original_port
         else:
             os.environ.pop("ADAPTER_PORT", None)
+
+
+def test_multiple_adapter_servers():
+    evaluation = Evaluation(
+        config=EvaluationConfig(),
+        target=EvaluationTarget(
+            api_endpoint=ApiEndpoint(url="localhost", adapter_config={})
+        ),
+        pkg_name="test_package",
+        command="test_command",
+        framework_name="test_framework",
+    )
+    evaluation.target.api_endpoint.adapter_config = AdapterConfig.get_validated_config(
+        evaluation.model_dump()
+    )
+
+    with AdapterServerProcess(evaluation) as p1, AdapterServerProcess(evaluation) as p2:
+        assert (p1 is not None) and (p2 is not None)
+        assert p1.port != p2.port
+
+
+def test_adapter_server_process_raise_on_port_taken():
+    evaluation = Evaluation(
+        config=EvaluationConfig(),
+        target=EvaluationTarget(
+            api_endpoint=ApiEndpoint(url="localhost", adapter_config={})
+        ),
+        pkg_name="test_package",
+        command="test_command",
+        framework_name="test_framework",
+    )
+    evaluation.target.api_endpoint.adapter_config = AdapterConfig.get_validated_config(
+        evaluation.model_dump()
+    )
+    import os
+
+    with AdapterServerProcess(evaluation) as p1:
+        # P1 must have reserved some port. Let's try to run another AdapterServerProcess on the same one
+        os.environ["ADAPTER_PORT"] = str(p1.port)
+        with pytest.raises(
+            OSError, match="Adapter server was requested to start explicitly"
+        ):
+            with AdapterServerProcess(evaluation):
+                pass
