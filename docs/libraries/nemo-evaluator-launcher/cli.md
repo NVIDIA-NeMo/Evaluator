@@ -30,7 +30,7 @@ nemo-evaluator-launcher --version                 # Show version information
 * - `version`
   - Show version information
 * - `debug`
-  - Show job(s) helpful information
+  - Show detailed job(s) information
 ```
 
 ## run - Run Evaluations
