@@ -21,8 +21,7 @@ import signal
 import socket
 import sys
 import time
-from multiprocessing.context import SpawnProcess
-from typing import List, Tuple
+from typing import List
 
 import flask
 import requests
@@ -106,17 +105,13 @@ def wait_for_server(
 
 
 def _run_adapter_server(
-    api_url: str,
-    output_dir: str,
-    adapter_config: AdapterConfig,
+    api_url: str, output_dir: str, adapter_config: AdapterConfig, port: int
 ) -> None:
     """Internal function to run the adapter server."""
     # Set up centralized logging using NEMO_EVALUATOR_LOG_DIR environment variable if set
     _setup_file_logging()
     adapter = AdapterServer(
-        api_url=api_url,
-        output_dir=output_dir,
-        adapter_config=adapter_config,
+        api_url=api_url, output_dir=output_dir, adapter_config=adapter_config, port=port
     )
 
     def signal_handler(signum, frame):
@@ -151,147 +146,6 @@ def _run_adapter_server(
     adapter.run()
 
 
-def spawn_adapter_server(
-    api_url: str,
-    output_dir: str,
-    adapter_config: AdapterConfig,
-) -> SpawnProcess | None:
-    """Spawn an AdapterServer in a separate process.
-
-    Args:
-        api_url: The upstream API URL to forward requests to
-        output_dir: Directory for output files
-        adapter_config: Adapter configuration including interceptors and discovery
-
-    Returns:
-                The multiprocessing.Process object running the adapter server, or None if
-        no enabled interceptors or post-eval hooks are configured
-    """
-    # Check if adapter chain is properly defined before spawning
-    enabled_interceptors = [ic for ic in adapter_config.interceptors if ic.enabled]
-    enabled_post_eval_hooks = [
-        hook for hook in adapter_config.post_eval_hooks if hook.enabled
-    ]
-
-    if not enabled_interceptors and not enabled_post_eval_hooks:
-        warning_msg = (
-            "Adapter server will not start: No enabled interceptors or "
-            "post-eval hooks found. The server requires at least one enabled "
-            "interceptor or post-eval hook to function properly. "
-            f"Configured interceptors: "
-            f"{[ic.name for ic in adapter_config.interceptors]}, "
-            f"Configured post-eval hooks: "
-            f"{[hook.name for hook in adapter_config.post_eval_hooks]}"
-        )
-        logger.warning(warning_msg)
-        # Return None instead of raising an error to allow graceful handling
-        return None
-
-    # Get port from environment variable or use default
-    adapter_host = os.environ.get("ADAPTER_HOST", AdapterServer.DEFAULT_ADAPTER_HOST)
-    adapter_port = int(
-        os.environ.get("ADAPTER_PORT", AdapterServer.DEFAULT_ADAPTER_PORT)
-    )
-
-    # Create and start the process
-    process = multiprocessing.get_context("spawn").Process(
-        target=_run_adapter_server,
-        args=(api_url, output_dir, adapter_config),
-        daemon=True,
-    )
-    process.start()
-    # Wait for the server to be ready
-    if wait_for_server(adapter_host, adapter_port):
-        logger.info(f"Adapter server started on {adapter_host}:{adapter_port}")
-        return process
-
-    logger.error(f"Adapter server failed to start on {adapter_host}:{adapter_port}")
-    process.terminate()
-    process.join(timeout=5)
-    raise RuntimeError(
-        f"Adapter server failed to start on {adapter_host}:{adapter_port}"
-    )
-
-
-class AdapterServerProcess:
-    def __init__(self, evaluation: Evaluation):
-        self.evaluation = evaluation
-        self.original_url = self.evaluation.target.api_endpoint.url
-        self.server: None | AdapterServer = None
-        self.process: None | multiprocessing.Process = None
-
-    def __enter__(self):
-        adapter_config: AdapterConfig | None = AdapterConfig.get_validated_config(
-            self.evaluation.model_dump()
-        )
-        if not adapter_config:
-            return
-
-        # Get port from environment variable or use default
-        adapter_host = os.environ.get(
-            "ADAPTER_HOST", AdapterServer.DEFAULT_ADAPTER_HOST
-        )
-        adapter_port = int(
-            os.environ.get("ADAPTER_PORT", AdapterServer.DEFAULT_ADAPTER_PORT)
-        )
-
-        self.evaluation.target.api_endpoint.url = (
-            f"http://{adapter_host}:{adapter_port}"
-        )
-        output_dir = self.evaluation.config.output_dir
-
-        self.process = multiprocessing.get_context("spawn").Process(
-            target=_run_adapter_server,
-            daemon=True,
-            args=(self.original_url, output_dir, adapter_config),
-        )
-        self.process.start()
-
-        if wait_for_server(adapter_host, adapter_port):
-            logger.info(f"Adapter server started on {adapter_host}:{adapter_port}")
-            return self.process
-        logger.error(f"Adapter server failed to start on {adapter_host}:{adapter_port}")
-        self.process.terminate()
-        self.process.join(timeout=5)
-        raise RuntimeError(
-            f"Adapter server failed to start on {adapter_host}:{adapter_port}"
-        )
-
-    def __exit__(self, type, value, traceback):
-        if not self.process:
-            return
-        self.evaluation.target.api_endpoint.url = self.original_url
-        try:
-            # Get port from environment variable or use default
-            adapter_host = os.environ.get(
-                "ADAPTER_HOST", AdapterServer.DEFAULT_ADAPTER_HOST
-            )
-            adapter_port = int(
-                os.environ.get("ADAPTER_PORT", AdapterServer.DEFAULT_ADAPTER_PORT)
-            )
-
-            # Only run post-eval hooks if server is still responding (not shut down by signal handler)
-            if is_port_open(adapter_host, adapter_port, timeout=1.0):
-                post_hook_url = (
-                    f"http://{adapter_host}:{adapter_port}/adapterserver/run-post-hook"
-                )
-                response = requests.post(post_hook_url, timeout=30)
-                if response.status_code == 200:
-                    logger.info("Successfully ran post-evaluation hooks")
-                else:
-                    logger.error(
-                        f"Failed to run post-evaluation hooks: {response.status_code} - {response.text}"
-                    )
-            else:
-                logger.info(
-                    "Server not responding, post-eval hooks already run by signal handler"
-                )
-        except Exception as e:
-            logger.error(f"Failed to run post-evaluation hooks: {e}")
-        self.process.terminate()
-        self.process.join()
-
-
 class AdapterServer:
     """Adapter server with registry-based interceptor support"""
 
@@ -303,6 +157,7 @@ class AdapterServer:
         api_url: str,
         output_dir: str,
         adapter_config: AdapterConfig,
+        port: int = DEFAULT_ADAPTER_PORT,
     ):
         """
         Initialize the adapter server.
@@ -330,7 +185,7 @@ class AdapterServer:
         self.adapter_host: str = os.environ.get(
             "ADAPTER_HOST", self.DEFAULT_ADAPTER_HOST
         )
-        self.adapter_port, self.socket = self._find_and_reserve_free_port()
+        self.adapter_port = port
 
         self.api_url = api_url
         self.output_dir = output_dir
@@ -355,32 +210,6 @@ class AdapterServer:
 
         # Validate and build chains
         self._validate_and_build_chains()
-
-    def _find_and_reserve_free_port(
-        self, start_port=DEFAULT_ADAPTER_PORT, max_port=65535
-    ) -> Tuple[int, socket.socket]:
-        # If specific port has been requested, try only that one port
-        adapter_server_port_env = int(os.environ.get("ADAPTER_PORT", 0))
-        if adapter_server_port_env:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            try:
-                s.bind(("127.0.0.1", adapter_server_port_env))
-                return adapter_server_port_env, s
-            except OSError:
-                s.close()
-                raise OSError(
-                    f"Adapter server was requested to start explicitly on {adapter_server_port_env} through 'ADAPTER_PORT' env-var, but the port seems to be taken. Exiting. "
-                )
-        for port in range(start_port, max_port + 1):
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            try:
-                s.bind(("127.0.0.1", port))
-                # The port is now reserved by the OS while socket is open
-                return port, s
-            except OSError:
-                s.close()
-                continue
-        raise OSError("No free port found in range")
 
     def _validate_and_build_chains(self) -> None:
         """Validate configuration and build interceptor chains"""
@@ -515,7 +344,7 @@ class AdapterServer:
     def run(self) -> None:
         """Start the Flask server."""
         # give way to the server
-        self.socket.close()
+
         werkzeug.serving.run_simple(
             hostname=self.adapter_host,
             port=self.adapter_port,
@@ -755,3 +584,110 @@ class AdapterServer:
         # This method would need to be updated based on the new configuration structure
         # For now, we'll keep it as a placeholder
         pass
+
+
+class AdapterServerProcess:
+    def __init__(self, evaluation: Evaluation):
+        self.evaluation = evaluation
+        self.original_url = self.evaluation.target.api_endpoint.url
+        self.server: None | AdapterServer = None
+        self.process: None | multiprocessing.Process = None
+        self.port = None
+
+    def _find_and_reserve_free_port(
+        self,
+        start_port=AdapterServer.DEFAULT_ADAPTER_PORT,
+        max_port=65535,
+        adapter_host=AdapterServer.DEFAULT_ADAPTER_HOST,
+    ) -> int:
+        # If specific port has been requested, try only that one port
+        adapter_server_port_env = int(os.environ.get("ADAPTER_PORT", 0))
+        if adapter_server_port_env:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                s.bind((adapter_host, adapter_server_port_env))
+                s.close()
+                return adapter_server_port_env
+            except OSError:
+                s.close()
+                raise OSError(
+                    f"Adapter server was requested to start explicitly on {adapter_server_port_env} through 'ADAPTER_PORT' env-var, but the port seems to be taken. Exiting. "
+                )
+        for port in range(start_port, max_port + 1):
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                s.bind((adapter_host, port))
+                # The port is now reserved by the OS while socket is open
+                s.close()
+                return port
+            except OSError:
+                s.close()
+                continue
+        raise OSError("No free port found in range")
+
+    def __enter__(self):
+        adapter_config = self.evaluation.target.api_endpoint.adapter_config
+        if not adapter_config:
+            return
+        enabled_interceptors = [ic for ic in adapter_config.interceptors if ic.enabled]
+        enabled_post_eval_hooks = [
+            hook for hook in adapter_config.post_eval_hooks if hook.enabled
+        ]
+        if not enabled_interceptors and not enabled_post_eval_hooks:
+            return
+
+        # Get port from environment variable or use default
+        adapter_host = os.environ.get(
+            "ADAPTER_HOST", AdapterServer.DEFAULT_ADAPTER_HOST
+        )
+
+        output_dir = self.evaluation.config.output_dir
+        self.port = self._find_and_reserve_free_port(adapter_host=adapter_host)
+        self.evaluation.target.api_endpoint.url = f"http://{adapter_host}:{self.port}"
+        self.process = multiprocessing.get_context("spawn").Process(
+            target=_run_adapter_server,
+            daemon=True,
+            args=(self.original_url, output_dir, adapter_config, self.port),
+        )
+        self.process.start()
+
+        if wait_for_server(adapter_host, self.port):
+            logger.info(f"Adapter server started on {adapter_host}:{self.port}")
+            return self
+        logger.error(f"Adapter server failed to start on {adapter_host}:{self.port}")
+        self.process.terminate()
+        self.process.join(timeout=5)
+        raise RuntimeError(
+            f"Adapter server failed to start on {adapter_host}:{self.port}"
+        )
+
+    def __exit__(self, type, value, traceback):
+        if not self.process:
+            return
+        self.evaluation.target.api_endpoint.url = self.original_url
+        try:
+            # Get port from environment variable or use default
+            adapter_host = os.environ.get(
+                "ADAPTER_HOST", AdapterServer.DEFAULT_ADAPTER_HOST
+            )
+
+            # Only run post-eval hooks if server is still responding (not shut down by signal handler)
+            if is_port_open(adapter_host, self.port, timeout=1.0):
+                post_hook_url = (
+                    f"http://{adapter_host}:{self.port}/adapterserver/run-post-hook"
+                )
+                response = requests.post(post_hook_url, timeout=30)
+                if response.status_code == 200:
+                    logger.info("Successfully ran post-evaluation hooks")
+                else:
+                    logger.error(
+                        f"Failed to run post-evaluation hooks: {response.status_code} - {response.text}"
+                    )
+            else:
+                logger.info(
+                    "Server not responding, post-eval hooks already run by signal handler"
+                )
+        except Exception as e:
+            logger.error(f"Failed to run post-evaluation hooks: {e}")
+        self.process.terminate()
+        self.process.join()

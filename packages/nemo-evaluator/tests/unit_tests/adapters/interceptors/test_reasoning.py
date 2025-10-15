@@ -27,7 +27,7 @@ from nemo_evaluator.adapters.interceptors.reasoning_interceptor import (
 )
 from nemo_evaluator.adapters.server import (
     AdapterServer,
-    spawn_adapter_server,
+    AdapterServerProcess,
     wait_for_server,
 )
 from nemo_evaluator.adapters.types import (
@@ -35,15 +35,20 @@ from nemo_evaluator.adapters.types import (
     AdapterRequestContext,
     AdapterResponse,
 )
+from nemo_evaluator.api.api_dataclasses import (
+    ApiEndpoint,
+    Evaluation,
+    EvaluationConfig,
+    EvaluationTarget,
+)
 from tests.unit_tests.adapters.testing_utils import (
     create_fake_endpoint_process,
 )
 
 
 @pytest.fixture
-def adapter_server(tmp_path) -> Generator[AdapterConfig, Any, Any]:
+def adapter_server(tmp_path) -> Generator[AdapterServerProcess, Any, Any]:
     api_url = "http://localhost:3300/v1/chat/completions"
-    output_dir = tmp_path
     adapter_config = AdapterConfig(
         interceptors=[
             dict(
@@ -68,16 +73,22 @@ def adapter_server(tmp_path) -> Generator[AdapterConfig, Any, Any]:
             ),
         ]
     )
-    p = spawn_adapter_server(api_url, output_dir, adapter_config)
-    yield adapter_config
-    p.terminate()
-    p.join(timeout=5)
+    evaluation = Evaluation(
+        command="",
+        framework_name="",
+        pkg_name="",
+        config=EvaluationConfig(output_dir=str(tmp_path)),
+        target=EvaluationTarget(
+            api_endpoint=ApiEndpoint(url=api_url, adapter_config=adapter_config)
+        ),
+    )
+    with AdapterServerProcess(evaluation) as adapter_server_process:
+        yield adapter_server_process
 
 
 @pytest.fixture
-def adapter_server_migration(tmp_path) -> Generator[AdapterConfig, Any, Any]:
+def adapter_server_migration(tmp_path) -> Generator[AdapterServerProcess, Any, Any]:
     api_url = "http://localhost:3300/v1/chat/completions"
-    output_dir = tmp_path
     adapter_config = AdapterConfig(
         interceptors=[
             dict(
@@ -106,10 +117,17 @@ def adapter_server_migration(tmp_path) -> Generator[AdapterConfig, Any, Any]:
             ),
         ]
     )
-    p = spawn_adapter_server(api_url, output_dir, adapter_config)
-    yield adapter_config
-    p.terminate()
-    p.join(timeout=5)
+    evaluation = Evaluation(
+        command="",
+        framework_name="",
+        pkg_name="",
+        config=EvaluationConfig(output_dir=str(tmp_path)),
+        target=EvaluationTarget(
+            api_endpoint=ApiEndpoint(url=api_url, adapter_config=adapter_config)
+        ),
+    )
+    with AdapterServerProcess(evaluation) as adapter_server_process:
+        yield adapter_server_process
 
 
 @pytest.mark.parametrize(
@@ -135,10 +153,9 @@ def test_reasoning_responses(
     input_content,
     expected_content,
 ):
-    url = f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{AdapterServer.DEFAULT_ADAPTER_PORT}"
-
+    url = f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{adapter_server.port}"
     # Wait for server to be ready
-    wait_for_server("localhost", 3825)
+    wait_for_server("localhost", adapter_server.port)
 
     # We parametrize the response of the openai fake server.
     response_data = {
@@ -184,7 +201,7 @@ def test_migration(
     content,
     expected_content,
 ):
-    url = f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{AdapterServer.DEFAULT_ADAPTER_PORT}"
+    url = f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{adapter_server_migration.port}"
 
     # Wait for server to be ready
     wait_for_server("localhost", 3825)
@@ -220,10 +237,10 @@ def test_multiple_choices(
     fake_openai_endpoint,
 ):
     # Given: A response with multiple choices containing reasoning tokens
-    url = f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{AdapterServer.DEFAULT_ADAPTER_PORT}"
+    url = f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{adapter_server.port}"
 
     # Wait for server to be ready
-    wait_for_server("localhost", 3825)
+    wait_for_server("localhost", adapter_server.port)
 
     response_data = {
         "choices": [
@@ -261,10 +278,10 @@ def test_non_assistant_role(
     fake_openai_endpoint,
 ):
     # Given: A response with a non-assistant role message
-    url = f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{AdapterServer.DEFAULT_ADAPTER_PORT}"
+    url = f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{adapter_server.port}"
 
     # Wait for server to be ready
-    wait_for_server("localhost", 3825)
+    wait_for_server("localhost", adapter_server.port)
 
     response_data = {
         "choices": [
@@ -336,26 +353,31 @@ def test_reasoning_interceptor_with_adapter_server(tmp_path):
         ]
     )
     api_url = "http://localhost:3300/v1/chat/completions"
-    output_dir = str(tmp_path)
 
     # Start fake endpoint
     fake_endpoint = create_fake_endpoint_process()
 
     try:
         # Start adapter server
-        p = spawn_adapter_server(api_url, output_dir, adapter_config)
+        evaluation = Evaluation(
+            command="",
+            framework_name="",
+            pkg_name="",
+            config=EvaluationConfig(output_dir=str(tmp_path)),
+            target=EvaluationTarget(
+                api_endpoint=ApiEndpoint(url=api_url, adapter_config=adapter_config)
+            ),
+        )
+        with AdapterServerProcess(evaluation) as adapter_server_process:
+            # Wait for server to be ready
+            wait_for_server("localhost", adapter_server_process.port)
 
-        # Wait for server to be ready
-        wait_for_server("localhost", 3825)
-
-        # Make a test request
-        test_data = {"prompt": "Test prompt", "max_tokens": 100}
-        response = requests.post("http://localhost:3825", json=test_data)
-        assert response.status_code == 200
-
-        # Clean up
-        p.terminate()
-        p.join(timeout=5)
+            # Make a test request
+            test_data = {"prompt": "Test prompt", "max_tokens": 100}
+            response = requests.post(
+                f"http://localhost:{adapter_server_process.port}", json=test_data
+            )
+            assert response.status_code == 200
 
     finally:
         # Clean up fake endpoint
