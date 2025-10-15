@@ -131,3 +131,28 @@ jobs:
         with:
           package-name: ${{ matrix.module }}
           python-binary: python3
+
+  install-test-summary:
+    needs: [test-nemo-evaluator, test-nemo-evaluator-launcher, check-imports]
+    runs-on: ubuntu-latest
+    name: Install test summary
+    if: always() && !cancelled()
+    steps:
+      - name: Get workflow result
+        id: result
+        shell: bash -x -e -u -o pipefail {0}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          FAILED_JOBS=$(gh run view $GITHUB_RUN_ID --json jobs --jq '[.jobs[] | select(.status == "completed" and .conclusion != "success")] | length') || echo 0
+
+          if [ "${FAILED_JOBS:-0}" -eq 0 ]; then
+              echo "✅ All previous jobs completed successfully"
+              exit 0
+          else
+              echo "❌ Found $FAILED_JOBS failed job(s)"
+              # Show which jobs failed
+              gh run view $GITHUB_RUN_ID --json jobs --jq '.jobs[] | select(.status == "completed" and .conclusion != "success") | .name'
+              exit 1
+          fi
