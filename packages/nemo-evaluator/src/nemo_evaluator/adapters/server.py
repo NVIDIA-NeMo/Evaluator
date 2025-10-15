@@ -636,7 +636,7 @@ class AdapterServerProcess:
         if not enabled_interceptors and not enabled_post_eval_hooks:
             return
 
-        # Get port from environment variable or use default
+        # Get host from environment variable or use default
         adapter_host = os.environ.get(
             "ADAPTER_HOST", AdapterServer.DEFAULT_ADAPTER_HOST
         )
@@ -663,10 +663,10 @@ class AdapterServerProcess:
 
     def __exit__(self, type, value, traceback):
         if not self.process:
-            return
+            return False
         self.evaluation.target.api_endpoint.url = self.original_url
         try:
-            # Get port from environment variable or use default
+            # Get host from environment variable or use default
             adapter_host = os.environ.get(
                 "ADAPTER_HOST", AdapterServer.DEFAULT_ADAPTER_HOST
             )
