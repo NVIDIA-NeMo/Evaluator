@@ -16,12 +16,9 @@
 """Evaluation results exporter for MLflow tracking."""
 
 import os
-import shutil
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List
-
-import yaml
 
 try:
     import mlflow
@@ -42,6 +39,7 @@ from nemo_evaluator_launcher.exporters.utils import (
     get_available_artifacts,
     get_benchmark_info,
     get_task_name,
+    mlflow_sanitize,
 )
 
 
@@ -117,11 +115,42 @@ class MLflowExporter(BaseExporter):
                     message="tracking_uri is required (set export.mlflow.tracking_uri or MLFLOW_TRACKING_URI)",
                 )
 
-            # Extract metrics
+            # Stage artifacts locally if remote_ssh (e.g., Slurm), so we can extract metrics
+            staged_base_dir = None
+            try:
+                paths = self.get_job_paths(job_data)
+                if paths.get("storage_type") == "remote_ssh":
+                    tmp_stage = Path(tempfile.mkdtemp(prefix="mlflow_stage_"))
+                    LocalExporter(
+                        {
+                            "output_dir": str(tmp_stage),
+                            "copy_logs": mlflow_config.get(
+                                "log_logs", False
+                            ),  # log_logs -> copy_logs
+                            "only_required": mlflow_config.get("only_required", True),
+                        }
+                    ).export_job(job_data)
+                    staged_base_dir = (
+                        tmp_stage / job_data.invocation_id / job_data.job_id
+                    )
+            except Exception as e:
+                logger.warning(f"Failed staging artifacts for {job_data.job_id}: {e}")
+
+            # Extract metrics (prefer staged if available)
             log_metrics = mlflow_config.get("log_metrics", [])
-            accuracy_metrics = extract_accuracy_metrics(
-                job_data, self.get_job_paths, log_metrics
-            )
+            if staged_base_dir and (staged_base_dir / "artifacts").exists():
+                accuracy_metrics = extract_accuracy_metrics(
+                    job_data,
+                    lambda _: {
+                        "artifacts_dir": staged_base_dir / "artifacts",
+                        "storage_type": "local_filesystem",
+                    },
+                    log_metrics,
+                )
+            else:
+                accuracy_metrics = extract_accuracy_metrics(
+                    job_data, self.get_job_paths, log_metrics
+                )
 
             if not accuracy_metrics:
                 return ExportResult(
@@ -160,10 +189,13 @@ class MLflowExporter(BaseExporter):
                     }
                 )
 
-            # Truncate params
+            # Sanitize params
             safe_params = {
-                str(k)[:250]: str(v)[:250] for k, v in all_params.items() if v
+                mlflow_sanitize(k, "param_key"): mlflow_sanitize(v, "param_value")
+                for k, v in (all_params or {}).items()
+                if v is not None
             }
+
             # Prepare tags
             tags = {}
             if mlflow_config.get("tags"):
@@ -173,7 +205,10 @@ class MLflowExporter(BaseExporter):
             benchmark = bench_info.get("benchmark", get_task_name(job_data))
             harness = bench_info.get("harness", "unknown")
 
-            # Tag the run with invocation_id and task metadata (task_name is benchmark-only)
+            # Tag the run with invocation_id and task metadata
+            exec_type = (job_data.config or {}).get("execution", {}).get(
+                "type"
+            ) or job_data.executor
             tags.update(
                 {
                     "invocation_id": job_data.invocation_id,
@@ -181,11 +216,16 @@ class MLflowExporter(BaseExporter):
                     "task_name": benchmark,
                     "benchmark": benchmark,
                     "harness": harness,
-                    "executor": job_data.executor,
+                    "executor": exec_type,
                 }
             )
-            # Truncate tags
-            safe_tags = {str(k)[:250]: str(v)[:5000] for k, v in tags.items() if v}
+
+            # Sanitize tags
+            safe_tags = {
+                mlflow_sanitize(k, "tag_key"): mlflow_sanitize(v, "tag_value")
+                for k, v in (tags or {}).items()
+                if v is not None
+            }
 
             # skip run if it already exists
             exists, existing_run_id = self._get_existing_run_info(
@@ -204,26 +244,34 @@ class MLflowExporter(BaseExporter):
                 if safe_tags:
                     mlflow.set_tags(safe_tags)
 
-                # Set run name)
+                # Set run name
                 run_name = (
                     mlflow_config.get("run_name")
                     or f"eval-{job_data.invocation_id}-{benchmark}"
                 )
-                mlflow.set_tag("mlflow.runName", run_name)
+                mlflow.set_tag("mlflow.runName", mlflow_sanitize(run_name, "tag_value"))
 
                 # Set description only if provided
                 description = mlflow_config.get("description")
                 if description:
-                    mlflow.set_tag("mlflow.note.content", str(description)[:5000])
+                    mlflow.set_tag(
+                        "mlflow.note.content", mlflow_sanitize(description, "tag_value")
+                    )
 
                 # Log parameters
                 mlflow.log_params(safe_params)
 
-                # Log metrics
-                mlflow.log_metrics(accuracy_metrics)
+                # Sanitize metric keys before logging
+                safe_metrics = {
+                    mlflow_sanitize(k, "metric"): v
+                    for k, v in (accuracy_metrics or {}).items()
+                }
+                mlflow.log_metrics(safe_metrics)
 
                 # Log artifacts
-                artifacts_logged = self._log_artifacts(job_data, mlflow_config)
+                artifacts_logged = self._log_artifacts(
+                    job_data, mlflow_config, staged_base_dir
+                )
 
                 # Build run URL
                 run_url = None
@@ -253,7 +301,10 @@ class MLflowExporter(BaseExporter):
             )
 
     def _log_artifacts(
-        self, job_data: JobData, mlflow_config: Dict[str, Any]
+        self,
+        job_data: JobData,
+        mlflow_config: Dict[str, Any],
+        pre_staged_dir: Path = None,
     ) -> List[str]:
         """Log evaluation artifacts to MLflow using LocalExporter for transfer."""
 
@@ -262,34 +313,39 @@ class MLflowExporter(BaseExporter):
             return []
 
         try:
-            # Use LocalExporter to get files locally first
-            temp_dir = tempfile.mkdtemp(prefix="mlflow_artifacts_")
-            local_exporter = LocalExporter(
-                {
-                    "output_dir": temp_dir,
-                    "copy_logs": mlflow_config.get(
-                        "log_logs", mlflow_config.get("copy_logs", False)
-                    ),
-                    "only_required": mlflow_config.get("only_required", True),
-                    "format": mlflow_config.get("format", None),
-                    "log_metrics": mlflow_config.get("log_metrics", []),
-                    "output_filename": mlflow_config.get("output_filename", None),
-                }
-            )
-            local_result = local_exporter.export_job(job_data)
+            should_cleanup = False
+            # Use pre-staged dir if available; otherwise stage now
+            if pre_staged_dir and pre_staged_dir.exists():
+                base_dir = pre_staged_dir
+            else:
+                temp_dir = tempfile.mkdtemp(prefix="mlflow_artifacts_")
+                local_exporter = LocalExporter(
+                    {
+                        "output_dir": str(temp_dir),
+                        "copy_logs": mlflow_config.get(
+                            "log_logs", mlflow_config.get("copy_logs", False)
+                        ),
+                        "only_required": mlflow_config.get("only_required", True),
+                        "format": mlflow_config.get("format", None),
+                        "log_metrics": mlflow_config.get("log_metrics", []),
+                        "output_filename": mlflow_config.get("output_filename", None),
+                    }
+                )
+                local_result = local_exporter.export_job(job_data)
+                if not local_result.success:
+                    logger.error(
+                        f"Failed to download artifacts: {local_result.message}"
+                    )
+                    return []
+                base_dir = Path(local_result.dest)
+                should_cleanup = True
 
-            if not local_result.success:
-                logger.error(f"Failed to download artifacts: {local_result.message}")
-                return []
-
-            base_dir = Path(local_result.dest)
             artifacts_dir = base_dir / "artifacts"
             logs_dir = base_dir / "logs"
             logged_names: list[str] = []
-
             artifact_path = get_artifact_root(job_data)  # "<harness>.<benchmark>"
 
-            # Log config at root level
+            # Log config at root level (or synthesize)
             cfg_logged = False
             for fname in ("config.yml", "run_config.yml"):
                 p = artifacts_dir / fname
@@ -299,16 +355,19 @@ class MLflowExporter(BaseExporter):
                     break
             if not cfg_logged:
                 with tempfile.TemporaryDirectory() as tmpdir:
+                    from yaml import dump as ydump
+
                     cfg_file = Path(tmpdir) / "config.yaml"
-                    with cfg_file.open("w") as f:
-                        yaml.dump(
+                    cfg_file.write_text(
+                        ydump(
                             job_data.config or {},
-                            f,
                             default_flow_style=False,
                             sort_keys=False,
                         )
+                    )
                     mlflow.log_artifact(str(cfg_file))
 
+            # Choose files to upload
             files_to_upload: list[Path] = []
             if mlflow_config.get("only_required", True):
                 for fname in get_available_artifacts(artifacts_dir):
@@ -316,10 +375,11 @@ class MLflowExporter(BaseExporter):
                     if p.exists():
                         files_to_upload.append(p)
             else:
-                for p in artifacts_dir.iterdir():
+                for p in artifacts_dir.iterdir():  # top-level files only
                     if p.is_file():
                         files_to_upload.append(p)
 
+            # Upload artifacts (with DEBUG per-file)
             for fpath in files_to_upload:
                 rel = fpath.relative_to(artifacts_dir).as_posix()
                 parent = os.path.dirname(rel)
@@ -328,32 +388,28 @@ class MLflowExporter(BaseExporter):
                     artifact_path=f"{artifact_path}/artifacts/{parent}".rstrip("/"),
                 )
                 logged_names.append(rel)
+                logger.debug(f"mlflow upload artifact: {rel}")
 
             # Optionally upload logs under "<harness.task>/logs"
             if mlflow_config.get("log_logs", False) and logs_dir.exists():
-                for p in logs_dir.rglob("*"):
+                for p in logs_dir.iterdir():
                     if p.is_file():
+                        rel = p.name
                         mlflow.log_artifact(
-                            str(p),
-                            artifact_path=f"{artifact_path}/logs",
+                            str(p), artifact_path=f"{artifact_path}/logs"
                         )
-                        logged_names.append(f"logs/{p.name}")
+                        logged_names.append(f"logs/{rel}")
+                        logger.debug(f"mlflow upload log: {rel}")
 
-            # Debug summary of what we uploaded
             logger.info(
                 f"MLflow upload summary: files={len(logged_names)}, only_required={mlflow_config.get('only_required', True)}, log_logs={mlflow_config.get('log_logs', False)}"
             )
-            if logger.isEnabledFor(10):  # DEBUG
-                try:
-                    preview = "\n  - " + "\n  - ".join(sorted(logged_names)[:50])
-                    logger.debug(f"Uploaded files preview (first 50):{preview}")
-                except Exception:
-                    pass
+            if should_cleanup:
+                import shutil
 
-            # cleanup temp
-            shutil.rmtree(temp_dir)
+                shutil.rmtree(base_dir, ignore_errors=True)
+
             return logged_names
-
         except Exception as e:
             logger.error(f"Error logging artifacts: {e}")
             return []
@@ -391,11 +447,42 @@ class MLflowExporter(BaseExporter):
 
             # Collect metrics from ALL jobs
             all_metrics = {}
+            staged_map: dict[str, Path] = {}
+            for job_id, job_data in jobs.items():
+                try:
+                    paths = self.get_job_paths(job_data)
+                    if paths.get("storage_type") == "remote_ssh":
+                        tmp_stage = Path(tempfile.mkdtemp(prefix="mlflow_inv_stage_"))
+                        LocalExporter(
+                            {
+                                "output_dir": str(tmp_stage),
+                                "copy_logs": mlflow_config.get("log_logs", False),
+                                "only_required": mlflow_config.get(
+                                    "only_required", True
+                                ),
+                            }
+                        ).export_job(job_data)
+                        staged_map[job_id] = (
+                            tmp_stage / job_data.invocation_id / job_data.job_id
+                        )
+                except Exception as e:
+                    logger.warning(f"Staging failed for {job_id}: {e}")
+
             for job_id, job_data in jobs.items():
                 log_metrics = mlflow_config.get("log_metrics", [])
-                job_metrics = extract_accuracy_metrics(
-                    job_data, self.get_job_paths, log_metrics
-                )
+                if job_id in staged_map and (staged_map[job_id] / "artifacts").exists():
+                    job_metrics = extract_accuracy_metrics(
+                        job_data,
+                        lambda _: {
+                            "artifacts_dir": staged_map[job_id] / "artifacts",
+                            "storage_type": "local_filesystem",
+                        },
+                        log_metrics,
+                    )
+                else:
+                    job_metrics = extract_accuracy_metrics(
+                        job_data, self.get_job_paths, log_metrics
+                    )
                 all_metrics.update(job_metrics)
 
             if not all_metrics:
@@ -414,9 +501,12 @@ class MLflowExporter(BaseExporter):
             mlflow.set_experiment(experiment_name)
 
             # Prepare parameters for invocation
+            inv_exec_type = (first_job.config or {}).get("execution", {}).get(
+                "type"
+            ) or first_job.executor
             all_params = {
                 "invocation_id": invocation_id,
-                "executor": first_job.executor,
+                "executor": inv_exec_type,
                 "timestamp": str(first_job.timestamp),
                 "jobs_count": str(len(jobs)),
             }
@@ -472,23 +562,31 @@ class MLflowExporter(BaseExporter):
 
                 # Set run name
                 run_name = mlflow_config.get("run_name") or f"eval-{invocation_id}"
-                mlflow.set_tag("mlflow.runName", run_name)
+                mlflow.set_tag("mlflow.runName", mlflow_sanitize(run_name, "tag_value"))
 
                 # Set description
                 description = mlflow_config.get("description")
                 if description:
-                    mlflow.set_tag("mlflow.note.content", str(description)[:5000])
+                    mlflow.set_tag(
+                        "mlflow.note.content", mlflow_sanitize(description, "tag_value")
+                    )
 
                 # Log parameters
                 mlflow.log_params(safe_params)
 
-                # Log ALL metrics
-                mlflow.log_metrics(all_metrics)
+                # Sanitize metric keys
+                safe_all_metrics = {
+                    mlflow_sanitize(k, "metric"): v
+                    for k, v in (all_metrics or {}).items()
+                }
+                mlflow.log_metrics(safe_all_metrics)
 
                 # Log artifacts from all jobs
                 total_artifacts = 0
-                for job_data in jobs.values():
-                    artifacts_logged = self._log_artifacts(job_data, mlflow_config)
+                for job_id, job_data in jobs.items():
+                    artifacts_logged = self._log_artifacts(
+                        job_data, mlflow_config, staged_map.get(job_id)
+                    )
                     total_artifacts += len(artifacts_logged)
 
                 # Build run URL

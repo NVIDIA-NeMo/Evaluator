@@ -68,10 +68,41 @@ class WandBExporter(BaseExporter):
                 "log_mode", "per_task"
             )  # Default per_task for immediate export
 
-            # Get metrics
-            metrics = extract_accuracy_metrics(
-                job_data, self.get_job_paths, wandb_config.get("log_metrics", [])
-            )
+            # Stage artifacts locally if remote_ssh (e.g., Slurm), so we can extract metrics
+            staged_base_dir = None
+            try:
+                paths = self.get_job_paths(job_data)
+                if paths.get("storage_type") == "remote_ssh":
+                    tmp_stage = Path(tempfile.mkdtemp(prefix="wandb_stage_"))
+                    LocalExporter(
+                        {
+                            "output_dir": str(tmp_stage),
+                            "copy_logs": wandb_config.get("log_logs", False),
+                            "only_required": wandb_config.get("only_required", True),
+                        }
+                    ).export_job(job_data)
+                    staged_base_dir = (
+                        tmp_stage / job_data.invocation_id / job_data.job_id
+                    )
+            except Exception as e:
+                logger.warning(f"W&B: staging failed for {job_data.job_id}: {e}")
+
+            # Metrics (prefer staged if available)
+            log_metrics = wandb_config.get("log_metrics", [])
+            if staged_base_dir and (staged_base_dir / "artifacts").exists():
+                metrics = extract_accuracy_metrics(
+                    job_data,
+                    lambda _: {
+                        "artifacts_dir": staged_base_dir / "artifacts",
+                        "storage_type": "local_filesystem",
+                    },
+                    log_metrics,
+                )
+            else:
+                metrics = extract_accuracy_metrics(
+                    job_data, self.get_job_paths, log_metrics
+                )
+
             if not metrics:
                 return ExportResult(
                     success=False, dest="wandb", message="No metrics found"
@@ -345,10 +376,14 @@ class WandBExporter(BaseExporter):
             run_args["resume"] = "allow"
 
         # Config metadata
+        exec_type = (job_data.config or {}).get("execution", {}).get(
+            "type"
+        ) or job_data.executor
         run_config = {
             "invocation_id": job_data.invocation_id,
-            "executor": job_data.executor,
+            "executor": exec_type,
         }
+
         if log_mode == "per_task":
             run_config["job_id"] = job_data.job_id
             run_config["harness"] = harness

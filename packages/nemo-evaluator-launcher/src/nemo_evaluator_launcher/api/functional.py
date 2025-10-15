@@ -440,23 +440,28 @@ def export_results(
             single_id = invocation_ids[0]
 
             if "." in single_id:  # job_id
+                # Try reading config from artifacts working dir (auto-export on remote node)
+                cfg_file = None
+                for name in ("run_config.yml", "config.yml"):
+                    p = Path(name)
+                    if p.exists():
+                        cfg_file = p
+                        break
+
                 md_job_data = None
-                # Use artifacts/run_config.yml if present
-                ypath_artifacts = Path("run_config.yml")
-                if ypath_artifacts.exists():
+                if cfg_file:
                     try:
                         cfg_yaml = (
-                            yaml.safe_load(ypath_artifacts.read_text(encoding="utf-8"))
-                            or {}
+                            yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}
                         )
-                        # merge exporter config if present
+
+                        # Merge exporter override file if present
                         ypath_export = Path("export_config.yml")
                         if ypath_export.exists():
                             exp_yaml = (
                                 yaml.safe_load(ypath_export.read_text(encoding="utf-8"))
                                 or {}
                             )
-                            # execution.auto_export contains auto-export destinations
                             exec_cfg = cfg_yaml.get("execution") or {}
                             auto_exp = (exp_yaml.get("execution") or {}).get(
                                 "auto_export"
@@ -464,42 +469,30 @@ def export_results(
                             if auto_exp is not None:
                                 exec_cfg["auto_export"] = auto_exp
                                 cfg_yaml["execution"] = exec_cfg
-
-                            # top-level export block contains exporter config
                             if "export" in exp_yaml:
                                 cfg_yaml["export"] = exp_yaml["export"]
-
-                            # Merge evaluation.tasks from export_config (Slurm writes it there)
                             if "evaluation" in exp_yaml and exp_yaml["evaluation"]:
                                 eval_cfg = cfg_yaml.get("evaluation") or {}
                                 eval_cfg.update(exp_yaml["evaluation"])
                                 cfg_yaml["evaluation"] = eval_cfg
 
-                        # metadata
                         executor_name = (cfg_yaml.get("execution") or {}).get(
                             "type", "local"
                         )
-
                         md_job_data = JobData(
                             invocation_id=single_id.split(".")[0],
                             job_id=single_id,
                             timestamp=0.0,
-                            executor=executor_name,
+                            executor=executor_name,  # ensures slurm tag is preserved
                             data={
                                 "output_dir": str(Path.cwd().parent),
-                                "storage_type": "remote_local",
+                                "storage_type": "remote_local",  # no SSH in auto-export path
                             },
                             config=cfg_yaml,
                         )
-                        # DEBUG: print what we loaded
-                        print(f"DEBUG: cfg_yaml keys: {list(cfg_yaml.keys())}")
-                        if "evaluation" in cfg_yaml:
-                            print(
-                                f"DEBUG: evaluation.tasks: {cfg_yaml.get('evaluation', {}).get('tasks')}"
-                            )
                     except Exception:
                         md_job_data = None
-                # fallback to execDB only
+
                 job_data = md_job_data or ExecutionDB().get_job(single_id)
                 if job_data is None:
                     return {
@@ -507,7 +500,6 @@ def export_results(
                         "error": f"Job {single_id} not found in ExecutionDB",
                     }
 
-                # Convert single job result to invocation-like structure
                 job_result = exporter.export_job(job_data)
                 return {
                     "success": job_result.success,
@@ -522,10 +514,9 @@ def export_results(
                     },
                     "metadata": job_result.metadata or {},
                 }
+
             elif single_id.isdigit():  # pipeline_id
-                # Find job by pipeline_id
                 db = ExecutionDB()
-                # Search all jobs for matching pipeline_id
                 for job_id, job_data in db._jobs.items():
                     if job_data.data.get("pipeline_id") == int(single_id):
                         job_result = exporter.export_job(job_data)
@@ -542,14 +533,13 @@ def export_results(
                             "metadata": job_result.metadata or {},
                         }
                 return {"success": False, "error": f"Pipeline {single_id} not found"}
+
             else:  # invocation_id
                 result = exporter.export_invocation(single_id)
-                # Ensure metadata is present in job results to prevent KeyError
                 if "jobs" in result:
                     for job_id, job_result in result["jobs"].items():
-                        if "metadata" not in job_result:
-                            job_result["metadata"] = {}
-                return result  # type: ignore[no-any-return]
+                        job_result.setdefault("metadata", {})
+                return result
         else:
             # Multiple IDs - parse and group
             db = ExecutionDB()

@@ -24,7 +24,7 @@ Hosted endpoints (fastest):
 
   Minimal usage (override endpoint URL and key):
   ```bash
-  nemo-evaluator-launcher run --config-dir examples \
+  nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o target.api_endpoint.api_key_name=API_KEY
