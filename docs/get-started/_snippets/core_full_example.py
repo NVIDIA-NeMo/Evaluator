@@ -2,20 +2,19 @@
 """
 Complete working example with proper error handling.
 """
-import os
 
 # [snippet-start]
-from nemo_evaluator.core.evaluate import evaluate
-from nemo_evaluator.api.api_dataclasses import (
-    EvaluationConfig, 
-    EvaluationTarget, 
-    ApiEndpoint, 
-    EndpointType, 
-    ConfigParams
-)
+# Prerequisites: Set your API key
+# export NGC_API_KEY="nvapi-..."
 
-# Set up environment
-os.environ["NGC_API_KEY"] = "nvapi-your-key-here"
+from nemo_evaluator.api.api_dataclasses import (
+    ApiEndpoint,
+    ConfigParams,
+    EndpointType,
+    EvaluationConfig,
+    EvaluationTarget,
+)
+from nemo_evaluator.core.evaluate import evaluate
 
 # Configure evaluation
 eval_config = EvaluationConfig(
@@ -26,8 +25,8 @@ eval_config = EvaluationConfig(
         temperature=0.0,
         max_new_tokens=1024,
         parallelism=1,
-        max_retries=5
-    )
+        max_retries=5,
+    ),
 )
 
 # Configure target
@@ -36,7 +35,7 @@ target_config = EvaluationTarget(
         model_id="meta/llama-3.1-8b-instruct",
         url="https://integrate.api.nvidia.com/v1/chat/completions",
         type=EndpointType.CHAT,
-        api_key=os.environ["NGC_API_KEY"]
+        api_key="NGC_API_KEY",
     )
 )
 
@@ -49,5 +48,6 @@ except Exception as e:
 # [snippet-end]
 
 if __name__ == "__main__":
-    print("Replace 'nvapi-your-key-here' with your actual NGC API key to run this example")
-
+    print(
+        "Replace 'nvapi-your-key-here' with your actual NGC API key to run this example"
+    )

@@ -387,7 +387,7 @@ Some evaluation tasks require API keys or tokens. These are configured in your e
 ```bash
 # Set task-specific environment variables
 export HF_TOKEN="hf_..."              # For Hugging Face datasets
-export API_KEY="nvapi-..."            # For NVIDIA API endpoints
+export NGC_API_KEY="nvapi-..."            # For NVIDIA API endpoints
 
 # Run evaluation
 nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct

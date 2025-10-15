@@ -100,7 +100,7 @@ config = RunConfig.from_hydra(
             "api_endpoint": {
                 "url": "https://integrate.api.nvidia.com/v1/chat/completions",
                 "model_id": "meta/llama-3.1-8b-instruct",
-                "api_key_name": "API_KEY"
+                "api_key_name": "NGC_API_KEY"
             }
         },
         "evaluation": [
@@ -155,7 +155,7 @@ config = RunConfig.from_hydra(
             "api_endpoint": {
                 "url": "https://integrate.api.nvidia.com/v1/chat/completions",
                 "model_id": "meta/llama-3.1-8b-instruct",
-                "api_key_name": "API_KEY"
+                "api_key_name": "NGC_API_KEY"
             }
         },
         "evaluation": [

@@ -2,28 +2,29 @@
 """
 Basic NeMo Evaluator Core API quickstart example.
 """
+
 import os
 
-# [snippet-start]
-from nemo_evaluator.core.evaluate import evaluate
 from nemo_evaluator.api.api_dataclasses import (
-    EvaluationConfig, 
-    EvaluationTarget, 
-    ApiEndpoint, 
+    ApiEndpoint,
+    ConfigParams,
     EndpointType,
-    ConfigParams
+    EvaluationConfig,
+    EvaluationTarget,
 )
+
+# [snippet-start]
+# Prerequisites: Set your API key
+# export NGC_API_KEY="nvapi-..."
+from nemo_evaluator.core.evaluate import evaluate
 
 # Configure evaluation
 eval_config = EvaluationConfig(
     type="mmlu_pro",
     output_dir="./results",
     params=ConfigParams(
-        limit_samples=10,
-        temperature=0.0,
-        max_new_tokens=1024,
-        parallelism=1
-    )
+        limit_samples=10, temperature=0.0, max_new_tokens=1024, parallelism=1
+    ),
 )
 
 # Configure target endpoint
@@ -31,8 +32,8 @@ target_config = EvaluationTarget(
     api_endpoint=ApiEndpoint(
         url="https://integrate.api.nvidia.com/v1/chat/completions",
         model_id="meta/llama-3.1-8b-instruct",
-        api_key="your_api_key_here",
-        type=EndpointType.CHAT
+        api_key="NGC_API_KEY",
+        type=EndpointType.CHAT,
     )
 )
 
@@ -47,4 +48,3 @@ if __name__ == "__main__":
     if not api_key:
         print("Set NGC_API_KEY environment variable to run this example")
         print("export NGC_API_KEY='your-key-here'")
-

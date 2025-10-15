@@ -20,6 +20,10 @@ pip install nemo-evaluator-launcher
 nemo-evaluator-launcher ls tasks
 
 # 3. Run evaluation against a hosted endpoint
+
+# Prerequisites: Set your API key
+export NGC_API_KEY=nvapi-...
+
 ```
 
 ```{literalinclude} ../_snippets/launcher_basic.sh
@@ -36,6 +40,11 @@ nemo-evaluator-launcher status <invocation_id>
 ## Complete Working Example
 
 Here's a complete example using NVIDIA Build (build.nvidia.com):
+
+```bash
+# Prerequisites: Set your API key
+export NGC_API_KEY=nvapi-...
+```
 
 ```{literalinclude} ../_snippets/launcher_full_example.sh
 :language: bash

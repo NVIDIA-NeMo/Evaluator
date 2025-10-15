@@ -27,7 +27,7 @@ Here's a quick overview for the Local executor:
 ```bash
 # Run evaluation
 nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
-  -o target.api_endpoint.api_key_name=API_KEY
+  -o target.api_endpoint.api_key_name=NGC_API_KEY
 ```
 
 ## Environment Variables

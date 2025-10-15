@@ -47,7 +47,7 @@ docker run --rm -it \
     -v $(pwd)/results:/workspace/results \
     -v $(pwd)/cache:/workspace/cache \
     -v $(pwd)/logs:/workspace/logs \
-    -e MY_API_KEY=nvapi-your-key-here \
+    -e NGC_API_KEY=nvapi-your-key-here \
     -e HF_TOKEN=hf_your-token-here \
     nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} bash
 
@@ -57,7 +57,7 @@ nemo-evaluator run_eval \
     --model_id meta/llama-3.1-8b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
     --model_type chat \
-    --api_key_name MY_API_KEY \
+    --api_key_name NGC_API_KEY \
     --output_dir /workspace/results \
     --overrides 'config.params.limit_samples=3'
 
@@ -72,15 +72,15 @@ For automated workflows, you can run everything in a single command:
 
 ```bash
 # Run evaluation directly in container
-docker run --rm --gpus all \
+docker run --rm \
     -v $(pwd)/results:/workspace/results \
-    -e MY_API_KEY="${MY_API_KEY}" \
+    -e NGC_API_KEY="${NGC_API_KEY}" \
     nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
     nemo-evaluator run_eval \
         --eval_type mmlu_pro \
         --model_url https://integrate.api.nvidia.com/v1/chat/completions \
         --model_id meta/llama-3.1-8b-instruct \
-        --api_key_name MY_API_KEY \
+        --api_key_name NGC_API_KEY \
         --output_dir /workspace/results
 ```
 
@@ -147,7 +147,7 @@ services:
 # batch_eval.sh
 
 BENCHMARKS=("mmlu_pro" "gpqa_diamond" "humaneval")
-API_KEY=${NGC_API_KEY}
+NGC_API_KEY=${NGC_API_KEY}
 
 for benchmark in "${BENCHMARKS[@]}"; do
     echo "Running evaluation for $benchmark..."

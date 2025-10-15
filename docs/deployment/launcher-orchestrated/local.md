@@ -45,7 +45,7 @@ target:
   api_endpoint:
     model_id: meta/llama-3.1-8b-instruct
     url: https://integrate.api.nvidia.com/v1/chat/completions
-    api_key_name: API_KEY
+    api_key_name: NGC_API_KEY
 
 evaluation:
   tasks:
@@ -264,7 +264,7 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 **API authentication errors:**
 
 - Verify `api_key_name` matches your environment variable
-- Check that the environment variable has a value: `echo $API_KEY`
+- Check that the environment variable has a value: `echo $NGC_API_KEY`
 - Check API key has proper permissions
 
 ### Evaluation Issues

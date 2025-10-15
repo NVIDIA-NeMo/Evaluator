@@ -20,7 +20,7 @@ The system uses the `eval-factory` command with extensive configuration options:
 docker run --rm -it nvcr.io/nvidia/eval-factory/simple-evals:25.08.1 bash
 
 export HF_TOKEN=hf_xxx # Supply HF TOKEN
-export MY_API_KEY=nvapi-xxx # API_KEY for build.nvidia.com access
+export MY_API_KEY=nvapi-xxx # NGC_API_KEY for build.nvidia.com access
 
 eval-factory run_eval \
     --eval_type mmlu_pro \

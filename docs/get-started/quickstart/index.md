@@ -84,6 +84,7 @@ Before running full evaluations, verify your setup:
 
 ```bash
 # 1. Test your endpoint connectivity
+export NGC_API_KEY=nvapi-...
 curl -X POST "https://integrate.api.nvidia.com/v1/chat/completions" \
     -H "Authorization: Bearer $NGC_API_KEY" \
     -H "Content-Type: application/json" \
