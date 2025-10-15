@@ -237,3 +237,18 @@ Test a small subset before running full benchmarks:
 nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
   -o +evaluation.overrides.config.params.limit_samples=10
 ```
+
+If you need quick access to job metadata, configuration, logs or/and artifacts:
+
+```bash
+# Get comprehensive debug information
+nemo-evaluator-launcher debug <invocation_id>
+
+# View the configuration that was used
+nemo-evaluator-launcher debug <invocation_id> --config
+
+# Copy logs locally for inspection
+nemo-evaluator-launcher debug <invocation_id> --copy-logs
+```
+
+The debug command is especially useful for remote jobs (Slurm) where you need to retrieve logs and artifacts locally.
