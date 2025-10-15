@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 (gs-quickstart-nemo-fw)=
 # Evaluate checkpoints trained by NeMo Framework
 

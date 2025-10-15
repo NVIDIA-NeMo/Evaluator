@@ -33,13 +33,13 @@ Unified CLI experience with automated container management, built-in orchestrati
 Programmatic control with full adapter features, custom configurations, and direct API access for integration into existing workflows.
 :::
 
-:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` NeMo Framework Container
+<!-- :::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` NeMo Framework Container
 :link: gs-quickstart-nemo-fw
 :link-type: ref
 **For NeMo Framework Users**
 
 End-to-end training and evaluation of large language models (LLMs).
-:::
+::: -->
 
 :::{grid-item-card} {octicon}`container;1.5em;sd-mr-1` Container Direct
 :link: gs-quickstart-container
@@ -74,7 +74,7 @@ vllm serve meta-llama/Llama-3.1-8B-Instruct --port 8080
 # TRT-LLM, NeMo Framework, etc.
 ```
 
-See {ref}`deployment-overview` for detailed deployment options.
+<!-- See {ref}`deployment-overview` for detailed deployment options. -->
 
 ## Validation and Troubleshooting
 
@@ -234,6 +234,6 @@ nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/exampl
 
 NeMo Evaluator Launcher <launcher>
 NeMo Evaluator Core <core>
-NeMo Framework Container <nemo-fw>
+<!-- NeMo Framework Container <nemo-fw> -->
 Container Direct <container>
 ```
