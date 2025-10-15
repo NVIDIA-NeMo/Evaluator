@@ -23,3 +23,4 @@ backend service_backend
 {% for node in nodes %}
     server node{{ loop.index }} {{ node.ip }}:{{ node.port }} check
 {% endfor %}
+

@@ -124,7 +124,11 @@ class SlurmExecutor(BaseExecutor):
                 # Create HAProxy config file with placeholder IPs only if multiple_instances is true
                 if cfg.deployment.get("multiple_instances", False):
                     haproxy_config = _generate_haproxy_config_with_placeholders(cfg)
+                    # Save both template and working config
+                    haproxy_template_path = local_task_subdir / "haproxy.cfg.template"
                     haproxy_config_path = local_task_subdir / "haproxy.cfg"
+                    with open(haproxy_template_path, "w") as f:
+                        f.write(haproxy_config)
                     with open(haproxy_config_path, "w") as f:
                         f.write(haproxy_config)
 
@@ -1118,6 +1122,8 @@ def _get_proxy_server_srun_command(cfg, remote_task_subdir):
     """Generate HAProxy proxy server srun command."""
     s = ""
     s += "# HAProxy load balancer\n"
+    s += "# Copy template to config file (important for restarts)\n"
+    s += f"cp {remote_task_subdir}/haproxy.cfg.template {remote_task_subdir}/haproxy.cfg\n"
     s += "# Replace placeholder IPs with actual node IPs\n"
     s += f"haproxy_config_file={remote_task_subdir}/haproxy.cfg\n"
     s += 'for i in "${!NODES_IPS_ARRAY[@]}"; do\n'
