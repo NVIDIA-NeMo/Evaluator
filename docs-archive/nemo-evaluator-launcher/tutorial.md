@@ -149,4 +149,26 @@ You can check:
 - Individual job status: `nemo-evaluator-launcher status <job_id>`
 - All jobs in an invocation: `nemo-evaluator-launcher status <invocation_id>`
 
-The status command returns JSON output with job status information.
+The status command returns normal output or (if `--json` provided) enhanced output with job status information.
+
+Print jobs ever launched from your client:
+```bash
+nemo-evaluator-launcher ls runs
+```
+
+Print jobs launched since 2 days or 6 hours:
+```bash
+nemo-evaluator-launcher ls runs --since 2d
+nemo-evaluator-launcher ls runs --since 6h
+```
+
+Print jobs launched with `local` executor:
+```bash
+nemo-evaluator-launcher ls runs --executor local
+```
+
+Print jobs launched, limiting output:
+```bash
+nemo-evaluator-launcher ls runs --limit 10
+```
+

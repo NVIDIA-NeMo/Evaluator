@@ -56,7 +56,7 @@ nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_
 ## Job Management
 ```bash
 # List runs and monitor
-nemo-evaluator-launcher ls runs
+nemo-evaluator-launcher ls runs [--limit <N>] [--executor <str>] [--since <ISO_date> or <N>d or <N>h]
 nemo-evaluator-launcher status <invocation_id>
 nemo-evaluator-launcher kill <invocation_id>
 ```
