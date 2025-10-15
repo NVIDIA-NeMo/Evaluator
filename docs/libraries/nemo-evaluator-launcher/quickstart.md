@@ -42,13 +42,13 @@ Hosted endpoints (fastest):
 
   ```bash
   # Using the short alias (recommended)
-  nemo-evaluator-launcher run --config-dir examples \
+  nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o target.api_endpoint.api_key_name=NGC_API_KEY
   
   # Or using the full command name
-  nemo-evaluator-launcher run --config-dir examples \
+  nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o target.api_endpoint.api_key_name=NGC_API_KEY
@@ -119,11 +119,11 @@ Run this configuration (requires Docker and a model endpoint):
 
 ```bash
 # Using short alias (recommended)
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
   -o execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
 
 # Or using full command name  
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
   -o execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
 ```
 
@@ -169,12 +169,12 @@ You can override configuration values from the command line (`-o` can be used mu
 
 ```bash
 # Using short alias (recommended)
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
   -o execution.output_dir=my_results \
   -o target.api_endpoint.model_id=model/another/one
 
 # Or using full command
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
   -o execution.output_dir=my_results \
   -o target.api_endpoint.model_id=model/another/one
 ```
@@ -227,14 +227,14 @@ View the full resolved configuration without running:
 
 ```bash
 # Dry run to see full config
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct --dry-run
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct --dry-run
 ```
 
 Test a small subset before running full benchmarks:
 
 ```bash
 # Add global override to limit all tasks to 10 samples for testing
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
   -o +evaluation.overrides.config.params.limit_samples=10
 ```
 

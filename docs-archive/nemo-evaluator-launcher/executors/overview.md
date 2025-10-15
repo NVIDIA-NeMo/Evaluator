@@ -49,8 +49,8 @@ nemo-evaluator-launcher ls tasks
 **Execution:**
 ```bash
 # Run evaluations
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
-nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name slurm_llama_3_1_8b_instruct
 ```
 
 ## Job Management
@@ -71,14 +71,14 @@ See [Exporters Documentation](../exporters/overview.md) for detailed export opti
 #### Test runs
 Use a small subset to validate your setup before running full benchmarks:
 ```bash
-nemo-evaluator-launcher run --config-dir examples --config-name <your_config> -o +config.params.limit_samples=10
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name <your_config> -o +config.params.limit_samples=10
 ```
 
 #### Troubleshooting
 
 View the fully resolved configuration without running:
 ```bash
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct --dry-run
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct --dry-run
 ```
 
 #### Create your own executor

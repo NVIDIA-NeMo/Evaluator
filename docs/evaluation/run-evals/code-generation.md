@@ -50,7 +50,7 @@ nemo-evaluator-launcher ls tasks | grep -E "(mbpp|humaneval)"
 
 # Run MBPP evaluation
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["mbpp"]' \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -58,7 +58,7 @@ nemo-evaluator-launcher run \
 
 # Run multiple code generation benchmarks
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["mbpp", "humaneval"]'
 ```

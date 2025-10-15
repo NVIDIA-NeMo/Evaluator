@@ -12,7 +12,7 @@ When evaluations fail during execution, start with these diagnostic steps:
 
 ```bash
 # Validate configuration before running
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct --dry-run
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct --dry-run
 
 # Test minimal configuration
 python -c "

@@ -95,13 +95,13 @@ curl -X POST "https://integrate.api.nvidia.com/v1/chat/completions" \
 
 # 2. Run a dry-run to validate configuration
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     --dry-run
 
 # 3. Run a minimal test with very few samples
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o +config.params.limit_samples=1 \
     -o execution.output_dir=./test_results
@@ -178,7 +178,7 @@ After completing your quickstart:
 nemo-evaluator-launcher ls tasks
 
 # Run with limited samples for quick testing
-nemo-evaluator-launcher run --config-dir examples --config-name local_limit_samples
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_limit_samples
 ```
 :::
 
@@ -204,11 +204,12 @@ nemo-evaluator-launcher export <invocation_id> --dest local --format json
 :sync: scale
 
 ```bash
+cd packages/nemo-evaluator-launcher
 # Run on Slurm cluster
-nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name slurm_llama_3_1_8b_instruct
 
 # Run on Lepton AI
-nemo-evaluator-launcher run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name lepton_vllm_llama_3_1_8b_instruct
 ```
 :::
 
@@ -219,7 +220,7 @@ nemo-evaluator-launcher run --config-dir examples --config-name lepton_vllm_llam
 | Task | Command |
 |------|---------|
 | List benchmarks | `nemo-evaluator-launcher ls tasks` |
-| Run evaluation | `nemo-evaluator-launcher run --config-dir examples --config-name <config>` |
+| Run evaluation | `nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name <config>` |
 | Check status | `nemo-evaluator-launcher status <invocation_id>` |
 | Debug job | `nemo-evaluator-launcher debug <invocation_id>` |
 | Export results | `nemo-evaluator-launcher export <invocation_id> --dest local --format json` |

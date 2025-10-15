@@ -41,10 +41,10 @@ Execute evaluations using Hydra configuration management.
 
 ```bash
 # Using example configurations
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct
 
 # With output directory override
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
   -o execution.output_dir=/path/to/results
 ```
 
@@ -55,7 +55,7 @@ nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_
 nemo-evaluator-launcher run --config-dir my_configs --config-name my_evaluation
 
 # Multiple overrides (Hydra syntax)
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
   -o execution.output_dir=results \
   -o target.api_endpoint.model_id=my-model \
   -o +config.params.limit_samples=10
@@ -66,7 +66,7 @@ nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_
 Preview the full resolved configuration without executing:
 
 ```bash
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct --dry-run
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct --dry-run
 ```
 
 ### Test Runs
@@ -74,7 +74,7 @@ nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_
 Run with limited samples for testing:
 
 ```bash
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
   -o +config.params.limit_samples=10
 ```
 
@@ -83,14 +83,14 @@ nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_
 **Local Execution:**
 
 ```bash
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
   -o execution.output_dir=./local_results
 ```
 
 **Slurm Execution:**
 
 ```bash
-nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name slurm_llama_3_1_8b_instruct \
   -o execution.output_dir=/shared/results
 ```
 
@@ -98,10 +98,10 @@ nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_
 
 ```bash
 # With model deployment
-nemo-evaluator-launcher run --config-dir examples --config-name lepton_nim_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name lepton_nim_llama_3_1_8b_instruct
 
 # Using existing endpoint
-nemo-evaluator-launcher run --config-dir examples --config-name lepton_none_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name lepton_none_llama_3_1_8b_instruct
 ```
 
 ## status - Check Job Status
@@ -390,7 +390,7 @@ export HF_TOKEN="hf_..."              # For Hugging Face datasets
 export API_KEY="nvapi-..."            # For NVIDIA API endpoints
 
 # Run evaluation
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct
 ```
 
 The specific environment variables required depend on the tasks and endpoints you're using. Refer to the example configuration files for details on which variables are needed.
@@ -433,7 +433,7 @@ Refer to the {ref}`configuration documentation <configuration-overview>` for det
 
 ```bash
 # Validate configuration without running
-nemo-evaluator-launcher run --config-dir examples --config-name my_config --dry-run
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name my_config --dry-run
 ```
 
 **Permission Errors:**
@@ -460,11 +460,11 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 ```bash
 # Set log level to DEBUG for detailed output
 export LOG_LEVEL=DEBUG
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct
 
 # Or use single-letter shorthand
 export LOG_LEVEL=D
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct
 
 # Logs are written to ~/.nemo-evaluator/logs/
 ```

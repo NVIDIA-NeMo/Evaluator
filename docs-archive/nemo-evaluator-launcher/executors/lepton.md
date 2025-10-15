@@ -28,13 +28,13 @@ It is actually workspace ID, not workspace name. It is important as it will not 
 Run a Lepton evaluation using the provided examples:
 ```bash
 # Deploy NIM model and run evaluation
-nemo-evaluator-launcher run --config-dir examples --config-name lepton_nim_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name lepton_nim_llama_3_1_8b_instruct
 
 # Deploy vLLM model and run evaluation
-nemo-evaluator-launcher run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name lepton_vllm_llama_3_1_8b_instruct
 
 # Use an existing endpoint (no deployment)
-nemo-evaluator-launcher run --config-dir examples --config-name lepton_none_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name lepton_none_llama_3_1_8b_instruct
 ```
 
 Please note some additional steps might be necessary, such as creating registry keys in Lepton.

@@ -78,7 +78,7 @@ Here's a complete example using NVIDIA Build (build.nvidia.com):
 ## Next Steps
 
 - Explore different evaluation types: `nemo-evaluator-launcher ls tasks`
-- Try advanced configurations in the `examples/` directory
+- Try advanced configurations in the `packages/nemo-evaluator-launcher/examples/` directory
 - Export results to your preferred tracking platform
 - Scale to cluster execution with Slurm or cloud providers
 
