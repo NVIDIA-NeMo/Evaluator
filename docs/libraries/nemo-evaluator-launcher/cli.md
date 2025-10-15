@@ -218,6 +218,12 @@ nemo-evaluator-launcher ls runs --executor local
 # Filter by date
 nemo-evaluator-launcher ls runs --since "2024-01-01"
 nemo-evaluator-launcher ls runs --since "2024-01-01T12:00:00"
+
+# Filter by retrospecitve period
+# - days
+nemo-evaluator-launcher ls runs --since 2d
+# - hours
+nemo-evaluator-launcher ls runs --since 6h
 ```
 
 **Output Format:**
