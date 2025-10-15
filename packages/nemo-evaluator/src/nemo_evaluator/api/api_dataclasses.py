@@ -118,6 +118,7 @@ class Evaluation(BaseModel):
 
     # We will need to try to warn user of calling render_command more
     # than once (it affects reproducibility), for which we need to
+    # track if it is called more than once.
     _render_command_called: bool = PrivateAttr(default=False)
 
     def render_command(self):
