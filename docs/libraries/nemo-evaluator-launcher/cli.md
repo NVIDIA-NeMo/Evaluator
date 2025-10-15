@@ -29,6 +29,8 @@ nemo-evaluator-launcher --version                 # Show version information
   - Export evaluation results to various destinations
 * - `version`
   - Show version information
+* - `debug`
+  - Show job(s) helpful information
 ```
 
 ## run - Run Evaluations
@@ -301,6 +303,64 @@ nemo-evaluator-launcher version
 nemo-evaluator-launcher --version
 ```
 
+## debug - Job Information and Debugging helper functionalities
+
+Display detailed job information including metadata, configuration, and locations of logs and artifacts. The debug command is useful for troubleshooting job issues, inspecting configurations, and retrieving artifacts from both local and remote jobs.
+
+### Basic Usage
+
+```bash
+# Show job metadata and information for a single or multiple jobs
+nemo-evaluator-launcher debug <invocation_id>
+
+nemo-evaluator-launcher debug  <invocation_id1>  <invocation_id2>
+```
+
+### Show Configuration
+
+```bash
+# Display the job configuration in YAML format
+nemo-evaluator-launcher debug <invocation_id> --config
+```
+
+### Show Paths
+
+```bash
+# Show only artifact locations
+nemo-evaluator-launcher debug <invocation_id> --artifacts
+
+# Show only log locations
+nemo-evaluator-launcher debug <invocation_id> --logs
+```
+
+For remote jobs (Slurm, Lepton), paths are shown in the format `user@host:/path`.
+
+### Copy Files Locally
+
+```bash
+# Copy logs to local directory (works for both local and remote jobs)
+nemo-evaluator-launcher debug <invocation_id> --copy-logs [destination_dir]
+
+# Copy artifacts to local directory (works for both local and remote jobs)
+nemo-evaluator-launcher debug <invocation_id> --copy-artifacts [destination_dir]
+
+# If no destination is specified, defaults to current directory
+nemo-evaluator-launcher debug <invocation_id> --copy-logs
+```
+
+
+### Debug example for a slurm job
+
+```bash
+# Shows remote paths and Slurm job ID
+nemo-evaluator-launcher debug abc12345
+# Output includes:
+# ├── Artifacts: user@host:/shared/results/artifacts (remote)
+# ├── Logs: user@host:/shared/results/logs (remote)
+# ├── Slurm Job ID: 12345678
+
+```
+
 ## Environment Variables
 
 The CLI respects environment variables for logging and task-specific authentication:
@@ -416,6 +476,7 @@ nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_
 nemo-evaluator-launcher run --help
 nemo-evaluator-launcher export --help
 nemo-evaluator-launcher ls --help
+nemo-evaluator-launcher debug --help
 
 # General help
 nemo-evaluator-launcher --help
