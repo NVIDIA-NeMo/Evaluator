@@ -206,7 +206,7 @@ class TestLsRunsFiltering:
         assert "inv2" not in captured.out
         assert "inv3" not in captured.out
 
-    def test_since_invalid_format(self, capfd):
+    def test_since_invalid_format(self, caplog):
         """Test since parameter with invalid date format."""
         mock_data = [{"invocation_id": "inv1", "executor": "local", "num_jobs": 5}]
 
@@ -219,8 +219,8 @@ class TestLsRunsFiltering:
             with pytest.raises(SystemExit) as exc_info:
                 cmd.execute()
 
-            captured = capfd.readouterr()
-            assert "Invalid --since value" in captured.err
+            captured = caplog.text
+            assert "Invalid --since value" in captured
             assert exc_info.value.code == 2
 
     def test_since_relative_hours(self, capfd):
@@ -304,7 +304,7 @@ class TestLsRunsFiltering:
         assert "inv1" in captured.out  # Recent (within 2 days)
         assert "inv2" not in captured.out  # Old (outside 2 days)
 
-    def test_since_relative_negative_numbers(self, capfd):
+    def test_since_relative_negative_numbers(self, caplog):
         """Test filtering by since parameter with negative numbers (should fail)."""
         mock_data = [{"invocation_id": "inv1", "executor": "local", "num_jobs": 5}]
 
@@ -317,8 +317,8 @@ class TestLsRunsFiltering:
             with pytest.raises(SystemExit) as exc_info:
                 cmd.execute()
 
-            captured = capfd.readouterr()
-            assert "Invalid --since value" in captured.err
+            captured = caplog.text
+            assert "Invalid --since value" in captured
             assert exc_info.value.code == 2
 
     def test_limit_filtering(self, capfd):
