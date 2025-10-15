@@ -8,13 +8,13 @@ The *Orchestration Layer* empowers you to run AI model evaluations at scale. Use
 **New to evaluation?** Start with {ref}`gs-quickstart-launcher` for a step-by-step walkthrough.
 :::
 
-<!-- ## Get Started
+## Get Started
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`play;1.5em;sd-mr-1` Quickstart
-:link: quickstart
+:link: gs-quickstart-launcher
 :link-type: doc
 
 Step-by-step guide to install, configure, and run your first evaluation in minutes.
@@ -27,7 +27,7 @@ Step-by-step guide to install, configure, and run your first evaluation in minut
 Complete configuration schema, examples, and advanced patterns for all use cases.
 :::
 
-:::: -->
+::::
 
 ## Execution
 
