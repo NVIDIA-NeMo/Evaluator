@@ -29,8 +29,11 @@ class Cmd:
 
     limit: Optional[int] = field(default=None, alias=["--limit"], help="Max rows")
     executor: Optional[str] = field(
-        default=None, alias=["--executor"], help="Filter by executor"
+        default=None,
+        alias=["--executor"],
+        help="Filter by executor",
     )
+    # TODO(agronskiy): think about if we can propagate a `--status` filter into here.
     since: Optional[str] = field(
         default=None,
         alias=["--since"],
