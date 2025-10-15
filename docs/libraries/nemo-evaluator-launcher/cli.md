@@ -333,7 +333,7 @@ nemo-evaluator-launcher debug <invocation_id> --artifacts
 nemo-evaluator-launcher debug <invocation_id> --logs
 ```
 
-For remote jobs (Slurm, Lepton), paths are shown in the format `user@host:/path`.
+For remote jobs (Slurm), paths are shown in the format `user@host:/path`.
 
 ### Copy Files Locally
 
