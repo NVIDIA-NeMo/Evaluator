@@ -28,13 +28,18 @@ target:
               temperature: 0.7
               top_p: 0.9
             params_to_remove:
-              - "top_k"
+              - "top_k"              # top-level field in the payload to remove
+              - "reasoning_content"  # field in the message to remove
             params_to_rename:
               old_param: "new_param"
         - name: "endpoint"
           enabled: true
           config: {}
 ```
+
+:::{note}
+In the example above, the `reasoning_content` field will be removed recursively from all messages in the payload.
+:::
 
 ## Configuration Options
 
