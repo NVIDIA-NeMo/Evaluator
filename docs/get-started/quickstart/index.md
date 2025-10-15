@@ -68,6 +68,7 @@ If you prefer to host your own models:
 ```bash
 # vLLM (recommended for self-hosting)
 pip install vllm
+export HF_TOKEN=hf_your-token-here
 vllm serve meta-llama/Llama-3.1-8B-Instruct --port 8080
 
 # Or use other serving frameworks
@@ -140,7 +141,7 @@ docker pull nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
 
 ```bash
 # Enable debug logging
-export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
+export LOG_LEVEL=DEBUG
 
 # Check available evaluation types
 nemo-evaluator-launcher ls tasks
