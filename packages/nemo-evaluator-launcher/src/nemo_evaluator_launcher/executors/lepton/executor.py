@@ -482,7 +482,8 @@ class LeptonExecutor(BaseExecutor):
 
                 if not job_success:
                     raise RuntimeError(
-                        f"Failed to submit Lepton job for task: {task.name}. Error: {error_msg}"
+                        f"Failed to submit Lepton job | Task: {task.name} | Job ID: {job_id} | "
+                        f"Lepton job name: {lepton_job_name} | Error: {error_msg}"
                     )
 
                 # Store job metadata in database (with task-specific endpoint info)
@@ -503,8 +504,6 @@ class LeptonExecutor(BaseExecutor):
                         config=OmegaConf.to_object(cfg),  # type: ignore[arg-type]
                     )
                 )
-
-                print(f"✅ Task {task.name}: Submitted evaluation job {job_id}")
 
             # Jobs submitted successfully - return immediately (non-blocking)
             print(
@@ -536,9 +535,8 @@ class LeptonExecutor(BaseExecutor):
 
             return invocation_id
 
-        except Exception as e:
+        except Exception:
             # Clean up any created endpoints on failure
-            print(f"❌ Error during evaluation: {e}")
             if cfg.deployment.type != "none" and "endpoint_names" in locals():
                 for endpoint_name in endpoint_names:
                     if endpoint_name:
@@ -624,76 +622,14 @@ class LeptonExecutor(BaseExecutor):
     def kill_job(job_id: str) -> None:
         """Kill Lepton evaluation jobs and clean up endpoints.
 
-        For invocation IDs, this will kill all jobs and clean up all
-        dedicated endpoints created for the invocation.
-
         Args:
-            job_id: The job ID or invocation ID to kill.
+            job_id: The job ID to kill.
 
         Raises:
             ValueError: If job is not found or invalid.
             RuntimeError: If job cannot be killed.
         """
         db = ExecutionDB()
-
-        # If it looks like an invocation_id, kill all jobs for that invocation
-        if len(job_id) == 8 and "." not in job_id:
-            jobs = db.get_jobs(job_id)
-            if not jobs:
-                raise ValueError(f"No jobs found for invocation {job_id}")
-
-            endpoint_names = (
-                set()
-            )  # Use set to avoid duplicates (though each should be unique)
-            lepton_job_names = []
-
-            # Collect all Lepton jobs and endpoint info
-            for curr_job_data in jobs.values():
-                if curr_job_data.executor != "lepton":
-                    continue
-
-                # Collect endpoint name for this job (each task may have its own)
-                endpoint_name = curr_job_data.data.get("endpoint_name")
-                if endpoint_name:
-                    endpoint_names.add(endpoint_name)
-
-                lepton_job_name = curr_job_data.data.get("lepton_job_name")
-                if lepton_job_name:
-                    lepton_job_names.append(lepton_job_name)
-
-                # Mark job as killed in database
-                curr_job_data.data["status"] = "killed"
-                curr_job_data.data["killed_time"] = time.time()
-                db.write_job(curr_job_data)
-
-            print(
-                f"🛑 Killing {len(lepton_job_names)} Lepton jobs for invocation {job_id}"
-            )
-
-            # Cancel all Lepton jobs
-            for lepton_job_name in lepton_job_names:
-                success = delete_lepton_job(lepton_job_name)
-                if success:
-                    print(f"✅ Cancelled Lepton job: {lepton_job_name}")
-                else:
-                    print(f"⚠️  Failed to cancel Lepton job: {lepton_job_name}")
-
-            # Clean up all dedicated endpoints
-            if endpoint_names:
-                print(f"🧹 Cleaning up {len(endpoint_names)} dedicated endpoints")
-                for endpoint_name in endpoint_names:
-                    success = delete_lepton_endpoint(endpoint_name)
-                    if success:
-                        print(f"✅ Cleaned up endpoint: {endpoint_name}")
-                    else:
-                        print(f"⚠️  Failed to cleanup endpoint: {endpoint_name}")
-            else:
-                print("📌 No dedicated endpoints to clean up (using shared endpoint)")
-
-            print(f"🛑 Killed all resources for invocation {job_id}")
-            return
-
-        # Otherwise, treat as individual job_id
         job_data = db.get_job(job_id)
         if job_data is None:
             raise ValueError(f"Job {job_id} not found")
@@ -705,17 +641,25 @@ class LeptonExecutor(BaseExecutor):
 
         # Cancel the specific Lepton job
         lepton_job_name = job_data.data.get("lepton_job_name")
-        if lepton_job_name:
-            success = delete_lepton_job(lepton_job_name)
-            if success:
-                print(f"✅ Cancelled Lepton job: {lepton_job_name}")
-            else:
-                print(f"⚠️  Failed to cancel Lepton job: {lepton_job_name}")
 
-        # Mark job as killed in database
-        job_data.data["status"] = "killed"
-        job_data.data["killed_time"] = time.time()
-        db.write_job(job_data)
+        if lepton_job_name:
+            cancel_success = delete_lepton_job(lepton_job_name)
+            if cancel_success:
+                print(f"✅ Cancelled Lepton job: {lepton_job_name}")
+                # Mark job as killed in database
+                job_data.data["status"] = "killed"
+                job_data.data["killed_time"] = time.time()
+                db.write_job(job_data)
+            else:
+                # Use common helper to get informative error message based on job status
+                status_list = LeptonExecutor.get_status(job_id)
+                current_status = status_list[0].state if status_list else None
+                error_msg = LeptonExecutor.get_kill_failure_message(
+                    job_id, f"lepton_job: {lepton_job_name}", current_status
+                )
+                raise RuntimeError(error_msg)
+        else:
+            raise ValueError(f"No Lepton job name found for job {job_id}")
 
         print(f"🛑 Killed Lepton job {job_id}")
 

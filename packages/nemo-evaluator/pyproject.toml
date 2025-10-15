@@ -83,6 +83,7 @@ docs = [
 nemo_evaluator_example = "nemo_evaluator.cli.example:main"
 nemo-evaluator-example = "nemo_evaluator.cli.example:main"
 eval-factory = "nemo_evaluator.core.entrypoint:run_eval"
+nemo-evaluator = "nemo_evaluator.core.entrypoint:run_eval"
 
 [tool.coverage.run]
 concurrency = ["thread", "multiprocessing"]

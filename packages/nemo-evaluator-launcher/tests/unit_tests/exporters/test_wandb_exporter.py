@@ -250,8 +250,10 @@ class TestWandBExporter:
         jd = JobData("wA", "wA.0", 0.0, "local", {"output_dir": str(tmp_path)}, {})
         exp = WandBExporter({})
         logged = exp._log_artifacts(jd, {"log_artifacts": True}, _Artifact())
-        assert logged == ["results.yml"]
-        assert calls["added"] == [("results.yml", "taskX/results.yml")]
+        # wandb logs config.yaml fallback + results.yml when log_artifacts is True
+        assert "config.yaml" in logged
+        assert "results.yml" in logged
+        assert len(calls["added"]) == 2  # config.yaml + results.yml
 
     def test_log_artifacts_exception_returns_empty(
         self, monkeypatch, wandb_fake, tmp_path: Path

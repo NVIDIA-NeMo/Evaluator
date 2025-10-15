@@ -24,7 +24,7 @@ Hosted endpoints (fastest):
 
   Minimal usage (override endpoint URL and key):
   ```bash
-  nemo-evaluator-launcher run --config-dir examples \
+  nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o target.api_endpoint.api_key_name=API_KEY
@@ -48,6 +48,10 @@ trtllm-serve /path/to/your/model \
 docker run --gpus all -p 8000:8000 vllm/vllm-openai:latest \
   --model meta-llama/Llama-3.1-8B-Instruct
 ```
+
+/// tip | Docker network settings
+When working with a locally-hosted endpoint and the local executor, make sure to configure your docker network settings via `extra_docker_args` parameter (see [Advanced configuration](../nemo-evaluator-launcher/configuration/execution/local.md#advanced-configuration) and [Deployment Frameworks Guide](tutorials/deployments/deployment-frameworks-guide.md)) 
+
 
 For more information, see:
 

@@ -428,14 +428,34 @@ def create_lepton_endpoint(cfg: DictConfig, endpoint_name: str) -> bool:
             print(f"✅ Successfully created Lepton endpoint: {endpoint_name}")
             return True
         else:
-            print(f"❌ Failed to create Lepton endpoint: {result.stderr}")
+            error_msg = result.stderr.strip() if result.stderr else ""
+            output_msg = result.stdout.strip() if result.stdout else ""
+            print(
+                f"✗ Failed to create Lepton endpoint | Endpoint: {endpoint_name} | Return code: {result.returncode}"
+            )
+            if error_msg:
+                print(f"   stderr: {error_msg}")
+            if output_msg:
+                print(f"   stdout: {output_msg}")
             return False
 
-    except subprocess.TimeoutExpired:
-        print(f"❌ Timeout creating Lepton endpoint: {endpoint_name}")
+    except subprocess.TimeoutExpired as e:
+        print(
+            f"✗ Timeout creating Lepton endpoint | Endpoint: {endpoint_name} | Timeout: 300s"
+        )
+        if hasattr(e, "stderr") and e.stderr:
+            print(f"   stderr: {e.stderr}")
+        if hasattr(e, "stdout") and e.stdout:
+            print(f"   stdout: {e.stdout}")
         return False
     except subprocess.CalledProcessError as e:
-        print(f"❌ Error creating Lepton endpoint: {e}")
+        print(
+            f"✗ Error creating Lepton endpoint | Endpoint: {endpoint_name} | Error: {e}"
+        )
+        if hasattr(e, "stderr") and e.stderr:
+            print(f"   stderr: {e.stderr}")
+        if hasattr(e, "stdout") and e.stdout:
+            print(f"   stdout: {e.stdout}")
         return False
     finally:
         # Clean up temporary file

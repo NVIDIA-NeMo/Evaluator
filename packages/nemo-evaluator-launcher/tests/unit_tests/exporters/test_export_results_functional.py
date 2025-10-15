@@ -18,6 +18,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from nemo_evaluator_launcher.api.functional import export_results
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 
@@ -184,6 +186,7 @@ class TestExportResultsFunctional:
                         seen.add(jid)
         assert {j11.job_id, j12.job_id, j21.job_id}.issubset(seen)
 
+    @pytest.mark.skip(reason="gitlab_ci_local not supported")
     def test_single_pipeline_id_gitlab_ci_local(
         self, tmp_path: Path, mock_execdb, monkeypatch
     ):

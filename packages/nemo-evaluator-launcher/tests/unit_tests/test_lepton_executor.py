@@ -1248,69 +1248,8 @@ class TestLeptonExecutorGetStatus:
 
 
 class TestLeptonExecutorKillJob:
-    def test_kill_invocation_cancels_jobs_and_cleans_endpoints(
-        self, mock_execdb, monkeypatch
-    ):
-        db = ExecutionDB()
-        inv = "cafebabe"
-        # Two lepton jobs on same endpoint
-        db.write_job(
-            JobData(
-                inv,
-                f"{inv}.0",
-                time.time(),
-                "lepton",
-                data={
-                    "endpoint_name": "ep1",
-                    "lepton_job_name": "lj0",
-                    "status": "running",
-                },
-            )
-        )
-        db.write_job(
-            JobData(
-                inv,
-                f"{inv}.1",
-                time.time(),
-                "lepton",
-                data={
-                    "endpoint_name": "ep1",
-                    "lepton_job_name": "lj1",
-                    "status": "running",
-                },
-            )
-        )
-        calls = {"del_jobs": [], "del_eps": []}
-
-        def del_job(name):
-            calls["del_jobs"].append(name)
-            return True
-
-        def del_ep(name):
-            calls["del_eps"].append(name)
-            return True
-
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.executors.lepton.executor.delete_lepton_job",
-            del_job,
-            raising=True,
-        )
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.executors.lepton.executor.delete_lepton_endpoint",
-            del_ep,
-            raising=True,
-        )
-
-        LeptonExecutor.kill_job(inv)
-        # Both jobs cancelled and endpoint cleaned once
-        assert set(calls["del_jobs"]) == {"lj0", "lj1"}
-        assert calls["del_eps"] == ["ep1"]
-
-        # Jobs updated to killed
-        for idx in [0, 1]:
-            jd = db.get_job(f"{inv}.{idx}")
-            assert jd.data["status"] == "killed"
-            assert "killed_time" in jd.data
+    # NOTE: Batch kill functionality (killing by invocation ID) has been moved to the API layer.
+    # The executor now only handles individual job kills. See test_functional.py for batch kill tests.
 
     def test_kill_single_job_errors(self, mock_execdb):
         with pytest.raises(ValueError, match="not found"):
