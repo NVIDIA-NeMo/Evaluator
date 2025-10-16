@@ -19,10 +19,10 @@ The NeMo Evaluator Launcher provides the simplest way to run evaluations with au
 pip install nemo-evaluator-launcher
 
 # Optional: Install with specific exporters
-pip install "nemo-evaluator-launcher[all]"  # All exporters
-pip install "nemo-evaluator-launcher[mlflow]"                # MLflow only
-pip install "nemo-evaluator-launcher[wandb]"                 # W&B only
-pip install "nemo-evaluator-launcher[gsheets]"               # Google Sheets only
+pip install "nemo-evaluator-launcher[all]"      # All exporters
+pip install "nemo-evaluator-launcher[mlflow]"   # MLflow only
+pip install "nemo-evaluator-launcher[wandb]"    # W&B only
+pip install "nemo-evaluator-launcher[gsheets]"  # Google Sheets only
 
 # 2. List available benchmarks
 nemo-evaluator-launcher ls tasks
@@ -32,6 +32,11 @@ nemo-evaluator-launcher ls tasks
 # Prerequisites: Set your API key and HF token
 export NGC_API_KEY=nvapi-...
 export HF_TOKEN_FOR_GPQA_DIAMOND=hf_...
+
+# Prerequisites: For this tutorial's examples to be available, clone the repo
+#                and `cd` into the folder:
+git clone https://github.com/NVIDIA-NeMo/Evaluator.git
+cd Evaluator
 
 ```
 

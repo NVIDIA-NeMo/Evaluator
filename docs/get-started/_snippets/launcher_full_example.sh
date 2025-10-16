@@ -1,5 +1,6 @@
 #!/bin/bash
 # Complete working example using NVIDIA Build
+# Assuming "Prerequisites" are fulfilled
 
 # Set up your API key
 export NGC_API_KEY="${NGC_API_KEY:-nvapi-your-key-here}"
