@@ -116,13 +116,13 @@ docker run --rm -it \
 # Or run evaluation directly
 docker run --rm \
     -v $(pwd)/results:/workspace/results \
-    -e MY_API_KEY=your-api-key \
+    -e NGC_API_KEY=nvapi-xxx \
     nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
     nemo-evaluator run_eval \
         --eval_type mmlu_pro \
         --model_url https://integrate.api.nvidia.com/v1/chat/completions \
         --model_id meta/llama-3.1-8b-instruct \
-        --api_key_name MY_API_KEY \
+        --api_key_name NGC_API_KEY \
         --output_dir /workspace/results
 ```
 

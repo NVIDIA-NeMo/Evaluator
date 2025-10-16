@@ -20,7 +20,7 @@ docker pull nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
 docker run --rm -it nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} bash
 
 # 3. Inside container - set up environment
-export MY_API_KEY=nvapi-your-key-here
+export NGC_API_KEY=nvapi-your-key-here
 export HF_TOKEN=hf_your-token-here  # If using Hugging Face models
 
 # 4. Run evaluation
@@ -29,7 +29,7 @@ nemo-evaluator run_eval \
     --model_id meta/llama-3.1-8b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
     --model_type chat \
-    --api_key_name MY_API_KEY \
+    --api_key_name NGC_API_KEY \
     --output_dir /tmp/results \
     --overrides 'config.params.limit_samples=10'
 ```
@@ -154,7 +154,7 @@ for benchmark in "${BENCHMARKS[@]}"; do
     
     docker run --rm \
         -v $(pwd)/results:/workspace/results \
-        -e MY_API_KEY=$API_KEY \
+        -e MY_API_KEY=$NGC_API_KEY \
         -e HF_TOKEN=$HF_TOKEN \
         nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
         nemo-evaluator run_eval \

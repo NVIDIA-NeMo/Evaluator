@@ -106,6 +106,7 @@ def evaluate(
 
 **Prerequisites:**
 
+- **Your API key for build.nvidia.com**
 - **Container way**: Use simple-evals container mentioned in {ref}`nemo-evaluator-containers`
 - **Python way**:
 
@@ -116,6 +117,10 @@ def evaluate(
 **Example Programmatic Usage:**
 
 ```python
+# Prerequisites:
+# set your API key to build.nvidia.com before running the snippet
+# export NGC_API_KEY=nvapi-xxx
+
 from nemo_evaluator.core.evaluate import evaluate
 from nemo_evaluator.api.api_dataclasses import (
     EvaluationConfig, 
@@ -141,7 +146,7 @@ target_config = EvaluationTarget(
         url="https://integrate.api.nvidia.com/v1/chat/completions",
         model_id="meta/llama-3.1-8b-instruct",
         type=EndpointType.CHAT,
-        api_key="your_api_key_here"
+        api_key="NGC_API_KEY"
     )
 )
 
@@ -585,12 +590,14 @@ target:
 To use the above, save it as `config.yaml` and run:
 
 ```bash
+export NGC_API_KEY=nvapi-xxx  # Use your key to build.nvidia.com
+
 nemo-evaluator run_eval \
     --eval_type mmlu_pro \
     --model_id meta/llama-3.1-8b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
     --model_type chat \
-    --api_key_name MY_API_KEY \
+    --api_key_name NGC_API_KEY \  # make sure to provide variable name, not the key itself
     --output_dir ./results \
     --run_config config.yaml
 ```

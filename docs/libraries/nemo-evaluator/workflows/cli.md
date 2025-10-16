@@ -32,7 +32,7 @@ Run evaluation:
 
 ```bash
 export HF_TOKEN=hf_xxx
-export MY_API_KEY=nvapi-xxx
+export NGC_API_KEY=nvapi-xxx
 
 nemo-evaluator run_eval \
   --run_config /workspace/my_config.yml
@@ -44,7 +44,7 @@ Provide all arguments through CLI:
 
 ```bash
 export HF_TOKEN=hf_xxx
-export MY_API_KEY=nvapi-xxx
+export NGC_API_KEY=nvapi-xxx
 
 nemo-evaluator run_eval \
     --eval_type mmlu_pro \
@@ -94,7 +94,7 @@ target:
 
 ```bash
 export HF_TOKEN=hf_xxx
-export MY_API_KEY=nvapi-xxx
+export NGC_API_KEY=nvapi-xxx
 
 nemo-evaluator run_eval \
   --run_config /workspace/my_config.yml
@@ -133,7 +133,7 @@ target:
 
 ```bash
 export HF_TOKEN=hf_xxx
-export MY_API_KEY=nvapi-xxx
+export NGC_API_KEY=nvapi-xxx
 
 nemo-evaluator run_eval \
   --run_config /workspace/my_config.yml
@@ -181,7 +181,7 @@ target:
 
 ```bash
 export HF_TOKEN=hf_xxx
-export MY_API_KEY=nvapi-xxx
+export NGC_API_KEY=nvapi-xxx
 
 nemo-evaluator run_eval \
   --run_config /workspace/my_config.yml
@@ -197,7 +197,7 @@ nemo-evaluator run_eval \
     --model_id meta/llama-3.1-8b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
     --model_type chat \
-    --api_key_name MY_API_KEY \
+    --api_key_name NGC_API_KEY \
     --output_dir ./results \
     --overrides 'target.api_endpoint.adapter_config.use_request_logging=True,target.api_endpoint.adapter_config.max_saved_requests=1000,target.api_endpoint.adapter_config.use_caching=True,target.api_endpoint.adapter_config.caching_dir=./cache,target.api_endpoint.adapter_config.reuse_cached_responses=True'
 ```
