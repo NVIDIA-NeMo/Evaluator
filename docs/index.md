@@ -351,8 +351,8 @@ Release Notes <about/release-notes/index>
 :caption: Get Started
 :hidden:
 
-About Getting Started <get-started/index>
-Install Eval <get-started/install>
+Getting Started <get-started/index>
+Install SDK <get-started/install>
 Quickstart <get-started/quickstart/index>
 :::
 

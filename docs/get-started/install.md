@@ -45,7 +45,6 @@ NeMo Evaluator provides multiple installation paths depending on your needs. Cho
 ### Recommended Environment
 
 - Python 3.12
-- PyTorch 2.7
 - CUDA 12.9
 - Ubuntu 24.04
 
@@ -141,7 +140,7 @@ echo " Container access verified"
 
 ---
 
-## Clone the repository
+## Clone the Repository
 
 Clone the NeMo Evaluator repository to get easy access to our ready-to-use examples:
 
@@ -160,3 +159,61 @@ nemo-evaluator-launcher run \
   --config-name local_nvidia_nemotron_nano_9b_v2 \
   --override execution.output_dir=nemotron-eval
 ```
+
+## Add Evaluation Harnesses to Your Environment 
+
+Build your custom evaluation pipeline by adding evaluation harness packages to your environment of choice:
+
+```bash
+pip install nemo-evaluator <evaluation-package>
+```
+
+Available PyPI packages:
+
+```{list-table}
+:header-rows: 1
+:widths: 30 70
+
+* - Package Name
+  - PyPI URL
+* - nvidia-bfcl
+  - <https://pypi.org/project/nvidia-bfcl/>
+* - nvidia-bigcode-eval
+  - <https://pypi.org/project/nvidia-bigcode-eval/>
+* - nvidia-compute-eval
+  - <https://pypi.org/project/nvidia-compute-eval/>
+* - nvidia-eval-factory-garak
+  - <https://pypi.org/project/nvidia-eval-factory-garak/>
+* - nvidia-genai-perf-eval
+  - <https://pypi.org/project/nvidia-genai-perf-eval/>
+* - nvidia-crfm-helm
+  - <https://pypi.org/project/nvidia-crfm-helm/>
+* - nvidia-hle
+  - <https://pypi.org/project/nvidia-hle/>
+* - nvidia-ifbench
+  - <https://pypi.org/project/nvidia-ifbench/>
+* - nvidia-livecodebench
+  - <https://pypi.org/project/nvidia-livecodebench/>
+* - nvidia-lm-eval
+  - <https://pypi.org/project/nvidia-lm-eval/>
+* - nvidia-mmath
+  - <https://pypi.org/project/nvidia-mmath/>
+* - nvidia-mtbench-evaluator
+  - <https://pypi.org/project/nvidia-mtbench-evaluator/>
+* - nvidia-eval-factory-nemo-skills
+  - <https://pypi.org/project/nvidia-eval-factory-nemo-skills/>
+* - nvidia-safety-harness
+  - <https://pypi.org/project/nvidia-safety-harness/>
+* - nvidia-scicode
+  - <https://pypi.org/project/nvidia-scicode/>
+* - nvidia-simple-evals
+  - <https://pypi.org/project/nvidia-simple-evals/>
+* - nvidia-tooltalk
+  - <https://pypi.org/project/nvidia-tooltalk/>
+* - nvidia-vlmeval
+  - <https://pypi.org/project/nvidia-vlmeval/>
+```
+
+:::{note}
+Evaluation harnessess that require complex environments are not available as packages but only as containers.
+:::
