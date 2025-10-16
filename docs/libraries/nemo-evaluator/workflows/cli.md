@@ -210,7 +210,7 @@ Legacy parameters will be automatically converted to the modern interceptor-base
 
 ### Port Conflicts
 
-If you encounter adapter server port conflicts:
+If you manually specify the adapter server port, you can encounter port conflicts. Try selecting a differnt port:
 
 ```bash
 export ADAPTER_PORT=3828
@@ -218,7 +218,7 @@ export ADAPTER_HOST=localhost
 ```
 
 :::{note}
-You can manually set the port, or rely on NeMo Evaluator's dynamic port binding feature.
+You can also rely on NeMo Evaluator's dynamic port binding feature.
 :::
 
 ### API Key Issues
