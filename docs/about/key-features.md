@@ -57,8 +57,6 @@ nemo-evaluator-launcher export <invocation_id> --dest gsheets
 ### Container-First Architecture
 Pre-built NGC containers guarantee reproducible results across environments:
 
-## NGC Container Catalog
-
 ```{list-table}
 :header-rows: 1
 :widths: 20 25 15 15 25
