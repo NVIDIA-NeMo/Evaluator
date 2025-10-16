@@ -30,11 +30,21 @@ NeMo Evaluator provides a collection of specialized containers for different eva
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bigcode-evaluation-harness)
   - `{{ docker_compose_latest }}`
   - humaneval, humanevalplus, mbpp, mbppplus
+* -  **compute-eval**
+  - CUDA code evaluation
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/compute-eval)
+  - `{{ docker_compose_latest }}`
+  - cccl_problems, combined_problems, cuda_problems 
 * - **garak**
   - Security and robustness testing
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/garak)
   - `{{ docker_compose_latest }}`
   - garak
+* - **genai-perf** 
+  - GenAI performance benchmarking 
+  - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/genai-perf)
+  - `{{ docker_compose_latest }}`
+  - genai_perf_generation, genai_perf_summarization
 * - **helm**
   - Holistic evaluation framework
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/helm)
@@ -70,6 +80,11 @@ NeMo Evaluator provides a collection of specialized containers for different eva
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench)
   - `{{ docker_compose_latest }}`
   - mtbench, mtbench-cor1
+* - **nemo-skills** 
+  - Language model benchmarks (science, math, agentic)
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/nemo_skills)
+  - `{{ docker_compose_latest }}`
+  - ns_aime2024, ns_aime2025, ns_aime2025_ef, ns_bfcl_v3, ns_gpqa, ns_gpqa_ef, ns_hle, ns_livecodebench, ns_mmlu, ns_mmlu_pro 
 * - **rag_retriever_eval**
   - RAG system evaluation
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/rag_retriever_eval)
