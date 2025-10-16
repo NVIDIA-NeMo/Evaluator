@@ -7,10 +7,13 @@ The NeMo Evaluator Launcher provides the simplest way to run evaluations with au
 
 ## Prerequisites
 
-- OpenAI-compatible endpoint (hosted or self-deployed) and an API key (if the endpoint is gated)
+- OpenAI-compatible endpoint (hosted or self-deployed) and an API key (if the endpoint is gated), below referred as `NGC_API_KEY` in case one uses models hosted under [NVIDIA's serving platform](https://build.nvidia.com)
 - Docker installed (for local execution)
 - NeMo Evaluator repository cloned (for access to [examples](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples))
-- Your Hugging Face token with access to the GPQA-Diamond dataset (click [here](https://huggingface.co/datasets/Idavidrein/gpqa) to request)
+  ```bash
+  git clone https://github.com/NVIDIA-NeMo/Evaluator.git
+  ```
+- Your Hugging Face token with access to the GPQA-Diamond dataset (click [here](https://huggingface.co/datasets/Idavidrein/gpqa) to request), below referred as `HF_TOKEN_FOR_GPQA_DIAMOND`.
 
 ## Quick Start
 
@@ -29,15 +32,12 @@ nemo-evaluator-launcher ls tasks
 
 # 3. Run evaluation against a hosted endpoint
 
-# Prerequisites: Set your API key and HF token
+# Prerequisites: Set your API key and HF token. Visit https://huggingface.co/datasets/Idavidrein/gpqa
+# to get access to the gated GPQA dataset for this task.
 export NGC_API_KEY=nvapi-...
 export HF_TOKEN_FOR_GPQA_DIAMOND=hf_...
-
-# Prerequisites: For this tutorial's examples to be available, clone the repo
-#                and `cd` into the folder:
-git clone https://github.com/NVIDIA-NeMo/Evaluator.git
+# Move into the cloned directory (see above).
 cd Evaluator
-
 ```
 
 ```{literalinclude} ../_snippets/launcher_basic.sh
