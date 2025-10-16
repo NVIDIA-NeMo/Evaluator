@@ -166,7 +166,7 @@ class AdapterConfig(BaseModel):
         }
 
     @classmethod
-    def get_validated_config(cls, run_config: dict[str, Any]) -> "AdapterConfig | None":
+    def get_validated_config(cls, run_config: dict[str, Any]) -> "AdapterConfig":
         """Extract and validate adapter configuration from run_config.
 
         Args:
@@ -199,7 +199,6 @@ class AdapterConfig(BaseModel):
         if not global_cfg and not local_cfg:
             # Create default adapter config with caching enabled by default
             return cls.from_legacy_config({}, run_config)
-
         merged = dict(global_cfg) if global_cfg else {}
         if local_cfg:
             local_discovery = local_cfg.get("discovery")
@@ -227,7 +226,6 @@ class AdapterConfig(BaseModel):
                 {"name": s} if isinstance(s, str) else s
                 for s in merged["post_eval_hooks"]
             ]
-
         try:
             config = cls(**merged)
 
