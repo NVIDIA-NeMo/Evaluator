@@ -46,7 +46,7 @@ In the example above, the `reasoning_content` field will be removed recursively 
 | Parameter | Type | Description | Example |
 |-----------|------|-------------|---------|
 | `params_to_add` | `dict` | Dictionary of parameters to add to requests | `{"temperature": 0.7, "top_p": 0.9}` |
-| `params_to_remove` | `list` | List of parameter names to remove from requests | `["top_k", "frequency_penalty"]` |
+| `params_to_remove` | `list` | List of parameter names to recursively remove from requests | `["top_k", "frequency_penalty"]` |
 | `params_to_rename` | `dict` | Dictionary mapping old parameter names to new names | `{"old_param": "new_param"}` |
 
 :::{note}
