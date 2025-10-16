@@ -27,7 +27,7 @@ target_config = EvaluationTarget(
 )
 
 # Run multiple benchmarks
-benchmarks = ["gsm8k", "hellaswag", "arc_easy"]
+benchmarks = ["mmlu_pro", "humaneval", "mgsm"]
 results = {}
 
 for benchmark in benchmarks:
