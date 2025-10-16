@@ -18,8 +18,8 @@ Select a library for your evaluation workflow:
 :link: nemo-evaluator/index
 :link-type: doc
 
-**Advanced usage** - Direct access to evaluation containers and adapter architecture for custom integrations.
+**Advanced usage** - Direct access to core evaluation logic for custom integrations.
 :::
 ::::
 
-The Launcher orchestrates the Core Evaluation Engine, using identical containers to ensure consistent results.
+The Launcher orchestrates the NeMo Evaluator containers using identical underlying code to ensure consistent results.
