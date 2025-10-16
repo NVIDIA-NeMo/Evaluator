@@ -168,7 +168,8 @@ Build your custom evaluation pipeline by adding evaluation harness packages to y
 pip install nemo-evaluator <evaluation-package>
 ```
 
-Available PyPI packages:
+(core-wheels)=
+### Available PyPI Packages
 
 ```{list-table}
 :header-rows: 1

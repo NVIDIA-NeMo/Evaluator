@@ -81,7 +81,7 @@ export NGC_API_KEY="nvapi-..."
 :end-before: "# [snippet-end]"
 ```
 
-### Discovering Available Benchmarks
+### Discovering Installed Benchmarks
 
 ```python
 from nemo_evaluator import show_available_tasks
@@ -89,6 +89,10 @@ from nemo_evaluator import show_available_tasks
 # List all installed evaluation tasks
 show_available_tasks()
 ```
+
+:::{tip}
+To extend the list of benchmarks install additional harnesses. See the list of evaluation harnesses available as PyPI wheels: {ref}`core-wheels`.
+:::
 
 ### Using Adapters and Interceptors
 
@@ -125,6 +129,9 @@ api_endpoint.adapter_config = AdapterConfig(
                 "cache_dir": "./evaluation_cache",
                 "reuse_cached_responses": True
             }
+        ),
+        InterceptorConfig(
+            name="endpoint",
         ),
         InterceptorConfig(
             name="response_logging",
