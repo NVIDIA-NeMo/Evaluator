@@ -67,7 +67,7 @@ deployment:
   data_parallel_size: 1
   extra_args: ""
   env_vars:
-    HF_HOME: "/cache/huggingface"
+    HF_HOME: "/cache/huggingface"   # make sure you have access to GPQA-Diamond and meta-llama/Llama-3.1-8B-Instruct
 
 execution:
   account: your-account
@@ -78,6 +78,8 @@ evaluation:
   tasks:
     - name: gpqa_diamond
     - name: ifeval
+      env_vars:
+        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND  # or use HF_HOME
 ```
 
 ## Command Template
