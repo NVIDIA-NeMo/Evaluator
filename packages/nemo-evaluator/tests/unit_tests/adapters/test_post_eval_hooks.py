@@ -265,6 +265,7 @@ def test_integration_post_eval_hooks_flow(tmpdir):
             api_url="http://test.example.com",
             output_dir=str(tmpdir),
             adapter_config=config,
+            port=3900,
         )
         adapter.run()
 
@@ -276,7 +277,7 @@ def test_integration_post_eval_hooks_flow(tmpdir):
         time.sleep(1)
 
         # Simulate the entrypoint calling the post-eval hooks endpoint
-        post_hook_url = f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{AdapterServer.DEFAULT_ADAPTER_PORT}/adapterserver/run-post-hook"
+        post_hook_url = f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{3900}/adapterserver/run-post-hook"
         response = requests.post(post_hook_url, timeout=30)
 
         assert response.status_code == 200

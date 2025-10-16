@@ -172,7 +172,7 @@ class TestMLflowExporter:
         monkeypatch.setattr(
             MLflowExporter,
             "_log_artifacts",
-            lambda self, jd, cfg: ["results.yml"],
+            lambda self, jd, cfg, pre=None: ["results.yml"],
             raising=False,
         )
 
