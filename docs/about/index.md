@@ -1,16 +1,14 @@
 (about-overview)=
 
-# About NeMo Evaluator
+# About NeMo Evaluator SDK
 
-NeMo Evaluator is NVIDIA's comprehensive platform for AI model evaluation and benchmarking. It consists of two core libraries that work together to enable consistent, scalable, and reproducible evaluation of large language models across diverse capabilities including reasoning, code generation, function calling, and safety.
-
-![image](NeMo_Repo_Overview_Eval.png)
+NeMo Evaluator SDK is NVIDIA's comprehensive platform for AI model evaluation and benchmarking. It consists of two core libraries that work together to enable consistent, scalable, and reproducible evaluation of large language models across diverse capabilities including reasoning, code generation, function calling, and safety.
 
 ## System Architecture
 
-NeMo Evaluator consists of two main libraries:
+NeMo Evaluator SDK consists of two main libraries:
 
-```{list-table} NeMo Evaluator Components
+```{list-table} NeMo Evaluator SDK Components
 :header-rows: 1
 :widths: 30 70
 
