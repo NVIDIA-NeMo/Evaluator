@@ -23,6 +23,15 @@ NeMo Evaluator SDK is built on four core principles to provide a reliable and ve
 - **State-of-the-Art Benchmarking**: Access a comprehensive suite of over 100 benchmarks from 18 popular open-source evaluation harnesses. See the full list of [Supported benchmarks and evaluation harnesses](#-supported-benchmarks-and-evaluation-harnesses).
 - **Extensible and Customizable**: Integrate new evaluation harnesses, add custom benchmarks with proprietary data, and define custom result exporters for existing MLOps tooling.
 
+## How It Works: Launcher and Core Engine
+
+The platform consists of two main components:
+
+- **`nemo-evaluator` ([The Evaluation Core Engine](./docs/nemo-evaluator/index.md))**: A Python library that manages the interaction between an evaluation harness and the model being tested.
+- **`nemo-evaluator-launcher` ([The CLI and Orchestration](./docs/nemo-evaluator-launcher/index.md))**: The primary user interface and orchestration layer. It handles configuration, selects the execution environment, and launches the appropriate container to run the evaluation.
+
+Most users typically interact with `nemo-evaluator-launcher`, which serves as a universal gateway to different benchmarks and harnesses. However, it is also possible to interact directly with `nemo-evaluator` by following this [guide](./docs/nemo-evaluator/workflows/using-containers.md).
+
 
 ## 🚀 Quickstart
 
@@ -179,33 +188,6 @@ NeMo Evaluator Launcher provides pre-built evaluation containers for different e
 | **tooltalk** | Tool usage evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk) | `25.09` | ToolTalk |
 | **vlmevalkit** | Vision-language model evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit) | `25.09` | AI2D, ChartQA, OCRBench, SlideVQA |
 
-
-## How It Works: Launcher and Core Engine
-
-The platform consists of two main components:
-
-- **`nemo-evaluator` ([The Evaluation Core Engine](./docs/nemo-evaluator/index.md))**: A Python library that manages the interaction between an evaluation harness and the model being tested.
-- **`nemo-evaluator-launcher` ([The CLI and Orchestration](./docs/nemo-evaluator-launcher/index.md))**: The primary user interface and orchestration layer. It handles configuration, selects the execution environment, and launches the appropriate container to run the evaluation.
-
-Most users typically interact with `nemo-evaluator-launcher`, which serves as a universal gateway to different benchmarks and harnesses. However, it is also possible to interact directly with `nemo-evaluator` by following this [guide](./docs/nemo-evaluator/workflows/using-containers.md).
-
-```mermaid
-graph TD
-    A[User] --> B{NeMo Evaluator Launcher};
-    B -- " " --> C{Local};
-    B -- " " --> D{Slurm};
-    B -- " " --> E{Lepton};
-    subgraph Execution Environment
-        C -- "Launches Container" --> F[Evaluation Container];        
-        D -- "Launches Container" --> F;
-        E -- "Launches Container" --> F;
-    end
-    subgraph F[Evaluation Container]
-        G[Nemo Evaluator] -- " Runs " --> H[Evaluation Harness]
-    end
-    H -- "Sends Requests To" --> I[🤖 Model Endpoint];
-    I -- "Returns Responses" --> H;
-```
 
 ## 🤝 Contribution Guide
 
