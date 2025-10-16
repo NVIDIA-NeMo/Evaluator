@@ -19,7 +19,7 @@ The NeMo Evaluator Launcher provides the simplest way to run evaluations with au
 pip install nemo-evaluator-launcher
 
 # Optional: Install with specific exporters
-pip install "nemo-evaluator-launcher[mlflow,wandb,gsheets]"  # All exporters
+pip install "nemo-evaluator-launcher[all]"  # All exporters
 pip install "nemo-evaluator-launcher[mlflow]"                # MLflow only
 pip install "nemo-evaluator-launcher[wandb]"                 # W&B only
 pip install "nemo-evaluator-launcher[gsheets]"               # Google Sheets only
