@@ -102,8 +102,6 @@ bash -n docs/get-started/_snippets/installation/*.sh
 # Test Python scripts (imports only)
 python -m py_compile docs/get-started/_snippets/**/*.py
 
-# Test verification scripts
-python docs/get-started/_snippets/verification/verify_core.py
 ```
 
 ## Guidelines
