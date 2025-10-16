@@ -33,44 +33,6 @@ target:
     api_key_name: API_KEY                    # Environment variable name (recommended)
 ```
 
-/// note | Legacy Adapter Configuration
-The following adapter configuration parameters use the legacy format and are maintained for backward compatibility. For new configurations, use the modern interceptor-based system documented in {ref}`interceptor-system-messages` and {ref}`interceptor-reasoning`.
-
-```yaml
-target:
-  api_endpoint:
-    # Legacy adapter configuration (supported but not recommended for new configs)
-    adapter_config:
-      use_reasoning: false                   # Strip reasoning tokens if true
-      use_system_prompt: true                # Enable system prompt support
-      custom_system_prompt: "Think step by step."  # Custom system prompt
-```
-///
-
-### Evaluation Configuration
-
-```yaml
-evaluation:
-  # Global overrides (apply to all tasks)
-  overrides:
-    config.params.request_timeout: 3600
-    config.params.temperature: 0.7
-  
-  # Task-specific configuration
-  tasks:
-    - name: gpqa_diamond
-      overrides:
-        config.params.temperature: 0.6
-        config.params.max_new_tokens: 8192
-        config.params.parallelism: 32
-      env_vars:
-        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND
-    
-    - name: mbpp
-      overrides:
-        config.params.extra.n_samples: 5
-```
-
 ## Platform Examples
 
 Choose your execution platform and see the specific configuration needed:
@@ -98,6 +60,8 @@ target:
 evaluation:
   tasks:
     - name: gpqa_diamond
+      env_vars:
+        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND  # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
 ```
 
 **Key Points:**
@@ -116,13 +80,22 @@ defaults:
   - _self_
 
 execution:
+  output_dir: results
+
   lepton_platform:
     tasks:
+      api_tokens:
+        - value_from:
+            token_name_ref: "ENDPOINT_API_KEY"
+
       env_vars:
         HF_TOKEN:
           value_from:
-            secret_name_ref: "HUGGING_FACE_HUB_TOKEN_read"
-        API_KEY: "UNIQUE_ENDPOINT_TOKEN"
+            secret_name_ref: "HUGGING_FACE_HUB_TOKEN"
+        API_KEY:
+          value_from:
+            secret_name_ref: "ENDPOINT_API_KEY"
+
       node_group: "your-node-group"
       mounts:
         - from: "node-nfs:shared-fs"
@@ -167,88 +140,19 @@ target:
   api_endpoint:
     model_id: meta/llama-3.1-8b-instruct
     url: https://integrate.api.nvidia.com/v1/chat/completions
-    api_key_name: NGC_API_KEY
+    api_key_name: NGC_API_KEY # API Key with access to build.nvidia.com
 
 evaluation:
   tasks:
     - name: gpqa_diamond
+      env_vars:
+        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
 ```
 
 **Key Points:**
 - Requires SLURM account and accessible output directory
 - Creates one job per benchmark evaluation
 - Uses CPU partitions (no GPUs needed for none deployment)
-- Supports CLI overrides for flexible job submission
 :::
 
 ::::
-
-## Advanced Features
-
-### CLI Overrides
-
-Override any configuration value from the command line using dot notation:
-
-```bash
-# Override execution settings
-nemo-evaluator-launcher run --config-name your_config execution.walltime="1:00:00"
-
-# Override endpoint URL
-nemo-evaluator-launcher run --config-name your_config target.api_endpoint.url="https://new-endpoint.com/v1/chat/completions"
-
-# Override evaluation parameters  
-nemo-evaluator-launcher run --config-name your_config evaluation.overrides.config.params.temperature=0.8
-```
-
-### Common Configuration Overrides
-
-**Request Parameters:**
-- `config.params.temperature`: Control randomness (0.0-1.0)
-- `config.params.max_new_tokens`: Maximum response length
-- `config.params.parallelism`: Concurrent request limit
-- `config.params.request_timeout`: Request timeout in seconds
-
-**Task-Specific:**
-- `config.params.extra.n_samples`: Number of samples per prompt (for code tasks)
-- Environment variables for dataset access (like `HF_TOKEN`)
-
-## Automatic Result Export
-
-Automatically export evaluation results to multiple destinations for experiment tracking and collaboration.
-
-**Supported Destinations**: W&B, MLflow, Google Sheets
-
-### Basic Configuration
-
-```yaml
-execution:
-  auto_export:
-    destinations: ["wandb", "mlflow", "gsheets"]
-    configs:
-      wandb:
-        entity: "your-team"
-        project: "llm-evaluation"
-        name: "experiment-name"
-        tags: ["llama-3.1", "baseline"]
-        log_metrics: ["accuracy", "pass@1"]
-        
-      mlflow:
-        tracking_uri: "http://mlflow.company.com:5000"
-        experiment_name: "LLM-Baselines-2024"
-        log_metrics: ["accuracy", "pass@1"]
-        
-      gsheets:
-        spreadsheet_name: "LLM Evaluation Results"
-        log_mode: "multi_task"
-```
-
-/// note
-For detailed exporter configuration, see {ref}`exporters-overview`.
-///
-
-### Key Configuration Options
-
-- **`log_metrics`**: Filter which metrics to export (e.g., `["accuracy", "pass@1"]`)
-- **`log_mode`**: "multi_task" (all tasks together) or "per_task" (separate entries)
-- **`extra_metadata`**: Additional experiment metadata and tags
-- **Environment variables**: Use `${oc.env:VAR_NAME}` for secure credential handling

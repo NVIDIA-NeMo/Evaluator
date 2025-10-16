@@ -4,35 +4,34 @@
 
 NIM (NVIDIA Inference Microservices) provides optimized inference microservices with OpenAI-compatible application programming interfaces. NIM deployments automatically handle model optimization, scaling, and resource management on supported platforms.
 
-## Execution Flow
-
-When using NIM deployments with the Lepton executor, the launcher follows this execution flow:
-
-1. **Deploy**: Deploy the specified NIM container to a Lepton endpoint
-2. **Wait**: Wait for the endpoint to be ready and accepting requests
-3. **Execute**: Run evaluation tasks as parallel jobs that connect to the deployed NIM
-4. **Cleanup**: Automatically clean up the endpoint on failure; on success, you must manually clean up using `nemo-evaluator-launcher kill <invocation_id>`
-
-## Prerequisites
-
-NIM deployments require the Lepton execution platform. Before using NIM deployments, ensure you have:
-
-- **Lepton AI**: Install Lepton AI (`pip install leptonai`) and configure credentials (`lep login`)
-- **HuggingFace Token**: Required for model access (configure as a secret in Lepton)
-- **GPU Resources**: Appropriate GPU resources for your chosen NIM container
-- **Storage Access**: Storage access for model caching (recommended)
 
 ## Configuration
 
 ### Basic Settings
 
+```yaml
+deployment:
+  image: nvcr.io/nim/meta/llama-3.1-8b-instruct:1.8.6
+  served_model_name: meta/llama-3.1-8b-instruct
+  port: 8000
+```
+
 - **`image`**: NIM container image from [NVIDIA NIM Containers](https://catalog.ngc.nvidia.com/containers?filters=nvidia_nim) (required)
 - **`served_model_name`**: Name used for serving the model (required)
 - **`port`**: Port for the NIM server (default: 8000)
 
-### Platform Integration
+### Endpoints
 
-NIM deployments integrate with execution platform configurations:
+```yaml
+endpoints:
+  chat: /v1/chat/completions
+  completions: /v1/completions
+  health: /health
+```
+
+## Integration with Lepton
+
+NIM deployment with Lepton executor:
 
 ```yaml
 defaults:
@@ -125,7 +124,7 @@ execution:
         - "lepton-nvidia-registry-secret"
 ```
 
-## Complete Example
+### Complete Example
 
 ```yaml
 defaults:
