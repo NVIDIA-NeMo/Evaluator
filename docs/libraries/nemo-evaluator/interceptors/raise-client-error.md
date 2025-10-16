@@ -27,6 +27,9 @@ target:
   api_endpoint:
     adapter_config:
       interceptors:
+        - name: "endpoint"
+          enabled: true
+          config: {}
         - name: "raise_client_errors"
           enabled: true
           config:
@@ -34,9 +37,6 @@ target:
             exclude_status_codes: [408, 429]
             status_code_range_start: 400
             status_code_range_end: 499
-        - name: "endpoint"
-          enabled: true
-          config: {}
 ```
 :::
 

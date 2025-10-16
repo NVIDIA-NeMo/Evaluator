@@ -23,15 +23,15 @@ target:
   api_endpoint:
     adapter_config:
       interceptors:
+        - name: "endpoint"
+          enabled: true
+          config: {}
         - name: reasoning
           config:
             start_reasoning_token: "<think>"
             end_reasoning_token: "</think>"
             add_reasoning: true
             enable_reasoning_tracking: true
-        - name: "endpoint"
-          enabled: true
-          config: {}
 ```
 
 ## Configuration Options

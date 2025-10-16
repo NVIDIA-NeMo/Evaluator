@@ -71,6 +71,9 @@ target:
   api_endpoint:
     adapter_config:
       interceptors:
+        - name: "endpoint"
+          enabled: true
+          config: {}
         - name: "response_stats"
           enabled: true
           config:
@@ -82,9 +85,7 @@ target:
             save_individuals: true
             cache_dir: "/custom/stats/cache"
             logging_aggregated_stats_interval: 25
-        - name: "endpoint"
-          enabled: true
-          config: {}
+
 ```
 
 ## Configuration Options

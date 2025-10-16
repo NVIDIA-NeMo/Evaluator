@@ -18,6 +18,9 @@ target:
   api_endpoint:
     adapter_config:
       interceptors:
+        - name: "endpoint"
+          enabled: true
+          config: {}
         - name: "progress_tracking"
           enabled: true
           config:
@@ -25,9 +28,6 @@ target:
             progress_tracking_interval: 10
             request_method: "PATCH"
             output_dir: "/tmp/output"
-        - name: "endpoint"
-          enabled: true
-          config: {}
 ```
 
 

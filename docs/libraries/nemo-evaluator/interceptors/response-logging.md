@@ -22,13 +22,13 @@ target:
   api_endpoint:
     adapter_config:
       interceptors:
+        - name: "endpoint"
+          enabled: true
+          config: {}
         - name: "response_logging"
           enabled: true
           config:
             max_responses: 1000
-        - name: "endpoint"
-          enabled: true
-          config: {}
 ```
 
 ## Configuration Options
