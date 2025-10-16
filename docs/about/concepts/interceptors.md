@@ -1,12 +1,22 @@
-(adapters-interceptors-concepts)=
+(interceptors-concepts)=
 
-# Adapters and Interceptors
+# Interceptors
 
-The **adapter and interceptor system** is a core architectural concept in NeMo Evaluator that enables sophisticated request and response processing during model evaluation.
+The **interceptor system** is a core architectural concept in NeMo Evaluator that enables sophisticated request and response processing during model evaluation. The main take away information from learning about interceptors is that they enable functionalities that can be plugged-in to many evaluation harnesses without modifying their underlaying code. 
+
+If you configure at least one interceptor in your evaluation pipeline, a lightweight middleware server is started next to the evaluation runtime. This server transforms simple API calls through a two-phase pipeline:
+
+1. **Request Processing**: Interceptors modify outgoing requests (system prompts, parameters) before they reach the endpoint
+2. **Response Processing**: Interceptors extract reasoning, log data, cache results, and track statistics after receiving responses
+
+
+:::{note}
+You might see throughout evaluation logs that the evaluation harness sends requests to `localhost` on port proximal to `3825` instead of the URL you provided. This is the middleware server at work. 
+:::
 
 ## Conceptual Overview
 
-The adapter system transforms simple model API calls into sophisticated evaluation workflows through a configurable pipeline of **interceptors**. This design provides:
+The interceptor system transforms simple model API calls into sophisticated evaluation workflows through a configurable pipeline of **interceptors**. This design provides:
 
 - **Modularity**: Each interceptor handles a specific concern (logging, caching, reasoning)
 - **Composability**: Multiple interceptors can be chained together
@@ -45,9 +55,9 @@ graph LR
 
 ## Core Concepts
 
-### Adapters
+### Adapter Server
 
-**Adapters** are the orchestration layer that manages the interceptor pipeline. They provide:
+**Adapter Server** is a lightweight server that handles communication between evaluation harness and the endpoint under test. It provides:
 
 - **Configuration Management**: Unified interface for interceptor settings
 - **Pipeline Coordination**: Manages the flow of requests through interceptors
@@ -67,7 +77,7 @@ graph LR
 
 ### Processing Interceptors
 Transform or augment requests and responses:
-- **System Message**: Inject custom prompts
+- **System Message**: Inject custom system prompts
 - **Payload Modifier**: Modify request parameters
 - **Reasoning**: Extract chain-of-thought reasoning
 

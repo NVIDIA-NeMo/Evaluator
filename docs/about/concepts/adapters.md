@@ -69,4 +69,4 @@ adapter_config = AdapterConfig(
 )
 :::
 
-For detailed usage and configuration examples, see {ref}`adapters-interceptors-concepts`.
+For detailed usage and configuration examples, see {ref}`interceptors-concepts`.

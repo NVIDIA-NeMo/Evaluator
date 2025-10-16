@@ -13,7 +13,7 @@ A Framework Definition File (FDF) is a YAML configuration file that serves as th
 An FDF specifies five key aspects of an evaluation framework:
 
 - **Framework metadata**: Name, description, package information, and repository URL
-- **Default configurations**: Parameters, commands, and settings that apply across all evaluations
+- **Default configurations**: Parameters, commands, and settings that apply across all evaluations within that framework
 - **Evaluation types**: Available evaluation tasks and their specific configurations
 - **Execution commands**: Jinja2-templated commands for running evaluations with dynamic parameter injection
 - **API compatibility**: Supported endpoint types (chat, completions, vlm, embedding) and their configurations
@@ -24,8 +24,8 @@ FDFs sit at the integration point between your evaluation framework's CLI and Ne
 
 ```{mermaid}
 graph LR
-    A[User runs<br/>eval-factory] --> B[System loads<br/>framework.yml]
-    B --> C[Merges defaults +<br/>evaluation config]
+    A[User runs<br/>nemo-evaluator] --> B[System loads<br/>framework.yml]
+    B --> C[Merges defaults +<br/> user evaluation config]
     C --> D[Renders Jinja2<br/>command template]
     D --> E[Executes your<br/>CLI command]
     E --> F[Parses output]
@@ -37,7 +37,7 @@ graph LR
 
 **The workflow:**
 
-1. When you run `eval-factory` (see {ref}`nemo-evaluator-cli`), the system discovers and loads your FDF (`framework.yml`)
+1. When you run `nemo-evaluator` (see {ref}`nemo-evaluator-cli`), the system discovers and loads your FDF (`framework.yml`)
 2. Configuration values are merged from framework defaults, evaluation-specific settings, and user overrides (see {ref}`parameter-overrides`)
 3. The system renders the Jinja2 command template with the merged configuration
 4. Your framework's CLI is executed with the generated command
