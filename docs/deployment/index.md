@@ -17,7 +17,7 @@ NeMo Evaluator keeps model serving separate from evaluation execution, giving yo
 - **Model-Evaluation Separation**: Models serve via OpenAI-compatible APIs, evaluations run in containers
 - **Deployment Responsibility**: Choose who manages the model serving infrastructure
 - **Multi-Backend Support**: Deploy locally, on HPC clusters, or in the cloud  
-- **Universal Adapters**: Request/response processing works across all deployment types
+- **Universal Interceptors**: Request/response processing works across all deployment types
 
 ## Deployment Strategy Guide
 

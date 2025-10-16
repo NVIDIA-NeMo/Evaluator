@@ -12,7 +12,7 @@ If you do not require deployment on Slurm, simply omit the deployment section fr
 
 ## Prerequisites
 - Access to a Slurm cluster (with appropriate partitions/queues)
-- Docker or container runtime available on worker nodes (per your environment)
+- [Pyxis SPANK plugin](https://github.com/NVIDIA/pyxis) installed on the cluster 
 
 ## Configuration Example
 
