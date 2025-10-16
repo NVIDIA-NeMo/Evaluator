@@ -25,7 +25,7 @@ The CLI provides a unified interface for managing evaluations and frameworks. It
 ## Command Structure
 
 ```bash
-eval-factory [command] [options]
+nemo-evaluator [command] [options]
 ```
 
 ## Available Commands

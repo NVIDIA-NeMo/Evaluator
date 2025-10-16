@@ -81,5 +81,5 @@ Interceptors <interceptors/index>
 Logging <logging>
 Extending <extending/index>
 API Reference <../../../apidocs/index.rst>
-CLI Reference (eval-factory) <cli>
+CLI Reference (nemo-evaluator) <cli>
 :::

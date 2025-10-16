@@ -85,7 +85,7 @@ Pre-built NGC containers guarantee reproducible results across environments:
   - humaneval, humaneval_instruct, humanevalplus, mbpp, mbppplus, mbppplus_nemo, multiple-cpp, multiple-cs, multiple-d, multiple-go, multiple-java, multiple-jl, multiple-js, multiple-lua, multiple-php, multiple-pl, multiple-py, multiple-r, multiple-rb, multiple-rkt, multiple-rs, multiple-scala, multiple-sh, multiple-swift, multiple-ts
 * -  **compute-eval**
   - CUDA code evaluation
-  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/compute-eval)
+  - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/compute-eval)
   - {{ docker_compose_latest }}
   - cccl_problems, combined_problems, cuda_problems 
 * - **garak**
@@ -135,7 +135,7 @@ Pre-built NGC containers guarantee reproducible results across environments:
   - mtbench, mtbench-cor1
 * - **nemo-skills** 
   - Language model benchmarks (science, math, agentic)
-  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/nemo_skills)
+  - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/nemo_skills)
   - {{ docker_compose_latest }}
   - ns_aime2024, ns_aime2025, ns_aime2025_ef, ns_bfcl_v3, ns_gpqa, ns_gpqa_ef, ns_hle, ns_livecodebench, ns_mmlu, ns_mmlu_pro 
 * - **rag_retriever_eval**
@@ -180,7 +180,7 @@ docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:{{ docke
 Sophisticated request/response processing pipeline with interceptor architecture:
 
 ```yaml
-# Configure adapter system in framework YAML configuration
+# Configure adapter system in YAML configuration
 target:
   api_endpoint:
     url: "http://localhost:8080/v1/completions/"
@@ -202,6 +202,9 @@ target:
           config:
             cache_dir: "./evaluation_cache"
         
+        # Communication with http://localhost:8080/v1/completions/
+        -name: endpoint
+
         # Reasoning interceptor
         - name: reasoning
           config:
