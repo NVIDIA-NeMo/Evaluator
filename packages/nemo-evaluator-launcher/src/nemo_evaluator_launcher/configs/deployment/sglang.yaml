@@ -22,6 +22,7 @@ tensor_parallel_size: 8
 data_parallel_size: 1
 extra_args: ""
 env_vars: {} # {name: value} dict
+multiple_instances: false # If true, deploy across multiple nodes with --nodes $num_nodes --ntasks $num_nodes
 
 endpoints:
   chat: /v1/chat/completions

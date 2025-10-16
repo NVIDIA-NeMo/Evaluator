@@ -31,3 +31,11 @@ mounts:
   deployment: {}
   evaluation: {}
   mount_home: true
+
+proxy:
+  type: haproxy
+  image: haproxy:latest
+  config:
+    haproxy_port: 5009
+    health_check_path: /health
+    health_check_status: 200
