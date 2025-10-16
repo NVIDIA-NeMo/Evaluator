@@ -4,7 +4,7 @@ Complete working example with proper error handling.
 """
 
 # [snippet-start]
-# Prerequisites: Set your API key
+# Prerequisites: Set your API key before running the snippet
 # export NGC_API_KEY="nvapi-..."
 
 from nemo_evaluator.api.api_dataclasses import (

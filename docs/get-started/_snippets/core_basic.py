@@ -3,8 +3,12 @@
 Basic NeMo Evaluator Core API quickstart example.
 """
 
+# Prerequisites: Set your API key
+# export NGC_API_KEY="nvapi-..."
+
 import os
 
+# [snippet-start]
 from nemo_evaluator.api.api_dataclasses import (
     ApiEndpoint,
     ConfigParams,
@@ -12,19 +16,14 @@ from nemo_evaluator.api.api_dataclasses import (
     EvaluationConfig,
     EvaluationTarget,
 )
-
-# [snippet-start]
-# Prerequisites: Set your API key
-# export NGC_API_KEY="nvapi-..."
 from nemo_evaluator.core.evaluate import evaluate
 
 # Configure evaluation
 eval_config = EvaluationConfig(
     type="mmlu_pro",
     output_dir="./results",
-    params=ConfigParams(
-        limit_samples=10, temperature=0.0, max_new_tokens=1024, parallelism=1
-    ),
+    # Remove limit_samples for full dataset
+    params=ConfigParams(limit_samples=10),
 )
 
 # Configure target endpoint

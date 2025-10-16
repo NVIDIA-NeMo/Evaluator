@@ -10,6 +10,7 @@ The NeMo Evaluator Launcher provides the simplest way to run evaluations with au
 - OpenAI-compatible endpoint (hosted or self-deployed) and an API key (if the endpoint is gated)
 - Docker installed (for local execution)
 - NeMo Evaluator repository cloned (for access to [examples](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples))
+- Your Hugging Face token with access to the GPQA-Diamond dataset (click [here](https://huggingface.co/datasets/Idavidrein/gpqa) to request)
 
 ## Quick Start
 
@@ -28,8 +29,9 @@ nemo-evaluator-launcher ls tasks
 
 # 3. Run evaluation against a hosted endpoint
 
-# Prerequisites: Set your API key
+# Prerequisites: Set your API key and HF token
 export NGC_API_KEY=nvapi-...
+export HF_TOKEN_FOR_GPQA_DIAMOND=hf_...
 
 ```
 
@@ -62,8 +64,9 @@ It is possible to use short version of IDs in `status` command, for example `abc
 Here's a complete example using NVIDIA Build (build.nvidia.com):
 
 ```bash
-# Prerequisites: Set your API key
+# Prerequisites: Set your API key and HF token
 export NGC_API_KEY=nvapi-...
+export HF_TOKEN_FOR_GPQA_DIAMOND=hf_...
 ```
 
 ```{literalinclude} ../_snippets/launcher_full_example.sh

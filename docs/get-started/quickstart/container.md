@@ -21,7 +21,7 @@ docker run --rm -it nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_l
 
 # 3. Inside container - set up environment
 export NGC_API_KEY=nvapi-your-key-here
-export HF_TOKEN=hf_your-token-here  # If using Hugging Face models
+export HF_TOKEN=hf_your-token-here  # If using gated datasets
 
 # 4. Run evaluation
 nemo-evaluator run_eval \
@@ -31,7 +31,7 @@ nemo-evaluator run_eval \
     --model_type chat \
     --api_key_name NGC_API_KEY \
     --output_dir /tmp/results \
-    --overrides 'config.params.limit_samples=10'
+    --overrides 'config.params.limit_samples=10'  # Remove to run on full benchmark
 ```
 
 ## Complete Container Workflow
@@ -59,7 +59,7 @@ nemo-evaluator run_eval \
     --model_type chat \
     --api_key_name NGC_API_KEY \
     --output_dir /workspace/results \
-    --overrides 'config.params.limit_samples=3'
+    --overrides 'config.params.limit_samples=3'    # Remove to run on full benchmark
 
 # 4. Exit container and check results
 exit
@@ -71,6 +71,8 @@ ls -la ./results/
 For automated workflows, you can run everything in a single command:
 
 ```bash
+NGC_API_KEY=nvapi-your-key-here
+
 # Run evaluation directly in container
 docker run --rm \
     -v $(pwd)/results:/workspace/results \
@@ -147,7 +149,8 @@ services:
 # batch_eval.sh
 
 BENCHMARKS=("mmlu_pro" "gpqa_diamond" "humaneval")
-NGC_API_KEY=${NGC_API_KEY}
+NGC_API_KEY=nvapi-your-key-here
+HF_TOKEN=hf_your-token-here  # Needed for GPQA-Diamond (gated dataset)
 
 for benchmark in "${BENCHMARKS[@]}"; do
     echo "Running evaluation for $benchmark..."
