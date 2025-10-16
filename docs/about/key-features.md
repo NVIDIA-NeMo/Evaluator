@@ -3,7 +3,7 @@
 
 # Key Features
 
-NeMo Evaluator delivers comprehensive AI model evaluation through a dual-library architecture that scales from local development to enterprise production. Experience container-first reproducibility, multi-backend execution, and 100+ benchmarks across 17 evaluation harnesses.
+NeMo Evaluator SDK delivers comprehensive AI model evaluation through a dual-library architecture that scales from local development to enterprise production. Experience container-first reproducibility, multi-backend execution, and 100+ benchmarks across 17 evaluation harnesses.
 
 ##  **Unified Orchestration (NeMo Evaluator Launcher)**
 
@@ -22,7 +22,7 @@ nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/exampl
 nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name lepton_vllm_llama_3_1_8b_instruct
 ```
 
-### 100+ Benchmarks Across 17 Harnesses
+### Evaluation Benchmarks & Tasks
 Access comprehensive benchmark suite with single CLI:
 
 ```bash
@@ -56,8 +56,8 @@ nemo-evaluator-launcher export <invocation_id> --dest gsheets
 
 ### Container-First Architecture
 Pre-built NGC containers guarantee reproducible results across environments:
-
-```{list-table}
+<!-- FIXME(martas): This table is incorrect -->
+<!-- ```{list-table}
 :header-rows: 1
 :widths: 30 40 30
 
@@ -82,7 +82,7 @@ Pre-built NGC containers guarantee reproducible results across environments:
 * - **agentic_eval**
   - Tool usage, planning
   - Agentic AI evaluation
-```
+``` -->
 
 ```bash
 # Pull and run any evaluation container
@@ -207,11 +207,18 @@ target:
 ##  **OpenAI API Compatibility**
 
 ### Universal Model Support
-Evaluate any model that exposes OpenAI-compatible endpoints:
+NeMo Evaluator supports OpenAI-compatible API endpoints:
 
 - **Hosted Models**: NVIDIA Build, OpenAI, Anthropic, Cohere
 - **Self-Hosted**: vLLM, TRT-LLM, NeMo Framework
 - **Custom Endpoints**: Any service implementing OpenAI API spec
+
+The platform supports the following endpoint types:
+
+- **`completions`**: Direct text completion without chat formatting (`/v1/completions`). Used for base models and academic benchmarks.
+- **`chat`**: Conversational interface with role-based messages (`/v1/chat/completions`). Used for instruction-tuned and chat models.
+- **`vlm`**: Vision-language model endpoints supporting image inputs.
+- **`embedding`**: Embedding generation endpoints for retrieval evaluation.
 
 ### Endpoint Type Support
 Support for diverse evaluation endpoint types through the evaluation configuration:
@@ -234,6 +241,13 @@ target:
   api_endpoint:
     type: vlm
     url: https://api.example.com/v1/chat/completions
+
+# Retrival evaluation (embedding endpoint)
+target:
+  api_endpoint:
+    type: embedding
+    url: https://api.example.com/v1/embeddings
+
 ```
 
 ##  **Extensibility and Customization**
