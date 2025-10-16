@@ -1,8 +1,8 @@
 (template-home)=
 
-# NeMo Evaluator Documentation
+# NeMo Evaluator SDK Documentation
 
-Welcome to the NeMo Evaluator Documentation.
+Welcome to the NeMo Evaluator SDK Documentation.
 
 ````{div} sd-d-flex-row
 ```{button-ref} get-started/index
@@ -24,14 +24,14 @@ Quickstart Evaluations
 
 ---
 
-## Introduction to NeMo Evaluator
+## Introduction to NeMo Evaluator SDK
 
-Discover how NeMo Evaluator works and explore its key features.
+Discover how NeMo Evaluator SDK works and explore its key features.
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
-:::{grid-item-card} {octicon}`info;1.5em;sd-mr-1` About NeMo Evaluator
+:::{grid-item-card} {octicon}`info;1.5em;sd-mr-1` About NeMo Evaluator SDK
 :link: about/index
 :link-type: doc
 Explore the NeMo Evaluator Core and Launcher architecture
@@ -40,19 +40,19 @@ Explore the NeMo Evaluator Core and Launcher architecture
 :::{grid-item-card} {octicon}`star;1.5em;sd-mr-1` Key Features
 :link: about/key-features
 :link-type: doc
-Discover NeMo Evaluator's powerful capabilities.
+Discover NeMo Evaluator SDK's powerful capabilities.
 :::
 
 :::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Concepts
 :link: about/concepts/index
 :link-type: doc
-Master core concepts powering NeMo Evaluator.
+Master core concepts powering NeMo Evaluator SDK.
 :::
 
 :::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Release Notes
 :link: about/release-notes/index
 :link-type: doc
-Release notes for the NeMo Evaluator.
+Release notes for the NeMo Evaluator SDK.
 :::
 ::::
 
