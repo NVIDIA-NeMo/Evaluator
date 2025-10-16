@@ -85,13 +85,24 @@ class LeptonExecutor(BaseExecutor):
         endpoint_names = []  # Track multiple endpoints
         db = ExecutionDB()
 
-        # DRY-RUN mode
-        if dry_run:
-            _dry_run_lepton(cfg, tasks_mapping)
-            return None
-
         # Generate invocation ID
         invocation_id = generate_invocation_id()
+
+        # DRY-RUN mode
+        if dry_run:
+            output_dir = Path(cfg.execution.output_dir).absolute() / invocation_id
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Validate configuration
+            _dry_run_lepton(cfg, tasks_mapping, invocation_id=invocation_id)
+
+            if cfg.deployment.type == "none":
+                print("Using existing endpoint (deployment: none)")
+                print("using shared endpoint")
+            else:
+                print(f"with endpoint type '{cfg.deployment.type}'")
+
+            return invocation_id
 
         # For deployment: none, we use the existing endpoint for all tasks
         if cfg.deployment.type == "none":
@@ -845,8 +856,10 @@ exit 0
     return script
 
 
-def _dry_run_lepton(cfg: DictConfig, tasks_mapping: dict) -> None:
-    print("DRY RUN: Validating Lepton job configurations...")
+def _dry_run_lepton(
+    cfg: DictConfig, tasks_mapping: dict, invocation_id: str | None = None
+) -> None:
+    print("DRY RUN: Lepton job configurations prepared")
     try:
         # validate tasks
         for task in cfg.evaluation.tasks:
@@ -902,14 +915,15 @@ def _dry_run_lepton(cfg: DictConfig, tasks_mapping: dict) -> None:
                             f"Task '{task.name}' requires {var}: set it under execution.lepton_platform.tasks.env_vars"
                         )
 
-        # success
-        print("✅ Configuration valid")
+        # success (use realized output directory if invocation_id is available)
+        preview_output_dir = (
+            Path(cfg.execution.output_dir).absolute() / invocation_id
+            if invocation_id
+            else Path(cfg.execution.output_dir).absolute() / "<invocation_id>"
+        )
         print(f"   - Tasks: {len(cfg.evaluation.tasks)}")
         for idx, task in enumerate(cfg.evaluation.tasks):
             print(f"   - Task {idx}: {task.name}")
-        preview_output_dir = (
-            Path(cfg.execution.output_dir).absolute() / "<invocation_id>"
-        )
         print(f"   - Output directory: {preview_output_dir}")
         print("\nTo run evaluation, execute run command without --dry-run")
     except Exception as e:
