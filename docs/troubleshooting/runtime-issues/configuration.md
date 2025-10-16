@@ -103,7 +103,7 @@ target_cfg = EvaluationTarget(
 
 ## Timeout and Parallelism Issues
 
-###  Problem: Evaluation hangs or times out
+###  Problem: Evaluation hangs, times out or crashes with "Too many requests" error
 
 **Diagnosis**:
 
