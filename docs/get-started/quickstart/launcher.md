@@ -50,19 +50,29 @@ cd Evaluator
 # 4. Check status
 nemo-evaluator-launcher status <invocation_id> --json  # use the ID printed by the run command
 
-# 5. Check the results
-cat <job_output_dir>/artifacts/results.yml   # use the output_dir from command above
+# 5. Find all the recent runs you launched
+nemo-evaluator-launcher ls runs --since 2h   # list runs from last 2 hours
 
-# 6. Export your results (JSON/CSV)
-nemo-evaluator-launcher export <invocation_id> --dest local --format json
-
-# 7. List your recent runs
-nemo-evaluator-launcher ls runs --since 2d   # list runs from last 2 days
 ```
 
 :::{note}
 It is possible to use short version of IDs in `status` command, for example `abcd` instead of a full `abcdef0123456` or `ab.0` instead of `abcdef0123456.0`, so long as there are no collisions. This is a syntactic sugar allowing for a slightly easier usage.
 :::
+
+```bash
+# 6a. Check the results
+cat <job_output_dir>/artifacts/results.yml   # use the output_dir printed by the run command
+
+# 6b. Check the running logs
+tail -f <job_output_dir>/*/logs/stdout.log   # use the output_dir printed by the run command
+
+# 7. Export your results (JSON/CSV)
+nemo-evaluator-launcher export <invocation_id> --dest local --format json
+
+# 8. Kill the running job(s)
+nemo-evaluator-launcher kill <invocation_id>  # use the ID printed by the run command
+```
+
 
 ## Complete Working Example
 
