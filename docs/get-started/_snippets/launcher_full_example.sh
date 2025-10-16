@@ -7,7 +7,7 @@ export NGC_API_KEY="${NGC_API_KEY:-nvapi-your-key-here}"
 # [snippet-start]
 # Run a quick test evaluation with limited samples
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \

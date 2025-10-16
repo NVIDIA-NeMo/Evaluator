@@ -27,7 +27,7 @@ Let NeMo Evaluator Launcher handle both model deployment and evaluation orchestr
 ```bash
 # Launcher deploys model AND runs evaluation
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name slurm_llama_3_1_8b_instruct \
     -o deployment.checkpoint_path=/shared/models/llama-3.1-8b
 ```
@@ -52,7 +52,7 @@ You handle model deployment, NeMo Evaluator handles evaluation:
 ```bash
 # Point launcher to your deployed model
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=http://localhost:8080/v1/completions
 ```
@@ -224,7 +224,7 @@ Choose from these approaches when managing your own deployment:
 ```bash
 # Point to any existing endpoint
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=http://your-endpoint:8080/v1/completions \
     -o target.api_endpoint.model_id=your-model-name

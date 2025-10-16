@@ -535,11 +535,8 @@ For detailed information on how to execute tasks and use the NeMo Evaluator API 
 # Pull a container
 docker pull nvcr.io/nvidia/eval-factory/<container-name>:latest
 
-# Run a container with GPU support
-docker run --gpus all -it nvcr.io/nvidia/eval-factory/<container-name>:latest
-
 # Run with volume mounts for data persistence
-docker run --gpus all -v /path/to/data:/workspace/data -it nvcr.io/nvidia/eval-factory/<container-name>:latest
+docker run -v /path/to/data:/workspace/data -it nvcr.io/nvidia/eval-factory/<container-name>:latest
 ```
 
 ## Getting Help

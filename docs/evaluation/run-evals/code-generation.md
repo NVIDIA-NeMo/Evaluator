@@ -50,7 +50,7 @@ nemo-evaluator-launcher ls tasks | grep -E "(mbpp|humaneval)"
 
 # Run MBPP evaluation
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["mbpp"]' \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -58,7 +58,7 @@ nemo-evaluator-launcher run \
 
 # Run multiple code generation benchmarks
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["mbpp", "humaneval"]'
 ```
@@ -110,7 +110,7 @@ For specialized container workflows:
 
 ```bash
 # Pull and run BigCode evaluation container
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_compose_latest }} bash
+docker run --rm -it nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_compose_latest }} bash
 
 # Inside container - set environment
 export MY_API_KEY=your_api_key_here

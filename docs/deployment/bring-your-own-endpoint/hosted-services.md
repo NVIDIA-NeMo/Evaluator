@@ -70,14 +70,14 @@ For multi-model comparison, run separate evaluations for each model and compare 
 ```bash
 # Evaluate first model
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
     -o execution.output_dir=./results/llama-3.1-8b
 
 # Evaluate second model
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.model_id=meta/llama-3.1-70b-instruct \
     -o execution.output_dir=./results/llama-3.1-70b
@@ -126,7 +126,7 @@ Use `nemo-evaluator-launcher` (recommended) or `nemo-evaluator-launcher`:
 ```bash
 # Basic evaluation
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
@@ -134,7 +134,7 @@ nemo-evaluator-launcher run \
 
 # Large model evaluation with limited samples
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.model_id=meta/llama-3.1-405b-instruct \
     -o config.params.limit_samples=50
@@ -218,7 +218,7 @@ Use `nemo-evaluator-launcher` (recommended) or `nemo-evaluator-launcher`:
 ```bash
 # GPT-4 evaluation
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://api.openai.com/v1/chat/completions \
     -o target.api_endpoint.model_id=gpt-4 \
@@ -226,7 +226,7 @@ nemo-evaluator-launcher run \
 
 # Cost-effective GPT-3.5 evaluation
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.model_id=gpt-3.5-turbo \
     -o config.params.limit_samples=50 \

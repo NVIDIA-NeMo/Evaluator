@@ -55,7 +55,7 @@ nemo-evaluator-launcher ls tasks | grep -E "(arc|hellaswag|winogrande|truthfulqa
 # Run ARC Challenge evaluation with existing endpoint
 # Note: Configure tokenizer parameters in your YAML config file
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=http://0.0.0.0:8080/v1/completions \
     -o target.api_endpoint.type=completions \
@@ -115,7 +115,7 @@ For specialized container workflows:
 
 ```bash
 # Pull and run LM Evaluation Harness container
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/lm-evaluation-harness:{{ docker_compose_latest }} bash
+docker run --rm -it nvcr.io/nvidia/eval-factory/lm-evaluation-harness:{{ docker_compose_latest }} bash
 
 # Inside container - set environment
 export MY_API_KEY=your_api_key_here

@@ -1,4 +1,4 @@
-# NeMo Evaluator
+# NeMo Evaluator SDK
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg)](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-green)](https://www.python.org/downloads/)
@@ -10,45 +10,18 @@
 [![nemo-evaluator-launcher PyPI downloads](https://img.shields.io/pypi/dm/nemo-evaluator-launcher.svg)](https://pypi.org/project/nemo-evaluator-launcher/)
 [![Project Status](https://img.shields.io/badge/Status-Production%20Ready-green)](#)
 
-NeMo Evaluator is an open-source platform for robust, reproducible, and scalable evaluation of Large Language Models. It enables you to run hundreds of benchmarks across popular evaluation harnesses against any OpenAI-compatible model API. Evaluations execute in open-source Docker containers for auditable and trustworthy results. The platform's containerized architecture allows for the rapid integration of public benchmarks and private datasets.
+NeMo Evaluator SDK is an open-source platform for robust, reproducible, and scalable evaluation of Large Language Models. It enables you to run hundreds of benchmarks across popular evaluation harnesses against any OpenAI-compatible model API. Evaluations execute in open-source Docker containers for auditable and trustworthy results. The platform's containerized architecture allows for the rapid integration of public benchmarks and private datasets.
 
 [Tutorial](./docs/nemo-evaluator-launcher/tutorial.md) | [NeMo FW model evaluations](#-evaluate-checkpoints-trained-by-nemo-framework) | [Supported Benchmarks](#-supported-benchmarks-and-evaluation-harnesses) | [Configuration Examples](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator-launcher/examples) | [Contribution Guide](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/CONTRIBUTING.md)
 
 ## ✨ Key Pillars
 
-NeMo Evaluator is built on four core principles to provide a reliable and versatile evaluation experience:
+NeMo Evaluator SDK is built on four core principles to provide a reliable and versatile evaluation experience:
 
 - **Reproducibility by Default**: All configurations, random seeds, and software provenance are captured automatically for auditable and repeatable evaluations.
 - **Scale Anywhere**: Run evaluations from a local machine to a Slurm cluster or cloud-native backends like Lepton AI without changing your workflow.
 - **State-of-the-Art Benchmarking**: Access a comprehensive suite of over 100 benchmarks from 18 popular open-source evaluation harnesses. See the full list of [Supported benchmarks and evaluation harnesses](#-supported-benchmarks-and-evaluation-harnesses).
 - **Extensible and Customizable**: Integrate new evaluation harnesses, add custom benchmarks with proprietary data, and define custom result exporters for existing MLOps tooling.
-
-## How It Works: Launcher and Core Engine
-
-The platform consists of two main components:
-
-- **`nemo-evaluator` ([The Evaluation Core Engine](./docs/nemo-evaluator/index.md))**: A Python library that manages the interaction between an evaluation harness and the model being tested.
-- **`nemo-evaluator-launcher` ([The CLI and Orchestration](./docs/nemo-evaluator-launcher/index.md))**: The primary user interface and orchestration layer. It handles configuration, selects the execution environment, and launches the appropriate container to run the evaluation.
-
-Most users typically interact with `nemo-evaluator-launcher`, which serves as a universal gateway to different benchmarks and harnesses. However, it is also possible to interact directly with `nemo-evaluator` by following this [guide](./docs/nemo-evaluator/workflows/using-containers.md).
-
-```mermaid
-graph TD
-    A[User] --> B{NeMo Evaluator Launcher};
-    B -- " " --> C{Local};
-    B -- " " --> D{Slurm};
-    B -- " " --> E{Lepton};
-    subgraph Execution Environment
-        C -- "Launches Container" --> F[Evaluation Container];        
-        D -- "Launches Container" --> F;
-        E -- "Launches Container" --> F;
-    end
-    subgraph F[Evaluation Container]
-        G[Nemo Evaluator] -- " Runs " --> H[Evaluation Harness]
-    end
-    H -- "Sends Requests To" --> I[🤖 Model Endpoint];
-    I -- "Returns Responses" --> H;
-```
 
 
 ## 🚀 Quickstart
@@ -203,6 +176,32 @@ NeMo Evaluator Launcher provides pre-built evaluation containers for different e
 | **vlmevalkit** | Vision-language model evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit) | `25.08.1` | AI2D, ChartQA, OCRBench, SlideVQA |
 
 
+## How It Works: Launcher and Core Engine
+
+The platform consists of two main components:
+
+- **`nemo-evaluator` ([The Evaluation Core Engine](./docs/nemo-evaluator/index.md))**: A Python library that manages the interaction between an evaluation harness and the model being tested.
+- **`nemo-evaluator-launcher` ([The CLI and Orchestration](./docs/nemo-evaluator-launcher/index.md))**: The primary user interface and orchestration layer. It handles configuration, selects the execution environment, and launches the appropriate container to run the evaluation.
+
+Most users typically interact with `nemo-evaluator-launcher`, which serves as a universal gateway to different benchmarks and harnesses. However, it is also possible to interact directly with `nemo-evaluator` by following this [guide](./docs/nemo-evaluator/workflows/using-containers.md).
+
+```mermaid
+graph TD
+    A[User] --> B{NeMo Evaluator Launcher};
+    B -- " " --> C{Local};
+    B -- " " --> D{Slurm};
+    B -- " " --> E{Lepton};
+    subgraph Execution Environment
+        C -- "Launches Container" --> F[Evaluation Container];        
+        D -- "Launches Container" --> F;
+        E -- "Launches Container" --> F;
+    end
+    subgraph F[Evaluation Container]
+        G[Nemo Evaluator] -- " Runs " --> H[Evaluation Harness]
+    end
+    H -- "Sends Requests To" --> I[🤖 Model Endpoint];
+    I -- "Returns Responses" --> H;
+```
 
 ## 🤝 Contribution Guide
 

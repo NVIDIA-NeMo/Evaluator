@@ -31,7 +31,7 @@ Recommended suite for comprehensive model evaluation:
 
 ```bash
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_academic_suite \
     -o 'evaluation.tasks=["mmlu_pro", "arc_challenge", "hellaswag", "truthfulqa"]'
 ```
@@ -91,7 +91,7 @@ nemo-evaluator-launcher run \
 ```bash
 # Run academic benchmark suite
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["mmlu_pro", "gsm8k", "arc_challenge"]'
 ```
@@ -137,7 +137,7 @@ for task in academic_tasks:
 ```bash
 # Run code generation evaluation
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["humaneval", "mbpp"]'
 ```
@@ -166,7 +166,7 @@ nemo-evaluator-launcher run \
 ```bash
 # Run comprehensive safety evaluation
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["aegis_v2", "garak"]'
 ```
@@ -254,15 +254,15 @@ Pull and run any evaluation container directly:
 ```bash
 # Academic benchmarks
 docker pull nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
+docker run --rm -it nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
 
 # Code generation
 docker pull nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_compose_latest }}
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_compose_latest }}
+docker run --rm -it nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_compose_latest }}
 
 # Safety evaluation
 docker pull nvcr.io/nvidia/eval-factory/safety-harness:{{ docker_compose_latest }}
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/safety-harness:{{ docker_compose_latest }}
+docker run --rm -it nvcr.io/nvidia/eval-factory/safety-harness:{{ docker_compose_latest }}
 ```
 
 ### Available Tasks by Container
@@ -284,7 +284,7 @@ NeMo Evaluator provides multiple integration options to fit your workflow:
 ```bash
 # Launcher CLI (recommended for most users)
 nemo-evaluator-launcher ls tasks
-nemo-evaluator-launcher run --config-dir examples --config-name local_mmlu_evaluation
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_mmlu_evaluation
 
 # Container direct execution
 docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} nemo-evaluator ls

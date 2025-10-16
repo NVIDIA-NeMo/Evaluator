@@ -38,7 +38,7 @@ nemo-evaluator-launcher ls tasks | grep -E "(bfcl|function)"
 
 # Run BFCL AST prompting evaluation
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["bfclv3_ast_prompting"]' \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -94,7 +94,7 @@ For specialized container workflows:
 
 ```bash
 # Pull and run BFCL evaluation container
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/bfcl:{{ docker_compose_latest }} bash
+docker run --rm -it nvcr.io/nvidia/eval-factory/bfcl:{{ docker_compose_latest }} bash
 
 # Inside container - set environment
 export MY_API_KEY=your_api_key_here

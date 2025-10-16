@@ -5,7 +5,7 @@
 The *Orchestration Layer* empowers you to run AI model evaluations at scale. Use the unified CLI and programmatic interfaces to discover benchmarks, configure runs, submit jobs, monitor progress, and export results.
 
 :::{tip}
-**New to evaluation?** Start with {ref}`launcher-quickstart` for a step-by-step walkthrough.
+**New to evaluation?** Start with {ref}`gs-quickstart-launcher` for a step-by-step walkthrough.
 :::
 
 ## Get Started
@@ -14,7 +14,7 @@ The *Orchestration Layer* empowers you to run AI model evaluations at scale. Use
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`play;1.5em;sd-mr-1` Quickstart
-:link: quickstart
+:link: gs-quickstart-launcher
 :link-type: doc
 
 Step-by-step guide to install, configure, and run your first evaluation in minutes.
@@ -29,7 +29,7 @@ Complete configuration schema, examples, and advanced patterns for all use cases
 
 ::::
 
-## Execution and Export
+## Execution
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
@@ -39,13 +39,6 @@ Complete configuration schema, examples, and advanced patterns for all use cases
 :link-type: doc
 
 Execute evaluations on your local machine, HPC cluster (Slurm), or cloud platform (Lepton AI).
-:::
-
-:::{grid-item-card} {octicon}`upload;1.5em;sd-mr-1` Exporters
-:link: exporters/index
-:link-type: doc
-
-Export results to MLflow, Weights & Biases, Google Sheets, or local files with one command.
 :::
 
 :::{grid-item-card} {octicon}`device-desktop;1.5em;sd-mr-1` Local Executor
@@ -67,6 +60,20 @@ HPC cluster execution with automatic resource management and job scheduling.
 :link-type: doc
 
 Cloud execution with on-demand GPU provisioning and automatic scaling.
+:::
+
+::::
+
+
+## Export
+::::{grid} 1 2 2 2
+:gutter: 1 1 1 2
+
+:::{grid-item-card} {octicon}`upload;1.5em;sd-mr-1` Exporters
+:link: exporters/index
+:link-type: doc
+
+Export results to MLflow, Weights & Biases, Google Sheets, or local files with one command.
 :::
 
 :::{grid-item-card} {octicon}`database;1.5em;sd-mr-1` MLflow Export

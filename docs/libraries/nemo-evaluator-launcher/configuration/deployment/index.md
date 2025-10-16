@@ -2,9 +2,9 @@
 
 Deployment configurations define how to provision and host model endpoints for evaluation.
 
-:::{note}
+<!-- :::{note}
 For an overview of all deployment strategies and when to use launcher-orchestrated vs. bring-your-own-endpoint approaches, see {ref}`deployment-overview`.
-:::
+::: -->
 
 ## Deployment Types
 

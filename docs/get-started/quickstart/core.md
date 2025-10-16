@@ -7,10 +7,24 @@ The NeMo Evaluator Core provides direct Python API access for custom configurati
 
 ## Prerequisites
 
-- Python environment with nemo-evaluator installed
-- OpenAI-compatible endpoint
+- Python environment
+- OpenAI-compatible endpoint (hosted or self-deployed) and an API key (if the endpoint is gated)
 
 ## Quick Start
+
+```bash
+# 1. Install the nemo-evaluator and nvidia-simple-evals
+pip install nemo-evaluator nvidia-simple-evals
+
+# 2. List available benchmarks and tasks
+nemo-evaluator ls
+
+# 3. Run evaluation
+# Prerequisites: Set your API key
+export NGC_API_KEY="nvapi-..."
+
+# Launch using python:
+```
 
 ```{literalinclude} ../_snippets/core_basic.py
 :language: python
@@ -20,8 +34,18 @@ The NeMo Evaluator Core provides direct Python API access for custom configurati
 
 ## Complete Working Example
 
+### Using Python API
+
 ```{literalinclude} ../_snippets/core_full_example.py
 :language: python
+:start-after: "# [snippet-start]"
+:end-before: "# [snippet-end]"
+```
+
+### Using CLI
+
+```{literalinclude} ../_snippets/core_full_cli.sh
+:language: bash
 :start-after: "# [snippet-start]"
 :end-before: "# [snippet-end]"
 ```

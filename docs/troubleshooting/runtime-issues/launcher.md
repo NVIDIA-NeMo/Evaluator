@@ -12,7 +12,7 @@ Troubleshooting guide for NeMo Evaluator Launcher-specific problems including co
 
 ```bash
 # Validate configuration without running
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct --dry-run
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct --dry-run
 ```
 
 **Common Issues**:
@@ -25,7 +25,7 @@ Error: Missing required field 'execution.output_dir'
 ```
 **Fix**: Add output directory to config or override:
 ```bash
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
   -o execution.output_dir=./results
 ```
 
@@ -289,7 +289,7 @@ When reporting launcher issues, include:
 1. **Configuration Details**:
 ```bash
 # Show resolved configuration
-nemo-evaluator-launcher run --config-dir examples --config-name <config> --dry-run
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name <config> --dry-run
 ```
 
 2. **System Information**:

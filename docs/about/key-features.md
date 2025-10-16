@@ -17,9 +17,9 @@ Run evaluations anywhere with unified configuration and monitoring:
 
 ```bash
 # Single command, multiple backends
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct
-nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct  
-nemo-evaluator-launcher run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name slurm_llama_3_1_8b_instruct  
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name lepton_vllm_llama_3_1_8b_instruct
 ```
 
 ### 100+ Benchmarks Across 17 Harnesses
@@ -30,11 +30,11 @@ Access comprehensive benchmark suite with single CLI:
 nemo-evaluator-launcher ls tasks
 
 # Run academic benchmarks
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
   -o 'evaluation.tasks=["mmlu_pro", "gsm8k", "arc_challenge"]'
 
 # Run safety evaluation
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
   -o 'evaluation.tasks=["aegis_v2", "garak"]'
 ```
 
@@ -314,7 +314,7 @@ Built-in safety assessment through specialized containers:
 ```bash
 # Run safety evaluation suite
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["aegis_v2", "garak"]'
 ```

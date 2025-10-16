@@ -128,7 +128,7 @@ docker pull nvcr.io/nvidia/eval-factory/<container-name>:<tag>
 docker pull nvcr.io/nvidia/eval-factory/agentic_eval:25.08.1
 
 # Run with GPU support
-docker run --gpus all -it nvcr.io/nvidia/eval-factory/<container-name>:<tag>
+docker run -it nvcr.io/nvidia/eval-factory/<container-name>:<tag>
 ```
 
 ## Disclaimer

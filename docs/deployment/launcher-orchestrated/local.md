@@ -22,7 +22,7 @@ Local execution:
 ```bash
 # Run evaluation against existing endpoint
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct
 ```
 
@@ -45,7 +45,7 @@ target:
   api_endpoint:
     model_id: meta/llama-3.1-8b-instruct
     url: https://integrate.api.nvidia.com/v1/chat/completions
-    api_key_name: API_KEY
+    api_key_name: NGC_API_KEY
 
 evaluation:
   tasks:
@@ -176,18 +176,18 @@ execution:
 ```bash
 # Run evaluation
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct
 
 # Dry run to preview configuration
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     --dry-run
 
 # Override endpoint URL
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=http://localhost:8080/v1/chat/completions
 ```
@@ -264,7 +264,7 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 **API authentication errors:**
 
 - Verify `api_key_name` matches your environment variable
-- Check that the environment variable has a value: `echo $API_KEY`
+- Check that the environment variable has a value: `echo $NGC_API_KEY`
 - Check API key has proper permissions
 
 ### Evaluation Issues
@@ -292,7 +292,7 @@ nemo-evaluator-launcher kill <job_id>
 ```bash
 # Validate configuration before running
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     --dry-run
 ```

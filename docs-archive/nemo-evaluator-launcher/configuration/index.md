@@ -84,7 +84,7 @@ Common for all executors and can be reused between them. Supports both parameter
 You can override any configuration value from the command line using [Hydra's override syntax](https://hydra.cc/docs/advanced/override_grammar/basic/). This allows you to test small changes without the necessity of writing a new config file:
 
 ```bash
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
   -o execution.output_dir=my_results \
   -o target.api_endpoint.model_id=model/another/one
 ```

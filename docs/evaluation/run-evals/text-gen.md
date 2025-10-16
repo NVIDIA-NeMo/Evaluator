@@ -57,7 +57,7 @@ nemo-evaluator-launcher ls tasks
 
 # Run MMLU Pro evaluation
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["mmlu_pro"]' \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -65,7 +65,7 @@ nemo-evaluator-launcher run \
 
 # Run multiple text generation benchmarks
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_text_generation_suite \
     -o 'evaluation.tasks=["mmlu_pro", "arc_challenge", "hellaswag", "truthfulqa"]'
 ```
@@ -117,7 +117,7 @@ For specialized container workflows:
 
 ```bash
 # Pull and run text generation container
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} bash
+docker run --rm -it nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} bash
 
 # Inside container - set environment
 export MY_API_KEY=your_api_key_here

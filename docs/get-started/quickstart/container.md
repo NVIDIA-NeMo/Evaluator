@@ -17,11 +17,11 @@ The Container Direct approach gives you full control over the container environm
 docker pull nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
 
 # 2. Run container interactively
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} bash
+docker run --rm -it nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} bash
 
 # 3. Inside container - set up environment
-export MY_API_KEY=nvapi-your-key-here
-export HF_TOKEN=hf_your-token-here  # If using Hugging Face models
+export NGC_API_KEY=nvapi-your-key-here
+export HF_TOKEN=hf_your-token-here  # If using gated datasets
 
 # 4. Run evaluation
 nemo-evaluator run_eval \
@@ -29,9 +29,9 @@ nemo-evaluator run_eval \
     --model_id meta/llama-3.1-8b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
     --model_type chat \
-    --api_key_name MY_API_KEY \
+    --api_key_name NGC_API_KEY \
     --output_dir /tmp/results \
-    --overrides 'config.params.limit_samples=10'
+    --overrides 'config.params.limit_samples=10'  # Remove to run on full benchmark
 ```
 
 ## Complete Container Workflow
@@ -43,11 +43,11 @@ Here's a complete example with volume mounting and advanced configuration:
 mkdir -p ./results ./cache ./logs
 
 # 2. Run container with volume mounts
-docker run --rm -it --gpus all \
+docker run --rm -it \
     -v $(pwd)/results:/workspace/results \
     -v $(pwd)/cache:/workspace/cache \
     -v $(pwd)/logs:/workspace/logs \
-    -e MY_API_KEY=nvapi-your-key-here \
+    -e NGC_API_KEY=nvapi-your-key-here \
     -e HF_TOKEN=hf_your-token-here \
     nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} bash
 
@@ -57,9 +57,9 @@ nemo-evaluator run_eval \
     --model_id meta/llama-3.1-8b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
     --model_type chat \
-    --api_key_name MY_API_KEY \
+    --api_key_name NGC_API_KEY \
     --output_dir /workspace/results \
-    --overrides 'config.params.limit_samples=3'
+    --overrides 'config.params.limit_samples=3'    # Remove to run on full benchmark
 
 # 4. Exit container and check results
 exit
@@ -71,16 +71,18 @@ ls -la ./results/
 For automated workflows, you can run everything in a single command:
 
 ```bash
+NGC_API_KEY=nvapi-your-key-here
+
 # Run evaluation directly in container
-docker run --rm --gpus all \
+docker run --rm \
     -v $(pwd)/results:/workspace/results \
-    -e MY_API_KEY="${MY_API_KEY}" \
+    -e NGC_API_KEY="${NGC_API_KEY}" \
     nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
     nemo-evaluator run_eval \
         --eval_type mmlu_pro \
         --model_url https://integrate.api.nvidia.com/v1/chat/completions \
         --model_id meta/llama-3.1-8b-instruct \
-        --api_key_name MY_API_KEY \
+        --api_key_name NGC_API_KEY \
         --output_dir /workspace/results
 ```
 
@@ -124,13 +126,6 @@ version: '3.8'
 services:
   nemo-eval:
     image: nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     volumes:
       - ./results:/workspace/results
       - ./cache:/workspace/cache
@@ -154,14 +149,15 @@ services:
 # batch_eval.sh
 
 BENCHMARKS=("mmlu_pro" "gpqa_diamond" "humaneval")
-API_KEY=${NGC_API_KEY}
+NGC_API_KEY=nvapi-your-key-here
+HF_TOKEN=hf_your-token-here  # Needed for GPQA-Diamond (gated dataset)
 
 for benchmark in "${BENCHMARKS[@]}"; do
     echo "Running evaluation for $benchmark..."
     
-    docker run --rm --gpus all \
+    docker run --rm \
         -v $(pwd)/results:/workspace/results \
-        -e MY_API_KEY=$API_KEY \
+        -e MY_API_KEY=$NGC_API_KEY \
         -e HF_TOKEN=$HF_TOKEN \
         nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
         nemo-evaluator run_eval \

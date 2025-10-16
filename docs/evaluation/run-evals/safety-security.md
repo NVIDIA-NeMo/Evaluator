@@ -39,7 +39,7 @@ nemo-evaluator-launcher ls tasks | grep -E "(safety|aegis|garak)"
 
 # Run Aegis safety evaluation
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["aegis_v2"]' \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -47,7 +47,7 @@ nemo-evaluator-launcher run \
 
 # Run safety and security evaluation
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o 'evaluation.tasks=["aegis_v2", "garak"]'
 ```
@@ -104,7 +104,7 @@ For specialized container workflows:
 
 ```bash
 # Pull and run Safety Harness container
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/safety-harness:{{ docker_compose_latest }} bash
+docker run --rm -it nvcr.io/nvidia/eval-factory/safety-harness:{{ docker_compose_latest }} bash
 
 # Inside container - set environment
 export MY_API_KEY=your_api_key_here
@@ -121,7 +121,7 @@ nemo-evaluator run_eval \
     --overrides 'config.params.limit_samples=10,config.params.temperature=0.7'
 
 # For security testing with Garak
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/garak:{{ docker_compose_latest }} bash
+docker run --rm -it nvcr.io/nvidia/eval-factory/garak:{{ docker_compose_latest }} bash
 ```
 :::
 ::::

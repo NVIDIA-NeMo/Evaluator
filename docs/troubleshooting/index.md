@@ -26,7 +26,7 @@ nemo-evaluator-launcher --version
 nemo-evaluator-launcher ls tasks
 
 # Validate configuration without running
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct --dry-run
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct --dry-run
 
 # Check recent runs
 nemo-evaluator-launcher ls runs

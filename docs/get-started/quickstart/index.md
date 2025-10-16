@@ -33,13 +33,13 @@ Unified CLI experience with automated container management, built-in orchestrati
 Programmatic control with full adapter features, custom configurations, and direct API access for integration into existing workflows.
 :::
 
-:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` NeMo Framework Container
+<!-- :::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` NeMo Framework Container
 :link: gs-quickstart-nemo-fw
 :link-type: ref
 **For NeMo Framework Users**
 
 End-to-end training and evaluation of large language models (LLMs).
-:::
+::: -->
 
 :::{grid-item-card} {octicon}`container;1.5em;sd-mr-1` Container Direct
 :link: gs-quickstart-container
@@ -68,13 +68,14 @@ If you prefer to host your own models:
 ```bash
 # vLLM (recommended for self-hosting)
 pip install vllm
+export HF_TOKEN=hf_your-token-here
 vllm serve meta-llama/Llama-3.1-8B-Instruct --port 8080
 
 # Or use other serving frameworks
 # TRT-LLM, NeMo Framework, etc.
 ```
 
-See {ref}`deployment-overview` for detailed deployment options.
+<!-- See {ref}`deployment-overview` for detailed deployment options. -->
 
 ## Validation and Troubleshooting
 
@@ -84,6 +85,7 @@ Before running full evaluations, verify your setup:
 
 ```bash
 # 1. Test your endpoint connectivity
+export NGC_API_KEY=nvapi-...
 curl -X POST "https://integrate.api.nvidia.com/v1/chat/completions" \
     -H "Authorization: Bearer $NGC_API_KEY" \
     -H "Content-Type: application/json" \
@@ -95,13 +97,13 @@ curl -X POST "https://integrate.api.nvidia.com/v1/chat/completions" \
 
 # 2. Run a dry-run to validate configuration
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     --dry-run
 
 # 3. Run a minimal test with very few samples
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o +config.params.limit_samples=1 \
     -o execution.output_dir=./test_results
@@ -139,7 +141,7 @@ docker pull nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
 
 ```bash
 # Enable debug logging
-export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
+export LOG_LEVEL=DEBUG
 
 # Check available evaluation types
 nemo-evaluator-launcher ls tasks
@@ -178,7 +180,7 @@ After completing your quickstart:
 nemo-evaluator-launcher ls tasks
 
 # Run with limited samples for quick testing
-nemo-evaluator-launcher run --config-dir examples --config-name local_limit_samples
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_limit_samples
 ```
 :::
 
@@ -204,11 +206,12 @@ nemo-evaluator-launcher export <invocation_id> --dest local --format json
 :sync: scale
 
 ```bash
+cd packages/nemo-evaluator-launcher
 # Run on Slurm cluster
-nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name slurm_llama_3_1_8b_instruct
 
 # Run on Lepton AI
-nemo-evaluator-launcher run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name lepton_vllm_llama_3_1_8b_instruct
 ```
 :::
 
@@ -219,7 +222,7 @@ nemo-evaluator-launcher run --config-dir examples --config-name lepton_vllm_llam
 | Task | Command |
 |------|---------|
 | List benchmarks | `nemo-evaluator-launcher ls tasks` |
-| Run evaluation | `nemo-evaluator-launcher run --config-dir examples --config-name <config>` |
+| Run evaluation | `nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name <config>` |
 | Check status | `nemo-evaluator-launcher status <invocation_id>` |
 | Debug job | `nemo-evaluator-launcher debug <invocation_id>` |
 | Export results | `nemo-evaluator-launcher export <invocation_id> --dest local --format json` |
@@ -232,6 +235,6 @@ nemo-evaluator-launcher run --config-dir examples --config-name lepton_vllm_llam
 
 NeMo Evaluator Launcher <launcher>
 NeMo Evaluator Core <core>
-NeMo Framework Container <nemo-fw>
+<!-- NeMo Framework Container <nemo-fw> -->
 Container Direct <container>
 ```

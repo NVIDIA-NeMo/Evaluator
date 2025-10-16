@@ -49,7 +49,7 @@ Use NVIDIA Build, OpenAI API, or other cloud providers for instant availability.
 ```bash
 # Point launcher to your deployed model
 nemo-evaluator-launcher run \
-    --config-dir examples \
+    --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=http://your-endpoint:8080/v1/completions \
     -o target.api_endpoint.model_id=your-model-name \

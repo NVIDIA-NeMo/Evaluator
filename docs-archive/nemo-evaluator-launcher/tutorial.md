@@ -27,7 +27,7 @@ Hosted endpoints (fastest):
   nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
-    -o target.api_endpoint.api_key_name=API_KEY
+    -o target.api_endpoint.api_key_name=NGC_API_KEY
   ```
 
   For NVIDIA APIs, see [Setting up API Keys](https://docs.omniverse.nvidia.com/guide-sdg/latest/setup.html#preview-and-set-up-an-api-key).
@@ -83,7 +83,7 @@ The `examples/` directory contains ready-to-use configurations:
 
 Run a local evaluation (requires [Docker](https://www.docker.com/)):
 ```bash
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
 ```
 
 See guides for other backends:
@@ -118,7 +118,7 @@ nemo-evaluator-launcher run --config-dir my_configs --config-name my_evaluation
 You can override configuration values from the command line (`-o` can be used multiple times, the notation follows [Hydra override syntax](https://hydra.cc/docs/advanced/override_grammar/basic/)):
 
 ```bash
-nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
   -o execution.output_dir=my_results \
   -o target.api_endpoint.model_id=my_model
 ```

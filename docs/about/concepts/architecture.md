@@ -101,7 +101,7 @@ Use the launcher to handle both model deployment and evaluation:
 
 ```bash
 nemo-evaluator-launcher run \
-  --config-dir examples \
+  --config-dir packages/nemo-evaluator-launcher/examples \
   --config-name local_llama_3_1_8b_instruct \
   -o deployment.checkpoint_path=/path/to/model \
   -o 'evaluation.tasks=["mmlu_pro", "gsm8k"]'
@@ -113,7 +113,7 @@ Point the launcher to an existing API endpoint:
 
 ```bash
 nemo-evaluator-launcher run \
-  --config-dir examples \
+  --config-dir packages/nemo-evaluator-launcher/examples \
   --config-name local_llama_3_1_8b_instruct \
   -o target.api_endpoint.url=http://localhost:8080/v1/completions \
   -o deployment.type=none
