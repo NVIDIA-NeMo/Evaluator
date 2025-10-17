@@ -77,6 +77,7 @@ class InfoCmd:
         const=".",  # Use current dir as default when flag is present without value
         help="Copy artifacts to local directory (current dir if not specified)",
     )
+
     def execute(self) -> None:
         # show version
         VersionCmd().execute()
@@ -188,8 +189,12 @@ class InfoCmd:
         print("  - Use --logs to show log locations.")
         print("  - Use --artifacts to show artifact locations.")
         print("  - Use --config to show stored job configuration (YAML).")
-        print("  - Use --copy-logs [DIR] to copy logs to a local directory (works for local and remote jobs).")
-        print("  - Use --copy-artifacts [DIR] to copy artifacts to a local directory (works for local and remote jobs).")
+        print(
+            "  - Use --copy-logs [DIR] to copy logs to a local directory (works for local and remote jobs)."
+        )
+        print(
+            "  - Use --copy-artifacts [DIR] to copy artifacts to a local directory (works for local and remote jobs)."
+        )
 
     def _show_job_info(self, job_id: str, job_data: JobData) -> None:
         logger.info("Job", job_id=job_id)
@@ -320,8 +325,6 @@ class InfoCmd:
         print("Artifact locations:\n")
         for job_id, job_data in jobs:
             paths = _EXPORT_HELPER.get_job_paths(job_data)
-            cfg_exec_type = ((job_data.config or {}).get("execution") or {}).get("type")
-            exec_type = (job_data.executor or cfg_exec_type or "").lower()
             artifacts_list = _get_artifacts_file_list()
 
             if paths.get("storage_type") == "remote_ssh":
@@ -453,12 +456,19 @@ class InfoCmd:
 def _get_artifacts_file_list() -> list[tuple[str, str]]:
     """Files generated in artifacts/."""
     return [
-        ("results.yml", "Benchmark scores, task results and resolved run configuration."),
-        ("eval_factory_metrics.json", "Response + runtime stats (latency, tokens count, memory)"),
+        (
+            "results.yml",
+            "Benchmark scores, task results and resolved run configuration.",
+        ),
+        (
+            "eval_factory_metrics.json",
+            "Response + runtime stats (latency, tokens count, memory)",
+        ),
         ("metrics.json", "Harness/benchmark metric and configuration"),
         ("report.html", "Request-Response Pairs samples in HTML format (if enabled)"),
         ("report.json", "Report data in json format, if enabled"),
     ]
+
 
 def _get_log_file_list(executor_type: str) -> list[tuple[str, str]]:
     """Files actually generated in logs/ - executor-specific."""
@@ -466,10 +476,19 @@ def _get_log_file_list(executor_type: str) -> list[tuple[str, str]]:
     if et == "slurm":
         return [
             ("client-{SLURM_JOB_ID}.out", "Evaluation container/process output"),
-            ("slurm-{SLURM_JOB_ID}.out", "SLURM scheduler stdout/stderr (batch submission, export steps)."),
-            ("server-{SLURM_JOB_ID}.out", "Model server logs when a deployment is used."),
+            (
+                "slurm-{SLURM_JOB_ID}.out",
+                "SLURM scheduler stdout/stderr (batch submission, export steps).",
+            ),
+            (
+                "server-{SLURM_JOB_ID}.out",
+                "Model server logs when a deployment is used.",
+            ),
         ]
     # local executor
     return [
-        ("stdout.log", "Complete evaluation output (timestamps, resolved config, run/export messages)."),
+        (
+            "stdout.log",
+            "Complete evaluation output (timestamps, resolved config, run/export messages).",
+        ),
     ]
