@@ -153,7 +153,7 @@ You can check:
 - Individual job status: `nemo-evaluator-launcher status <job_id>`
 - All jobs in an invocation: `nemo-evaluator-launcher status <invocation_id>`
 
-The status command returns JSON output with job status information.
+The status command returns normal output or (if `--json` provided) enhanced output with job status information.
 
 ### 4. Get Detailed Job Information
 
