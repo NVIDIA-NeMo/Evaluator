@@ -168,3 +168,7 @@ class Cmd:
             for idx, task in enumerate(tasks):
                 job_id = f"{invocation_id}.{idx}"
                 print(f"  nemo-evaluator-launcher kill {job_id}  # {task.name}")
+            print(
+                "to print all jobs: nemo-evaluator-launcher ls runs"
+                "\n  (--since 1d or --since 6h for time span, see --help)"
+            )
