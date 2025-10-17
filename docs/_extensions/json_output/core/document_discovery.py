@@ -74,8 +74,39 @@ class DocumentDiscovery:
         if metadata.get("hidden") or metadata.get("draft"):
             return True
 
+        # Skip documents marked as orphan
+        if metadata.get("orphan"):
+            return True
+
+        # Skip documents whose parent directory index is marked as orphan
+        if self.is_under_orphaned_section(docname):
+            return True
+
         # Skip documents that wouldn't generate JSON
         return not self.json_builder.should_generate_json(docname)
+
+    def is_under_orphaned_section(self, docname: str) -> bool:
+        """Check if a document is under a directory whose index is marked as orphan."""
+        # Split the document path into parts
+        parts = docname.split("/")
+
+        # Check each parent directory level for an orphaned index
+        for i in range(len(parts)):
+            # Build the parent path
+            parent_parts = parts[:i + 1]
+            parent_index = "/".join(parent_parts) + "/index"
+
+            # Skip if this would be the document itself
+            if parent_index == docname:
+                continue
+
+            # Check if this parent index exists and is orphaned
+            if parent_index in self.env.all_docs:
+                parent_metadata = self.json_builder.extract_document_metadata(parent_index)
+                if parent_metadata.get("orphan"):
+                    return True
+
+        return False
 
     def get_all_documents_recursive(self) -> list[str]:
         """Get all non-hidden documents recursively."""
