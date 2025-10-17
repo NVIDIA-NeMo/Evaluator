@@ -27,7 +27,6 @@ from .system_message_interceptor import SystemMessageInterceptor
 __all__ = [
     "CachingInterceptor",
     "EndpointInterceptor",
-    "MegatronEndpointInterceptor",
     "PayloadParamsModifierInterceptor",
     "ProgressTrackingInterceptor",
     "RaiseClientErrorInterceptor",
