@@ -751,7 +751,6 @@ def _open_master_connection(
     suffix: str = "",
 ) -> str | None:
     ssh_command = f"ssh -MNf -S {socket} {username}{suffix}@{hostname}"
-    print(f"SSH Command to be executed: {ssh_command}")
     completed_process = subprocess.run(
         args=shlex.split(ssh_command), capture_output=True
     )
