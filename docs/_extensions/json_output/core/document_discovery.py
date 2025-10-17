@@ -1,3 +1,16 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Document discovery and filtering functionality."""
 
 from typing import TYPE_CHECKING
@@ -17,7 +30,9 @@ class DocumentDiscovery:
         self.app = app
         self.env = app.env
         self.config = app.config
-        self.json_builder = json_builder  # Reference to main builder for metadata access
+        self.json_builder = (
+            json_builder  # Reference to main builder for metadata access
+        )
 
     def get_child_documents(self, parent_docname: str) -> list[str]:
         """Get all child documents for a parent directory."""
@@ -90,15 +105,42 @@ class DocumentDiscovery:
 
         # Define document type checks in priority order
         type_checks = [
-            ("tutorial", lambda: "tutorial" in docname_lower or "tutorial" in title_lower),
+            (
+                "tutorial",
+                lambda: "tutorial" in docname_lower or "tutorial" in title_lower,
+            ),
             ("guide", lambda: "guide" in docname_lower or "guide" in title_lower),
-            ("reference", lambda: "reference" in docname_lower or "api" in docname_lower),
-            ("example", lambda: "example" in docname_lower or "examples" in docname_lower),
-            ("troubleshooting", lambda: "troubleshoot" in docname_lower or "faq" in docname_lower),
-            ("installation", lambda: "install" in docname_lower or "setup" in docname_lower),
+            (
+                "reference",
+                lambda: "reference" in docname_lower or "api" in docname_lower,
+            ),
+            (
+                "example",
+                lambda: "example" in docname_lower or "examples" in docname_lower,
+            ),
+            (
+                "troubleshooting",
+                lambda: "troubleshoot" in docname_lower or "faq" in docname_lower,
+            ),
+            (
+                "installation",
+                lambda: "install" in docname_lower or "setup" in docname_lower,
+            ),
             ("overview", lambda: docname.endswith("/index")),
-            ("tutorial", lambda: any(word in content_lower for word in ["$ ", "pip install", "docker run", "git clone"])),
-            ("reference", lambda: any(word in content_lower for word in ["class ", "def ", "function", "method", "parameter"])),
+            (
+                "tutorial",
+                lambda: any(
+                    word in content_lower
+                    for word in ["$ ", "pip install", "docker run", "git clone"]
+                ),
+            ),
+            (
+                "reference",
+                lambda: any(
+                    word in content_lower
+                    for word in ["class ", "def ", "function", "method", "parameter"]
+                ),
+            ),
         ]
 
         # Check each type in order and return the first match

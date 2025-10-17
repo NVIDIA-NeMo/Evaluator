@@ -1,3 +1,16 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Configuration management for JSON output extension."""
 
 from typing import Any
@@ -92,7 +105,9 @@ def _validate_core_settings(settings: dict[str, Any]) -> None:
     valid_modes = ["disabled", "metadata_only", "full"]
     mode = settings.get("main_index_mode", "full")
     if mode not in valid_modes:
-        logger.warning(f"Invalid main_index_mode '{mode}'. Using 'full'. Valid options: {valid_modes}")
+        logger.warning(
+            f"Invalid main_index_mode '{mode}'. Using 'full'. Valid options: {valid_modes}"
+        )
         settings["main_index_mode"] = "full"
 
     # Validate exclude patterns
@@ -121,11 +136,25 @@ def _validate_content_limits(settings: dict[str, Any]) -> None:
 def _validate_boolean_settings(settings: dict[str, Any]) -> None:
     """Validate boolean configuration settings."""
     bool_settings = [
-        "enabled", "verbose", "parallel", "include_children", "include_child_content",
-        "extract_code_blocks", "extract_links", "extract_images", "extract_keywords",
-        "include_doc_type", "include_section_path", "minify_json", "separate_content",
-        "cache_aggressive", "lazy_extraction", "incremental_build", "fast_text_extraction",
-        "skip_complex_parsing", "filter_search_clutter",
+        "enabled",
+        "verbose",
+        "parallel",
+        "include_children",
+        "include_child_content",
+        "extract_code_blocks",
+        "extract_links",
+        "extract_images",
+        "extract_keywords",
+        "include_doc_type",
+        "include_section_path",
+        "minify_json",
+        "separate_content",
+        "cache_aggressive",
+        "lazy_extraction",
+        "incremental_build",
+        "fast_text_extraction",
+        "skip_complex_parsing",
+        "filter_search_clutter",
     ]
 
     defaults = get_default_settings()
@@ -147,7 +176,11 @@ def _validate_integer_settings(settings: dict[str, Any]) -> None:
     for setting, (min_val, max_val) in int_settings.items():
         if setting in settings:
             value = settings[setting]
-            if not isinstance(value, int) or value < min_val or (max_val and value > max_val):
+            if (
+                not isinstance(value, int)
+                or value < min_val
+                or (max_val and value > max_val)
+            ):
                 logger.warning(
                     f"Setting '{setting}' must be integer between {min_val} and {max_val or 'unlimited'}. Using default."
                 )
@@ -158,7 +191,11 @@ def _validate_parallel_workers(settings: dict[str, Any]) -> None:
     """Validate parallel_workers setting (can be 'auto' or integer)."""
     if "parallel_workers" in settings:
         value = settings["parallel_workers"]
-        if value != "auto" and (not isinstance(value, int) or value < 1 or value > MAX_PARALLEL_WORKERS):
-            logger.warning(f"Setting 'parallel_workers' must be 'auto' or integer between 1 and {MAX_PARALLEL_WORKERS}. Using default.")
+        if value != "auto" and (
+            not isinstance(value, int) or value < 1 or value > MAX_PARALLEL_WORKERS
+        ):
+            logger.warning(
+                f"Setting 'parallel_workers' must be 'auto' or integer between 1 and {MAX_PARALLEL_WORKERS}. Using default."
+            )
             defaults = get_default_settings()
             settings["parallel_workers"] = defaults["parallel_workers"]

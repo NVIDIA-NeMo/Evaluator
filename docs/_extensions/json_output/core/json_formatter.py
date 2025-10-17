@@ -1,3 +1,16 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """JSON data formatting and structure building."""
 
 from datetime import datetime, timezone
@@ -26,16 +39,24 @@ class JSONFormatter:
         self.config = app.config
         self.json_builder = json_builder
 
-    def add_metadata_fields(self, data: dict[str, Any], metadata: dict[str, Any]) -> None:
+    def add_metadata_fields(
+        self, data: dict[str, Any], metadata: dict[str, Any]
+    ) -> None:
         """Add all metadata fields to JSON data structure."""
         # Basic metadata fields
         if metadata.get("description"):
             data["description"] = metadata["description"]
         if metadata.get("tags"):
-            data["tags"] = metadata["tags"] if isinstance(metadata["tags"], list) else [metadata["tags"]]
+            data["tags"] = (
+                metadata["tags"]
+                if isinstance(metadata["tags"], list)
+                else [metadata["tags"]]
+            )
         if metadata.get("categories"):
             data["categories"] = (
-                metadata["categories"] if isinstance(metadata["categories"], list) else [metadata["categories"]]
+                metadata["categories"]
+                if isinstance(metadata["categories"], list)
+                else [metadata["categories"]]
             )
         if metadata.get("author"):
             data["author"] = metadata["author"]
@@ -43,7 +64,9 @@ class JSONFormatter:
         # Rich frontmatter taxonomy fields
         if metadata.get("personas"):
             data["personas"] = (
-                metadata["personas"] if isinstance(metadata["personas"], list) else [metadata["personas"]]
+                metadata["personas"]
+                if isinstance(metadata["personas"], list)
+                else [metadata["personas"]]
             )
         if metadata.get("difficulty"):
             data["difficulty"] = metadata["difficulty"]
@@ -54,17 +77,27 @@ class JSONFormatter:
         if metadata.get("only"):
             data["only"] = metadata["only"]
 
-    def build_child_json_data(self, docname: str, include_content: bool | None = None) -> dict[str, Any]:
+    def build_child_json_data(
+        self, docname: str, include_content: bool | None = None
+    ) -> dict[str, Any]:
         """Build optimized JSON data for child documents (LLM/search focused)."""
         if include_content is None:
             include_content = get_setting(self.config, "include_child_content", True)
 
         # Get document title
-        title = self.env.titles.get(docname, nodes.title()).astext() if docname in self.env.titles else ""
+        title = (
+            self.env.titles.get(docname, nodes.title()).astext()
+            if docname in self.env.titles
+            else ""
+        )
 
         # Extract metadata for tags/categories
         metadata = self.json_builder.extract_document_metadata(docname)
-        content_data = self.json_builder.extract_document_content(docname) if include_content else {}
+        content_data = (
+            self.json_builder.extract_document_content(docname)
+            if include_content
+            else {}
+        )
 
         # Build optimized data structure for search engines
         data = {
@@ -85,7 +118,11 @@ class JSONFormatter:
     def build_json_data(self, docname: str) -> dict[str, Any]:
         """Build optimized JSON data structure for LLM/search use cases."""
         # Get document title
-        title = self.env.titles.get(docname, nodes.title()).astext() if docname in self.env.titles else ""
+        title = (
+            self.env.titles.get(docname, nodes.title()).astext()
+            if docname in self.env.titles
+            else ""
+        )
 
         # Extract metadata and content
         metadata = self.json_builder.extract_document_metadata(docname)
@@ -111,12 +148,19 @@ class JSONFormatter:
             data["summary"] = content_data["summary"]
 
         if content_data.get("headings"):
-            data["headings"] = [{"text": h["text"], "level": h["level"]} for h in content_data["headings"]]
+            data["headings"] = [
+                {"text": h["text"], "level": h["level"]}
+                for h in content_data["headings"]
+            ]
 
         return data
 
     def _add_content_fields(
-        self, data: dict[str, Any], content_data: dict[str, Any], docname: str, title: str
+        self,
+        data: dict[str, Any],
+        content_data: dict[str, Any],
+        docname: str,
+        title: str,
     ) -> None:
         """Add content-related fields to JSON data."""
         self._add_primary_content(data, content_data)
@@ -125,7 +169,9 @@ class JSONFormatter:
         self._add_optional_features(data, content_data)
         self._add_document_metadata(data, content_data, docname, title)
 
-    def _add_primary_content(self, data: dict[str, Any], content_data: dict[str, Any]) -> None:
+    def _add_primary_content(
+        self, data: dict[str, Any], content_data: dict[str, Any]
+    ) -> None:
         """Add primary content with length limits."""
         if not content_data.get("content"):
             return
@@ -139,9 +185,13 @@ class JSONFormatter:
         data["content"] = content
         data["format"] = content_data.get("format", "text")
         data["content_length"] = len(content_data["content"])  # Original length
-        data["word_count"] = len(content_data["content"].split()) if content_data["content"] else 0
+        data["word_count"] = (
+            len(content_data["content"].split()) if content_data["content"] else 0
+        )
 
-    def _add_summary_content(self, data: dict[str, Any], content_data: dict[str, Any]) -> None:
+    def _add_summary_content(
+        self, data: dict[str, Any], content_data: dict[str, Any]
+    ) -> None:
         """Add summary with length limits."""
         if not content_data.get("summary"):
             return
@@ -154,41 +204,65 @@ class JSONFormatter:
 
         data["summary"] = summary
 
-    def _add_headings_content(self, data: dict[str, Any], content_data: dict[str, Any]) -> None:
+    def _add_headings_content(
+        self, data: dict[str, Any], content_data: dict[str, Any]
+    ) -> None:
         """Add headings for structure/navigation."""
         if not content_data.get("headings"):
             return
 
         # Simplify headings for LLM use
         data["headings"] = [
-            {"text": h["text"], "level": h["level"], "id": h.get("id", "")} for h in content_data["headings"]
+            {"text": h["text"], "level": h["level"], "id": h.get("id", "")}
+            for h in content_data["headings"]
         ]
         # Add searchable heading text
         data["headings_text"] = " ".join([h["text"] for h in content_data["headings"]])
 
-    def _add_optional_features(self, data: dict[str, Any], content_data: dict[str, Any]) -> None:
+    def _add_optional_features(
+        self, data: dict[str, Any], content_data: dict[str, Any]
+    ) -> None:
         """Add optional search enhancement features."""
-        if get_setting(self.config, "extract_keywords", True) and "keywords" in content_data:
+        if (
+            get_setting(self.config, "extract_keywords", True)
+            and "keywords" in content_data
+        ):
             keywords_max_count = get_setting(self.config, "keywords_max_count", 50)
             keywords = (
-                content_data["keywords"][:keywords_max_count] if keywords_max_count > 0 else content_data["keywords"]
+                content_data["keywords"][:keywords_max_count]
+                if keywords_max_count > 0
+                else content_data["keywords"]
             )
             data["keywords"] = keywords
 
-        if get_setting(self.config, "extract_code_blocks", True) and "code_blocks" in content_data:
+        if (
+            get_setting(self.config, "extract_code_blocks", True)
+            and "code_blocks" in content_data
+        ):
             data["code_blocks"] = content_data["code_blocks"]
 
         if get_setting(self.config, "extract_links", True) and "links" in content_data:
             data["links"] = content_data["links"]
 
-        if get_setting(self.config, "extract_images", True) and "images" in content_data:
+        if (
+            get_setting(self.config, "extract_images", True)
+            and "images" in content_data
+        ):
             data["images"] = content_data["images"]
 
-    def _add_document_metadata(self, data: dict[str, Any], content_data: dict[str, Any], docname: str, title: str) -> None:
+    def _add_document_metadata(
+        self,
+        data: dict[str, Any],
+        content_data: dict[str, Any],
+        docname: str,
+        title: str,
+    ) -> None:
         """Add document type and section metadata."""
         if get_setting(self.config, "include_doc_type", True):
             discovery = DocumentDiscovery(self.app, self.json_builder)
-            data["doc_type"] = discovery.detect_document_type(docname, title, content_data.get("content", ""))
+            data["doc_type"] = discovery.detect_document_type(
+                docname, title, content_data.get("content", "")
+            )
 
         if get_setting(self.config, "include_section_path", True):
             discovery = DocumentDiscovery(self.app, self.json_builder)

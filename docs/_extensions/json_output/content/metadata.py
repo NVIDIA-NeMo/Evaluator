@@ -1,3 +1,16 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Metadata and frontmatter extraction functions."""
 
 from typing import Any
@@ -37,7 +50,9 @@ def extract_document_metadata(
                 metadata.update(frontmatter)
 
         metadata_cache[docname] = metadata
-        logger.debug(f"Successfully extracted metadata for {docname}: {len(metadata)} items")
+        logger.debug(
+            f"Successfully extracted metadata for {docname}: {len(metadata)} items"
+        )
 
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Error extracting metadata from {docname}: {e}")
@@ -46,7 +61,9 @@ def extract_document_metadata(
     return metadata_cache[docname]
 
 
-def extract_frontmatter(file_path: str, frontmatter_cache: dict) -> dict[str, Any] | None:
+def extract_frontmatter(
+    file_path: str, frontmatter_cache: dict
+) -> dict[str, Any] | None:
     """Extract YAML frontmatter from markdown files."""
     if file_path in frontmatter_cache:
         return frontmatter_cache[file_path]

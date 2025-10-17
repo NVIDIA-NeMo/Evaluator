@@ -1,3 +1,16 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Hierarchy building for complex document structures like main index."""
 
 from typing import TYPE_CHECKING, Any
@@ -23,7 +36,7 @@ class HierarchyBuilder:
         app: Sphinx,
         json_builder: "JSONOutputBuilder",
         document_discovery: "DocumentDiscovery",
-        json_formatter: "JSONFormatter"
+        json_formatter: "JSONFormatter",
     ):
         self.app = app
         self.config = app.config
@@ -34,7 +47,9 @@ class HierarchyBuilder:
     def add_children_to_data(self, data: dict[str, Any], docname: str) -> None:
         """Add children documents to data structure for directory indexes."""
         include_children = get_setting(self.config, "include_children", True)
-        if not include_children or not (docname == "index" or docname.endswith("/index")):
+        if not include_children or not (
+            docname == "index" or docname.endswith("/index")
+        ):
             return
 
         if docname == "index":
@@ -56,7 +71,9 @@ class HierarchyBuilder:
         else:  # 'full' mode - comprehensive search index
             self._build_full_search_index(data, docname, max_main_index_docs)
 
-    def _build_metadata_only_index(self, data: dict[str, Any], docname: str, max_docs: int) -> None:
+    def _build_metadata_only_index(
+        self, data: dict[str, Any], docname: str, max_docs: int
+    ) -> None:
         """Build metadata-only search index for main index page."""
         logger.info("Building metadata-only search index for main index page...")
         all_docs = self.document_discovery.get_all_documents_recursive()
@@ -65,22 +82,34 @@ class HierarchyBuilder:
         if max_docs > 0:
             all_docs = all_docs[:max_docs]
             if len(self.document_discovery.get_all_documents_recursive()) > max_docs:
-                logger.info(f"Limited to {max_docs} documents (set max_main_index_docs to 0 for no limit)")
+                logger.info(
+                    f"Limited to {max_docs} documents (set max_main_index_docs to 0 for no limit)"
+                )
 
         data["children"] = []
-        data["total_documents"] = len(self.document_discovery.get_all_documents_recursive())
+        data["total_documents"] = len(
+            self.document_discovery.get_all_documents_recursive()
+        )
 
         for child_docname in all_docs:
             if child_docname != docname:  # Don't include self
                 try:
-                    child_data = self.json_formatter.build_child_json_data(child_docname, include_content=False)
+                    child_data = self.json_formatter.build_child_json_data(
+                        child_docname, include_content=False
+                    )
                     data["children"].append(child_data)
                 except Exception as e:  # noqa: BLE001
-                    logger.warning(f"Failed to build child metadata for {child_docname}: {e}")
+                    logger.warning(
+                        f"Failed to build child metadata for {child_docname}: {e}"
+                    )
 
-        logger.info(f"Generated metadata-only search index with {len(data['children'])} documents")
+        logger.info(
+            f"Generated metadata-only search index with {len(data['children'])} documents"
+        )
 
-    def _build_full_search_index(self, data: dict[str, Any], docname: str, max_docs: int) -> None:
+    def _build_full_search_index(
+        self, data: dict[str, Any], docname: str, max_docs: int
+    ) -> None:
         """Build comprehensive search index for main index page."""
         logger.info("Building comprehensive search index for main index page...")
         all_docs = self.document_discovery.get_all_documents_recursive()
@@ -89,20 +118,30 @@ class HierarchyBuilder:
         if max_docs > 0:
             all_docs = all_docs[:max_docs]
             if len(self.document_discovery.get_all_documents_recursive()) > max_docs:
-                logger.info(f"Limited to {max_docs} documents (set max_main_index_docs to 0 for no limit)")
+                logger.info(
+                    f"Limited to {max_docs} documents (set max_main_index_docs to 0 for no limit)"
+                )
 
         data["children"] = []
-        data["total_documents"] = len(self.document_discovery.get_all_documents_recursive())
+        data["total_documents"] = len(
+            self.document_discovery.get_all_documents_recursive()
+        )
 
         for child_docname in all_docs:
             if child_docname != docname:  # Don't include self
                 try:
-                    child_data = self.json_formatter.build_child_json_data(child_docname)
+                    child_data = self.json_formatter.build_child_json_data(
+                        child_docname
+                    )
                     data["children"].append(child_data)
                 except Exception as e:  # noqa: BLE001
-                    logger.warning(f"Failed to build child data for {child_docname}: {e}")
+                    logger.warning(
+                        f"Failed to build child data for {child_docname}: {e}"
+                    )
 
-        logger.info(f"Generated comprehensive search index with {len(data['children'])} documents")
+        logger.info(
+            f"Generated comprehensive search index with {len(data['children'])} documents"
+        )
 
     def _handle_directory_index(self, data: dict[str, Any], docname: str) -> None:
         """Handle directory index: gets direct children."""

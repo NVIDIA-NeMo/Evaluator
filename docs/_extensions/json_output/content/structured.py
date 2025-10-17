@@ -1,3 +1,16 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Structured content extraction functions for headings, code blocks, links, and images."""
 
 import re
@@ -28,7 +41,9 @@ def extract_headings(doctree: nodes.document) -> list[dict[str, Any]]:
                     parent = parent.parent
 
                 # Generate ID (similar to how Sphinx does it)
-                heading_id = re.sub(r"[^\w\-_]", "", title_text.lower().replace(" ", "-"))
+                heading_id = re.sub(
+                    r"[^\w\-_]", "", title_text.lower().replace(" ", "-")
+                )
 
                 headings.append({"text": title_text, "level": level, "id": heading_id})
 
@@ -37,7 +52,9 @@ def extract_headings(doctree: nodes.document) -> list[dict[str, Any]]:
         if node.parent and not isinstance(node.parent, nodes.section):
             title_text = node.astext().strip()
             if title_text:
-                heading_id = re.sub(r"[^\w\-_]", "", title_text.lower().replace(" ", "-"))
+                heading_id = re.sub(
+                    r"[^\w\-_]", "", title_text.lower().replace(" ", "-")
+                )
                 headings.append({"text": title_text, "level": 1, "id": heading_id})
 
     # Remove duplicates while preserving order
@@ -184,10 +201,7 @@ def _build_image_info(attrs: dict[str, Any]) -> dict[str, Any] | None:
     if not image_src:
         return None
 
-    image_info = {
-        "src": image_src,
-        "alt": attrs.get("alt", "")
-    }
+    image_info = {"src": image_src, "alt": attrs.get("alt", "")}
 
     # Add optional attributes
     for attr_name in ["title", "width", "height"]:

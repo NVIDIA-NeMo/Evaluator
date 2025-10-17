@@ -1,3 +1,16 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """
 Enhanced Search Extension for Sphinx
 Provides enhanced search page functionality without interfering with default search
@@ -15,7 +28,9 @@ from sphinx.util import logging
 logger = logging.getLogger(__name__)
 
 
-def bundle_javascript_modules(extension_dir: str, output_path: str, minify: bool = False) -> None:
+def bundle_javascript_modules(
+    extension_dir: str, output_path: str, minify: bool = False
+) -> None:
     """Bundle all JavaScript modules into a single file."""
 
     # Define the module loading order (dependencies first)
@@ -48,9 +63,12 @@ def bundle_javascript_modules(extension_dir: str, output_path: str, minify: bool
                 content = f.read()
 
             # Remove module loading code since everything is bundled
-            content = content.replace("await this.loadModules();", "// Modules bundled - no loading needed")
             content = content.replace(
-                "await this.loadModuleWithFallback(name)", "// Modules bundled - no loading needed"
+                "await this.loadModules();", "// Modules bundled - no loading needed"
+            )
+            content = content.replace(
+                "await this.loadModuleWithFallback(name)",
+                "// Modules bundled - no loading needed",
             )
 
             # Simple minification if requested
@@ -78,7 +96,9 @@ def bundle_javascript_modules(extension_dir: str, output_path: str, minify: bool
 
     file_size = os.path.getsize(output_path)
     size_kb = file_size / 1024
-    logger.info(f"Enhanced Search JavaScript bundle created: {output_path} ({size_kb:.1f}KB)")
+    logger.info(
+        f"Enhanced Search JavaScript bundle created: {output_path} ({size_kb:.1f}KB)"
+    )
 
 
 def add_template_path(_app: Sphinx, config: Config) -> None:
@@ -89,7 +109,9 @@ def add_template_path(_app: Sphinx, config: Config) -> None:
     if os.path.exists(templates_path):
         # Ensure templates_path is a list
         if not isinstance(config.templates_path, list):
-            config.templates_path = list(config.templates_path) if config.templates_path else []
+            config.templates_path = (
+                list(config.templates_path) if config.templates_path else []
+            )
 
         # Add our template path if not already present
         if templates_path not in config.templates_path:
@@ -125,7 +147,10 @@ def copy_assets(app: Sphinx, exc: Exception | None) -> None:
         os.makedirs(modules_static_dir, exist_ok=True)
         for module_file in os.listdir(modules_dir):
             if module_file.endswith(".js"):
-                shutil.copy2(os.path.join(modules_dir, module_file), os.path.join(modules_static_dir, module_file))
+                shutil.copy2(
+                    os.path.join(modules_dir, module_file),
+                    os.path.join(modules_static_dir, module_file),
+                )
         logger.info("Enhanced search modules copied")
 
 

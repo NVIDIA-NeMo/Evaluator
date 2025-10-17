@@ -1,3 +1,16 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Main content extraction orchestration."""
 
 from typing import Any
@@ -6,7 +19,12 @@ from docutils import nodes
 from sphinx.environment import BuildEnvironment
 from sphinx.util import logging
 
-from .structured import extract_code_blocks, extract_headings, extract_images, extract_links
+from .structured import (
+    extract_code_blocks,
+    extract_headings,
+    extract_images,
+    extract_links,
+)
 from .text import (
     clean_text_for_llm,
     extract_clean_text_content,
@@ -19,7 +37,9 @@ from .text import (
 logger = logging.getLogger(__name__)
 
 
-def extract_document_content(env: BuildEnvironment, docname: str, content_cache: dict) -> dict[str, Any]:
+def extract_document_content(
+    env: BuildEnvironment, docname: str, content_cache: dict
+) -> dict[str, Any]:
     """Extract content from document optimized for LLM/search use cases."""
     if docname in content_cache:
         return content_cache[docname]
@@ -63,7 +83,10 @@ def _get_extraction_settings(env: BuildEnvironment) -> dict[str, bool]:
 
 
 def _extract_main_content(
-    doctree: nodes.document, env: BuildEnvironment, docname: str, settings: dict[str, bool]
+    doctree: nodes.document,
+    env: BuildEnvironment,
+    docname: str,
+    settings: dict[str, bool],
 ) -> dict[str, Any]:
     """Extract main text content with appropriate strategy."""
     content = {}
@@ -72,7 +95,9 @@ def _extract_main_content(
         if settings["fast_extraction"]:
             content["content"] = extract_text_content(doctree)
             content["format"] = "text"
-            logger.debug(f"Fast text extraction for {docname}: {len(content['content'])} chars")
+            logger.debug(
+                f"Fast text extraction for {docname}: {len(content['content'])} chars"
+            )
         else:
             content = _extract_with_fallbacks(doctree, env, docname)
 
@@ -87,18 +112,24 @@ def _extract_main_content(
     return content
 
 
-def _extract_with_fallbacks(doctree: nodes.document, env: BuildEnvironment, docname: str) -> dict[str, Any]:
+def _extract_with_fallbacks(
+    doctree: nodes.document, env: BuildEnvironment, docname: str
+) -> dict[str, Any]:
     """Extract content with multiple fallback strategies."""
     # Try clean text first
     clean_text = extract_clean_text_content(doctree)
     if clean_text:
-        logger.debug(f"Extracted clean text content for {docname}: {len(clean_text)} chars")
+        logger.debug(
+            f"Extracted clean text content for {docname}: {len(clean_text)} chars"
+        )
         return {"content": clean_text, "format": "text"}
 
     # Fallback to raw markdown
     raw_markdown = extract_raw_markdown(env, docname)
     if raw_markdown:
-        logger.debug(f"Fallback to raw markdown for {docname}: {len(raw_markdown)} chars")
+        logger.debug(
+            f"Fallback to raw markdown for {docname}: {len(raw_markdown)} chars"
+        )
         return {"content": raw_markdown, "format": "markdown"}
 
     # Final fallback to basic text
@@ -113,11 +144,16 @@ def _apply_content_filtering(content: dict[str, Any], docname: str) -> None:
     filtered_length = len(content["content"])
 
     if original_length != filtered_length:
-        logger.debug(f"Content filtering for {docname}: {original_length} -> {filtered_length} chars")
+        logger.debug(
+            f"Content filtering for {docname}: {original_length} -> {filtered_length} chars"
+        )
 
 
 def _extract_additional_features(
-    content: dict[str, Any], doctree: nodes.document, docname: str, settings: dict[str, bool]
+    content: dict[str, Any],
+    doctree: nodes.document,
+    docname: str,
+    settings: dict[str, bool],
 ) -> None:
     """Extract additional features based on extraction settings."""
     if settings["lazy_extraction"]:
@@ -140,7 +176,9 @@ def _extract_additional_features(
         content["keywords"] = []
 
 
-def _extract_basic_features(content: dict[str, Any], doctree: nodes.document, docname: str) -> None:
+def _extract_basic_features(
+    content: dict[str, Any], doctree: nodes.document, docname: str
+) -> None:
     """Extract basic features: headings and summary."""
     features = [
         ("headings", extract_headings, []),
@@ -158,7 +196,9 @@ def _extract_basic_features(content: dict[str, Any], doctree: nodes.document, do
             content[feature_name] = default_value
 
 
-def _extract_complex_features(content: dict[str, Any], doctree: nodes.document, docname: str) -> None:
+def _extract_complex_features(
+    content: dict[str, Any], doctree: nodes.document, docname: str
+) -> None:
     """Extract complex features: code blocks, links, and images."""
     features = [
         ("code_blocks", extract_code_blocks),
@@ -179,7 +219,9 @@ def _extract_complex_features(content: dict[str, Any], doctree: nodes.document, 
 def _extract_keywords_feature(content: dict[str, Any], docname: str) -> None:
     """Extract keywords from content and headings."""
     try:
-        content["keywords"] = extract_keywords(content.get("content", ""), content.get("headings", []))
+        content["keywords"] = extract_keywords(
+            content.get("content", ""), content.get("headings", [])
+        )
         logger.debug(f"Extracted {len(content['keywords'])} keywords from {docname}")
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Error extracting keywords from {docname}: {e}")
