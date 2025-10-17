@@ -143,7 +143,6 @@ Use the launcher whenever you want:
 
 About NeMo Evaluator Launcher <self>
 CLI Reference (nemo-evaluator-launcher) <cli>
-Quickstart <quickstart>
 Executors <configuration/executors/index>
 Configuration <configuration/index>
 Exporters <exporters/index>

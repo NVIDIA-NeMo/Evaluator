@@ -9,7 +9,7 @@ See common concepts and commands in {ref}`executors-overview`.
 ## Prerequisites
 
 - Docker
-- Python environment with the NeMo Evaluator Launcher CLI available (install the launcher by following {ref}`gs-quickstart-launcher`)
+- Python environment with the NeMo Evaluator Launcher CLI available (install the launcher by following {ref}`gs-install`)
 
 ## Quick Start
 
