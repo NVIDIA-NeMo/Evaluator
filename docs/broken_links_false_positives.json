@@ -1,9 +1,2 @@
-[
-  {
-    "filename": "deployment/bring-your-own-endpoint/hosted-services.md",
-    "lineno": 158,
-    "uri": "https://platform.openai.com/docs/models",
-    "reason": "OpenAI platform uses bot protection that returns 403 for automated link checkers, but the link is valid"
-  }
-]
+{"filename": "deployment/bring-your-own-endpoint/hosted-services.md", "lineno": 158, "uri": "https://platform.openai.com/docs/models", "reason": "OpenAI platform uses bot protection that returns 403 for automated link checkers, but the link is valid"}
 
