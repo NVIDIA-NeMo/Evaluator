@@ -49,6 +49,18 @@ def parse_output(evaluation: Evaluation) -> EvaluationResult:
 def evaluate(
     eval_cfg: EvaluationConfig, target_cfg: EvaluationTarget
 ) -> EvaluationResult:
+    """
+    Run an evaluation using configuration objects.
+
+    Args:
+        eval_cfg: Evaluation configuration object containing output directory,
+                  parameters, and evaluation type
+        target_cfg: Target configuration object containing API endpoint details
+                    and adapter configuration
+
+    Returns:
+        EvaluationResult: Evaluation results and metadata
+    """
     run_config = {
         "config": eval_cfg.model_dump(),
         "target": target_cfg.model_dump(),

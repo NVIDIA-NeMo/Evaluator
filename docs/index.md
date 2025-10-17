@@ -1,162 +1,410 @@
-# NeMo Evaluator Documentation
+(template-home)=
 
-NeMo Evaluator is an open-source platform for robust, reproducible, and scalable evaluation of Large Language Models. It enables you to run hundreds of benchmarks across popular evaluation harnesses against any OpenAI-compatible model API. Evaluations execute in open-source Docker containers for auditable and trustworthy results. The platform's containerized architecture allows for the rapid integration of public benchmarks and private datasets.
+# NeMo Evaluator SDK Documentation
 
-[Tutorial](./docs/nemo-evaluator-launcher/tutorial.md) | [Supported Benchmarks](#supported-benchmarks-and-evaluation-harnesses) | [Configuration Examples](https://github.com/NVIDIA-NeMo/Eval/blob/main/packages/nemo-evaluator-launcher/examples) | [Contribution Guide](https://github.com/NVIDIA-NeMo/Eval/blob/main/CONTRIBUTING.md)
+Welcome to the NeMo Evaluator SDK Documentation.
 
-## Key Pillars
+````{div} sd-d-flex-row
+```{button-ref} get-started/install
+:ref-type: doc
+:color: primary
+:class: sd-rounded-pill sd-mr-3
 
-NeMo Evaluator is built on four core principles to provide a reliable and versatile evaluation experience:
-
-- **Reproducibility by Default**: All configurations, random seeds, and software provenance are captured automatically for auditable and repeatable evaluations.
-- **Scale Anywhere**: Run evaluations from a local machine to a Slurm cluster or cloud-native backends like Lepton AI without changing your workflow.
-- **State-of-the-Art Benchmarking**: Access a comprehensive suite of over 100 benchmarks from 18 popular open-source evaluation harnesses. See the full list of [Supported benchmarks and evaluation harnesses](#supported-benchmarks-and-evaluation-harnesses).
-- **Extensible and Customizable**: Integrate new evaluation harnesses, add custom benchmarks with proprietary data, and define custom result exporters for existing MLOps tooling.
-
-## How It Works: Launcher and Core Engine
-
-The platform consists of two main components:
-
-- **`nemo-evaluator` ([The Evaluation Core Engine](./docs/nemo-evaluator/index.md))**: A Python library that manages the interaction between an evaluation harness and the model being tested.
-- **`nemo-evaluator-launcher` ([The CLI and Orchestration](./docs/nemo-evaluator-launcher/index.md))**: The primary user interface and orchestration layer. It handles configuration, selects the execution environment, and launches the appropriate container to run the evaluation.
-
-Most users typically interact with `nemo-evaluator-launcher`, which serves as a universal gateway to different benchmarks and harnesses. However, it is also possible to interact directly with `nemo-evaluator` by following this [guide](./docs/nemo-evaluator/workflows/using-containers.md).
-
-```{mermaid}
-graph TD
-    A[User] --> B{NeMo Evaluator Launcher};
-    B -- " " --> C{Local};
-    B -- " " --> D{Slurm};
-    B -- " " --> E{Lepton};
-    subgraph Execution Environment
-        C -- "Launches Container" --> F[Evaluation Container];
-        D -- "Launches Container" --> F;
-        E -- "Launches Container" --> F;
-    end
-    subgraph F[Evaluation Container]
-        G[Nemo Evaluator] -- " Runs " --> H[Evaluation Harness]
-    end
-    H -- "Sends Requests To" --> I[🤖 Model Endpoint];
-    I -- "Returns Responses" --> H;
+Install
 ```
 
-## Quickstart
+```{button-ref} get-started/quickstart/launcher
+:ref-type: doc
+:color: secondary
+:class: sd-rounded-pill
 
-Get your first evaluation result in minutes. This guide uses your local machine to run a small benchmark against an OpenAI API-compatible endpoint.
-
-## 1. Install the Launcher
-
-The launcher is the only package required to get started.
-
-```bash
-pip install nemo-evaluator-launcher
+Quickstart Evaluations
 ```
+````
 
-## 2. Set Up Your Model Endpoint
+---
 
-NeMo Evaluator works with any model that exposes an OpenAI-compatible endpoint. For this quickstart, we will use the OpenAI API.
+## Introduction to NeMo Evaluator SDK
 
-**What is an OpenAI-compatible endpoint?** A server that exposes /v1/chat/completions and /v1/completions endpoints, matching the OpenAI API specification.
+Discover how NeMo Evaluator SDK works and explore its key features.
 
-**Options for model endpoints:**
+::::{grid} 1 2 2 2
+:gutter: 1 1 1 2
 
-- **Hosted endpoints** (fastest): Use ready-to-use hosted models from providers like [build.nvidia.com](https://build.nvidia.com) that expose OpenAI-compatible APIs with no hosting required.
-- **Self-hosted options**: Host your own models using tools like NVIDIA NIM, vLLM, or TensorRT-LLM for full control over your evaluation environment.
+:::{grid-item-card} {octicon}`info;1.5em;sd-mr-1` About NeMo Evaluator SDK
+:link: about/index
+:link-type: doc
+Explore the NeMo Evaluator Core and Launcher architecture
+:::
 
-For detailed setup instructions including self-hosted configurations, see the [tutorial guide](./docs/nemo-evaluator-launcher/tutorial.md).
+:::{grid-item-card} {octicon}`star;1.5em;sd-mr-1` Key Features
+:link: about/key-features
+:link-type: doc
+Discover NeMo Evaluator SDK's powerful capabilities.
+:::
 
-**Getting an NGC API Key for build.nvidia.com:**
+:::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Concepts
+:link: about/concepts/index
+:link-type: doc
+Master core concepts powering NeMo Evaluator SDK.
+:::
 
-To use out-of-the-box build.nvidia.com APIs, you need an API key:
-
-1. Register an account at [build.nvidia.com](https://build.nvidia.com).
-2. In the Setup menu under Keys/Secrets, generate an API key.
-3. Set the environment variable by executing `export NGC_API_KEY=<YOUR_API_KEY>`.
-
-## 3. Run Your First Evaluation
-
-Run a small evaluation on your local machine. The launcher automatically pulls the correct container and executes the benchmark. The list of benchmarks is directly configured in the YAML file.
-
-**Configuration Examples**: Explore ready-to-use configuration files in [`packages/nemo-evaluator-launcher/examples/`](./packages/nemo-evaluator-launcher/examples/) for local, Lepton, and Slurm deployments with various model hosting options (vLLM, NIM, hosted endpoints).
-
-Once you have the example configuration file, either by cloning this repository or downloading one directly such as `local_nvidia_nemotron_nano_9b_v2.yaml`, you can run the following command:
-
-
-```bash
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_nvidia_nemotron_nano_9b_v2 --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
-```
-
-After running this command, you will see a `job_id`, which can be used to track the job and its results. All logs will be available in your `<YOUR_OUTPUT_LOCAL_DIR>`.
-
-## 4. Check Your Results
-
-Results, logs, and run configurations are saved locally. Inspect the status of the evaluation job by using the corresponding `job_id`:
-
-```bash
-nemo-evaluator-launcher status <job_id_or_invocation_id>
-```
-
-/// note | About invocation and job IDs
-It is possible to use short version of IDs in `status` command, for example `abcd` instead of a full `abcdef0123456` or `ab.0` instead of `abcdef0123456.0`, so long as there are no collisions. This is a syntactic sugar allowing for a slightly easier usage.
-///
-
-## Next Steps
-
-- List all supported benchmarks:
-
-  ```bash
-  nemo-evaluator-launcher ls tasks
-  ```
-
-- Explore the [Supported Benchmarks](#supported-benchmarks-and-evaluation-harnesses) to see all available harnesses and benchmarks.
-- Scale up your evaluations using the [Slurm Executor](./docs/nemo-evaluator-launcher/executors/slurm.md) or [Lepton Executor](./docs/nemo-evaluator-launcher/executors/lepton.md).
-- Learn to evaluate self-hosted models in the extended [Tutorial guide](./docs/nemo-evaluator-launcher/tutorial.md) for nemo-evaluator-launcher.
-- Customize your workflow with [Custom Exporters](./docs/nemo-evaluator-launcher/exporters/overview.md) or by evaluating with [proprietary data](./docs/nemo-evaluator/extending/framework-definition-file.md).
-
-## Supported Benchmarks and Evaluation Harnesses
-
-NeMo Evaluator Launcher provides pre-built evaluation containers for different evaluation harnesses through the NVIDIA NGC catalog. Each harness supports a variety of benchmarks, which can then be called via `nemo-evaluator`. This table provides a list of benchmark names per harness. A more detailed list of task names can be found in the [list of NGC containers](./docs/nemo-evaluator/index.md#ngc-containers).
-
-| Container | Description | NGC Catalog | Latest Tag | Supported benchmarks |
-|-----------|-------------|-------------|------------| ------------|
-| **agentic_eval** | Agentic AI evaluation framework | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/agentic_eval) | `25.08.1` | Agentic Eval Topic Adherence, Agentic Eval Tool Call, Agentic Eval Goal and Answer Accuracy |
-| **bfcl** | Function calling | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl) | `25.08.1` | BFCL v2 and v3 |
-| **bigcode-evaluation-harness** | Code generation evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bigcode-evaluation-harness) | `25.08.1` | MBPP, MBPP-Plus, HumanEval, HumanEval+, Multiple (cpp, cs, d, go, java, jl, js, lua, php, pl, py, r, rb, rkt, rs, scala, sh, swift, ts) |
-| **garak** | Safety and vulnerability testing | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/garak) | `25.08.1` | Garak |
-| **helm** | Holistic evaluation framework | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/helm) | `25.08.1` | MedHelm |
-| **hle** | Academic knowledge and problem solving | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/hle) | `25.08.1` | HLE |
-| **ifbench** | Instruction following | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/ifbench) | `25.08.1` | IFBench |
-| **livecodebench** | Coding | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/livecodebench) | `25.08.1` | LiveCodeBench (v1-v6, 0724_0125, 0824_0225) |
-| **lm-evaluation-harness** | Language model benchmarks | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/lm-evaluation-harness) | `25.08.1` | ARC Challenge (also multilingual), GSM8K, HumanEval, HumanEval+, MBPP, MINERVA MMMLU-Pro, RACE, TruthfulQA, AGIEval, BBH, BBQ, CSQA, Frames, Global MMMLU, GPQA-D, HellaSwag (also multilingual), IFEval, MGSM, MMMLU, MMMLU-Pro, MMMLU-ProX (de, es, fr, it, ja), MMLU-Redux, MUSR, OpenbookQA, Piqa, Social IQa, TruthfulQA, WikiLingua, WinoGrande|
-| **mmath** | Multilingual math reasoning | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mmath) | `25.08.1` | EN, ZH, AR, ES, FR, JA, KO, PT, TH, VI |
-| **mtbench** | Multi-turn conversation evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench) | `25.08.1` | MT-Bench |
-| **rag_retriever_eval** | RAG system evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/rag_retriever_eval) | `25.08.1` | RAG, Retriever |
-| **safety-harness** | Safety and bias evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/safety-harness) | `25.08.1` | Aegis v2, BBQ, WildGuard |
-| **scicode** | Coding for scientific research | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/scicode) | `25.08.1` | SciCode |
-| **simple-evals** | Common evaluation tasks | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/simple-evals) | `25.08.1` | GPQA-D, MATH-500, AIME 24 & 25, HumanEval, MGSM, MMMLU, MMMLU-Pro, MMMLU-lite (AR, BN, DE, EN, ES, FR, HI, ID, IT, JA, KO, MY, PT, SW, YO, ZH), SimpleQA |
-| **tooltalk** | Tool usage evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk) | `25.08.1` | ToolTalk |
-| **vlmevalkit** | Vision-language model evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit) | `25.08.1` | AI2D, ChartQA, OCRBench, SlideVQA |
-
-## Contribution Guide
-
-We welcome community contributions. Please see our [Contribution Guide](https://github.com/NVIDIA-NeMo/Eval/blob/main/CONTRIBUTING.md) for instructions on submitting pull requests, reporting issues, and suggesting features.
-
-::::{toctree}
-:hidden:
-Home <self>
+:::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Release Notes
+:link: about/release-notes/index
+:link-type: doc
+Release notes for the NeMo Evaluator SDK.
+:::
 ::::
 
-<!-- ::::{toctree}
-:hidden:
-:caption: About NeMo Curator
-:maxdepth: 1
+## Choose a Quickstart
+
+Select the evaluation approach that best fits your workflow and technical requirements.
+
+::::{grid} 1 2 2 2
+:gutter: 1 1 1 2
+
+:::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` Launcher
+:link: gs-quickstart-launcher
+:link-type: ref
+
+Use the CLI to orchestrate evaluations with automated container management.
++++
+{bdg-secondary}`cli`
+:::
+
+:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Core
+:link: gs-quickstart-core
+:link-type: ref
+
+Get direct Python API access with full adapter features, custom configurations, and workflow integration capabilities.
+
++++
+{bdg-secondary}`api`
+:::
+
+:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Container
+:link: gs-quickstart-container
+:link-type: ref
+
+Gain full control over the container environment with volume mounting, environment variable management, and integration into Docker-based CI/CD pipelines.
+
++++
+{bdg-secondary}`Docker`
+:::
+
+::::
+
+<!-- ## Evaluation Workflows
+
+Explore different evaluation methodologies tailored to specific model capabilities and use cases.
+
+::::{grid} 1 2 2 2
+:gutter: 1 1 1 2
+
+:::{grid-item-card} {octicon}`pencil;1.5em;sd-mr-1` Text Generation
+:link: text-gen
+:link-type: ref
+Evaluate models through natural language generation for academic benchmarks, reasoning tasks, and general knowledge assessment.
+
+:::
+
+:::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` Log-Probability
+:link: log-probability
+:link-type: ref
+Assess model confidence and uncertainty using log-probabilities for multiple-choice scenarios without text generation.
+
+:::
+
+:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Code Generation
+:link: code-generation
+:link-type: ref
+Evaluate programming capabilities through code generation, completion, and Algorithmic Problem Solving.
+
+:::
+
+:::{grid-item-card} {octicon}`shield;1.5em;sd-mr-1` Safety & Security
+:link: safety-security
+:link-type: ref
+Test AI safety, alignment, and security vulnerabilities using specialized safety harnesses and probing techniques.
+
+:::
+
+:::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Function Calling
+:link: function-calling
+:link-type: ref
+Assess tool use capabilities, API calling accuracy, and structured output generation for agent-like behaviors.
+
+:::
 
 :::: -->
 
-::::{toctree}
-:hidden:
-:caption: Libraries
-:maxdepth: 1
-NeMo Evaluator Launcher <nemo-evaluator-launcher/index.md>
-NeMo Evaluator <nemo-evaluator/index.md>
+<!-- ## Model Deployment
+
+Choose your deployment strategy based on your infrastructure needs and operational preferences.
+
+::::{grid} 1 2 2 2
+:gutter: 1 1 1 2
+
+:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Launcher-Orchestrated
+:link: launcher-orchestrated-deployment
+:link-type: ref
+Let the launcher handle model deployment and evaluation orchestration automatically. Recommended for most users.
+:::
+
+:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Bring-Your-Own-Endpoint
+:link: bring-your-own-endpoint
+:link-type: ref
+Deploy and manage model serving yourself, then point NeMo Evaluator to your endpoint for full infrastructure control.
+:::
+
+:::: -->
+
+<!-- ### Evaluation Adapters
+
+Customize model behavior during evaluation with interceptors for preprocessing, post-processing, and response modification.
+
+::::{grid} 1 2 2 2
+:gutter: 1 1 1 2
+
+:::{grid-item-card} Usage
+:link: adapters-usage
+:link-type: ref
+Learn how to enable adapters and pass `AdapterConfig` to `evaluate`.
+:::
+
+:::{grid-item-card} Reasoning Cleanup
+:link: adapters-recipe-reasoning
+:link-type: ref
+Strip intermediate reasoning tokens before scoring.
+:::
+
+:::{grid-item-card} Custom System Prompt (Chat)
+:link: adapters-recipe-system-prompt
+:link-type: ref
+Enforce a standard system prompt for chat endpoints.
+:::
+
+:::{grid-item-card} Request Parameter Modification
+:link: adapters-recipe-response-shaping
+:link-type: ref
+Standardize request parameters across endpoint providers.
+:::
+
+:::{grid-item-card} Logging Caps
+:link: adapters-recipe-logging
+:link-type: ref
+Control logging volume for requests and responses.
+:::
+
+:::{grid-item-card} Configuration
+:link: adapters-configuration
+:link-type: ref
+View available `AdapterConfig` options and defaults.
+:::
+
+:::: -->
+
+## Libraries
+
+### Launcher
+
+Orchestrate evaluations across different execution backends with unified CLI and programmatic interfaces.
+
+::::{grid} 1 2 2 2
+:gutter: 1 1 1 2
+
+:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Configuration
+:link: libraries/nemo-evaluator-launcher/configuration/index
+:link-type: doc
+
+Complete configuration schema, examples, and advanced patterns for all use cases.
++++
+{bdg-secondary}`Setup`
+:::
+
+:::{grid-item-card} {octicon}`server;1.5em;sd-mr-1` Executors
+:link: libraries/nemo-evaluator-launcher/configuration/executors/index
+:link-type: doc
+
+Run evaluations on local machines, HPC clusters (Slurm), or cloud platforms (Lepton AI).
++++
+{bdg-secondary}`Execution`
+:::
+
+:::{grid-item-card} {octicon}`upload;1.5em;sd-mr-1` Exporters
+:link: libraries/nemo-evaluator-launcher/exporters/index
+:link-type: doc
+
+Export results to MLflow, Weights & Biases, Google Sheets, or local files with one command.
++++
+{bdg-secondary}`Export`
+:::
+
+:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Python API
+:link: libraries/nemo-evaluator-launcher/api
+:link-type: doc
+
+Programmatic access for notebooks, automation, and custom evaluation workflows.
++++
+{bdg-secondary}`API`
+:::
+
+:::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` CLI Reference
+:link: libraries/nemo-evaluator-launcher/cli
+:link-type: doc
+
+Complete command-line interface documentation with examples and usage patterns.
++++
+{bdg-secondary}`CLI`
+:::
+
 ::::
+
+### Core
+
+Access the core evaluation engine directly with containerized benchmarks and flexible adapter architecture.
+
+::::{grid} 1 2 2 2
+:gutter: 1 1 1 2
+
+:::{grid-item-card} {octicon}`workflow;1.5em;sd-mr-1` Workflows
+:link: libraries/nemo-evaluator/workflows/index
+:link-type: doc
+
+Use the evaluation engine through Python API, containers, or programmatic workflows.
++++
+{bdg-secondary}`Integration`
+:::
+
+:::{grid-item-card} {octicon}`container;1.5em;sd-mr-1` Containers
+:link: libraries/nemo-evaluator/containers/index
+:link-type: doc
+
+Ready-to-use evaluation containers with curated benchmarks and frameworks.
++++
+{bdg-secondary}`Containers`
+:::
+
+:::{grid-item-card} {octicon}`plug;1.5em;sd-mr-1` Interceptors
+:link: libraries/nemo-evaluator/interceptors/index
+:link-type: doc
+
+Configure request/response interceptors for logging, caching, and custom processing.
++++
+{bdg-secondary}`Customization`
+:::
+
+:::{grid-item-card} {octicon}`log;1.5em;sd-mr-1` Logging
+:link: libraries/nemo-evaluator/logging
+:link-type: doc
+
+Comprehensive logging setup for evaluation runs, debugging, and audit trails.
++++
+{bdg-secondary}`Monitoring`
+:::
+
+:::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Extending
+:link: libraries/nemo-evaluator/extending/index
+:link-type: doc
+
+Add custom benchmarks and frameworks by defining configuration and interfaces.
++++
+{bdg-secondary}`Extension`
+:::
+
+:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` API Reference
+:link: apidocs/index
+:link-type: doc
+
+Python API documentation for programmatic evaluation control and integration.
++++
+{bdg-secondary}`API`
+:::
+
+::::
+
+:::{toctree}
+:hidden:
+Home <self>
+:::
+
+:::{toctree}
+:caption: About
+:hidden:
+
+Overview <about/index>
+Key Features <about/key-features>
+Concepts <about/concepts/index>
+Release Notes <about/release-notes/index>
+:::
+
+:::{toctree}
+:caption: Get Started
+:hidden:
+
+Getting Started <get-started/index>
+Install SDK <get-started/install>
+Quickstart <get-started/quickstart/index>
+:::
+
+<!-- :::{toctree}
+:caption: Tutorials
+:hidden:
+
+About Tutorials <tutorials/index>
+::: -->
+
+<!-- :::{toctree}
+:caption: Evaluation
+:hidden:
+
+About Model Evaluation <evaluation/index>
+Run Evals <evaluation/run-evals/index>
+Custom Task Configuration <evaluation/custom-tasks>
+Benchmark Catalog <evaluation/benchmarks>
+::: -->
+
+<!-- :::{toctree}
+:caption: NeMo Framework
+:hidden:
+
+About NeMo Framework <nemo-fw/index>
+::: -->
+
+<!-- :::{toctree}
+:caption: Model Deployment
+:hidden:
+
+About Model Deployment <deployment/index>
+Launcher-Orchestrated <deployment/launcher-orchestrated/index>
+Bring-Your-Own-Endpoint <deployment/bring-your-own-endpoint/index>
+Evaluation Adapters <deployment/adapters/index>
+::: -->
+
+:::{toctree}
+:caption: Libraries
+:hidden:
+
+About NeMo Evaluator Libraries <libraries/index>
+Launcher <libraries/nemo-evaluator-launcher/index>
+Core <libraries/nemo-evaluator/index>
+:::
+
+<!-- :::{toctree}
+:caption: Troubleshooting
+:hidden:
+
+About Troubleshooting <troubleshooting/index>
+Setup & Installation <troubleshooting/setup-issues/index>
+Runtime & Execution <troubleshooting/runtime-issues/index>
+::: -->
+
+<!-- :::{toctree}
+:caption: References
+:hidden:
+
+About References <references/index>
+Eval Parameters <evaluation/parameters>
+Eval Utils <references/evaluation-utils>
+API Documentation <apidocs/index.rst>
+::: -->
