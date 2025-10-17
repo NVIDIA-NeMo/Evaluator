@@ -107,7 +107,7 @@ Step-by-step guides for different evaluation scenarios using launcher, core API,
 :::
 
 :::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` Launcher Workflows
-:link: ../libraries/nemo-evaluator-launcher/quickstart
+:link: ../get-started/quickstart/launcher
 :link-type: doc
 Unified CLI for running evaluations across local, Slurm, and cloud backends with built-in result export.
 :::

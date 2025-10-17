@@ -9,11 +9,11 @@ See common concepts and commands in {ref}`executors-overview`.
 ## Prerequisites
 
 - Docker
-- Python environment with the NeMo Evaluator Launcher CLI available (install the launcher by following {ref}`launcher-quickstart`)
+- Python environment with the NeMo Evaluator Launcher CLI available (install the launcher by following {ref}`gs-quickstart-launcher`)
 
 ## Quick Start
 
-For detailed step-by-step instructions on evaluating existing endpoints, refer to the {ref}`launcher-quickstart` guide, which covers:
+For detailed step-by-step instructions on evaluating existing endpoints, refer to the {ref}`gs-quickstart-launcher` guide, which covers:
 
 - Choosing models and tasks
 - Setting up API keys (for NVIDIA APIs, see [Setting up API Keys](https://docs.omniverse.nvidia.com/guide-sdg/latest/setup.html#preview-and-set-up-an-api-key))

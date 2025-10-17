@@ -13,7 +13,7 @@ Welcome to the NeMo Evaluator SDK Documentation.
 Install
 ```
 
-```{button-ref} libraries/nemo-evaluator-launcher/quickstart
+```{button-ref} get-started/quickstart/launcher
 :ref-type: doc
 :color: secondary
 :class: sd-rounded-pill
@@ -214,7 +214,7 @@ Orchestrate evaluations across different execution backends with unified CLI and
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Quickstart
-:link: libraries/nemo-evaluator-launcher/quickstart
+:link: get-started/quickstart/launcher
 :link-type: doc
 
 Step-by-step guide to install, configure, and run your first evaluation in minutes.
@@ -322,7 +322,7 @@ Add custom benchmarks and frameworks by defining configuration and interfaces.
 :::
 
 :::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` API Reference
-:link: libraries/nemo-evaluator/api
+:link: libraries/nemo-evaluator/workflows/python-api
 :link-type: doc
 
 Python API documentation for programmatic evaluation control and integration.

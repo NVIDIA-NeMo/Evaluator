@@ -485,6 +485,6 @@ nemo-evaluator-launcher --help
 ## See Also
 
 - [Python API](api.md) - Programmatic interface
-- {ref}`launcher-quickstart` - Getting started guide
+- {ref}`gs-quickstart-launcher` - Getting started guide
 - {ref}`executors-overview` - Execution backends
 - {ref}`exporters-overview` - Export destinations

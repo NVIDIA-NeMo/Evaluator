@@ -32,7 +32,7 @@ Complete configuration reference with examples for all executors and deployment 
 :::
 
 :::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Evaluation Utilities
-:link: ../libraries/nemo-evaluator/api
+:link: ../libraries/nemo-evaluator/workflows/python-api
 :link-type: doc
 Reference for evaluation discovery, health checking, and utility functions.
 :::
