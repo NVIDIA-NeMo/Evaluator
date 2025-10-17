@@ -51,7 +51,7 @@ evaluation:
     config.params.temperature: 0.6
     config.params.top_p: 0.95
     config.params.max_new_tokens: 65536
-    config.params.parallelism: 8
+    config.params.parallelism: 1
     config.params.request_timeout: 3600
     target.api_endpoint.adapter_config.use_reasoning: true # if true, strips reasoning tokens
     target.api_endpoint.adapter_config.use_system_prompt: true
