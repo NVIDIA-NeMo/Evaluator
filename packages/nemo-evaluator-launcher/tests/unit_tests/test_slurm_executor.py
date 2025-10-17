@@ -1778,7 +1778,7 @@ class TestSlurmExecutorSystemCalls:
         # Mock _read_files_from_remote to return job ID lists
         monkeypatch.setattr(
             "nemo_evaluator_launcher.executors.slurm.executor._read_files_from_remote",
-            lambda paths, user, host, sock: ["123 456 789", "111 222"],
+            lambda paths, user, host, sock, suffix="": ["123 456 789", "111 222"],
             raising=True,
         )
 
@@ -1841,7 +1841,7 @@ class TestSlurmExecutorSystemCalls:
         # Mock file reads
         monkeypatch.setattr(
             "nemo_evaluator_launcher.executors.slurm.executor._read_files_from_remote",
-            lambda paths, user, host, sock: ["100", "config: test"]
+            lambda paths, user, host, sock, suffix="": ["100", "config: test"]
             if "progress" in str(paths[0])
             else ["framework_name: test\nconfig:\n  type: test"],
             raising=True,
@@ -1868,7 +1868,7 @@ class TestSlurmExecutorSystemCalls:
         from nemo_evaluator_launcher.executors.slurm.executor import _get_progress
 
         # Mock file reads - return progress and valid config, but no dataset size
-        def mock_read_files(paths, user, host, sock):
+        def mock_read_files(paths, user, host, sock, suffix=""):
             if "progress" in str(paths[0]):
                 return ["150"]
             else:  # run_config paths
@@ -1903,7 +1903,7 @@ class TestSlurmExecutorSystemCalls:
         # Mock file reads to return empty strings (files not found)
         monkeypatch.setattr(
             "nemo_evaluator_launcher.executors.slurm.executor._read_files_from_remote",
-            lambda paths, user, host, sock: [""],
+            lambda paths, user, host, sock, suffix="": [""],
             raising=True,
         )
 

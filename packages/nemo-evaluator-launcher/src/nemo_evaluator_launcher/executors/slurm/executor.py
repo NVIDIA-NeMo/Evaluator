@@ -140,33 +140,39 @@ class SlurmExecutor(BaseExecutor):
                 return invocation_id
 
             socket = str(Path(tmpdirname) / "socket")
+            suffix = cfg.execution.get("suffix", "")
             socket_or_none = _open_master_connection(
                 username=cfg.execution.username,
                 hostname=cfg.execution.hostname,
                 socket=socket,
+                suffix=suffix,
             )
             _make_remote_execution_output_dir(
                 dirpath=cfg.execution.output_dir,
                 username=cfg.execution.username,
                 hostname=cfg.execution.hostname,
                 socket=socket_or_none,
+                suffix=suffix,
             )
             _rsync_upload_rundirs(
                 local_sources=[local_rundir],
                 remote_target=cfg.execution.output_dir,
                 username=cfg.execution.username,
                 hostname=cfg.execution.hostname,
+                suffix=suffix,
             )
             slurm_job_ids = _sbatch_remote_runsubs(
                 remote_runsub_paths=remote_runsub_paths,
                 username=cfg.execution.username,
                 hostname=cfg.execution.hostname,
                 socket=socket_or_none,
+                suffix=suffix,
             )
             _close_master_connection(
                 username=cfg.execution.username,
                 hostname=cfg.execution.hostname,
                 socket=socket_or_none,
+                suffix=suffix,
             )
 
             # save launched jobs metadata
@@ -186,6 +192,7 @@ class SlurmExecutor(BaseExecutor):
                             "remote_rundir_path": str(remote_runsub_path.parent),
                             "hostname": cfg.execution.hostname,
                             "username": cfg.execution.username,
+                            "suffix": suffix,
                             "eval_image": eval_images[idx],
                         },
                         config=OmegaConf.to_object(cfg),
@@ -232,6 +239,7 @@ class SlurmExecutor(BaseExecutor):
                 username=job_data.data["username"],
                 hostname=job_data.data["hostname"],
                 job_id_to_execdb_id={slurm_job_id: id},
+                suffix=job_data.data.get("suffix", ""),
             )[0]
         except Exception:
             return ExecutionStatus(id=id, state=ExecutionState.FAILED)
@@ -243,6 +251,7 @@ class SlurmExecutor(BaseExecutor):
         job_id_to_execdb_id = {}
         username = None
         hostname = None
+        suffix = ""
 
         for job_id, job_data in jobs.items():
             if job_data.executor != "slurm":
@@ -256,6 +265,7 @@ class SlurmExecutor(BaseExecutor):
                 job_id_to_execdb_id[slurm_job_id] = job_id
                 username = job_data.data.get("username")
                 hostname = job_data.data.get("hostname")
+                suffix = job_data.data.get("suffix", "")
 
         if not slurm_job_ids or not remote_rundir_paths or not username or not hostname:
             return [
@@ -270,6 +280,7 @@ class SlurmExecutor(BaseExecutor):
                 username=username,
                 hostname=hostname,
                 job_id_to_execdb_id=job_id_to_execdb_id,
+                suffix=suffix,
             )
         except Exception:
             return [
@@ -284,6 +295,7 @@ class SlurmExecutor(BaseExecutor):
         username: str,
         hostname: str,
         job_id_to_execdb_id: dict,
+        suffix: str = "",
     ) -> List[ExecutionStatus]:
         with tempfile.TemporaryDirectory() as tmpdirname:
             socket = str(Path(tmpdirname) / "socket")
@@ -291,6 +303,7 @@ class SlurmExecutor(BaseExecutor):
                 username=username,
                 hostname=hostname,
                 socket=socket,
+                suffix=suffix,
             )
             # get slurm job status for initial jobs:
             slurm_jobs_status = _query_slurm_jobs_status(
@@ -298,6 +311,7 @@ class SlurmExecutor(BaseExecutor):
                 username=username,
                 hostname=hostname,
                 socket=socket_or_none,
+                suffix=suffix,
             )
             # handle slurm status for autoresumed jobs:
             autoresumed_slurm_job_ids = _read_autoresumed_slurm_job_ids(
@@ -306,6 +320,7 @@ class SlurmExecutor(BaseExecutor):
                 username=username,
                 hostname=hostname,
                 socket=socket_or_none,
+                suffix=suffix,
             )
             latest_slurm_job_ids = {
                 slurm_job_id: slurm_job_id_list[-1]
@@ -317,6 +332,7 @@ class SlurmExecutor(BaseExecutor):
                 username=username,
                 hostname=hostname,
                 socket=socket_or_none,
+                suffix=suffix,
             )
             # get progress:
             progress_list = _get_progress(
@@ -324,11 +340,13 @@ class SlurmExecutor(BaseExecutor):
                 username=username,
                 hostname=hostname,
                 socket=socket_or_none,
+                suffix=suffix,
             )
             _close_master_connection(
                 username=username,
                 hostname=hostname,
                 socket=socket_or_none,
+                suffix=suffix,
             )
         statuses = []
         for i, slurm_job_id in enumerate(slurm_job_ids):
@@ -408,6 +426,7 @@ class SlurmExecutor(BaseExecutor):
             username=job_data.data.get("username"),
             hostname=job_data.data.get("hostname"),
             socket=job_data.data.get("socket"),
+            suffix=job_data.data.get("suffix", ""),
         )
 
         # Mark job as killed in database if kill succeeded
@@ -714,8 +733,9 @@ def _open_master_connection(
     username: str,
     hostname: str,
     socket: str,
+    suffix: str = "",
 ) -> str | None:
-    ssh_command = f"ssh -MNf -S {socket} {username}@{hostname}"
+    ssh_command = f"ssh -MNf -S {socket} {username}{suffix}@{hostname}"
     completed_process = subprocess.run(
         args=shlex.split(ssh_command), capture_output=True
     )
@@ -728,10 +748,11 @@ def _close_master_connection(
     username: str,
     hostname: str,
     socket: str | None,
+    suffix: str = "",
 ) -> None:
     if socket is None:
         return
-    ssh_command = f"ssh -O exit -S {socket} {username}@{hostname}"
+    ssh_command = f"ssh -O exit -S {socket} {username}{suffix}@{hostname}"
     completed_process = subprocess.run(
         args=shlex.split(ssh_command), capture_output=True
     )
@@ -748,12 +769,13 @@ def _make_remote_execution_output_dir(
     username: str,
     hostname: str,
     socket: str | None,
+    suffix: str = "",
 ) -> None:
     mkdir_command = f"mkdir -p {dirpath}"
     ssh_command = ["ssh"]
     if socket is not None:
         ssh_command.append(f"-S {socket}")
-    ssh_command.append(f"{username}@{hostname}")
+    ssh_command.append(f"{username}{suffix}@{hostname}")
     ssh_command.append(mkdir_command)
     ssh_command = " ".join(ssh_command)
     completed_process = subprocess.run(
@@ -775,6 +797,7 @@ def _rsync_upload_rundirs(
     remote_target: str,
     username: str,
     hostname: str,
+    suffix: str = "",
 ) -> None:
     """Upload local run directories to a remote host using rsync over SSH.
 
@@ -783,13 +806,14 @@ def _rsync_upload_rundirs(
         remote_target: Remote directory path as a string.
         hostname: SSH hostname.
         username: SSH username.
+        suffix: Optional suffix to append to username (default: "").
 
     Raises:
         RuntimeError: If rsync fails.
     """
     for local_source in local_sources:
         assert local_source.is_dir()
-    remote_destination_str = f"{username}@{hostname}:{remote_target}"
+    remote_destination_str = f"{username}{suffix}@{hostname}:{remote_target}"
     local_sources_str = " ".join(map(str, local_sources))
     rsync_upload_command = f"rsync -qcaz {local_sources_str} {remote_destination_str}"
     completed_process = subprocess.run(
@@ -809,6 +833,7 @@ def _sbatch_remote_runsubs(
     username: str,
     hostname: str,
     socket: str | None,
+    suffix: str = "",
 ) -> List[str]:
     sbatch_commands = [
         "sbatch {}".format(remote_runsub_path)
@@ -819,7 +844,7 @@ def _sbatch_remote_runsubs(
     ssh_command = ["ssh"]
     if socket is not None:
         ssh_command.append(f"-S {socket}")
-    ssh_command.append(f"{username}@{hostname}")
+    ssh_command.append(f"{username}{suffix}@{hostname}")
     ssh_command.append(sbatch_commands)
     ssh_command = " ".join(ssh_command)
 
@@ -842,6 +867,7 @@ def _query_slurm_jobs_status(
     username: str,
     hostname: str,
     socket: str | None,
+    suffix: str = "",
 ) -> Dict[str, str]:
     """Query SLURM for job statuses using sacct command.
 
@@ -850,6 +876,7 @@ def _query_slurm_jobs_status(
         username: SSH username.
         hostname: SSH hostname.
         socket: control socket location or None
+        suffix: Optional suffix to append to username (default: "").
 
     Returns:
         Dict mapping from slurm_job_id to returned slurm status.
@@ -862,7 +889,7 @@ def _query_slurm_jobs_status(
     ssh_command = ["ssh"]
     if socket is not None:
         ssh_command.append(f"-S {socket}")
-    ssh_command.append(f"{username}@{hostname}")
+    ssh_command.append(f"{username}{suffix}@{hostname}")
     ssh_command.append(sacct_command)
     ssh_command = " ".join(ssh_command)
     completed_process = subprocess.run(
@@ -884,7 +911,11 @@ def _query_slurm_jobs_status(
 
 
 def _kill_slurm_job(
-    slurm_job_ids: List[str], username: str, hostname: str, socket: str | None
+    slurm_job_ids: List[str],
+    username: str,
+    hostname: str,
+    socket: str | None,
+    suffix: str = "",
 ) -> tuple[str | None, subprocess.CompletedProcess]:
     """Kill a SLURM job, querying status first in one SSH call for efficiency.
 
@@ -893,6 +924,7 @@ def _kill_slurm_job(
         username: SSH username.
         hostname: SSH hostname.
         socket: control socket location or None
+        suffix: Optional suffix to append to username (default: "").
 
     Returns:
         Tuple of (status_string, completed_process) where status_string is the SLURM status or None
@@ -910,7 +942,7 @@ def _kill_slurm_job(
     ssh_command = ["ssh"]
     if socket is not None:
         ssh_command.append(f"-S {socket}")
-    ssh_command.append(f"{username}@{hostname}")
+    ssh_command.append(f"{username}{suffix}@{hostname}")
     ssh_command.append(combined_command)
     ssh_command = " ".join(ssh_command)
 
@@ -955,6 +987,7 @@ def _read_autoresumed_slurm_job_ids(
     username: str,
     hostname: str,
     socket: str | None,
+    suffix: str = "",
 ) -> Dict[str, List[str]]:
     assert len(slurm_job_ids) == len(remote_rundir_paths)
     slurm_job_id_list_paths = [
@@ -962,7 +995,7 @@ def _read_autoresumed_slurm_job_ids(
         for remote_rundir_path in remote_rundir_paths
     ]
     slurm_job_id_list_strs = _read_files_from_remote(
-        slurm_job_id_list_paths, username, hostname, socket
+        slurm_job_id_list_paths, username, hostname, socket, suffix
     )
     assert len(slurm_job_id_list_strs) == len(slurm_job_ids)
     autoresumed_slurm_job_ids = {}
@@ -978,6 +1011,7 @@ def _read_files_from_remote(
     username: str,
     hostname: str,
     socket: str | None,
+    suffix: str = "",
 ) -> List[str]:
     cat_commands = [
         "echo _START_OF_FILE_ ; cat {} 2>/dev/null ; echo _END_OF_FILE_ ".format(
@@ -989,7 +1023,7 @@ def _read_files_from_remote(
     ssh_command = ["ssh"]
     if socket is not None:
         ssh_command.append(f"-S {socket}")
-    ssh_command.append(f"{username}@{hostname}")
+    ssh_command.append(f"{username}{suffix}@{hostname}")
     ssh_command.append(cat_commands)
     ssh_command = " ".join(ssh_command)
     completed_process = subprocess.run(
@@ -1013,6 +1047,7 @@ def _get_progress(
     username: str,
     hostname: str,
     socket: str | None,
+    suffix: str = "",
 ) -> List[Optional[float]]:
     remote_progress_paths = [
         remote_rundir_path / "artifacts" / "progress"
@@ -1023,11 +1058,11 @@ def _get_progress(
         for remote_rundir_path in remote_rundir_paths
     ]
     progress_strs = _read_files_from_remote(
-        remote_progress_paths, username, hostname, socket
+        remote_progress_paths, username, hostname, socket, suffix
     )
     if any(map(bool, progress_strs)):
         run_config_strs = _read_files_from_remote(
-            remote_run_config_paths, username, hostname, socket
+            remote_run_config_paths, username, hostname, socket, suffix
         )
     else:
         run_config_strs = [""] * len(progress_strs)
