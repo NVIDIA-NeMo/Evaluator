@@ -46,6 +46,8 @@ The overrides system is crucial for leveraging the full flexibility of the commo
 
 #### Global Overrides
 
+Settings applied to all tasks listed in the config.
+
 ```yaml
 evaluation:
   overrides:
@@ -54,6 +56,8 @@ evaluation:
 ```
 
 #### Task-Specific Overrides
+
+Parameters passed to a job for a single task. They take precedence over global evaluation settings.
 
 ```yaml
 evaluation:
@@ -74,13 +78,17 @@ evaluation:
 
 ### Environment Variables
 
+Task-specifi environment variables. These parameters are set for a single job and don't affect other tasks:
+
 ```yaml
 evaluation:
   tasks:
-    - name: task_name
+    - name: task_name1
+      # HF_TOKEN and CUSTOM_VAR are available for task_name1
       env_vars:
         HF_TOKEN: MY_HF_TOKEN
         CUSTOM_VAR: CUSTOM_VALUE
+    - name: task_name2    # HF_TOKEN and CUSTOM_VAR are not set for task_name2
 ```
 
 ## When to Use
@@ -93,7 +101,7 @@ Use evaluation configuration when you want to:
 - **Debug and Test**: Launch with limited samples for validation
 - **Adjust Endpoint Capabilities**: Configure request timeouts, max retries, and parallel request limits
 
-/// tip | Long String Overrides
+:::{tip}
 For overriding long strings, use YAML multiline syntax with `>-`:
 
 ```yaml
@@ -104,7 +112,7 @@ config.params.extra.custom_field: >-
 ```
 
 This preserves formatting and allows for complex multi-line configurations.
-///
+:::
 
 ## Reference
 

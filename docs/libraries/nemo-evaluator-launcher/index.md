@@ -14,7 +14,7 @@ The *Orchestration Layer* empowers you to run AI model evaluations at scale. Use
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`play;1.5em;sd-mr-1` Quickstart
-:link: gs-quickstart-launcher
+:link: ../../get-started/quickstart/launcher
 :link-type: doc
 
 Step-by-step guide to install, configure, and run your first evaluation in minutes.
@@ -142,10 +142,10 @@ Use the launcher whenever you want:
 :hidden:
 
 About NeMo Evaluator Launcher <self>
+CLI Reference (nemo-evaluator-launcher) <cli>
 Quickstart <quickstart>
 Executors <configuration/executors/index>
 Configuration <configuration/index>
 Exporters <exporters/index>
 Python API <api>
-CLI Reference (nemo-evaluator-launcher) <cli>
 :::

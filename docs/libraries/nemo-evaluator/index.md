@@ -56,7 +56,7 @@ Add custom benchmarks and frameworks by defining configuration and interfaces.
 :::
 
 :::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` API Reference
-:link: <../../../apidocs/index.rst>
+:link: ../../../apidocs/index
 :link-type: doc
 
 Python API documentation for programmatic evaluation control and integration.
@@ -80,6 +80,6 @@ Benchmark Containers <containers/index>
 Interceptors <interceptors/index>
 Logging <logging>
 Extending <extending/index>
-API Reference <../../../apidocs/index.rst>
+API Reference <../../../apidocs/index>
 CLI Reference (nemo-evaluator) <cli>
 :::
