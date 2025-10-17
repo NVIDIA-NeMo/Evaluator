@@ -29,7 +29,6 @@ jobs:
     needs: [pre-flight]
     if: |
       !(needs.pre-flight.outputs.is_deployment_workflow == 'true')
-    continue-on-error: true
     uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_build_docs.yml@v0.57.0
     with:
       requirements-file: .github/config/requirements.txt
@@ -51,15 +50,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.run_id }}
           SKIPPING_IS_ALLOWED: ${{ needs.pre-flight.outputs.docs_only == 'true' || needs.pre-flight.outputs.is_deployment_workflow == 'true' }}
+          BUILD_DOCS_RESULT: ${{ needs.build-docs.result }}
         run: |
-          FAILED_JOBS=$(gh run view $GITHUB_RUN_ID --json jobs --jq '[.jobs[] | select(.status == "completed" and .conclusion != "success")] | length') || echo 0
-
-          if [ "${FAILED_JOBS:-0}" -eq 0 ] || [ "$SKIPPING_IS_ALLOWED" == "true" ]; then
-              echo "✅ All previous jobs completed successfully"
+          echo "build-docs job result: ${BUILD_DOCS_RESULT}"
+          
+          if [ "${BUILD_DOCS_RESULT}" == "success" ]; then
+              echo "✅ Build docs completed successfully"
+          elif [ "${BUILD_DOCS_RESULT}" == "skipped" ] || [ "$SKIPPING_IS_ALLOWED" == "true" ]; then
+              echo "⏭️ Build docs was skipped"
           else
-              echo "⚠️ Found $FAILED_JOBS failed job(s) (allowed to fail)"
-              # Show which jobs failed
-              gh run view $GITHUB_RUN_ID --json jobs --jq '.jobs[] | select(.status == "completed" and .conclusion != "success") | .name'
+              echo "⚠️ Build docs failed (allowed to fail)"
           fi
-          # Always exit 0 since build-docs is allowed to fail
+          
+          # Always exit 0 - build-docs is allowed to fail
           exit 0
