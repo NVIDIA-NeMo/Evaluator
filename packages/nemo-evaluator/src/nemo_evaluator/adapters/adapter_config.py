@@ -141,6 +141,7 @@ class AdapterConfig(BaseModel):
             "use_omni_info": False,
             "use_request_logging": False,
             "use_nvcf": False,
+            "use_megatron": False,
             "use_response_logging": False,
             "use_reasoning": False,
             "use_progress_tracking": False,
@@ -163,6 +164,8 @@ class AdapterConfig(BaseModel):
             "progress_tracking_url": None,
             "progress_tracking_interval": 1,
             "logging_aggregated_stats_interval": 100,
+            "megatron_tokenizer": None,
+            "megatron_template_kwargs": None,
         }
 
     @classmethod
@@ -449,8 +452,22 @@ class AdapterConfig(BaseModel):
                 )
             )
 
-        # Add the final request interceptor - either nvcf or endpoint
-        if legacy_config["use_nvcf"]:
+        # Add the final request interceptor - either megatron, nvcf, or endpoint
+        if legacy_config["use_megatron"]:
+            config = {}
+            if legacy_config["megatron_tokenizer"] is not None:
+                config["tokenizer"] = legacy_config["megatron_tokenizer"]
+            if legacy_config["megatron_template_kwargs"] is not None:
+                config["template_kwargs"] = legacy_config["megatron_template_kwargs"]
+            
+            interceptors.append(
+                InterceptorConfig(
+                    name="megatron",
+                    enabled=True,
+                    config=config,
+                )
+            )
+        elif legacy_config["use_nvcf"]:
             interceptors.append(
                 InterceptorConfig(
                     name="nvcf",
@@ -459,7 +476,7 @@ class AdapterConfig(BaseModel):
                 )
             )
         else:
-            # Only add endpoint if nvcf is not used
+            # Only add endpoint if neither megatron nor nvcf is used
             interceptors.append(InterceptorConfig(name="endpoint"))
 
         # Add response stats interceptor right after endpoint if tracking is enabled

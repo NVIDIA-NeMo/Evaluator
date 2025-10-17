@@ -16,6 +16,7 @@
 from .caching_interceptor import CachingInterceptor
 from .endpoint_interceptor import EndpointInterceptor
 from .logging_interceptor import RequestLoggingInterceptor, ResponseLoggingInterceptor
+from .megatron_interceptor import MegatronEndpointInterceptor
 from .payload_modifier_interceptor import PayloadParamsModifierInterceptor
 from .progress_tracking_interceptor import ProgressTrackingInterceptor
 from .raise_client_error_interceptor import RaiseClientErrorInterceptor
@@ -26,6 +27,7 @@ from .system_message_interceptor import SystemMessageInterceptor
 __all__ = [
     "CachingInterceptor",
     "EndpointInterceptor",
+    "MegatronEndpointInterceptor",
     "PayloadParamsModifierInterceptor",
     "ProgressTrackingInterceptor",
     "RaiseClientErrorInterceptor",
