@@ -1,3 +1,5 @@
 {"filename": "deployment/bring-your-own-endpoint/hosted-services.md", "lineno": 158, "uri": "https://platform.openai.com/docs/models", "reason": "OpenAI platform uses bot protection that returns 403 for automated link checkers, but the link is valid"}
 {"filename": "nemo-fw/evaluation-hf.md", "lineno": 26, "uri": "https://github.com/nvidia-nemo/export-deploy?tab=readme-ov-file#install-tensorrt-llm-vllm-or-trt-onnx-backend", "reason": "Valid section anchor in Export-Deploy README that link checker may not find due to GitHub's dynamic anchor generation"}
+{"filename": "nemo-fw/evaluation-doc.md", "lineno": 154, "uri": "https://github.com/nvidia-nemo/evaluator/blob/main/scripts/evaluation_with_nemo_run.py#L235", "reason": "Internal repo link that will be valid once changes are merged to main branch"}
+{"filename": "nemo-fw/evaluation-doc.md", "lineno": 154, "uri": "https://github.com/nvidia-nemo/evaluator/blob/main/scripts/evaluation_with_nemo_run.py#L270", "reason": "Internal repo link that will be valid once changes are merged to main branch"}
 
