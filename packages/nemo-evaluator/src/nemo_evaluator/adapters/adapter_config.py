@@ -166,6 +166,7 @@ class AdapterConfig(BaseModel):
             "logging_aggregated_stats_interval": 100,
             "megatron_tokenizer": None,
             "megatron_template_kwargs": None,
+            "megatron_mode": "chat",
         }
 
     @classmethod
@@ -459,6 +460,8 @@ class AdapterConfig(BaseModel):
                 config["tokenizer"] = legacy_config["megatron_tokenizer"]
             if legacy_config["megatron_template_kwargs"] is not None:
                 config["template_kwargs"] = legacy_config["megatron_template_kwargs"]
+            if legacy_config["megatron_mode"] is not None:
+                config["mode"] = legacy_config["megatron_mode"]
             
             interceptors.append(
                 InterceptorConfig(
