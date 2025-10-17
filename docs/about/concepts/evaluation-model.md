@@ -12,6 +12,9 @@ NeMo Evaluator supports several evaluation approaches through containerized harn
 - **Log Probability**: Models assign probabilities to token sequences, enabling confidence measurement without text generation. Effective for choice-based tasks and base model evaluation.
 - **Code Generation**: Models generate code from natural language descriptions, evaluated for correctness through test execution.
 - **Function Calling**: Models generate structured outputs for tool use and API interaction scenarios.
+- **Retrieval Augmented Generation**: Models fetches content based on context, evaluated for content relevance and converage, as well as answer corectness. 
+- **Visual Understanding**: Models generate responses to prompts with images and videos, assessed for correctness or quality against reference answers or rubrics.
+- **Agentic Workflows**: Models are tasked with complex problems and need to select and engage tools autonomously. 
 - **Safety & Security**: Evaluation against adversarial prompts and safety benchmarks to test model alignment and robustness.
 
 One or more evaluation harnesses implement each approach. To discover available tasks for each approach, use `nemo-evaluator-launcher ls tasks`.

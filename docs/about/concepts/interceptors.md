@@ -26,7 +26,7 @@ The interceptor system transforms simple model API calls into sophisticated eval
 The following diagram shows a typical interceptor pipeline configuration. Note that interceptors must follow the order: Request → RequestToResponse → Response, but the specific interceptors and their configuration are flexible:
 
 ```{mermaid}
-graph LR
+graph TB
     A[Evaluation Request] --> B[Adapter System]
     B --> C[Interceptor Pipeline]
     C --> D[Model API]
@@ -162,20 +162,15 @@ adapter_config:
 
 ## Design Benefits
 
-### 1. **Separation of Concerns**
-Each interceptor handles a single responsibility, making the system easier to understand and maintain.
+1. **Separation of Concerns**: Each interceptor handles a single responsibility, making the system easier to understand and maintain.
 
-### 2. **Reusability**
-Interceptors can be reused across different evaluation scenarios and benchmarks.
+2. **Reusability**: Interceptors can be reused across different evaluation scenarios and benchmarks.
 
-### 3. **Testability**
-Individual interceptors can be tested in isolation, improving reliability.
+3. **Testability**: Individual interceptors can be tested in isolation, improving reliability.
 
-### 4. **Performance**
-Interceptors can be optimized independently and disabled when not needed.
+4. **Performance**: Interceptors can be optimized independently and disabled when not needed.
 
-### 5. **Extensibility**
-New interceptors can be added without modifying existing code.
+5. **Extensibility**: New interceptors can be added without modifying existing code.
 
 ## Common Use Cases
 
