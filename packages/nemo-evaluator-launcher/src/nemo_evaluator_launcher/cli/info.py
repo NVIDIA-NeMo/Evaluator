@@ -64,18 +64,19 @@ class InfoCmd:
 
     # copy operations - work for both local and remote jobs
     copy_logs: Optional[str] = field(
-        default=".", # Use current dir as default when value is not provided
+        default="__NOT_PROVIDED__",  # Sentinel value to detect if flag was provided
         alias=["--copy-logs"],
         nargs="?",
+        const=".",  # Use current dir as default when flag is present without value
         help="Copy logs to local directory (current dir if not specified)",
     )
     copy_artifacts: Optional[str] = field(
-        default=".", # Use current dir as default when value is not provided
+        default="__NOT_PROVIDED__",  # Sentinel value to detect if flag was provided
         alias=["--copy-artifacts"],
         nargs="?",
+        const=".",  # Use current dir as default when flag is present without value
         help="Copy artifacts to local directory (current dir if not specified)",
     )
-
     def execute(self) -> None:
         # show version
         VersionCmd().execute()
@@ -112,21 +113,21 @@ class InfoCmd:
         elif self.artifacts:
             logger.info("Showing artifacts locations", job_count=len(jobs))
             self._show_artifacts_info(jobs)
-        elif self.copy_logs is not None:
+        elif self.copy_logs != "__NOT_PROVIDED__":
             dest = self.copy_logs or "."
-            if not self.copy_logs:
+            if self.copy_logs == ".":  # Flag provided without value, using const
                 print(
-                    "No destination provided for --copy-logs; defaulting to current dir"
+                    "No destination provided for --copy-logs, defaulting to current dir"
                 )
             logger.info(
                 "Copying logs to local directory", dest_dir=dest, job_count=len(jobs)
             )
             self._copy_logs(jobs, dest)
-        elif self.copy_artifacts is not None:
+        elif self.copy_artifacts != "__NOT_PROVIDED__":
             dest = self.copy_artifacts or "."
-            if not self.copy_artifacts:
+            if self.copy_artifacts == ".":  # Flag provided without value, using const
                 print(
-                    "No destination provided for --copy-artifacts; defaulting to current dir)"
+                    "No destination provided for --copy-artifacts, defaulting to current dir"
                 )
             logger.info(
                 "Copying artifacts to local directory",
@@ -319,6 +320,8 @@ class InfoCmd:
         print("Artifact locations:\n")
         for job_id, job_data in jobs:
             paths = _EXPORT_HELPER.get_job_paths(job_data)
+            cfg_exec_type = ((job_data.config or {}).get("execution") or {}).get("type")
+            exec_type = (job_data.executor or cfg_exec_type or "").lower()
             artifacts_list = _get_artifacts_file_list()
 
             if paths.get("storage_type") == "remote_ssh":
@@ -421,6 +424,9 @@ class InfoCmd:
                         print(
                             f"{jid}: Failed - {job_result.get('message', 'Unknown error')}"
                         )
+            # Show full destination path
+            full_dest_path = Path(dest_dir).resolve()
+            print(f"Copied to: {full_dest_path}")
         else:
             err = result.get("error", "Unknown error")
             logger.warning("Content copy failed", error=err, dest_dir=dest_dir)
@@ -445,31 +451,25 @@ class InfoCmd:
 
 # Helper functions for file descriptions (based on actual code and content analysis)
 def _get_artifacts_file_list() -> list[tuple[str, str]]:
-    """Files actually generated in artifacts/ - prioritized by user interest."""
+    """Files generated in artifacts/."""
     return [
-        ("results.yml", "Benchmark scores and task results"),
-        ("eval_factory_metrics.json", "Token usage, latency, memory stats"),
-        ("metrics.json", "Harness-specific metrics and config (varies by task)"),
-        ("report.html", "Visual summary with charts (if enabled)"),
-        ("report.json", "Structured report data (if enabled)"),
-        ("omni-info.json", "Request/response samples for debugging (if enabled)"),
+        ("results.yml", "Benchmark scores, task results and resolved run configuration."),
+        ("eval_factory_metrics.json", "Response + runtime stats (latency, tokens count, memory)"),
+        ("metrics.json", "Harness/benchmark metric and configuration"),
+        ("report.html", "Request-Response Pairs samples in HTML format (if enabled)"),
+        ("report.json", "Report data in json format, if enabled"),
     ]
-
 
 def _get_log_file_list(executor_type: str) -> list[tuple[str, str]]:
     """Files actually generated in logs/ - executor-specific."""
     et = (executor_type or "local").lower()
     if et == "slurm":
         return [
-            ("client-{SLURM_JOB_ID}.out", "Evaluation container output"),
-            ("slurm-{SLURM_JOB_ID}.out", "SLURM scheduler messages"),
-            ("server-{SLURM_JOB_ID}.out", "Model server logs (if deployment used)"),
+            ("client-{SLURM_JOB_ID}.out", "Evaluation container/process output"),
+            ("slurm-{SLURM_JOB_ID}.out", "SLURM scheduler stdout/stderr (batch submission, export steps)."),
+            ("server-{SLURM_JOB_ID}.out", "Model server logs when a deployment is used."),
         ]
     # local executor
-    #TODO: Lepton executor logs
     return [
-        ("stdout.log", "Complete evaluation output"),
-        ("stage.exit", "Exit code and completion timestamp"),
-        ("stage.running", "Container start timestamp"),
-        ("stage.pre-start", "Job preparation timestamp"),
+        ("stdout.log", "Complete evaluation output (timestamps, resolved config, run/export messages)."),
     ]

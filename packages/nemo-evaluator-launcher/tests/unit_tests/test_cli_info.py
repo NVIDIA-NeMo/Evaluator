@@ -1,15 +1,27 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import pytest
 
-from nemo_evaluator_launcher.cli.debug import DebugCmd
+from nemo_evaluator_launcher.cli.info import InfoCmd
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 
 
 @pytest.mark.usefixtures("mock_execdb")
 def test_logs_locations_local(job_local, capsys):
-    cmd = DebugCmd(invocation_ids=[job_local.invocation_id])
+    cmd = InfoCmd(invocation_ids=[job_local.invocation_id])
     cmd.logs = True
     cmd.execute()
     out = capsys.readouterr().out
@@ -19,7 +31,7 @@ def test_logs_locations_local(job_local, capsys):
 
 @pytest.mark.usefixtures("mock_execdb")
 def test_artifacts_locations_local(job_local, capsys):
-    cmd = DebugCmd(invocation_ids=[job_local.invocation_id])
+    cmd = InfoCmd(invocation_ids=[job_local.invocation_id])
     cmd.artifacts = True
     cmd.execute()
     out = capsys.readouterr().out
@@ -29,7 +41,7 @@ def test_artifacts_locations_local(job_local, capsys):
 
 @pytest.mark.usefixtures("mock_execdb")
 def test_config_dump_yaml(job_local, capsys):
-    cmd = DebugCmd(invocation_ids=[job_local.invocation_id])
+    cmd = InfoCmd(invocation_ids=[job_local.invocation_id])
     cmd.config = True
     cmd.execute()
     out = capsys.readouterr().out
@@ -41,7 +53,7 @@ def test_config_dump_yaml(job_local, capsys):
 @pytest.mark.usefixtures("mock_execdb")
 def test_no_jobs_found(capsys):
     # No jobs written to DB for this prefix
-    cmd = DebugCmd(invocation_ids=["deadbeef"])
+    cmd = InfoCmd(invocation_ids=["deadbeef"])
     cmd.execute()
     out = capsys.readouterr().out
     assert "No valid jobs found" in out
@@ -64,7 +76,7 @@ def test_multiple_jobs_under_invocation(job_local, prepare_local_job, capsys):
     (base / "logs").rmdir()
     ExecutionDB().write_job(second)
 
-    cmd = DebugCmd(invocation_ids=[inv])
+    cmd = InfoCmd(invocation_ids=[inv])
     cmd.logs = True
     cmd.execute()
     out = capsys.readouterr().out
@@ -96,7 +108,7 @@ def test_slurm_without_job_id(capsys):
     )
     ExecutionDB().write_job(jd)
 
-    cmd = DebugCmd(invocation_ids=[inv])
+    cmd = InfoCmd(invocation_ids=[inv])
     cmd.execute()
     out = capsys.readouterr().out
     # remote paths shown
@@ -122,7 +134,7 @@ def test_task_missing_index_is_graceful(capsys):
     )
     ExecutionDB().write_job(jd)
 
-    cmd = DebugCmd(invocation_ids=[inv])
+    cmd = InfoCmd(invocation_ids=[inv])
     cmd.execute()
     out = capsys.readouterr().out
     assert f"Job {inv}.0" in out
