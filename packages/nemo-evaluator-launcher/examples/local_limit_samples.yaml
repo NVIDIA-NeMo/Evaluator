@@ -42,6 +42,7 @@ target:
 evaluation:
   overrides: # these overrides apply to all tasks; for task-specific overrides, use the `overrides` field
     config.params.request_timeout: 3600
+    config.params.parallelism: 1
     config.params.limit_samples: 10 # TEST ONLY: Limits all benchmarks to 10 samples total for quick testing
     target.api_endpoint.adapter_config.use_reasoning: false # if true, strips reasoning tokens
     target.api_endpoint.adapter_config.use_system_prompt: true

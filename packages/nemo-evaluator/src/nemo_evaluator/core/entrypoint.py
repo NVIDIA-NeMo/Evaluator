@@ -146,6 +146,27 @@ def run(args) -> None:
 
 
 def run_eval() -> None:
+    """
+    CLI entry point for running evaluations.
+
+    This function parses command line arguments and executes evaluations.
+    It does not take parameters directly - all configuration is passed via CLI arguments.
+
+    CLI Arguments:
+        --eval_type: Type of evaluation to run (e.g., "mmlu_pro", "gsm8k")
+        --model_id: Model identifier (e.g "meta/llama-3.1-8b-instruct")
+        --model_url: API endpoint URL (e.g "https://integrate.api.nvidia.com/v1/chat/completions" for chat endpoint type)
+        --model_type: Endpoint type ("chat", "completions", "vlm", "embedding")
+        --api_key_name: Environment variable name for API key integration with endpoints (optional)
+        --output_dir: Output directory for results
+        --run_config: Path to YAML Run Configuration file (optional)
+        --overrides: Comma-separated dot-style parameter overrides (optional)
+        --dry_run: Show rendered config without running (optional)
+        --debug: Enable debug logging (optional, deprecated, use NV_LOG_LEVEL=DEBUG env var)
+
+    Usage:
+        run_eval()  # Parses sys.argv automatically
+    """
     args = get_args()
 
     if sys.argv[0].endswith("eval-factory"):

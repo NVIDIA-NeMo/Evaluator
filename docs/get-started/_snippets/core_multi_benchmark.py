@@ -1,0 +1,59 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#!/usr/bin/env python3
+"""
+Multi-benchmark evaluation example.
+"""
+
+# [snippet-start]
+# Prerequisites: Set your API key
+# export NGC_API_KEY="nvapi-..."
+
+from nemo_evaluator.api.api_dataclasses import (
+    ApiEndpoint,
+    ConfigParams,
+    EndpointType,
+    EvaluationConfig,
+    EvaluationTarget,
+)
+from nemo_evaluator.core.evaluate import evaluate
+
+# Configure target once
+target_config = EvaluationTarget(
+    api_endpoint=ApiEndpoint(
+        url="https://integrate.api.nvidia.com/v1/chat/completions",
+        model_id="meta/llama-3.1-8b-instruct",
+        api_key="NGC_API_KEY",
+        type=EndpointType.CHAT,
+    )
+)
+
+# Run multiple benchmarks
+benchmarks = ["mmlu_pro", "humaneval", "mgsm"]
+results = {}
+
+for benchmark in benchmarks:
+    config = EvaluationConfig(
+        type=benchmark,
+        output_dir=f"./results/{benchmark}",
+        params=ConfigParams(limit_samples=10),
+    )
+
+    result = evaluate(eval_cfg=config, target_cfg=target_config)
+    results[benchmark] = result
+# [snippet-end]
+
+if __name__ == "__main__":
+    print("Multi-benchmark evaluation example")
+    print("Replace 'your_api_key_here' with your actual API key to run")
