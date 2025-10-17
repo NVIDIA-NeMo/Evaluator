@@ -87,7 +87,7 @@ export NGC_API_KEY="your-api-key-here"
 export MY_API_KEY="your-api-key"
 
 # For container versions
-export DOCKER_TAG="25.09.1"
+export DOCKER_TAG="25.09"
 ```
 
 ## Testing Snippets

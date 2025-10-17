@@ -2,7 +2,7 @@
 # Run evaluation using NGC containers directly
 
 # Set container version (or use environment variable)
-DOCKER_TAG="${DOCKER_TAG:-25.09.1}"
+DOCKER_TAG="${DOCKER_TAG:-25.09}"
 export MY_API_KEY="${MY_API_KEY:-your-api-key}"
 
 # [snippet-start]

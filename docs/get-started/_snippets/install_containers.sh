@@ -2,7 +2,7 @@
 # Pull pre-built evaluation containers from NVIDIA NGC
 
 # Set container version (or use environment variable)
-DOCKER_TAG="${DOCKER_TAG:-25.09.1}"
+DOCKER_TAG="${DOCKER_TAG:-25.09}"
 
 # [snippet-start]
 # Pull evaluation containers (no local installation needed)
