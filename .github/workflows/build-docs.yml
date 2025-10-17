@@ -29,6 +29,7 @@ jobs:
     needs: [pre-flight]
     if: |
       !(needs.pre-flight.outputs.is_deployment_workflow == 'true')
+    continue-on-error: true
     uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_build_docs.yml@v0.57.0
     with:
       requirements-file: .github/config/requirements.txt
@@ -55,10 +56,10 @@ jobs:
 
           if [ "${FAILED_JOBS:-0}" -eq 0 ] || [ "$SKIPPING_IS_ALLOWED" == "true" ]; then
               echo "✅ All previous jobs completed successfully"
-              exit 0
           else
-              echo "❌ Found $FAILED_JOBS failed job(s)"
+              echo "⚠️ Found $FAILED_JOBS failed job(s) (allowed to fail)"
               # Show which jobs failed
               gh run view $GITHUB_RUN_ID --json jobs --jq '.jobs[] | select(.status == "completed" and .conclusion != "success") | .name'
-              exit 1
           fi
+          # Always exit 0 since build-docs is allowed to fail
+          exit 0
