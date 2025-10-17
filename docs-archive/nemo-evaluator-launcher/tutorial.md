@@ -155,105 +155,24 @@ You can check:
 
 The status command returns normal output or (if `--json` provided) enhanced output with job status information.
 
-### 4. Get Detailed Job Information
-
-After running evaluations, use the `info` command to navigate results, inspect configurations, and access artifacts. It provides full paths to logs and artifacts, descriptions of key output files, and functionality to copy results locally.
-
-#### Why use the info command?
-
-The `info` command helps you:
-- **Navigate results**: Shows exact file paths and what each file contains
-- **Understand file contents**: Explains what data is in results.yml, metrics.json, logs, etc.
-- **Debug issues**: Access logs and artifacts from remote jobs without manual SSH navigation
-- **Copy results locally**: Download artifacts and logs from remote clusters for analysis
-- **Monitor progress**: See executor-specific details like Slurm job IDs
-
-#### Basic usage
-
+Print jobs ever launched from your client:
 ```bash
-# Get full job information
-nemo-evaluator-launcher info <job_id_or_invocation_id>
-
-# View only artifacts information
-nemo-evaluator-launcher info <invocation_id> --artifacts
-
-# View only logs information  
-nemo-evaluator-launcher info <invocation_id> --logs
-
-# Show the configuration used for the job
-nemo-evaluator-launcher info <invocation_id> --config
+nemo-evaluator-launcher ls runs
 ```
 
-#### Copying files locally
-
-For remote jobs (like Slurm clusters), results are stored on remote machines. The info command can copy them to your local machine:
-
+Print jobs launched since 2 days or 6 hours:
 ```bash
-# Copy artifacts to current directory
-nemo-evaluator-launcher info <job_id> --copy-artifacts
-
-# Copy artifacts to specific directory
-nemo-evaluator-launcher info <job_id> --copy-artifacts ~/my_results
-
-# Copy logs to current directory
-nemo-evaluator-launcher info <job_id> --copy-logs
+nemo-evaluator-launcher ls runs --since 2d
+nemo-evaluator-launcher ls runs --since 6h
 ```
 
-**Note**: Copy operations work for both local and remote jobs, but may take longer for remote jobs depending on network speed and file sizes.
-
-#### What you'll find in the output
-
-The info command shows:
-
-- **Job metadata**: When the job was created, which executor was used, which benchmark was run
-- **File locations**: Full paths to artifacts and logs (local or remote SSH paths)
-- **Expected files**: Detailed descriptions of what each file contains and when it's generated
-- **Executor details**: Slurm job IDs, pipeline IDs, etc.
-
-#### Example output
-
-For a remote Slurm job:
-```
-Job 4245adf6071cd199.0
-├── Executor: slurm
-├── Created: 2025-10-14T00:06:39
-├── Task: mbpp
-├── Artifacts: user@cluster:/lustre/results/mbpp/artifacts (remote)
-│   └── Key files:
-│       ├── results.yml - Benchmark scores and task results (ALWAYS present)
-│       ├── eval_factory_metrics.json - Token usage, latency, memory stats (ALWAYS present)
-│       ├── metrics.json - Harness-specific metrics (varies by benchmark)
-│       ├── report.html - Visual charts and summaries (if report generation enabled)
-│       ├── report.json - Structured report data (if JSON reports enabled)
-│       └── omni-info.json - Request/response samples (if debugging interceptor used)
-├── Logs: user@cluster:/lustre/results/mbpp/logs (remote)
-│   └── Key files:
-│       ├── client-17425647.out - Complete evaluation container output
-│       ├── slurm-17425647.out - SLURM scheduler messages and system logs
-│       └── server-17425647.out - Model server logs (if deployment was used)
-├── Slurm Job ID: 17425647
+Print jobs launched with `local` executor:
+```bash
+nemo-evaluator-launcher ls runs --executor local
 ```
 
-#### Understanding the key files
-
-**Artifacts directory** (contains your evaluation results):
-- `results.yml` - Main benchmark scores and metrics
-- `eval_factory_metrics.json` - Performance data (latency, token usage, memory)
-- `metrics.json` - Additional harness-specific measurements
-- `report.html` - Interactive visualizations (if enabled)
-- `report.json` - Machine-readable report data
-- `omni-info.json` - Debug samples of model inputs/outputs
-
-**Logs directory** (for troubleshooting):
-- `client-{job_id}.out` - Full evaluation container logs
-- `slurm-{job_id}.out` - SLURM system messages
-- `server-{job_id}.out` - Model deployment logs (if applicable)
-
-#### Tips for effective use
-
-- Use `info --artifacts` to quickly see result file locations
-- Use `info --copy-artifacts` to download results for analysis
-- For remote jobs, copy operations may take time - be patient
-- The command works with both individual job IDs and invocation IDs
-- File descriptions help you understand what to look for in each output
+Print jobs launched, limiting output:
+```bash
+nemo-evaluator-launcher ls runs --limit 10
 ```
+
