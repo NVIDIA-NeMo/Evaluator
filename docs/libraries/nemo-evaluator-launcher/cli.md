@@ -21,6 +21,8 @@ nemo-evaluator-launcher --version                 # Show version information
   - Run evaluations with specified configuration
 * - `status`
   - Check status of jobs or invocations
+* - `info`
+  - Show detailed job(s) information
 * - `kill`
   - Kill a job or invocation
 * - `ls`
@@ -29,8 +31,6 @@ nemo-evaluator-launcher --version                 # Show version information
   - Export evaluation results to various destinations
 * - `version`
   - Show version information
-* - `debug`
-  - Show detailed job(s) information
 ```
 
 ## run - Run Evaluations
@@ -154,6 +154,62 @@ abc12345.1   | success  | container124  | <output_dir>/task2/...
     }
   }
 ]
+```
+
+## info - Job information and navigation
+
+Display detailed job information, including metadata, configuration, and paths to logs/artifacts with descriptions of key result files. Supports copying results locally from both local and remote jobs.
+
+### Basic usage
+```bash
+# Show job info for one or more IDs (job or invocation)
+nemo-evaluator-launcher info <job_or_invocation_id>
+nemo-evaluator-launcher info <inv1> <inv2>
+```
+
+### Show configuration
+```bash
+nemo-evaluator-launcher info <id> --config
+```
+
+### Show paths
+```bash
+# Show artifact locations
+nemo-evaluator-launcher info <id> --artifacts
+# Show log locations
+nemo-evaluator-launcher info <id> --logs
+```
+
+### Copy files locally
+```bash
+# Copy logs (defaults to current dir if no path provided)
+nemo-evaluator-launcher info <id> --copy-logs [DIR]
+
+# Copy artifacts (defaults to current dir if no path provided)
+nemo-evaluator-launcher info <id> --copy-artifacts [DIR]
+```
+
+### Example (Slurm)
+```text
+nemo-evaluator-launcher info <inv_id>
+
+Job <inv_id>.0
+├── Executor: slurm
+├── Created: <timestamp>
+├── Task: <task_name>
+├── Artifacts: user@host:/shared/.../4245adf6071cd199/task_name/artifacts (remote)
+│   └── Key files:
+│       ├── results.yml - Benchmark scores, task results and resolved run configuration.
+│       ├── eval_factory_metrics.json - Response + runtime stats (latency, tokens count, memory)
+│       ├── metrics.json - Harness/benchmark metric and configuration
+│       ├── report.html - Request-Response Pairs samples in HTML format (if enabled)
+│       ├── report.json - Report data in json format, if enabled
+├── Logs: user@host:/shared/.../4245adf6071cd199/task_name/logs (remote)
+│   └── Key files:
+│       ├── client-{SLURM_JOB_ID}.out - Evaluation container/process output
+│       ├── slurm-{SLURM_JOB_ID}.out - SLURM scheduler stdout/stderr (batch submission, export steps).
+│       ├── server-{SLURM_JOB_ID}.out - Model server logs when a deployment is used.
+├── Slurm Job ID: <SLURM_JOB_ID>
 ```
 
 ## kill - Kill Jobs
@@ -303,64 +359,6 @@ nemo-evaluator-launcher version
 nemo-evaluator-launcher --version
 ```
 
-## debug - Job Information and Debugging helper functionalities
-
-Display detailed job information including metadata, configuration, and locations of logs and artifacts. The debug command is useful for troubleshooting job issues, inspecting configurations, and retrieving artifacts from both local and remote jobs.
-
-### Basic Usage
-
-```bash
-# Show job metadata and information for a single or multiple jobs
-nemo-evaluator-launcher debug <invocation_id>
-
-nemo-evaluator-launcher debug  <invocation_id1>  <invocation_id2>
-```
-
-### Show Configuration
-
-```bash
-# Display the job configuration in YAML format
-nemo-evaluator-launcher debug <invocation_id> --config
-```
-
-### Show Paths
-
-```bash
-# Show only artifact locations
-nemo-evaluator-launcher debug <invocation_id> --artifacts
-
-# Show only log locations
-nemo-evaluator-launcher debug <invocation_id> --logs
-```
-
-For remote jobs (Slurm), paths are shown in the format `user@host:/path`.
-
-### Copy Files Locally
-
-```bash
-# Copy logs to local directory (works for both local and remote jobs)
-nemo-evaluator-launcher debug <invocation_id> --copy-logs [destination_dir]
-
-# Copy artifacts to local directory (works for both local and remote jobs)
-nemo-evaluator-launcher debug <invocation_id> --copy-artifacts [destination_dir]
-
-# If no destination is specified, defaults to current directory
-nemo-evaluator-launcher debug <invocation_id> --copy-logs
-```
-
-
-### Debug example for a slurm job
-
-```bash
-# Shows remote paths and Slurm job ID
-nemo-evaluator-launcher debug abc12345
-# Output includes:
-# ├── Artifacts: user@host:/shared/results/artifacts (remote)
-# ├── Logs: user@host:/shared/results/logs (remote)
-# ├── Slurm Job ID: 12345678
-
-```
-
 ## Environment Variables
 
 The CLI respects environment variables for logging and task-specific authentication:
@@ -474,9 +472,9 @@ nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/exampl
 ```bash
 # Command-specific help
 nemo-evaluator-launcher run --help
-nemo-evaluator-launcher export --help
+nemo-evaluator-launcher info --help
 nemo-evaluator-launcher ls --help
-nemo-evaluator-launcher debug --help
+nemo-evaluator-launcher export --help
 
 # General help
 nemo-evaluator-launcher --help
