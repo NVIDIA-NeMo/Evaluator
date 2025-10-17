@@ -155,12 +155,9 @@ You can check:
 
 The status command returns JSON output with job status information.
 
-[1 tool called]
-
-```158:173:docs/nemo-evaluator-launcher/tutorial.md
 ### 4. Get Detailed Job Information
 
-After launching evaluations, you'll need to access your results and understand what happened during the evaluation. The `info` command provides comprehensive, human-readable information about your jobs - much more detailed than the `status` command.
+After running evaluations, use the `info` command to navigate results, inspect configurations, and access artifacts. It provides full paths to logs and artifacts, descriptions of key output files, and functionality to copy results locally.
 
 #### Why use the info command?
 
@@ -260,12 +257,3 @@ Job 4245adf6071cd199.0
 - The command works with both individual job IDs and invocation IDs
 - File descriptions help you understand what to look for in each output
 ```
-
-This expanded documentation now explains:
-1. Why the info command exists and what problems it solves
-2. All the different ways to use it (basic info, specific views, copying)
-3. What users will see in the output
-4. Detailed explanations of what each file contains
-5. Practical tips for using it effectively
-
-This should give users a comprehensive understanding of the info command and how it fits into their evaluation workflow.
