@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-"""Debugging helper functionalities for nemo-evaluator-launcher."""
+"""Job information helper functionalities for nemo-evaluator-launcher."""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -23,7 +23,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from simple_parsing import field
 
-from nemo_evaluator_launcher.cli.export import ExportCmd
 from nemo_evaluator_launcher.cli.version import Cmd as VersionCmd
 from nemo_evaluator_launcher.common.execdb import EXEC_DB_FILE, ExecutionDB, JobData
 from nemo_evaluator_launcher.common.logging_utils import logger
@@ -35,52 +34,56 @@ _EXPORT_HELPER = LocalExporter({})
 
 
 @dataclass
-class DebugCmd(ExportCmd):
-    """Debugging functionalities for nemo-evaluator-launcher.
+class InfoCmd:
+    """Job information functionalities for nemo-evaluator-launcher.
 
     Examples:
-      nemo-evaluator-launcher debug <inv>                 # Full debug info
-      nemo-evaluator-launcher debug <inv> --config        # Show stored job config (YAML)
-      nemo-evaluator-launcher debug <inv> --artifacts     # Show artifact locations
-      nemo-evaluator-launcher debug <inv> --logs          # Show log locations
-      nemo-evaluator-launcher debug <inv> --copy-logs <path>       # Copy logs (default: current dir)
-      nemo-evaluator-launcher debug <inv> --copy-artifacts <path>   # Copy artifacts (default: current dir)
+      nemo-evaluator-launcher info <inv>                 # Full job info
+      nemo-evaluator-launcher info <inv> --config        # Show stored job config (YAML)
+      nemo-evaluator-launcher info <inv> --artifacts     # Show artifact locations and key files
+      nemo-evaluator-launcher info <inv> --logs          # Show log locations and key files
+      nemo-evaluator-launcher info <inv> --copy-logs <path>       # Copy logs (default: current dir)
+      nemo-evaluator-launcher info <inv> --copy-artifacts <path>   # Copy artifacts (default: current dir)
 
     Notes:
       - Supports invocation IDs and job IDs
       - Shows local or remote paths depending on executor (local/slurm/lepton)
+      - Copy operations work for both local and remote jobs (expect longer time for remote jobs)
+      - Copy operations are not supported for Lepton executor (yet).
     """
 
-    # local exporter destination defaults to local
-    dest: str = field(default="local", init=False)
+    invocation_ids: List[str] = field(
+        positional=True,
+        help="IDs to show info for (space-separated). Accepts invocation IDs or/and job IDs.",
+    )
 
-    # debug modes
+    # info modes
     config: bool = field(default=False, help="Show job configuration")
-    artifacts: bool = field(default=False, help="Show artifact locations")
-    logs: bool = field(default=False, help="Show log locations")
+    artifacts: bool = field(default=False, help="Show artifact locations and key files")
+    logs: bool = field(default=False, help="Show log locations and key files")
 
-    # copy operations
+    # copy operations - work for both local and remote jobs
     copy_logs: Optional[str] = field(
-        default=None,
+        default=".", # Use current dir as default when value is not provided
         alias=["--copy-logs"],
         nargs="?",
-        help="Copy logs to local directory (default: current dir)",
+        help="Copy logs to local directory (current dir if not specified)",
     )
     copy_artifacts: Optional[str] = field(
-        default=None,
+        default=".", # Use current dir as default when value is not provided
         alias=["--copy-artifacts"],
         nargs="?",
-        help="Copy artifacts to local directory (default: current dir)",
+        help="Copy artifacts to local directory (current dir if not specified)",
     )
 
     def execute(self) -> None:
         # show version
         VersionCmd().execute()
 
-        logger.info("Debug command started", invocation_ids=self.invocation_ids)
+        logger.info("Info command started", invocation_ids=self.invocation_ids)
 
         if not self.invocation_ids:
-            logger.error("No invocation IDs provided")
+            logger.error("No job or invocation IDs provided.")
             raise ValueError("No job or invocation IDs provided.")
 
         jobs = self._resolve_jobs()
@@ -96,7 +99,7 @@ class DebugCmd(ExportCmd):
                 "No valid jobs found (jobs may have been deleted or IDs may be incorrect)."
             )
             print(
-                "No valid jobs found (jobs may have been deletedd or IDs may be incorrect)."
+                "No valid jobs found (jobs may have been deleted or IDs may be incorrect)."
             )
             return
 
@@ -137,7 +140,7 @@ class DebugCmd(ExportCmd):
                 invocation_id=jobs[0][1].invocation_id if jobs else None,
                 jobs=len(jobs),
             )
-            self._show_invocation_debug_info(jobs)
+            self._show_invocation_info(jobs)
 
     def _resolve_jobs(self) -> List[Tuple[str, JobData]]:
         """Resolve jobs from ExecDB using IDs (job IDs and/or invocation IDs)."""
@@ -160,15 +163,15 @@ class DebugCmd(ExportCmd):
                 uniq.append((jid, jd))
         return sorted(uniq, key=lambda p: p[0])
 
-    def _show_invocation_debug_info(self, jobs: List[Tuple[str, JobData]]) -> None:
+    def _show_invocation_info(self, jobs: List[Tuple[str, JobData]]) -> None:
         inv = jobs[0][1].invocation_id if jobs else None
-        logger.info("Debug information", jobs=len(jobs), invocation=inv)
+        logger.info("Job information", jobs=len(jobs), invocation=inv)
         print(
-            f"Debug information for {len(jobs)} job(s){f' under invocation {inv}' if inv else ''}:\n"
+            f"Job information for {len(jobs)} job(s){f' under invocation {inv}' if inv else ''}:\n"
         )
 
         for job_id, job_data in jobs:
-            self._show_job_debug_info(job_id, job_data)
+            self._show_job_info(job_id, job_data)
             print()
 
         # footer hint: where to find more metadata
@@ -184,10 +187,10 @@ class DebugCmd(ExportCmd):
         print("  - Use --logs to show log locations.")
         print("  - Use --artifacts to show artifact locations.")
         print("  - Use --config to show stored job configuration (YAML).")
-        print("  - Use --copy-logs [DIR] to copy logs to a local directory.")
-        print("  - Use --copy-artifacts [DIR] to copy artifacts to a local directory.")
+        print("  - Use --copy-logs [DIR] to copy logs to a local directory (works for local and remote jobs).")
+        print("  - Use --copy-artifacts [DIR] to copy artifacts to a local directory (works for local and remote jobs).")
 
-    def _show_job_debug_info(self, job_id: str, job_data: JobData) -> None:
+    def _show_job_info(self, job_id: str, job_data: JobData) -> None:
         logger.info("Job", job_id=job_id)
         print(f"Job {job_id}")
 
@@ -208,14 +211,22 @@ class DebugCmd(ExportCmd):
             logger.info("Task", job_id=job_id, name=task_name)
             print(f"├── Task: {task_name}")
 
+        # Determine executor type for file descriptions
+        cfg_exec_type = ((job_data.config or {}).get("execution") or {}).get("type")
+        exec_type = (job_data.executor or cfg_exec_type or "").lower()
+
         # locations via exporter helper
         paths = _EXPORT_HELPER.get_job_paths(job_data)
 
-        # Artifacts
+        # Artifacts with file descriptions
+        artifacts_list = _get_artifacts_file_list()
         if paths.get("storage_type") == "remote_ssh":
             artifacts_path = f"{paths['username']}@{paths['hostname']}:{paths['remote_path']}/artifacts"
             logger.info("Artifacts", job_id=job_id, path=artifacts_path, remote=True)
             print(f"├── Artifacts: {artifacts_path} (remote)")
+            print("│   └── Key files:")
+            for filename, desc in artifacts_list:
+                print(f"│       ├── {filename} - {desc}")
         else:
             ap = paths.get("artifacts_dir")
             if ap:
@@ -224,14 +235,21 @@ class DebugCmd(ExportCmd):
                     "Artifacts", job_id=job_id, path=str(ap), exists_indicator=exists
                 )
                 print(f"├── Artifacts: {ap} {exists} (local)")
+                print("│   └── Key files:")
+                for filename, desc in artifacts_list:
+                    print(f"│       ├── {filename} - {desc}")
 
-        # Logs
+        # Logs with file descriptions
+        logs_list = _get_log_file_list(exec_type)
         if paths.get("storage_type") == "remote_ssh":
             logs_path = (
                 f"{paths['username']}@{paths['hostname']}:{paths['remote_path']}/logs"
             )
             logger.info("Logs", job_id=job_id, path=logs_path, remote=True)
             print(f"├── Logs: {logs_path} (remote)")
+            print("│   └── Key files:")
+            for filename, desc in logs_list:
+                print(f"│       ├── {filename} - {desc}")
         else:
             lp = paths.get("logs_dir")
             if lp:
@@ -240,6 +258,9 @@ class DebugCmd(ExportCmd):
                     "Logs", job_id=job_id, path=str(lp), exists_indicator=exists
                 )
                 print(f"├── Logs: {lp} {exists} (local)")
+                print("│   └── Key files:")
+                for filename, desc in logs_list:
+                    print(f"│       ├── {filename} - {desc}")
 
         # executor-specific
         d = job_data.data or {}
@@ -264,17 +285,23 @@ class DebugCmd(ExportCmd):
             eu = d.get("endpoint_url")
             if eu:
                 print(f"├── Endpoint URL: {eu}")
-        # local and others: paths already displayed above; no extra fields needed
 
     def _show_logs_info(self, jobs: List[Tuple[str, JobData]]) -> None:
         logger.info("Log locations")
         print("Log locations:\n")
         for job_id, job_data in jobs:
             paths = _EXPORT_HELPER.get_job_paths(job_data)
+            cfg_exec_type = ((job_data.config or {}).get("execution") or {}).get("type")
+            exec_type = (job_data.executor or cfg_exec_type or "").lower()
+            logs_list = _get_log_file_list(exec_type)
+
             if paths.get("storage_type") == "remote_ssh":
                 logs_path = f"ssh://{paths['username']}@{paths['hostname']}{paths['remote_path']}/logs"
                 logger.info("Logs", job_id=job_id, path=logs_path, remote=True)
                 print(f"{job_id}: {logs_path} (remote)")
+                print("  └── Key files:")
+                for filename, desc in logs_list:
+                    print(f"      ├── {filename} - {desc}")
             else:
                 lp = paths.get("logs_dir")
                 if lp:
@@ -283,18 +310,26 @@ class DebugCmd(ExportCmd):
                         "Logs", job_id=job_id, path=str(lp), exists_indicator=exists
                     )
                     print(f"{job_id}: {lp} {exists} (local)")
+                    print("  └── Key files:")
+                    for filename, desc in logs_list:
+                        print(f"      ├── {filename} - {desc}")
 
     def _show_artifacts_info(self, jobs: List[Tuple[str, JobData]]) -> None:
         logger.info("Artifact locations")
         print("Artifact locations:\n")
         for job_id, job_data in jobs:
             paths = _EXPORT_HELPER.get_job_paths(job_data)
+            artifacts_list = _get_artifacts_file_list()
+
             if paths.get("storage_type") == "remote_ssh":
                 artifacts_path = f"ssh://{paths['username']}@{paths['hostname']}{paths['remote_path']}/artifacts"
                 logger.info(
                     "Artifacts", job_id=job_id, path=artifacts_path, remote=True
                 )
                 print(f"{job_id}: {artifacts_path} (remote)")
+                print("  └── Key files:")
+                for filename, desc in artifacts_list:
+                    print(f"      ├── {filename} - {desc}")
             else:
                 ap = paths.get("artifacts_dir")
                 if ap:
@@ -306,6 +341,9 @@ class DebugCmd(ExportCmd):
                         exists_indicator=exists,
                     )
                     print(f"{job_id}: {ap} {exists} (local)")
+                    print("  └── Key files:")
+                    for filename, desc in artifacts_list:
+                        print(f"      ├── {filename} - {desc}")
 
     def _show_config_info(self, jobs: List[Tuple[str, JobData]]) -> None:
         for job_id, job_data in jobs:
@@ -403,3 +441,35 @@ class DebugCmd(ExportCmd):
         except Exception:
             pass
         return ""
+
+
+# Helper functions for file descriptions (based on actual code and content analysis)
+def _get_artifacts_file_list() -> list[tuple[str, str]]:
+    """Files actually generated in artifacts/ - prioritized by user interest."""
+    return [
+        ("results.yml", "Benchmark scores and task results"),
+        ("eval_factory_metrics.json", "Token usage, latency, memory stats"),
+        ("metrics.json", "Harness-specific metrics and config (varies by task)"),
+        ("report.html", "Visual summary with charts (if enabled)"),
+        ("report.json", "Structured report data (if enabled)"),
+        ("omni-info.json", "Request/response samples for debugging (if enabled)"),
+    ]
+
+
+def _get_log_file_list(executor_type: str) -> list[tuple[str, str]]:
+    """Files actually generated in logs/ - executor-specific."""
+    et = (executor_type or "local").lower()
+    if et == "slurm":
+        return [
+            ("client-{SLURM_JOB_ID}.out", "Evaluation container output"),
+            ("slurm-{SLURM_JOB_ID}.out", "SLURM scheduler messages"),
+            ("server-{SLURM_JOB_ID}.out", "Model server logs (if deployment used)"),
+        ]
+    # local executor
+    #TODO: Lepton executor logs
+    return [
+        ("stdout.log", "Complete evaluation output"),
+        ("stage.exit", "Exit code and completion timestamp"),
+        ("stage.running", "Container start timestamp"),
+        ("stage.pre-start", "Job preparation timestamp"),
+    ]
