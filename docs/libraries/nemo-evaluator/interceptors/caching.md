@@ -4,7 +4,7 @@
 
 ## Overview
 
-The `CachingInterceptor` implements a sophisticated caching system that can store responses based on request content, enabling faster re-runs of evaluations and reducing costs when using paid APIs.
+The `CachingInterceptor` implements a caching system that can store responses based on request content, enabling faster re-runs of evaluations and reducing costs when using paid APIs.
 
 ## Configuration
 

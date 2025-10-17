@@ -6,6 +6,10 @@
 
 `PayloadParamsModifierInterceptor` adds, removes, or modifies request parameters before sending them to the model endpoint.
 
+:::{tip}
+Add {ref}`interceptor-request-logging` to your interceptor chain to verify if your requests are modified correctly.
+:::
+
 ## Configuration
 
 ### CLI Configuration

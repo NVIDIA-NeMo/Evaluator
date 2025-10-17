@@ -7,6 +7,10 @@
 
 The `SystemMessageInterceptor` modifies incoming requests to include custom system messages. This interceptor works with chat-format requests, replacing any existing system messages with the configured message.
 
+:::{tip}
+Add {ref}`interceptor-request-logging` to your interceptor chain to verify if your requests are modified correctly.
+:::
+
 ## Configuration
 
 ### CLI Configuration
