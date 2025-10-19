@@ -50,6 +50,7 @@ from nemo_evaluator_launcher.common.mapping import (
     get_task_from_mapping,
     load_tasks_mapping,
 )
+from nemo_evaluator_launcher.common.printing_utils import bold, cyan, green, grey, red
 from nemo_evaluator_launcher.executors.base import (
     BaseExecutor,
     ExecutionState,
@@ -130,12 +131,12 @@ class SlurmExecutor(BaseExecutor):
                 remote_runsub_paths.append(remote_runsub_path)
 
             if dry_run:
-                print("\n\n=============================================\n\n")
-                print("DRY RUN: SLURM scripts prepared")
+                print(bold("\n\n=============================================\n\n"))
+                print(bold(cyan("DRY RUN: SLURM scripts prepared")))
                 for idx, local_runsub_path in enumerate(local_runsub_paths):
-                    print(f"\n\n =========== Task {idx} ===================== \n\n")
+                    print(cyan(f"\n\n=========== Task {idx} =====================\n\n"))
                     with open(local_runsub_path, "r") as f:
-                        print(f.read())
+                        print(grey(f.read()))
                 print("\nTo submit jobs, run the executor without --dry-run")
                 return invocation_id
 

@@ -47,6 +47,7 @@ from nemo_evaluator_launcher.common.mapping import (
     get_task_from_mapping,
     load_tasks_mapping,
 )
+from nemo_evaluator_launcher.common.printing_utils import bold, cyan, green, grey, red
 from nemo_evaluator_launcher.executors.base import (
     BaseExecutor,
     ExecutionState,
@@ -198,23 +199,28 @@ class LocalExecutor(BaseExecutor):
         )
 
         if dry_run:
-            print("\n\n=============================================\n\n")
-            print(f"DRY RUN: Scripts prepared and saved to {output_dir}")
+            print(bold("\n\n=============================================\n\n"))
+            print(bold(cyan(f"DRY RUN: Scripts prepared and saved to {output_dir}")))
             if is_execution_mode_sequential:
                 print(
-                    "\n\n =========== Main script | run_all.sequential.sh ===================== \n\n"
+                    cyan(
+                        "\n\n=========== Main script | run_all.sequential.sh =====================\n\n"
+                    )
                 )
+
                 with open(output_dir / "run_all.sequential.sh", "r") as f:
-                    print(f.read())
+                    print(grey(f.read()))
             else:
                 for idx, task in enumerate(cfg.evaluation.tasks):
                     task_output_dir = output_dir / task.name
                     print(
-                        f"\n\n =========== Task script | {task.name}/run.sh ===================== \n\n"
+                        cyan(
+                            f"\n\n=========== Task script | {task.name}/run.sh =====================\n\n"
+                        )
                     )
                     with open(task_output_dir / "run.sh", "r") as f:
-                        print(f.read())
-            print("\nTo execute, run without --dry-run")
+                        print(grey(f.read()))
+            print(bold("\nTo execute, run without --dry-run"))
             return invocation_id
 
         # Save launched jobs metadata
@@ -284,13 +290,13 @@ class LocalExecutor(BaseExecutor):
                 error_msg = f"Script for {name} exited with code {exit_code}"
                 raise RuntimeError(f"Job startup failed | {error_msg}")
 
-        print("\nCommands for real-time monitoring:")
+        print(bold(cyan("\nCommands for real-time monitoring:")))
         for job_id, evaluation_task in zip(job_ids, evaluation_tasks):
             log_file = evaluation_task["output_dir"] / "logs" / "stdout.log"
             print(f"  tail -f {log_file}")
 
-        print("\nFollow all logs for this invocation:")
-        print(f"  tail -f {output_dir}/*/logs/stdout.log")
+        print(bold(cyan("\nFollow all logs for this invocation:")))
+        print(f"  tail -f {output_dir}/*/logs/stdout.log\n")
 
         return invocation_id
 

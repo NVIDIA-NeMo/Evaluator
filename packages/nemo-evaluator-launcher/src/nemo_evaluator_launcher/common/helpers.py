@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import base64
 import copy
 import datetime
 from typing import Optional
@@ -25,8 +24,8 @@ from nemo_evaluator_launcher.common.logging_utils import logger
 
 
 def _yaml_to_echo_command(yaml_str: str, filename: str = "config_ef.yaml") -> str:
-    yaml_str_b64 = base64.b64encode(yaml_str.encode("utf-8")).decode("utf-8")
-    return f'echo "{yaml_str_b64}" | base64 -d > {filename}'
+    logger.debug("Eval factory config for passing to containers", yaml_str=yaml_str)
+    return f"cat > {filename} <<CONFIG_EOF\n" + yaml_str + "\nCONFIG_EOF"
 
 
 def get_eval_factory_config(
@@ -80,7 +79,7 @@ def get_eval_factory_command(
     if overrides:
         eval_command = f"{eval_command} --overrides {overrides_str}"
 
-    return create_file_cmd + " && " + "cat config_ef.yaml && " + eval_command
+    return create_file_cmd + "\n" + eval_command
 
 
 def get_endpoint_url(
