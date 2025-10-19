@@ -51,15 +51,15 @@ else
       {% endfor -%}
       {{ task.eval_image }} \
       bash -c '
-        {{ task.eval_factory_command }} ;
-        exit_code=$?
-        chmod 777 -R /results;
-        if [ "$exit_code" -ne 0 ]; then
-            echo "The evaluation container failed with exit code $exit_code" >&2;
-            exit "$exit_code";
-        fi;
-        echo "Container completed successfully" >&2;
-        exit 0;
+{{ task.eval_factory_command }} ;
+exit_code=$?
+chmod 777 -R /results;
+if [ "$exit_code" -ne 0 ]; then
+    echo "The evaluation container failed with exit code $exit_code" >&2;
+    exit "$exit_code";
+fi;
+echo "Container completed successfully" >&2;
+exit 0;
       ' > "$logs_dir/stdout.log" 2>&1
     exit_code=$?
     echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $exit_code" > "$logs_dir/stage.exit"

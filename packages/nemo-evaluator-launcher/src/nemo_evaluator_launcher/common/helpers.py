@@ -13,8 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import base64
 import copy
 import datetime
+from dataclasses import dataclass
 from typing import Optional
 
 import yaml
@@ -23,9 +25,36 @@ from omegaconf import DictConfig, OmegaConf
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 
-def _yaml_to_echo_command(yaml_str: str, filename: str = "config_ef.yaml") -> str:
-    logger.debug("Eval factory config for passing to containers", yaml_str=yaml_str)
-    return f"cat > {filename} <<CONFIG_EOF\n" + yaml_str + "\nCONFIG_EOF"
+@dataclass(frozen=True)
+class _CmdAndReadableComment:
+    """See the comment to `_yaml_to_echo_command`."""
+
+    # Actual command. Might include hard-to-debug elements such as base64-encoded
+    # configs.
+    cmd: str
+    # A debuggale readable comment that can be passed along for accompanying
+    # the actual command
+    debug: str
+
+
+def _yaml_to_echo_command(
+    yaml_str: str, filename: str = "config_ef.yaml"
+) -> _CmdAndReadableComment:
+    """Create a safe (see below) echo command saving a yaml to file.
+
+    Safety in this context means the ability to pass such echo command through the
+    `bash -c '...'` boundaries for example.
+
+    Naturally, enconding with base64 creates debuggability issues. For that, the second
+    output of the function is the yaml string with bash comment signs prepended.
+    """
+    yaml_str_b64 = base64.b64encode(yaml_str.encode("utf-8")).decode("utf-8")
+    debug_str = "\n".join(
+        [f"# Contents of {filename}"] + ["# " + s for s in yaml_str.splitlines()]
+    )
+    return _CmdAndReadableComment(
+        cmd=f'echo "{yaml_str_b64}" | base64 -d > {filename}', debug=debug_str
+    )
 
 
 def get_eval_factory_config(
@@ -79,7 +108,7 @@ def get_eval_factory_command(
     if overrides:
         eval_command = f"{eval_command} --overrides {overrides_str}"
 
-    return create_file_cmd + "\n" + eval_command
+    return create_file_cmd.debug + "\n" + create_file_cmd.cmd + "\n" + eval_command
 
 
 def get_endpoint_url(

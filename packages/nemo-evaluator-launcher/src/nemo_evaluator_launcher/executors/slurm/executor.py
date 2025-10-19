@@ -137,7 +137,7 @@ class SlurmExecutor(BaseExecutor):
                     print(cyan(f"\n\n=========== Task {idx} =====================\n\n"))
                     with open(local_runsub_path, "r") as f:
                         print(grey(f.read()))
-                print("\nTo submit jobs, run the executor without --dry-run")
+                print(bold("To submit jobs") + ", run the executor without --dry-run")
                 return invocation_id
 
             socket = str(Path(tmpdirname) / "socket")
@@ -603,7 +603,7 @@ def _create_slurm_sbatch_script(
         s += "--no-container-mount-home "
     s += "--container-mounts {} ".format(",".join(evaluation_mounts_list))
     s += "--output {} ".format(remote_task_subdir / "logs" / "client-%A.out")
-    s += "bash -c '"
+    s += "bash -c '\n"
     s += get_eval_factory_command(cfg, task, task_definition)
     s += "'\n\n"
 
