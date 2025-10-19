@@ -473,7 +473,10 @@ def _create_slurm_sbatch_script(
         details=remote_task_subdir.name,
     )
     s += "#SBATCH --job-name {}\n".format(job_name)
-    s += "#SBATCH --exclusive\n"
+    if cfg.execution.get(
+        "exclusive", True
+    ):  # Default to True for backward compatibility
+        s += "#SBATCH --exclusive\n"
     s += "#SBATCH --output {}\n".format(remote_task_subdir / "logs" / "slurm-%A.out")
     s += "\n"
     s += f'TASK_DIR="{str(remote_task_subdir)}"\n'
