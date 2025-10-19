@@ -47,7 +47,7 @@ from nemo_evaluator_launcher.common.mapping import (
     get_task_from_mapping,
     load_tasks_mapping,
 )
-from nemo_evaluator_launcher.common.printing_utils import bold, cyan, green, grey, red
+from nemo_evaluator_launcher.common.printing_utils import bold, cyan, grey
 from nemo_evaluator_launcher.executors.base import (
     BaseExecutor,
     ExecutionState,

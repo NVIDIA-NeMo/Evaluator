@@ -111,7 +111,7 @@ class Cmd:
             invocation_id = run_eval(config, self.dry_run)
         except Exception as e:
             print(red(f"✗ Job submission failed, see logs | Error: {e}"))
-            logger.error(f"Job submission failed", error=e)
+            logger.error("Job submission failed", error=e)
             raise
 
         # Save the complete configuration
@@ -155,9 +155,7 @@ class Cmd:
                 f.write("#\n")
                 f.write(config_yaml)
 
-            print(
-                bold(cyan(f"Complete run config saved to: ")) + f"\n  {config_path}\n"
-            )
+            print(bold(cyan("Complete run config saved to: ")) + f"\n  {config_path}\n")
             logger.info("Saved complete config", path=config_path)
 
         # Print general success message with invocation ID and helpful commands
