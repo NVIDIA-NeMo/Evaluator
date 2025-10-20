@@ -50,6 +50,7 @@ from nemo_evaluator_launcher.common.mapping import (
     get_task_from_mapping,
     load_tasks_mapping,
 )
+from nemo_evaluator_launcher.common.printing_utils import bold, cyan, grey
 from nemo_evaluator_launcher.executors.base import (
     BaseExecutor,
     ExecutionState,
@@ -130,13 +131,13 @@ class SlurmExecutor(BaseExecutor):
                 remote_runsub_paths.append(remote_runsub_path)
 
             if dry_run:
-                print("\n\n=============================================\n\n")
-                print("DRY RUN: SLURM scripts prepared")
+                print(bold("\n\n=============================================\n\n"))
+                print(bold(cyan("DRY RUN: SLURM scripts prepared")))
                 for idx, local_runsub_path in enumerate(local_runsub_paths):
-                    print(f"\n\n =========== Task {idx} ===================== \n\n")
+                    print(cyan(f"\n\n=========== Task {idx} =====================\n\n"))
                     with open(local_runsub_path, "r") as f:
-                        print(f.read())
-                print("\nTo submit jobs, run the executor without --dry-run")
+                        print(grey(f.read()))
+                print(bold("To submit jobs") + ", run the executor without --dry-run")
                 return invocation_id
 
             socket = str(Path(tmpdirname) / "socket")
@@ -589,7 +590,20 @@ def _create_slurm_sbatch_script(
     ):
         evaluation_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
+    eval_factory_command_struct = get_eval_factory_command(cfg, task, task_definition)
+    eval_factory_command = eval_factory_command_struct.cmd
+    # The debug comment for placing into the script and easy debug. Reason
+    # (see `CmdAndReadableComment`) is the current way of passing the command
+    # is base64-encoded config `echo`-ed into file.
+    # TODO(agronskiy): cleaner way is to encode everything with base64, not
+    # some parts (like ef_config.yaml) and just output as logs somewhere.
+    eval_factory_command_debug_comment = eval_factory_command_struct.debug
+
     # add evaluation srun command
+    s += "# Debug contents of the eval factory command's config\n"
+    s += eval_factory_command_debug_comment
+    s += "\n\n"
+
     s += "# evaluation client\n"
     s += "srun --mpi pmix --overlap "
     s += "--container-image {} ".format(eval_image)
@@ -600,10 +614,11 @@ def _create_slurm_sbatch_script(
         s += "--container-env {} ".format(",".join(evaluation_env_var_names))
     if not cfg.execution.get("mounts", {}).get("mount_home", True):
         s += "--no-container-mount-home "
+
     s += "--container-mounts {} ".format(",".join(evaluation_mounts_list))
     s += "--output {} ".format(remote_task_subdir / "logs" / "client-%A.out")
-    s += "bash -c '"
-    s += get_eval_factory_command(cfg, task, task_definition)
+    s += "bash -c '\n"
+    s += eval_factory_command
     s += "'\n\n"
 
     # terminate the server after all evaluation clients finish

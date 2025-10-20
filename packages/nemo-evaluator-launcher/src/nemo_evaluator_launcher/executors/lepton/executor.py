@@ -406,7 +406,12 @@ class LeptonExecutor(BaseExecutor):
                     cfg.target.api_endpoint.url = full_endpoint_url
 
                     # Generate command with the correct endpoint URL
-                    eval_command = get_eval_factory_command(cfg, task, task_definition)
+                    eval_command_struct = get_eval_factory_command(
+                        cfg, task, task_definition
+                    )
+                    eval_command = eval_command_struct.cmd
+                    # Debug string for explainability of some base64-parts of the command
+                    eval_command_debug_comment = eval_command_struct.debug
 
                 finally:
                     # Restore original URL and struct mode
@@ -431,6 +436,7 @@ class LeptonExecutor(BaseExecutor):
                     task_name=task.name,
                     invocation_id=invocation_id,
                     eval_command=eval_command,  # Pass the fixed command
+                    eval_command_debug_comment=eval_command_debug_comment,
                 )
 
                 # Prepare job command to run the launch script
@@ -734,6 +740,7 @@ def _create_evaluation_launch_script(
     task_name: str,
     invocation_id: str,
     eval_command: str,
+    eval_command_debug_comment: str,
 ) -> str:
     """Create bash script for running evaluation in Lepton job container.
 
@@ -747,6 +754,7 @@ def _create_evaluation_launch_script(
         task_name: Name of the evaluation task.
         invocation_id: Unique invocation identifier.
         eval_command: The evaluation command with correct endpoint URL.
+        eval_command_debug_comment: The debug comment for placing into the script and easy debug
 
     Returns:
         String containing the bash launch script.
@@ -778,6 +786,8 @@ echo "Starting evaluation for task: {task_name}"
 echo "Invocation ID: {invocation_id}"
 echo "Endpoint URL: {endpoint_url}"
 echo "Command: {eval_command_modified}"
+
+{eval_command_debug_comment}
 
 # Execute the evaluation with proper error handling
 set +e
