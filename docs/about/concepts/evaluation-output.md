@@ -66,7 +66,6 @@ The evaluation output contains the following general sections:
 | Score Value | Primary performance metric |
 | Standard Deviation | Measure of score variability |
 | Standard Error | Statistical error measure |
-| Micro-averaging | Aggregated statistics across samples |
 
 ## Additional Output Files
 
