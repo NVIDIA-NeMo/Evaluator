@@ -66,6 +66,8 @@ The evaluation output contains the following general sections:
 | Score Value | Primary performance metric |
 | Standard Deviation | Measure of score variability |
 | Standard Error | Statistical error measure |
+In the example output above, the metric used is the micro-average across the samples (thus `micro` key in the structure).
+The types of metrics available in the results differ for different evaluation harness and task, but they are always presented using the same structure as shown above.
 
 ## Additional Output Files
 
