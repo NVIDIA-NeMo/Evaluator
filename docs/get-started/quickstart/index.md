@@ -17,7 +17,7 @@ All paths require:
 | List benchmarks | `nemo-evaluator-launcher ls tasks` |
 | Run evaluation | `nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name <config>` |
 | Check status | `nemo-evaluator-launcher status <invocation_id>` |
-| Debug job | `nemo-evaluator-launcher debug <invocation_id>` |
+| Job info | `nemo-evaluator-launcher info <invocation_id>` |
 | Export results | `nemo-evaluator-launcher export <invocation_id> --dest local --format json` |
 | Dry run | Add `--dry-run` to any run command |
 | Test with limited samples | Add `-o +config.params.limit_samples=3` |
