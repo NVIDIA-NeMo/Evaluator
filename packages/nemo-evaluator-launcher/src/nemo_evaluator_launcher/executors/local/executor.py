@@ -156,6 +156,16 @@ class LocalExecutor(BaseExecutor):
 
             task_output_dir = output_dir / task.name
             task_output_dir.mkdir(parents=True, exist_ok=True)
+            eval_factory_command_struct = get_eval_factory_command(
+                cfg, task, task_definition
+            )
+            eval_factory_command = eval_factory_command_struct.cmd
+            # The debug comment for placing into the script and easy debug. Reason
+            # (see `CmdAndReadableComment`) is the current way of passing the command
+            # is base64-encoded config `echo`-ed into file.
+            # TODO(agronskiy): cleaner way is to encode everything with base64, not
+            # some parts (like ef_config.yaml) and just output as logs somewhere.
+            eval_factory_command_debug_comment = eval_factory_command_struct.debug
             evaluation_task = {
                 "name": task.name,
                 "job_id": job_id,
@@ -163,9 +173,8 @@ class LocalExecutor(BaseExecutor):
                 "container_name": container_name,
                 "env_vars": env_vars,
                 "output_dir": task_output_dir,
-                "eval_factory_command": get_eval_factory_command(
-                    cfg, task, task_definition
-                ),
+                "eval_factory_command": eval_factory_command,
+                "eval_factory_command_debug_comment": eval_factory_command_debug_comment,
             }
             evaluation_tasks.append(evaluation_task)
 
