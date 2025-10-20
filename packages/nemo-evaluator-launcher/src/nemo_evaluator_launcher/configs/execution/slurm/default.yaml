@@ -14,6 +14,10 @@
 # limitations under the License.
 #
 # Each slurm cluster has its own flavour, below we provide some defaults that might meet one's needs.
+
+# Executor is chosen based on this field
+type: slurm
+
 hostname: ???
 username: ${oc.env:USER}
 account: ???
