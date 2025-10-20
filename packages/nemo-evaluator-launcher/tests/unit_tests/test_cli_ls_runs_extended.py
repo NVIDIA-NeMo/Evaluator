@@ -141,13 +141,13 @@ class TestLsRunsFiltering:
                 "invocation_id": "inv1",
                 "executor": "local",
                 "num_jobs": 5,
-                "earliest_job_ts": 1640908800.0,  # 2021-12-31 00:00:00
+                "earliest_job_ts": 1640419200.0,  # 2021-12-25
             },
             {
                 "invocation_id": "inv2",
                 "executor": "local",
                 "num_jobs": 3,
-                "earliest_job_ts": 1640995200.0,  # 2022-01-01 00:00:00
+                "earliest_job_ts": 1641542400.0,  # 2022-01-07
             },
         ]
 

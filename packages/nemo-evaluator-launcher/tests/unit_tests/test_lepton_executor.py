@@ -616,7 +616,11 @@ class TestLeptonExecutorErrorHandling:
             mock_wait_ready.return_value = True
             mock_get_url.return_value = "https://test-endpoint.lepton.run"
             mock_get_task.return_value = mock_tasks_mapping[("lm-eval", "mmlu_pro")]
-            mock_get_command.return_value = "test-command"
+            from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+            mock_get_command.return_value = CmdAndReadableComment(
+                cmd="test-command", debug="# Test command for lepton job failure"
+            )
             mock_create_job.return_value = (False, "Job submission failed")
 
             LeptonExecutor.execute_eval(cfg, dry_run=False)
@@ -672,6 +676,7 @@ class TestLeptonExecutorHelperFunctions:
             task_name,
             invocation_id,
             eval_command,
+            "# Test debug comment",
         )
 
         # Verify script contains expected elements
@@ -949,7 +954,12 @@ class TestLeptonExecutorHelperFunctions:
                     "extremely_long_task_name_that_should_be_truncated_properly",
                 )
             ]
-            mock_get_command.return_value = "test-command --output_dir /results"
+            from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+            mock_get_command.return_value = CmdAndReadableComment(
+                cmd="test-command --output_dir /results",
+                debug="# Test command for long job names",
+            )
             mock_create_job.return_value = (True, None)
 
             # Execute (not dry run to test job submission)
@@ -1294,7 +1304,12 @@ class TestLeptonExecutorKillJob:
             mock_wait.return_value = True
             mock_get_url.side_effect = lambda ep: f"https://{ep}.lepton.run"
             mock_create_job.return_value = (True, None)
-            mock_get_cmd.return_value = "test-cmd --output_dir /results"
+            from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+            mock_get_cmd.return_value = CmdAndReadableComment(
+                cmd="test-cmd --output_dir /results",
+                debug="# Test command for endpoint naming",
+            )
 
             # Execute REAL run
             LeptonExecutor.execute_eval(cfg, dry_run=False)
