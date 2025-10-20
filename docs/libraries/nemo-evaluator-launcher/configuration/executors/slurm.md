@@ -106,5 +106,5 @@ This configuration:
 - Uses the Slurm execution backend
 - Deploys a vLLM model server on the cluster
 - Requests GPU resources (8 GPUs per node, 4-hour time limit)
-- Runs three benchmark tasks sequentially
+- Runs three benchmark tasks in parallel
 - Saves benchmark artifacts to `output_dir`
