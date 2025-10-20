@@ -19,6 +19,15 @@ from dataclasses import dataclass
 
 from simple_parsing import field
 
+from nemo_evaluator_launcher.common.logging_utils import logger
+from nemo_evaluator_launcher.common.printing_utils import (
+    bold,
+    cyan,
+    green,
+    magenta,
+    red,
+)
+
 
 @dataclass
 class Cmd:
@@ -101,14 +110,9 @@ class Cmd:
         try:
             invocation_id = run_eval(config, self.dry_run)
         except Exception as e:
-            print(f"\033[31m✗ Job submission failed | Error: {e}\033[0m")
+            print(red(f"✗ Job submission failed, see logs | Error: {e}"))
+            logger.error("Job submission failed", error=e)
             raise
-
-        # Print general success message with invocation ID
-        if invocation_id is not None and not self.dry_run:
-            print(
-                f"\033[32m✓ Job submission successful | Invocation ID: {invocation_id}\033[0m"
-            )
 
         # Save the complete configuration
         if not self.dry_run and invocation_id is not None:
@@ -151,14 +155,22 @@ class Cmd:
                 f.write("#\n")
                 f.write(config_yaml)
 
-            print(f"Complete run config saved to: {config_path}")
+            print(bold(cyan("Complete run config saved to: ")) + f"\n  {config_path}\n")
+            logger.info("Saved complete config", path=config_path)
 
-        if invocation_id is not None:
-            print(f"to check status: nemo-evaluator-launcher status {invocation_id}")
-            print(f"to kill all jobs: nemo-evaluator-launcher kill {invocation_id}")
+        # Print general success message with invocation ID and helpful commands
+        if invocation_id is not None and not self.dry_run:
+            print(
+                bold(cyan("To check status: "))
+                + f"nemo-evaluator-launcher status {invocation_id}"
+            )
+            print(
+                bold(cyan("To kill all jobs: "))
+                + f"nemo-evaluator-launcher kill {invocation_id}"
+            )
 
             # Show actual job IDs and task names
-            print("to kill individual jobs:")
+            print(bold(cyan("To kill individual jobs:")))
             # Access tasks - will work after normalization in run_eval
             tasks = (
                 config.evaluation.tasks
@@ -168,7 +180,21 @@ class Cmd:
             for idx, task in enumerate(tasks):
                 job_id = f"{invocation_id}.{idx}"
                 print(f"  nemo-evaluator-launcher kill {job_id}  # {task.name}")
+
             print(
-                "to print all jobs: nemo-evaluator-launcher ls runs"
+                magenta(
+                    "(all commands accept shortened IDs as long as there are no conflicts)"
+                )
+            )
+            print(
+                bold(cyan("To print all jobs: ")) + "nemo-evaluator-launcher ls runs"
                 "\n  (--since 1d or --since 6h for time span, see --help)"
+            )
+
+            print(
+                green(
+                    bold(
+                        f"✓ Job submission successful | Invocation ID: {invocation_id}"
+                    )
+                )
             )

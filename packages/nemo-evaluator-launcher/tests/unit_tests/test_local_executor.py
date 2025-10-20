@@ -121,8 +121,11 @@ class TestLocalExecutorDryRun:
                     raise KeyError(f"Task {task_name} not found")
 
                 mock_get_task.side_effect = mock_get_task_side_effect
-                mock_get_command.return_value = (
-                    "nemo-evaluator-launcher --task test_command"
+                from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+                mock_get_command.return_value = CmdAndReadableComment(
+                    cmd="nemo-evaluator-launcher --task test_command",
+                    debug="# Test command for local executor",
                 )
 
                 # Execute dry run
