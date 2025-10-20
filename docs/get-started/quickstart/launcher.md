@@ -68,7 +68,7 @@ tail -f <job_output_dir>/*/logs/stdout.log   # use the output_dir printed by the
 
 # 7a. Export your results (JSON/CSV)
 nemo-evaluator-launcher export <invocation_id> --dest local --format json
-# 7b. Or debug them, with lots of useful subcommands inside
+# 7b. Or see the job details, with lots of useful subcommands inside
 nemo-evaluator-launcher info <invocation_id>   # use the ID printed by the run command
 
 # 8. Kill the running job(s)
