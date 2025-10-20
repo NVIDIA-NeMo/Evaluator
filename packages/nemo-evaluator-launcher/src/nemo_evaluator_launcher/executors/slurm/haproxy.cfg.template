@@ -7,8 +7,8 @@ defaults
     mode    http
     option  httplog
     timeout connect 10s
-    timeout client  3600s
-    timeout server  3600s
+    timeout client  100000s
+    timeout server  100000s
 
 frontend service_frontend
     bind *:{{ haproxy_port }}
