@@ -65,8 +65,9 @@ def get_eval_factory_config(
     This function extracts the config field similar to how overrides are handled.
     """
     # Extract config fields similar to overrides - convert to basic Python types first
-    cfg_config = cfg.evaluation.get("config", {})
-    user_config = user_task_config.get("config", {})
+    # Support both new and old format for backward compatibility
+    cfg_config = cfg.evaluation.get("nemo_evaluator_config") or cfg.evaluation.get("config", {})
+    user_config = user_task_config.get("nemo_evaluator_config") or user_task_config.get("config", {})
 
     # Convert OmegaConf objects to basic Python types
     if cfg_config:
@@ -120,10 +121,12 @@ def get_endpoint_url(
 ) -> str:
     def apply_url_override(url: str) -> str:
         """Apply user URL override if provided."""
+        nemo_evaluator_config_url = user_task_config.get("nemo_evaluator_config", {}).get("target.api_endpoint.url", None)
+
         override_url = user_task_config.get("overrides", {}).get(
-            "config.target.api_endpoint.url"
+            "config.target.api_endpoint.url", None
         )
-        return override_url if override_url is not None else url
+        return override_url if override_url is not None else nemo_evaluator_config_url if nemo_evaluator_config_url is not None else url
 
     if cfg.deployment.type == "none":
         # For deployment: none, use target URL regardless of executor type

@@ -58,28 +58,41 @@ deployment:
 
 # specify the benchmarks to evaluate
 evaluation:
-  overrides: # these overrides apply to all tasks; for task-specific overrides, use the `overrides` field
-    config.params.request_timeout: 3600
-    target.api_endpoint.adapter_config.use_reasoning: false # if true, strips reasoning tokens
-    target.api_endpoint.adapter_config.use_system_prompt: true
-    target.api_endpoint.adapter_config.custom_system_prompt: >-
-      "Think step by step."
+  nemo_evaluator_config:  # global config settings that apply to all tasks
+    config:
+      params:
+        request_timeout: 3600  # timeout for API requests in seconds
+      target:
+        api_endpoint:
+          adapter_config:
+            use_reasoning: false  # if true, strips reasoning tokens and collects reasoning stats
+            use_system_prompt: true  # enables custom system prompt
+            custom_system_prompt: >-
+              "Think step by step."
   tasks:
-    - name: ifeval # use the default benchmark configuration
+    - name: ifeval  # use the default benchmark configuration
     - name: gpqa_diamond
-      overrides: # task-specific overrides
-        config.params.temperature: 0.6
-        config.params.top_p: 0.95
-        config.params.max_new_tokens: 8192
-        config.params.parallelism: 32
+      nemo_evaluator_config:  # task-specific configuration for gpqa_diamond
+        config:
+          params:
+            temperature: 0.6  # sampling temperature
+            top_p: 0.95  # nucleus sampling parameter
+            max_new_tokens: 8192  # maximum tokens to generate
+            parallelism: 32  # number of parallel requests
       env_vars:
         HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
     - name: mbpp
-      overrides: # task-specific overrides
-        config.params.temperature: 0.2
-        config.params.top_p: 0.95
-        config.params.max_new_tokens: 2048
-        config.params.extra.n_samples: 5 # sample 5 predictions per prompt
-        config.params.parallelism: 32
-        target.api_endpoint.adapter_config.custom_system_prompt: >-
-          "You must only provide the code implementation"
+      nemo_evaluator_config:  # task-specific configuration for mbpp
+        config:
+          params:
+            temperature: 0.2  # sampling temperature
+            top_p: 0.95  # nucleus sampling parameter
+            max_new_tokens: 2048  # maximum tokens to generate
+            parallelism: 32  # number of parallel requests
+            extra:
+              n_samples: 5  # sample 5 predictions per prompt
+          target:
+            api_endpoint:
+              adapter_config:
+                custom_system_prompt: >-
+                  "You must only provide the code implementation"
