@@ -70,22 +70,23 @@ NeMo Evaluator works with any OpenAI-compatible endpoint. You have several optio
 
 If you prefer to host your own models:
 
-## Advance settings
 
-If you are deploying the model locally with Docker, you can use a dedicated docker network.
+If you are deploying the model locally with Docker, you can use a .
 This will provide a secure connetion between deployment and evaluation docker containers.
 
 ```bash
+# create a dedicated docker network
 docker network create my-custom-network
 
+# launch deployment
 docker run --gpus all --network my-custom-network --name my-phi-container vllm/vllm-openai:latest \
-    --model microsoft/Phi-4-mini-instruct --max-model-len 4096
+    --model microsoft/Phi-4-mini-instruct --max-model-len 8192
 
 # Or use other serving frameworks
 # TRT-LLM, NeMo Framework, etc.
 ```
 
-Use the same network in the evaluator config:
+Create an evaluation config:
 
 ```yaml
 defaults:
@@ -95,7 +96,7 @@ defaults:
 
 execution:
   output_dir: my_phi_test
-  extra_docker_args: "--network my-custom-network"
+  extra_docker_args: "--network my-custom-network"  # same network as used for deployment
 
 target:
   api_endpoint:
@@ -110,6 +111,15 @@ evaluation:
         config.params.limit_samples: 10 # TEST ONLY: Limits to 10 samples for quick testing
         config.params.parallelism: 1
 ```
+
+Save the config to a file (e.g. `phi-eval.yaml`) and launch the evaluation:
+
+```bash
+nemo-evaluator-launcher run \
+    --config-dir . \
+    --config-name phi-eval.yaml \
+    -o execution.output_dir=./phi-results
+
 
 <!-- See {ref}`deployment-overview` for detailed deployment options. -->
 
