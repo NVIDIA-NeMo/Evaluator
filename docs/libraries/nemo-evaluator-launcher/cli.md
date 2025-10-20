@@ -182,10 +182,10 @@ nemo-evaluator-launcher info <id> --logs
 
 ### Copy files locally
 ```bash
-# Copy logs (defaults to current dir if no path provided)
+# Copy logs
 nemo-evaluator-launcher info <id> --copy-logs [DIR]
 
-# Copy artifacts (defaults to current dir if no path provided)
+# Copy artifacts
 nemo-evaluator-launcher info <id> --copy-artifacts [DIR]
 ```
 
@@ -197,14 +197,14 @@ Job <inv_id>.0
 ├── Executor: slurm
 ├── Created: <timestamp>
 ├── Task: <task_name>
-├── Artifacts: user@host:/shared/.../4245adf6071cd199/task_name/artifacts (remote)
+├── Artifacts: user@host:/shared/.../<job_id>/task_name/artifacts (remote)
 │   └── Key files:
 │       ├── results.yml - Benchmark scores, task results and resolved run configuration.
 │       ├── eval_factory_metrics.json - Response + runtime stats (latency, tokens count, memory)
 │       ├── metrics.json - Harness/benchmark metric and configuration
 │       ├── report.html - Request-Response Pairs samples in HTML format (if enabled)
 │       ├── report.json - Report data in json format, if enabled
-├── Logs: user@host:/shared/.../4245adf6071cd199/task_name/logs (remote)
+├── Logs: user@host:/shared/.../<job_id>/task_name/logs (remote)
 │   └── Key files:
 │       ├── client-{SLURM_JOB_ID}.out - Evaluation container/process output
 │       ├── slurm-{SLURM_JOB_ID}.out - SLURM scheduler stdout/stderr (batch submission, export steps).
