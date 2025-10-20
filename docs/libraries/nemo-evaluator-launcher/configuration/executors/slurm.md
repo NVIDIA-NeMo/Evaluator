@@ -28,10 +28,11 @@ execution:
   output_dir: /shared/scratch/your_username/eval_results  # Absolute, shared path
 ```
 
-**Note:** 
+:::{note}
+When specifying the parameters make sure to provide:
 - `hostname`: Slurm headnode (login node) where you normally SSH to submit jobs.
-- `output_dir`: must be an absolute path on a shared filesystem (e.g., /shared/scratch/ or /home/) accessible to both the headnode and compute nodes.
-
+- `output_dir`: must be an **absolute path** on a shared filesystem (e.g., /shared/scratch/ or /home/) accessible to both the headnode and compute nodes.
+:::
 
 ### Model Deployment Options
 
@@ -59,7 +60,7 @@ deployment:
 
 #### Option 2: Local Model Files (Manual Setup Required)
 
-For local model files, use `checkpoint_path`:
+If you work with a checkpoint stored on locally on the cluster, use `checkpoint_path`:
 
 ```yaml
 deployment:
@@ -89,11 +90,16 @@ execution:
   partition: gpu
   walltime: "04:00:00"
   gpus_per_node: 8
+  env_vars:
+    deployment:
+      HF_TOKEN: "hf_your_token" # Needed to access meta-llama/Llama-3.1-8B-Instruct gated model
 
 deployment:
-  checkpoint_path: /shared/models/llama-3.1-8b-instruct
+  hf_model_handle: meta-llama/Llama-3.1-8B-Instruct
+  checkpoint_path: null
   served_model_name: meta-llama/Llama-3.1-8B-Instruct
   tensor_parallel_size: 1
+  data_parallel_size: 8
     
 evaluation:
   tasks:
