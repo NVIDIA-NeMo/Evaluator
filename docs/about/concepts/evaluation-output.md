@@ -30,6 +30,7 @@ For the reference purposes, we cite here the launcher config that is used in the
 
 ```{literalinclude} ../../../packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct_limit_samples.yaml
 :language: yaml
+:start-after: "[docs-start-snippet]"
 ```
 
 ## Output Structure
@@ -45,66 +46,33 @@ It is instructive to compare the configuration file cited above and the resultin
 :::
 
 
-### Command Section
-The `command` field contains the exact command that was executed to run the evaluation, including all parameters and flags.
+## Output Structure
 
-### Configuration Section
-The `config` section includes the complete configuration that was used to run
-the evaluation inside of the underlying harness.
+The evaluation output contains the following general sections:
 
-### Results Section
-The `results` section contains the actual evaluation metrics:
-
-#### Groups
-- **gpqa_diamond**: Contains aggregated metrics across all samples
-  - **score**: Overall performance score
-    - **micro**: Micro-averaged statistics
-      - **value**: The actual score value (e.g., 0.2)
-      - **stats**: Statistical measures
-        - **stddev**: Standard deviation (e.g., 0.4000000000000001)
-        - **stderr**: Standard error (e.g., 0.2)
-
-#### Tasks
-- **gpqa_diamond**: Task-specific metrics with the same structure as groups
-
-### Target Section
-The `target` section describes the model and API configuration:
-
-#### API Endpoint
-- **adapter_config**: Configuration for the API adapter
-  - **endpoint_type**: Type of endpoint (e.g., "chat")
-  - **interceptors**: List of interceptors applied during evaluation:
-    - **system_message**: Adds "Think step by step." system message
-    - **caching**: Manages request/response caching
-    - **endpoint**: Basic endpoint handling
-    - **response_stats**: Tracks response statistics
-  - **post_eval_hooks**: Post-evaluation processing
-    - **post_eval_report**: Generates HTML and JSON reports
-- **api_key**: API key for authentication
-- **model_id**: Model identifier (e.g., "meta/llama-3.1-8b-instruct")
-- **url**: API endpoint URL
-- **type**: API type (e.g., "chat")
+| Section | Description |
+|---------|-------------|
+| `command` | The exact command executed to run the evaluation |
+| `config` | Evaluation configuration including parameters and settings |
+| `results` | Evaluation metrics and scores organized by groups and tasks |
+| `target` | Model and API endpoint configuration details |
+| `git_hash` | Git commit hash (if available) |
 
 
 ## Key Metrics
 
-The evaluation output provides several important metrics:
+| Metric | Description |
+|--------|-------------|
+| Score Value | Primary performance metric |
+| Standard Deviation | Measure of score variability |
+| Standard Error | Statistical error measure |
+| Micro-averaging | Aggregated statistics across samples |
 
-1. **Score Value**: The primary performance metric (e.g., 0.2)
-2. **Standard Deviation**: Measure of score variability across samples
-3. **Standard Error**: Statistical error measure for the score
-4. **Micro-averaging**: Aggregated statistics across all samples
+## Additional Output Files
 
-## Output Files
-
-In addition to the `results.yaml` file, the evaluation process may generate:
-- **HTML Report**: Human-readable evaluation report
-- **JSON Report**: Machine-readable evaluation data
-- **Cache Files**: Cached requests and responses for efficiency
-- **Log Files**: Detailed execution logs
-
-## Understanding the Results
-
-The evaluation output provides a comprehensive view of model performance on the specified task. The score value represents the model's performance, while the statistical measures (stddev, stderr) provide confidence intervals and variability information.
-
-For more detailed information about specific evaluation tasks and their metrics, refer to the individual evaluation task documentation.
+| File Type | Description |
+|-----------|-------------|
+| HTML Report | Human-readable evaluation report |
+| JSON Report | Machine-readable evaluation data |
+| Cache Files | Cached requests and responses |
+| Log Files | Detailed execution logs |

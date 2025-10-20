@@ -20,6 +20,7 @@
 
 # To see the full config, run `nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct --dry-run`
 
+# [docs-start-snippet]
 # specify default configs for execution and deployment
 defaults:
   - execution: local
