@@ -16,10 +16,11 @@
 
 """Job information helper functionalities for nemo-evaluator-launcher."""
 
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from simple_parsing import field
 
@@ -42,11 +43,11 @@ class InfoCmd:
       nemo-evaluator-launcher info <inv> --config        # Show stored job config (YAML)
       nemo-evaluator-launcher info <inv> --artifacts     # Show artifact locations and key files
       nemo-evaluator-launcher info <inv> --logs          # Show log locations and key files
-      nemo-evaluator-launcher info <inv> --copy-logs <path>       # Copy logs (default: current dir)
-      nemo-evaluator-launcher info <inv> --copy-artifacts <path>   # Copy artifacts (default: current dir)
+      nemo-evaluator-launcher info <inv> --copy-logs <DIR>       # Copy logs to <DIR>
+      nemo-evaluator-launcher info <inv> --copy-artifacts <DIR>  # Copy artifacts to <DIR>
 
     Notes:
-      - Supports invocation IDs and job IDs
+      - Supports invocation IDs and job IDs (space-separated)
       - Shows local or remote paths depending on executor (local/slurm/lepton)
       - Copy operations work for both local and remote jobs (expect longer time for remote jobs)
       - Copy operations are not supported for Lepton executor (yet).
@@ -58,30 +59,32 @@ class InfoCmd:
     )
 
     # info modes
-    config: bool = field(default=False, help="Show job configuration")
-    artifacts: bool = field(default=False, help="Show artifact locations and key files")
-    logs: bool = field(default=False, help="Show log locations and key files")
+    config: bool = field(
+        default=False, action="store_true", help="Show job configuration"
+    )
+    artifacts: bool = field(
+        default=False, action="store_true", help="Show artifact locations and key files"
+    )
+    logs: bool = field(
+        default=False, action="store_true", help="Show log locations and key files"
+    )
 
     # copy operations - work for both local and remote jobs
-    copy_logs: Optional[str] = field(
-        default="__NOT_PROVIDED__",  # Sentinel value to detect if flag was provided
+    copy_logs: str | None = field(
+        default=None,
         alias=["--copy-logs"],
-        nargs="?",
-        const=".",  # Use current dir as default when flag is present without value
-        help="Copy logs to local directory (current dir if not specified)",
+        help="Copy logs to a local directory",
+        metavar="DIR",
     )
-    copy_artifacts: Optional[str] = field(
-        default="__NOT_PROVIDED__",  # Sentinel value to detect if flag was provided
+    copy_artifacts: str | None = field(
+        default=None,
         alias=["--copy-artifacts"],
-        nargs="?",
-        const=".",  # Use current dir as default when flag is present without value
-        help="Copy artifacts to local directory (current dir if not specified)",
+        help="Copy artifacts to a local directory",
+        metavar="DIR",
     )
 
     def execute(self) -> None:
-        # show version
         VersionCmd().execute()
-
         logger.info("Info command started", invocation_ids=self.invocation_ids)
 
         if not self.invocation_ids:
@@ -105,38 +108,53 @@ class InfoCmd:
             )
             return
 
+        # show ops
         if self.config:
-            logger.info("Showing job configuration", job_count=len(jobs))
             self._show_config_info(jobs)
-        elif self.logs:
-            logger.info("Showing job logs locations", job_count=len(jobs))
+        if self.logs:
             self._show_logs_info(jobs)
-        elif self.artifacts:
-            logger.info("Showing artifacts locations", job_count=len(jobs))
+        if self.artifacts:
             self._show_artifacts_info(jobs)
-        elif self.copy_logs != "__NOT_PROVIDED__":
-            dest = self.copy_logs or "."
-            if self.copy_logs == ".":  # Flag provided without value, using const
-                print(
-                    "No destination provided for --copy-logs, defaulting to current dir"
-                )
+
+        # copy ops
+        args = sys.argv[1:]
+        copy_logs_flag = "--copy-logs" in args
+        copy_artifacts_flag = "--copy-artifacts" in args
+
+        if copy_logs_flag:
+            if self.copy_logs is None:
+                raise ValueError("--copy-logs requires a directory path")
+            if not self.copy_logs.strip():
+                raise ValueError("--copy-logs requires a directory path")
             logger.info(
-                "Copying logs to local directory", dest_dir=dest, job_count=len(jobs)
-            )
-            self._copy_logs(jobs, dest)
-        elif self.copy_artifacts != "__NOT_PROVIDED__":
-            dest = self.copy_artifacts or "."
-            if self.copy_artifacts == ".":  # Flag provided without value, using const
-                print(
-                    "No destination provided for --copy-artifacts, defaulting to current dir"
-                )
-            logger.info(
-                "Copying artifacts to local directory",
-                dest_dir=dest,
+                "Copying logs to local directory",
+                dest_dir=self.copy_logs,
                 job_count=len(jobs),
             )
-            self._copy_artifacts(jobs, dest)
-        else:
+            self._copy_logs(jobs, self.copy_logs)
+
+        if copy_artifacts_flag:
+            if self.copy_artifacts is None:
+                raise ValueError("--copy-artifacts requires a directory path")
+            if not self.copy_artifacts.strip():
+                raise ValueError("--copy-artifacts requires a directory path")
+            logger.info(
+                "Copying artifacts to local directory",
+                dest_dir=self.copy_artifacts,
+                job_count=len(jobs),
+            )
+            self._copy_artifacts(jobs, self.copy_artifacts)
+
+        # default view when no flags
+        if not any(
+            [
+                self.config,
+                self.logs,
+                self.artifacts,
+                self.copy_logs,
+                self.copy_artifacts,
+            ]
+        ):
             logger.info(
                 "Job metadata details",
                 invocation_id=jobs[0][1].invocation_id if jobs else None,
