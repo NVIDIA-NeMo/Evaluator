@@ -16,6 +16,7 @@
 import base64
 import copy
 import datetime
+from dataclasses import dataclass
 from typing import Optional
 
 import yaml
@@ -24,9 +25,36 @@ from omegaconf import DictConfig, OmegaConf
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 
-def _yaml_to_echo_command(yaml_str: str, filename: str = "config_ef.yaml") -> str:
+@dataclass(frozen=True)
+class CmdAndReadableComment:
+    """See the comment to `_yaml_to_echo_command`."""
+
+    # Actual command. Might include hard-to-debug elements such as base64-encoded
+    # configs.
+    cmd: str
+    # A debuggale readable comment that can be passed along for accompanying
+    # the actual command
+    debug: str
+
+
+def _yaml_to_echo_command(
+    yaml_str: str, filename: str = "config_ef.yaml"
+) -> CmdAndReadableComment:
+    """Create a safe (see below) echo command saving a yaml to file.
+
+    Safety in this context means the ability to pass such echo command through the
+    `bash -c '...'` boundaries for example.
+
+    Naturally, enconding with base64 creates debuggability issues. For that, the second
+    output of the function is the yaml string with bash comment signs prepended.
+    """
     yaml_str_b64 = base64.b64encode(yaml_str.encode("utf-8")).decode("utf-8")
-    return f'echo "{yaml_str_b64}" | base64 -d > {filename}'
+    debug_str = "\n".join(
+        [f"# Contents of {filename}"] + ["# " + s for s in yaml_str.splitlines()]
+    )
+    return CmdAndReadableComment(
+        cmd=f'echo "{yaml_str_b64}" | base64 -d > {filename}', debug=debug_str
+    )
 
 
 def get_eval_factory_config(
@@ -55,7 +83,7 @@ def get_eval_factory_config(
 
 def get_eval_factory_command(
     cfg: DictConfig, user_task_config: DictConfig, task_definition: dict
-) -> str:
+) -> CmdAndReadableComment:
     config_fields = get_eval_factory_config(cfg, user_task_config, task_definition)
 
     overrides = copy.deepcopy(dict(cfg.evaluation.get("overrides", {})))
@@ -80,7 +108,11 @@ def get_eval_factory_command(
     if overrides:
         eval_command = f"{eval_command} --overrides {overrides_str}"
 
-    return create_file_cmd + " && " + "cat config_ef.yaml && " + eval_command
+    # We return both the command and the debugging base64-decoded strings, useful
+    # for exposing when building scripts.
+    return CmdAndReadableComment(
+        cmd=create_file_cmd.cmd + " && " + eval_command, debug=create_file_cmd.debug
+    )
 
 
 def get_endpoint_url(
