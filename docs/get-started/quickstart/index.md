@@ -63,7 +63,7 @@ NeMo Evaluator works with any OpenAI-compatible endpoint. You have several optio
 ### **Hosted Endpoints** (Recommended)
 
 - **NVIDIA Build**: [build.nvidia.com](https://build.nvidia.com) - Ready-to-use hosted models
-- **OpenAI**: Standard OpenAI API endpoints  
+- **OpenAI**: Standard OpenAI API endpoints
 - **Other providers**: Anthropic, Cohere, or any OpenAI-compatible API
 
 ### **Self-Hosted Options**
@@ -71,7 +71,7 @@ NeMo Evaluator works with any OpenAI-compatible endpoint. You have several optio
 If you prefer to host your own models:
 
 
-If you are deploying the model locally with Docker, you can use a .
+If you are deploying the model locally with Docker, you can use a dedicated docker network.
 This will provide a secure connetion between deployment and evaluation docker containers.
 
 ```bash
@@ -237,7 +237,7 @@ nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/exampl
 # Export to MLflow
 nemo-evaluator-launcher export <invocation_id> --dest mlflow
 
-# Export to Weights & Biases  
+# Export to Weights & Biases
 nemo-evaluator-launcher export <invocation_id> --dest wandb
 
 # Export to Google Sheets
