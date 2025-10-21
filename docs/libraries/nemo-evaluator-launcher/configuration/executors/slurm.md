@@ -83,14 +83,14 @@ execution:
       CUDA_VISIBLE_DEVICES: "0,1,2,3,4,5,6,7"
       USER: ${oc.env:USER}  # References host environment variable
     evaluation:
-      CUSTOM_VAR: YOUR_CUSTOM_ENV_VAR_VALUE  # set the value directly
+      CUSTOM_VAR: "YOUR_CUSTOM_ENV_VAR_VALUE"  # Set the value directly
 evaluation:
   env_vars:
-    CUSTOM_VAR: ${oc.env:YOUR_CUSTOM_ENV_VAR_NAME}  # use YOUR_CUSTOM_ENV_VAR_NAME to populate CUSTOM_VAR
+    CUSTOM_VAR: CUSTOM_ENV_VAR_NAME  # Please note, this is an env var name!
   tasks:
     - name: my_task
       env_vars:
-        TASK_SPECIFIC_VAR: TASK_ENV_VAR_VALUE
+        TASK_SPECIFIC_VAR: TASK_ENV_VAR_NAME  # Please note, this is an env var name!
 ```
 
 **How to use environment variables:**
