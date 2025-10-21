@@ -313,7 +313,7 @@ Add custom benchmarks and frameworks by defining configuration and interfaces.
 :::
 
 :::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` API Reference
-:link: apidocs/index
+:link: libraries/nemo-evaluator/api
 :link-type: doc
 
 Python API documentation for programmatic evaluation control and integration.
