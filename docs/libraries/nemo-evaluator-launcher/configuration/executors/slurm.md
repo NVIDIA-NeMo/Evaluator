@@ -100,6 +100,10 @@ evaluation:
 - **Direct Values**: Use quoted strings for direct values
 - **Hydra Environment Variables**: Use `${oc.env:VARIABLE_NAME}` to reference host environment variables
 
+:::{note}
+The `${oc.env:VARIABLE_NAME}` syntax reads variables defined in your local environment (the one you use to execute `nemo-evaluator-launcher run` command), not the environment on the SLURM cluster.
+:::
+
 ### Secrets and API Keys
 
 API keys are handled the same way as environment variables - store them as environment variables on your machine and reference them in the `execution.env_vars` configuration.
