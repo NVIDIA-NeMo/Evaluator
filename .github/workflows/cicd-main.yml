@@ -166,7 +166,7 @@ jobs:
     needs:
       - cicd-unit-tests-nemo-evaluator
     environment: main
-    runs-on: self-hosted-azure
+    runs-on: self-hosted-nemo
     if: |
       needs.pre-flight.outputs.is_ci_workload == 'true'
       && !cancelled()
