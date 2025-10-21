@@ -83,14 +83,14 @@ execution:
       CUDA_VISIBLE_DEVICES: "0,1,2,3,4,5,6,7"
       USER: ${oc.env:USER}  # References host environment variable
     evaluation:
-      CUSTOM_VAR: YOUR_CUSTOM_ENV_VAR_NAME
+      CUSTOM_VAR: YOUR_CUSTOM_ENV_VAR_VALUE  # set the value directly
 evaluation:
   env_vars:
-    CUSTOM_VAR: YOUR_CUSTOM_ENV_VAR_NAME
+    CUSTOM_VAR: ${oc.env:YOUR_CUSTOM_ENV_VAR_NAME}  # use YOUR_CUSTOM_ENV_VAR_NAME to populate CUSTOM_VAR
   tasks:
     - name: my_task
       env_vars:
-        TASK_SPECIFIC_VAR: TASK_ENV_VAR_NAME
+        TASK_SPECIFIC_VAR: TASK_ENV_VAR_VALUE
 ```
 
 **How to use environment variables:**
@@ -99,7 +99,6 @@ evaluation:
 - **Evaluation Variables**: Use `execution.env_vars.evaluation` for evaluation containers
 - **Direct Values**: Use quoted strings for direct values
 - **Hydra Environment Variables**: Use `${oc.env:VARIABLE_NAME}` to reference host environment variables
-- **Environment Variable Names**: Use the names of environment variables on your local machine
 
 ### Secrets and API Keys
 
@@ -107,9 +106,9 @@ API keys are handled the same way as environment variables - store them as envir
 
 **Security Considerations:**
 
-- **No Hardcoding**: Never put API keys directly in configuration files
-- **SSH Security**: Ensure secure SSH configuration for key transmission to the cluster
-- **File Permissions**: Ensure configuration files have appropriate permissions (not world-readable)
+- **No Hardcoding**: Never put API keys directly in configuration files, use `${oc.env:ENV_VAR_NAME}` instead.
+- **SSH Security**: Ensure secure SSH configuration for key transmission to the cluster.
+- **File Permissions**: Ensure configuration files have appropriate permissions (not world-readable).
 - **Public Clusters**: Secrets in `execution.env_vars` are stored in plain text in the batch script and saved under `output_dir` on the login node. Use caution when handling sensitive data on public clusters.
 
 ### Mounting and Storage
@@ -130,8 +129,8 @@ execution:
 
 **Mount Types:**:
 
-- **Deployment Mounts**: For model checkpoints, cache directories, and model data
-- **Evaluation Mounts**: For input data, results, and evaluation-specific files
+- **Deployment Mounts**: For model checkpoints, cache directories, and model data.
+- **Evaluation Mounts**: For input data, additional artifacts, and evaluation-specific files
 - **Home Mount**: Optional mounting of user home directory (enabled by default)
 
 
