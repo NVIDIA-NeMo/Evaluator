@@ -101,46 +101,4 @@ The `nemo-evaluator-launcher export` can accept multiple invocation IDs and gath
 nemo-evaluator-launcher export <local-job-id> <slurm-job-id> --dest local --format json --output_dir combined-results
 ```
 
-will create the following `combined-results/processed_results.json` file:
-
-```json
-{
-  "export_timestamp": "<timestamp>",
-  "benchmarks": {
-    "mmlu_pro": {
-      "models": {
-        "microsoft/Phi-4-mini-instruct": [
-          {
-            "invocation_id": "<local-job-id>",
-            "job_id": "<local-job-id>.0",
-            "harness": "simple_evals",
-            "container": "nvcr.io/nvidia/eval-factory/simple-evals:<tag>",
-            "scores": {
-              "mmlu_pro_score_micro": 0.5
-            },
-            "timestamp": "<timestamp>",
-            "executor": "local"
-          }
-        ]
-      }
-    },
-    "AIME_2025": {
-      "models": {
-        "openai/gpt-oss-20b": [
-          {
-            "invocation_id": "<slurm-job-id>",
-            "job_id": "<slurm-job-id>.0",
-            "harness": "simple_evals",
-            "container": "nvcr.io/nvidia/eval-factory/simple-evals:<tag>",
-            "scores": {
-              "AIME_2025_score_micro": 0.8433333333333334
-            },
-            "timestamp": "<timestamp>",
-            "executor": "slurm"
-          }
-        ]
-      }
-    }
-  }
-}
-```
+will create the `combined-results/processed_results.json` with the same stracuture as in the example above.
