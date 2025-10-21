@@ -10,14 +10,18 @@ Evaluation configuration defines which benchmarks to run and their configuration
 
 ```yaml
 evaluation:
-  overrides:  # Global overrides for all tasks
-    config.params.request_timeout: 3600
+  nemo_evaluator_config:  # Global overrides for all tasks
+    config:
+      params:
+        request_timeout: 3600
   tasks:
     - name: task_name  # Use default benchmark configuration
     - name: another_task
-      overrides:  # Task-specific overrides
-        config.params.temperature: 0.6
-        config.params.top_p: 0.95
+      nemo_evaluator_config:  # Task-specific overrides
+        config:
+          params:  # Task-specific overrides
+            temperature: 0.6
+            top_p: 0.95
       env_vars:  # Task-specific environment variables
         HF_TOKEN: MY_HF_TOKEN
 ```
@@ -50,9 +54,11 @@ Settings applied to all tasks listed in the config.
 
 ```yaml
 evaluation:
-  overrides:
-    config.params.request_timeout: 3600
-    config.params.temperature: 0.7
+  nemo_evaluator_config:
+    config:
+      params:
+        request_timeout: 3600
+        temperature: 0.7
 ```
 
 #### Task-Specific Overrides
@@ -63,17 +69,22 @@ Parameters passed to a job for a single task. They take precedence over global e
 evaluation:
   tasks:
     - name: gpqa_diamond
-      overrides:
-        config.params.temperature: 0.6
-        config.params.top_p: 0.95
-        config.params.max_new_tokens: 8192
-        config.params.parallelism: 32
+      nemo_evaluator_config:
+        config:
+          params:
+            temperature: 0.6
+            top_p: 0.95
+            max_new_tokens: 8192
+            parallelism: 32
     - name: mbpp
-      overrides:
-        config.params.temperature: 0.2
-        config.params.top_p: 0.95
-        config.params.max_new_tokens: 2048
-        config.params.extra.n_samples: 5
+      nemo_evaluator_config:
+        config:
+          params:
+            temperature: 0.2
+            top_p: 0.95
+            max_new_tokens: 2048
+            extra:
+              n_samples: 5
 ```
 
 ### Environment Variables
