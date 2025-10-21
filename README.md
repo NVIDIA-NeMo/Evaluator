@@ -114,14 +114,51 @@ Results, logs, and run configurations are saved locally. Inspect the status of t
 ```bash
 nemo-evaluator-launcher status <job_id_or_invocation_id>
 ```
+  
+## 🧩 Evaluate checkpoints trained by NeMo Framework
 
-### Next Steps
+### 1. Start NeMo Framework Container
 
-- List all supported benchmarks:
+For optimal performance and user experience, use the latest version of the [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags). Please fetch the most recent `$TAG` and run the following command to start a container:
 
-  ```bash
-  nemo-evaluator-launcher ls tasks
-  ```
+```bash
+docker run --rm -it -w /workdir -v $(pwd):/workdir \
+  --entrypoint bash \
+  --gpus all \
+  nvcr.io/nvidia/nemo:${TAG}
+```
+
+### 2. Deploy a Model
+
+```bash
+# Deploy a NeMo checkpoint
+python \
+  /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
+  --nemo_checkpoint "/path/to/your/checkpoint" \
+  --model_id megatron_model \
+  --port 8080 \
+  --host 0.0.0.0
+```
+
+### 3. Evaluate the Model
+
+```python
+from nemo_evaluator.api import evaluate
+from nemo_evaluator.api.api_dataclasses import ApiEndpoint, EvaluationConfig, EvaluationTarget
+
+# Configure evaluation
+api_endpoint = ApiEndpoint(
+    url="http://0.0.0.0:8080/v1/completions/",
+    type="completions",
+    model_id="megatron_model"
+)
+target = EvaluationTarget(api_endpoint=api_endpoint)
+config = EvaluationConfig(type="gsm8k", output_dir="results")
+
+# Run evaluation
+results = evaluate(target_cfg=target, eval_cfg=config)
+print(results)
+```
 
 ## 🤝 Contribution Guide
 
