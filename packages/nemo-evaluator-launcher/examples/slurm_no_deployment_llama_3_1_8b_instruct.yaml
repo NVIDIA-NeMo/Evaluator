@@ -32,8 +32,10 @@ defaults:
 
 # override default execution arguments
 execution:
-  account: ???
-  output_dir: /some/filesystem/path/available/to/slurm/node
+  hostname: ??? # SLURM headnode (login) hostname (required)
+  username: ${oc.env:USER} # Cluster username; defaults to $USER.
+  account: ??? # SLURM account allocation (required)
+  output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
   walltime: 02:00:00
   partition: cpu_short # no deployment -> no GPUs needed
   gpus_per_node: null # no deployment -> no GPUs needed
@@ -42,12 +44,13 @@ target:
   api_endpoint:
     model_id: meta/llama-3.1-8b-instruct
     url: https://integrate.api.nvidia.com/v1/chat/completions
-    api_key_name: API_KEY # API Key with access to build.nvidia.com
+    api_key_name: NGC_API_KEY # API Key with access to build.nvidia.com
 
 # specify the benchmarks to evaluate
 evaluation:
   overrides: # these overrides apply to all tasks; for task-specific overrides, use the `overrides` field
     config.params.request_timeout: 3600
+    config.params.parallelism: 1
     target.api_endpoint.adapter_config.use_reasoning: false # if true, strips reasoning tokens
     target.api_endpoint.adapter_config.use_system_prompt: true
     target.api_endpoint.adapter_config.custom_system_prompt: >-
@@ -59,7 +62,6 @@ evaluation:
         config.params.temperature: 0.6
         config.params.top_p: 0.95
         config.params.max_new_tokens: 8192
-        config.params.parallelism: 32
       env_vars:
         HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
     - name: mbpp
@@ -68,6 +70,5 @@ evaluation:
         config.params.top_p: 0.95
         config.params.max_new_tokens: 2048
         config.params.extra.n_samples: 5 # sample 5 predictions per prompt
-        config.params.parallelism: 32
         target.api_endpoint.adapter_config.custom_system_prompt: >-
           "You must only provide the code implementation"

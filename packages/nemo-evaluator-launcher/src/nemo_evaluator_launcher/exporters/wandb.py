@@ -19,7 +19,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -38,6 +38,7 @@ from nemo_evaluator_launcher.exporters.registry import register_exporter
 from nemo_evaluator_launcher.exporters.utils import (
     extract_accuracy_metrics,
     extract_exporter_config,
+    get_artifact_root,
     get_available_artifacts,
     get_benchmark_info,
     get_task_name,
@@ -67,10 +68,41 @@ class WandBExporter(BaseExporter):
                 "log_mode", "per_task"
             )  # Default per_task for immediate export
 
-            # Get metrics
-            metrics = extract_accuracy_metrics(
-                job_data, self.get_job_paths, wandb_config.get("log_metrics", [])
-            )
+            # Stage artifacts locally if remote_ssh (e.g., Slurm), so we can extract metrics
+            staged_base_dir = None
+            try:
+                paths = self.get_job_paths(job_data)
+                if paths.get("storage_type") == "remote_ssh":
+                    tmp_stage = Path(tempfile.mkdtemp(prefix="wandb_stage_"))
+                    LocalExporter(
+                        {
+                            "output_dir": str(tmp_stage),
+                            "copy_logs": wandb_config.get("log_logs", False),
+                            "only_required": wandb_config.get("only_required", True),
+                        }
+                    ).export_job(job_data)
+                    staged_base_dir = (
+                        tmp_stage / job_data.invocation_id / job_data.job_id
+                    )
+            except Exception as e:
+                logger.warning(f"W&B: staging failed for {job_data.job_id}: {e}")
+
+            # Metrics (prefer staged if available)
+            log_metrics = wandb_config.get("log_metrics", [])
+            if staged_base_dir and (staged_base_dir / "artifacts").exists():
+                metrics = extract_accuracy_metrics(
+                    job_data,
+                    lambda _: {
+                        "artifacts_dir": staged_base_dir / "artifacts",
+                        "storage_type": "local_filesystem",
+                    },
+                    log_metrics,
+                )
+            else:
+                metrics = extract_accuracy_metrics(
+                    job_data, self.get_job_paths, log_metrics
+                )
+
             if not metrics:
                 return ExportResult(
                     success=False, dest="wandb", message="No metrics found"
@@ -163,29 +195,92 @@ class WandBExporter(BaseExporter):
             return {"success": False, "error": f"W&B export failed: {str(e)}"}
 
     def _log_artifacts(
-        self, job_data: JobData, wandb_config: Dict[str, Any], artifact
+        self,
+        job_data: JobData,
+        wandb_config: Dict[str, Any],
+        artifact,
+        register_staging_dir=None,
     ) -> List[str]:
-        """Log evaluation artifacts to WandB using LocalExporter for transfer."""
+        """Log evaluation artifacts to WandB using LocalExporter for staging."""
         if not wandb_config.get("log_artifacts", True):
             return []
         try:
             temp_dir = tempfile.mkdtemp(prefix="wandb_artifacts_")
-            local_exporter = LocalExporter({"output_dir": temp_dir})
+            if callable(register_staging_dir):
+                register_staging_dir(temp_dir)
+            local_exporter = LocalExporter(
+                {
+                    "output_dir": temp_dir,
+                    "copy_logs": wandb_config.get(
+                        "log_logs", wandb_config.get("copy_logs", False)
+                    ),
+                    "only_required": wandb_config.get("only_required", True),
+                    "format": wandb_config.get("format"),
+                    "log_metrics": wandb_config.get("log_metrics", []),
+                    "output_filename": wandb_config.get("output_filename"),
+                }
+            )
             local_result = local_exporter.export_job(job_data)
 
             if not local_result.success:
                 logger.error(f"Failed to download artifacts: {local_result.message}")
                 return []
 
-            artifacts_dir = Path(local_result.dest) / "artifacts"
-            logged_names = []
-            task_name = get_task_name(job_data)
-            for fname in get_available_artifacts(artifacts_dir):
-                fpath = artifacts_dir / fname
-                if fpath.exists():
-                    artifact.add_file(str(fpath), name=f"{task_name}/{fname}")
-                    logged_names.append(fname)
-            shutil.rmtree(temp_dir)
+            base_dir = Path(local_result.dest)
+            artifacts_dir = base_dir / "artifacts"
+            logs_dir = base_dir / "logs"
+            logged_names: list[str] = []
+
+            artifact_root = get_artifact_root(job_data)  # "<harness>.<benchmark>"
+
+            # Add config file only when artifacts logging is enabled
+            if wandb_config.get("log_artifacts", True):
+                cfg_added = False
+                for fname in ("config.yml", "run_config.yml"):
+                    p = artifacts_dir / fname
+                    if p.exists():
+                        artifact.add_file(str(p), name=f"{artifact_root}/{fname}")
+                        logged_names.append(fname)
+                        cfg_added = True
+                        break
+                if not cfg_added:
+                    with tempfile.NamedTemporaryFile(
+                        "w", suffix=".yaml", delete=False
+                    ) as tmp_cfg:
+                        yaml.dump(
+                            job_data.config or {},
+                            tmp_cfg,
+                            default_flow_style=False,
+                            sort_keys=False,
+                        )
+                        cfg_path = tmp_cfg.name
+                    artifact.add_file(cfg_path, name=f"{artifact_root}/config.yaml")
+                    os.unlink(cfg_path)
+                    logged_names.append("config.yaml")
+
+            files_to_upload: list[Path] = []
+            if wandb_config.get("only_required", True):
+                for fname in get_available_artifacts(artifacts_dir):
+                    p = artifacts_dir / fname
+                    if p.exists():
+                        files_to_upload.append(p)
+            else:
+                for p in artifacts_dir.iterdir():
+                    if p.is_file():
+                        files_to_upload.append(p)
+
+            for fpath in files_to_upload:
+                rel = fpath.relative_to(artifacts_dir).as_posix()
+                artifact.add_file(str(fpath), name=f"{artifact_root}/artifacts/{rel}")
+                logged_names.append(rel)
+
+            if wandb_config.get("log_logs", False) and logs_dir.exists():
+                for p in logs_dir.rglob("*"):
+                    if p.is_file():
+                        rel = p.relative_to(logs_dir).as_posix()
+                        artifact.add_file(str(p), name=f"{artifact_root}/logs/{rel}")
+                        logged_names.append(f"logs/{rel}")
+
             return logged_names
         except Exception as e:
             logger.error(f"Error logging artifacts: {e}")
@@ -193,7 +288,7 @@ class WandBExporter(BaseExporter):
 
     def _check_existing_run(
         self, identifier: str, job_data: JobData, config: Dict[str, Any]
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, Optional[str]]:
         """Check if run exists based on webhook metadata then name patterns."""
         try:
             import wandb
@@ -204,7 +299,7 @@ class WandBExporter(BaseExporter):
             if not (entity and project):
                 return False, None
 
-            # # Check webhook metadata for run_id first
+            # Check webhook metadata for run_id first
             webhook_meta = job_data.data.get("webhook_metadata", {})
             if (
                 webhook_meta.get("webhook_source") == "wandb"
@@ -281,10 +376,14 @@ class WandBExporter(BaseExporter):
             run_args["resume"] = "allow"
 
         # Config metadata
+        exec_type = (job_data.config or {}).get("execution", {}).get(
+            "type"
+        ) or job_data.executor
         run_config = {
             "invocation_id": job_data.invocation_id,
-            "executor": job_data.executor,
+            "executor": exec_type,
         }
+
         if log_mode == "per_task":
             run_config["job_id"] = job_data.job_id
             run_config["harness"] = harness
@@ -305,6 +404,13 @@ class WandBExporter(BaseExporter):
 
         # Initialize
         run = wandb.init(**{k: v for k, v in run_args.items() if v is not None})
+
+        # Track staging dirs for this run
+        staging_dirs: List[str] = []
+
+        def register_staging_dir(path: str) -> None:
+            if path and os.path.isdir(path):
+                staging_dirs.append(path)
 
         # In multi_task, aggregate lists after init (no overwrite)
         if log_mode == "multi_task":
@@ -339,34 +445,42 @@ class WandBExporter(BaseExporter):
                 "harness": harness,
             },
         )
-        with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as tmp_cfg:
-            yaml.dump(job_data.config or {}, tmp_cfg, default_flow_style=False)
-            cfg_path = tmp_cfg.name
-        artifact.add_file(cfg_path, name="config.yaml")
-        os.unlink(cfg_path)
 
-        logged_artifacts = self._log_artifacts(job_data, config, artifact)
-        run.log_artifact(artifact)
+        logged_artifacts = self._log_artifacts(
+            job_data, config, artifact, register_staging_dir=register_staging_dir
+        )
 
-        # charts for each logged metric
         try:
-            for k in metrics.keys():
-                run.define_metric(k, summary="last")
-        except Exception:
-            pass
+            run.log_artifact(artifact)
+            # charts for each logged metric
+            try:
+                for k in metrics.keys():
+                    run.define_metric(k, summary="last")
+            except Exception:
+                pass
 
-        # Log metrics with per-task step
-        try:
-            step_idx = int(job_data.job_id.split(".")[-1])
-        except Exception:
-            step_idx = 0
-        run.log(metrics, step=step_idx)
+            # Log metrics with per-task step
+            try:
+                step_idx = int(job_data.job_id.split(".")[-1])
+            except Exception:
+                step_idx = 0
+            run.log(metrics, step=step_idx)
 
-        # metrics summary
-        try:
-            run.summary.update(metrics)
-        except Exception:
-            pass
+            # metrics summary
+            try:
+                run.summary.update(metrics)
+            except Exception:
+                pass
+        finally:
+            for d in staging_dirs:
+                try:
+                    shutil.rmtree(d, ignore_errors=True)
+                except Exception:
+                    pass
+            try:
+                run.finish()
+            except Exception:
+                pass
 
         return {
             "run_id": run.id,

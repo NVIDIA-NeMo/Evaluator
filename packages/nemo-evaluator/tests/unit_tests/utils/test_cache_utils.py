@@ -23,8 +23,14 @@ import requests
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.adapters.server import (
     AdapterServer,
-    spawn_adapter_server,
+    AdapterServerProcess,
     wait_for_server,
+)
+from nemo_evaluator.api.api_dataclasses import (
+    ApiEndpoint,
+    Evaluation,
+    EvaluationConfig,
+    EvaluationTarget,
 )
 from nemo_evaluator.core.resources import get_token_usage_from_cache_db
 from tests.unit_tests.adapters.testing_utils import (
@@ -45,10 +51,9 @@ def fake_endpoint():
 @pytest.fixture
 def adapter_server_with_cache(
     tmp_path, fake_endpoint
-) -> Generator[AdapterConfig, Any, Any]:
+) -> Generator[AdapterServerProcess, Any, Any]:
     """Create an adapter server with caching enabled."""
     api_url = "http://localhost:3300/v1/chat/completions"
-    output_dir = tmp_path
     adapter_config = AdapterConfig(
         interceptors=[
             dict(
@@ -73,13 +78,17 @@ def adapter_server_with_cache(
         ]
     )
 
-    # Create server process
-    p = spawn_adapter_server(api_url, output_dir, adapter_config)
-
-    yield adapter_config
-
-    p.terminate()
-    p.join(timeout=5)  # Wait for process to actually terminate
+    evaluation = Evaluation(
+        command="",
+        framework_name="",
+        pkg_name="",
+        config=EvaluationConfig(output_dir=str(tmp_path)),
+        target=EvaluationTarget(
+            api_endpoint=ApiEndpoint(url=api_url, adapter_config=adapter_config)
+        ),
+    )
+    with AdapterServerProcess(evaluation) as adapter_server_process:
+        yield adapter_server_process
 
 
 def test_get_token_usage_from_cache_db_empty(tmp_path):
@@ -102,7 +111,9 @@ def test_get_token_usage_from_cache_db_single_request(
     adapter_server_with_cache, fake_endpoint, tmp_path
 ):
     """Test token usage extraction with a single cached request."""
-    url = f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{AdapterServer.DEFAULT_ADAPTER_PORT}"
+    url = (
+        f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{adapter_server_with_cache.port}"
+    )
 
     # Wait for server to be ready
     wait_for_server("localhost", 3825)
@@ -140,7 +151,9 @@ def test_get_token_usage_from_cache_db_multiple_requests(
     adapter_server_with_cache, fake_endpoint, tmp_path
 ):
     """Test token usage extraction with multiple cached requests."""
-    url = f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{AdapterServer.DEFAULT_ADAPTER_PORT}"
+    url = (
+        f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{adapter_server_with_cache.port}"
+    )
 
     # Wait for server to be ready
     wait_for_server("localhost", 3825)

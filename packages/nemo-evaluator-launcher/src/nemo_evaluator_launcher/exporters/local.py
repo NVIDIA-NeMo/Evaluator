@@ -62,6 +62,7 @@ class LocalExporter(BaseExporter):
         """Export job artifacts to local directory."""
         # Merge auto-export + CLI config
         cfg = extract_exporter_config(job_data, "local", self.config)
+        skip_validation = bool(cfg.get("skip_validation", False))
 
         output_dir = Path(cfg.get("output_dir", "./nemo-evaluator-launcher-results"))
         job_export_dir = output_dir / job_data.invocation_id / job_data.job_id
@@ -74,25 +75,34 @@ class LocalExporter(BaseExporter):
             # Stage artifacts per storage type
             if paths["storage_type"] == "local_filesystem":
                 exported_files = self._copy_local_artifacts(paths, job_export_dir, cfg)
-            elif paths["storage_type"] == "remote_ssh":
-                exported_files = ssh_download_artifacts(
-                    paths, job_export_dir, cfg, None
-                )
-            elif paths["storage_type"] == "gitlab_ci_local":
+            elif paths["storage_type"] == "remote_local":
+                # Same as local_filesystem (we're on the remote machine, accessing locally)
                 exported_files = self._copy_local_artifacts(paths, job_export_dir, cfg)
-            elif paths["storage_type"] == "gitlab_remote":
-                raise NotImplementedError("Unsupported storage type")
-                # exported_files = self._download_gitlab_remote_artifacts(
-                #     paths, job_export_dir
-                # )
+            elif paths["storage_type"] == "remote_ssh":
+                cp = ssh_setup_masters({job_data.job_id: job_data})
+                try:
+                    exported_files = ssh_download_artifacts(
+                        paths, job_export_dir, cfg, cp
+                    )
+                finally:
+                    ssh_cleanup_masters(cp)
             else:
-                raise ValueError(
-                    f"Cannot export from storage type: {paths['storage_type']}"
+                raise NotImplementedError(
+                    f"Export not implemented for storage type: {paths['storage_type']}"
                 )
 
             # Validate artifacts
             artifacts_dir = job_export_dir / "artifacts"
-            validation = validate_artifacts(artifacts_dir)
+            validation = (
+                validate_artifacts(artifacts_dir)
+                if not skip_validation
+                else {
+                    "can_export": True,
+                    "missing_required": [],
+                    "missing_optional": [],
+                    "message": "Validation skipped",
+                }
+            )
 
             # Save metadata
             self._save_job_metadata(job_data, job_export_dir)
@@ -124,6 +134,8 @@ class LocalExporter(BaseExporter):
                 except Exception as e:
                     logger.warning(f"Failed to create {fmt} summary: {e}")
                     msg += " (summary failed)"
+
+            meta["output_dir"] = str(job_export_dir.resolve())
 
             return ExportResult(
                 success=True, dest=str(job_export_dir), message=msg, metadata=meta
@@ -266,10 +278,12 @@ class LocalExporter(BaseExporter):
     ) -> List[str]:
         exported_files: List[str] = []
         copy_logs = bool(cfg.get("copy_logs", False))
+        copy_artifacts = bool(cfg.get("copy_artifacts", True))
         only_required = bool(cfg.get("only_required", True))
 
+        # separate logic for artifacts and logs
         # artifacts/
-        if paths["artifacts_dir"].exists():
+        if copy_artifacts and paths["artifacts_dir"].exists():
             if only_required:
                 names = [
                     a
@@ -283,7 +297,7 @@ class LocalExporter(BaseExporter):
                     shutil.copy2(src, dst)
                     exported_files.append(str(dst))
             else:
-                # Copy everything under artifacts/ recursively
+                # Restore recursive copy (test_copy_all_tree expects nested files)
                 shutil.copytree(
                     paths["artifacts_dir"], export_dir / "artifacts", dirs_exist_ok=True
                 )
@@ -297,7 +311,7 @@ class LocalExporter(BaseExporter):
 
         # logs/
         # If only_required is False → always copy logs; otherwise respect copy_logs
-        if (not only_required or copy_logs) and paths["logs_dir"].exists():
+        if ((not only_required) or copy_logs) and paths["logs_dir"].exists():
             shutil.copytree(paths["logs_dir"], export_dir / "logs", dirs_exist_ok=True)
             exported_files.extend(
                 [str(f) for f in (export_dir / "logs").rglob("*") if f.is_file()]
