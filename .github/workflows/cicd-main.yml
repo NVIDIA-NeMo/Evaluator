@@ -180,7 +180,6 @@ jobs:
       - cicd-unit-tests-nemo-evaluator
       - cicd-unit-tests-nemo-evaluator-launcher
       - cicd-e2e-tests-nemo-evaluator
-      - cicd-integration-tests
     if: |
       (
         needs.pre-flight.outputs.docs_only == 'true'
