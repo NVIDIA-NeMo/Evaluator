@@ -63,22 +63,63 @@ NeMo Evaluator works with any OpenAI-compatible endpoint. You have several optio
 ### **Hosted Endpoints** (Recommended)
 
 - **NVIDIA Build**: [build.nvidia.com](https://build.nvidia.com) - Ready-to-use hosted models
-- **OpenAI**: Standard OpenAI API endpoints  
+- **OpenAI**: Standard OpenAI API endpoints
 - **Other providers**: Anthropic, Cohere, or any OpenAI-compatible API
 
 ### **Self-Hosted Options**
 
 If you prefer to host your own models:
 
+
+If you are deploying the model locally with Docker, you can use a dedicated docker network.
+This will provide a secure connetion between deployment and evaluation docker containers.
+
 ```bash
-# vLLM (recommended for self-hosting)
-pip install vllm
-export HF_TOKEN=hf_your-token-here
-vllm serve meta-llama/Llama-3.1-8B-Instruct --port 8080
+# create a dedicated docker network
+docker network create my-custom-network
+
+# launch deployment
+docker run --gpus all --network my-custom-network --name my-phi-container vllm/vllm-openai:latest \
+    --model microsoft/Phi-4-mini-instruct --max-model-len 8192
 
 # Or use other serving frameworks
 # TRT-LLM, NeMo Framework, etc.
 ```
+
+Create an evaluation config:
+
+```yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: my_phi_test
+  extra_docker_args: "--network my-custom-network"  # same network as used for deployment
+
+target:
+  api_endpoint:
+    model_id: microsoft/Phi-4-mini-instruct
+    url: http://my-phi-container:8000/v1/chat/completions
+    api_key_name: null
+
+evaluation:
+  tasks:
+    - name: simple_evals.mmlu_pro
+      overrides:
+        config.params.limit_samples: 10 # TEST ONLY: Limits to 10 samples for quick testing
+        config.params.parallelism: 1
+```
+
+Save the config to a file (e.g. `phi-eval.yaml`) and launch the evaluation:
+
+```bash
+nemo-evaluator-launcher run \
+    --config-dir . \
+    --config-name phi-eval.yaml \
+    -o execution.output_dir=./phi-results
+
 
 <!-- See {ref}`deployment-overview` for detailed deployment options. -->
 
@@ -196,7 +237,7 @@ nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/exampl
 # Export to MLflow
 nemo-evaluator-launcher export <invocation_id> --dest mlflow
 
-# Export to Weights & Biases  
+# Export to Weights & Biases
 nemo-evaluator-launcher export <invocation_id> --dest wandb
 
 # Export to Google Sheets
