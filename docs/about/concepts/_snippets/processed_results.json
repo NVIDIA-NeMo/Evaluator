@@ -1,0 +1,22 @@
+{
+  "export_timestamp": "2025-10-21T06:21:40.722650",
+  "benchmarks": {
+    "gpqa_diamond": {
+      "models": {
+        "meta/llama-3.1-8b-instruct": [
+          {
+            "invocation_id": "dde213e0891bb95b",
+            "job_id": "dde213e0891bb95b.0",
+            "harness": "simple_evals",
+            "container": "nvcr.io/nvidia/eval-factory/simple-evals:25.08.1",
+            "scores": {
+              "gpqa_diamond_score_micro": 0.2
+            },
+            "timestamp": "2025-10-21T06:21:40.722639",
+            "executor": "local"
+          }
+        ]
+      }
+    }
+  }
+}

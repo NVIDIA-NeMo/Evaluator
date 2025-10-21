@@ -83,7 +83,7 @@ Once the evaluation has finished and the `results.yaml` file was produced, the s
 In this example we show how the local export works. For information on other exporters, see {ref}`exporters-overview`.
 
 
-The results can be exported using the followin command:
+The results can be exported using the following command:
 
 ```bash
 nemo-evaluator-launcher export <invocation_id> --dest local --format json
@@ -91,29 +91,8 @@ nemo-evaluator-launcher export <invocation_id> --dest local --format json
 
 This command extracts the scores from the `results.yaml` and creates a `processed_results.json` file with the following content:
 
-```json
-{
-  "export_timestamp": "<timestamp>",
-  "benchmarks": {
-    "gpqa_diamond": {
-      "models": {
-        "meta/llama-3.1-8b-instruct": [
-          {
-            "invocation_id": "<invocation_id>",
-            "job_id": "<invocation_id>.0",
-            "harness": "simple_evals",
-            "container": "nvcr.io/nvidia/eval-factory/simple-evals:<tag>",
-            "scores": {
-              "gpqa_diamond_score_micro": 0.2
-            },
-            "timestamp": "<timestamp>",
-            "executor": "local"
-          }
-        ]
-      }
-    }
-  }
-}
+```{literalinclude} ./_snippets/processed_results.json
+:language: json
 ```
 
 The `nemo-evaluator-launcher export` can accept multiple invocation IDs and gather results accross different invocations, regardless if they have been run locally or using remote executors (see {ref}`executors-overview`), e.g.:
