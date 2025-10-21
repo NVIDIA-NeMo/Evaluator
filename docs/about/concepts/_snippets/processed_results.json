@@ -1,18 +1,55 @@
 {
-  "export_timestamp": "2025-10-21T06:21:40.722650",
+  "export_timestamp": "2025-10-21T07:09:12.726157",
   "benchmarks": {
-    "gpqa_diamond": {
+    "ifeval": {
       "models": {
         "meta/llama-3.1-8b-instruct": [
           {
             "invocation_id": "dde213e0891bb95b",
             "job_id": "dde213e0891bb95b.0",
+            "harness": "lm-evaluation-harness",
+            "container": "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.08.1",
+            "scores": {
+              "ifeval_inst_level_loose_acc_inst_level_loose_acc": 0.875,
+              "ifeval_inst_level_strict_acc_inst_level_strict_acc": 0.875,
+              "ifeval_prompt_level_loose_acc_prompt_level_loose_acc": 0.8,
+              "ifeval_prompt_level_strict_acc_prompt_level_strict_acc": 0.8
+            },
+            "timestamp": "2025-10-21T07:09:12.680762",
+            "executor": "local"
+          }
+        ]
+      }
+    },
+    "gpqa_diamond": {
+      "models": {
+        "meta/llama-3.1-8b-instruct": [
+          {
+            "invocation_id": "dde213e0891bb95b",
+            "job_id": "dde213e0891bb95b.1",
             "harness": "simple_evals",
             "container": "nvcr.io/nvidia/eval-factory/simple-evals:25.08.1",
             "scores": {
               "gpqa_diamond_score_micro": 0.2
             },
-            "timestamp": "2025-10-21T06:21:40.722639",
+            "timestamp": "2025-10-21T07:09:12.704944",
+            "executor": "local"
+          }
+        ]
+      }
+    },
+    "mbpp": {
+      "models": {
+        "meta/llama-3.1-8b-instruct": [
+          {
+            "invocation_id": "dde213e0891bb95b",
+            "job_id": "dde213e0891bb95b.2",
+            "harness": "bigcode-evaluation-harness",
+            "container": "nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.08.1",
+            "scores": {
+              "mbpp_pass@1_pass@1": 0.0
+            },
+            "timestamp": "2025-10-21T07:09:12.726141",
             "executor": "local"
           }
         ]
