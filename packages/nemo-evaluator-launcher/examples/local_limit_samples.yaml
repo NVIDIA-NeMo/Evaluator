@@ -45,7 +45,7 @@ evaluation:
       params:
         request_timeout: 3600  # timeout for API requests in seconds
         parallelism: 1  # number of parallel requests
-        limit_samples: 10  # TEST ONLY: Limits all benchmarks to 10 samples total for quick testing
+        limit_samples: 5  # TEST ONLY: Limits all benchmarks to 10 samples total for quick testing
       target:
         api_endpoint:
           adapter_config:

@@ -14,14 +14,15 @@ See the complete configuration structure in `configs/deployment/sglang.yaml`.
 deployment:
   type: sglang
   image: lmsysorg/sglang:latest
-  checkpoint_path: /path/to/model  # Path to model (local or HuggingFace model ID)
+  hf_model_handle: hf-model/handle  # HuggingFace ID
+  checkpoint_path: null             # or provide a path to the stored checkpoint
   served_model_name: your-model-name
   port: 8000
 ```
 
 **Required Fields:**
 
-- `checkpoint_path`: Model path or HuggingFace model ID (e.g., `meta-llama/Llama-3.1-8B-Instruct`)
+- `checkpoint_path` or `hf_model_handle`: Model path or HuggingFace model ID (e.g., `meta-llama/Llama-3.1-8B-Instruct`)
 - `served_model_name`: Name for the served model
 
 ### Optional Settings
@@ -61,15 +62,14 @@ defaults:
   - _self_
 
 deployment:
-  checkpoint_path: meta-llama/Llama-3.1-8B-Instruct
-  served_model_name: llama-3.1-8b-instruct
-  tensor_parallel_size: 4
-  data_parallel_size: 1
+  checkpoint_path: Qwen/Qwen3-4B-Instruct-2507
+  served_model_name: qwen3-4b-instruct-2507
+  tensor_parallel_size: 8
+  data_parallel_size: 8
   extra_args: ""
-  env_vars:
-    HF_HOME: "/cache/huggingface"   # make sure you have access to GPQA-Diamond and meta-llama/Llama-3.1-8B-Instruct
 
 execution:
+  hostname: your-cluster-headnode
   account: your-account
   output_dir: /path/to/output
   walltime: 02:00:00

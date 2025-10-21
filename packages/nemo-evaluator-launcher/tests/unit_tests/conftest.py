@@ -374,7 +374,7 @@ def make_job_fs(tmp_path):
 def prepare_local_job(make_job_fs):
     def _prep(job_data, **kwargs):
         job_dir = make_job_fs(job_data, **kwargs)
-        job_data.data["output_dir"] = str(job_dir.parent)
+        job_data.data["output_dir"] = str(job_dir)
         return job_data, job_dir
 
     return _prep
