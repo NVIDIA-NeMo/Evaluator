@@ -93,7 +93,7 @@ class DocumentDiscovery:
         # Check each parent directory level for an orphaned index
         for i in range(len(parts)):
             # Build the parent path
-            parent_parts = parts[:i + 1]
+            parent_parts = parts[: i + 1]
             parent_index = "/".join(parent_parts) + "/index"
 
             # Skip if this would be the document itself
@@ -102,7 +102,9 @@ class DocumentDiscovery:
 
             # Check if this parent index exists and is orphaned
             if parent_index in self.env.all_docs:
-                parent_metadata = self.json_builder.extract_document_metadata(parent_index)
+                parent_metadata = self.json_builder.extract_document_metadata(
+                    parent_index
+                )
                 if parent_metadata.get("orphan"):
                     return True
 
