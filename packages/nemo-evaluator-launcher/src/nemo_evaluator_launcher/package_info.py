@@ -16,7 +16,7 @@
 # Below is the _next_ version that will be published, not the currently published one.
 MAJOR = 0
 MINOR = 1
-PATCH = 17
+PATCH = 19
 PRE_RELEASE = ""
 
 # Use the following formatting: (major, minor, patch, pre-release)

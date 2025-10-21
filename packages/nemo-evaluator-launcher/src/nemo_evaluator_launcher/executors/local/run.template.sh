@@ -40,6 +40,9 @@ else
     # Create pre-start stage file
     echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.pre-start"
 
+    # Debug contents of the eval factory command's config
+    {{ task.eval_factory_command_debug_comment | indent(4) }}
+
     # Docker run with eval factory command
     (
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.running"
@@ -51,7 +54,7 @@ else
       {% endfor -%}
       {{ task.eval_image }} \
       bash -c '
-        {{ task.eval_factory_command }} ;
+        {{ task.eval_factory_command | indent(8) }} ;
         exit_code=$?
         chmod 777 -R /results;
         if [ "$exit_code" -ne 0 ]; then
