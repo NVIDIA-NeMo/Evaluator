@@ -260,9 +260,14 @@ runs:
       shell: bash
       run: |
         echo ::group::Check result
-        docker cp nemo_container_${{ github.run_id }}:/workspace/packages/${{ inputs.package }}/.coverage .coverage.${{ inputs.package }}
 
-        coverage_report=coverage-${{ steps.create.outputs.coverage-prefix }}-${{ github.run_id }}-$(uuidgen)
+        if [[ "${{ inputs.type_of_test }}" != "integration_tests" ]]; then
+          docker cp nemo_container_${{ github.run_id }}:/workspace/packages/${{ inputs.package }}/.coverage .coverage.${{ inputs.package }}
+          coverage_report=coverage-${{ steps.create.outputs.coverage-prefix }}-${{ github.run_id }}-$(uuidgen)
+        else
+          coverage_report=none
+        fi
+
         echo "coverage_report=$coverage_report" >> "$GITHUB_OUTPUT"
 
         EXIT_CODE=${{ steps.run-main-script.outputs.exit_code }}
@@ -283,6 +288,7 @@ runs:
 
     - name: Test coverage
       shell: bash -x -e -u -o pipefail {0}
+      if: ${{ steps.check.outputs.coverage_report != 'none' }}
       run: |
         echo ::group::Test coverage
         docker exec -t nemo_container_${{ github.run_id }} bash -c 'cd /workspace/packages/${{ inputs.package }} && /opt/venv/bin/coverage report -i'
