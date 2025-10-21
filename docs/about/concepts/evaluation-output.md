@@ -46,8 +46,6 @@ It is instructive to compare the configuration file cited above and the resultin
 :::
 
 
-## Output Structure
-
 The evaluation output contains the following general sections:
 
 | Section | Description |
@@ -77,3 +75,93 @@ The types of metrics available in the results differ for different evaluation ha
 | JSON Report | Machine-readable evaluation data |
 | Cache Files | Cached requests and responses |
 | Log Files | Detailed execution logs |
+
+
+## Exporting the Results
+
+Once the evaluation has finished and the `results.yaml` file was produced, the scores can be exported.
+In this example we show how the local export works. For information on other exporters, see {ref}`exporters-overview`.
+
+
+The results can be exported using the followin command:
+
+```bash
+nemo-evaluator-launcher export <invocation_id> --dest local --format json
+```
+
+This command extracts the scores from the `results.yaml` and creates a `processed_results.json` file with the following content:
+
+```json
+{
+  "export_timestamp": "<timestamp>",
+  "benchmarks": {
+    "gpqa_diamond": {
+      "models": {
+        "meta/llama-3.1-8b-instruct": [
+          {
+            "invocation_id": "<invocation_id>",
+            "job_id": "<invocation_id>.0",
+            "harness": "simple_evals",
+            "container": "nvcr.io/nvidia/eval-factory/simple-evals:<tag>",
+            "scores": {
+              "gpqa_diamond_score_micro": 0.2
+            },
+            "timestamp": "<timestamp>",
+            "executor": "local"
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+The `nemo-evaluator-launcher export` can accept multiple invocation IDs and gather results accross different invocations, regardless if they have been run locally or using remote executors (see {ref}`executors-overview`), e.g.:
+
+```bash
+nemo-evaluator-launcher export <local-job-id> <slurm-job-id> --dest local --format json --output_dir combined-results
+```
+
+will create the following `combined-results/processed_results.json` file:
+
+```json
+{
+  "export_timestamp": "<timestamp>",
+  "benchmarks": {
+    "mmlu_pro": {
+      "models": {
+        "microsoft/Phi-4-mini-instruct": [
+          {
+            "invocation_id": "<local-job-id>",
+            "job_id": "<local-job-id>.0",
+            "harness": "simple_evals",
+            "container": "nvcr.io/nvidia/eval-factory/simple-evals:<tag>",
+            "scores": {
+              "mmlu_pro_score_micro": 0.5
+            },
+            "timestamp": "<timestamp>",
+            "executor": "local"
+          }
+        ]
+      }
+    },
+    "AIME_2025": {
+      "models": {
+        "openai/gpt-oss-20b": [
+          {
+            "invocation_id": "<slurm-job-id>",
+            "job_id": "<slurm-job-id>.0",
+            "harness": "simple_evals",
+            "container": "nvcr.io/nvidia/eval-factory/simple-evals:<tag>",
+            "scores": {
+              "AIME_2025_score_micro": 0.8433333333333334
+            },
+            "timestamp": "<timestamp>",
+            "executor": "slurm"
+          }
+        ]
+      }
+    }
+  }
+}
+```
