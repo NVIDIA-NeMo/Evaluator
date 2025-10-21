@@ -107,9 +107,11 @@ target:
 evaluation:
   tasks:
     - name: simple_evals.mmlu_pro
-      overrides:
-        config.params.limit_samples: 10 # TEST ONLY: Limits to 10 samples for quick testing
-        config.params.parallelism: 1
+      nemo_evaluator_config:
+        config:
+          params:
+            limit_samples: 10 # TEST ONLY: Limits to 10 samples for quick testing
+            parallelism: 1
 ```
 
 Save the config to a file (e.g. `phi-eval.yaml`) and launch the evaluation:

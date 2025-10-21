@@ -272,15 +272,19 @@ Scale from laptop to datacenter with unified configuration:
 Hydra-based configuration with full reproducibility:
 
 ```yaml
-# Evaluation configuration with overrides
+# Evaluation configuration with custom parameters
 evaluation:
   tasks:
     - name: mmlu_pro
-      overrides:
-        config.params.limit_samples: 1000
+      nemo_evaluator_config:
+        config:
+          params:
+            limit_samples: 1000
     - name: gsm8k
-      overrides:
-        config.params.temperature: 0.0
+      nemo_evaluator_config:
+        config:
+          params:
+            temperature: 0.0
 
 execution:
   output_dir: results
