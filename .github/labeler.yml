@@ -24,9 +24,3 @@ CI:
 - Dockerfile
 - docker/**/*
 
-deployment:
-- docs/deployment/**/*
-
-evaluation:
-- docs/evaluation/**/*
-
