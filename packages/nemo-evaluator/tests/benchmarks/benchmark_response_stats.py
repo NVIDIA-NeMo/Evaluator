@@ -258,6 +258,7 @@ def benchmark_single_threaded(
     cache_dir: Path,
     save_individuals: bool = True,
     endpoint_url: str = None,
+    use_instrumented: bool = False,
 ) -> tuple[float, PerformanceProfiler]:
     """Benchmark single-threaded performance."""
     profiler = PerformanceProfiler()
@@ -269,7 +270,11 @@ def benchmark_single_threaded(
         logging_aggregated_stats_interval=10000,  # Disable periodic logging
     )
 
-    interceptor = InstrumentedResponseStatsInterceptor(params, profiler)
+    if use_instrumented:
+        interceptor = InstrumentedResponseStatsInterceptor(params, profiler)
+    else:
+        interceptor = ResponseStatsInterceptor(params)
+
     api_url = endpoint_url or "http://test.api.com/v1/chat/completions"
     context = AdapterGlobalContext(output_dir=str(cache_dir), url=api_url)
 
@@ -297,6 +302,7 @@ def benchmark_multi_threaded(
     num_threads: int,
     save_individuals: bool = True,
     endpoint_url: str = None,
+    use_instrumented: bool = False,
 ) -> tuple[float, PerformanceProfiler]:
     """Benchmark multi-threaded performance."""
     profiler = PerformanceProfiler()
@@ -308,7 +314,11 @@ def benchmark_multi_threaded(
         logging_aggregated_stats_interval=10000,
     )
 
-    interceptor = InstrumentedResponseStatsInterceptor(params, profiler)
+    if use_instrumented:
+        interceptor = InstrumentedResponseStatsInterceptor(params, profiler)
+    else:
+        interceptor = ResponseStatsInterceptor(params)
+
     api_url = endpoint_url or "http://test.api.com/v1/chat/completions"
     context = AdapterGlobalContext(output_dir=str(cache_dir), url=api_url)
 
@@ -425,7 +435,11 @@ def benchmark_cache_operations(num_operations: int, cache_dir: Path):
 
 
 def analyze_lock_contention(
-    num_responses: int, cache_dir: Path, num_threads: int, endpoint_url: str = None
+    num_responses: int,
+    cache_dir: Path,
+    num_threads: int,
+    endpoint_url: str = None,
+    use_instrumented: bool = False,
 ):
     """Analyze lock contention with different thread counts."""
     print("\n" + "=" * 100)
@@ -435,7 +449,12 @@ def analyze_lock_contention(
     results = []
     for threads in range(1, num_threads + 1):
         elapsed, profiler = benchmark_multi_threaded(
-            num_responses, cache_dir, threads, save_individuals=False, endpoint_url=endpoint_url
+            num_responses,
+            cache_dir,
+            threads,
+            save_individuals=False,
+            endpoint_url=endpoint_url,
+            use_instrumented=use_instrumented,
         )
         throughput = num_responses / elapsed
         results.append((threads, elapsed, throughput))
@@ -482,6 +501,11 @@ def main():
         help="Real endpoint URL to test (e.g., http://localhost:8000/v1/chat/completions). If not provided, uses mock responses.",
     )
     parser.add_argument(
+        "--detailed-profiling",
+        action="store_true",
+        help="Use instrumented interceptor for detailed method-level profiling (adds overhead). Without this flag, uses the original ResponseStatsInterceptor for realistic performance testing.",
+    )
+    parser.add_argument(
         "--profile",
         action="store_true",
         help="Run detailed cProfile analysis",
@@ -511,6 +535,7 @@ def main():
     print(f"  Responses: {args.num_responses}")
     print(f"  Threads: {args.threads}")
     print(f"  Endpoint: {args.endpoint or 'Mock responses'}")
+    print(f"  Interceptor: {'Instrumented (with profiling overhead)' if args.detailed_profiling else 'Original (realistic performance)'}")
     print(f"  Save individuals: {not args.no_individuals}")
     print("=" * 100)
 
@@ -524,6 +549,7 @@ def main():
             cache_dir,
             save_individuals=not args.no_individuals,
             endpoint_url=args.endpoint,
+            use_instrumented=args.detailed_profiling,
         )
         print(f"\nSingle-threaded results:")
         print(f"  Total time: {elapsed:.6f}s")
@@ -531,7 +557,8 @@ def main():
         print(
             f"  Average time per request: {elapsed / args.num_responses * 1000:.6f}ms"
         )
-        profiler.print_results(elapsed)
+        if args.detailed_profiling:
+            profiler.print_results(elapsed)
 
         # Multi-threaded benchmark
         cache_dir = Path(tmpdir) / "cache_mt"
@@ -542,6 +569,7 @@ def main():
             args.threads,
             save_individuals=not args.no_individuals,
             endpoint_url=args.endpoint,
+            use_instrumented=args.detailed_profiling,
         )
         print(f"\nMulti-threaded results ({args.threads} threads):")
         print(f"  Total time: {elapsed_mt:.6f}s")
@@ -550,7 +578,8 @@ def main():
             f"  Average time per request: {elapsed_mt / args.num_responses * 1000:.6f}ms"
         )
         print(f"  Speedup vs single-threaded: {elapsed / elapsed_mt:.2f}x")
-        profiler_mt.print_results(elapsed_mt)
+        if args.detailed_profiling:
+            profiler_mt.print_results(elapsed_mt)
 
         # Cache operations benchmark
         if args.cache_benchmark:
@@ -565,7 +594,11 @@ def main():
             print("\n[4/4] Running lock contention analysis...")
             cache_dir = Path(tmpdir) / "cache_contention"
             analyze_lock_contention(
-                args.num_responses, cache_dir, args.threads, endpoint_url=args.endpoint
+                args.num_responses,
+                cache_dir,
+                args.threads,
+                endpoint_url=args.endpoint,
+                use_instrumented=args.detailed_profiling,
             )
         else:
             print(
