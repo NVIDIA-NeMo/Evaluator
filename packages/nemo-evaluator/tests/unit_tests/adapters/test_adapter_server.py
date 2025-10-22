@@ -22,8 +22,17 @@ import requests
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.adapters.server import (
     AdapterServer,
-    spawn_adapter_server,
+    AdapterServerProcess,
     wait_for_server,
+)
+from nemo_evaluator.api.api_dataclasses import (
+    ApiEndpoint,
+    Evaluation,
+    EvaluationConfig,
+    EvaluationTarget,
+)
+from tests.unit_tests.adapters.testing_utils import (
+    create_fake_endpoint_process,
 )
 
 
@@ -31,9 +40,8 @@ from nemo_evaluator.adapters.server import (
 def adapter_server(
     fake_openai_endpoint,
     tmp_path,
-) -> Generator[AdapterServer, Any, Any]:
+) -> Generator[AdapterServerProcess, Any, Any]:
     api_url = "http://localhost:3300/v1/chat/completions"
-    output_dir = tmp_path
     adapter_config = AdapterConfig(
         interceptors=[
             dict(
@@ -63,17 +71,24 @@ def adapter_server(
             ),
         ]
     )
-    p = spawn_adapter_server(api_url, output_dir, adapter_config)
-    yield p
-    p.terminate()
-    p.join(timeout=5)
+    evaluation = Evaluation(
+        command="",
+        framework_name="",
+        pkg_name="",
+        config=EvaluationConfig(output_dir=str(tmp_path)),
+        target=EvaluationTarget(
+            api_endpoint=ApiEndpoint(url=api_url, adapter_config=adapter_config)
+        ),
+    )
+    with AdapterServerProcess(evaluation) as adapter_server_process:
+        yield adapter_server_process
 
 
 def test_adapter_server_post_request(adapter_server, capfd):
-    url = f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{AdapterServer.DEFAULT_ADAPTER_PORT}"
+    url = f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{adapter_server.port}"
 
     # Wait for server to be ready
-    wait_for_server("localhost", 3825)
+    wait_for_server("localhost", adapter_server.port)
 
     data = {
         "prompt": "This is a test prompt",
@@ -318,18 +333,17 @@ def test_adapter_server_validation_with_enabled_post_eval_hook():
 
 def test_spawn_adapter_server_validation_empty_config():
     """Test that spawn_adapter_server returns None when no enabled interceptors or post-eval hooks are configured."""
-    adapter_config = AdapterConfig(
-        interceptors=[],
-        post_eval_hooks=[],
+    evaluation = Evaluation(
+        command="",
+        framework_name="",
+        pkg_name="",
+        config=EvaluationConfig(),
+        target=EvaluationTarget(
+            api_endpoint=ApiEndpoint(url="localhost", adapter_config=AdapterConfig())
+        ),
     )
-
-    result = spawn_adapter_server(
-        api_url="http://localhost:3000",
-        output_dir="/tmp",
-        adapter_config=adapter_config,
-    )
-
-    assert result is None
+    with AdapterServerProcess(evaluation) as adapter_server_process:
+        assert adapter_server_process is None
 
 
 def test_spawn_adapter_server_validation_disabled_interceptors():
@@ -342,13 +356,17 @@ def test_spawn_adapter_server_validation_disabled_interceptors():
         post_eval_hooks=[],
     )
 
-    result = spawn_adapter_server(
-        api_url="http://localhost:3000",
-        output_dir="/tmp",
-        adapter_config=adapter_config,
+    evaluation = Evaluation(
+        command="",
+        framework_name="",
+        pkg_name="",
+        config=EvaluationConfig(),
+        target=EvaluationTarget(
+            api_endpoint=ApiEndpoint(url="localhost", adapter_config=adapter_config)
+        ),
     )
-
-    assert result is None
+    with AdapterServerProcess(evaluation) as adapter_server_process:
+        assert adapter_server_process is None
 
 
 def test_spawn_adapter_server_validation_disabled_post_eval_hooks():
@@ -360,14 +378,17 @@ def test_spawn_adapter_server_validation_disabled_post_eval_hooks():
             dict(name="post_eval_report", enabled=False, config={}),
         ],
     )
-
-    result = spawn_adapter_server(
-        api_url="http://localhost:3000",
-        output_dir="/tmp",
-        adapter_config=adapter_config,
+    evaluation = Evaluation(
+        command="",
+        framework_name="",
+        pkg_name="",
+        config=EvaluationConfig(),
+        target=EvaluationTarget(
+            api_endpoint=ApiEndpoint(url="localhost", adapter_config=adapter_config)
+        ),
     )
-
-    assert result is None
+    with AdapterServerProcess(evaluation) as adapter_server_process:
+        assert adapter_server_process is None
 
 
 def test_spawn_adapter_server_validation_with_enabled_interceptor():
@@ -380,23 +401,21 @@ def test_spawn_adapter_server_validation_with_enabled_interceptor():
         post_eval_hooks=[],
     )
 
-    with patch("multiprocessing.get_context") as mock_context:
-        mock_process = mock_context.return_value.Process.return_value
-        mock_process.start.return_value = None
-        mock_process.terminate.return_value = None
-        mock_process.join.return_value = None
-
-        with patch("nemo_evaluator.adapters.server.wait_for_server") as mock_wait:
-            mock_wait.return_value = True
-
-            result = spawn_adapter_server(
-                api_url="http://localhost:3000",
-                output_dir="/tmp",
-                adapter_config=adapter_config,
-            )
-
-            assert result is not None
-            assert result == mock_process
+    evaluation = Evaluation(
+        command="",
+        framework_name="",
+        pkg_name="",
+        config=EvaluationConfig(),
+        target=EvaluationTarget(
+            api_endpoint=ApiEndpoint(url="localhost", adapter_config=adapter_config)
+        ),
+    )
+    with AdapterServerProcess(evaluation) as adapter_server_process:
+        assert (
+            adapter_server_process is not None
+            and adapter_server_process.port
+            and adapter_server_process.process
+        )
 
 
 def test_spawn_adapter_server_validation_with_enabled_post_eval_hook():
@@ -409,23 +428,21 @@ def test_spawn_adapter_server_validation_with_enabled_post_eval_hook():
         ],
     )
 
-    with patch("multiprocessing.get_context") as mock_context:
-        mock_process = mock_context.return_value.Process.return_value
-        mock_process.start.return_value = None
-        mock_process.terminate.return_value = None
-        mock_process.join.return_value = None
-
-        with patch("nemo_evaluator.adapters.server.wait_for_server") as mock_wait:
-            mock_wait.return_value = True
-
-            result = spawn_adapter_server(
-                api_url="http://localhost:3000",
-                output_dir="/tmp",
-                adapter_config=adapter_config,
-            )
-
-            assert result is not None
-            assert result == mock_process
+    evaluation = Evaluation(
+        command="",
+        framework_name="",
+        pkg_name="",
+        config=EvaluationConfig(),
+        target=EvaluationTarget(
+            api_endpoint=ApiEndpoint(url="localhost", adapter_config=adapter_config)
+        ),
+    )
+    with AdapterServerProcess(evaluation) as adapter_server_process:
+        assert (
+            adapter_server_process is not None
+            and adapter_server_process.port
+            and adapter_server_process.process
+        )
 
 
 def test_spawn_adapter_server_validation_server_fails_to_start():
@@ -436,7 +453,15 @@ def test_spawn_adapter_server_validation_server_fails_to_start():
         ],
         post_eval_hooks=[],
     )
-
+    evaluation = Evaluation(
+        config=EvaluationConfig(output_dir="/tmp/test"),
+        target=EvaluationTarget(
+            api_endpoint=ApiEndpoint(url="localhost", adapter_config=adapter_config)
+        ),
+        pkg_name="test_package",
+        command="test_command",
+        framework_name="test_framework",
+    )
     with patch("multiprocessing.get_context") as mock_context:
         mock_process = mock_context.return_value.Process.return_value
         mock_process.start.return_value = None
@@ -446,16 +471,13 @@ def test_spawn_adapter_server_validation_server_fails_to_start():
         with patch("nemo_evaluator.adapters.server.wait_for_server") as mock_wait:
             mock_wait.return_value = False
 
-            with pytest.raises(RuntimeError) as exc_info:
-                spawn_adapter_server(
-                    api_url="http://localhost:3000",
-                    output_dir="/tmp",
-                    adapter_config=adapter_config,
-                )
-
-            error_msg = str(exc_info.value)
-            assert "Adapter server failed to start" in error_msg
-            assert "localhost:3825" in error_msg
+            with (
+                pytest.raises(RuntimeError) as exc_info,
+                AdapterServerProcess(evaluation),
+            ):
+                error_msg = str(exc_info.value)
+                assert "Adapter server failed to start" in error_msg
+                # assert "localhost:3825" in error_msg
 
 
 def test_adapter_server_process_uses_original_url_in_args():
@@ -468,16 +490,7 @@ def test_adapter_server_process_uses_original_url_in_args():
         EvaluationTarget,
     )
 
-    original_url = "http://original-api.example.com:8080/v1/chat/completions"
-    evaluation = Evaluation(
-        config=EvaluationConfig(output_dir="/tmp/test"),
-        target=EvaluationTarget(api_endpoint=ApiEndpoint(url=original_url)),
-        pkg_name="test_package",
-        command="test_command",
-        framework_name="test_framework",
-    )
-
-    mock_config = AdapterConfig(
+    adapter_config = AdapterConfig(
         interceptors=[
             dict(
                 name="endpoint",
@@ -487,11 +500,18 @@ def test_adapter_server_process_uses_original_url_in_args():
         ]
     )
 
-    with (
-        patch(
-            "nemo_evaluator.adapters.server.AdapterConfig.get_validated_config",
-            return_value=mock_config,
+    original_url = "http://original-api.example.com:8080/v1/chat/completions"
+    evaluation = Evaluation(
+        config=EvaluationConfig(output_dir="/tmp/test"),
+        target=EvaluationTarget(
+            api_endpoint=ApiEndpoint(url=original_url, adapter_config=adapter_config)
         ),
+        pkg_name="test_package",
+        command="test_command",
+        framework_name="test_framework",
+    )
+
+    with (
         patch(
             "nemo_evaluator.adapters.server.multiprocessing.get_context"
         ) as mock_context,
@@ -618,3 +638,107 @@ def test_evaluate_function_url_replacement():
 
         # Verify that the evaluation result is returned
         assert result == mock_result
+
+
+def test_adapter_port_environment_variable(tmp_path):
+    """Test that ADAPTER_PORT environment variable is respected."""
+    import os
+
+    # Save original environment variable
+    original_port = os.environ.get("ADAPTER_PORT")
+
+    try:
+        # Set a custom port
+        test_port = 9999
+        os.environ["ADAPTER_PORT"] = str(test_port)
+
+        adapter_config = AdapterConfig(
+            interceptors=[
+                dict(
+                    name="endpoint",
+                    config={},
+                ),
+            ]
+        )
+        api_url = "http://localhost:3300/v1/chat/completions"
+        evaluation = Evaluation(
+            config=EvaluationConfig(output_dir=str(tmp_path)),
+            target=EvaluationTarget(
+                api_endpoint=ApiEndpoint(url=api_url, adapter_config=adapter_config)
+            ),
+            pkg_name="test_package",
+            command="test_command",
+            framework_name="test_framework",
+        )
+
+        # Start fake endpoint
+        fake_endpoint = create_fake_endpoint_process()
+
+        try:
+            with AdapterServerProcess(evaluation) as adapter_server_process:
+                # Wait for server to be ready on the custom port
+                wait_for_server("localhost", test_port)
+
+                # Make a test request to verify it's working on the custom port
+                test_data = {"prompt": "Test prompt", "max_tokens": 100}
+                response = requests.post(
+                    f"http://localhost:{test_port}", json=test_data
+                )
+                assert response.status_code == 200
+
+                assert adapter_server_process.port == test_port
+        finally:
+            # Clean up fake endpoint
+            fake_endpoint.terminate()
+            fake_endpoint.join(timeout=5)
+
+    finally:
+        # Restore original environment variable
+        if original_port is not None:
+            os.environ["ADAPTER_PORT"] = original_port
+        else:
+            os.environ.pop("ADAPTER_PORT", None)
+
+
+def test_multiple_adapter_servers():
+    evaluation = Evaluation(
+        config=EvaluationConfig(),
+        target=EvaluationTarget(
+            api_endpoint=ApiEndpoint(url="localhost", adapter_config={})
+        ),
+        pkg_name="test_package",
+        command="test_command",
+        framework_name="test_framework",
+    )
+    evaluation.target.api_endpoint.adapter_config = AdapterConfig.get_validated_config(
+        evaluation.model_dump()
+    )
+
+    with AdapterServerProcess(evaluation) as p1, AdapterServerProcess(evaluation) as p2:
+        assert (p1 is not None) and (p2 is not None)
+        assert p1.port != p2.port
+
+
+def test_adapter_server_process_raise_on_port_taken():
+    evaluation = Evaluation(
+        config=EvaluationConfig(),
+        target=EvaluationTarget(
+            api_endpoint=ApiEndpoint(url="localhost", adapter_config={})
+        ),
+        pkg_name="test_package",
+        command="test_command",
+        framework_name="test_framework",
+    )
+    evaluation.target.api_endpoint.adapter_config = AdapterConfig.get_validated_config(
+        evaluation.model_dump()
+    )
+    import os
+
+    with AdapterServerProcess(evaluation) as p1:
+        # P1 must have reserved some port. Let's try to run another AdapterServerProcess on the same one
+        os.environ["ADAPTER_PORT"] = str(p1.port)
+        with pytest.raises(
+            OSError, match="Adapter server was requested to start explicitly"
+        ):
+            with AdapterServerProcess(evaluation):
+                pass

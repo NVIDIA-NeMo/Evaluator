@@ -1,0 +1,25 @@
+(lib)=
+
+# NeMo Evaluator Libraries
+
+Select a library for your evaluation workflow:
+
+::::{grid} 1 2 2 2
+:gutter: 1 1 1 2
+
+:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` NeMo Evaluator Launcher
+:link: nemo-evaluator-launcher/index
+:link-type: doc
+
+**Start here** - Unified CLI and Python API for running evaluations across local, cluster, and hosted environments.
+:::
+
+:::{grid-item-card} {octicon}`beaker;1.5em;sd-mr-1` NeMo Evaluator
+:link: nemo-evaluator/index
+:link-type: doc
+
+**Advanced usage** - Direct access to core evaluation logic for custom integrations.
+:::
+::::
+
+The Launcher orchestrates the NeMo Evaluator containers using identical underlying code to ensure consistent results.

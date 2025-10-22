@@ -19,8 +19,17 @@ This module defines data structures and helpers for configuration and type safet
 """
 
 import os
+import warnings
 from dataclasses import dataclass
 from typing import cast
+
+# ruff: noqa: E402
+# Later when adding optional module to hydra, since the internal package is optional,
+# will generate a hydra warning. We suppress it as distraction and bad UX, before hydra gets invoked.
+warnings.filterwarnings(
+    "ignore",
+    message="provider=hydra.searchpath.*path=nemo_evaluator_launcher_internal.*is not available\\.",
+)
 
 import hydra
 from hydra.core.global_hydra import GlobalHydra

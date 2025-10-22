@@ -15,6 +15,7 @@
 #
 """Google Sheets evaluation results exporter."""
 
+import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -89,28 +90,38 @@ class GSheetsExporter(BaseExporter):
             }
 
         try:
+            # Load exporter config from the first job (supports job-embedded config and CLI overrides)
+            first_job = next(iter(jobs.values()))
+            gsheets_config = extract_exporter_config(first_job, "gsheets", self.config)
+
             # Connect to Google Sheets
-            service_account_file = self.config.get("service_account_file")
-            spreadsheet_name = self.config.get(
+            service_account_file = gsheets_config.get("service_account_file")
+            spreadsheet_name = gsheets_config.get(
                 "spreadsheet_name", "NeMo Evaluator Launcher Results"
             )
 
             if service_account_file:
-                gc = gspread.service_account(filename=service_account_file)
+                gc = gspread.service_account(
+                    filename=os.path.expanduser(service_account_file)
+                )
             else:
                 gc = gspread.service_account()
 
             # Get or create spreadsheet
+            spreadsheet_id = gsheets_config.get("spreadsheet_id")
             try:
-                sh = gc.open(spreadsheet_name)
+                if spreadsheet_id:
+                    sh = gc.open_by_key(spreadsheet_id)
+                else:
+                    sh = gc.open(spreadsheet_name)
                 logger.info(f"Opened existing spreadsheet: {spreadsheet_name}")
             except gspread.SpreadsheetNotFound:
+                if spreadsheet_id:
+                    raise  # Can't create with explicit ID
                 sh = gc.create(spreadsheet_name)
                 logger.info(f"Created new spreadsheet: {spreadsheet_name}")
-                sh.share("", perm_type="anyone", role="reader")
 
             worksheet = sh.sheet1
-
             # Extract metrics from ALL jobs first to determine headers
             all_job_metrics = {}
             results = {}
@@ -226,16 +237,23 @@ class GSheetsExporter(BaseExporter):
                 )
 
                 if service_account_file:
-                    gc = gspread.service_account(filename=service_account_file)
+                    gc = gspread.service_account(
+                        filename=os.path.expanduser(service_account_file)
+                    )
                 else:
                     gc = gspread.service_account()
 
                 # Get or create spreadsheet
+                spreadsheet_id = gsheets_config.get("spreadsheet_id")
                 try:
-                    sh = gc.open(spreadsheet_name)
+                    if spreadsheet_id:
+                        sh = gc.open_by_key(spreadsheet_id)
+                    else:
+                        sh = gc.open(spreadsheet_name)
                 except gspread.SpreadsheetNotFound:
+                    if spreadsheet_id:
+                        raise  # Can't create with explicit ID
                     sh = gc.create(spreadsheet_name)
-                    sh.share("", perm_type="anyone", role="reader")
 
                 worksheet = sh.sheet1
 

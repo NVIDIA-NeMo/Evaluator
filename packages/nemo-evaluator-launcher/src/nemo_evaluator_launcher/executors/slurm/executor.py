@@ -49,6 +49,7 @@ from nemo_evaluator_launcher.common.mapping import (
     get_task_from_mapping,
     load_tasks_mapping,
 )
+from nemo_evaluator_launcher.common.printing_utils import bold, cyan, grey
 from nemo_evaluator_launcher.executors.base import (
     BaseExecutor,
     ExecutionState,
@@ -141,13 +142,13 @@ class SlurmExecutor(BaseExecutor):
                 remote_runsub_paths.append(remote_runsub_path)
 
             if dry_run:
-                print("\n\n=============================================\n\n")
-                print("DRY RUN: SLURM scripts prepared")
+                print(bold("\n\n=============================================\n\n"))
+                print(bold(cyan("DRY RUN: SLURM scripts prepared")))
                 for idx, local_runsub_path in enumerate(local_runsub_paths):
-                    print(f"\n\n =========== Task {idx} ===================== \n\n")
+                    print(cyan(f"\n\n=========== Task {idx} =====================\n\n"))
                     with open(local_runsub_path, "r") as f:
-                        print(f.read())
-                print("\nTo submit jobs, run the executor without --dry-run")
+                        print(grey(f.read()))
+                print(bold("To submit jobs") + ", run the executor without --dry-run")
                 return invocation_id
 
             socket = str(Path(tmpdirname) / "socket")
@@ -185,10 +186,11 @@ class SlurmExecutor(BaseExecutor):
             for idx, (slurm_job_id, remote_runsub_path) in enumerate(
                 zip(slurm_job_ids, remote_runsub_paths)
             ):
+                job_id = generate_job_id(invocation_id, idx)
                 db.write_job(
                     job=JobData(
                         invocation_id=invocation_id,
-                        job_id=generate_job_id(invocation_id, idx),
+                        job_id=job_id,
                         timestamp=time.time(),
                         executor="slurm",
                         data={
@@ -215,7 +217,7 @@ class SlurmExecutor(BaseExecutor):
         """
         db = ExecutionDB()
 
-        # If id looks like an invocation_id (no dot), get all jobs for it
+        # If id looks like an invocation_id
         if "." not in id:
             jobs = db.get_jobs(id)
             if not jobs:
@@ -399,7 +401,7 @@ class SlurmExecutor(BaseExecutor):
         """Kill a SLURM job.
 
         Args:
-            job_id: The job ID to kill.
+            job_id: The job ID (e.g., abc123.0) to kill.
         """
         db = ExecutionDB()
         job_data = db.get_job(job_id)
@@ -412,26 +414,31 @@ class SlurmExecutor(BaseExecutor):
                 f"Job {job_id} is not a slurm job (executor: {job_data.executor})"
             )
 
-        killed_something = False
-
-        result = _kill_slurm_job(
+        # OPTIMIZATION: Query status AND kill in ONE SSH call
+        slurm_status, result = _kill_slurm_job(
             slurm_job_ids=[job_data.data.get("slurm_job_id")],
             username=job_data.data.get("username"),
             hostname=job_data.data.get("hostname"),
             socket=job_data.data.get("socket"),
         )
 
+        # Mark job as killed in database if kill succeeded
         if result.returncode == 0:
-            killed_something = True
-
-        # Mark job as killed in database if we killed something
-        if killed_something:
             job_data.data["killed"] = True
             db.write_job(job_data)
         else:
-            raise RuntimeError(
-                f"Could not find or kill job {job_id} (slurm_job_id: {job_data.data.get('slurm_job_id')})"
+            # Use the pre-fetched status for better error message
+            current_status = None
+            if slurm_status:
+                current_status = SlurmExecutor._map_slurm_state_to_execution_state(
+                    slurm_status
+                )
+            error_msg = SlurmExecutor.get_kill_failure_message(
+                job_id,
+                f"slurm_job_id: {job_data.data.get('slurm_job_id')}",
+                current_status,
             )
+            raise RuntimeError(error_msg)
 
 
 def _create_slurm_sbatch_script(
@@ -582,7 +589,20 @@ def _create_slurm_sbatch_script(
     ):
         evaluation_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
+    eval_factory_command_struct = get_eval_factory_command(cfg, task, task_definition)
+    eval_factory_command = eval_factory_command_struct.cmd
+    # The debug comment for placing into the script and easy debug. Reason
+    # (see `CmdAndReadableComment`) is the current way of passing the command
+    # is base64-encoded config `echo`-ed into file.
+    # TODO(agronskiy): cleaner way is to encode everything with base64, not
+    # some parts (like ef_config.yaml) and just output as logs somewhere.
+    eval_factory_command_debug_comment = eval_factory_command_struct.debug
+
     # add evaluation srun command
+    s += "# Debug contents of the eval factory command's config\n"
+    s += eval_factory_command_debug_comment
+    s += "\n\n"
+
     s += "# evaluation client\n"
     s += "srun --mpi pmix --overlap "
     s += "--nodes 1 --ntasks 1 "  # Client always runs on single node
@@ -594,10 +614,11 @@ def _create_slurm_sbatch_script(
         s += "--container-env {} ".format(",".join(evaluation_env_var_names))
     if not cfg.execution.get("mounts", {}).get("mount_home", True):
         s += "--no-container-mount-home "
+
     s += "--container-mounts {} ".format(",".join(evaluation_mounts_list))
     s += "--output {} ".format(remote_task_subdir / "logs" / "client-%A.out")
-    s += "bash -c '"
-    s += get_eval_factory_command(cfg, task, task_definition)
+    s += "bash -c '\n"
+    s += eval_factory_command
     s += "'\n\n"
 
     # terminate the server after all evaluation clients finish
@@ -608,20 +629,27 @@ def _create_slurm_sbatch_script(
         s += "\n"
 
     # auto-export
-    if cfg.execution.get("auto_export", {}).get("destinations", []):
-        s += _generate_auto_export_section(cfg, job_id)
+    ae_cfg = cfg.execution.get("auto_export")
+    destinations: list = []
+    if isinstance(ae_cfg, list):
+        destinations = list(ae_cfg)
+    elif isinstance(ae_cfg, dict) or isinstance(ae_cfg, DictConfig):
+        destinations = list(ae_cfg.get("destinations", []) or [])
+
+    if destinations:
+        export_env = dict(cfg.execution.get("env_vars", {}).get("export", {}) or {})
+        s += _generate_auto_export_section(cfg, job_id, destinations, export_env)
 
     return s
 
 
 def _generate_auto_export_section(
     cfg: DictConfig,
-    job_id: str,  # Complete job_id string
+    job_id: str,
+    destinations: list,
+    export_env: dict,
 ) -> str:
     """Generate simple auto-export section for sbatch script."""
-    auto_export_config = cfg.execution.get("auto_export", {})
-    destinations = auto_export_config.get("destinations", [])
-
     if not destinations:
         return ""
 
@@ -629,18 +657,65 @@ def _generate_auto_export_section(
     s += "EVAL_EXIT_CODE=$?\n"
     s += "if [ $EVAL_EXIT_CODE -eq 0 ]; then\n"
     s += "    echo 'Evaluation completed successfully. Starting auto-export...'\n"
-    s += "    set +e\n"  # per exporter failure allowed
+    s += "    set +e\n"
     s += "    set +x\n"
+    s += "    set +u\n"
     s += '    cd "$TASK_DIR/artifacts"\n'
-    auto_export_cfg = OmegaConf.to_container(
-        cfg.execution.get("auto_export", {}), resolve=True
+
+    # Work with DictConfig; convert only for YAML at the end
+    exec_type = (
+        cfg.execution.type
+        if hasattr(cfg.execution, "type")
+        else cfg.execution.get("type", "slurm")
     )
-    yaml_str = yaml.safe_dump(
-        {"execution": {"auto_export": auto_export_cfg}}, sort_keys=False
+    eval_tasks = (
+        list(cfg.evaluation.tasks)
+        if hasattr(cfg, "evaluation") and hasattr(cfg.evaluation, "tasks")
+        else list((cfg.get("evaluation", {}) or {}).get("tasks", []) or [])
     )
+    export_block = cfg.get("export", {}) or {}
+
+    payload = {
+        "execution": {
+            "auto_export": {
+                "destinations": list(destinations),
+                **({"env_vars": dict(export_env)} if export_env else {}),
+            },
+            "type": exec_type,
+        },
+        "evaluation": {"tasks": eval_tasks},
+    }
+    if export_block:
+        # Convert just this block to plain for YAML
+        payload["export"] = (
+            OmegaConf.to_object(export_block)
+            if OmegaConf.is_config(export_block)
+            else dict(export_block)
+        )
+
+    # Final YAML (single conversion at the end)
+    payload_clean = OmegaConf.to_container(OmegaConf.create(payload), resolve=True)
+    yaml_str = yaml.safe_dump(payload_clean, sort_keys=False)
     s += "    cat > export_config.yml << 'EOF'\n"
     s += yaml_str
     s += "EOF\n"
+
+    # write launcher config as config.yml for exporters (no core command)
+    submitted_yaml = yaml.safe_dump(
+        OmegaConf.to_container(cfg, resolve=True), sort_keys=False
+    )
+    s += "    cat > config.yml << 'EOF'\n"
+    s += submitted_yaml
+    s += "EOF\n"
+
+    # Export host only env before running auto export
+    for k, v in (export_env or {}).items():
+        if isinstance(v, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", v):
+            s += f'    export {k}="${{{v}}}"\n'
+        else:
+            esc = str(v).replace('"', '\\"')
+            s += f'    export {k}="{esc}"\n'
+
     for dest in destinations:
         s += f"    echo 'Exporting to {dest}...'\n"
         s += f"    nemo-evaluator-launcher export {job_id} --dest {dest} || echo 'Export to {dest} failed'\n"
@@ -659,7 +734,9 @@ def _open_master_connection(
     socket: str,
 ) -> str | None:
     ssh_command = f"ssh -MNf -S {socket} {username}@{hostname}"
-    completed_process = subprocess.run(args=shlex.split(ssh_command))
+    completed_process = subprocess.run(
+        args=shlex.split(ssh_command), capture_output=True
+    )
     if completed_process.returncode == 0:
         return socket
     return None
@@ -697,12 +774,17 @@ def _make_remote_execution_output_dir(
     ssh_command.append(f"{username}@{hostname}")
     ssh_command.append(mkdir_command)
     ssh_command = " ".join(ssh_command)
-    completed_process = subprocess.run(args=shlex.split(ssh_command))
+    completed_process = subprocess.run(
+        args=shlex.split(ssh_command), capture_output=True
+    )
     if completed_process.returncode != 0:
+        error_msg = (
+            completed_process.stderr.decode("utf-8")
+            if completed_process.stderr
+            else "Unknown error"
+        )
         raise RuntimeError(
-            "failed to make a remote execution output dir\n{}".format(
-                completed_process.stderr.decode("utf-8")
-            )
+            "failed to make a remote execution output dir\n{}".format(error_msg)
         )
 
 
@@ -728,13 +810,16 @@ def _rsync_upload_rundirs(
     remote_destination_str = f"{username}@{hostname}:{remote_target}"
     local_sources_str = " ".join(map(str, local_sources))
     rsync_upload_command = f"rsync -qcaz {local_sources_str} {remote_destination_str}"
-    completed_process = subprocess.run(args=shlex.split(rsync_upload_command))
+    completed_process = subprocess.run(
+        args=shlex.split(rsync_upload_command), capture_output=True
+    )
     if completed_process.returncode != 0:
-        raise RuntimeError(
-            "failed to upload local sources\n{}".format(
-                completed_process.stderr.decode("utf-8")
-            )
+        error_msg = (
+            completed_process.stderr.decode("utf-8")
+            if completed_process.stderr
+            else "Unknown error"
         )
+        raise RuntimeError("failed to upload local sources\n{}".format(error_msg))
 
 
 def _sbatch_remote_runsubs(
@@ -760,10 +845,9 @@ def _sbatch_remote_runsubs(
         args=shlex.split(ssh_command), capture_output=True
     )
     if completed_process.returncode != 0:
+        error_msg = completed_process.stderr.decode("utf-8")
         raise RuntimeError(
-            "failed to submit sbatch scripts for execution\n{}".format(
-                completed_process.stderr.decode("utf-8")
-            )
+            "failed to submit sbatch scripts for execution\n{}".format(error_msg)
         )
 
     sbatch_output = completed_process.stdout.decode("utf-8")
@@ -819,34 +903,47 @@ def _query_slurm_jobs_status(
 
 def _kill_slurm_job(
     slurm_job_ids: List[str], username: str, hostname: str, socket: str | None
-) -> None:
-    """Kill a SLURM job.
+) -> tuple[str | None, subprocess.CompletedProcess]:
+    """Kill a SLURM job, querying status first in one SSH call for efficiency.
 
     Args:
         slurm_job_ids: List of SLURM job IDs to kill.
         username: SSH username.
         hostname: SSH hostname.
         socket: control socket location or None
+
+    Returns:
+        Tuple of (status_string, completed_process) where status_string is the SLURM status or None
     """
     if len(slurm_job_ids) == 0:
-        return {}
-    kill_command = "scancel {}".format(",".join(slurm_job_ids))
+        return None, subprocess.CompletedProcess(args=[], returncode=0)
+
+    jobs_str = ",".join(slurm_job_ids)
+    # Combine both commands in one SSH call: query THEN kill
+    combined_command = (
+        f"sacct -j {jobs_str} --format='JobID,State%32' --noheader -P 2>/dev/null; "
+        f"scancel {jobs_str}"
+    )
+
     ssh_command = ["ssh"]
     if socket is not None:
         ssh_command.append(f"-S {socket}")
     ssh_command.append(f"{username}@{hostname}")
-    ssh_command.append(kill_command)
+    ssh_command.append(combined_command)
     ssh_command = " ".join(ssh_command)
+
     completed_process = subprocess.run(
         args=shlex.split(ssh_command), capture_output=True
     )
-    if completed_process.returncode != 0:
-        raise RuntimeError(
-            "failed to kill slurm job\n{}".format(
-                completed_process.stderr.decode("utf-8")
-            )
-        )
-    return completed_process
+
+    # Parse the sacct output (before scancel runs)
+    sacct_output = completed_process.stdout.decode("utf-8")
+    sacct_output_lines = sacct_output.strip().split("\n")
+    slurm_status = None
+    if sacct_output_lines and len(slurm_job_ids) == 1:
+        slurm_status = _parse_slurm_job_status(slurm_job_ids[0], sacct_output_lines)
+
+    return slurm_status, completed_process
 
 
 def _parse_slurm_job_status(slurm_job_id: str, sacct_output_lines: List[str]) -> str:

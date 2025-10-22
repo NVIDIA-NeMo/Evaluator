@@ -20,6 +20,7 @@ import os
 from simple_parsing import ArgumentParser
 
 import nemo_evaluator_launcher.cli.export as export
+import nemo_evaluator_launcher.cli.info as info
 import nemo_evaluator_launcher.cli.kill as kill
 import nemo_evaluator_launcher.cli.ls_runs as ls_runs
 import nemo_evaluator_launcher.cli.ls_tasks as ls_tasks
@@ -38,7 +39,16 @@ def is_verbose_enabled(args) -> bool:
         return True
 
     # Check subcommand verbose flags
-    subcommands = ["run", "status", "kill", "tasks_alias", "tasks", "runs", "export"]
+    subcommands = [
+        "run",
+        "status",
+        "info",
+        "kill",
+        "tasks_alias",
+        "tasks",
+        "runs",
+        "export",
+    ]
     for subcmd in subcommands:
         if hasattr(args, subcmd) and hasattr(getattr(args, subcmd), "verbose"):
             if getattr(getattr(args, subcmd), "verbose"):
@@ -153,6 +163,17 @@ def create_parser() -> ArgumentParser:
     )
     export_parser.add_arguments(export.ExportCmd, dest="export")
 
+    # Info subcommand
+    info_parser = subparsers.add_parser(
+        "info",
+        help="Display evaluation job information",
+        description="Info functionalities for nemo-evaluator-launcher",
+    )
+    info_parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable verbose logging"
+    )
+    info_parser.add_arguments(info.InfoCmd, dest="info")
+
     return parser
 
 
@@ -197,6 +218,8 @@ def main() -> None:
             args.runs.execute()
     elif args.command == "export":
         args.export.execute()
+    elif args.command == "info":
+        args.info.execute()
 
 
 if __name__ == "__main__":

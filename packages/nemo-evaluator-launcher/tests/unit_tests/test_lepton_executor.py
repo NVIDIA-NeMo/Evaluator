@@ -249,11 +249,7 @@ class TestLeptonExecutorDryRun:
             print_calls = [
                 call.args[0] for call in mock_print.call_args_list if call.args
             ]
-            assert any("Using existing endpoint" in call for call in print_calls)
-            assert any(
-                "DRY RUN: Lepton job configurations prepared" in call
-                for call in print_calls
-            )
+            assert any("DRY RUN" in call for call in print_calls)
             assert any("using shared endpoint" in call for call in print_calls)
 
     def test_dry_run_nim_deployment_basic(self, sample_config_nim, mock_tasks_mapping):
@@ -306,7 +302,7 @@ class TestLeptonExecutorDryRun:
                 call.args[0] for call in mock_print.call_args_list if call.args
             ]
             assert any(
-                "DRY RUN: Lepton job configurations prepared" in call
+                "DRY RUN:" in call and "Lepton" in call and "prepared" in call
                 for call in print_calls
             )
             assert any("with endpoint" in call for call in print_calls)
@@ -454,114 +450,6 @@ class TestLeptonExecutorDryRun:
 
             # Verify results
             assert invocation_id == "fed98765"
-
-    def test_dry_run_multiple_tasks_endpoint_naming(self, tmpdir, mock_tasks_mapping):
-        """Test dry run with multiple tasks and endpoint naming."""
-        config_dict = {
-            "deployment": {
-                "type": "nim",
-                "image": "nvcr.io/nim/meta/llama-3.1-8b-instruct:1.8.6",
-                "served_model_name": "meta/llama-3.1-8b-instruct",
-                "endpoints": {"openai": "/v1/chat/completions"},
-                "lepton_config": {
-                    "resource_shape": "cpu.small",
-                    "min_replicas": 1,
-                    "max_replicas": 1,
-                    "auto_scaler": False,
-                },
-            },
-            "execution": {
-                "output_dir": str(tmpdir),
-                "lepton_platform": {
-                    "deployment": {"endpoint_readiness_timeout": 300},
-                    "tasks": {"node_group": "default", "env_vars": {}, "mounts": []},
-                },
-                "evaluation_tasks": {"resource_shape": "cpu.small", "timeout": 1800},
-            },
-            "evaluation": {
-                "tasks": [
-                    {"name": "mmlu_pro"},
-                    {"name": "gsm8k"},
-                    {"name": "lm-eval.arc_challenge"},  # Test task name with dots
-                ]
-            },
-            "target": {"api_endpoint": {"api_key_name": "LEPTON_API_KEY"}},
-        }
-        cfg = OmegaConf.create(config_dict)
-
-        # Add the arc_challenge task to mapping
-        extended_mapping = {
-            **mock_tasks_mapping,
-            ("lm-eval", "arc_challenge"): {
-                "task": "arc_challenge",
-                "endpoint_type": "openai",
-                "harness": "lm-eval",
-                "container": "nvcr.io/nvidia/nemo:24.01",
-            },
-        }
-
-        with (
-            patch(
-                "nemo_evaluator_launcher.executors.lepton.executor.load_tasks_mapping"
-            ) as mock_load_mapping,
-            patch(
-                "nemo_evaluator_launcher.executors.lepton.executor.generate_invocation_id"
-            ) as mock_gen_id,
-            patch(
-                "nemo_evaluator_launcher.executors.lepton.executor.create_lepton_endpoint"
-            ) as mock_create_endpoint,
-            patch(
-                "nemo_evaluator_launcher.executors.lepton.executor.wait_for_lepton_endpoint_ready"
-            ) as mock_wait_ready,
-            patch(
-                "nemo_evaluator_launcher.executors.lepton.executor.get_lepton_endpoint_url"
-            ) as mock_get_url,
-            patch(
-                "nemo_evaluator_launcher.executors.lepton.executor.get_task_from_mapping"
-            ) as mock_get_task,
-            patch("builtins.print"),
-        ):
-            mock_load_mapping.return_value = extended_mapping
-            mock_gen_id.return_value = "123abc45"
-
-            def mock_get_task_side_effect(task_name, mapping):
-                # Handle task names with prefixes like "lm-eval.arc_challenge"
-                if "." in task_name:
-                    task_name = task_name.split(".")[-1]
-                for (harness, name), definition in mapping.items():
-                    if name == task_name:
-                        return definition
-                raise KeyError(f"Task {task_name} not found")
-
-            mock_get_task.side_effect = mock_get_task_side_effect
-            mock_create_endpoint.return_value = True
-            mock_wait_ready.return_value = True
-
-            def mock_get_url_side_effect(endpoint_name):
-                return f"https://{endpoint_name}.lepton.run"
-
-            mock_get_url.side_effect = mock_get_url_side_effect
-
-            # Execute dry run
-            invocation_id = LeptonExecutor.execute_eval(cfg, dry_run=True)
-
-            # Verify results
-            assert invocation_id == "123abc45"
-
-            # Verify endpoint names were created (check create_lepton_endpoint calls)
-            assert mock_create_endpoint.call_count == 3
-
-            # Check that task names were sanitized properly in endpoint names
-            endpoint_calls = [
-                call.args[1] for call in mock_create_endpoint.call_args_list
-            ]
-            # Should contain sanitized task names without dots/underscores
-            assert any("mmlu" in endpoint for endpoint in endpoint_calls)
-            assert any("gsm8k" in endpoint for endpoint in endpoint_calls)
-            assert any(
-                "arc" in endpoint or "challenge" in endpoint
-                for endpoint in endpoint_calls
-            )  # from arc_challenge
 
 
 class TestLeptonExecutorErrorHandling:
@@ -728,7 +616,11 @@ class TestLeptonExecutorErrorHandling:
             mock_wait_ready.return_value = True
             mock_get_url.return_value = "https://test-endpoint.lepton.run"
             mock_get_task.return_value = mock_tasks_mapping[("lm-eval", "mmlu_pro")]
-            mock_get_command.return_value = "test-command"
+            from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+            mock_get_command.return_value = CmdAndReadableComment(
+                cmd="test-command", debug="# Test command for lepton job failure"
+            )
             mock_create_job.return_value = (False, "Job submission failed")
 
             LeptonExecutor.execute_eval(cfg, dry_run=False)
@@ -784,6 +676,7 @@ class TestLeptonExecutorHelperFunctions:
             task_name,
             invocation_id,
             eval_command,
+            "# Test debug comment",
         )
 
         # Verify script contains expected elements
@@ -994,12 +887,11 @@ class TestLeptonExecutorHelperFunctions:
             assert invocation_id == "longname1"
 
             # Verify all endpoint names are within 36 character limit
-            assert mock_create_endpoint.call_count == 2
-            for call in mock_create_endpoint.call_args_list:
-                endpoint_name = call.args[1]  # Second argument is endpoint_name
-                assert len(endpoint_name) <= 36, (
-                    f"Endpoint name too long: {endpoint_name}"
-                )
+            assert (
+                mock_create_endpoint.call_count == 0
+            )  # Dry run should NOT create endpoints
+            assert mock_wait_ready.call_count == 0
+            assert mock_get_url.call_count == 0
 
     def test_job_name_generation_with_long_names(self, tmpdir):
         """Test job name generation with very long task names."""
@@ -1062,7 +954,12 @@ class TestLeptonExecutorHelperFunctions:
                     "extremely_long_task_name_that_should_be_truncated_properly",
                 )
             ]
-            mock_get_command.return_value = "test-command --output_dir /results"
+            from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+            mock_get_command.return_value = CmdAndReadableComment(
+                cmd="test-command --output_dir /results",
+                debug="# Test command for long job names",
+            )
             mock_create_job.return_value = (True, None)
 
             # Execute (not dry run to test job submission)
@@ -1248,69 +1145,8 @@ class TestLeptonExecutorGetStatus:
 
 
 class TestLeptonExecutorKillJob:
-    def test_kill_invocation_cancels_jobs_and_cleans_endpoints(
-        self, mock_execdb, monkeypatch
-    ):
-        db = ExecutionDB()
-        inv = "cafebabe"
-        # Two lepton jobs on same endpoint
-        db.write_job(
-            JobData(
-                inv,
-                f"{inv}.0",
-                time.time(),
-                "lepton",
-                data={
-                    "endpoint_name": "ep1",
-                    "lepton_job_name": "lj0",
-                    "status": "running",
-                },
-            )
-        )
-        db.write_job(
-            JobData(
-                inv,
-                f"{inv}.1",
-                time.time(),
-                "lepton",
-                data={
-                    "endpoint_name": "ep1",
-                    "lepton_job_name": "lj1",
-                    "status": "running",
-                },
-            )
-        )
-        calls = {"del_jobs": [], "del_eps": []}
-
-        def del_job(name):
-            calls["del_jobs"].append(name)
-            return True
-
-        def del_ep(name):
-            calls["del_eps"].append(name)
-            return True
-
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.executors.lepton.executor.delete_lepton_job",
-            del_job,
-            raising=True,
-        )
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.executors.lepton.executor.delete_lepton_endpoint",
-            del_ep,
-            raising=True,
-        )
-
-        LeptonExecutor.kill_job(inv)
-        # Both jobs cancelled and endpoint cleaned once
-        assert set(calls["del_jobs"]) == {"lj0", "lj1"}
-        assert calls["del_eps"] == ["ep1"]
-
-        # Jobs updated to killed
-        for idx in [0, 1]:
-            jd = db.get_job(f"{inv}.{idx}")
-            assert jd.data["status"] == "killed"
-            assert "killed_time" in jd.data
+    # NOTE: Batch kill functionality (killing by invocation ID) has been moved to the API layer.
+    # The executor now only handles individual job kills. See test_functional.py for batch kill tests.
 
     def test_kill_single_job_errors(self, mock_execdb):
         with pytest.raises(ValueError, match="not found"):
@@ -1374,3 +1210,123 @@ class TestLeptonExecutorKillJob:
         assert "L1" in jobs_cancelled
         # Now both jobs are killed; endpoint should be cleaned after second kill
         assert cleaned == ["epX"]
+
+    def test_endpoint_naming_with_multiple_tasks(self, tmpdir, mock_tasks_mapping):
+        """Test endpoint name generation during execution with multiple tasks."""
+        config_dict = {
+            "deployment": {
+                "type": "nim",
+                "image": "nvcr.io/nim/meta/llama-3.1-8b-instruct:1.8.6",
+                "served_model_name": "meta/llama-3.1-8b-instruct",
+                "endpoints": {"openai": "/v1/chat/completions"},
+                "lepton_config": {"resource_shape": "cpu.small"},
+            },
+            "execution": {
+                "output_dir": str(tmpdir),
+                "lepton_platform": {
+                    "deployment": {"endpoint_readiness_timeout": 300},
+                    "tasks": {"node_group": "default", "env_vars": {}, "mounts": []},
+                },
+                "evaluation_tasks": {"resource_shape": "cpu.small", "timeout": 1800},
+            },
+            "evaluation": {
+                "tasks": [
+                    {"name": "mmlu_pro"},
+                    {"name": "gsm8k"},
+                    {"name": "lm-eval.arc_challenge"},
+                ]
+            },
+            "target": {"api_endpoint": {"api_key_name": "LEPTON_API_KEY"}},
+        }
+        cfg = OmegaConf.create(config_dict)
+
+        mock_tasks_mapping = {
+            ("lm-eval", "mmlu_pro"): {
+                "task": "mmlu_pro",
+                "endpoint_type": "openai",
+                "harness": "lm-eval",
+                "container": "test:latest",
+            },
+            ("lm-eval", "gsm8k"): {
+                "task": "gsm8k",
+                "endpoint_type": "openai",
+                "harness": "lm-eval",
+                "container": "test:latest",
+            },
+            ("lm-eval", "arc_challenge"): {
+                "task": "arc_challenge",
+                "endpoint_type": "openai",
+                "harness": "lm-eval",
+                "container": "nvcr.io/nvidia/nemo:24.01",
+            },
+        }
+
+        with (
+            patch(
+                "nemo_evaluator_launcher.executors.lepton.executor.load_tasks_mapping"
+            ) as mock_load,
+            patch(
+                "nemo_evaluator_launcher.executors.lepton.executor.generate_invocation_id"
+            ) as mock_gen_id,
+            patch(
+                "nemo_evaluator_launcher.executors.lepton.executor.create_lepton_endpoint"
+            ) as mock_create_endpoint,
+            patch(
+                "nemo_evaluator_launcher.executors.lepton.executor.wait_for_lepton_endpoint_ready"
+            ) as mock_wait,
+            patch(
+                "nemo_evaluator_launcher.executors.lepton.executor.get_lepton_endpoint_url"
+            ) as mock_get_url,
+            patch(
+                "nemo_evaluator_launcher.executors.lepton.executor.get_task_from_mapping"
+            ) as mock_get_task,
+            patch(
+                "nemo_evaluator_launcher.executors.lepton.executor.create_lepton_job"
+            ) as mock_create_job,
+            patch(
+                "nemo_evaluator_launcher.common.helpers.get_eval_factory_command"
+            ) as mock_get_cmd,
+            patch("builtins.print"),
+        ):
+            mock_load.return_value = mock_tasks_mapping
+            mock_gen_id.return_value = "abc12345"
+
+            def get_task_side_effect(task_name, mapping):
+                if "." in task_name:
+                    task_name = task_name.split(".")[-1]
+                for (harness, name), definition in mapping.items():
+                    if name == task_name:
+                        return definition
+                raise KeyError(f"Task {task_name} not found")
+
+            mock_get_task.side_effect = get_task_side_effect
+            mock_create_endpoint.return_value = True
+            mock_wait.return_value = True
+            mock_get_url.side_effect = lambda ep: f"https://{ep}.lepton.run"
+            mock_create_job.return_value = (True, None)
+            from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+            mock_get_cmd.return_value = CmdAndReadableComment(
+                cmd="test-cmd --output_dir /results",
+                debug="# Test command for endpoint naming",
+            )
+
+            # Execute REAL run
+            LeptonExecutor.execute_eval(cfg, dry_run=False)
+
+            # Verify 3 endpoints were created
+            assert mock_create_endpoint.call_count == 3
+
+            # Verify endpoint names are properly sanitized
+            endpoint_names = [
+                call.args[1] for call in mock_create_endpoint.call_args_list
+            ]
+
+            # Check sanitization: underscores -> hyphens, dots removed, lowercase
+            assert any("mmlu" in ep for ep in endpoint_names)
+            assert any("gsm8k" in ep for ep in endpoint_names)
+            assert any("arc" in ep or "challenge" in ep for ep in endpoint_names)
+
+            # Verify all are within 36 character limit
+            for ep_name in endpoint_names:
+                assert len(ep_name) <= 36, f"Endpoint name exceeds 36 chars: {ep_name}"

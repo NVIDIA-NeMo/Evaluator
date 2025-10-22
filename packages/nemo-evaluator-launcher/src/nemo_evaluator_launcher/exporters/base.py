@@ -70,6 +70,15 @@ class BaseExporter(ABC):
 
     def get_job_paths(self, job_data: JobData) -> Dict[str, Any]:
         """Get result paths based on executor type from job metadata."""
+        # Special case: remote executor artifacts accessed locally (remote auto-export)
+        if job_data.data.get("storage_type") == "remote_local":
+            output_dir = Path(job_data.data["output_dir"])
+            return {
+                "artifacts_dir": output_dir / "artifacts",
+                "logs_dir": output_dir / "logs",
+                "storage_type": "remote_local",
+            }
+
         if job_data.executor == "local":
             output_dir = Path(job_data.data["output_dir"])
             return {

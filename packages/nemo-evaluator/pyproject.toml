@@ -65,16 +65,18 @@ repository = "https://github.com/NVIDIA-NeMo/Evaluator/packages/nemo-evaluator"
 # END(if-changed)
 
 [dependency-groups]
-test = ["pytest", "pytest-cov", "pytest-subtests", "pytest-httpserver"]
+test = ["pytest", "pytest-cov", "pytest-subtests", "pytest-httpserver", "nvidia-simple-evals"]
 
 docs = [
     "sphinx",
     "sphinx-autobuild",    # For live doc serving while editing docs
     "sphinx-autodoc2",     # For documenting Python API
     "sphinx-copybutton",   # Adds a copy button for code blocks
-    "myst_parser",         # For our markdown docs
+    "myst-parser",         # For our markdown docs
     "nvidia-sphinx-theme", # Our NVIDIA theme
     "sphinxcontrib-mermaid", # For mermaid diagrams
+    "sphinx-design",       # For our design elements
+    "swagger-plugin-for-sphinx", # For Swagger API documentation
 ]
 
 [project.scripts]

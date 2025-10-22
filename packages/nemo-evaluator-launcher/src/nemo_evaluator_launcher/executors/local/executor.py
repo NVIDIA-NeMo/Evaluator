@@ -23,6 +23,7 @@ import os
 import pathlib
 import platform
 import shlex
+import shutil
 import subprocess
 import time
 from typing import List, Optional
@@ -46,6 +47,7 @@ from nemo_evaluator_launcher.common.mapping import (
     get_task_from_mapping,
     load_tasks_mapping,
 )
+from nemo_evaluator_launcher.common.printing_utils import bold, cyan, grey
 from nemo_evaluator_launcher.executors.base import (
     BaseExecutor,
     ExecutionState,
@@ -74,6 +76,13 @@ class LocalExecutor(BaseExecutor):
         if cfg.deployment.type != "none":
             raise NotImplementedError(
                 f"type {cfg.deployment.type} is not implemented -- add deployment support"
+            )
+
+        # Check if docker is available (skip in dry_run mode)
+        if not dry_run and shutil.which("docker") is None:
+            raise RuntimeError(
+                "Docker is not installed or not in PATH. "
+                "Please install Docker to run local evaluations."
             )
 
         # Generate invocation ID for this evaluation run
@@ -147,6 +156,16 @@ class LocalExecutor(BaseExecutor):
 
             task_output_dir = output_dir / task.name
             task_output_dir.mkdir(parents=True, exist_ok=True)
+            eval_factory_command_struct = get_eval_factory_command(
+                cfg, task, task_definition
+            )
+            eval_factory_command = eval_factory_command_struct.cmd
+            # The debug comment for placing into the script and easy debug. Reason
+            # (see `CmdAndReadableComment`) is the current way of passing the command
+            # is base64-encoded config `echo`-ed into file.
+            # TODO(agronskiy): cleaner way is to encode everything with base64, not
+            # some parts (like ef_config.yaml) and just output as logs somewhere.
+            eval_factory_command_debug_comment = eval_factory_command_struct.debug
             evaluation_task = {
                 "name": task.name,
                 "job_id": job_id,
@@ -154,9 +173,8 @@ class LocalExecutor(BaseExecutor):
                 "container_name": container_name,
                 "env_vars": env_vars,
                 "output_dir": task_output_dir,
-                "eval_factory_command": get_eval_factory_command(
-                    cfg, task, task_definition
-                ),
+                "eval_factory_command": eval_factory_command,
+                "eval_factory_command_debug_comment": eval_factory_command_debug_comment,
             }
             evaluation_tasks.append(evaluation_task)
 
@@ -164,10 +182,13 @@ class LocalExecutor(BaseExecutor):
             auto_export_config = cfg.execution.get("auto_export", {})
             auto_export_destinations = auto_export_config.get("destinations", [])
 
+            extra_docker_args = cfg.execution.get("extra_docker_args", "")
+
             run_sh_content = (
                 eval_template.render(
                     evaluation_tasks=[evaluation_task],
                     auto_export_destinations=auto_export_destinations,
+                    extra_docker_args=extra_docker_args,
                 ).rstrip("\n")
                 + "\n"
             )
@@ -178,6 +199,7 @@ class LocalExecutor(BaseExecutor):
             eval_template.render(
                 evaluation_tasks=evaluation_tasks,
                 auto_export_destinations=auto_export_destinations,
+                extra_docker_args=extra_docker_args,
             ).rstrip("\n")
             + "\n"
         )
@@ -186,23 +208,28 @@ class LocalExecutor(BaseExecutor):
         )
 
         if dry_run:
-            print("\n\n=============================================\n\n")
-            print(f"DRY RUN: Scripts prepared and saved to {output_dir}")
+            print(bold("\n\n=============================================\n\n"))
+            print(bold(cyan(f"DRY RUN: Scripts prepared and saved to {output_dir}")))
             if is_execution_mode_sequential:
                 print(
-                    "\n\n =========== Main script | run_all.sequential.sh ===================== \n\n"
+                    cyan(
+                        "\n\n=========== Main script | run_all.sequential.sh =====================\n\n"
+                    )
                 )
+
                 with open(output_dir / "run_all.sequential.sh", "r") as f:
-                    print(f.read())
+                    print(grey(f.read()))
             else:
                 for idx, task in enumerate(cfg.evaluation.tasks):
                     task_output_dir = output_dir / task.name
                     print(
-                        f"\n\n =========== Task script | {task.name}/run.sh ===================== \n\n"
+                        cyan(
+                            f"\n\n=========== Task script | {task.name}/run.sh =====================\n\n"
+                        )
                     )
                     with open(task_output_dir / "run.sh", "r") as f:
-                        print(f.read())
-            print("\nTo execute, run without --dry-run")
+                        print(grey(f.read()))
+            print(bold("\nTo execute, run without --dry-run"))
             return invocation_id
 
         # Save launched jobs metadata
@@ -229,43 +256,56 @@ class LocalExecutor(BaseExecutor):
         # To ensure subprocess continues after python exits:
         # - on Unix-like systems, to fully detach the subprocess
         #   so it does not die when Python exits, pass start_new_session=True;
-        # - on Widnows use creationflags=subprocess.CREATE_NEW_PROCESS_GROUP flag.
+        # - on Windows use creationflags=subprocess.CREATE_NEW_PROCESS_GROUP flag.
         os_name = platform.system()
+        processes = []
+
         if is_execution_mode_sequential:
             if os_name == "Windows":
-                subprocess.Popen(
+                proc = subprocess.Popen(
                     shlex.split("bash run_all.sequential.sh"),
                     cwd=output_dir,
                     creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
                 )
             else:
-                subprocess.Popen(
+                proc = subprocess.Popen(
                     shlex.split("bash run_all.sequential.sh"),
                     cwd=output_dir,
                     start_new_session=True,
                 )
+            processes.append(("run_all.sequential.sh", proc, output_dir))
         else:
             for task in cfg.evaluation.tasks:
                 if os_name == "Windows":
-                    subprocess.Popen(
+                    proc = subprocess.Popen(
                         shlex.split("bash run.sh"),
                         cwd=output_dir / task.name,
                         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
                     )
                 else:
-                    subprocess.Popen(
+                    proc = subprocess.Popen(
                         shlex.split("bash run.sh"),
                         cwd=output_dir / task.name,
                         start_new_session=True,
                     )
+                processes.append((task.name, proc, output_dir / task.name))
 
-        print("\nCommands for real-time monitoring:")
+        # Wait briefly and check if bash scripts exited immediately (which means error)
+        time.sleep(0.3)
+
+        for name, proc, work_dir in processes:
+            exit_code = proc.poll()
+            if exit_code is not None and exit_code != 0:
+                error_msg = f"Script for {name} exited with code {exit_code}"
+                raise RuntimeError(f"Job startup failed | {error_msg}")
+
+        print(bold(cyan("\nCommands for real-time monitoring:")))
         for job_id, evaluation_task in zip(job_ids, evaluation_tasks):
             log_file = evaluation_task["output_dir"] / "logs" / "stdout.log"
             print(f"  tail -f {log_file}")
 
-        print("\nFollow all logs for this invocation:")
-        print(f"  tail -f {output_dir}/*/logs/stdout.log")
+        print(bold(cyan("\nFollow all logs for this invocation:")))
+        print(f"  tail -f {output_dir}/*/logs/stdout.log\n")
 
         return invocation_id
 
@@ -390,10 +430,10 @@ class LocalExecutor(BaseExecutor):
 
     @staticmethod
     def kill_job(job_id: str) -> None:
-        """Kill a local job by stopping its Docker container and related processes.
+        """Kill a local job.
 
         Args:
-            job_id: The job ID to kill.
+            job_id: The job ID (e.g., abc123.0) to kill.
 
         Raises:
             ValueError: If job is not found or invalid.
@@ -438,14 +478,55 @@ class LocalExecutor(BaseExecutor):
         if result.returncode == 0:
             killed_something = True
 
-        # Mark job as killed in database if we killed something
+        # If we successfully killed something, mark as killed
         if killed_something:
             job_data.data["killed"] = True
             db.write_job(job_data)
-        else:
-            raise RuntimeError(
-                f"Could not find or kill job {job_id} (container: {container_name})"
-            )
+            LocalExecutor._add_to_killed_jobs(job_data.invocation_id, job_id)
+            return
+
+        # If nothing was killed, check if this is a pending job
+        status_list = LocalExecutor.get_status(job_id)
+        if status_list and status_list[0].state == ExecutionState.PENDING:
+            # For pending jobs, mark as killed even though there's nothing to kill yet
+            job_data.data["killed"] = True
+            db.write_job(job_data)
+            LocalExecutor._add_to_killed_jobs(job_data.invocation_id, job_id)
+            return
+
+        # Use common helper to get informative error message based on job status
+        current_status = status_list[0].state if status_list else None
+        error_msg = LocalExecutor.get_kill_failure_message(
+            job_id, f"container: {container_name}", current_status
+        )
+        raise RuntimeError(error_msg)
+
+    @staticmethod
+    def _add_to_killed_jobs(invocation_id: str, job_id: str) -> None:
+        """Add a job ID to the killed jobs file for this invocation.
+
+        Args:
+            invocation_id: The invocation ID.
+            job_id: The job ID to mark as killed.
+        """
+        db = ExecutionDB()
+        jobs = db.get_jobs(invocation_id)
+        if not jobs:
+            return
+
+        # Get invocation output directory from any job's output_dir
+        first_job_data = next(iter(jobs.values()))
+        job_output_dir = pathlib.Path(first_job_data.data.get("output_dir", ""))
+        if not job_output_dir.exists():
+            return
+
+        # Invocation dir is parent of job output dir
+        invocation_dir = job_output_dir.parent
+        killed_jobs_file = invocation_dir / "killed_jobs.txt"
+
+        # Append job_id to file
+        with open(killed_jobs_file, "a") as f:
+            f.write(f"{job_id}\n")
 
 
 def _get_progress(artifacts_dir: pathlib.Path) -> Optional[float]:
