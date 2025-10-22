@@ -231,8 +231,33 @@ def create_mock_response(
     )
 
 
+def create_real_response(
+    endpoint_url: str, request_id: str, prompt: str = "Hi"
+) -> AdapterResponse:
+    """Create an AdapterResponse from a real API call."""
+    start_time = time.perf_counter()
+
+    payload = {
+        "model": "test",
+        "messages": [{"role": "user", "content": prompt}],
+    }
+
+    resp = requests.post(
+        endpoint_url, json=payload, headers={"Content-Type": "application/json"}
+    )
+
+    latency_ms = (time.perf_counter() - start_time) * 1000
+
+    return AdapterResponse(
+        r=resp, rctx=AdapterRequestContext(request_id=request_id), latency_ms=latency_ms
+    )
+
+
 def benchmark_single_threaded(
-    num_responses: int, cache_dir: Path, save_individuals: bool = True
+    num_responses: int,
+    cache_dir: Path,
+    save_individuals: bool = True,
+    endpoint_url: str = None,
 ) -> tuple[float, PerformanceProfiler]:
     """Benchmark single-threaded performance."""
     profiler = PerformanceProfiler()
@@ -245,18 +270,20 @@ def benchmark_single_threaded(
     )
 
     interceptor = InstrumentedResponseStatsInterceptor(params, profiler)
-    context = AdapterGlobalContext(
-        output_dir=str(cache_dir), url="http://test.api.com/v1/chat/completions"
-    )
+    api_url = endpoint_url or "http://test.api.com/v1/chat/completions"
+    context = AdapterGlobalContext(output_dir=str(cache_dir), url=api_url)
 
     start_time = time.perf_counter()
 
     for i in range(num_responses):
-        response = create_mock_response(
-            prompt_tokens=50 + (i % 100),
-            completion_tokens=25 + (i % 50),
-            include_tool_calls=(i % 5 == 0),
-        )
+        if endpoint_url:
+            response = create_real_response(endpoint_url, f"req_{i}", prompt="Hi")
+        else:
+            response = create_mock_response(
+                prompt_tokens=50 + (i % 100),
+                completion_tokens=25 + (i % 50),
+                include_tool_calls=(i % 5 == 0),
+            )
         interceptor.intercept_response(response, context)
 
     elapsed = time.perf_counter() - start_time
@@ -265,7 +292,11 @@ def benchmark_single_threaded(
 
 
 def benchmark_multi_threaded(
-    num_responses: int, cache_dir: Path, num_threads: int, save_individuals: bool = True
+    num_responses: int,
+    cache_dir: Path,
+    num_threads: int,
+    save_individuals: bool = True,
+    endpoint_url: str = None,
 ) -> tuple[float, PerformanceProfiler]:
     """Benchmark multi-threaded performance."""
     profiler = PerformanceProfiler()
@@ -278,17 +309,21 @@ def benchmark_multi_threaded(
     )
 
     interceptor = InstrumentedResponseStatsInterceptor(params, profiler)
-    context = AdapterGlobalContext(
-        output_dir=str(cache_dir), url="http://test.api.com/v1/chat/completions"
-    )
+    api_url = endpoint_url or "http://test.api.com/v1/chat/completions"
+    context = AdapterGlobalContext(output_dir=str(cache_dir), url=api_url)
 
     def process_responses(thread_id: int, responses_per_thread: int):
         for i in range(responses_per_thread):
-            response = create_mock_response(
-                prompt_tokens=50 + (i % 100),
-                completion_tokens=25 + (i % 50),
-                include_tool_calls=(i % 5 == 0),
-            )
+            if endpoint_url:
+                response = create_real_response(
+                    endpoint_url, f"req_t{thread_id}_{i}", prompt="Hi"
+                )
+            else:
+                response = create_mock_response(
+                    prompt_tokens=50 + (i % 100),
+                    completion_tokens=25 + (i % 50),
+                    include_tool_calls=(i % 5 == 0),
+                )
             interceptor.intercept_response(response, context)
 
     start_time = time.perf_counter()
@@ -389,7 +424,9 @@ def benchmark_cache_operations(num_operations: int, cache_dir: Path):
     print("=" * 100)
 
 
-def analyze_lock_contention(num_responses: int, cache_dir: Path, num_threads: int):
+def analyze_lock_contention(
+    num_responses: int, cache_dir: Path, num_threads: int, endpoint_url: str = None
+):
     """Analyze lock contention with different thread counts."""
     print("\n" + "=" * 100)
     print("LOCK CONTENTION ANALYSIS")
@@ -398,7 +435,7 @@ def analyze_lock_contention(num_responses: int, cache_dir: Path, num_threads: in
     results = []
     for threads in range(1, num_threads + 1):
         elapsed, profiler = benchmark_multi_threaded(
-            num_responses, cache_dir, threads, save_individuals=False
+            num_responses, cache_dir, threads, save_individuals=False, endpoint_url=endpoint_url
         )
         throughput = num_responses / elapsed
         results.append((threads, elapsed, throughput))
@@ -439,6 +476,12 @@ def main():
         help="Number of threads for multi-threaded benchmark (default: 4)",
     )
     parser.add_argument(
+        "--endpoint",
+        type=str,
+        default=None,
+        help="Real endpoint URL to test (e.g., http://localhost:8000/v1/chat/completions). If not provided, uses mock responses.",
+    )
+    parser.add_argument(
         "--profile",
         action="store_true",
         help="Run detailed cProfile analysis",
@@ -467,6 +510,7 @@ def main():
     print(f"Configuration:")
     print(f"  Responses: {args.num_responses}")
     print(f"  Threads: {args.threads}")
+    print(f"  Endpoint: {args.endpoint or 'Mock responses'}")
     print(f"  Save individuals: {not args.no_individuals}")
     print("=" * 100)
 
@@ -476,7 +520,10 @@ def main():
         # Single-threaded benchmark
         print("\n[1/4] Running single-threaded benchmark...")
         elapsed, profiler = benchmark_single_threaded(
-            args.num_responses, cache_dir, save_individuals=not args.no_individuals
+            args.num_responses,
+            cache_dir,
+            save_individuals=not args.no_individuals,
+            endpoint_url=args.endpoint,
         )
         print(f"\nSingle-threaded results:")
         print(f"  Total time: {elapsed:.6f}s")
@@ -494,6 +541,7 @@ def main():
             cache_dir,
             args.threads,
             save_individuals=not args.no_individuals,
+            endpoint_url=args.endpoint,
         )
         print(f"\nMulti-threaded results ({args.threads} threads):")
         print(f"  Total time: {elapsed_mt:.6f}s")
@@ -516,7 +564,9 @@ def main():
         if args.contention_analysis:
             print("\n[4/4] Running lock contention analysis...")
             cache_dir = Path(tmpdir) / "cache_contention"
-            analyze_lock_contention(args.num_responses, cache_dir, args.threads)
+            analyze_lock_contention(
+                args.num_responses, cache_dir, args.threads, endpoint_url=args.endpoint
+            )
         else:
             print(
                 "\n[4/4] Skipping contention analysis (use --contention-analysis to enable)"
