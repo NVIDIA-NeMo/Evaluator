@@ -167,6 +167,9 @@ class AdapterConfig(BaseModel):
             "megatron_tokenizer": None,
             "megatron_template_kwargs": None,
             "megatron_mode": "chat",
+            "megatron_batching": False,
+            "megatron_batch_size": 8,
+            "megatron_batch_timeout_ms": 100.0,
         }
 
     @classmethod
@@ -463,13 +466,30 @@ class AdapterConfig(BaseModel):
             if legacy_config["megatron_mode"] is not None:
                 config["mode"] = legacy_config["megatron_mode"]
             
-            interceptors.append(
-                InterceptorConfig(
-                    name="megatron",
-                    enabled=True,
-                    config=config,
+            # Check if batching is enabled
+            if legacy_config.get("megatron_batching", False):
+                # Use batching interceptor
+                if legacy_config.get("megatron_batch_size") is not None:
+                    config["batch_size"] = legacy_config["megatron_batch_size"]
+                if legacy_config.get("megatron_batch_timeout_ms") is not None:
+                    config["batch_timeout_ms"] = legacy_config["megatron_batch_timeout_ms"]
+                
+                interceptors.append(
+                    InterceptorConfig(
+                        name="megatron_batching",
+                        enabled=True,
+                        config=config,
+                    )
                 )
-            )
+            else:
+                # Use simple interceptor (no batching)
+                interceptors.append(
+                    InterceptorConfig(
+                        name="megatron",
+                        enabled=True,
+                        config=config,
+                    )
+                )
         elif legacy_config["use_nvcf"]:
             interceptors.append(
                 InterceptorConfig(
