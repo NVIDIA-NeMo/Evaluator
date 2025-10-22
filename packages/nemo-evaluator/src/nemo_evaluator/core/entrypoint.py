@@ -50,6 +50,7 @@ def get_args() -> argparse.Namespace:
     parser_run.add_argument(
         "--model_type",
         type=str,
+        nargs="+",
         help="Run config.: endpoint type",
         choices=["chat", "completions", "vlm", "embedding"],
     )

@@ -21,6 +21,7 @@ import yaml
 
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.api.api_dataclasses import (
+    EndpointType,
     Evaluation,
     EvaluationConfig,
     EvaluationTarget,
@@ -347,6 +348,18 @@ For example: {framework_handlers[0]}.{evaluation_name}. "
     return Evaluation(**merged_configuration)
 
 
+def _get_benchmark_types_readable(supported_endpoint_types: list[EndpointType]) -> str:
+    readable_form = ""
+    for supported_combination in supported_endpoint_types:
+        if not isinstance(supported_combination, list):
+            readable_form += f"\n- {supported_combination.value}"
+        else:
+            readable_form += (
+                f"\n- [{[m_type.value for m_type in supported_combination]}]"
+            )
+    return readable_form
+
+
 def check_type_compatibility(evaluation: Evaluation):
     # Model endpoint types must be checked against benchmark required capabilities.
     # All benchmark required capabilities must be present in model endpoint types.
@@ -357,6 +370,11 @@ def check_type_compatibility(evaluation: Evaluation):
     # We have to be carefull in terms of types. We might run into turning a stringable
     # dataclass into a set
     if evaluation.config.supported_endpoint_types is not None:
+        if evaluation.target.api_endpoint.type is None:
+            raise MisconfigurationError(
+                "target.api_endpoint.type (CLI: --model_type) should be defined and match one of the endpoint "
+                f"types supported by the benchmark: {_get_benchmark_types_readable(evaluation.config.supported_endpoint_types)}"
+            )
         if not isinstance(evaluation.target.api_endpoint.type, list):
             evaluation.target.api_endpoint.type = [evaluation.target.api_endpoint.type]
 
@@ -378,16 +396,10 @@ def check_type_compatibility(evaluation: Evaluation):
                 else:
                     is_target_compatible = True
 
-        if evaluation.target.api_endpoint.type is None:
-            raise MisconfigurationError(
-                "target.api_endpoint.type should be defined and match one of the endpoint "
-                f"types supported by the benchmark: '{evaluation.config.supported_endpoint_types}'",
-            )
-
         if not is_target_compatible:
             raise MisconfigurationError(
-                f"The benchmark '{evaluation.config.type}' does not support the model type '{evaluation.target.api_endpoint.type}'. "
-                f"The benchmark supports '{evaluation.config.supported_endpoint_types}'."
+                f"The benchmark '{evaluation.config.type}' does not support any of the model types '{evaluation.target.api_endpoint.type}'. \n"
+                f"The benchmark supports: {_get_benchmark_types_readable(evaluation.config.supported_endpoint_types)}"
             )
 
     if evaluation.target.api_endpoint.type:

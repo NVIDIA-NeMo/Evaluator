@@ -137,7 +137,7 @@ def test_endpoint_type_single_incompatible(model_types, benchmark_types):
         framework_name="",
     )
     with pytest.raises(
-        MisconfigurationError, match=r".* does not support the model type .*"
+        MisconfigurationError, match=r".* does not support any of the model types .*"
     ):
         check_type_compatibility(evaluation)
 
