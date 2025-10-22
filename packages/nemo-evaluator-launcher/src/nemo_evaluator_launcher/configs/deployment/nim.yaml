@@ -24,7 +24,11 @@ port: 8000
 endpoints:
   chat: /v1/chat/completions
   completions: /v1/completions
-  health: /health
+  health: /health  # Set to null to disable health checks
+
+# Server startup wait configuration (only used when endpoints.health is null)
+server_timeout: 60  # Seconds to wait for server startup when health endpoint is null
+
 # Note: Environment variables should be configured in lepton_config.envs
 # Auto-derived environment variables from deployment config:
 # - SERVED_MODEL_NAME (from served_model_name)

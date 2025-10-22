@@ -578,7 +578,13 @@ def _create_slurm_sbatch_script(
         )
 
         # wait for the server to initialize
-        s += _WAIT_FOR_SERVER_HANDLER.format(health_url=health_url)
+        if health_url is None:
+            # Use timeout-based wait when health endpoint is not available
+            server_timeout = cfg.deployment.get("server_timeout", 60)
+            s += _WAIT_FOR_SERVER_TIMEOUT.format(server_timeout=server_timeout)
+        else:
+            # Use health check-based wait
+            s += _WAIT_FOR_SERVER_HANDLER.format(health_url=health_url)
         s += "\n\n"
 
     # prepare evaluation mounts
@@ -1089,5 +1095,20 @@ _WAIT_FOR_SERVER_HANDLER = """
 date
 # wait for the server to initialize
 bash -c 'while [[ "$(curl -s -o /dev/null -w "%{{http_code}}" {health_url})" != "200" ]]; do kill -0 '"$SERVER_PID"' 2>/dev/null || {{ echo "Server process '"$SERVER_PID"' died"; exit 1; }}; sleep 5; done'
+date
+""".strip()
+
+
+_WAIT_FOR_SERVER_TIMEOUT = """
+date
+# wait for the server to initialize (timeout-based, no health check)
+echo "Waiting {server_timeout} seconds for server to start..."
+ELAPSED=0
+while [ $ELAPSED -lt {server_timeout} ]; do
+    kill -0 "$SERVER_PID" 2>/dev/null || {{ echo "Server process $SERVER_PID died during startup"; exit 1; }}
+    sleep 5
+    ELAPSED=$((ELAPSED + 5))
+done
+echo "Server startup wait complete (waited $ELAPSED seconds)"
 date
 """.strip()

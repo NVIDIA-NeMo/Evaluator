@@ -26,7 +26,10 @@ env_vars: {} # {name: value} dict
 endpoints:
   chat: /v1/chat/completions
   completions: /v1/completions
-  health: /health
+  health: /health  # Set to null to disable health checks
+
+# Server startup wait configuration (only used when endpoints.health is null)
+server_timeout: 60  # Seconds to wait for server startup when health endpoint is null
 
 command: python3 -m sglang.launch_server
   --model-path ${oc.select:deployment.hf_model_handle,/checkpoint}

@@ -166,11 +166,14 @@ def get_endpoint_url(
         return endpoint_url
 
 
-def get_health_url(cfg: DictConfig, endpoint_url: str) -> str:
+def get_health_url(cfg: DictConfig, endpoint_url: str) -> str | None:
     if cfg.deployment.type == "none":
         logger.warning("Using endpoint URL as health URL", will_be_used=endpoint_url)
         return endpoint_url  # TODO(public release) is using model url as health url OK?
-    health_uri = cfg.deployment.endpoints["health"]
+    health_uri = cfg.deployment.endpoints.get("health")
+    if health_uri is None:
+        logger.info("Health endpoint is null, will use server_timeout for startup wait")
+        return None
     health_url = f"http://127.0.0.1:{cfg.deployment.port}{health_uri}"
     return health_url
 
