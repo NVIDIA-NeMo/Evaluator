@@ -43,6 +43,34 @@ else
     # Docker run with eval factory command
     (
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.running"
+        {% if deployment %}
+        docker run --rm --shm-size=100g {{ extra_docker_args }} \
+        --name {{ deployment.server_container_name }} \ 
+        {% for env_var in task.env_vars -%}
+        -e {{ env_var }} \
+        {% endfor -%} \ 
+        {% for mount  in deployment.mounts -%}
+        -v {{ mount }} \
+        {% endfor -%}
+        {{ deployment.image }} \
+        bash -c '
+            {{ deployment.command }} ; 
+            exit_code=$?
+            if [ "$exit_code" -ne 0 ]; then
+                echo "The deployment container failed with exit code $exit_code" >&2;
+                exit "$exit_code";
+            fi;        
+            echo "Container completed successfully" >&2;
+            exit 0;
+        ' > "$logs_dir/server_stdout.log" 2>&1
+        exit_code=$?
+
+        date
+        # wait for the server to initialize
+        bash -c 'while [[ "$(curl -s -o /dev/null -w "%{{http_code}}" {health_url})" != "200" ]]; do kill -0 '"$SERVER_PID"' 2>/dev/null || {{ echo "Server process '"$SERVER_PID"' died"; exit 1; }}; sleep 5; done'
+        date
+
+        {% endif %}
         docker run --rm --shm-size=100g {{ extra_docker_args }} \
       --name {{ task.container_name }} \
       --volume "$artifacts_dir":/results \
@@ -60,7 +88,7 @@ else
         fi;
         echo "Container completed successfully" >&2;
         exit 0;
-      ' > "$logs_dir/stdout.log" 2>&1
+      ' > "$logs_dir/client_stdout.log" 2>&1
     exit_code=$?
     echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $exit_code" > "$logs_dir/stage.exit"
 ) >> "$logs_dir/stdout.log" 2>&1
