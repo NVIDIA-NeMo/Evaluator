@@ -95,3 +95,26 @@ class BaseExecutor(ABC):
             NotImplementedError: If not implemented by a subclass.
         """
         raise NotImplementedError("Subclasses must implement this method")
+
+    @staticmethod
+    def get_kill_failure_message(
+        job_id: str, container_or_id: str, status: Optional[ExecutionState] = None
+    ) -> str:
+        """Generate an informative error message when kill fails based on job status.
+
+        Args:
+            job_id: The job ID that failed to kill.
+            container_or_id: Container name, SLURM job ID, or other identifier.
+            status: Optional execution state of the job.
+
+        Returns:
+            str: An informative error message with job status context.
+        """
+        if status == ExecutionState.SUCCESS:
+            return f"Could not find or kill job {job_id} ({container_or_id}) - job already completed successfully"
+        elif status == ExecutionState.FAILED:
+            return f"Could not find or kill job {job_id} ({container_or_id}) - job already failed"
+        elif status == ExecutionState.KILLED:
+            return f"Could not find or kill job {job_id} ({container_or_id}) - job was already killed"
+        # Generic error message
+        return f"Could not find or kill job {job_id} ({container_or_id})"

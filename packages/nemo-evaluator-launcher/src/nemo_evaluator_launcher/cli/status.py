@@ -17,6 +17,7 @@ from dataclasses import dataclass
 
 from simple_parsing import field
 
+import nemo_evaluator_launcher.common.printing_utils as pu
 from nemo_evaluator_launcher.executors.base import ExecutionState
 
 
@@ -102,6 +103,8 @@ class Cmd:
             status = job.get("status", "")
             formatted_status = self._format_status_with_indicators(status)
 
+            # Extract task name
+
             rows.append(
                 [
                     job.get("job_id", ""),
@@ -141,17 +144,17 @@ class Cmd:
         """Format status with Unicode visual indicators only."""
         # Status mapping based on ExecutionState enum
         status_formats = {
-            ExecutionState.SUCCESS.value: "\033[32m✓ SUCCESS\033[0m",  # Green Unicode checkmark
-            ExecutionState.FAILED.value: "\033[31m✗ FAILED\033[0m",  # Red Unicode X
-            ExecutionState.RUNNING.value: "\033[33m▶ RUNNING\033[0m",  # Yellow Unicode play button
-            ExecutionState.PENDING.value: "\033[36m⏳ PENDING\033[0m",  # Cyan Unicode hourglass
-            ExecutionState.KILLED.value: "\033[35m✗ KILLED\033[0m",  # Magenta Unicode X
+            ExecutionState.SUCCESS.value: pu.green("✓ SUCCESS"),
+            ExecutionState.FAILED.value: pu.red("✗ FAILED"),
+            ExecutionState.RUNNING.value: pu.yellow("▶ RUNNING"),
+            ExecutionState.PENDING.value: pu.cyan("⧗ PENDING"),
+            ExecutionState.KILLED.value: pu.magenta("✗ KILLED"),
             # Additional states for error handling
-            "not_found": "\033[90m? NOT FOUND\033[0m",  # Gray question mark
-            "error": "\033[31m✗ ERROR\033[0m",  # Red Unicode X
+            "not_found": pu.grey("? NOT FOUND"),
+            "error": pu.red("✗ ERROR"),
         }
 
-        return status_formats.get(status.lower(), f"\033[90m? {status.upper()}\033[0m")
+        return status_formats.get(status.lower(), pu.grey(status.upper()))
 
     def _strip_ansi_codes(self, text: str) -> str:
         """Remove ANSI color codes from text for length calculation."""

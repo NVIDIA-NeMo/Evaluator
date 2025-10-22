@@ -374,7 +374,7 @@ def make_job_fs(tmp_path):
 def prepare_local_job(make_job_fs):
     def _prep(job_data, **kwargs):
         job_dir = make_job_fs(job_data, **kwargs)
-        job_data.data["output_dir"] = str(job_dir.parent)
+        job_data.data["output_dir"] = str(job_dir)
         return job_data, job_dir
 
     return _prep
@@ -469,3 +469,75 @@ def mlflow_fake(monkeypatch):
         "nemo_evaluator_launcher.exporters.mlflow.mlflow", _ML, raising=True
     )
     return _ML, _RunCtx
+
+
+@pytest.fixture
+def setup_env_vars(monkeypatch):
+    """Mock environment variables for testing - returns dummy values for all env vars."""
+    import os
+
+    # Create a dict that returns dummy values for any key
+    class MockEnviron(dict):
+        def __getitem__(self, key):
+            try:
+                return super().__getitem__(key)
+            except KeyError:
+                # Return dummy value for any missing key
+                return "dummy_value_for_testing"
+
+        def get(self, key, default=None):
+            try:
+                return self[key]
+            except KeyError:
+                return default if default is not None else "dummy_value_for_testing"
+
+    # Copy current environment, ensuring all keys are strings
+    current_env = {k: v for k, v in os.environ.items() if isinstance(k, str)}
+    mock_env = MockEnviron(current_env)
+    monkeypatch.setattr("os.environ", mock_env)
+
+
+@pytest.fixture
+def job_local(prepare_local_job):
+    """Write a local job to ExecDB."""
+    inv = "abcdef123456"
+    jd = JobData(
+        invocation_id=inv,
+        job_id=f"{inv}.0",
+        timestamp=1_000_000_000.0,
+        executor="local",
+        data={},  # output_dir will be filled by prepare_local_job
+        config={
+            "execution": {"type": "local", "output_dir": "/tmp/test_output"},
+            "deployment": {"type": "none"},
+            "evaluation": {"tasks": [{"name": "mbpp"}]},
+        },
+    )
+    jd, base = prepare_local_job(jd, with_required=True, with_optional=True)
+    ExecutionDB().write_job(jd)
+    return jd
+
+
+@pytest.fixture
+def job_slurm():
+    """Write a single slurm job to ExecDB."""
+    inv = "babcdef123456"
+    jd = JobData(
+        invocation_id=inv,
+        job_id=f"{inv}.0",
+        timestamp=1_000_000_000.0,
+        executor="slurm",
+        data={
+            "hostname": "h.example",
+            "username": "uuser",
+            "remote_rundir_path": "/remote/run/dir/mbpp",
+            "slurm_job_id": "17425",
+        },
+        config={
+            "execution": {"type": "slurm"},
+            "deployment": {"type": "none"},
+            "evaluation": {"tasks": [{"name": "mbpp"}]},
+        },
+    )
+    ExecutionDB().write_job(jd)
+    return jd

@@ -105,7 +105,11 @@ class TestSlurmExecutorFeatures:
             }
             mock_get_health.return_value = "http://localhost:8000/health"
             mock_get_endpoint.return_value = "http://localhost:8000/v1"
-            mock_get_eval_command.return_value = "nemo-evaluator run_eval --test"
+            from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+            mock_get_eval_command.return_value = CmdAndReadableComment(
+                cmd="nemo-evaluator run_eval --test", debug="# Test command"
+            )
             mock_get_model_name.return_value = "test-model"
 
             yield {
@@ -609,7 +613,12 @@ class TestSlurmExecutorDryRun:
                     raise KeyError(f"Task {task_name} not found")
 
                 mock_get_task.side_effect = mock_get_task_side_effect
-                mock_get_command.return_value = "nemo-evaluator-launcher --model llama-3.1-8b-instruct --task {task_name}"
+                from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+                mock_get_command.return_value = CmdAndReadableComment(
+                    cmd="nemo-evaluator-launcher --model llama-3.1-8b-instruct --task {task_name}",
+                    debug="# Test command for dry run",
+                )
                 mock_get_health.return_value = "http://localhost:8000/health"
                 mock_get_endpoint.return_value = "http://localhost:8000/v1"
 
@@ -746,8 +755,11 @@ class TestSlurmExecutorDryRun:
                     raise KeyError(f"Task {task_name} not found")
 
                 mock_get_task.side_effect = mock_get_task_side_effect
-                mock_get_command.return_value = (
-                    "nemo-evaluator-launcher --task test_command"
+                from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+                mock_get_command.return_value = CmdAndReadableComment(
+                    cmd="nemo-evaluator-launcher --task test_command",
+                    debug="# Test command for custom container",
                 )
                 mock_get_health.return_value = "http://localhost:8000/health"
                 mock_get_endpoint.return_value = "http://localhost:8000/v1"
@@ -805,8 +817,11 @@ class TestSlurmExecutorDryRun:
                     raise KeyError(f"Task {task_name} not found")
 
                 mock_get_task.side_effect = mock_get_task_side_effect
-                mock_get_command.return_value = (
-                    "nemo-evaluator-launcher --task test_command"
+                from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+                mock_get_command.return_value = CmdAndReadableComment(
+                    cmd="nemo-evaluator-launcher --task test_command",
+                    debug="# Test command for no auto-export",
                 )
                 mock_get_health.return_value = "http://localhost:8000/health"
                 mock_get_endpoint.return_value = "http://localhost:8000/v1"
@@ -1299,8 +1314,11 @@ class TestSlurmExecutorSystemCalls:
                     raise KeyError(f"Task {task_name} not found")
 
                 mock_get_task.side_effect = mock_get_task_side_effect
-                mock_get_command.return_value = (
-                    "nemo-evaluator-launcher --task mmlu_pro"
+                from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+                mock_get_command.return_value = CmdAndReadableComment(
+                    cmd="nemo-evaluator-launcher --task mmlu_pro",
+                    debug="# Test command for mmlu_pro",
                 )
                 mock_get_health.return_value = "http://127.0.0.1:8000/health"
                 mock_get_endpoint.return_value = "http://127.0.0.1:8000/v1"
@@ -1392,8 +1410,11 @@ class TestSlurmExecutorSystemCalls:
                     raise KeyError(f"Task {task_name} not found")
 
                 mock_get_task.side_effect = mock_get_task_side_effect
-                mock_get_command.return_value = (
-                    "nemo-evaluator-launcher --task mmlu_pro"
+                from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+                mock_get_command.return_value = CmdAndReadableComment(
+                    cmd="nemo-evaluator-launcher --task mmlu_pro",
+                    debug="# Test command for mmlu_pro SSH failure",
                 )
                 mock_get_health.return_value = "http://127.0.0.1:8000/health"
                 mock_get_endpoint.return_value = "http://127.0.0.1:8000/v1"
@@ -1482,8 +1503,11 @@ class TestSlurmExecutorSystemCalls:
                     raise KeyError(f"Task {task_name} not found")
 
                 mock_get_task.side_effect = mock_get_task_side_effect
-                mock_get_command.return_value = (
-                    "nemo-evaluator-launcher --task mmlu_pro"
+                from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+                mock_get_command.return_value = CmdAndReadableComment(
+                    cmd="nemo-evaluator-launcher --task mmlu_pro",
+                    debug="# Test command for mmlu_pro sbatch failure",
                 )
                 mock_get_health.return_value = "http://127.0.0.1:8000/health"
                 mock_get_endpoint.return_value = "http://127.0.0.1:8000/v1"
@@ -1936,11 +1960,11 @@ class TestSlurmExecutorKillJob:
         db = ExecutionDB()
         db.write_job(job_data)
 
-        # Mock _kill_slurm_job to return success
+        # Mock _kill_slurm_job to return success (now returns tuple)
         mock_result = Mock(returncode=0)
         monkeypatch.setattr(
             "nemo_evaluator_launcher.executors.slurm.executor._kill_slurm_job",
-            lambda **kwargs: mock_result,
+            lambda **kwargs: (None, mock_result),
             raising=True,
         )
 
@@ -1987,11 +2011,11 @@ class TestSlurmExecutorKillJob:
         db = ExecutionDB()
         db.write_job(job_data)
 
-        # Mock _kill_slurm_job to return failure
+        # Mock _kill_slurm_job to return failure (now returns tuple)
         mock_result = Mock(returncode=1)
         monkeypatch.setattr(
             "nemo_evaluator_launcher.executors.slurm.executor._kill_slurm_job",
-            lambda **kwargs: mock_result,
+            lambda **kwargs: ("RUNNING", mock_result),
             raising=True,
         )
 

@@ -49,6 +49,8 @@ class TestMLflowExporter:
 
     def test_missing_tracking_uri(self, monkeypatch):
         jd = JobData("m2", "m2.0", 0.0, "local", {"output_dir": "/tmp"}, {})
+        # Ensure no env fallback interferes with the test
+        monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
         monkeypatch.setattr(
             "nemo_evaluator_launcher.exporters.mlflow.MLFLOW_AVAILABLE",
             True,
@@ -170,7 +172,7 @@ class TestMLflowExporter:
         monkeypatch.setattr(
             MLflowExporter,
             "_log_artifacts",
-            lambda self, jd, cfg: ["results.yml"],
+            lambda self, jd, cfg, pre=None: ["results.yml"],
             raising=False,
         )
 
@@ -333,7 +335,7 @@ class TestMLflowExporter:
         )
         # Ensure predictable artifact_path
         monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.mlflow.get_task_name",
+            "nemo_evaluator_launcher.exporters.mlflow.get_artifact_root",
             lambda *_: "taskX",
             raising=True,
         )
@@ -374,4 +376,4 @@ class TestMLflowExporter:
         assert res.success
         assert res.metadata["artifacts_logged"] == 1
         assert calls["config"] == 1
-        assert calls["files"] == [("results.yml", "taskX")]
+        assert calls["files"] == [("results.yml", "taskX/artifacts")]
