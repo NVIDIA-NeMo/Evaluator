@@ -70,6 +70,176 @@ class TimingResult:
     percentage: float
 
 
+@dataclass
+class LockStats:
+    """Store lock contention statistics."""
+
+    lock_name: str
+    acquire_count: int
+    total_wait_time: float
+    total_hold_time: float
+    max_wait_time: float
+    max_hold_time: float
+    contention_count: int  # Times had to wait
+    
+    @property
+    def avg_wait_time(self) -> float:
+        return self.total_wait_time / self.acquire_count if self.acquire_count > 0 else 0
+    
+    @property
+    def avg_hold_time(self) -> float:
+        return self.total_hold_time / self.acquire_count if self.acquire_count > 0 else 0
+    
+    @property
+    def contention_rate(self) -> float:
+        return self.contention_count / self.acquire_count if self.acquire_count > 0 else 0
+
+
+class ProfiledLock:
+    """A lock wrapper that profiles acquisition and holding times."""
+    
+    def __init__(self, name: str):
+        self.name = name
+        self._lock = threading.Lock()
+        self._stats_lock = threading.Lock()
+        
+        # Statistics
+        self.acquire_count = 0
+        self.total_wait_time = 0.0
+        self.total_hold_time = 0.0
+        self.max_wait_time = 0.0
+        self.max_hold_time = 0.0
+        self.contention_count = 0
+        self.wait_times: List[float] = []
+        self.hold_times: List[float] = []
+    
+    def acquire(self, blocking=True):
+        """Acquire the lock and measure wait time."""
+        start_wait = time.perf_counter()
+        
+        # Try non-blocking first to detect contention
+        acquired_immediately = self._lock.acquire(blocking=False)
+        
+        if not acquired_immediately:
+            if blocking:
+                # Had to wait - this is contention
+                with self._stats_lock:
+                    self.contention_count += 1
+                # Now wait for real
+                self._lock.acquire(blocking=True)
+            else:
+                return False
+        
+        wait_time = time.perf_counter() - start_wait
+        
+        with self._stats_lock:
+            self.acquire_count += 1
+            self.total_wait_time += wait_time
+            self.max_wait_time = max(self.max_wait_time, wait_time)
+            self.wait_times.append(wait_time)
+        
+        return True
+    
+    def release(self):
+        """Release the lock."""
+        self._lock.release()
+    
+    def __enter__(self):
+        """Context manager entry - acquire lock and start timing hold."""
+        self.acquire()
+        # Start timing hold AFTER acquiring the lock
+        self._hold_start = time.perf_counter()
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - measure hold time."""
+        hold_time = time.perf_counter() - self._hold_start
+        
+        with self._stats_lock:
+            self.total_hold_time += hold_time
+            self.max_hold_time = max(self.max_hold_time, hold_time)
+            self.hold_times.append(hold_time)
+        
+        self.release()
+        return False
+    
+    def get_stats(self) -> LockStats:
+        """Get statistics for this lock."""
+        with self._stats_lock:
+            return LockStats(
+                lock_name=self.name,
+                acquire_count=self.acquire_count,
+                total_wait_time=self.total_wait_time,
+                total_hold_time=self.total_hold_time,
+                max_wait_time=self.max_wait_time,
+                max_hold_time=self.max_hold_time,
+                contention_count=self.contention_count,
+            )
+
+
+class LockProfiler:
+    """Profile all locks in the interceptor."""
+    
+    def __init__(self):
+        self.locks: Dict[str, ProfiledLock] = {}
+        self._lock = threading.Lock()
+    
+    def create_lock(self, name: str) -> ProfiledLock:
+        """Create a new profiled lock."""
+        with self._lock:
+            lock = ProfiledLock(name)
+            self.locks[name] = lock
+            return lock
+    
+    def get_all_stats(self) -> List[LockStats]:
+        """Get statistics for all locks."""
+        with self._lock:
+            return [lock.get_stats() for lock in self.locks.values()]
+    
+    def print_results(self, total_time: float):
+        """Print formatted lock profiling results."""
+        stats = self.get_all_stats()
+        if not stats:
+            print("\nNo lock statistics available")
+            return
+        
+        # Sort by total wait time
+        stats.sort(key=lambda x: x.total_wait_time, reverse=True)
+        
+        print("\n" + "=" * 120)
+        print("LOCK CONTENTION ANALYSIS")
+        print("=" * 120)
+        print(
+            f"{'Lock Name':<30} {'Acquires':<10} {'Wait Time':<12} {'Hold Time':<12} "
+            f"{'Avg Wait':<12} {'Avg Hold':<12} {'Contention':<12} {'Rate':<8}"
+        )
+        print("-" * 120)
+        
+        total_wait = sum(s.total_wait_time for s in stats)
+        total_hold = sum(s.total_hold_time for s in stats)
+        
+        for stat in stats:
+            wait_pct = (stat.total_wait_time / total_time * 100) if total_time > 0 else 0
+            hold_pct = (stat.total_hold_time / total_time * 100) if total_time > 0 else 0
+            
+            print(
+                f"{stat.lock_name:<30} "
+                f"{stat.acquire_count:<10} "
+                f"{stat.total_wait_time:<12.6f} "
+                f"{stat.total_hold_time:<12.6f} "
+                f"{stat.avg_wait_time * 1000:<12.6f} "
+                f"{stat.avg_hold_time * 1000:<12.6f} "
+                f"{stat.contention_count:<12} "
+                f"{stat.contention_rate * 100:<8.2f}%"
+            )
+        
+        print("-" * 120)
+        print(f"{'TOTAL':<30} {'':<10} {total_wait:<12.6f} {total_hold:<12.6f}")
+        print(f"Wait time % of total: {total_wait / total_time * 100:.2f}%")
+        print(f"Hold time % of total: {total_hold / total_time * 100:.2f}%")
+        print("=" * 120)
+
+
 class PerformanceProfiler:
     """Profile performance of ResponseStatsInterceptor methods."""
 
@@ -134,6 +304,104 @@ class PerformanceProfiler:
         print("-" * 100)
         print(f"{'TOTAL':<40} {total_time:<12.6f}")
         print("=" * 100)
+
+
+class NoOpLock:
+    """A no-op lock that does nothing for testing without synchronization."""
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return False
+    def acquire(self, blocking=True):
+        return True
+    def release(self):
+        pass
+
+
+class LockProfiledResponseStatsInterceptor(ResponseStatsInterceptor):
+    """Version of ResponseStatsInterceptor with profiled locks for contention analysis."""
+
+    def __init__(self, params, lock_profiler: LockProfiler, disable_lock: bool = False):
+        """Initialize with profiled locks instead of regular threading locks."""
+        import random
+        import string
+        
+        # Copy all the initialization from parent but replace locks
+        self.collect_token_stats = params.collect_token_stats
+        self.collect_finish_reasons = params.collect_finish_reasons
+        self.collect_tool_calls = params.collect_tool_calls
+        self.stats_file_saving_interval = params.stats_file_saving_interval
+        self.save_individuals = params.save_individuals
+        self.cache_dir = params.cache_dir
+        self.logging_aggregated_stats_interval = params.logging_aggregated_stats_interval
+        
+        # Get logger
+        from nemo_evaluator.logging import get_logger
+        self.logger = get_logger(self.__class__.__name__)
+        
+        # Use profiled locks OR no-op lock
+        self.disable_lock = disable_lock  # Must match parent class attribute name
+        if disable_lock:
+            self._lock = NoOpLock()
+            # Generate random hash for this instance to avoid dict key conflicts
+            self._dict_key_suffix = '_' + ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+        else:
+            self._lock = lock_profiler.create_lock("main_lock")
+            self._dict_key_suffix = ''
+        
+        self._adapter_start_time = time.time()
+        
+        # Initialize stats
+        self._stats = {
+            "avg_prompt_tokens": None,
+            "avg_total_tokens": None,
+            "avg_completion_tokens": None,
+            "avg_latency_ms": None,
+            "max_prompt_tokens": None,
+            "max_total_tokens": None,
+            "max_completion_tokens": None,
+            "max_latency_ms": None,
+            "count": 0,
+            "successful_count": 0,
+            "tool_calls_count": 0,
+            "function_calls_count": 0,
+            "finish_reason": {},
+            "stop_reason": {},
+            "status_codes": {},
+            "inference_time": 0.0,
+            "run_id": 0,
+            "last_request_time": None,
+            "inference_run_times": {},
+        }
+        
+        # Initialize cache
+        from nemo_evaluator.adapters.caching.diskcaching import Cache
+        cache_path = Path(self.cache_dir)
+        cache_path.mkdir(parents=True, exist_ok=True)
+        self._request_stats_cache = Cache(cache_path)
+        
+        # Load existing stats
+        try:
+            self._load_aggregated_cached_stats()
+        except Exception as e:
+            self.logger.warning(f"Failed to load cached stats: {e}")
+        
+        # Track time for periodic operations
+        self._last_log_time = time.time()
+        self._last_save_time = time.time()
+        
+        # Log initialization
+        self.logger.info(
+            "Response stats interceptor initialized",
+            collect_token_stats=self.collect_token_stats,
+            collect_finish_reasons=self.collect_finish_reasons,
+            collect_tool_calls=self.collect_tool_calls,
+            stats_file_saving_interval=self.stats_file_saving_interval,
+            save_individuals=self.save_individuals,
+            cache_dir=self.cache_dir,
+            logging_aggregated_stats_interval=self.logging_aggregated_stats_interval,
+            disable_lock=disable_lock,
+        )
 
 
 class InstrumentedResponseStatsInterceptor(ResponseStatsInterceptor):
@@ -434,6 +702,84 @@ def benchmark_cache_operations(num_operations: int, cache_dir: Path):
     print("=" * 100)
 
 
+def benchmark_with_lock_profiling(
+    num_responses: int,
+    cache_dir: Path,
+    num_threads: int,
+    save_individuals: bool = True,
+    endpoint_url: str = None,
+    disable_lock: bool = False,
+) -> tuple[float, LockProfiler]:
+    """Benchmark with detailed lock profiling to identify contention bottlenecks."""
+    lock_profiler = LockProfiler()
+
+    if disable_lock:
+        # Use the regular interceptor with disable_lock=True
+        params = ResponseStatsInterceptor.Params(
+            cache_dir=str(cache_dir),
+            save_individuals=save_individuals,
+            stats_file_saving_interval=None,
+            logging_aggregated_stats_interval=10000,
+            disable_lock=True,
+        )
+        interceptor = ResponseStatsInterceptor(params)
+    else:
+        # Use the profiled version to track lock statistics
+        params = ResponseStatsInterceptor.Params(
+            cache_dir=str(cache_dir),
+            save_individuals=save_individuals,
+            stats_file_saving_interval=None,
+            logging_aggregated_stats_interval=10000,
+            disable_lock=False,
+        )
+        interceptor = LockProfiledResponseStatsInterceptor(params, lock_profiler, disable_lock=False)
+    api_url = endpoint_url or "http://test.api.com/v1/chat/completions"
+    context = AdapterGlobalContext(output_dir=str(cache_dir), url=api_url)
+
+    def process_responses(thread_id: int, responses_per_thread: int):
+        for i in range(responses_per_thread):
+            if endpoint_url:
+                response = create_real_response(
+                    endpoint_url, f"req_t{thread_id}_{i}", prompt="Hi"
+                )
+            else:
+                response = create_mock_response(
+                    prompt_tokens=50 + (i % 100),
+                    completion_tokens=25 + (i % 50),
+                    include_tool_calls=(i % 5 == 0),
+                )
+            interceptor.intercept_response(response, context)
+
+    start_time = time.perf_counter()
+
+    if num_threads == 1:
+        # Single-threaded
+        for i in range(num_responses):
+            if endpoint_url:
+                response = create_real_response(endpoint_url, f"req_{i}", prompt="Hi")
+            else:
+                response = create_mock_response(
+                    prompt_tokens=50 + (i % 100),
+                    completion_tokens=25 + (i % 50),
+                    include_tool_calls=(i % 5 == 0),
+                )
+            interceptor.intercept_response(response, context)
+    else:
+        # Multi-threaded
+        responses_per_thread = num_responses // num_threads
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            futures = [
+                executor.submit(process_responses, i, responses_per_thread)
+                for i in range(num_threads)
+            ]
+            for future in futures:
+                future.result()
+
+    elapsed = time.perf_counter() - start_time
+
+    return elapsed, lock_profiler
+
+
 def analyze_lock_contention(
     num_responses: int,
     cache_dir: Path,
@@ -441,41 +787,46 @@ def analyze_lock_contention(
     endpoint_url: str = None,
     use_instrumented: bool = False,
 ):
-    """Analyze lock contention with different thread counts."""
+    """Analyze lock contention by comparing single-threaded vs multi-threaded performance."""
     print("\n" + "=" * 100)
     print("LOCK CONTENTION ANALYSIS")
     print("=" * 100)
 
-    results = []
-    for threads in range(1, num_threads + 1):
-        elapsed, profiler = benchmark_multi_threaded(
-            num_responses,
-            cache_dir,
-            threads,
-            save_individuals=False,
-            endpoint_url=endpoint_url,
-            use_instrumented=use_instrumented,
-        )
-        throughput = num_responses / elapsed
-        results.append((threads, elapsed, throughput))
-        print(
-            f"Threads: {threads:2d} | Time: {elapsed:8.4f}s | Throughput: {throughput:8.2f} req/s | Speedup: {results[0][1]/elapsed:.2f}x"
-        )
+    # Test with 1 thread (baseline)
+    elapsed_single, profiler_single = benchmark_multi_threaded(
+        num_responses,
+        cache_dir,
+        1,
+        save_individuals=False,
+        endpoint_url=endpoint_url,
+        use_instrumented=use_instrumented,
+    )
+    throughput_single = num_responses / elapsed_single
+    print(f"Threads:  1 | Time: {elapsed_single:8.4f}s | Throughput: {throughput_single:8.2f} req/s | Speedup: 1.00x")
+
+    # Test with requested number of threads
+    elapsed_multi, profiler_multi = benchmark_multi_threaded(
+        num_responses,
+        cache_dir,
+        num_threads,
+        save_individuals=False,
+        endpoint_url=endpoint_url,
+        use_instrumented=use_instrumented,
+    )
+    throughput_multi = num_responses / elapsed_multi
+    speedup = elapsed_single / elapsed_multi
+    print(f"Threads: {num_threads:2d} | Time: {elapsed_multi:8.4f}s | Throughput: {throughput_multi:8.2f} req/s | Speedup: {speedup:.2f}x")
 
     print("=" * 100)
     print("\nAnalysis:")
-    if len(results) > 1:
-        speedup = results[0][1] / results[-1][1]
-        ideal_speedup = num_threads
-        efficiency = (speedup / ideal_speedup) * 100
-        print(
-            f"Speedup from 1 to {num_threads} threads: {speedup:.2f}x (ideal: {ideal_speedup}x)"
-        )
-        print(f"Parallel efficiency: {efficiency:.1f}%")
-        if efficiency < 80:
-            print("⚠️  Low efficiency suggests significant lock contention!")
-        else:
-            print("✓ Good parallel efficiency")
+    ideal_speedup = num_threads
+    efficiency = (speedup / ideal_speedup) * 100
+    print(f"Speedup from 1 to {num_threads} threads: {speedup:.2f}x (ideal: {ideal_speedup}x)")
+    print(f"Parallel efficiency: {efficiency:.1f}%")
+    if efficiency < 80:
+        print("⚠️  Low efficiency suggests significant lock contention!")
+    else:
+        print("✓ Good parallel efficiency")
 
 
 def main():
@@ -506,6 +857,16 @@ def main():
         help="Use instrumented interceptor for detailed method-level profiling (adds overhead). Without this flag, uses the original ResponseStatsInterceptor for realistic performance testing.",
     )
     parser.add_argument(
+        "--lock-profiling",
+        action="store_true",
+        help="Enable detailed lock contention profiling to identify which locks are causing bottlenecks. Shows wait times, hold times, and contention rates for each lock.",
+    )
+    parser.add_argument(
+        "--no-lock",
+        action="store_true",
+        help="Disable the main lock entirely (for testing). Uses random hashes for dict keys to avoid conflicts.",
+    )
+    parser.add_argument(
         "--profile",
         action="store_true",
         help="Run detailed cProfile analysis",
@@ -525,6 +886,11 @@ def main():
         action="store_true",
         help="Disable individual request caching",
     )
+    parser.add_argument(
+        "--skip-single-threaded",
+        action="store_true",
+        help="Skip single-threaded benchmark and only run multi-threaded test",
+    )
 
     args = parser.parse_args()
 
@@ -543,22 +909,26 @@ def main():
         cache_dir = Path(tmpdir) / "cache"
 
         # Single-threaded benchmark
-        print("\n[1/4] Running single-threaded benchmark...")
-        elapsed, profiler = benchmark_single_threaded(
-            args.num_responses,
-            cache_dir,
-            save_individuals=not args.no_individuals,
-            endpoint_url=args.endpoint,
-            use_instrumented=args.detailed_profiling,
-        )
-        print(f"\nSingle-threaded results:")
-        print(f"  Total time: {elapsed:.6f}s")
-        print(f"  Throughput: {args.num_responses / elapsed:.2f} requests/second")
-        print(
-            f"  Average time per request: {elapsed / args.num_responses * 1000:.6f}ms"
-        )
-        if args.detailed_profiling:
-            profiler.print_results(elapsed)
+        if not args.skip_single_threaded:
+            print("\n[1/4] Running single-threaded benchmark...")
+            elapsed, profiler = benchmark_single_threaded(
+                args.num_responses,
+                cache_dir,
+                save_individuals=not args.no_individuals,
+                endpoint_url=args.endpoint,
+                use_instrumented=args.detailed_profiling,
+            )
+            print(f"\nSingle-threaded results:")
+            print(f"  Total time: {elapsed:.6f}s")
+            print(f"  Throughput: {args.num_responses / elapsed:.2f} requests/second")
+            print(
+                f"  Average time per request: {elapsed / args.num_responses * 1000:.6f}ms"
+            )
+            if args.detailed_profiling:
+                profiler.print_results(elapsed)
+        else:
+            print("\n[1/4] Skipping single-threaded benchmark (--skip-single-threaded)")
+            elapsed = None
 
         # Multi-threaded benchmark
         cache_dir = Path(tmpdir) / "cache_mt"
@@ -577,7 +947,8 @@ def main():
         print(
             f"  Average time per request: {elapsed_mt / args.num_responses * 1000:.6f}ms"
         )
-        print(f"  Speedup vs single-threaded: {elapsed / elapsed_mt:.2f}x")
+        if elapsed is not None:
+            print(f"  Speedup vs single-threaded: {elapsed / elapsed_mt:.2f}x")
         if args.detailed_profiling:
             profiler_mt.print_results(elapsed_mt)
 
@@ -610,23 +981,69 @@ def main():
             print("\nRunning detailed cProfile analysis...")
             cache_dir = Path(tmpdir) / "cache_profile"
             benchmark_with_cprofile(min(args.num_responses, 100), cache_dir)
+        
+        # Lock profiling
+        if args.lock_profiling:
+            print("\nRunning detailed lock profiling...")
+            print("=" * 100)
+            
+            # Single-threaded lock profiling
+            cache_dir = Path(tmpdir) / "cache_lock_single"
+            elapsed_lock_single, lock_profiler_single = benchmark_with_lock_profiling(
+                args.num_responses,
+                cache_dir,
+                num_threads=1,
+                save_individuals=not args.no_individuals,
+                endpoint_url=args.endpoint,
+                disable_lock=args.no_lock,
+            )
+            print(f"\nSingle-threaded lock profiling (baseline, lock={'disabled' if args.no_lock else 'enabled'}):")
+            print(f"  Total time: {elapsed_lock_single:.6f}s")
+            print(f"  Throughput: {args.num_responses / elapsed_lock_single:.2f} req/s")
+            if not args.no_lock:
+                lock_profiler_single.print_results(elapsed_lock_single)
+            
+            # Multi-threaded lock profiling
+            cache_dir = Path(tmpdir) / "cache_lock_multi"
+            elapsed_lock_multi, lock_profiler_multi = benchmark_with_lock_profiling(
+                args.num_responses,
+                cache_dir,
+                num_threads=args.threads,
+                save_individuals=not args.no_individuals,
+                endpoint_url=args.endpoint,
+                disable_lock=args.no_lock,
+            )
+            print(f"\nMulti-threaded lock profiling ({args.threads} threads, lock={'disabled' if args.no_lock else 'enabled'}):")
+            print(f"  Total time: {elapsed_lock_multi:.6f}s")
+            print(f"  Throughput: {args.num_responses / elapsed_lock_multi:.2f} req/s")
+            print(f"  Speedup vs single-threaded: {elapsed_lock_single / elapsed_lock_multi:.2f}x")
+            if not args.no_lock:
+                lock_profiler_multi.print_results(elapsed_lock_multi)
 
     print("\n" + "=" * 100)
     print("BENCHMARK COMPLETE")
     print("=" * 100)
     print("\nKey findings:")
-    print(
-        f"1. Single-threaded throughput: {args.num_responses / elapsed:.2f} req/s"
-    )
-    print(
-        f"2. Multi-threaded throughput: {args.num_responses / elapsed_mt:.2f} req/s ({args.threads} threads)"
-    )
-    print(f"3. Speedup: {elapsed / elapsed_mt:.2f}x")
+    if elapsed is not None:
+        print(
+            f"1. Single-threaded throughput: {args.num_responses / elapsed:.2f} req/s"
+        )
+        print(
+            f"2. Multi-threaded throughput: {args.num_responses / elapsed_mt:.2f} req/s ({args.threads} threads)"
+        )
+        print(f"3. Speedup: {elapsed / elapsed_mt:.2f}x")
+    else:
+        print(
+            f"1. Multi-threaded throughput: {args.num_responses / elapsed_mt:.2f} req/s ({args.threads} threads)"
+        )
+        print(f"2. Average time per request: {elapsed_mt / args.num_responses * 1000:.2f}ms")
     print(
         "\nUse --profile for detailed function-level profiling"
     )
     print("Use --cache-benchmark to analyze cache performance")
     print("Use --contention-analysis to analyze lock contention")
+    print("Use --lock-profiling to identify which locks are bottlenecks")
+    print("Use --skip-single-threaded to only run multi-threaded test")
 
 
 if __name__ == "__main__":
