@@ -17,6 +17,7 @@ type: nim
 image: ??? # e.g., nvcr.io/nim/meta/llama-3.1-8b-instruct:1.8.6
 served_model_name: ???
 port: 8000
+multiple_instances: false # If true, deploy across multiple nodes with --nodes $num_nodes --ntasks $num_nodes
 
 # NIM containers use default entrypoint - no custom command needed
 # Configuration is done via environment variables in lepton_config
