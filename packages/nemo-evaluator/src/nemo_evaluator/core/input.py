@@ -401,7 +401,11 @@ def check_type_compatibility(evaluation: Evaluation):
                 f"The benchmark '{evaluation.config.type}' does not support any of the model types '{evaluation.target.api_endpoint.type}'. \n"
                 f"The benchmark supports: {_get_benchmark_types_readable(evaluation.config.supported_endpoint_types)}"
             )
-
+        # unpack types back. Listifying was for checking types only
+        evaluation.config.supported_endpoint_types = (
+            evaluation.config.supported_endpoint_types[0]
+        )
+        evaluation.target.api_endpoint.type = evaluation.target.api_endpoint.type[0]
     if evaluation.target.api_endpoint.type:
         # Check this only if the model is really required (to accomodate for non-model evals)
         if evaluation.target.api_endpoint.url is None:
