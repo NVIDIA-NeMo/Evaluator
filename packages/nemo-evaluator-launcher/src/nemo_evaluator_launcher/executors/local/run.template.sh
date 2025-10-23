@@ -43,36 +43,37 @@ else
     # Docker run with eval factory command
     (
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.running"
-        {% if deployment %}
-        docker run --rm --shm-size=100g {{ extra_docker_args }} \
-        --name {{ deployment.server_container_name }} \ 
-        {% for env_var in task.env_vars -%}
+        {% if task.deployment %}
+        docker run --rm --shm-size=100g --gpus all {{ extra_docker_args }} \
+        --name {{ task.deployment.container_name }} \
+        -p {{ task.deployment.port }}:{{ task.deployment.port }} \
+        {% for env_var in task.deployment.env_vars -%}
         -e {{ env_var }} \
-        {% endfor -%} \ 
-        {% for mount  in deployment.mounts -%}
+        {% endfor -%}
+        {% for mount in task.deployment.mounts -%}
         -v {{ mount }} \
         {% endfor -%}
-        {{ deployment.image }} \
-        bash -c '
-            {{ deployment.command }} ; 
-            exit_code=$?
-            if [ "$exit_code" -ne 0 ]; then
-                echo "The deployment container failed with exit code $exit_code" >&2;
-                exit "$exit_code";
-            fi;        
-            echo "Container completed successfully" >&2;
-            exit 0;
-        ' > "$logs_dir/server_stdout.log" 2>&1
-        exit_code=$?
+        {{ task.deployment.image }} \
+        {{ task.deployment.command }} > "$logs_dir/server_stdout.log" 2>&1 &
+
+        SERVER_PID=$!
+        SERVER_CONTAINER_NAME="{{ task.deployment.container_name }}"
 
         date
         # wait for the server to initialize
-        bash -c 'while [[ "$(curl -s -o /dev/null -w "%{{http_code}}" {health_url})" != "200" ]]; do kill -0 '"$SERVER_PID"' 2>/dev/null || {{ echo "Server process '"$SERVER_PID"' died"; exit 1; }}; sleep 5; done'
+        TIMEOUT=600
+        ELAPSED=0
+        while [[ "$(curl -s -o /dev/null -w "%{http_code}" {{ task.deployment.health_url }})" != "200" ]]; do 
+            kill -0 $SERVER_PID 2>/dev/null || { echo "Server process $SERVER_PID died"; exit 1; }
+            [ $ELAPSED -ge $TIMEOUT ] && { echo "Health check timeout after ${TIMEOUT}s"; exit 1; }
+            sleep 5
+            ELAPSED=$((ELAPSED + 5))
+        done
         date
 
         {% endif %}
-        docker run --rm --shm-size=100g {{ extra_docker_args }} \
-      --name {{ task.container_name }} \
+        docker run --rm --shm-size=100g --network host {{ extra_docker_args }} \
+      --name {{ task.client_container_name }} \
       --volume "$artifacts_dir":/results \
       {% for env_var in task.env_vars -%}
       -e {{ env_var }} \
@@ -90,6 +91,12 @@ else
         exit 0;
       ' > "$logs_dir/client_stdout.log" 2>&1
     exit_code=$?
+
+    {% if task.deployment %}
+    # Stop the server
+    docker stop $SERVER_CONTAINER_NAME 2>/dev/null || true
+    {% endif %}
+
     echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $exit_code" > "$logs_dir/stage.exit"
 ) >> "$logs_dir/stdout.log" 2>&1
 

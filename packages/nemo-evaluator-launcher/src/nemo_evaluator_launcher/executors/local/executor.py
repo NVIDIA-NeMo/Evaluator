@@ -26,6 +26,7 @@ import shlex
 import shutil
 import subprocess
 import time
+import warnings
 from typing import List, Optional
 
 import jinja2
@@ -39,10 +40,11 @@ from nemo_evaluator_launcher.common.execdb import (
     generate_job_id,
 )
 from nemo_evaluator_launcher.common.helpers import (
+    get_api_key_name,
+    get_endpoint_url,
     get_eval_factory_command,
     get_eval_factory_dataset_size_from_run_config,
     get_health_url,
-    get_endpoint_url,
     get_timestamp_string,
 )
 from nemo_evaluator_launcher.common.mapping import (
@@ -114,14 +116,15 @@ class LocalExecutor(BaseExecutor):
             timestamp = get_timestamp_string()
             task_definition = get_task_from_mapping(task.name, tasks_mapping)
 
-
             if cfg.deployment.type != "none":
                 # container name
                 server_container_name = f"server-{task.name}-{timestamp}"
 
                 # health_url
-                health_url = get_health_url(cfg, get_endpoint_url(cfg, task, task_definition))
-        
+                health_url = get_health_url(
+                    cfg, get_endpoint_url(cfg, task, task_definition)
+                )
+
                 # mounts
                 deployment_mounts_list = []
                 if checkpoint_path := cfg.deployment.get("checkpoint_path"):
@@ -134,9 +137,10 @@ class LocalExecutor(BaseExecutor):
                     deployment_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
                 # env vars
-                deployment_env_var_names = list(
-                    cfg.execution.get("env_vars", {}).get("deployment", {})
+                deployment_env_vars = cfg.execution.get("env_vars", {}).get(
+                    "deployment", {}
                 )
+
                 if cfg.deployment.get("env_vars"):
                     warnings.warn(
                         "cfg.deployment.env_vars will be deprecated in future versions. "
@@ -144,16 +148,20 @@ class LocalExecutor(BaseExecutor):
                         category=DeprecationWarning,
                         stacklevel=2,
                     )
-                    deployment_env_var_names.extend(list(cfg.deployment["env_vars"]))
+                    deployment_env_vars.update(cfg.deployment["env_vars"])
 
-                # full deployment config    
+                command = cfg.deployment.command
+                if cfg.deployment.type == "vllm":
+                    command = command.replace("vllm serve", "--model")
+
                 deployment = {
                     "container_name": server_container_name,
                     "image": cfg.deployment.image,
-                    "command": cfg.deployment.command,
-                    "mounts": ",".join(deployment_mounts_list),
-                    "env_vars": deployment_env_var_names,
+                    "command": command,
+                    "mounts": deployment_mounts_list,
+                    "env_vars": [f"{k}={v}" for k, v in deployment_env_vars.items()],
                     "health_url": health_url,
+                    "port": cfg.deployment.port,
                 }
 
             # Create job ID as <invocation_id>.<n>
@@ -164,9 +172,9 @@ class LocalExecutor(BaseExecutor):
             # collect all env vars
             env_vars = copy.deepcopy(dict(cfg.evaluation.get("env_vars", {})))
             env_vars.update(task.get("env_vars", {}))
-            if cfg.target.api_endpoint.api_key_name:
+            if api_key_name := get_api_key_name(cfg):
                 assert "API_KEY" not in env_vars
-                env_vars["API_KEY"] = cfg.target.api_endpoint.api_key_name
+                env_vars["API_KEY"] = api_key_name
 
             # check if the environment variables are set
             for env_var in env_vars.values():
@@ -272,7 +280,7 @@ class LocalExecutor(BaseExecutor):
                     executor="local",
                     data={
                         "output_dir": str(evaluation_task["output_dir"]),
-                        "container": evaluation_task["container_name"],
+                        "container": evaluation_task["client_container_name"],
                         "eval_image": evaluation_task["eval_image"],
                     },
                     config=OmegaConf.to_object(cfg),
@@ -328,11 +336,16 @@ class LocalExecutor(BaseExecutor):
 
         print("\nCommands for real-time monitoring:")
         for job_id, evaluation_task in zip(job_ids, evaluation_tasks):
-            log_file = evaluation_task["output_dir"] / "logs" / "stdout.log"
-            print(f"  tail -f {log_file}")
+            logs_dir = evaluation_task["output_dir"] / "logs"
+            print(f"\n  Job {job_id} ({evaluation_task['name']}):")
+            if evaluation_task["deployment"]:
+                print(f"    Server:   tail -f {logs_dir / 'server_stdout.log'}")
+            print(f"    Client:   tail -f {logs_dir / 'client_stdout.log'}")
 
         print("\nFollow all logs for this invocation:")
-        print(f"  tail -f {output_dir}/*/logs/stdout.log")
+        if evaluation_tasks[0]["deployment"]:
+            print(f"  Server:  tail -f {output_dir}/*/logs/server_stdout.log")
+        print(f"  Client:  tail -f {output_dir}/*/logs/client_stdout.log")
 
         return invocation_id
 
