@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import logging
 
 from nemo_evaluator.api import check_endpoint, evaluate
@@ -19,6 +18,7 @@ from nemo_evaluator.api import check_endpoint, evaluate
 logger = logging.getLogger(__name__)
 
 
+# [snippet-start]
 def wait_and_evaluate(target_cfg, eval_cfg):
     server_ready = check_endpoint(
         endpoint_url=target_cfg.api_endpoint.url,
@@ -30,3 +30,6 @@ def wait_and_evaluate(target_cfg, eval_cfg):
             "Server is not ready to accept requests. Check the deployment logs for errors."
         )
     return evaluate(target_cfg=target_cfg, eval_cfg=eval_cfg)
+
+
+# [snippet-end]
