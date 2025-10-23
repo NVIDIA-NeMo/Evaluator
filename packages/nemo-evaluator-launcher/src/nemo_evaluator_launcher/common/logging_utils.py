@@ -61,8 +61,9 @@ import structlog
 # both are unset, default would be used.
 _LOG_LEVEL_ENV_VAR = "NEMO_EVALUATOR_LOG_LEVEL"
 _DEFAULT_LOG_LEVEL = "WARNING"
-_SENSITIVE_KEY_SUBSTRINGS = {
-    # Keep minimal, broad substrings (normalized: lowercased, no spaces/_/-)
+_SENSITIVE_KEY_SUBSTRINGS_NORMALIZED = {
+    # Keep minimal, broad substrings
+    # NOTE: normalized: lowercased, no spaces/_/-
     "authorization",  # covers proxy-authorization, etc.
     "apikey",  # covers api_key, api-key, x-api-key, nvidia_api_key, ...
     "accesskey",  # covers access_key / access-key
@@ -72,6 +73,10 @@ _SENSITIVE_KEY_SUBSTRINGS = {
     "password",
     "pwd",  # common shorthand
     "passwd",  # common variant
+}
+_ALLOWLISTED_KEYS_SUBSTRINGS = {
+    # NOTE: non-normalized (for allowlisting we want more control)
+    "_tokens",  # This likely would allow us to not redact useful stuff like `limit_tokens`, `max_new_tokens`
 }
 
 
@@ -91,8 +96,11 @@ def _normalize(name: object) -> str:
 
 
 def _is_sensitive_key(key: object) -> bool:
-    k = _normalize(key)
-    return any(substr in k for substr in _SENSITIVE_KEY_SUBSTRINGS)
+    k_norm = _normalize(key)
+    k_non_norm = str(key)
+    return any(
+        substr in k_norm for substr in _SENSITIVE_KEY_SUBSTRINGS_NORMALIZED
+    ) and not any(substr in k_non_norm for substr in _ALLOWLISTED_KEYS_SUBSTRINGS)
 
 
 def _redact_mapping(m: dict) -> dict:
