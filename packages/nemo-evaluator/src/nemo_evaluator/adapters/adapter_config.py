@@ -530,7 +530,7 @@ class AdapterConfig(BaseModel):
                     config=config,
                 )
             )
-        if legacy_config["use_progress_tracking"] or legacy_config["output_dir"]:
+        if legacy_config["use_progress_tracking"]:
             config = {
                 "progress_tracking_interval": legacy_config[
                     "progress_tracking_interval"

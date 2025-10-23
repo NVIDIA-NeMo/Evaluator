@@ -35,11 +35,12 @@ defaults:
 
 # override default execution arguments
 execution:
-  account: ???
-  output_dir: /some/filesystem/path/available/to/slurm/node
+  hostname: ??? # SLURM headnode (login) hostname (required)
+  username: ${oc.env:USER} # Cluster username; defaults to $USER.
+  account: ??? # SLURM account allocation (required)
+  output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
   walltime: 00:30:00
   # partition: backfill
-  # New execution-level configuration options (preferred over deployment.env_vars)
   env_vars:
     deployment:
       HF_TOKEN: "hf_your_token" # Needed to access meta-llama/Llama-3.1-8B-Instruct gated model
@@ -60,11 +61,16 @@ deployment:
 
 # specify the benchmarks to evaluate
 evaluation:
-  overrides: # these overrides apply to all tasks; for task-specific overrides, use the `overrides` field
-    config.params.request_timeout: 3600
-    target.api_endpoint.adapter_config.use_reasoning: false # if true, strips reasoning tokens
-    target.api_endpoint.adapter_config.use_system_prompt: true
-    target.api_endpoint.adapter_config.custom_system_prompt: >-
-      "Think step by step."
+  nemo_evaluator_config:  # global config settings that apply to all tasks
+    config:
+      params:
+        request_timeout: 3600  # timeout for API requests in seconds
+      target:
+        api_endpoint:
+          adapter_config:
+            use_reasoning: false  # if true, strips reasoning tokens and collects reasoning stats
+            use_system_prompt: true  # enables custom system prompt
+            custom_system_prompt: >-
+              "Think step by step."
   tasks:
-    - name: ifeval # use the default benchmark configuration
+    - name: ifeval  # use the default benchmark configuration

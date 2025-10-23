@@ -66,8 +66,10 @@ cat <job_output_dir>/artifacts/results.yml   # use the output_dir printed by the
 # 6b. Check the running logs
 tail -f <job_output_dir>/*/logs/stdout.log   # use the output_dir printed by the run command
 
-# 7. Export your results (JSON/CSV)
+# 7a. Export your results (JSON/CSV)
 nemo-evaluator-launcher export <invocation_id> --dest local --format json
+# 7b. Or see the job details, with lots of useful subcommands inside
+nemo-evaluator-launcher info <invocation_id>   # use the ID printed by the run command
 
 # 8. Kill the running job(s)
 nemo-evaluator-launcher kill <invocation_id>  # use the ID printed by the run command

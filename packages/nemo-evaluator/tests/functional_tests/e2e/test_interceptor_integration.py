@@ -27,6 +27,7 @@ import time
 from pathlib import Path
 
 import pytest
+
 from nemo_evaluator.logging.utils import logger
 
 
@@ -132,7 +133,7 @@ class TestInterceptorIntegration:
             ]
 
             logger.info(f"Testing core interceptors runtime behavior: {' '.join(cmd)}")
-            subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=60)
+            subprocess.run(cmd, capture_output=False, text=True, env=env, timeout=60)
 
             # Check ONLY runtime behavior - what the interceptors actually DO
             log_dir = Path(self.test_log_dir)
@@ -242,7 +243,7 @@ class TestInterceptorIntegration:
 
             logger.info(f"Testing all interceptors runtime behavior: {' '.join(cmd)}")
             result = subprocess.run(
-                cmd, capture_output=True, text=True, env=env, timeout=60
+                cmd, capture_output=False, text=True, env=env, timeout=60
             )
             logger.info("Finished the subprocess", result=result)
 
@@ -438,7 +439,7 @@ class TestInterceptorIntegration:
                     )
 
                     result2 = subprocess.run(
-                        cmd2, capture_output=True, text=True, env=env, timeout=60
+                        cmd2, capture_output=False, text=True, env=env, timeout=60
                     )
                     logger.info("Finished the second subprocess run", result2)
 

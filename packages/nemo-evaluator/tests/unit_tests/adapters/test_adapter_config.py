@@ -290,6 +290,9 @@ def test_from_legacy_config():
         "include_if_reasoning_not_finished": True,
         "track_reasoning": True,
         "tracking_requests_stats": True,
+        "use_progress_tracking": True,
+        "progress_tracking_url": "https://progress.example.com",
+        "progress_tracking_interval": 5,
     }
 
     config = AdapterConfig.from_legacy_config(legacy_config)
