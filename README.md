@@ -1,146 +1,240 @@
-# NeMo Evaluator SDK
+<div align="center">
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg)](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-green)](https://www.python.org/downloads/)
-[![Tests](https://github.com/NVIDIA-NeMo/Evaluator/actions/workflows/cicd-main.yml/badge.svg)](https://github.com/NVIDIA-NeMo/Evaluator/actions/workflows/cicd-main.yml)
-[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
-[![nemo-evaluator PyPI version](https://img.shields.io/pypi/v/nemo-evaluator.svg)](https://pypi.org/project/nemo-evaluator/)
-[![nemo-evaluator PyPI downloads](https://img.shields.io/pypi/dm/nemo-evaluator.svg)](https://pypi.org/project/nemo-evaluator/)
-[![nemo-evaluator-launcher PyPI version](https://img.shields.io/pypi/v/nemo-evaluator-launcher.svg)](https://pypi.org/project/nemo-evaluator-launcher/)
-[![nemo-evaluator-launcher PyPI downloads](https://img.shields.io/pypi/dm/nemo-evaluator-launcher.svg)](https://pypi.org/project/nemo-evaluator-launcher/)
-[![Project Status](https://img.shields.io/badge/Status-Production%20Ready-green)](#)
+  <a href="https://github.com/NVIDIA-NeMo/Evaluator/blob/main/LICENSE">![License](https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg)</a>
+  <a href="https://codecov.io/github/NVIDIA-NeMo/Evaluator">![codecov](https://codecov.io/github/NVIDIA-NeMo/Evaluator/graph/badge.svg)</a>
+  <a href="https://pypi.org/project/nemo-evaluator/">![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-green)</a>
+  <a href="https://github.com/NVIDIA-NeMo/Evaluator/graphs/contributors">![Contributors](https://img.shields.io/github/contributors/NVIDIA-NeMo/Evaluator)</a>
+  <a href="https://github.com/NVIDIA-NeMo/Evaluator/releases">![Release](https://img.shields.io/github/release/NVIDIA-NeMo/Evaluator)</a>
+  <a href="https://pypi.org/project/nemo-evaluator/">![Open Source](https://badgen.net/badge/open%20source/❤/blue?icon=github)</a>
 
-## [📖 Documentation](https://docs.nvidia.com/nemo/evaluator/latest/) 
+</div>
 
-NeMo Evaluator SDK is an open-source platform for robust, reproducible, and scalable evaluation of Large Language Models. It enables you to run hundreds of benchmarks across popular evaluation harnesses against any OpenAI-compatible model API. Evaluations execute in open-source Docker containers for auditable and trustworthy results. The platform's containerized architecture allows for the rapid integration of public benchmarks and private datasets.
+# NVIDIA NeMo Evaluator SDK
 
-NeMo Evaluator SDK is built on four core principles to provide a reliable and versatile evaluation experience:
+**Reproducible, scalable evaluation for large language models.** Run 100+ benchmarks across 18 evaluation harnesses with container-first architecture. Scale from laptop to multi-node clusters with unified configuration.
 
-- **Reproducibility by Default**: All configurations, random seeds, and software provenance are captured automatically for auditable and repeatable evaluations.
-- **Scale Anywhere**: Run evaluations from a local machine to a Slurm cluster or cloud-native backends like Lepton AI without changing your workflow.
-- **State-of-the-Art Benchmarking**: Access a comprehensive suite of over 100 benchmarks from 18 popular open-source evaluation harnesses. See the full list of [Supported benchmarks and evaluation harnesses](#-supported-benchmarks-and-evaluation-harnesses).
-- **Extensible and Customizable**: Integrate new evaluation harnesses, add custom benchmarks with proprietary data, and define custom result exporters for existing MLOps tooling.
+> *Part of the [NVIDIA NeMo](https://www.nvidia.com/en-us/ai-data-science/products/nemo/) software suite for managing the AI agent lifecycle.*
 
-## ⚙️ How It Works: Launcher and Core Engine
+## What You Can Do
 
-The platform consists of two main components:
+| Capability | Key Features | Details |
+|------------|-------------|---------|
+| **100+ Benchmarks** | Academic • Code Generation • Safety • Function Calling • Vision-Language • RAG | See sections below |
+| **Multi-Backend Execution** | Local Docker • Slurm HPC • Lepton AI • Custom Cloud | [Launcher Docs](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator-launcher/index.html) |
+| **Container-First** | 18 NGC containers with locked dependencies and reproducible environments | [NGC Catalog](https://catalog.ngc.nvidia.com/search?orderBy=scoreDESC&query=label%3A%22NSPECT-JL1B-TVGU%22) |
+| **Extensible** | Custom benchmarks • Private datasets • Custom exporters | [Extension Guide](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator/extending/index.html) |
 
-- **`nemo-evaluator` ([The Evaluation Core Engine](./docs/nemo-evaluator/index.md))**: A Python library that manages the interaction between an evaluation harness and the model being tested.
-- **`nemo-evaluator-launcher` ([The CLI and Orchestration](./docs/nemo-evaluator-launcher/index.md))**: The primary user interface and orchestration layer. It handles configuration, selects the execution environment, and launches the appropriate container to run the evaluation.
-
-Most users typically interact with `nemo-evaluator-launcher`, which serves as a universal gateway to different benchmarks and harnesses. However, it is also possible to interact directly with `nemo-evaluator` by following this [guide](./docs/nemo-evaluator/workflows/using-containers.md).
-
-
-## 📊 Supported Benchmarks and Evaluation Harnesses
-
-NeMo Evaluator Launcher provides pre-built evaluation containers for different evaluation harnesses through the NVIDIA NGC catalog. Each harness supports a variety of benchmarks, which can then be called via `nemo-evaluator`. This table provides a list of benchmark names per harness. A more detailed list of task names can be found in the [list of NGC containers](./docs/nemo-evaluator/index.md#ngc-containers).
-
-| Container | Description | NGC Catalog | Latest Tag | Supported benchmarks |
-|-----------|-------------|-------------|------------| ------------|
-| **agentic_eval** | Agentic AI evaluation framework | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/agentic_eval) | `25.09` | Agentic Eval Topic Adherence, Agentic Eval Tool Call, Agentic Eval Goal and Answer Accuracy |
-| **bfcl** | Function calling | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl) | `25.09` | BFCL v2 and v3 |
-| **bigcode-evaluation-harness** | Code generation evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bigcode-evaluation-harness) | `25.09` | MBPP, MBPP-Plus, HumanEval, HumanEval+, Multiple (cpp, cs, d, go, java, jl, js, lua, php, pl, py, r, rb, rkt, rs, scala, sh, swift, ts) |
-| **compute-eval** | CUDA code evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/compute-eval) | `25.09` | CCCL, Combined Problems, CUDA |
-| **garak** | Safety and vulnerability testing | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/garak) | `25.09` | Garak |
-| **genai-perf** | GenAI performance benchmarking | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/genai-perf) | `25.09` | GenAI Perf Generation & Summarization |
-| **helm** | Holistic evaluation framework | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/helm) | `25.09` | MedHelm |
-| **hle** | Academic knowledge and problem solving | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/hle) | `25.09` | HLE |
-| **ifbench** | Instruction following | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/ifbench) | `25.09` | IFBench |
-| **livecodebench** | Coding | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/livecodebench) | `25.09` | LiveCodeBench (v1-v6, 0724_0125, 0824_0225) |
-| **lm-evaluation-harness** | Language model benchmarks | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/lm-evaluation-harness) | `25.09` | ARC Challenge (also multilingual), GSM8K, HumanEval, HumanEval+, MBPP, MINERVA MMMLU-Pro, RACE, TruthfulQA, AGIEval, BBH, BBQ, CSQA, Frames, Global MMMLU, GPQA-D, HellaSwag (also multilingual), IFEval, MGSM, MMMLU, MMMLU-Pro, MMMLU-ProX (de, es, fr, it, ja), MMLU-Redux, MUSR, OpenbookQA, Piqa, Social IQa, TruthfulQA, WikiLingua, WinoGrande|
-| **mmath** | Multilingual math reasoning | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mmath) | `25.09` | EN, ZH, AR, ES, FR, JA, KO, PT, TH, VI |
-| **mtbench** | Multi-turn conversation evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench) | `25.09` | MT-Bench |
-| **nemo-skills** | Language model benchmarks (science, math, agentic)  | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/nemo_skills) | `25.09` | AIME 24 & 25, BFCL_v3, GPQA, HLE, LiveCodeBench, MMLU, MMLU-Pro |
-| **mtbench** | Multi-turn conversation evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench) | `25.09` | MT-Bench |
-| **rag_retriever_eval** | RAG system evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/rag_retriever_eval) | `25.09` | RAG, Retriever |
-| **safety-harness** | Safety and bias evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/safety-harness) | `25.09` | Aegis v2, BBQ, WildGuard |
-| **scicode** | Coding for scientific research | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/scicode) | `25.09` | SciCode |
-| **simple-evals** | Common evaluation tasks | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/simple-evals) | `25.09` | GPQA-D, MATH-500, AIME 24 & 25, HumanEval, MGSM, MMMLU, MMMLU-Pro, MMMLU-lite (AR, BN, DE, EN, ES, FR, HI, ID, IT, JA, KO, MY, PT, SW, YO, ZH), SimpleQA |
-| **tooltalk** | Tool usage evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk) | `25.09` | ToolTalk |
-| **vlmevalkit** | Vision-language model evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit) | `25.09` | AI2D, ChartQA, OCRBench, SlideVQA |
-
-## 🚀 Quickstart
-
-Get your first evaluation result in minutes. This guide uses your local machine to run a small benchmark against an OpenAI API-compatible endpoint.
-
-### 1. Install the Launcher
-
-The launcher is the only package required to get started.
+## Quick Start
 
 ```bash
+# Install the launcher
 pip install nemo-evaluator-launcher
+
+# Get an API key from build.nvidia.com
+export NGC_API_KEY=<YOUR_API_KEY>
+
+# Run your first evaluation
+nemo-evaluator-launcher run \
+  --config-dir packages/nemo-evaluator-launcher/examples \
+  --config-name local_nvidia_nemotron_nano_9b_v2
+
+# Check results
+nemo-evaluator-launcher status <job_id>
 ```
 
-### 2. Set Up Your Model Endpoint
+**Full setup:** [Installation Guide](https://docs.nvidia.com/nemo/evaluator/latest/get-started/install.html) • [Quickstart](https://docs.nvidia.com/nemo/evaluator/latest/get-started/quickstart/index.html) • [Examples](packages/nemo-evaluator-launcher/examples/)
 
-NeMo Evaluator works with any model that exposes an OpenAI-compatible endpoint. For this quickstart, we will use the OpenAI API.
+---
 
-**What is an OpenAI-compatible endpoint?** A server that exposes /v1/chat/completions and /v1/completions endpoints, matching the OpenAI API specification.
+## Evaluation Capabilities
 
-**Options for model endpoints:**
+### Academic Benchmarks
 
-- **Hosted endpoints** (fastest): Use ready-to-use hosted models from providers like [build.nvidia.com](https://build.nvidia.com) that expose OpenAI-compatible APIs with no hosting required.
-- **Self-hosted options**: Host your own models using tools like NVIDIA NIM, vLLM, or TensorRT-LLM for full control over your evaluation environment.
+Comprehensive suite for evaluating reasoning, knowledge, and language understanding across multiple domains.
 
-For detailed setup instructions including self-hosted configurations, see the [tutorial guide](./docs/nemo-evaluator-launcher/tutorial.md).
+| Harness | Benchmarks | Documentation |
+|---------|-----------|---------------|
+| **simple-evals** | MMLU Pro • GSM8K • MATH-500 • AIME 24/25 • GPQA-D • MGSM • SimpleQA | [Simple Evals](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/simple-evals) |
+| **lm-evaluation-harness** | MMLU • HellaSwag • TruthfulQA • ARC Challenge • PIQA • WinoGrande • IFEval | [LM Eval](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/lm-evaluation-harness) |
+| **hle** | Humanity's Last Exam (multi-modal frontier benchmark) | [HLE](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/hle) |
+| **ifbench** | Instruction Following Benchmark | [IFBench](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/ifbench) |
+| **mmath** | Multilingual math reasoning (10 languages: EN, ZH, AR, ES, FR, JA, KO, PT, TH, VI) | [MMath](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mmath) |
+| **mtbench** | Multi-turn conversation evaluation | [MT-Bench](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench) |
 
-**Getting an NGC API Key for build.nvidia.com:**
+---
 
-To use out-of-the-box build.nvidia.com APIs, you need an API key:
+### Code Generation
 
-1. Register an account at [build.nvidia.com](https://build.nvidia.com).
-2. In the Setup menu under Keys/Secrets, generate an API key.
-3. Set the environment variable by executing `export NGC_API_KEY=<YOUR_API_KEY>`.
+Evaluate programming capabilities with industry-standard benchmarks and contamination-free datasets.
 
-### 3. Run Your First Evaluation
+| Harness | Benchmarks | Documentation |
+|---------|-----------|---------------|
+| **bigcode-evaluation-harness** | HumanEval • HumanEval+ • MBPP • MBPP+ • Multiple (20 languages) | [BigCode](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bigcode-evaluation-harness) |
+| **livecodebench** | Live coding contests (LeetCode, AtCoder, CodeForces) • Versions v1-v6 | [LiveCodeBench](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/livecodebench) |
+| **compute-eval** | CUDA code evaluation (CCCL, CUDA problems) | [Compute Eval](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/compute-eval) |
+| **scicode** | Scientific research code generation | [SciCode](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/scicode) |
 
-Run a small evaluation on your local machine. The launcher automatically pulls the correct container and executes the benchmark. The list of benchmarks is directly configured in the YAML file.
+---
 
-**Configuration Examples**: Explore ready-to-use configuration files in [`packages/nemo-evaluator-launcher/examples/`](./packages/nemo-evaluator-launcher/examples/) for local, Lepton, and Slurm deployments with various model hosting options (vLLM, NIM, hosted endpoints).
+### Safety and Security
 
-Once you have the example configuration file, either by cloning this repository or downloading one directly such as `local_nvidia_nemotron_nano_9b_v2.yaml`, you can run the following command:
+Comprehensive safety assessment with specialized containers for content safety, security vulnerabilities, and bias evaluation.
 
+| Harness | Capabilities | Documentation |
+|---------|-------------|---------------|
+| **safety-harness** | Content safety (Aegis v2, multilingual) • Bias evaluation (BBQ) • WildGuard | [Safety Harness](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/safety-harness) |
+| **garak** | Prompt injection • Jailbreaking • Security vulnerability scanning | [Garak](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/garak) |
+
+---
+
+### Function Calling and Agentic AI
+
+Test tool usage, function calling accuracy, and agentic behaviors with specialized evaluation frameworks.
+
+| Harness | Benchmarks | Documentation |
+|---------|-----------|---------------|
+| **bfcl** | Berkeley Function Calling Leaderboard v2 and v3 | [BFCL](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl) |
+| **agentic_eval** | Tool call accuracy • Goal accuracy • Topic adherence • Answer accuracy | [Agentic Eval](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/agentic_eval) |
+| **tooltalk** | Tool interaction evaluation | [ToolTalk](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk) |
+
+---
+
+### Vision-Language Models
+
+Evaluate vision-language capabilities with VQA, chart understanding, OCR, and document analysis.
+
+| Harness | Benchmarks | Documentation |
+|---------|-----------|---------------|
+| **vlmevalkit** | AI2D • ChartQA • OCRBench • SlideVQA | [VLMEvalKit](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit) |
+
+---
+
+### Specialized Domains
+
+Domain-specific evaluation for RAG systems, medical AI, and performance benchmarking.
+
+| Harness | Focus Area | Documentation |
+|---------|-----------|---------------|
+| **rag_retriever_eval** | Document retrieval • Context relevance • RAG system evaluation | [RAG Eval](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/rag_retriever_eval) |
+| **helm** | Medical AI evaluation (MedHELM suite) | [HELM](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/helm) |
+| **genai-perf** | Performance benchmarking (generation, summarization) | [GenAI Perf](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/genai-perf) |
+| **nemo-skills** | Science, math, and agentic benchmarks (AIME, BFCL, GPQA, HLE, LiveCodeBench) | [NeMo Skills](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/nemo_skills) |
+
+---
+
+## Key Features
+
+### Reproducibility by Design
+
+Every evaluation is reproducible with automatic capture of configurations, random seeds, and software provenance.
+
+**Container-First Architecture:**
+- Pre-built NGC containers with locked dependencies
+- Isolated execution environments
+- Version-tagged releases for exact reproducibility
+- Auditable and trustworthy results
 
 ```bash
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_nvidia_nemotron_nano_9b_v2 --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
+# Run the same evaluation on different backends with identical results
+nemo-evaluator-launcher run --config-name local_evaluation
+nemo-evaluator-launcher run --config-name slurm_evaluation
+nemo-evaluator-launcher run --config-name lepton_evaluation
 ```
 
-After running this command, you will see a `job_id`, which can be used to track the job and its results. All logs will be available in your `<YOUR_OUTPUT_LOCAL_DIR>`.
+---
 
-### 4. Check Your Results
+### Scale Anywhere
 
-Results, logs, and run configurations are saved locally. Inspect the status of the evaluation job by using the corresponding `job_id`:
+Run evaluations from local development to production HPC clusters with unified configuration.
 
-```bash
-nemo-evaluator-launcher status <job_id_or_invocation_id>
-```
+| Backend | Use Case | Setup |
+|---------|----------|-------|
+| **Local Docker** | Development • Quick iteration • Single-node evaluation | [Local Setup](https://docs.nvidia.com/nemo/evaluator/latest/get-started/quickstart/launcher.html) |
+| **Slurm HPC** | Large-scale parallel evaluation • Multi-node clusters | See [Launcher Configuration](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator-launcher/configuration/index.html) |
+| **Lepton AI** | Cloud-native deployment • Serverless inference | See [Launcher Configuration](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator-launcher/configuration/index.html) |
+
+**Example configurations:** [packages/nemo-evaluator-launcher/examples/](packages/nemo-evaluator-launcher/examples/)
+
+---
+
+### Extensible Architecture
+
+Add custom benchmarks, private datasets, and custom exporters to existing evaluation workflows.
+
+**Extension Points:**
+- **Custom Benchmarks**: Define new tasks with Framework Definition Files
+- **Private Datasets**: Integrate proprietary evaluation data
+- **Custom Exporters**: Connect to existing MLOps tooling
+- **Adapter System**: Modify request/response processing with interceptors
+
+```yaml
+# Framework Definition File example
+framework:
+  name: my_custom_eval
+  description: Custom evaluation for domain-specific tasks
   
-## 🧩 Evaluate checkpoints trained by NeMo Framework
-
-### 1. Start NeMo Framework Container
-
-For optimal performance and user experience, use the latest version of the [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags). Please fetch the most recent `$TAG` and run the following command to start a container:
-
-```bash
-docker run --rm -it -w /workdir -v $(pwd):/workdir \
-  --entrypoint bash \
-  --gpus all \
-  nvcr.io/nvidia/nemo:${TAG}
+evaluations:
+  - name: domain_specific_task
+    description: Evaluate domain-specific capabilities
+    defaults:
+      config:
+        params:
+          task: domain_task
+          temperature: 0.0
 ```
 
-### 2. Deploy a Model
+**Learn more:** [Extension Guide](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator/extending/index.html)
 
-```bash
-# Deploy a NeMo checkpoint
-python \
-  /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
-  --nemo_checkpoint "/path/to/your/checkpoint" \
-  --model_id megatron_model \
-  --port 8080 \
-  --host 0.0.0.0
+---
+
+### Advanced Adapter System
+
+Sophisticated request/response processing with interceptor architecture for caching, logging, and custom transformations.
+
+**Available Interceptors:**
+- **System Message**: Enforce consistent system prompts
+- **Request/Response Logging**: Capture evaluation traces with configurable limits
+- **Caching**: Reduce API costs with intelligent caching
+- **Reasoning Cleanup**: Strip intermediate reasoning tokens
+- **Progress Tracking**: Monitor evaluation progress in real-time
+
+```yaml
+# Adapter configuration example
+target:
+  api_endpoint:
+    url: "http://localhost:8080/v1/completions/"
+    model_id: "my-model"
+    adapter_config:
+      interceptors:
+        - name: system_message
+          config:
+            system_message: "You are a helpful AI assistant."
+        - name: caching
+          config:
+            cache_dir: "./evaluation_cache"
+        - name: reasoning
+          config:
+            start_reasoning_token: "<think>"
+            end_reasoning_token: "</think>"
 ```
 
-### 3. Evaluate the Model
+**Learn more:** [Core Library Documentation](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator/index.html)
+
+---
+
+## Architecture
+
+NeMo Evaluator SDK consists of two main components that work together:
+
+### 1. NeMo Evaluator (Core Engine)
+
+The evaluation core engine that manages interaction between evaluation harnesses and models.
+
+**Key Capabilities:**
+- Standardized evaluation workflows
+- Adapter system for request/response processing
+- Containerized benchmarks with NGC integration
+- Programmatic Python API
 
 ```python
 from nemo_evaluator.api import evaluate
@@ -157,21 +251,123 @@ config = EvaluationConfig(type="gsm8k", output_dir="results")
 
 # Run evaluation
 results = evaluate(target_cfg=target, eval_cfg=config)
-print(results)
 ```
 
-## 🤝 Contribution Guide
+---
 
-We welcome community contributions. Please see our [Contribution Guide](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/CONTRIBUTING.md) for instructions on submitting pull requests, reporting issues, and suggesting features.
+### 2. NeMo Evaluator Launcher (Orchestration)
 
+The CLI and orchestration layer for managing evaluations across different backends.
 
-## 📄 License
+**Key Capabilities:**
+- Unified CLI interface
+- Multi-backend execution (local, Slurm, Lepton AI)
+- Job monitoring and lifecycle management
+- Result export to MLflow, Weights & Biases, Google Sheets
 
-This project is licensed under the Apache License 2.0. See the [LICENSE](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/LICENSE) file for details.
+```bash
+# Launch evaluation on Slurm cluster
+nemo-evaluator-launcher run \
+  --config-dir packages/nemo-evaluator-launcher/examples \
+  --config-name slurm_llama_3_1_8b_instruct
 
+# Monitor status
+nemo-evaluator-launcher status <job_id>
 
-## 📞 Support
+# Export results
+nemo-evaluator-launcher export <job_id> --dest mlflow
+```
 
-- **Issues**: [GitHub Issues](https://github.com/NVIDIA-NeMo/Evaluator/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/NVIDIA-NeMo/Evaluator/discussions)
-- **Documentation**: [NeMo Evaluator Documentation](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/docs/index.md)
+---
+
+## OpenAI API Compatibility
+
+NeMo Evaluator works with any model exposing an OpenAI-compatible API endpoint.
+
+**Supported Endpoint Types:**
+- **`completions`**: Direct text completion (`/v1/completions`) for base models
+- **`chat`**: Conversational interface (`/v1/chat/completions`) for instruction-tuned models
+- **`vlm`**: Vision-language model endpoints with image inputs
+- **`embedding`**: Embedding generation for retrieval evaluation
+
+**Compatible Model Serving:**
+- **Hosted**: NVIDIA Build • OpenAI • Anthropic • Cohere
+- **Self-Hosted**: NVIDIA NIM • vLLM • TensorRT-LLM • NeMo Framework
+- **Custom**: Any service implementing OpenAI API specification
+
+---
+
+## Result Export
+
+First-class integration with popular MLOps platforms for experiment tracking and result sharing.
+
+```bash
+# Export to MLflow
+nemo-evaluator-launcher export <invocation_id> --dest mlflow
+
+# Export to Weights & Biases
+nemo-evaluator-launcher export <invocation_id> --dest wandb
+
+# Export to Google Sheets
+nemo-evaluator-launcher export <invocation_id> --dest gsheets
+```
+
+**Learn more:** [Exporters Guide](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator-launcher/exporters/index.html)
+
+---
+
+## Evaluate NeMo Framework Checkpoints
+
+Seamlessly integrate with NeMo Framework for checkpoint evaluation during model training.
+
+```python
+# Start NeMo Framework container
+docker run --rm -it -w /workdir -v $(pwd):/workdir \
+  --entrypoint bash --gpus all \
+  nvcr.io/nvidia/nemo:${TAG}
+
+# Deploy a NeMo checkpoint
+python /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
+  --nemo_checkpoint "/path/to/your/checkpoint" \
+  --model_id megatron_model \
+  --port 8080 --host 0.0.0.0
+
+# Evaluate the deployed model
+from nemo_evaluator.api import evaluate
+from nemo_evaluator.api.api_dataclasses import ApiEndpoint, EvaluationConfig, EvaluationTarget
+
+api_endpoint = ApiEndpoint(
+    url="http://0.0.0.0:8080/v1/completions/",
+    type="completions",
+    model_id="megatron_model"
+)
+target = EvaluationTarget(api_endpoint=api_endpoint)
+config = EvaluationConfig(type="gsm8k", output_dir="results")
+results = evaluate(target_cfg=target, eval_cfg=config)
+```
+
+**Learn more:** See the [NeMo Evaluator Core documentation](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator/index.html)
+
+---
+
+## Learn More
+
+| Resource | Links |
+|----------|-------|
+| **Documentation** | [Main Docs](https://docs.nvidia.com/nemo/evaluator/latest/) • [Key Features](https://docs.nvidia.com/nemo/evaluator/latest/about/key-features.html) • [Concepts](https://docs.nvidia.com/nemo/evaluator/latest/about/concepts/index.html) |
+| **Get Started** | [Installation](https://docs.nvidia.com/nemo/evaluator/latest/get-started/install.html) • [Quickstart](https://docs.nvidia.com/nemo/evaluator/latest/get-started/quickstart/index.html) |
+| **Libraries** | [Launcher](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator-launcher/index.html) • [Core](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator/index.html) |
+| **Configuration** | [Launcher Configuration](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator-launcher/configuration/index.html) • [Executors](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator-launcher/configuration/executors/index.html) |
+| **Community** | [GitHub Discussions](https://github.com/NVIDIA-NeMo/Evaluator/discussions) • [Issues](https://github.com/NVIDIA-NeMo/Evaluator/issues) |
+
+---
+
+## Contribute
+
+We welcome community contributions! Please refer to [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on submitting pull requests, reporting issues, and suggesting features.
+
+---
+
+## License
+
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
