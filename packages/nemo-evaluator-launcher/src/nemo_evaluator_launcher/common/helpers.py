@@ -58,12 +58,14 @@ def _yaml_to_echo_command(
 
 
 def get_eval_factory_config(
-    cfg: DictConfig, user_task_config: DictConfig, task_definition: dict
+    cfg: DictConfig,
+    user_task_config: DictConfig,
 ) -> dict:
     """Extract config fields for eval factory.
 
     This function extracts the config field similar to how overrides are handled.
     """
+    logger.debug("Getting nemo evaluator merged config")
     # Extract config fields similar to overrides - convert to basic Python types first
     # Support both new and old format for backward compatibility
     cfg_config = cfg.evaluation.get("nemo_evaluator_config") or cfg.evaluation.get(
@@ -80,8 +82,14 @@ def get_eval_factory_config(
         user_config = OmegaConf.to_container(user_config, resolve=True)
 
     # Merge the configs
-    config_fields = copy.deepcopy(cfg_config or {})
-    config_fields.update(user_config or {})
+    config_fields = OmegaConf.to_container(OmegaConf.merge(cfg_config, user_config))
+
+    logger.debug(
+        "Obtained nemo evaluator config",
+        source_global_cfg=cfg_config,
+        source_task_config=user_config,
+        result=config_fields,
+    )
 
     return config_fields
 
@@ -89,7 +97,10 @@ def get_eval_factory_config(
 def get_eval_factory_command(
     cfg: DictConfig, user_task_config: DictConfig, task_definition: dict
 ) -> CmdAndReadableComment:
-    config_fields = get_eval_factory_config(cfg, user_task_config, task_definition)
+    config_fields = get_eval_factory_config(
+        cfg,
+        user_task_config,
+    )
 
     overrides = copy.deepcopy(dict(cfg.evaluation.get("overrides", {})))
     overrides.update(dict(user_task_config.get("overrides", {})))
