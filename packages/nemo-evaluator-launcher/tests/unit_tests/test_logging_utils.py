@@ -234,3 +234,19 @@ class TestRedactProcessor:
         red = redact_processor(None, "info", dict(original))
         assert red == original
         monkeypatch.delenv("LOG_DISABLE_REDACTION", raising=False)
+
+    def test_allowlisted_keys_not_redacted(self):
+        """Test that keys containing allowlisted substrings are not redacted."""
+        original = {
+            "max_new_tokens": "should_not_be_redacted",
+            "limit_tokens": "should_not_be_redacted",
+            "api_token": "booooo",
+        }
+        red = redact_processor(None, "info", dict(original))
+
+        # Allowlisted keys should not be redacted
+        assert red["max_new_tokens"] == "should_not_be_redacted"
+        assert red["limit_tokens"] == "should_not_be_redacted"
+
+        # Normal sensitive keys should still be redacted
+        assert self._is_masked(red["api_token"], original["api_token"])
