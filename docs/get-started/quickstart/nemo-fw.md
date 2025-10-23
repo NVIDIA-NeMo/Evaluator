@@ -1,7 +1,3 @@
----
-orphan: true
----
-
 (gs-quickstart-nemo-fw)=
 # Evaluate checkpoints trained by NeMo Framework
 
@@ -13,51 +9,43 @@ The NeMo Evaluator is integrated within NeMo Framework, offering streamlined dep
 ## Prerequisites
 
 - Docker with GPU support
-- NeMo Framework docker container
+- [NeMo Framework docker container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags)
+- Your model checkpoint (or use [Llama 3.2 1B Instruct](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/llama-3_2-1b-instruct) for testing)
 
 ## Quick Start
 
-### 1. Start NeMo Framework Container
-
-For optimal performance and user experience, use the latest version of the [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags). Please fetch the most recent `$TAG` and run the following command to start a container:
 
 ```bash
-docker run --rm -it -w /workdir -v $(pwd):/workdir \
+# 1. Start NeMo Framework Container
+
+TAG=...
+CHECKPOINT_PATH=/path/to/checkpoint/lama-3_2-1b-instruct_v2.0"  # use absolute path
+
+docker run --rm -it -w /workdir -v $(pwd):/workdir -v $CHECKPOINT_PATH:/checkpoint/ \
   --entrypoint bash \
   --gpus all \
   nvcr.io/nvidia/nemo:${TAG}
 ```
 
-### 2. Deploy a Model
-
 ```bash
-# Deploy a NeMo checkpoint
+# Run inside the container:
+
+# 2. Deploy a Model
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
-  --nemo_checkpoint "/path/to/your/checkpoint" \
+  --nemo_checkpoint /checkpoint \
   --model_id megatron_model \
   --port 8080 \
   --host 0.0.0.0
+
+# Start Python in a new terminal
+# 3. Launch evaluation:
 ```
 
-### 3. Evaluate the Model
-
-```python
-from nemo_evaluator.api import evaluate
-from nemo_evaluator.api.api_dataclasses import ApiEndpoint, EvaluationConfig, EvaluationTarget
-
-# Configure evaluation
-api_endpoint = ApiEndpoint(
-    url="http://0.0.0.0:8080/v1/completions/",
-    type="completions",
-    model_id="megatron_model"
-)
-target = EvaluationTarget(api_endpoint=api_endpoint)
-config = EvaluationConfig(type="gsm8k", output_dir="results")
-
-# Run evaluation
-results = evaluate(target_cfg=target, eval_cfg=config)
-print(results)
+```{literalinclude} ../_snippets/nemo_fw_basic.py
+:language: python
+:start-after: "# [snippet-start]"
+:end-before: "# [snippet-end]"
 ```
 
 
@@ -86,7 +74,7 @@ Deploy multiple instances of your model:
 ```shell
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
-  --nemo_checkpoint "meta-llama/Llama-3.1-8B" \
+  --nemo_checkpoint /checkpoint \
   --model_id "megatron_model" \
   --port 8080 \                          # Ray server port
   --num_gpus 4 \                         # Total GPUs available
@@ -120,3 +108,11 @@ if __name__ == "__main__":
         )
     evaluate(target_cfg=eval_target, eval_cfg=eval_config)
 ```
+
+## Next Steps
+
+- Explore {ref}`deployment-nemo-fw` for other deployment options
+- Integrate evaluation into your training pipeline
+- Run deployment and evaluation with NeMo Run
+- Configure adapters and interceptors for advanced evaluation scenarios
+- Explore {ref}`tutorials-overview`
