@@ -25,6 +25,7 @@ served_model_name: ???  # Name of the served model (used in command templates an
 extra_args: ""  # Additional command line arguments
 env_vars: {}  # Environment variables as {name: value} dict
 checkpoint_path: null  # Path to model checkpoint
+server_timeout: null  # Optional: seconds to wait for server startup instead of health check
 
 # API endpoints (customize based on your server)
 endpoints:

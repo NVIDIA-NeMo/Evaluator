@@ -573,6 +573,7 @@ def _create_slurm_sbatch_script(
             health_path,
             "server",
             check_pid=True,
+            timeout=cfg.deployment.get("server_timeout"),
         )
         s += "\n\n"
 
@@ -1193,13 +1194,49 @@ def _get_wait_for_server_handler(
     health_check_path: str,
     service_name: str = "server",
     check_pid: bool = False,
+    timeout: int = None,
 ):
-    """Generate wait for server handler that takes a list of IPs."""
-    pid_check = ""
-    if check_pid:
-        pid_check = 'kill -0 "$SERVER_PID" 2>/dev/null || { echo "Server process $SERVER_PID died"; exit 1; }'
+    """Generate wait for server handler that takes a list of IPs.
+    
+    Args:
+        ip_list: Bash array of IPs to check
+        port: Port number
+        health_check_path: Health check endpoint path
+        service_name: Name of the service for logging
+        check_pid: Whether to check if PID is alive
+        timeout: If set, use timeout instead of health check (in seconds)
+    """
+    if timeout:
+        # Use timeout-based handler instead of health check
+        pid_check = ""
+        if check_pid:
+            pid_check = 'kill -0 $SERVER_PID 2>/dev/null || { echo "Server process $SERVER_PID died during initialization"; exit 1; }'
+        
+        handler = f"""date
+# wait for the {service_name} to initialize (using timeout instead of health check)
+echo "Waiting {timeout} seconds for {service_name} to initialize..."
+TIMEOUT={timeout}
+ELAPSED=0
+CHECK_INTERVAL=5
+while [ $ELAPSED -lt $TIMEOUT ]; do
+    # Check if server process is still alive
+    {pid_check}
+    sleep $CHECK_INTERVAL
+    ELAPSED=$((ELAPSED + CHECK_INTERVAL))
+    echo "{service_name} initialization: $ELAPSED/$TIMEOUT seconds elapsed..."
+done
+# Final check
+{pid_check}
+echo "{service_name} timeout elapsed, assuming {service_name} is ready"
+date
+""".strip()
+    else:
+        # Use health check handler
+        pid_check = ""
+        if check_pid:
+            pid_check = 'kill -0 "$SERVER_PID" 2>/dev/null || { echo "Server process $SERVER_PID died"; exit 1; }'
 
-    handler = f"""date
+        handler = f"""date
 # wait for the {service_name} to initialize
 for ip in {ip_list}; do
   echo "Waiting for {service_name} on $ip..."
