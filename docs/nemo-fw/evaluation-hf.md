@@ -2,9 +2,7 @@
 
 This guide provides step-by-step instructions for evaluating checkpoints trained using the NeMo Framework with the Automodel backend. This section specifically covers evaluation with [nvidia-lm-eval](https://pypi.org/project/nvidia-lm-eval/), a wrapper around the [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness/tree/main) tool.
 
-Here, we focus on benchmarks within the `lm-evaluation-harness` that depend on text generation. For a detailed comparison between generation-based and log-probability-based benchmarks, refer to ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md).
-
-> **Note:** The current support for evaluation of Automodel checkpoints is limited to generation benchmarks. Support for log-probability benchmarks will be added in upcoming releases.
+Here, we focus on benchmarks within the `lm-evaluation-harness` that depend on text generation. For a detailed comparison between generation-based and log-probability-based benchmarks, refer to ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md). Evaluation on log-probability-based benchmarks is available in [Evaluate Automodel Checkpoints on Log-probability benchmarks](#evaluate-automodel-checkpoints-on-log-probability-benchmarks).
 
 ## Deploy Automodel Checkpoints
 
@@ -58,6 +56,38 @@ api_endpoint = ApiEndpoint(
 eval_target = EvaluationTarget(api_endpoint=api_endpoint)
 eval_params = ConfigParams(top_p=0, temperature=0, limit_samples=2, parallelism=1)
 eval_config = EvaluationConfig(type='mmlu', params=eval_params, output_dir="results")
+
+if __name__ == "__main__":
+    check_endpoint(
+            endpoint_url=eval_target.api_endpoint.url,
+            endpoint_type=eval_target.api_endpoint.type,
+            model_name=eval_target.api_endpoint.model_id,
+        )
+    evaluate(target_cfg=eval_target, eval_cfg=eval_config)
+```
+
+## Evaluate Automodel Checkpoints on Log-probability benchmarks
+
+In order to evaluate automodel checkpoints on benchmarks that need log-probabilities, the deployment command remains the same as shared in [Deploy Automodel Checkpoints](#deploy-automodel-checkpoints). Log-probability benchmarks are supported with both `vLLM` backend (using the flag `--use_vllm_backend`) and direct deployment of the Automodel checkpoint. However, evaluation command requires path to the `tokenizer` and `tokenizer_backend` to be specified as shown below. `Tokenizer` files are present in the checkpoint directory itself.
+
+```python
+from nemo_evaluator.api import check_endpoint, evaluate
+from nemo_evaluator.api.api_dataclasses import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
+
+# Configure the evaluation target
+api_endpoint = ApiEndpoint(
+    url="http://0.0.0.0:8080/v1/completions/",
+    type="completions",
+    model_id="megatron_model",
+)
+eval_target = EvaluationTarget(api_endpoint=api_endpoint)
+eval_params = ConfigParams(top_p=0, temperature=0, limit_samples=1, parallelism=1,
+                            extra={
+                                "tokenizer": "/workspace/hf_downloaded_models/llama-3.2-1b/",
+                                "tokenizer_backend": "huggingface",
+                                },
+                            )
+eval_config = EvaluationConfig(type='arc_challenge', params=eval_params, output_dir="results")
 
 if __name__ == "__main__":
     check_endpoint(
