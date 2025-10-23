@@ -81,6 +81,7 @@ NeMo Evaluator works with any model that exposes an OpenAI-compatible endpoint. 
 
 - **Hosted endpoints** (fastest): Use ready-to-use hosted models from providers like [build.nvidia.com](https://build.nvidia.com) that expose OpenAI-compatible APIs with no hosting required.
 - **Self-hosted options**: Host your own models using tools like NVIDIA NIM, vLLM, or TensorRT-LLM for full control over your evaluation environment.
+- **Models trained with NeMo framework**: Host your models trained with NeMo framework by deploying them as OpenAI-compatible endpoints using [NeMo Export-Deploy](https://github.com/NVIDIA-NeMo/Export-Deploy/tree/main). More detailed user guide [here](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/docs/nemo-fw)
 
 For detailed setup instructions including self-hosted configurations, see the [tutorial guide](./docs/nemo-evaluator-launcher/tutorial.md).
 
@@ -113,51 +114,6 @@ Results, logs, and run configurations are saved locally. Inspect the status of t
 
 ```bash
 nemo-evaluator-launcher status <job_id_or_invocation_id>
-```
-  
-## 🧩 Evaluate checkpoints trained by NeMo Framework
-
-### 1. Start NeMo Framework Container
-
-For optimal performance and user experience, use the latest version of the [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags). Please fetch the most recent `$TAG` and run the following command to start a container:
-
-```bash
-docker run --rm -it -w /workdir -v $(pwd):/workdir \
-  --entrypoint bash \
-  --gpus all \
-  nvcr.io/nvidia/nemo:${TAG}
-```
-
-### 2. Deploy a Model
-
-```bash
-# Deploy a NeMo checkpoint
-python \
-  /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
-  --nemo_checkpoint "/path/to/your/checkpoint" \
-  --model_id megatron_model \
-  --port 8080 \
-  --host 0.0.0.0
-```
-
-### 3. Evaluate the Model
-
-```python
-from nemo_evaluator.api import evaluate
-from nemo_evaluator.api.api_dataclasses import ApiEndpoint, EvaluationConfig, EvaluationTarget
-
-# Configure evaluation
-api_endpoint = ApiEndpoint(
-    url="http://0.0.0.0:8080/v1/completions/",
-    type="completions",
-    model_id="megatron_model"
-)
-target = EvaluationTarget(api_endpoint=api_endpoint)
-config = EvaluationConfig(type="gsm8k", output_dir="results")
-
-# Run evaluation
-results = evaluate(target_cfg=target, eval_cfg=config)
-print(results)
 ```
 
 ## 🤝 Contribution Guide
