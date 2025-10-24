@@ -51,7 +51,6 @@ NeMo Evaluator Launcher provides pre-built evaluation containers for different e
 | **mmath** | Multilingual math reasoning | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mmath) | `25.09.1` | EN, ZH, AR, ES, FR, JA, KO, PT, TH, VI |
 | **mtbench** | Multi-turn conversation evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench) | `25.09.1` | MT-Bench |
 | **nemo-skills** | Language model benchmarks (science, math, agentic)  | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/nemo_skills) | `25.09.1` | AIME 24 & 25, BFCL_v3, GPQA, HLE, LiveCodeBench, MMLU, MMLU-Pro |
-| **mtbench** | Multi-turn conversation evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench) | `25.09.1` | MT-Bench |
 | **profbench** | Professional domains in Business and Scientific Research | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/profbench) | `25.09.1` | ProfBench |
 | **rag_retriever_eval** | RAG system evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/rag_retriever_eval) | `25.09.1` | RAG, Retriever |
 | **safety-harness** | Safety and bias evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/safety-harness) | `25.09.1` | Aegis v2, BBQ, WildGuard |
