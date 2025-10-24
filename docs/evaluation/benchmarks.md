@@ -1,6 +1,6 @@
 (eval-benchmarks)=
 
-# Supported Benchmarks
+# Benchmark Catalog
 
 Comprehensive catalog of hundreds of benchmarks across popular evaluation harnesses, all available through NGC containers and the NeMo Evaluator platform.
 
@@ -38,7 +38,7 @@ Comprehensive catalog of hundreds of benchmarks across popular evaluation harnes
 - `ifbench` - Precise instruction following
 - `mtbench` - Multi-turn conversation quality
 
-See benchmark categories below and {ref}`nemo-evaluator-containers` for more details .
+See benchmark categories below and {ref}`benchmarks-full-list` for more details.
 :::
 
 ## Benchmark Categories
@@ -83,8 +83,14 @@ See benchmark categories below and {ref}`nemo-evaluator-containers` for more det
   - Report Gerenation, LLM Judge
 ```
 
+:::{note}
+BFCL tasks from the nemo-skills container require function calling capabilities. See {ref}`deployment-testing-compatibility` for checking if your endpoint is compatible.
+:::
+
 **Example Usage:**
-`config.yml`:
+
+Create `config.yml`:
+
 ```yaml
 defaults:
   - execution: local
@@ -97,6 +103,8 @@ evaluation:
     - name: gsm8k_cot_instruct
     - name: gpqa_diamond
 ```
+
+Run evaluation:
 
 ```bash
 export NGC_API_KEY=nvapi-...
@@ -136,7 +144,9 @@ nemo-evaluator-launcher run \
 ```
 
 **Example Usage:**
-`config.yml`:
+
+Create `config.yml`:
+
 ```yaml
 defaults:
   - execution: local
@@ -148,6 +158,8 @@ evaluation:
     - name: humaneval_instruct
     - name: mbbp
 ```
+
+Run evaluation:
 
 ```bash
 export NGC_API_KEY=nvapi-...
@@ -182,7 +194,9 @@ nemo-evaluator-launcher run \
 ```
 
 **Example Usage:**
-`config.yml`:
+
+Create `config.yml`:
+
 ```yaml
 defaults:
   - execution: local
@@ -194,6 +208,8 @@ evaluation:
     - name: aegis_v2
     - name: garak
 ```
+
+Run evaluation:
 
 ```bash
 export NGC_API_KEY=nvapi-...
@@ -228,8 +244,14 @@ nemo-evaluator-launcher run \
  - ToolTalk 
 ```
 
+:::{note}
+Some of the tasks in this category require function calling capabilities. See {ref}`deployment-testing-compatibility` for checking if your endpoint is compatible.
+:::
+
 **Example Usage:**
-`config.yml`:
+
+Create `config.yml`:
+
 ```yaml
 defaults:
   - execution: local
@@ -241,6 +263,8 @@ evaluation:
     - name: bfclv2_ast_prompting
     - name: tooltalk
 ```
+
+Run evaluation:
 
 ```bash
 export NGC_API_KEY=nvapi-...
@@ -271,8 +295,14 @@ nemo-evaluator-launcher run \
   - AI2D, ChartQA, OCRBench, SlideVQA
 ```
 
+:::{note}
+The tasks in this category require a VLM chat endpoint. See {ref}`deployment-testing-compatibility` for checking if your endpoint is compatible.
+:::
+
 **Example Usage:**
-`config.yml`:
+
+Create `config.yml`:
+
 ```yaml
 defaults:
   - execution: local
@@ -284,6 +314,8 @@ evaluation:
     - name: ocrbench
     - name: chartqa
 ```
+
+Run evaluation:
 
 ```bash
 export NGC_API_KEY=nvapi-...
@@ -313,7 +345,10 @@ nemo-evaluator-launcher run \
   - MedHelm 
 ```
 
-`config.yml`:
+**Example Usage:**
+
+Create `config.yml`:
+
 ```yaml
 defaults:
   - execution: local
@@ -325,6 +360,8 @@ evaluation:
     - name: pubmed_qa
     - name: medcalc_bench
 ```
+
+Run evaluation:
 
 ```bash
 export NGC_API_KEY=nvapi-...
@@ -420,6 +457,12 @@ params = ConfigParams(
 - **Instruction Models**: Emphasize `ifbench`, `mtbench`
 - **Multilingual Models**: Include `arc_multilingual`, `hellaswag_multilingual`, `mgsm`
 - **Safety-Critical**: Prioritize `safety-harness` and `garak` evaluations
+
+(benchmarks-full-list)=
+## Full Benchmarks List
+
+```{include} ../_resources/tasks-table.md
+```
 
 ## Next Steps
 
