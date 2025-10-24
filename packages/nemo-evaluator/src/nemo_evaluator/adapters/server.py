@@ -37,6 +37,7 @@ from nemo_evaluator.adapters.types import (
     AdapterResponse,
     FatalErrorException,
     PostEvalHook,
+    PreEvalHook,
     RequestInterceptor,
     RequestToResponseInterceptor,
     ResponseInterceptor,
@@ -171,12 +172,19 @@ class AdapterServer:
             RequestInterceptor | RequestToResponseInterceptor | ResponseInterceptor
         ] = []
         self.post_eval_hooks: List[PostEvalHook] = []
+        self.pre_eval_hooks: List[PreEvalHook] = []
         self._post_eval_hooks_executed: bool = False
+        self._pre_eval_hooks_executed: bool = False
 
         self.app = flask.Flask(__name__)
         self.app.route("/", defaults={"path": ""}, methods=["POST"])(self._handler)
         self.app.route("/<path:path>", methods=["POST"])(self._handler)
 
+        # Add route for running pre-eval hooks
+        self.app.route("/adapterserver/run-pre-hook", methods=["POST"])(
+            self._run_pre_eval_hooks_handler
+        )
+        
         # Add route for running post-eval hooks
         self.app.route("/adapterserver/run-post-hook", methods=["POST"])(
             self._run_post_eval_hooks_handler
@@ -197,15 +205,10 @@ class AdapterServer:
             modules=adapter_config.discovery.modules, dirs=adapter_config.discovery.dirs
         )
 
+
         logger.info(
-            "Using interceptors",
+            "Using interceptors (includes pre/post-eval hooks)",
             interceptors=[ic.name for ic in adapter_config.interceptors if ic.enabled],
-        )
-        logger.info(
-            "Using post-eval hooks",
-            hooks=[
-                hook.name for hook in adapter_config.post_eval_hooks if hook.enabled
-            ],
         )
 
         # Validate and build chains
@@ -221,6 +224,7 @@ class AdapterServer:
             self._validate_interceptor_order()
 
             # Build the chains
+            self._build_pre_eval_hooks()
             self._build_interceptor_chains()
             self._build_post_eval_hooks()
 
@@ -315,29 +319,41 @@ class AdapterServer:
             interceptors=[type(i).__name__ for i in self.interceptor_chain],
         )
 
+    def _build_pre_eval_hooks(self) -> None:
+        """Build pre-evaluation hooks from interceptors that implement PreEvalHook interface.
+        
+        Pre/post eval hooks are now unified with interceptors. Any interceptor that implements
+        the PreEvalHook interface will be automatically recognized and executed before evaluation.
+        """
+        self.pre_eval_hooks = []
+
+        # Collect all interceptors that implement PreEvalHook interface
+        for interceptor in self.interceptor_chain:
+            if isinstance(interceptor, PreEvalHook):
+                self.pre_eval_hooks.append(interceptor)
+
+        # Log the hooks for debugging
+        logger.info(
+            "Built pre-eval hooks from interceptor chain",
+            hooks=[type(h).__name__ for h in self.pre_eval_hooks],
+        )
+
     def _build_post_eval_hooks(self) -> None:
-        """Build post-evaluation hooks from validated configuration"""
-        # Build the hooks in the configured order
+        """Build post-evaluation hooks from interceptors that implement PostEvalHook interface.
+        
+        Pre/post eval hooks are now unified with interceptors. Any interceptor that implements
+        the PostEvalHook interface will be automatically recognized and executed after evaluation.
+        """
         self.post_eval_hooks = []
 
-        # Add configured post-eval hooks
-        for hook_config in self.adapter_config.post_eval_hooks:
-            if hook_config.enabled:
-                hook = self.registry._get_or_create_instance(
-                    hook_config.name, hook_config.config
-                )
-                self.post_eval_hooks.append(hook)
-
-        # Also add interceptors that implement PostEvalHook
+        # Collect all interceptors that implement PostEvalHook interface
         for interceptor in self.interceptor_chain:
-            if hasattr(interceptor, "post_eval_hook") and callable(
-                getattr(interceptor, "post_eval_hook")
-            ):
+            if isinstance(interceptor, PostEvalHook):
                 self.post_eval_hooks.append(interceptor)
 
         # Log the hooks for debugging
         logger.info(
-            "Built post-eval hooks",
+            "Built post-eval hooks from interceptor chain",
             hooks=[type(h).__name__ for h in self.post_eval_hooks],
         )
 
@@ -542,6 +558,20 @@ class AdapterServer:
             request_logger = get_logger()
             request_logger.error("failed_request_response_pair", data=log_data)
 
+    def _run_pre_eval_hooks_handler(self) -> flask.Response:
+        """Handler for the pre-eval hooks endpoint."""
+        try:
+            self.run_pre_eval_hooks()
+            return flask.jsonify(
+                {
+                    "status": "success",
+                    "message": "Pre-eval hooks executed successfully",
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to run pre-eval hooks: {e}")
+            return flask.jsonify({"status": "error", "message": str(e)}), 500
+
     def _run_post_eval_hooks_handler(self) -> flask.Response:
         """Handler for the post-eval hooks endpoint."""
         try:
@@ -578,6 +608,29 @@ class AdapterServer:
 
         self._post_eval_hooks_executed = True
         logger.info("Post-eval hooks execution completed")
+
+    def run_pre_eval_hooks(self) -> None:
+        """Run all configured pre-evaluation hooks."""
+        if self._pre_eval_hooks_executed:
+            logger.warning("Pre-eval hooks have already been executed, skipping")
+            return
+
+        global_context = AdapterGlobalContext(
+            output_dir=self.output_dir,
+            url=self.api_url,
+        )
+
+        for hook in self.pre_eval_hooks:
+            try:
+                hook.pre_eval_hook(global_context)
+                logger.info(f"Successfully ran pre-eval hook: {type(hook).__name__}")
+            except Exception as e:
+                logger.error(f"Pre-eval hook {type(hook).__name__} failed: {e}")
+                # Continue with other hooks
+                continue
+
+        self._pre_eval_hooks_executed = True
+        logger.info("Pre-eval hooks execution completed")
 
     def generate_report(self) -> None:
         """Generate HTML report of cached requests and responses."""
@@ -625,6 +678,63 @@ class AdapterServerProcess:
                 continue
         raise OSError("No free port found in range")
 
+    def _run_pre_eval_hooks_in_parent_process(
+        self, adapter_config: AdapterConfig, output_dir: str, api_url: str
+    ) -> None:
+        """Run pre-eval hooks in the parent process before spawning the server.
+        
+        This ensures hooks complete before any evaluation requests can be processed,
+        eliminating race conditions.
+        
+        Pre-eval hooks are now unified with interceptors - any interceptor that implements
+        the PreEvalHook interface will be automatically recognized and executed.
+        """
+        # Initialize registry and discover components
+        registry = InterceptorRegistry.get_instance()
+        registry.discover_components(
+            modules=adapter_config.discovery.modules,
+            dirs=adapter_config.discovery.dirs,
+        )
+        
+        # Build all interceptors (which includes pre/post hooks merged in from config)
+        interceptor_instances = []
+        for interceptor_config in adapter_config.interceptors:
+            if interceptor_config.enabled:
+                interceptor = registry._get_or_create_instance(
+                    interceptor_config.name,
+                    interceptor_config.config,
+                )
+                interceptor_instances.append(interceptor)
+        
+        # Collect interceptors that implement PreEvalHook interface
+        pre_eval_hooks = [
+            interceptor for interceptor in interceptor_instances
+            if isinstance(interceptor, PreEvalHook)
+        ]
+        
+        if not pre_eval_hooks:
+            return
+        
+        logger.info("Running pre-evaluation hooks before starting server")
+        
+        # Create global context
+        global_context = AdapterGlobalContext(
+            output_dir=output_dir,
+            url=api_url,
+        )
+        
+        # Execute hooks
+        for hook in pre_eval_hooks:
+            try:
+                logger.info(f"Running pre-eval hook: {type(hook).__name__}")
+                hook.pre_eval_hook(global_context)
+                logger.info(f"Successfully ran pre-eval hook: {type(hook).__name__}")
+            except Exception as e:
+                logger.error(f"Pre-eval hook {type(hook).__name__} failed: {e}")
+                raise RuntimeError(f"Pre-eval hook {type(hook).__name__} failed: {e}") from e
+        
+        logger.info("Pre-evaluation hooks completed successfully")
+
     def __enter__(self):
         adapter_config = self.evaluation.target.api_endpoint.adapter_config
         if not adapter_config:
@@ -633,6 +743,7 @@ class AdapterServerProcess:
         enabled_post_eval_hooks = [
             hook for hook in adapter_config.post_eval_hooks if hook.enabled
         ]
+
         if not enabled_interceptors and not enabled_post_eval_hooks:
             return
 
@@ -643,6 +754,13 @@ class AdapterServerProcess:
 
         output_dir = self.evaluation.config.output_dir
         self.port = self._find_and_reserve_free_port(adapter_host=adapter_host)
+        
+        # Run pre-eval hooks BEFORE starting the server to eliminate race conditions
+        self._run_pre_eval_hooks_in_parent_process(
+            adapter_config, output_dir, self.original_url
+        )
+        
+        # Now start the server process
         self.evaluation.target.api_endpoint.url = f"http://{adapter_host}:{self.port}"
         self.process = multiprocessing.get_context("spawn").Process(
             target=_run_adapter_server,

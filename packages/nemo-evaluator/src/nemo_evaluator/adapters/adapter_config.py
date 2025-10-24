@@ -26,6 +26,7 @@ target:
         dirs: ["/some/path"]
       interceptors: []
       post_eval_hooks: []
+      pre_eval_hooks: []
       endpoint_type: "chat"  # default: "chat"
       caching_dir: "/some/dir"  # default: null
       generate_html_report: true  # default: true
@@ -82,6 +83,18 @@ class PostEvalHookConfig(BaseModel):
         use_enum_values = True
 
 
+class PreEvalHookConfig(BaseModel):
+    """Configuration for a single pre-evaluation hook"""
+
+    name: str = Field(description="Name of the post-evaluation hook to use")
+    enabled: bool = Field(
+        description="Whether this post-evaluation hook is enabled", default=True
+    )
+    config: dict[str, Any] = Field(
+        description="Configuration for the post-evaluation hook", default_factory=dict
+    )
+
+
 class AdapterConfig(BaseModel):
     """Adapter configuration with registry-based interceptor support"""
 
@@ -95,6 +108,10 @@ class AdapterConfig(BaseModel):
     )
     post_eval_hooks: list[PostEvalHookConfig] = Field(
         description="List of post-evaluation hooks to use with their configurations",
+        default_factory=list,
+    )
+    pre_eval_hooks: list[PreEvalHookConfig] = Field(
+        description="List of pre-evaluation hooks to use with their configurations",
         default_factory=list,
     )
     endpoint_type: str = Field(
@@ -220,12 +237,27 @@ class AdapterConfig(BaseModel):
                 {"name": s} if isinstance(s, str) else s for s in merged["interceptors"]
             ]
 
-        # Syntactic sugar for post_eval_hooks as well
+        # Syntactic sugar for post_eval_hooks (backward compatibility)
         if isinstance(merged.get("post_eval_hooks"), list):
             merged["post_eval_hooks"] = [
                 {"name": s} if isinstance(s, str) else s
                 for s in merged["post_eval_hooks"]
             ]
+        
+        # Merge post_eval_hooks into interceptors for unified processing
+        # This maintains backward compatibility for the legacy post_eval_hooks field
+        interceptors = list(merged.get("interceptors", []))
+        
+        # Add post-eval hooks to the end of interceptors (they run last in post-eval phase)
+        if merged.get("post_eval_hooks"):
+            for hook in merged["post_eval_hooks"]:
+                interceptors.append(hook)
+        
+        merged["interceptors"] = interceptors
+        
+        # Clear pre_eval_hooks field if present (not supported - use interceptors instead)
+        merged.pop("pre_eval_hooks", None)
+        
         try:
             config = cls(**merged)
 
@@ -611,3 +643,7 @@ class AdapterConfig(BaseModel):
     def get_post_eval_hook_configs(self) -> dict[str, dict[str, Any]]:
         """Get post-evaluation hook configurations as a dictionary"""
         return {hook.name: hook.config for hook in self.post_eval_hooks if hook.enabled}
+
+    def get_pre_eval_hook_configs(self) -> dict[str, dict[str, Any]]:
+        """Get pre-evaluation hook configurations as a dictionary"""
+        return {hook.name: hook.config for hook in self.pre_eval_hooks if hook.enabled}

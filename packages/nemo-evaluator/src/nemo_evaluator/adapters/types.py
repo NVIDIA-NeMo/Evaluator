@@ -153,3 +153,23 @@ class PostEvalHook(ABC):
         Ex.: This is used for report generation, cleanup, metrics collection, etc.
         """
         pass
+
+
+class PreEvalHook(ABC):
+    """Interface for pre-evaluation hooks that run before the evaluation starts.
+
+    Pre-evaluation hooks are executed before the main evaluation command is called,
+    allowing custom dataset downloads, cache prefills, missing packages installation,
+    or other pre-processing tasks.
+    """
+
+    @abstractmethod
+    def pre_eval_hook(self, context: AdapterGlobalContext) -> None:
+        """Function that will be called by the evaluation system before the evaluation starts.
+
+        Args:
+            context: Global context containing server-level configuration
+
+        Ex.: This is used for custom data downloads, cache prefills, missing packages installation
+        """
+        pass
