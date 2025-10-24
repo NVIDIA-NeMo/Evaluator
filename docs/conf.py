@@ -36,7 +36,7 @@ release = "0.1.0"
 
 extensions = [
     "myst_parser",  # For our markdown docs
-    # "autodoc2" - Added conditionally below based on package availability
+    "sphinx.ext.autosummary",  #  - Added conditionally below based on package availability
     "sphinx.ext.viewcode",  # For adding a link to view source code in docs
     "sphinx.ext.doctest",  # Allows testing in docstrings
     "sphinx.ext.napoleon",  # For google style docstrings
@@ -50,8 +50,9 @@ extensions = [
     # "ai_assistant",  # AI Assistant extension for intelligent search responses
     "swagger_plugin_for_sphinx",  # For Swagger API documentation
     "sphinxcontrib.mermaid",  # For Mermaid diagrams
+    "sphinxcontrib.autodoc_pydantic",
 ]
-
+autosummary_generate = True
 templates_path = ["_templates"]
 exclude_patterns = [
     "_build",
@@ -169,17 +170,19 @@ sys.path.insert(0, os.path.abspath("../packages/nemo-evaluator/src"))
 # Conditional autodoc2 configuration - only enable if packages exist
 # Note: We point to the parent package rather than individual subpackages because
 # the subpackages have relative imports between them (e.g., api imports from core)
-autodoc2_packages_list = ["../packages/nemo-evaluator/src/nemo_evaluator/"]
-
+# autodoc2_packages_list = ["../packages/nemo-evaluator/src/nemo_evaluator/"]
+# autodoc2_module_all_regexes = [
+#     r"nemo_evaluator.core.*", r"nemo_evaluator.adapters"
+# ]
 # Check if any of the packages actually exist before enabling autodoc2
-autodoc2_packages = []
-for pkg_path in autodoc2_packages_list:
-    abs_pkg_path = os.path.abspath(os.path.join(os.path.dirname(__file__), pkg_path))
-    if os.path.exists(abs_pkg_path):
-        autodoc2_packages.append(pkg_path)
+# autodoc2_packages = []
+# for pkg_path in autodoc2_packages_list:
+#     abs_pkg_path = os.path.abspath(os.path.join(os.path.dirname(__file__), pkg_path))
+#     if os.path.exists(abs_pkg_path):
+#         autodoc2_packages.append(pkg_path)
 
 # Only include autodoc2 in extensions if we have valid packages
-if autodoc2_packages:
+if False:
     if "autodoc2" not in extensions:
         extensions.append("autodoc2")
 
@@ -220,10 +223,11 @@ if autodoc2_packages:
         ("typing.List", "List"),
         ("typing.Dict", "Dict"),
         ("typing.Any", "Any"),
+        ("nemo_evaluator.api.api_dataclasses.Evaluation", "Evaluation"),
     ]
 
     # Don't require __all__ to be defined - document all public members
-    autodoc2_module_all_regexes = []  # Empty list means don't require __all__
+    # autodoc2_module_all_regexes = []  # Empty list means don't require __all__
 
     # Skip common test and internal modules - customize for your project
     autodoc2_skip_module_regexes = [
@@ -243,9 +247,9 @@ if autodoc2_packages:
     # This is a workaround that uses the parser located in autodoc2_docstrings_parser.py to allow autodoc2 to
     # render google style docstrings.
     # Related Issue: https://github.com/sphinx-extensions2/sphinx-autodoc2/issues/33
-    # autodoc2_docstring_parser_regexes = [
-    #     (r".*", "docs.autodoc2_docstrings_parser"),
-    # ]
+    autodoc2_docstring_parser_regexes = [
+        (r".*", "docs.autodoc2_docstrings_parser"),
+    ]
 else:
     # Remove autodoc2 from extensions if no valid packages
     if "autodoc2" in extensions:
