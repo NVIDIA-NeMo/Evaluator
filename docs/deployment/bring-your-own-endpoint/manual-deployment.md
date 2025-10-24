@@ -27,7 +27,7 @@ This guide focuses on NeMo Evaluator configuration. For specific serving framewo
 
 ## Using Manual Deployments with NeMo Evaluator
 
-Before connecting to your manual deployment, verify it's properly configured using our [Testing Endpoint Compatibility](testing-endpoint-oai-compatibility.md) guide.
+Before connecting to your manual deployment, verify it's properly configured using our {ref}`deployment-testing-compatibility` guide.
 
 ### With Launcher
 

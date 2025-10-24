@@ -194,7 +194,7 @@ NeMo Evaluator supports OpenAI-compatible API endpoints:
 
 - **Hosted Models**: NVIDIA Build, OpenAI, Anthropic, Cohere
 - **Self-Hosted**: vLLM, TRT-LLM, NeMo Framework
-- **Custom Endpoints**: Any service implementing OpenAI API spec (test compatibility with our [Testing Endpoint Compatibility](../deployment/bring-your-own-endpoint/testing-endpoint-oai-compatibility.md) guide)
+- **Custom Endpoints**: Any service implementing OpenAI API spec (test compatibility with our {ref}`deployment-testing-compatibility` guide)
 
 The platform supports the following endpoint types:
 
