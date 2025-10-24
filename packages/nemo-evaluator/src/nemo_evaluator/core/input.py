@@ -32,7 +32,10 @@ from nemo_evaluator.core.utils import (
 )
 from nemo_evaluator.logging import get_logger
 
-logger = get_logger(__name__)
+__all__ = ["get_evaluation", "get_available_evaluations"]
+
+
+_logger = get_logger(__name__)
 
 
 def load_run_config(yaml_file: str) -> dict:
@@ -45,7 +48,7 @@ def load_run_config(yaml_file: str) -> dict:
     return config
 
 
-def parse_cli_args(args) -> dict:
+def _parse_cli_args(args) -> dict:
     """Parse CLI arguments into the run configuration format.
 
     NOTE: The CLI args allow to override a subset of the run configuration parameters.
@@ -145,7 +148,7 @@ def _get_framework_evaluations(
     framework_eval_mapping = {}  # framework name -> set of tasks   | used in 'framework.task' invocation
     eval_name_mapping = {}  # task name      -> set of tasks   | used in 'task' invocation
 
-    logger.debug("Loading task definitions", filepath=def_file)
+    _logger.debug("Loading task definitions", filepath=def_file)
     (
         framework_name,
         framework_defaults,
@@ -411,5 +414,5 @@ def validate_configuration(run_config: dict) -> Evaluation:
         EvaluationTarget(**run_config["target"]),
     )
     check_type_compatibility(evaluation)
-    logger.info(f"User-invoked config: \n{yaml.dump(evaluation.model_dump())}")
+    _logger.info(f"User-invoked config: \n{yaml.dump(evaluation.model_dump())}")
     return evaluation

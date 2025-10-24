@@ -42,6 +42,8 @@ from nemo_evaluator.logging import get_logger
 
 logger = get_logger(__name__)
 
+__all__ = ["evaluate"]
+
 
 def parse_output(evaluation: Evaluation) -> EvaluationResult:
     # create a module name that is importable

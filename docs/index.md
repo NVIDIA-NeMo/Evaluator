@@ -414,4 +414,7 @@ Runtime & Execution <troubleshooting/runtime-issues/index>
 
 About References <references/index>
 FAQ <references/faq>
+Eval Parameters <evaluation/parameters>
+Eval Utils <references/evaluation-utils>
+API Documentation <apireference/index>
 :::
