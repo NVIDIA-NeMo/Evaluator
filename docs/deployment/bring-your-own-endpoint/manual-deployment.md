@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 (bring-your-own-endpoint-manual)=
 
 # Manual Deployment
@@ -412,5 +416,4 @@ If requests are timing out:
 ## Next Steps
 
 - **Hosted services**: Compare with [hosted services](hosted-services.md) for managed solutions
-- **Adapter system**: Learn more about [adapter configuration](../adapters/configuration.md) for advanced request/response handling
-- **Configuration reference**: See {ref}`eval-parameters` for comprehensive evaluation parameter options
+- **Launcher-orchestrated deployment**: [Deploy](../launcher-orchestrated/index.md) models for evaluation with `nemo-evaluator-launcher` 
