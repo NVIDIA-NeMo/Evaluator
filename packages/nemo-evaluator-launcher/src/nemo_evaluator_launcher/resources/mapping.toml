@@ -274,7 +274,7 @@ container = "nvcr.io/nvidia/eval-factory/profbench:25.09.1"
 [profbench.tasks.chat.llm_judge]
 required_env_vars = []
 
-[bfcl.tasks.chat.report_generation]
+[profbench.tasks.chat.report_generation]
 required_env_vars = []
 
 
