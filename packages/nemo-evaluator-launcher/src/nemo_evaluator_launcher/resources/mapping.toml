@@ -353,3 +353,24 @@ container = "nvcr.io/nvidia/eval-factory/helm:25.09.1"
 container = "nvcr.io/nvidia/eval-factory/tooltalk:25.09.1"
 
 [tooltalk.tasks.chat.tooltalk]
+
+[nemo_skills]
+container = "nvcr.io/nvidia/eval-factory/nemo_skills:25.09.1"
+
+[nemo_skills.tasks.chat.ns_aime2025]
+required_env_vars = ["JUDGE_API_KEY"]
+
+[nemo_skills.tasks.chat.ns_aime2024]
+required_env_vars = ["JUDGE_API_KEY"]
+
+[nemo_skills.tasks.chat.ns_bfcl_v3]
+
+[nemo_skills.tasks.chat.ns_gpqa]
+required_env_vars = ["HF_TOKEN"]
+
+[nemo_skills.tasks.chat.ns_mmlu_pro]
+required_env_vars = ["HF_TOKEN"]
+
+[nemo_skills.tasks.chat.ns_mmlu]
+
+[nemo_skills.tasks.chat.ns_livecodebench]
