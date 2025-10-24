@@ -305,7 +305,7 @@ required_env_vars = []
 ###############################################################################
 # NOTE(wprazuch): to verify if the tasks need any env var setting
 [nemo-skills]
-container = "nvcr.io/nvidia/eval-factory/nemo_skills:25.09"
+container = "nvcr.io/nvidia/eval-factory/nemo_skills:25.09.1"
 
 [nemo-skills.tasks.chat.ns_aime2024]
 required_env_vars = []
