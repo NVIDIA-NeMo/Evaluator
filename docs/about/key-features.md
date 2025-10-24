@@ -139,6 +139,7 @@ Pre-built NGC containers guarantee reproducible results across environments:
 * - **profbench**
   - Professional domains in Business and Scientific Research
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/profbench)
+  - {{ docker_compose_latest }}
   - report_generation, llm_judge
 * - **rag_retriever_eval**
   - RAG system evaluation
