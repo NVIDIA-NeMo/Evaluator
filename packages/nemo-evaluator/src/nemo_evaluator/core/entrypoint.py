@@ -27,10 +27,12 @@ from nemo_evaluator.api.api_dataclasses import EvaluationConfig, EvaluationTarge
 from nemo_evaluator.core.evaluate import evaluate
 from nemo_evaluator.core.input import (
     _get_framework_evaluations,
+    _parse_cli_args,
     load_run_config,
-    parse_cli_args,
     validate_configuration,
 )
+
+__all__ = []
 
 from .utils import deep_update
 
@@ -126,7 +128,7 @@ def show_available_tasks() -> None:
 def run(args) -> None:
     run_config = load_run_config(args.run_config) if args.run_config else {}
     # CLI args take precedence over YAML run config
-    run_config = deep_update(run_config, parse_cli_args(args), skip_nones=True)
+    run_config = deep_update(run_config, _parse_cli_args(args), skip_nones=True)
     if args.dry_run:
         evaluation = validate_configuration(run_config)
         print("Rendered config:\n")

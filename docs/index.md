@@ -401,12 +401,12 @@ Setup & Installation <troubleshooting/setup-issues/index>
 Runtime & Execution <troubleshooting/runtime-issues/index>
 ::: -->
 
-<!-- :::{toctree}
+:::{toctree}
 :caption: References
 :hidden:
 
 About References <references/index>
 Eval Parameters <evaluation/parameters>
 Eval Utils <references/evaluation-utils>
-API Documentation <apidocs/index.rst>
-::: -->
+API Documentation <apireference/index>
+:::
