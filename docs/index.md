@@ -404,7 +404,5 @@ Runtime & Execution <troubleshooting/runtime-issues/index>
 :hidden:
 
 About References <references/index>
-Eval Parameters <evaluation/parameters>
-Eval Utils <references/evaluation-utils>
 API Documentation <apidocs/index.rst>
 ::: -->

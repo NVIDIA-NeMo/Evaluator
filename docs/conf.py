@@ -36,10 +36,13 @@ release = "0.1.0"
 
 extensions = [
     "myst_parser",  # For our markdown docs
-    # "autodoc2" - Added conditionally below based on package availability
+    "sphinx.ext.autodoc",  # Standard autodoc - required by autodoc_pydantic
+    "sphinx.ext.autosummary",  # Auto-generate API docs from docstrings (like autodoc2)
     "sphinx.ext.viewcode",  # For adding a link to view source code in docs
     "sphinx.ext.doctest",  # Allows testing in docstrings
     "sphinx.ext.napoleon",  # For google style docstrings
+    "sphinxcontrib.autodoc_pydantic",  # Specialized support for Pydantic models
+    "autogen_api_docs",  # Custom: Auto-generate API docs with Pydantic detection
     "sphinx_copybutton",  # For copy button in code blocks,
     "sphinx_design",  # For grid layout
     "sphinx.ext.ifconfig",  # For conditional content
@@ -61,6 +64,7 @@ exclude_patterns = [
     "_extensions/README.md",  # Exclude main extensions README
     "_extensions/*/__pycache__",  # Exclude Python cache directories
     "_extensions/*/*/__pycache__",  # Exclude nested Python cache directories
+    # Note: keeping apidocs/ active since autogen extension is disabled
 ]
 
 # -- Options for Intersphinx -------------------------------------------------
@@ -153,100 +157,112 @@ numfig_secnum_depth = 1  # Gives you "Figure 1.1, 1.2, 2.1, etc."
 suppress_warnings = [
     "toc.not_included",  # Expected when video docs are excluded from GA builds
     "toc.no_title",  # Expected for helm docs that include external README files
-    "docutils",  # Expected for autodoc2-generated content with regex patterns and complex syntax
-    "ref.python",  # Expected for ambiguous autodoc2 cross-references (e.g., multiple 'Params' classes)
+    "ref.python",  # Expected for ambiguous cross-references (e.g., multiple 'Params' classes)
     "myst.xref_missing",  # Expected for Pydantic BaseModel docstrings that reference Pydantic's own documentation
+    "autodoc.import_object",  # Expected when optional dependencies are not installed
 ]
 
-# -- Options for Autodoc2 ---------------------------------------------------
+# -- Options for Autodoc (Standard) and Pydantic ----------------------------
+# Add package paths for autodoc to find modules
 sys.path.insert(0, os.path.abspath(".."))
 sys.path.insert(0, os.path.abspath("../packages/nemo-evaluator/src"))
 
-# Conditional autodoc2 configuration - only enable if packages exist
-# Note: We point to the parent package rather than individual subpackages because
-# the subpackages have relative imports between them (e.g., api imports from core)
-autodoc2_packages_list = ["../packages/nemo-evaluator/src/nemo_evaluator/"]
+# Standard autodoc settings
+autodoc_default_options = {
+    "members": True,
+    "member-order": "bysource",  # Keep source order
+    "special-members": False,
+    "undoc-members": True,
+    "exclude-members": "__weakref__",
+    "show-inheritance": True,
+}
 
-# Check if any of the packages actually exist before enabling autodoc2
-autodoc2_packages = []
-for pkg_path in autodoc2_packages_list:
-    abs_pkg_path = os.path.abspath(os.path.join(os.path.dirname(__file__), pkg_path))
-    if os.path.exists(abs_pkg_path):
-        autodoc2_packages.append(pkg_path)
+# Type hints configuration
+autodoc_typehints = "description"  # Show type hints in description, not signature
+autodoc_typehints_description_target = "documented"
+autodoc_type_aliases = {
+    "Optional": "typing.Optional",
+    "Union": "typing.Union",
+    "List": "typing.List",
+    "Dict": "typing.Dict",
+}
 
-# Only include autodoc2 in extensions if we have valid packages
-if autodoc2_packages:
-    if "autodoc2" not in extensions:
-        extensions.append("autodoc2")
+# ==================== AUTODOC_PYDANTIC CONFIGURATION ====================
+# Purpose-built for Pydantic models - extracts Field descriptions properly
 
-    autodoc2_render_plugin = "myst"  # Use MyST for rendering docstrings
-    autodoc2_output_dir = "apidocs"  # Output directory for autodoc2 (relative to docs/)
+# Model documentation settings
+autodoc_pydantic_model_show_json = False  # Don't show JSON schema by default
+autodoc_pydantic_model_show_config_summary = False  # Don't show model_config details
+autodoc_pydantic_model_show_config_member = False  # Don't show model_config as member
+autodoc_pydantic_model_show_validator_summary = False  # Disable to avoid ordering errors
+autodoc_pydantic_model_show_validator_members = False  # Disable to avoid ordering errors
+autodoc_pydantic_model_summary_list_order = "alphabetical"  # Use alphabetical
+autodoc_pydantic_model_member_order = "alphabetical"  # Use alphabetical to avoid ordering errors
+autodoc_pydantic_model_undoc_members = True  # Include members without docstrings
+autodoc_pydantic_model_hide_paramlist = False  # Show __init__ parameters
 
-    # ==================== GOOD DEFAULTS FOR CLEANER DOCS ====================
+# Field documentation settings - CRITICAL FOR YOUR USE CASE
+autodoc_pydantic_field_list_validators = False  # Disable to avoid ordering errors with nested classes
+autodoc_pydantic_field_doc_policy = "description"  # Use Field description as docstring
+autodoc_pydantic_field_show_alias = False  # Don't show field aliases (can cause ordering issues)
+autodoc_pydantic_field_show_default = True  # Show default values
+autodoc_pydantic_field_show_required = True  # Mark required fields
+autodoc_pydantic_field_show_constraints = True  # Show field constraints (gt, lt, etc.)
+autodoc_pydantic_field_signature_prefix = "field"  # Prefix for field signatures
+autodoc_pydantic_field_swap_name_and_alias = False  # Keep field names as-is
 
-    # Hide implementation details - good defaults for cleaner docs
-    autodoc2_hidden_objects = [
-        "dunder",  # Hide __methods__ like __init__, __str__, etc.
-        "private",  # Hide _private methods and variables
-        "inherited",  # Hide inherited methods to reduce clutter
-    ]
+# Settings documentation
+autodoc_pydantic_settings_show_json = False
+autodoc_pydantic_settings_show_config_summary = False
+autodoc_pydantic_settings_show_validator_summary = True
+autodoc_pydantic_settings_show_validator_members = True
+autodoc_pydantic_settings_signature_prefix = "setting"
 
-    # Enable module summaries for better organization
-    autodoc2_module_summary = True
+# Validator documentation
+autodoc_pydantic_validator_signature_prefix = "validator"
+autodoc_pydantic_validator_replace_signature = True
+autodoc_pydantic_validator_list_fields = True  # Show which fields validators apply to
 
-    # Sort by name for consistent organization
-    autodoc2_sort_names = True
+# Config documentation
+autodoc_pydantic_config_signature_prefix = "config"
+autodoc_pydantic_config_members = True
 
-    # Enhanced docstring processing for better formatting
-    autodoc2_docstrings = "all"  # Include all docstrings for comprehensive docs
+# ==================== AUTOSUMMARY CONFIGURATION ====================
+# Auto-generation similar to autodoc2 - scans packages and creates doc files
 
-    # Include class inheritance information - useful for users
-    autodoc2_class_inheritance = True
+# Enable automatic generation of stub pages from autosummary directives
+autosummary_generate = True
 
-    # Handle class docstrings properly (merge __init__ with class doc)
-    autodoc2_class_docstring = "merge"
+# Generate documentation even for items that don't have docstrings
+autosummary_generate_overwrite = True
 
-    # Better type annotation handling
-    autodoc2_type_guard_imports = True
+# Use custom templates that handle Pydantic models
+autosummary_imported_members = False  # Don't document imported members
 
-    # Replace common type annotations for better readability
-    autodoc2_replace_annotations = [
-        ("typing.Union", "Union"),
-        ("typing.Optional", "Optional"),
-        ("typing.List", "List"),
-        ("typing.Dict", "Dict"),
-        ("typing.Any", "Any"),
-    ]
+# Mock imports that might not be available during doc build
+autodoc_mock_imports = []
 
-    # Don't require __all__ to be defined - document all public members
-    autodoc2_module_all_regexes = []  # Empty list means don't require __all__
+# List of packages to document (similar to autodoc2_packages)
+# These will be used in the API reference index
+nemo_evaluator_packages = [
+    "nemo_evaluator.api",
+    "nemo_evaluator.core", 
+    "nemo_evaluator.adapters",
+    "nemo_evaluator.logging",
+    "nemo_evaluator.cli",
+]
 
-    # Skip common test and internal modules - customize for your project
-    autodoc2_skip_module_regexes = [
-        r".*\.tests?.*",  # Skip test modules
-        r".*\.test_.*",  # Skip test files
-        r".*\._.*",  # Skip private modules
-        r".*\.conftest",  # Skip conftest files
-    ]
+# Autosummary settings for better output
+autosummary_ignore_module_all = False  # Respect __all__ if present
 
-    # Load index template from external file for better maintainability
-    template_path = os.path.join(
-        os.path.dirname(__file__), "_templates", "autodoc2_index.rst"
-    )
-    with open(template_path) as f:
-        autodoc2_index_template = f.read()
+# ==================== AUTO-GENERATION CONFIGURATION ====================
+# Similar to autodoc2 - automatically generate API docs with Pydantic detection
 
-    # This is a workaround that uses the parser located in autodoc2_docstrings_parser.py to allow autodoc2 to
-    # render google style docstrings.
-    # Related Issue: https://github.com/sphinx-extensions2/sphinx-autodoc2/issues/33
-    # autodoc2_docstring_parser_regexes = [
-    #     (r".*", "docs.autodoc2_docstrings_parser"),
-    # ]
-else:
-    # Remove autodoc2 from extensions if no valid packages
-    if "autodoc2" in extensions:
-        extensions.remove("autodoc2")
-    print("INFO: autodoc2 disabled - no valid packages found in autodoc2_packages_list")
+# Output directory for auto-generated API docs (relative to docs/)
+autogen_api_output_dir = "apidocs"  # Replaces old autodoc2 location
+
+# Template file for the API index page (in _templates/)
+autogen_api_template = "autogen_api_index.rst"
 
 # -- Options for Napoleon (Google Style Docstrings) -------------------------
 napoleon_google_docstring = True

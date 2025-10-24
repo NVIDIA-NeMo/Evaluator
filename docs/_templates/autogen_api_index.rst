@@ -3,6 +3,8 @@ API Reference
 
 The NeMo Evaluator API reference provides comprehensive technical documentation for all modules, classes, and functions.
 
+**Auto-generated with intelligent Pydantic detection** - Pydantic models show field descriptions from ``Field(description="...")``.
+
 Core Modules
 ------------
 
@@ -10,7 +12,7 @@ Core Modules
    :gutter: 3
 
    .. grid-item-card:: :octicon:`cpu;1.5em;sd-mr-1` Core
-      :link: nemo_evaluator/nemo_evaluator.core
+      :link: core/index
       :link-type: doc
       :class-card: sd-border-0
 
@@ -19,7 +21,7 @@ Core Modules
       Core evaluation functionality, task registry, and entrypoint logic for running evaluations.
 
    .. grid-item-card:: :octicon:`plug;1.5em;sd-mr-1` Adapters
-      :link: nemo_evaluator/nemo_evaluator.adapters
+      :link: adapters/index
       :link-type: doc
       :class-card: sd-border-0
 
@@ -28,7 +30,7 @@ Core Modules
       Adapters for different model endpoints, caching, interceptors, and response handling.
 
    .. grid-item-card:: :octicon:`terminal;1.5em;sd-mr-1` CLI
-      :link: nemo_evaluator/nemo_evaluator.cli
+      :link: cli/index
       :link-type: doc
       :class-card: sd-border-0
 
@@ -37,7 +39,7 @@ Core Modules
       Command-line tools and entry points for running evaluations from the terminal.
 
    .. grid-item-card:: :octicon:`code;1.5em;sd-mr-1` API
-      :link: nemo_evaluator/nemo_evaluator.api
+      :link: api/index
       :link-type: doc
       :class-card: sd-border-0
 
@@ -46,7 +48,7 @@ Core Modules
       Programmatic interfaces for integrating NeMo Evaluator into your Python applications.
 
    .. grid-item-card:: :octicon:`log;1.5em;sd-mr-1` Logging
-      :link: nemo_evaluator/nemo_evaluator.logging
+      :link: logging/index
       :link-type: doc
       :class-card: sd-border-0
 
@@ -55,13 +57,13 @@ Core Modules
       Logging configuration, context management, and utilities for tracking evaluation progress.
 
 
-
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :hidden:
 
-   nemo_evaluator/nemo_evaluator.core
-   nemo_evaluator/nemo_evaluator.adapters
-   nemo_evaluator/nemo_evaluator.api
-   nemo_evaluator/nemo_evaluator.cli
+   api/index
+   core/index
+   adapters/index
+   logging/index
+   cli/index
 
