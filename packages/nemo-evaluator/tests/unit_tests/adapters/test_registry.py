@@ -152,9 +152,10 @@ class TestInterceptorRegistry:
             registry.discover_components(modules=["test.module", "another.module"])
 
             assert (
-                mock_import.call_count == 5
-            )  # 3 Default modules + 2 specified modules
+                mock_import.call_count == 6
+            )  # 4 Default modules + 2 specified modules
             mock_import.assert_any_call("nemo_evaluator.adapters.interceptors")
+            mock_import.assert_any_call("nemo_evaluator.adapters.pre_hooks")
             mock_import.assert_any_call("nemo_evaluator.adapters.reports")
             mock_import.assert_any_call("test.module")
             mock_import.assert_any_call("another.module")
@@ -177,9 +178,10 @@ class TestInterceptorRegistry:
                 registry.discover_components(dirs=[str(test_dir)])
 
                 assert (
-                    mock_import.call_count == 4
-                )  # 3 Default modules + discovered module
+                    mock_import.call_count == 5
+                )  # 4 Default modules + discovered module
                 mock_import.assert_any_call("nemo_evaluator.adapters.interceptors")
+                mock_import.assert_any_call("nemo_evaluator.adapters.pre_hooks")
                 mock_import.assert_any_call("nemo_evaluator.adapters.reports")
                 mock_import.assert_any_call("test_plugins.test_interceptor")
                 # Note: internal module is imported but not asserted to avoid test dependencies
@@ -202,9 +204,10 @@ class TestInterceptorRegistry:
                 )
 
                 assert (
-                    mock_import.call_count == 5
-                )  # 3 Default modules + specified module + discovered module
+                    mock_import.call_count == 6
+                )  # 4 Default modules + specified module + discovered module
                 mock_import.assert_any_call("nemo_evaluator.adapters.interceptors")
+                mock_import.assert_any_call("nemo_evaluator.adapters.pre_hooks")
                 mock_import.assert_any_call("nemo_evaluator.adapters.reports")
                 mock_import.assert_any_call("test.module")
                 mock_import.assert_any_call("test_plugins.test_interceptor")

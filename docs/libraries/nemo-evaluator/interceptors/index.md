@@ -127,10 +127,17 @@ Collects statistics from API responses for metrics collection and analysis.
 
 ::::
 
-## Process Post-Evaluation Results
+## Evaluation Lifecycle Hooks
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
+
+:::{grid-item-card} {octicon}`zap;1.5em;sd-mr-1` Pre-Evaluation Hooks
+:link: pre-evaluation-hooks
+:link-type: doc
+
+Prepare the environment before evaluations start - download datasets, install packages, prefill caches.
+:::
 
 :::{grid-item-card} {octicon}`report;1.5em;sd-mr-1` Post-Evaluation Hooks
 :link: post-evaluation-hooks
@@ -155,5 +162,6 @@ Progress Tracking <progress-tracking>
 Raising on Client Errors <raise-client-error>
 Reasoning <reasoning>
 Response Statistics <response-stats>
+Pre-Evaluation Hooks <pre-evaluation-hooks>
 Post-Evaluation Hooks <post-evaluation-hooks>
 :::

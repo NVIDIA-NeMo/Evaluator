@@ -58,6 +58,7 @@ def adapter_server_with_cache(
         interceptors=[
             dict(
                 name="caching",
+                enabled=True,
                 config={
                     "cache_dir": str(tmp_path / "cache"),
                     "reuse_cached_responses": True,
@@ -67,17 +68,21 @@ def adapter_server_with_cache(
             ),
             dict(
                 name="endpoint",
+                enabled=True,
                 config={},
             ),
             dict(
                 name="response_logging",
+                enabled=True,
+                config={},
             ),
             dict(
                 name="reasoning",
+                enabled=True,
+                config={"end_reasoning_token": "</think>"},
             ),
         ]
     )
-
     evaluation = Evaluation(
         command="",
         framework_name="",
@@ -116,7 +121,7 @@ def test_get_token_usage_from_cache_db_single_request(
     )
 
     # Wait for server to be ready
-    wait_for_server("localhost", 3825)
+    wait_for_server(AdapterServer.DEFAULT_ADAPTER_HOST, adapter_server_with_cache.port)
 
     # Test data
     test_data = {
@@ -156,7 +161,7 @@ def test_get_token_usage_from_cache_db_multiple_requests(
     )
 
     # Wait for server to be ready
-    wait_for_server("localhost", 3825)
+    wait_for_server(AdapterServer.DEFAULT_ADAPTER_HOST, adapter_server_with_cache.port)
 
     # Different test prompts with different token usage
     test_cases = [
