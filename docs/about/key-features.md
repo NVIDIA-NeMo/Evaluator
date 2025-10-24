@@ -136,6 +136,10 @@ Pre-built NGC containers guarantee reproducible results across environments:
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/nemo_skills)
   - {{ docker_compose_latest }}
   - ns_aime2024, ns_aime2025, ns_aime2025_ef, ns_bfcl_v3, ns_gpqa, ns_gpqa_ef, ns_hle, ns_livecodebench, ns_mmlu, ns_mmlu_pro
+* - **profbench**
+  - Professional domains in Business and Scientific Research
+  - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/profbench)
+  - report_generation, llm_judge
 * - **rag_retriever_eval**
   - RAG system evaluation
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/rag_retriever_eval)
