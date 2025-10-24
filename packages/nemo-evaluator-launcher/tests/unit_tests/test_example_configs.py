@@ -58,9 +58,9 @@ class TestExampleConfigs:
                         "++execution.type=slurm",
                         "++execution.hostname=test-slurm-host",
                         "++execution.account=test-account",
+                        "++deployment.checkpoint_path=null",
                     ]
                 )
-
             # Load configuration using RunConfig.from_hydra (same as CLI)
             cfg = RunConfig.from_hydra(
                 config_name=config_name,

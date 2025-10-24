@@ -1,0 +1,26 @@
+nemo-evaluator:
+- packages/nemo-evaluator/**/*
+- docs/libraries/nemo-evaluator/**/*
+
+nemo-evaluator-launcher:
+- packages/nemo-evaluator-launcher/**/*
+- docs/libraries/nemo-evaluator-launcher/**/*
+
+documentation:
+- docs/**/*
+- README.md
+- tutorials/**/*
+
+tests:
+- tests/**/*
+- packages/nemo-evaluator/tests/**/*
+- packages/nemo-evaluator-launcher/tests/**/*
+
+scripts:
+- scripts/**/*
+
+CI:
+- .github/**/*
+- Dockerfile
+- docker/**/*
+

@@ -12,10 +12,16 @@ Use this section to understand how {{ product_name_short }} works at a high leve
 Core evaluation types, OpenAI-compatible endpoints, and metrics.
 :::
 
-:::{grid-item-card} Execution backend
+:::{grid-item-card} Execution Backend
 :link: execution-backend
 :link-type: ref
-Your runtime execution environment
+Your runtime execution environment.
+:::
+
+:::{grid-item-card} Evaluation Output
+:link: evaluation-output
+:link-type: doc
+Standardized output structure across all harnesses and tasks is what makes Evaluator powerful.
 :::
 
 :::{grid-item-card} Framework Definition Files
@@ -37,6 +43,7 @@ Advanced request/response processing with configurable interceptor pipelines.
 
 Architecture <architecture>
 Evaluation Model <evaluation-model>
+Evaluation Output <evaluation-output>
 Execution Backend <execution-backend>
 Framework Definition Files <framework-definition-file>
 Interceptors <interceptors>

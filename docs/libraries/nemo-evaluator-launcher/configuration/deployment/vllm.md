@@ -12,10 +12,16 @@ Configure vLLM as the deployment backend for serving models during evaluation.
 deployment:
   type: vllm
   image: vllm/vllm-openai:latest
-  checkpoint_path: /path/to/model  # Model path (local or HuggingFace ID)
+  hf_model_handle: hf-model/handle  # HuggingFace ID
+  checkpoint_path: null             # or provide a path to the stored checkpoint
   served_model_name: your-model-name
   port: 8000
 ```
+
+**Required Fields:**
+
+- `checkpoint_path` or `hf_model_handle`: Model path or HuggingFace model ID (e.g., `meta-llama/Llama-3.1-8B-Instruct`)
+- `served_model_name`: Name for the served model
 
 ### Performance Settings
 
@@ -55,13 +61,14 @@ defaults:
   - _self_
 
 deployment:
-  checkpoint_path: /path/to/checkpoint
-  served_model_name: llama-3.1-8b-instruct
+  checkpoint_path: Qwen/Qwen3-4B-Instruct-2507
+  served_model_name: qwen3-4b-instruct-2507
   tensor_parallel_size: 1
   data_parallel_size: 8
   extra_args: "--max-model-len 4096"
 
 execution:
+  hostname: your-cluster-headnode
   account: your-account
   output_dir: /path/to/output
   walltime: 02:00:00

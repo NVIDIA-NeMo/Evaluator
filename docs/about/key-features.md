@@ -11,14 +11,14 @@ NeMo Evaluator SDK delivers comprehensive AI model evaluation through a dual-lib
 Run evaluations anywhere with unified configuration and monitoring:
 
 - **Local Execution**: Docker-based evaluation on your workstation
-- **HPC Clusters**: Slurm integration for large-scale parallel evaluation  
+- **HPC Clusters**: Slurm integration for large-scale parallel evaluation
 - **Cloud Platforms**: Lepton AI and custom cloud backend support
 - **Hybrid Workflows**: Mix local development with cloud production
 
 ```bash
 # Single command, multiple backends
 nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name slurm_llama_3_1_8b_instruct  
+nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name slurm_llama_3_1_8b_instruct
 nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name lepton_vllm_llama_3_1_8b_instruct
 ```
 
@@ -85,14 +85,14 @@ Pre-built NGC containers guarantee reproducible results across environments:
   - CUDA code evaluation
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/compute-eval)
   - {{ docker_compose_latest }}
-  - cccl_problems, combined_problems, cuda_problems 
+  - cccl_problems, combined_problems, cuda_problems
 * - **garak**
   - Security and robustness testing
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/garak)
   - {{ docker_compose_latest }}
   - garak
-* - **genai-perf** 
-  - GenAI performance benchmarking 
+* - **genai-perf**
+  - GenAI performance benchmarking
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/genai-perf)
   - {{ docker_compose_latest }}
   - genai_perf_generation, genai_perf_summarization
@@ -131,11 +131,11 @@ Pre-built NGC containers guarantee reproducible results across environments:
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench)
   - {{ docker_compose_latest }}
   - mtbench, mtbench-cor1
-* - **nemo-skills** 
+* - **nemo-skills**
   - Language model benchmarks (science, math, agentic)
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/nemo_skills)
   - {{ docker_compose_latest }}
-  - ns_aime2024, ns_aime2025, ns_aime2025_ef, ns_bfcl_v3, ns_gpqa, ns_gpqa_ef, ns_hle, ns_livecodebench, ns_mmlu, ns_mmlu_pro 
+  - ns_aime2024, ns_aime2025, ns_aime2025_ef, ns_bfcl_v3, ns_gpqa, ns_gpqa_ef, ns_hle, ns_livecodebench, ns_mmlu, ns_mmlu_pro
 * - **rag_retriever_eval**
   - RAG system evaluation
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/rag_retriever_eval)
@@ -189,17 +189,17 @@ target:
         - name: system_message
           config:
             system_message: "You are a helpful AI assistant. Think step by step."
-        
+
         # Request logging interceptor
         - name: request_logging
           config:
             max_requests: 1000
-        
+
         # Caching interceptor
         - name: caching
           config:
             cache_dir: "./evaluation_cache"
-        
+
         # Communication with http://localhost:8080/v1/completions/
         -name: endpoint
 
@@ -208,12 +208,12 @@ target:
           config:
             start_reasoning_token: "<think>"
             end_reasoning_token: "</think>"
-        
+
         # Response logging interceptor
         - name: response_logging
           config:
             max_responses: 1000
-        
+
         # Progress tracking interceptor
         - name: progress_tracking
 ```
@@ -241,7 +241,7 @@ Direct access to specialized evaluation containers through [NGC Catalog](https:/
 # Academic benchmarks
 docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
 
-# Code generation evaluation  
+# Code generation evaluation
 docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_compose_latest }}
 
 # Safety and security testing
@@ -254,7 +254,7 @@ docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/vlmevalkit:{{ docker_
 ### Reproducible Evaluation Environments
 Every container provides:
 - **Fixed dependencies**: Locked versions for consistent results
-- **Pre-configured frameworks**: Ready-to-run evaluation harnesses  
+- **Pre-configured frameworks**: Ready-to-run evaluation harnesses
 - **Isolated execution**: No dependency conflicts between evaluations
 - **Version tracking**: Tagged releases for exact reproducibility
 
@@ -272,15 +272,19 @@ Scale from laptop to datacenter with unified configuration:
 Hydra-based configuration with full reproducibility:
 
 ```yaml
-# Evaluation configuration with overrides
+# Evaluation configuration with custom parameters
 evaluation:
   tasks:
     - name: mmlu_pro
-      overrides:
-        config.params.limit_samples: 1000
+      nemo_evaluator_config:
+        config:
+          params:
+            limit_samples: 1000
     - name: gsm8k
-      overrides:
-        config.params.temperature: 0.0
+      nemo_evaluator_config:
+        config:
+          params:
+            temperature: 0.0
 
 execution:
   output_dir: results
@@ -347,12 +351,12 @@ Add your own evaluation frameworks using Framework Definition Files:
 framework:
   name: my_custom_eval
   description: Custom evaluation for domain-specific tasks
-  
+
 defaults:
   command: >-
     python custom_eval.py --model {{target.api_endpoint.model_id}}
     --task {{config.params.task}} --output {{config.output_dir}}
-    
+
 evaluations:
   - name: domain_specific_task
     description: Evaluate domain-specific capabilities
@@ -379,28 +383,28 @@ target:
         - name: system_message
           config:
             system_message: "You are an expert AI assistant specialized in this domain."
-        
+
         # Request logging interceptor
         - name: request_logging
           config:
             max_requests: 5000
-        
+
         # Caching interceptor
         - name: caching
           config:
             cache_dir: "./production_cache"
-        
+
         # Reasoning interceptor
         - name: reasoning
           config:
             start_reasoning_token: "<think>"
             end_reasoning_token: "</think>"
-        
+
         # Response logging interceptor
         - name: response_logging
           config:
             max_responses: 5000
-        
+
         # Progress tracking interceptor
         - name: progress_tracking
           config:
@@ -422,7 +426,7 @@ nemo-evaluator-launcher run \
 
 **Safety Containers Available:**
 - **safety-harness**: Content safety evaluation using NemoGuard judge models
-- **garak**: Security vulnerability scanning and prompt injection detection  
+- **garak**: Security vulnerability scanning and prompt injection detection
 - **agentic_eval**: Tool usage and planning evaluation for agentic AI systems
 
 ##  **Monitoring and Observability**
