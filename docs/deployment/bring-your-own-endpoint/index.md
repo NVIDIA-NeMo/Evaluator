@@ -85,7 +85,7 @@ Your endpoint must provide OpenAI-compatible APIs:
 - **Health Check**: `/v1/triton_health` (GET) - For monitoring (recommended)
 
 ### Request/Response Format
-Must follow OpenAI API specifications for compatibility with evaluation frameworks.
+Must follow OpenAI API specifications for compatibility with evaluation frameworks. See the [Testing Endpoint Compatibility](testing-endpoint-oai-compatibility.md) guide to verify your endpoint's OpenAI compatibility.
 
 
 ## Configuration Management
