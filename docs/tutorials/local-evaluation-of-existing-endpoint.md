@@ -4,14 +4,8 @@ This tutorial shows how to evaluate an existing API endpoint using the Local exe
 
 ## Prerequisites
 
-### Installation
-
-First, install the NeMo Evaluator Launcher. Refer to {ref}`gs-install` for detailed setup instructions.
-
-### Requirements
-
 - Docker
-- Python environment with the NeMo Evaluator Launcher CLI available
+- Python environment with the NeMo Evaluator Launcher CLI available (install the launcher by following {ref}`gs-install`)
 
 ## Step-by-Step Guide
 
@@ -42,10 +36,12 @@ export API_KEY=...
 
 #### Option III: Deploy Your Own Endpoint
 
-Deploy an OpenAI-compatible endpoint using frameworks like vLLM, SGLang, TRT-LLM, or NIM. Refer to {ref}`bring-your-own-endpoint-manual` for deployment guidance
+Deploy an OpenAI-compatible endpoint using frameworks like vLLM, SGLang, TRT-LLM, or NIM.
+<!-- TODO: uncomment ref once the guide is ready -->
+<!-- Refer to {ref}`bring-your-own-endpoint-manual` for deployment guidance -->
 
 :::{note}
-For this tutorial, we will use `meta/llama-3.1-8b-instruct` from [build.nvidia.com](https://build.nvidia.com/meta/llama-3_1-8b-instruct). You will need to export your NGC_API_KEY to access this endpoint.
+For this tutorial, we will use `meta/llama-3.1-8b-instruct` from [build.nvidia.com](https://build.nvidia.com/meta/llama-3_1-8b-instruct). You will need to export your `NGC_API_KEY` to access this endpoint.
 :::
 
 ### 2. Select Tasks
@@ -72,13 +68,8 @@ Create a `configs` directory:
 mkdir configs
 ```
 
-Create a configuration file with a descriptive name (e.g., `configs/local_endpoint.yaml`):
-
-```bash
-touch configs/local_endpoint.yaml
-```
-
-This configuration will create evaluations for 2 tasks: `ifeval` and `humaneval_instruct`:
+Create a configuration file with a descriptive name (e.g., `configs/local_endpoint.yaml`)
+and populate it with the following content:
 
 ```yaml
 defaults:
@@ -118,6 +109,8 @@ evaluation:
             pararrelism: 2
 ```
 
+This configuration will create evaluations for 2 tasks: `ifeval` and `humaneval_instruct`.
+
 You can display the whole configuration and scripts which will be executed using `--dry-run`:
 
 ```
@@ -146,11 +139,40 @@ nemo-evaluator-launcher run --config-dir configs --config-name local_endpoint \
   -o target.api_endpoint.api_key_name=API_KEY
 ```
 
-After launching, you can view logs and job status. When jobs finish, you can display results and export them using the available exporters. Refer to {ref}`exporters-overview` for available export options.
+### 6. Check the Job Status and Results
+
+List the runs from last 2 hours to see the invocation IDs of the two evaluation jobs:
+
+```bash
+nemo-evaluator-launcher ls runs --since 2h   # list runs from last 2 hours
+```
+
+Use the IDs to check the jobs statuses:
+
+```bash
+nemo-evaluator-launcher status <invocation_id1> <invocation_id2> --json
+```
+
+When jobs finish, you can display results and export them using the available exporters:
+
+```bash
+# Check the results
+cat results/*/artifacts/results.yml
+
+# Check the running logs
+tail -f results/*/*/logs/stdout.log   # use the output_dir printed by the run command
+
+# Export metrics and metadata from both runs to json
+nemo-evaluator-launcher export <invocation_id1> <invocation_id2> --dest local --format json
+cat processed_results.json
+```
+
+Refer to {ref}`exporters-overview` for available export options.
 
 ## Next Steps
 
 - **{ref}`evaluation-configuration`**: Customize evaluation parameters and prompts
 - **{ref}`executors-overview`**: Try Slurm or Lepton for different environments
-- **{ref}`bring-your-own-endpoint-manual`**: Deploy your own endpoints with various frameworks
+<!-- TODO: uncoment once ready -->
+<!-- - **{ref}`bring-your-own-endpoint-manual`**: Deploy your own endpoints with various frameworks -->
 - **{ref}`exporters-overview`**: Send results to W&B, MLFlow, or other platforms
