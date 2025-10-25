@@ -84,7 +84,7 @@ NeMo Evaluator works with any model that exposes an OpenAI-compatible endpoint. 
 - **Self-hosted options**: Host your own models using tools like NVIDIA NIM, vLLM, or TensorRT-LLM for full control over your evaluation environment.
 - **Models trained with NeMo framework**: Host your models trained with NeMo framework by deploying them as OpenAI-compatible endpoints using [NeMo Export-Deploy](https://github.com/nvidia-nemo/export-deploy/tree/main). More detailed user guide [here](https://github.com/nvidia-nemo/evaluator/tree/main/docs/nemo-fw).
 
-For detailed setup instructions including self-hosted configurations, see the [tutorial guide](./docs/nemo-evaluator-launcher/tutorial.md).
+For detailed setup instructions including self-hosted configurations, see the [tutorial guide](./tutorials/README.md).
 
 **Getting an NGC API Key for build.nvidia.com:**
 
