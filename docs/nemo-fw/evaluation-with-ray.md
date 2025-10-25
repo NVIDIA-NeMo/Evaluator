@@ -22,7 +22,7 @@ To deploy your model using Ray, use the `deploy` function with `serving_backend=
 ```shell
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
-  --nemo_checkpoint "meta-llama/Llama-3.1-8B" \
+  --megatron_checkpoint "meta-llama/Llama-3.1-8B" \
   --model_id "megatron_model" \
   --port 8080 \                          # Ray server port
   --num_gpus 4 \                         # Total GPUs available
@@ -33,6 +33,8 @@ python \
 ```
 
 > **Note:** Adjust `num_replicas` based on the number of instances/replicas needed. Ensure that total `num_gpus` is equal to the `num_replicas` times model parallelism configuration (i.e., `tensor_model_parallel_size * pipeline_model_parallel_size * context_parallel_size`).
+
+> **Note:** In order to evaluate NeMo 2.0 checkpoints, replace the `--meagtron_checkpoint` flag in the deployment command above with `--nemo_checkpoint`.
 
 
 ## Run Evaluations on Ray-Deployed Models
