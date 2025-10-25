@@ -86,7 +86,7 @@ Note that in the example above, you must provide a path to the tokenizer:
 
 ```
         "extra": {
-            "tokenizer": "/checkpoints/llama-3_2-1b-instruct_v2.0/context/nemo_tokenizer",
+            "tokenizer": "/checkpoints/llama-3_2-1b-instruct_v2.0/iter_000000/tokenizer",
             "tokenizer_backend": "huggingface",
         },
 ```

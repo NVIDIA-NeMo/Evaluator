@@ -14,11 +14,11 @@
 
 ## Deploy
 
-CHECKPOINT_PATH="/checkpoints/llama-3_2-1b-instruct_v2.0"
+CHECKPOINT_PATH="/checkpoints/llama-3_2-1b-instruct_v2.0/iter_0000000"
 
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
-  --nemo_checkpoint ${CHECKPOINT_PATH} \
+  --megatron_checkpoint ${CHECKPOINT_PATH} \
   --model_id megatron_model \
   --port 8080 \
   --host 0.0.0.0

@@ -1,6 +1,6 @@
 # Use Ray Serve for Multi-Instance Evaluations
 
-This guide explains how to deploy and evaluate NeMo Framework models, trained with the Megatron-Core backend, using Ray Serve to enable multi-instance evaluation across available GPUs.
+This guide explains how to deploy and evaluate Megatron Bridge models, trained in NeMo Framework with the Megatron-Core backend, using Ray Serve to enable multi-instance evaluation across available GPUs.
 
 ## Introduction
 
@@ -17,12 +17,12 @@ Deployment with Ray Serve provides support for multiple replicas of your model a
 
 ## Deploy Models Using Ray Serve
 
-To deploy your model using Ray, use the `deploy` function with `serving_backend="ray"`:
+To deploy your model using Ray, use the `deploy` function with `serving_backend="ray"` use the command below where `--megatron_checkpoint` is the path to Megatron Bridge checkpoint.
 
 ```shell
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
-  --megatron_checkpoint "meta-llama/Llama-3.1-8B" \
+  --megatron_checkpoint "/workspace/llama3_8b/iter_0000000" \
   --model_id "megatron_model" \
   --port 8080 \                          # Ray server port
   --num_gpus 4 \                         # Total GPUs available
@@ -34,7 +34,7 @@ python \
 
 > **Note:** Adjust `num_replicas` based on the number of instances/replicas needed. Ensure that total `num_gpus` is equal to the `num_replicas` times model parallelism configuration (i.e., `tensor_model_parallel_size * pipeline_model_parallel_size * context_parallel_size`).
 
-> **Note:** In order to evaluate NeMo 2.0 checkpoints, replace the `--meagtron_checkpoint` flag in the deployment command above with `--nemo_checkpoint`.
+> **Note:** In order to evaluate NeMo 2.0 checkpoints, replace the `--meagtron_checkpoint` flag in the deployment command above with `--nemo_checkpoint` and provide the path for NeMo checkpoint.
 
 
 ## Run Evaluations on Ray-Deployed Models
@@ -83,7 +83,7 @@ Note that in the example above, you must provide a path to the tokenizer:
 
 ```
         "extra": {
-            "tokenizer": "/workspace/llama3_8b_nemo2/context/nemo_tokenizer",
+            "tokenizer": "/workspace/llama3_8b/iter_0000000/tokenizer",
             "tokenizer_backend": "huggingface",
         },
 ```
