@@ -23,14 +23,14 @@ python \
   --use_vllm_backend
 ```
 
-The `--model_path` can refer to either a local checkpoint path or a Hugging Face model ID, as shown in the example above. In the example above, checkpoint deployment uses the `vLLM` backend. To enable accelerated inference, install `vLLM` in your environment. To install `vLLM` inside the NeMo Framework container, follow the steps below as shared in [Export-Deploy's README](https://github.com/nvidia-nemo/export-deploy?tab=readme-ov-file#install-tensorrt-llm-vllm-or-trt-onnx-backend:~:text=cd%20/opt/export%2ddeploy%0auv%20sync%20%2d%2dinexact%20%2d%2dlink%2dmode%20symlink%20%2d%2dlocked%20%2d%2dextra%20vllm%20%24(cat%20/opt/uv_args.txt)):
+The `--model_path` can refer to either a local checkpoint path or a Hugging Face model ID, as shown in the example above. In the example above, checkpoint deployment uses the `vLLM` backend. To enable accelerated inference, install `vLLM` in your environment. To install `vLLM` inside the NeMo Framework container, follow the steps below as shared in [Export-Deploy's README](https://github.com/NVIDIA-NeMo/Export-Deploy?tab=readme-ov-file#install-tensorrt-llm-vllm-or-trt-onnx-backend):
 
 ```shell
 cd /opt/Export-Deploy
 uv sync --inexact --link-mode symlink --locked --extra vllm $(cat /opt/uv_args.txt)
 ```
 
-To install `vLLM` outside of the NeMo Framework container, follow the steps mentioned [here](https://github.com/nvidia-nemo/export-deploy?tab=readme-ov-file#install-tensorrt-llm-vllm-or-trt-onnx-backend:~:text=install%20transformerengine%20%2b%20vllm).
+To install `vLLM` outside of the NeMo Framework container, follow the steps mentioned [here](https://github.com/NVIDIA-NeMo/Export-Deploy?tab=readme-ov-file#install-tensorrt-llm-vllm-or-trt-onnx-backend).
 
 If you prefer to evaluate the Automodel checkpoint without using the `vLLM` backend, remove the `--use_vllm_backend` flag from the command above.
 
