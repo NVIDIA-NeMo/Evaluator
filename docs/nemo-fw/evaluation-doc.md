@@ -151,7 +151,7 @@ This section explains how to run evaluations with NeMo Run. For detailed informa
 
 The [evaluation_with_nemo_run.py](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/scripts/evaluation_with_nemo_run.py) script serves as a reference for launching evaluations with NeMo Run. This script demonstrates how to use NeMo Run with both local executors (your local workstation) and Slurm-based executors like clusters. In this setup, the deploy and evaluate processes are launched as two separate jobs with NeMo Run. The evaluate method waits until the PyTriton server is accessible and the model is deployed before starting the evaluations.
 
-> **Note:** Please make sure to update HF_TOKEN in the NeMo Run script's [local_executor env_vars](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/scripts/evaluation_with_nemo_run.py#L270) with your HF_TOKEN if using local executor or in the [slurm_executor's env_vars](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/scripts/evaluation_with_nemo_run.py#L235) if using slurm_executor.
+> **Note:** Please make sure to update HF_TOKEN in the NeMo Run script's [local_executor env_vars](https://github.com/nvidia-nemo/evaluator/blob/main/scripts/evaluation_with_nemo_run.py#L270) with your HF_TOKEN if using local executor or in the [slurm_executor's env_vars](https://github.com/nvidia-nemo/evaluator/blob/main/scripts/evaluation_with_nemo_run.py#L235) if using slurm_executor.
 
 ### Run Locally with NeMo Run
 
