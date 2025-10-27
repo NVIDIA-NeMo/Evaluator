@@ -232,8 +232,7 @@ def get_endpoint_url(
 
     else:
         # Local executor - use localhost
-        task_endpoint_type = task_definition["endpoint_type"]
-        endpoint_uri = cfg.deployment.endpoints[task_endpoint_type]
+        endpoint_uri = cfg.deployment.endpoints[endpoint_type]
 
         # Use HAProxy port if multiple_instances is enabled
         if cfg.deployment.get("multiple_instances", False):
