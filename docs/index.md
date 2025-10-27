@@ -408,5 +408,16 @@ Runtime & Execution <troubleshooting/runtime-issues/index>
 About References <references/index>
 Eval Parameters <evaluation/parameters>
 Eval Utils <references/evaluation-utils>
-API Documentation <apireference/index>
+:::
+
+
+# NeMo Evaluator
+:::{toctree}
+:glob:
+:maxdepth: 2
+:caption: Python API
+:hidden:
+:nosignatures:
+
+nemo-evaluator <apireference/index>
 :::
