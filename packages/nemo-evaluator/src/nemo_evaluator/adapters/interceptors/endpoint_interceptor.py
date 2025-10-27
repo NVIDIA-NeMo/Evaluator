@@ -36,8 +36,6 @@ from nemo_evaluator.logging import BaseLoggingParams, get_logger
 )
 @final
 class EndpointInterceptor(RequestToResponseInterceptor):
-    """Makes the actual request to the upstream API."""
-
     class Params(BaseLoggingParams):
         """Configuration parameters for endpoint interceptor."""
 
