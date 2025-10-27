@@ -8,7 +8,8 @@ The NeMo Evaluator is integrated within NeMo Framework, offering streamlined dep
 
 ## Prerequisites
 
-- Docker with GPU support
+- Docker installed
+- CUDA-compatible GPU
 - [NeMo Framework docker container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo/tags)
 - Your model checkpoint (or use [Llama 3.2 1B Instruct](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/llama-3_2-1b-instruct) for testing)
 
