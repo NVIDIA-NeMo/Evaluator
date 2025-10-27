@@ -72,6 +72,7 @@ docs = [
     "sphinx-autobuild",    # For live doc serving while editing docs
     "sphinx-autodoc2",     # For documenting Python API
     "autodoc_pydantic",
+    "nemo_evaluator_launcher",
     "enum-tools[sphinx]",
     "sphinxcontrib-autoprogram",
     "sphinx-copybutton",   # Adds a copy button for code blocks

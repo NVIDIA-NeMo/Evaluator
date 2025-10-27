@@ -37,7 +37,7 @@ __all__ = []
 from .utils import deep_update
 
 
-def get_args() -> argparse.Namespace:
+def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--debug", action="store_true", help="Debug the core_evals script"
@@ -84,6 +84,11 @@ def get_args() -> argparse.Namespace:
         default=False,
     )
     parser_run.set_defaults(command="run_eval")
+    return parser
+
+
+def get_args() -> argparse.Namespace:
+    parser = get_parser()
 
     args = parser.parse_args()
 
