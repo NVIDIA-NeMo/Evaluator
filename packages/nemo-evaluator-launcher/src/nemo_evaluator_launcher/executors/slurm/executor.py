@@ -42,6 +42,7 @@ from nemo_evaluator_launcher.common.execdb import (
 from nemo_evaluator_launcher.common.helpers import (
     get_api_key_name,
     get_eval_factory_command,
+    get_eval_factory_config,
     get_eval_factory_dataset_size_from_run_config,
     get_timestamp_string,
 )
