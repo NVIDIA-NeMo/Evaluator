@@ -51,6 +51,7 @@ extensions = [
     "swagger_plugin_for_sphinx",  # For Swagger API documentation
     "sphinxcontrib.mermaid",  # For Mermaid diagrams
     "sphinxcontrib.autodoc_pydantic",
+    "enum_tools.autoenum",
 ]
 autosummary_generate = True
 templates_path = ["_templates"]
@@ -299,3 +300,12 @@ html_extra_path = ["project.json", "versions1.json"]
 
 # Note: JSON output configuration has been moved to the consolidated
 # json_output_settings dictionary above for better organization and new features!
+autosummary_ignore_module_all = True
+# autodoc_default_options = {
+#     'members': True,
+#     'undoc-members': False,
+#     'inherited-members': False,
+#     'special-members': False,
+#     'private-members': False,
+#     'exclude-members': '__init__, __repr__, __eq__',
+# }
