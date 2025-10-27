@@ -14,6 +14,9 @@
 #!/usr/bin/env python3
 
 # [snippet-start]
+# Start Python in a new terminal
+# 3. Launch evaluation:
+
 from nemo_evaluator.api import evaluate
 from nemo_evaluator.api.api_dataclasses import (
     ApiEndpoint,

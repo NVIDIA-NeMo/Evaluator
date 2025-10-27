@@ -38,9 +38,6 @@ python \
   --model_id megatron_model \
   --port 8080 \
   --host 0.0.0.0
-
-# Start Python in a new terminal
-# 3. Launch evaluation:
 ```
 
 ```{literalinclude} ../_snippets/nemo_fw_basic.py
