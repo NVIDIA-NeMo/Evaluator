@@ -83,7 +83,7 @@ api_endpoint = ApiEndpoint(
 eval_target = EvaluationTarget(api_endpoint=api_endpoint)
 eval_params = ConfigParams(top_p=0, temperature=0, limit_samples=1, parallelism=1,
                             extra={
-                                "tokenizer": "/workspace/hf_downloaded_models/llama-3.2-1b/",
+                                "tokenizer": 'meta-llama/Llama-3.1-8B',
                                 "tokenizer_backend": "huggingface",
                                 },
                             )
