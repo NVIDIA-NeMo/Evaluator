@@ -567,8 +567,13 @@ def _create_slurm_sbatch_script(
 
         # wait for the server to initialize
         health_path = cfg.deployment.get("health_check_path", "/health")
+        # Only check MASTER_IP if not multiinstance, otherwise check all IPs
+        if cfg.deployment.get("multiple_instances", False):
+            ip_list = '"${NODES_IPS_ARRAY[@]}"'
+        else:
+            ip_list = '"$MASTER_IP"'
         s += _get_wait_for_server_handler(
-            '"${NODES_IPS_ARRAY[@]}"',
+            ip_list,
             cfg.deployment.port,
             health_path,
             "server",
