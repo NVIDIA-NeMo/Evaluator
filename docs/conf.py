@@ -52,6 +52,7 @@ extensions = [
     "sphinxcontrib.mermaid",  # For Mermaid diagrams
     "sphinxcontrib.autodoc_pydantic",
     "enum_tools.autoenum",
+    "sphinxcontrib.autoprogram",
 ]
 
 templates_path = ["_templates"]
