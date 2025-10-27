@@ -1160,6 +1160,9 @@ def _generate_deployment_srun_command(
     s += 'nodes_array=("${nodes[@]}")  # Ensure nodes are stored properly\n'
     s += 'export NODES_IPS_ARRAY=($(for node in "${nodes_array[@]}"; do srun --nodelist=$node --ntasks=1 --nodes=1 hostname --ip-address; done))\n'
     s += 'echo "Node IPs: ${NODES_IPS_ARRAY[@]}"\n'
+    s += '# Export MASTER_IP as the first node IP\n'
+    s += 'export MASTER_IP=${NODES_IPS_ARRAY[0]}\n'
+    s += 'echo "MASTER_IP: $MASTER_IP"\n'
     s += "srun --mpi pmix --overlap "
     s += f"--nodes {cfg.execution.num_nodes} --ntasks {cfg.execution.num_nodes} "
     s += "--container-image {} ".format(cfg.deployment.image)
@@ -1180,6 +1183,11 @@ def _generate_deployment_srun_command(
             stacklevel=2,
         )
         deployment_env_var_names.extend(list(cfg.deployment["env_vars"]))
+    
+    # Always add MASTER_IP to the environment variables
+    if "MASTER_IP" not in deployment_env_var_names:
+        deployment_env_var_names.append("MASTER_IP")
+    
     if deployment_env_var_names:
         s += f"--container-env {','.join(deployment_env_var_names)} "
     s += "{} &\n\n".format(cfg.deployment.command)  # run asynchronously
