@@ -12,4 +12,5 @@ Core Modules
 :hidden:
 :nosignatures:
 nemo-evaluator.api.api_dataclasses <nemo-evaluator-api-dataclasses>
+nemo-evaluator.adapters <nemo-evaluator-adapters>
 :::

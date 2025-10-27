@@ -42,13 +42,41 @@ from nemo_evaluator.logging import BaseLoggingParams, get_logger
 class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
     """Adds reasoning information to responses and tracks reasoning metrics.
 
-    Tracks the following statistics:
-    - Total responses processed
-    - Responses with reasoning content
-    - Reasoning completion status (started/finished)
-    - Word counts for reasoning, original content, and updated content
-    - Maximum reasoning length
-    - Average reasoning and content lengths
+    | Tracks the following statistics:
+    | - Total responses processed
+    | - Responses with reasoning content
+    | - Reasoning completion status (started/finished)
+    | - Word counts for reasoning, original content, and updated content
+    | - Maximum reasoning length
+    | - Average reasoning and content lengths
+
+    .. highlight:: bash
+    YAML Configuration::
+
+        --overrides 'target.api_endpoint.adapter_config.use_reasoning=True,target.api_endpoint.adapter_config.end_reasoning_token="</think>",target.api_endpoint.adapter_config.start_reasoning_token="<think>"'
+
+    .. highlight:: yaml
+    YAML Configuration::
+
+        target:
+        api_endpoint:
+            adapter_config:
+            interceptors:
+                - name: "endpoint"
+                enabled: true
+                config: {}
+                - name: reasoning
+                config:
+                    start_reasoning_token: "<think>"
+                    end_reasoning_token: "</think>"
+                    add_reasoning: true
+                    enable_reasoning_tracking: true
+
+    ```{code-block} python
+
+    for i in j:
+        print(i)
+    ```
     """
 
     class Params(BaseLoggingParams):

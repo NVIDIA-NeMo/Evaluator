@@ -53,7 +53,7 @@ extensions = [
     "sphinxcontrib.autodoc_pydantic",
     "enum_tools.autoenum",
 ]
-autosummary_generate = True
+
 templates_path = ["_templates"]
 exclude_patterns = [
     "_build",
@@ -301,11 +301,17 @@ html_extra_path = ["project.json", "versions1.json"]
 # Note: JSON output configuration has been moved to the consolidated
 # json_output_settings dictionary above for better organization and new features!
 autosummary_ignore_module_all = True
-# autodoc_default_options = {
-#     'members': True,
-#     'undoc-members': False,
-#     'inherited-members': False,
-#     'special-members': False,
-#     'private-members': False,
-#     'exclude-members': '__init__, __repr__, __eq__',
-# }
+autosummary_generate = True
+autodoc_default_options = {
+    "members": True,
+    "undoc-members": False,
+    "inherited-members": False,
+    "special-members": False,
+    "private-members": False,
+    "show-inheritance": True,
+}
+
+autodoc_pydantic_model_show_json = False
+autodoc_pydantic_model_show_config_summary = True
+autodoc_pydantic_model_show_field_summary = False
+autodoc_pydantic_model_show_validator_summary = True

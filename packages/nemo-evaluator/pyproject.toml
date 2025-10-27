@@ -73,6 +73,7 @@ docs = [
     "sphinx-autodoc2",     # For documenting Python API
     "autodoc_pydantic",
     "enum-tools[sphinx]",
+    "sphinxcontrib-autoprogram",
     "sphinx-copybutton",   # Adds a copy button for code blocks
     "myst-parser",         # For our markdown docs
     "nvidia-sphinx-theme", # Our NVIDIA theme
