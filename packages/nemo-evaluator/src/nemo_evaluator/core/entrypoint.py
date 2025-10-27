@@ -109,6 +109,19 @@ def get_args() -> argparse.Namespace:
 
 
 def show_available_tasks() -> None:
+    """
+    Prints all available evaluations in the format of::
+
+        {harness1}:
+            * benchmark A
+            * benchmark B
+        {harness2}:
+            * benchmark A
+            * benchmark B
+        ...
+
+    .. important:: Only evaluations from installed wheels are being displayed.
+    """
     try:
         import core_evals
 
