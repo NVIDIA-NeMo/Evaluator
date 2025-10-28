@@ -40,7 +40,7 @@ repository = "https://github.com/NVIDIA-NeMo/Evaluator/packages/nemo-evaluator-l
 [project.optional-dependencies]
 mlflow = ["mlflow>=2.8.0"]
 wandb = ["wandb>=0.15.0"]
-gsheets = ["gsheets>=0.1.0"]
+gsheets = ["gspread>=5.0.0"]
 exporters = ["mlflow", "wandb", "gsheets"]
 all = ["mlflow", "wandb", "gsheets"]
 

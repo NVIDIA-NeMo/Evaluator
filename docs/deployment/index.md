@@ -133,7 +133,7 @@ Choose from these approaches when managing your own deployment:
 <!-- 
 ### Manual Deployment
 - **vLLM**: High-performance serving with PagedAttention optimization
-- **Custom serving**: Any OpenAI-compatible endpoint (verify compatibility with our [Testing Endpoint Compatibility](bring-your-own-endpoint/testing-endpoint-oai-compatibility.md) guide) -->
+- **Custom serving**: Any OpenAI-compatible endpoint (verify compatibility with our {ref}`deployment-testing-compatibility` guide) -->
 
 ### Hosted Services  
 - **NVIDIA Build**: Ready-to-use hosted models with OpenAI-compatible APIs

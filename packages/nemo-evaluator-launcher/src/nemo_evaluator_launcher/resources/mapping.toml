@@ -226,7 +226,7 @@ required_env_vars = []
 [bigcode-evaluation-harness.tasks.completions.humaneval]
 required_env_vars = []
 
-[bigcode-evaluation-harness.tasks.completions.humaneval_instruct]
+[bigcode-evaluation-harness.tasks.chat.humaneval_instruct]
 
 
 ###############################################################################
@@ -304,29 +304,29 @@ required_env_vars = []
 
 ###############################################################################
 # NOTE(wprazuch): to verify if the tasks need any env var setting
-[nemo-skills]
+[nemo_skills]
 container = "nvcr.io/nvidia/eval-factory/nemo_skills:25.09.1"
 
-[nemo-skills.tasks.chat.ns_aime2024]
+[nemo_skills.tasks.chat.ns_aime2024]
+required_env_vars = ["JUDGE_API_KEY"]
+
+[nemo_skills.tasks.chat.ns_aime2025]
 required_env_vars = []
 
-[nemo-skills.tasks.chat.ns_aime2025]
+[nemo_skills.tasks.chat.ns_bfcl_v3]
 required_env_vars = []
 
-[nemo-skills.tasks.chat.ns_bfcl_v3]
+[nemo_skills.tasks.chat.ns_gpqa]
+required_env_vars = ["HF_TOKEN"]
+
+[nemo_skills.tasks.chat.ns_hle]
 required_env_vars = []
 
-[nemo-skills.tasks.chat.ns_gpqa]
-required_env_vars = []
+[nemo_skills.tasks.chat.ns_mmlu]
+required_env_vars = ["HF_TOKEN"]
 
-[nemo-skills.tasks.chat.ns_hle]
-required_env_vars = []
-
-[nemo-skills.tasks.chat.ns_mmlu]
-required_env_vars = []
-
-[nemo-skills.tasks.chat.ns_mmlu_pro]
-required_env_vars = []
+[nemo_skills.tasks.chat.ns_mmlu_pro]
+required_env_vars = ["HF_TOKEN"]
 
 ###############################################################################
 [safety-harness]
