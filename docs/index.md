@@ -353,6 +353,7 @@ Quickstart <get-started/quickstart/index>
 
 About Tutorials <tutorials/index>
 Tutorials for NeMo Framework <tutorials/nemo-fw/index>
+Evaluate an Existing Endpoint <tutorials/local-evaluation-of-existing-endpoint>
 :::
 
 
