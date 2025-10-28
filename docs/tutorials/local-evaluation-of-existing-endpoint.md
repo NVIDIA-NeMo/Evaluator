@@ -44,7 +44,7 @@ nemo-evaluator-launcher ls tasks
 
 For a comprehensive list of supported tasks and descriptions, see {ref}`nemo-evaluator-containers`.
 
-**Important**: Each task has a dedicated endpoint type (e.g., `/v1/chat/completions`, `/v1/completions`). Ensure that your model provides the correct endpoint type for the tasks you want to evaluate. Use our [Testing Endpoint Compatibility](../deployment/bring-your-own-endpoint/testing-endpoint-oai-compatibility.md) guide to verify your endpoint supports the required formats.
+**Important**: Each task has a dedicated endpoint type (e.g., `/v1/chat/completions`, `/v1/completions`). Ensure that your model provides the correct endpoint type for the tasks you want to evaluate. Use our {ref}`deployment-testing-compatibility` guide to verify your endpoint supports the required formats.
 
 :::{note}
 For this tutorial we will pick: `ifeval` and `humaneval_instruct` as these are fast, both use the chat endpoint.

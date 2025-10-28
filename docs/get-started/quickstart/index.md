@@ -76,7 +76,7 @@ NeMo Evaluator works with any OpenAI-compatible endpoint. You have several optio
 
 ### **Self-Hosted Options**
 
-If you prefer to host your own models, verify OpenAI compatibility using our [Testing Endpoint Compatibility](../../deployment/bring-your-own-endpoint/testing-endpoint-oai-compatibility.md) guide.
+If you prefer to host your own models, verify OpenAI compatibility using our {ref}`deployment-testing-compatibility` guide.
 
 If you are deploying the model locally with Docker, you can use a dedicated docker network.
 This will provide a secure connetion between deployment and evaluation docker containers.
