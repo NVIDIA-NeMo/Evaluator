@@ -1,14 +1,6 @@
 ``nemo.evaluator.api.api_dataclasses``
 ======================================
 
-The central point of evaluation is ``evaluate()`` function that takes standarized input and returns standarized output modelled through pydantic classes.
-
-
-.. automodule:: nemo_evaluator.api
-    :members:
-    :undoc-members:
-    :member-order: bysource
-
 
 .. currentmodule:: nemo_evaluator.api.api_dataclasses
 
@@ -25,6 +17,7 @@ Modeling Target
 
 Modeling Result
 ---------------
+
 .. autosummary::
     :nosignatures:
     :recursive:
@@ -43,10 +36,10 @@ Modeling Result
     :undoc-members:
 
 
-.. autoprogram:: nemo_evaluator.core.entrypoint:get_parser()
-    :prog: nemo-evaluator
-    :start_command: run_eval
+.. .. autoprogram:: nemo_evaluator.core.entrypoint:get_parser()
+..     :prog: nemo-evaluator
+..     :start_command: run_eval
 
 
-.. autoprogram:: nemo_evaluator_launcher.cli.main:create_parser()
-    :prog: nemo-evaluator-launcher
+.. .. autoprogram:: nemo_evaluator_launcher.cli.main:create_parser()
+..     :prog: nemo-evaluator-launcher

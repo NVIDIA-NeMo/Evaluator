@@ -51,7 +51,7 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
     | - Average reasoning and content lengths
 
     .. highlight:: bash
-    YAML Configuration::
+    CLI Configuration::
 
         --overrides 'target.api_endpoint.adapter_config.use_reasoning=True,target.api_endpoint.adapter_config.end_reasoning_token="</think>",target.api_endpoint.adapter_config.start_reasoning_token="<think>"'
 
@@ -72,11 +72,6 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
                     add_reasoning: true
                     enable_reasoning_tracking: true
 
-    ```{code-block} python
-
-    for i in j:
-        print(i)
-    ```
     """
 
     class Params(BaseLoggingParams):

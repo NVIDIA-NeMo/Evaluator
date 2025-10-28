@@ -59,5 +59,5 @@ Interceptors
 .. toctree::
     :hidden:
     
-    nemo-evaluator-adapter-config
-    nemo-evaluator-interceptors
+    adapter-config
+    interceptors

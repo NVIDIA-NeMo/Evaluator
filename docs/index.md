@@ -416,16 +416,6 @@ About References <references/index>
 FAQ <references/faq>
 Eval Parameters <evaluation/parameters>
 Eval Utils <references/evaluation-utils>
+API Reference <apireference/index>
 :::
 
-
-# NeMo Evaluator
-:::{toctree}
-:glob:
-:maxdepth: 2
-:caption: Python API
-:hidden:
-:nosignatures:
-
-nemo-evaluator <apireference/index>
-:::
