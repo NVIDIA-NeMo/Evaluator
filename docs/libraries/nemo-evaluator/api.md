@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 # API Reference
 
 This document provides a comprehensive reference for the `nemo-evaluator` Python API.

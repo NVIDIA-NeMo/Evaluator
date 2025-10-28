@@ -80,6 +80,6 @@ Benchmark Containers <containers/index>
 Interceptors <interceptors/index>
 Logging <logging>
 Extending <extending/index>
-API Reference <../../../apidocs/index>
+API Reference <api>
 CLI Reference (nemo-evaluator) <cli>
 :::
