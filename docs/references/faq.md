@@ -74,18 +74,19 @@ Reference: {ref}`launcher-cli-dry-run`.
 
 Yes. Capture full request/response artifacts and retrieve them from the run's artifacts folder.
 
-Enable detailed logging with CLI overrides:
+Enable detailed logging with `nemo_evaluator_config`:
 
-```bash
-# Request + response logging (example at 1k each)
-# overrides
-
--o 'target.api_endpoint.adapter_config.use_request_logging=True' \
--o 'target.api_endpoint.adapter_config.max_saved_requests=1000' \
--o 'target.api_endpoint.adapter_config.use_response_logging=True' \
--o 'target.api_endpoint.adapter_config.max_saved_responses=1000'
-
-
+```yaml
+evaluation:
+  # Request + response logging (example at 1k each)
+  nemo_evaluator_config:
+    target:
+      api_endpoint:
+        adapter_config:
+          use_request_logging: True
+          max_saved_requests: 1000
+          use_response_logging: True
+          max_saved_responses: 1000
 ```
 
 These enable the **RequestLoggingInterceptor** and **ResponseLoggingInterceptor** so each prompt/response pair is saved alongside the evaluation job.
