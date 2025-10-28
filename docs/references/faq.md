@@ -2,7 +2,7 @@
 
 ## **What benchmarks and harnesses are supported?**
 
-The docs list hundreds of benchmarks across multiple harnesses, available via curated NGC evaluation containers and the unified Launcher. Reference: [NVIDIA Docs.](https://docs.nvidia.com/nemo/evaluator/latest/evaluation/benchmarks.html)
+The docs list hundreds of benchmarks across multiple harnesses, available via curated NGC evaluation containers and the unified Launcher. Reference: {ref}`eval-benchmarks`
 
 ///Tip  	Discover available tasks with
 
@@ -23,7 +23,7 @@ export LOG_LEVEL=DEBUG
 export NEMO_EVALUATOR_LOG_LEVEL=DEBUG
 ```
 
-Reference: [NVIDIA Docs](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator/logging.html).
+Reference: {ref}`nemo-evaluator-logging`.
 
 ---
 
@@ -31,7 +31,7 @@ Reference: [NVIDIA Docs](https://docs.nvidia.com/nemo/evaluator/latest/libraries
 
 Yes. Launcher supports multiple executors. For optimal performance, the SLURM executor is recommended. It schedules and executes jobs across cluster nodes, enabling parallel, large‑scale evaluation runs while preserving reproducibility via containerized benchmarks.
 
-See **Launcher → Executors** for details. Reference: [NVIDIA Docs.](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator-launcher/configuration/executors/slurm.html)
+See {ref}`executor-slurm` for details.
 
 ---
 
@@ -48,7 +48,7 @@ target:
 
 ```
 
-Reference: [NVIDIA Docs](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator-launcher/configuration/deployment/none.html). 
+Reference: {ref}`deployment-none`. 
 
 ---
 
@@ -60,7 +60,7 @@ Yes. Preview the full resolved configuration without executing using \`\--dry-ru
 nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct --dry-run
 ```
 
-Reference: [NVIDIA Docs](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator-launcher/cli.html#dry-run).
+Reference: {ref}`launcher-cli-dry-run`.
 
 ---
 
@@ -92,7 +92,7 @@ nemo-evaluator-launcher export <invocation_id> --dest local --output-dir ./artif
 
 Look under \`./artifacts/\` for \`results.yml\`, reports, logs, and saved request/response files.
 
-[Reference NVIDIA Docs](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator/interceptors/request-logging.html).
+Reference: {ref}`interceptor-request-logging`.
 
 ---
 
@@ -127,13 +127,13 @@ And response stats saved to metrics:
       - **Metrics File**: Final statistics saved to `eval_factory_metrics.json`
 ```
 
-[Reference: NVIDIA Docs](https://docs.nvidia.com/nemo/evaluator/latest/about/concepts/evaluation-output.html).
+Reference: {ref}`evaluation-output`.
 
 ---
 
 ## **Can I export a consolidated JSON of scores?**
 
-Yes. JSON is included in the standard output exporter, along with automatic exporters for MLflow, Weights & Biases, and Google Sheets)
+Yes. JSON is included in the standard output exporter, along with automatic exporters for MLflow, Weights & Biases, and Google Sheets.
 
 ```shell
 nemo-evaluator-launcher export <invocation_id> --dest local --format json
@@ -143,14 +143,14 @@ This creates `processed_results.json` (you can also pass multiple invocation IDs
 
 **Exporter docs:** Local files, W\&B, MLflow, GSheets are listed under **Launcher → Exporters** in the docs. 
 
-[Reference: NVIDIA Docs](https://docs.nvidia.com/nemo/eval/0.1.0/libraries/nemo-evaluator-launcher/exporters/index.html).
+Reference: {ref}`exporters-overview`.
 
 ---
 
 ## **What’s the difference between Launcher and Core?**
 
-* **Launcher (`nemo-evaluator-launcher`)**: Unified CLI with config/exec backends (local/Slurm/Lepton), container orchestration, and exporters. Best for most users. [NVIDIA Docs.](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator-launcher/index.html)   
-* **Core (`nemo-evaluator`)**: Direct access to the evaluation engine and adapters—useful for custom programmatic pipelines and advanced interceptor use. (See “Core” in the docs sidebar.) [NVIDIA Docs.](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator/index.html)
+* **Launcher (`nemo-evaluator-launcher`)**: Unified CLI with config/exec backends (local/Slurm/Lepton), container orchestration, and exporters. Best for most users. See {ref}`lib-launcher`.
+* **Core (`nemo-evaluator`)**: Direct access to the evaluation engine and adapters—useful for custom programmatic pipelines and advanced interceptor use. (See “Core” in the docs sidebar.) See {ref}`lib-core`.
 
 ---
 
@@ -160,7 +160,7 @@ Yes. Use a **Framework Definition File (FDF)**—a YAML that declares framework 
 
 1. Create an FDF with `framework`, `defaults`, and `evaluations` sections.  
 2. Point the launcher/Core at your FDF and run.  
-3. (Recommended) Package as a container for reproducibility and shareability. [NVIDIA Docs](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator/extending/index.html).
+3. (Recommended) Package as a container for reproducibility and shareability. See {ref}`extending-evaluator`.
 
 **Skeleton FDF (excerpt):**
 
@@ -183,7 +183,7 @@ evaluations:
 
 See the “Framework Definition File (FDF)” page for the full example and field reference. 
 
-[Reference: NVIDIA Docs](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator/extending/framework-definition-file/index.html).
+Reference: {ref}`framework-definition-file`.
 
 ---
 
@@ -201,7 +201,7 @@ pip install "nemo-evaluator-launcher[gsheets]"
 pip install "nemo-evaluator-launcher[all]"
 ```
 
-**Exporter docs:** Local files, W\&B, MLflow, GSheets are listed under **Launcher → Exporters** in the docs. Reference: [NVIDIA Docs](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator-launcher/exporters/index.html).
+**Exporter docs:** Local files, W\&B, MLflow, GSheets are listed under {ref}`exporters-overview`.
 
 ---
 
@@ -235,7 +235,7 @@ This structure defines **where to run**, **how to serve the model**, **which mod
 
 You can start from a provided example config or compose your own using Hydra’s `defaults` list to combine deployment, execution, and benchmark modules.
 
-Reference: [NVIDIA Docs](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator-launcher/configuration/index.html). 
+Reference: {ref}`configuration-overview`. 
 
 ---
 
@@ -262,7 +262,7 @@ Overrides are merged dynamically at runtime—ideal for testing new endpoints, s
 nemo-evaluator-launcher run --config-name your_config --dry-run
 ```
 
-Reference: [NVIDIA Docs](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator-launcher/configuration/index.html). 
+Reference: {ref}`configuration-overview`. 
 
 ---
 
@@ -318,6 +318,6 @@ Always test first:
 nemo-evaluator-launcher run --config-name your_config --dry-run
 ```
 
-Reference: [NVIDIA Docs](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator-launcher/configuration/index.html). 
+Reference: {ref}`configuration-overview`. 
 
 ---
