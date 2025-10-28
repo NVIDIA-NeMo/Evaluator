@@ -116,13 +116,13 @@ Inside `./artifacts/` you'll see the run config, `results.yaml` (main output fil
 Where the output is structured:
 
 ```bash
-      <output_dir>/
-      │   ├── eval_factory_metrics.json
-      │   ├── report.html
-      │   ├── report.json
-      │   ├── results.yml
-      │   ├── run_config.yml
-      │   └── <Task specific arifacts>/
+  <output_dir>/
+  │   ├── eval_factory_metrics.json
+  │   ├── report.html
+  │   ├── report.json
+  │   ├── results.yml
+  │   ├── run_config.yml
+  │   └── <Task specific arifacts>/
 ```
 
 Reference: {ref}`evaluation-output`.
