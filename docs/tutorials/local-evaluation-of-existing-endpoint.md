@@ -93,9 +93,7 @@ evaluation:
   nemo_evaluator_config:
     config:
       params:
-        max_new_tokens: 32768
-        temperature: 0.6
-        top_p: 0.95
+        parallelism: 2
         request_timeout: 1600
   tasks:
     - name: ifeval  # use the default benchmark configuration
@@ -106,7 +104,6 @@ evaluation:
           params:
             max_new_tokens: 1024
             temperature: 0.3
-            pararrelism: 2
 ```
 
 This configuration will create evaluations for 2 tasks: `ifeval` and `humaneval_instruct`.
