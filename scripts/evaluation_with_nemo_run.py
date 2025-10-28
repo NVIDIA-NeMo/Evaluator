@@ -31,7 +31,7 @@ from nemo_evaluator.api.api_dataclasses import (
 )
 
 ENDPOINT_TYPES = {"chat": "chat/completions/", "completions": "completions/"}
-
+# [snippet-deploy-start]
 TRITON_DEPLOY_SCRIPT = """
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_inframework_triton.py \
@@ -62,6 +62,7 @@ python \
   --num_replicas {num_replicas} \
   {additional_args}
 """
+# [snippet-deploy-end]
 
 
 def get_parser():
@@ -229,6 +230,7 @@ def slurm_executor(
     if custom_mounts:
         mounts.extend(custom_mounts)
 
+    # [snippet-slurm-executor-start]
     env_vars = {
         # required for some eval benchmarks from lm-eval-harness
         "HF_DATASETS_TRUST_REMOTE_CODE": "1",
@@ -259,11 +261,13 @@ def slurm_executor(
     executor.env_vars = env_vars
     executor.retries = retries
     executor.time = time
+    # [snippet-slurm-executor-end]
 
     return executor
 
 
 def local_executor_torchrun() -> run.LocalExecutor:
+    # [snippet-local-executor-start]
     env_vars = {
         # required for some eval benchmarks from lm-eval-harness
         "HF_DATASETS_TRUST_REMOTE_CODE": "1",
@@ -271,7 +275,7 @@ def local_executor_torchrun() -> run.LocalExecutor:
     }
 
     executor = run.LocalExecutor(env_vars=env_vars)
-
+    # [snippet-local-executor-end]
     return executor
 
 
@@ -313,7 +317,7 @@ def main():
     else:
         raise ValueError(f"Invalid serving backend: {args.serving_backend}")
     print(deploy_script)
-
+    # [snippet-config-start]
     deploy_run_script = run.Script(inline=deploy_script)
 
     api_endpoint = run.Config(
@@ -339,6 +343,7 @@ def main():
     eval_fn = run.Partial(
         wait_and_evaluate, target_cfg=eval_target, eval_cfg=eval_config
     )
+    # [snippet-config-end]
 
     executor: run.Executor
     executor_eval: run.Executor
@@ -365,7 +370,7 @@ def main():
     else:
         executor = local_executor_torchrun()
         executor_eval = None
-
+    # [snippet-experiment-start]
     with run.Experiment(f"{exp_name}{args.tag}") as exp:
         if args.slurm:
             exp.add(
@@ -389,6 +394,7 @@ def main():
             exp.dryrun()
         else:
             exp.run()
+    # [snippet-experiment-end]
 
 
 if __name__ == "__main__":
