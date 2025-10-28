@@ -234,7 +234,7 @@ def slurm_executor(
     env_vars = {
         # required for some eval benchmarks from lm-eval-harness
         "HF_DATASETS_TRUST_REMOTE_CODE": "1",
-        "HF_TOKEN": "xxxxxx",
+        "HF_TOKEN": "xxxxxx",  # [hf-token-slurm]
     }
     if custom_env_vars:
         env_vars |= custom_env_vars
@@ -271,7 +271,7 @@ def local_executor_torchrun() -> run.LocalExecutor:
     env_vars = {
         # required for some eval benchmarks from lm-eval-harness
         "HF_DATASETS_TRUST_REMOTE_CODE": "1",
-        "HF_TOKEN": "xxxxxx",
+        "HF_TOKEN": "xxxxxx",  # [hf-token-local]
     }
 
     executor = run.LocalExecutor(env_vars=env_vars)
