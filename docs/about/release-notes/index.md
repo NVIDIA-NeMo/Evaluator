@@ -2,7 +2,7 @@
 
 # Release Notes
 
-## NeMo Evaluator SDK — General Availability
+## NeMo Evaluator SDK — General Availability (0.1.0)
 
 NVIDIA is excited to announce the general availability of NeMo Evaluator SDK, an open-source platform for robust, reproducible, and scalable evaluation of large language models.
 
@@ -19,7 +19,7 @@ NeMo Evaluator SDK provides a comprehensive solution for AI model evaluation and
 
 **Scale Anywhere**: Run evaluations from a local machine to a Slurm cluster or cloud-native backends without changing your workflow.
 
-**State-of-the-Art Benchmarking**: Access a comprehensive suite of over 100 benchmarks from 18 popular open-source evaluation harnesses, including popular frameworks such as lm-evaluation-harness, bigcode-evaluation-harness, simple-evals, and specialized tools for safety, function calling, and agentic AI evaluation.
+**State-of-the-Art Benchmarking**: Access a comprehensive suite of over 100 benchmarks from 21+ popular open-source evaluation harnesses, including popular frameworks such as lm-evaluation-harness, bigcode-evaluation-harness, simple-evals, and specialized tools for safety, function calling, and agentic AI evaluation.
 
 **Extensible and Customizable**: Integrate new evaluation harnesses, add custom benchmarks with proprietary data, and define custom result exporters for existing MLOps tooling.
 
