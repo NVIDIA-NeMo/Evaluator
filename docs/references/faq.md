@@ -2,7 +2,9 @@
 
 ## **What benchmarks and harnesses are supported?**
 
-The docs list hundreds of benchmarks across multiple harnesses, available via curated NGC evaluation containers and the unified Launcher. Reference: {ref}`eval-benchmarks`
+The docs list hundreds of benchmarks across multiple harnesses, available via curated NGC evaluation containers and the unified Launcher.
+
+Reference: {ref}`eval-benchmarks`
 
 :::{tip}
 Discover available tasks with
@@ -39,7 +41,7 @@ See {ref}`executor-slurm` for details.
 
 ## **Can I point Evaluator at my own endpoint?**
 
-Yes. Provide your OpenAI‑compatible endpoint. The “none” deployment option means no model deployment is performed as part of the evaluation job. Instead, you provide an existing OpenAI-compatible endpoint. The launcher handles running evaluation tasks while connecting to your existing endpoint.
+Yes. Provide your OpenAI‑compatible endpoint. The "none" deployment option means no model deployment is performed as part of the evaluation job. Instead, you provide an existing OpenAI-compatible endpoint. The launcher handles running evaluation tasks while connecting to your existing endpoint.
 
 ```yaml
 target:
@@ -50,16 +52,18 @@ target:
 
 ```
 
-Reference: {ref}`deployment-none`. 
+Reference: {ref}`deployment-none`.
 
 ---
 
 **Can I test my endpoint for OpenAI compatibility?**
 
-Yes. Preview the full resolved configuration without executing using \`\--dry-run\` :
+Yes. Preview the full resolved configuration without executing using `--dry-run` :
 
 ```bash
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct --dry-run
+nemo-evaluator-launcher run \
+  --config-dir packages/nemo-evaluator-launcher/examples \
+  --config-name local_llama_3_1_8b_instruct --dry-run
 ```
 
 Reference: {ref}`launcher-cli-dry-run`.
@@ -68,13 +72,13 @@ Reference: {ref}`launcher-cli-dry-run`.
 
 ## **Can I store and retrieve per-sample results, not just the summary?**
 
-Yes. Capture full request/response artifacts and retrieve them from the run’s artifacts folder.
+Yes. Capture full request/response artifacts and retrieve them from the run's artifacts folder.
 
 Enable detailed logging with CLI overrides:
 
 ```bash
 # Request + response logging (example at 1k each)
-# overrides 
+# overrides
 
 -o 'target.api_endpoint.adapter_config.use_request_logging=True' \
 -o 'target.api_endpoint.adapter_config.max_saved_requests=1000' \
@@ -84,7 +88,7 @@ Enable detailed logging with CLI overrides:
 
 ```
 
-These enable the **RequestLoggingInterceptor** and **ResponseLoggingInterceptor** so each prompt/response pair is saved alongside the evaluation job. 
+These enable the **RequestLoggingInterceptor** and **ResponseLoggingInterceptor** so each prompt/response pair is saved alongside the evaluation job.
 
 Retrieve artifacts after the run:
 
@@ -92,7 +96,7 @@ Retrieve artifacts after the run:
 nemo-evaluator-launcher export <invocation_id> --dest local --output-dir ./artifacts --copy-logs
 ```
 
-Look under \`./artifacts/\` for \`results.yml\`, reports, logs, and saved request/response files.
+Look under `./artifacts/` for `results.yml`, reports, logs, and saved request/response files.
 
 Reference: {ref}`interceptor-request-logging`.
 
@@ -103,30 +107,21 @@ Reference: {ref}`interceptor-request-logging`.
 After a run completes, copy artifacts locally:
 
 ```bash
-nemo-evaluator-launcher debug <invocation_id> --copy-artifacts ./artifacts
+nemo-evaluator-launcher info <invocation_id> --copy-artifacts ./artifacts
 ```
 
-Inside `./artifacts/` you’ll see the run config, `results.yaml` (aggregates), HTML/JSON reports, logs, and cached request/response files. 
+Inside `./artifacts/` you'll see the run config, `results.yaml` (main output file), HTML/JSON reports, logs, and cached request/response files, if caching was used.
 
 Where the output is structured:
 
 ```bash
       <output_dir>/
-      │   ├── run_config.yml
       │   ├── eval_factory_metrics.json
-      │   ├── results.yml
       │   ├── report.html
       │   ├── report.json
+      │   ├── results.yml
+      │   ├── run_config.yml
       │   └── <Task specific arifacts>/
-```
-
-    	  
-And response stats saved to metrics:
-
-```bash
-      - **Aggregated Stats**: ...
-      - **Individual Stats**: ...
-      - **Metrics File**: Final statistics saved to `eval_factory_metrics.json`
 ```
 
 Reference: {ref}`evaluation-output`.
@@ -141,18 +136,18 @@ Yes. JSON is included in the standard output exporter, along with automatic expo
 nemo-evaluator-launcher export <invocation_id> --dest local --format json
 ```
 
-This creates `processed_results.json` (you can also pass multiple invocation IDs to merge). 
+This creates `processed_results.json` (you can also pass multiple invocation IDs to merge).
 
-**Exporter docs:** Local files, W\&B, MLflow, GSheets are listed under **Launcher → Exporters** in the docs. 
+**Exporter docs:** Local files, W&B, MLflow, GSheets are listed under **Launcher → Exporters** in the docs.
 
 Reference: {ref}`exporters-overview`.
 
 ---
 
-## **What’s the difference between Launcher and Core?**
+## **What's the difference between Launcher and Core?**
 
 * **Launcher (`nemo-evaluator-launcher`)**: Unified CLI with config/exec backends (local/Slurm/Lepton), container orchestration, and exporters. Best for most users. See {ref}`lib-launcher`.
-* **Core (`nemo-evaluator`)**: Direct access to the evaluation engine and adapters—useful for custom programmatic pipelines and advanced interceptor use. (See “Core” in the docs sidebar.) See {ref}`lib-core`.
+* **Core (`nemo-evaluator`)**: Direct access to the evaluation engine and adapters—useful for custom programmatic pipelines and advanced interceptor use. See {ref}`lib-core`.
 
 ---
 
@@ -160,8 +155,8 @@ Reference: {ref}`exporters-overview`.
 
 Yes. Use a **Framework Definition File (FDF)**—a YAML that declares framework metadata, default commands/params, and one or more evaluation tasks. Minimal flow:
 
-1. Create an FDF with `framework`, `defaults`, and `evaluations` sections.  
-2. Point the launcher/Core at your FDF and run.  
+1. Create an FDF with `framework`, `defaults`, and `evaluations` sections.
+2. Point the launcher/Core at your FDF and run.
 3. (Recommended) Package as a container for reproducibility and shareability. See {ref}`extending-evaluator`.
 
 **Skeleton FDF (excerpt):**
@@ -183,15 +178,15 @@ evaluations:
           task: my_task_1
 ```
 
-See the “Framework Definition File (FDF)” page for the full example and field reference. 
+See the "Framework Definition File (FDF)" page for the full example and field reference.
 
 Reference: {ref}`framework-definition-file`.
 
 ---
 
-## **Why aren’t exporters included in the main wheel?** 
+## **Why aren't exporters included in the main wheel?**
 
-Exporters target **external systems** (e.g., W\&B, MLflow, Google Sheets). Each of those adds heavy/optional dependencies and auth integrations. To keep the base install lightweight and avoid forcing unused deps on every user, exporters ship as **optional extras**:
+Exporters target **external systems** (e.g., W&B, MLflow, Google Sheets). Each of those adds heavy/optional dependencies and auth integrations. To keep the base install lightweight and avoid forcing unused deps on every user, exporters ship as **optional extras**:
 
 ```bash
 # Only what you need
@@ -203,7 +198,7 @@ pip install "nemo-evaluator-launcher[gsheets]"
 pip install "nemo-evaluator-launcher[all]"
 ```
 
-**Exporter docs:** Local files, W\&B, MLflow, GSheets are listed under {ref}`exporters-overview`.
+**Exporter docs:** Local files, W&B, MLflow, GSheets are listed under {ref}`exporters-overview`.
 
 ---
 
@@ -235,9 +230,9 @@ evaluation:
 
 This structure defines **where to run**, **how to serve the model**, **which model or endpoint to evaluate**, and **what benchmarks to execute**.
 
-You can start from a provided example config or compose your own using Hydra’s `defaults` list to combine deployment, execution, and benchmark modules.
+You can start from a provided example config or compose your own using Hydra's `defaults` list to combine deployment, execution, and benchmark modules.
 
-Reference: {ref}`configuration-overview`. 
+Reference: {ref}`configuration-overview`.
 
 ---
 
@@ -266,7 +261,7 @@ nemo-evaluator-launcher run --config-name your_config --dry-run
 ```
 :::
 
-Reference: {ref}`configuration-overview`. 
+Reference: {ref}`configuration-overview`.
 
 ---
 
@@ -278,7 +273,7 @@ NeMo Evaluator separates **deployment** (how your model is served) from **execut
 defaults:
   - execution: local      # Where to run: local, lepton, or slurm
   - deployment: none      # How to serve the model: none, vllm, sglang, nim, trtllm, generic
- 
+
 ```
 
 **Deployment Options — How your model is served**
@@ -298,7 +293,7 @@ defaults:
 | ----- | ----- | ----- |
 | `local` | Runs Docker-based evaluation locally. | Development, testing, or small-scale benchmarking |
 | `lepton` | Runs on NVIDIA Lepton for on-demand GPU execution. | Scalable, production-grade evaluations |
-| `slurm` | Uses your HPC cluster’s job scheduler. | Research clusters or large batch evaluations |
+| `slurm` | Uses your HPC cluster's job scheduler. | Research clusters or large batch evaluations |
 
 **Example:**
 
@@ -312,16 +307,16 @@ This configuration launches the model with **vLLM serving** and runs benchmarks 
 
 When in doubt:
 
-* Use `deployment: none` \+ `execution: local` for your **first run** (quickest setup).  
+* Use `deployment: none` + `execution: local` for your **first run** (quickest setup).
 * Use `vllm` or `nim` once you need **scalability and speed**.
 
-Always test first:  
- 
+Always test first:
+
 
 ```bash
 nemo-evaluator-launcher run --config-name your_config --dry-run
 ```
 
-Reference: {ref}`configuration-overview`. 
+Reference: {ref}`configuration-overview`.
 
 ---
