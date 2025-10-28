@@ -29,6 +29,8 @@ from nemo_evaluator.adapters.adapter_config import AdapterConfig
 
 
 class EndpointType(str, Enum):
+    """EndpointType is used to determine appropriate URL, payload structure or native harness inference class"""
+
     UNDEFINED = "undefined"
     CHAT = "chat"
     COMPLETIONS = "completions"
@@ -37,7 +39,7 @@ class EndpointType(str, Enum):
 
 
 class ApiEndpoint(BaseModel):
-    """API endpoint configuration."""
+    """API endpoint configuration containing information on endpoint placement, targeted model name and adapter used before prompting endpoint."""
 
     model_config = ConfigDict(use_enum_values=True)
 
@@ -199,6 +201,12 @@ class Score(BaseModel):
 
 
 class MetricResult(BaseModel):
+    """_summary_
+
+    Args:
+        BaseModel (_type_): _description_
+    """
+
     scores: Dict[str, Score] = Field(
         default_factory=dict, description="Mapping from metric name to scores."
     )
@@ -224,6 +232,8 @@ class GroupResult(BaseModel):
 
 
 class EvaluationResult(BaseModel):
+    """EvaluationResults bundles per-tasks and per-group results."""
+
     tasks: Optional[Dict[str, TaskResult]] = Field(
         default_factory=dict, description="The results at the task-level"
     )

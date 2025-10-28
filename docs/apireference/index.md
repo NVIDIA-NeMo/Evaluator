@@ -1,4 +1,4 @@
-API Reference
+NeMo Evaluator 
 =============
 
 The NeMo Evaluator API reference provides comprehensive technical documentation for all modules, classes, and functions.
@@ -8,9 +8,10 @@ Core Modules
 
 :::{toctree}
 :glob:
-:caption: Python API
+:caption: API Reference
 :hidden:
 :nosignatures:
-nemo-evaluator.api.api_dataclasses <nemo-evaluator-api-dataclasses>
-nemo-evaluator.adapters <nemo-evaluator-adapters>
+
+nemo-evaluator <nemo-evaluator/index>
+nemo-evaluator-launcher <nemo-evaluator-launcher/index>
 :::
