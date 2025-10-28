@@ -567,11 +567,11 @@ def _create_slurm_sbatch_script(
 
         # wait for the server to initialize
         health_path = cfg.deployment.get("health_check_path", "/health")
-        # Only check MASTER_IP if not multiinstance, otherwise check all IPs
+        # For multi-instance check all node IPs, for single instance check localhost
         if cfg.deployment.get("multiple_instances", False):
             ip_list = '"${NODES_IPS_ARRAY[@]}"'
         else:
-            ip_list = '"$MASTER_IP"'
+            ip_list = '"127.0.0.1"'
         s += _get_wait_for_server_handler(
             ip_list,
             cfg.deployment.port,
@@ -1097,8 +1097,13 @@ def _generate_haproxy_config_with_placeholders(cfg):
     """Generate HAProxy configuration with placeholder IPs using Jinja template."""
     # Set up Jinja environment
     template_dir = Path(__file__).parent
+    template_path = template_dir / "haproxy.cfg.template"
+
+    if not template_path.exists():
+        raise FileNotFoundError(f"HAProxy template not found: {template_path}")
+
     env = Environment(loader=FileSystemLoader(template_dir))
-    template = env.get_template("haproxy.cfg.j2")
+    template = env.get_template("haproxy.cfg.template")
 
     # Prepare template data with placeholder IPs - use actual number of nodes
     num_nodes = cfg.execution.num_nodes
@@ -1127,8 +1132,13 @@ def _generate_haproxy_config(cfg, nodes_ips):
     """Generate HAProxy configuration using Jinja template."""
     # Set up Jinja environment
     template_dir = Path(__file__).parent
+    template_path = template_dir / "haproxy.cfg.template"
+
+    if not template_path.exists():
+        raise FileNotFoundError(f"HAProxy template not found: {template_path}")
+
     env = Environment(loader=FileSystemLoader(template_dir))
-    template = env.get_template("haproxy.cfg.j2")
+    template = env.get_template("haproxy.cfg.template")
 
     # Prepare template data
     nodes = []
@@ -1229,7 +1239,7 @@ date
 
 
 def _get_proxy_server_srun_command(cfg, remote_task_subdir):
-    """Generate HAProxy proxy server srun command."""
+    """Generate HAProxy proxy server srun command using template-based config."""
     s = ""
     s += "# HAProxy load balancer\n"
     s += "# Copy template to config file (important for restarts)\n"
