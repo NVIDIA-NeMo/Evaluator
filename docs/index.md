@@ -347,12 +347,13 @@ Install SDK <get-started/install>
 Quickstart <get-started/quickstart/index>
 :::
 
-<!-- :::{toctree}
+:::{toctree}
 :caption: Tutorials
 :hidden:
 
 About Tutorials <tutorials/index>
-::: -->
+Tutorials for NeMo Framework <tutorials/nemo-fw/index>
+:::
 
 <!-- :::{toctree}
 :caption: Evaluation
