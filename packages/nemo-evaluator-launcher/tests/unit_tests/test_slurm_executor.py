@@ -45,6 +45,10 @@ class TestSlurmExecutorFeatures:
                 "image": "test-image:latest",
                 "command": "test-command",
                 "served_model_name": "test-model",
+                "port": 8000,
+                "endpoints": {
+                    "health": "/health",
+                },
             },
             "execution": {
                 "type": "slurm",
@@ -84,12 +88,6 @@ class TestSlurmExecutorFeatures:
                 "nemo_evaluator_launcher.executors.slurm.executor.get_task_from_mapping"
             ) as mock_get_task,
             patch(
-                "nemo_evaluator_launcher.executors.slurm.executor.get_health_url"
-            ) as mock_get_health,
-            patch(
-                "nemo_evaluator_launcher.executors.slurm.executor.get_endpoint_url"
-            ) as mock_get_endpoint,
-            patch(
                 "nemo_evaluator_launcher.common.helpers.get_eval_factory_command"
             ) as mock_get_eval_command,
             patch(
@@ -103,8 +101,6 @@ class TestSlurmExecutorFeatures:
                 "endpoint_type": "openai",
                 "task": "test_task",
             }
-            mock_get_health.return_value = "http://localhost:8000/health"
-            mock_get_endpoint.return_value = "http://localhost:8000/v1"
             from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
 
             mock_get_eval_command.return_value = CmdAndReadableComment(
@@ -115,8 +111,6 @@ class TestSlurmExecutorFeatures:
             yield {
                 "load_tasks_mapping": mock_load_tasks,
                 "get_task_from_mapping": mock_get_task,
-                "get_health_url": mock_get_health,
-                "get_endpoint_url": mock_get_endpoint,
                 "get_eval_factory_command": mock_get_eval_command,
                 "get_served_model_name": mock_get_model_name,
             }
@@ -594,12 +588,6 @@ class TestSlurmExecutorDryRun:
                 patch(
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_health_url"
-                ) as mock_get_health,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_endpoint_url"
-                ) as mock_get_endpoint,
                 patch("builtins.print") as mock_print,
             ):
                 # Configure mocks
@@ -619,8 +607,6 @@ class TestSlurmExecutorDryRun:
                     cmd="nemo-evaluator-launcher --model llama-3.1-8b-instruct --task {task_name}",
                     debug="# Test command for dry run",
                 )
-                mock_get_health.return_value = "http://localhost:8000/health"
-                mock_get_endpoint.return_value = "http://localhost:8000/v1"
 
                 # Execute dry run
                 invocation_id = SlurmExecutor.execute_eval(sample_config, dry_run=True)
@@ -738,12 +724,6 @@ class TestSlurmExecutorDryRun:
                 patch(
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_health_url"
-                ) as mock_get_health,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_endpoint_url"
-                ) as mock_get_endpoint,
                 patch("builtins.print"),
             ):
                 mock_load_mapping.return_value = mock_tasks_mapping
@@ -761,8 +741,6 @@ class TestSlurmExecutorDryRun:
                     cmd="nemo-evaluator-launcher --task test_command",
                     debug="# Test command for custom container",
                 )
-                mock_get_health.return_value = "http://localhost:8000/health"
-                mock_get_endpoint.return_value = "http://localhost:8000/v1"
 
                 # Execute dry run
                 invocation_id = SlurmExecutor.execute_eval(sample_config, dry_run=True)
@@ -800,12 +778,6 @@ class TestSlurmExecutorDryRun:
                 patch(
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_health_url"
-                ) as mock_get_health,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_endpoint_url"
-                ) as mock_get_endpoint,
                 patch("builtins.print"),
             ):
                 mock_load_mapping.return_value = mock_tasks_mapping
@@ -823,8 +795,6 @@ class TestSlurmExecutorDryRun:
                     cmd="nemo-evaluator-launcher --task test_command",
                     debug="# Test command for no auto-export",
                 )
-                mock_get_health.return_value = "http://localhost:8000/health"
-                mock_get_endpoint.return_value = "http://localhost:8000/v1"
 
                 # Should execute successfully without auto-export
                 invocation_id = SlurmExecutor.execute_eval(sample_config, dry_run=True)
@@ -1296,12 +1266,6 @@ class TestSlurmExecutorSystemCalls:
                 patch(
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_health_url"
-                ) as mock_get_health,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_endpoint_url"
-                ) as mock_get_endpoint,
                 patch("subprocess.run", side_effect=mock_subprocess_run),
             ):
                 # Configure mocks
@@ -1320,8 +1284,6 @@ class TestSlurmExecutorSystemCalls:
                     cmd="nemo-evaluator-launcher --task mmlu_pro",
                     debug="# Test command for mmlu_pro",
                 )
-                mock_get_health.return_value = "http://127.0.0.1:8000/health"
-                mock_get_endpoint.return_value = "http://127.0.0.1:8000/v1"
 
                 # Execute non-dry-run
                 invocation_id = SlurmExecutor.execute_eval(sample_config, dry_run=False)
@@ -1392,12 +1354,6 @@ class TestSlurmExecutorSystemCalls:
                 patch(
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_health_url"
-                ) as mock_get_health,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_endpoint_url"
-                ) as mock_get_endpoint,
                 patch("subprocess.run", side_effect=mock_subprocess_run),
             ):
                 # Configure mocks
@@ -1416,8 +1372,6 @@ class TestSlurmExecutorSystemCalls:
                     cmd="nemo-evaluator-launcher --task mmlu_pro",
                     debug="# Test command for mmlu_pro SSH failure",
                 )
-                mock_get_health.return_value = "http://127.0.0.1:8000/health"
-                mock_get_endpoint.return_value = "http://127.0.0.1:8000/v1"
 
                 # Should still succeed (SSH connection can be None)
                 invocation_id = SlurmExecutor.execute_eval(sample_config, dry_run=False)
@@ -1485,12 +1439,6 @@ class TestSlurmExecutorSystemCalls:
                 patch(
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_health_url"
-                ) as mock_get_health,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_endpoint_url"
-                ) as mock_get_endpoint,
                 patch("subprocess.run", side_effect=mock_subprocess_run),
             ):
                 # Configure mocks
@@ -1509,8 +1457,6 @@ class TestSlurmExecutorSystemCalls:
                     cmd="nemo-evaluator-launcher --task mmlu_pro",
                     debug="# Test command for mmlu_pro sbatch failure",
                 )
-                mock_get_health.return_value = "http://127.0.0.1:8000/health"
-                mock_get_endpoint.return_value = "http://127.0.0.1:8000/v1"
 
                 # Should raise RuntimeError for sbatch failure
                 with pytest.raises(

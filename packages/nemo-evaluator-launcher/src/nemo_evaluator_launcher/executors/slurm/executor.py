@@ -566,12 +566,19 @@ def _create_slurm_sbatch_script(
         )
 
         # wait for the server to initialize
+        # Determine IP list based on deployment mode
+        if cfg.deployment.get("multiple_instances", False):
+            ip_list = '"${NODES_IPS_ARRAY[@]}"'
+        else:
+            ip_list = '"127.0.0.1"'
+
+        # Check if health endpoint is available
         health_path = cfg.deployment.endpoints.get("health")
         if health_path is None:
             # Use timeout-based wait when health endpoint is not available
             server_timeout = cfg.deployment.get("server_timeout", 60)
             s += _get_wait_for_server_timeout(
-                ip_list='"${NODES_IPS_ARRAY[@]}"',
+                ip_list=ip_list,
                 timeout=server_timeout,
                 service_name="server",
                 check_pid=True,
@@ -579,7 +586,7 @@ def _create_slurm_sbatch_script(
         else:
             # Use health check-based wait
             s += _get_wait_for_server_handler(
-                '"${NODES_IPS_ARRAY[@]}"',
+                ip_list,
                 cfg.deployment.port,
                 health_path,
                 "server",
@@ -1103,8 +1110,13 @@ def _generate_haproxy_config_with_placeholders(cfg):
     """Generate HAProxy configuration with placeholder IPs using Jinja template."""
     # Set up Jinja environment
     template_dir = Path(__file__).parent
+    template_path = template_dir / "haproxy.cfg.template"
+
+    if not template_path.exists():
+        raise FileNotFoundError(f"HAProxy template not found: {template_path}")
+
     env = Environment(loader=FileSystemLoader(template_dir))
-    template = env.get_template("haproxy.cfg.j2")
+    template = env.get_template("haproxy.cfg.template")
 
     # Prepare template data with placeholder IPs - use actual number of nodes
     num_nodes = cfg.execution.num_nodes
@@ -1133,8 +1145,13 @@ def _generate_haproxy_config(cfg, nodes_ips):
     """Generate HAProxy configuration using Jinja template."""
     # Set up Jinja environment
     template_dir = Path(__file__).parent
+    template_path = template_dir / "haproxy.cfg.template"
+
+    if not template_path.exists():
+        raise FileNotFoundError(f"HAProxy template not found: {template_path}")
+
     env = Environment(loader=FileSystemLoader(template_dir))
-    template = env.get_template("haproxy.cfg.j2")
+    template = env.get_template("haproxy.cfg.template")
 
     # Prepare template data
     nodes = []
@@ -1170,6 +1187,9 @@ def _generate_deployment_srun_command(
     s += 'nodes_array=("${nodes[@]}")  # Ensure nodes are stored properly\n'
     s += 'export NODES_IPS_ARRAY=($(for node in "${nodes_array[@]}"; do srun --nodelist=$node --ntasks=1 --nodes=1 hostname --ip-address; done))\n'
     s += 'echo "Node IPs: ${NODES_IPS_ARRAY[@]}"\n'
+    s += "# Export MASTER_IP as the first node IP\n"
+    s += "export MASTER_IP=${NODES_IPS_ARRAY[0]}\n"
+    s += 'echo "MASTER_IP: $MASTER_IP"\n'
     s += "srun --mpi pmix --overlap "
     s += f"--nodes {cfg.execution.num_nodes} --ntasks {cfg.execution.num_nodes} "
     s += "--container-image {} ".format(cfg.deployment.image)
@@ -1190,6 +1210,11 @@ def _generate_deployment_srun_command(
             stacklevel=2,
         )
         deployment_env_var_names.extend(list(cfg.deployment["env_vars"]))
+
+    # Always add MASTER_IP to the environment variables
+    if "MASTER_IP" not in deployment_env_var_names:
+        deployment_env_var_names.append("MASTER_IP")
+
     if deployment_env_var_names:
         s += f"--container-env {','.join(deployment_env_var_names)} "
     s += "{} &\n\n".format(cfg.deployment.command)  # run asynchronously
@@ -1256,7 +1281,7 @@ date
 
 
 def _get_proxy_server_srun_command(cfg, remote_task_subdir):
-    """Generate HAProxy proxy server srun command."""
+    """Generate HAProxy proxy server srun command using template-based config."""
     s = ""
     s += "# HAProxy load balancer\n"
     s += "# Copy template to config file (important for restarts)\n"

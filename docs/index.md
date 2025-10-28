@@ -371,15 +371,17 @@ Benchmark Catalog <evaluation/benchmarks>
 About NeMo Framework <nemo-fw/index>
 ::: -->
 
-<!-- :::{toctree}
+<!-- TODO: Add these pages once ready:
+Evaluation Adapters <deployment/adapters/index>
+Launcher-Orchestrated <deployment/launcher-orchestrated/index> -->
+
+:::{toctree}
 :caption: Model Deployment
 :hidden:
 
 About Model Deployment <deployment/index>
-Launcher-Orchestrated <deployment/launcher-orchestrated/index>
 Bring-Your-Own-Endpoint <deployment/bring-your-own-endpoint/index>
-Evaluation Adapters <deployment/adapters/index>
-::: -->
+:::
 
 :::{toctree}
 :caption: Libraries
