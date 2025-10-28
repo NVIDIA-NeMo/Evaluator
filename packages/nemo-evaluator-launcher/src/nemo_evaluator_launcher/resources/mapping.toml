@@ -226,7 +226,7 @@ required_env_vars = []
 [bigcode-evaluation-harness.tasks.completions.humaneval]
 required_env_vars = []
 
-[bigcode-evaluation-harness.tasks.completions.humaneval_instruct]
+[bigcode-evaluation-harness.tasks.chat.humaneval_instruct]
 
 
 ###############################################################################
