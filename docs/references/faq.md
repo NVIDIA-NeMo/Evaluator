@@ -4,11 +4,13 @@
 
 The docs list hundreds of benchmarks across multiple harnesses, available via curated NGC evaluation containers and the unified Launcher. Reference: {ref}`eval-benchmarks`
 
-///Tip  	Discover available tasks with
+:::{tip}
+Discover available tasks with
 
 ```shell
 nemo-evaluator-launcher ls tasks
 ```
+:::
 
 ---
 
@@ -256,11 +258,13 @@ nemo-evaluator-launcher run --config-name your_config \
 
 Overrides are merged dynamically at runtime—ideal for testing new endpoints, swapping models, or changing output destinations without editing your base config.
 
-/// Tip: Always start with a dry run to validate your configuration before launching a full evaluation:
+:::{tip}
+Always start with a dry run to validate your configuration before launching a full evaluation:
 
 ```
 nemo-evaluator-launcher run --config-name your_config --dry-run
 ```
+:::
 
 Reference: {ref}`configuration-overview`. 
 
