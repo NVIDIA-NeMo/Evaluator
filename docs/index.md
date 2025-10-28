@@ -355,15 +355,19 @@ About Tutorials <tutorials/index>
 Tutorials for NeMo Framework <tutorials/nemo-fw/index>
 :::
 
-<!-- :::{toctree}
+
+<!--
+TODO: Add below once ready
+Evaluation Configuration Parameters <evaluation/parameters>
+Custom Task Configuration <evaluation/custom-tasks> 
+-->
+:::{toctree}
 :caption: Evaluation
 :hidden:
 
 About Model Evaluation <evaluation/index>
-Run Evals <evaluation/run-evals/index>
-Custom Task Configuration <evaluation/custom-tasks>
 Benchmark Catalog <evaluation/benchmarks>
-::: -->
+:::
 
 <!-- :::{toctree}
 :caption: NeMo Framework
