@@ -10,8 +10,8 @@ NVIDIA is excited to announce the general availability of NeMo Evaluator SDK, an
 
 NeMo Evaluator SDK provides a comprehensive solution for AI model evaluation and benchmarking, enabling researchers, ML engineers, and organizations to assess model performance across diverse capabilities including reasoning, code generation, function calling, and safety. The platform consists of two core libraries:
 
-- **nemo-evaluator**: The core evaluation engine that manages interactions between evaluation harnesses and models being tested
-- **nemo-evaluator-launcher**: The orchestration layer providing unified CLI and programmatic interfaces for multi-backend execution
+- **{ref}`nemo-evaluator <lib-core>`**: The core evaluation engine that manages interactions between evaluation harnesses and models being tested
+- **{ref}`nemo-evaluator-launcher <lib-launcher>`**: The orchestration layer providing unified CLI and programmatic interfaces for multi-backend execution
 
 ### Key Features
 
