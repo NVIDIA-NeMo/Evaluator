@@ -7,7 +7,7 @@ The docs list hundreds of benchmarks across multiple harnesses, available via cu
 :::{tip}
 Discover available tasks with
 
-```shell
+```bash
 nemo-evaluator-launcher ls tasks
 ```
 :::
@@ -18,7 +18,7 @@ nemo-evaluator-launcher ls tasks
 
 Set these environment variables for logging configuration:
 
-```shell
+```bash
 # Set log level (INFO, DEBUG, WARNING, ERROR, CRITICAL)
 export LOG_LEVEL=DEBUG
 # or (legacy, still supported)
@@ -41,7 +41,7 @@ See {ref}`executor-slurm` for details.
 
 Yes. Provide your OpenAI‑compatible endpoint. The “none” deployment option means no model deployment is performed as part of the evaluation job. Instead, you provide an existing OpenAI-compatible endpoint. The launcher handles running evaluation tasks while connecting to your existing endpoint.
 
-```
+```yaml
 target:
   api_endpoint:
     model_id: meta/llama-3.1-8b-instruct    # Model identifier (required)
@@ -58,7 +58,7 @@ Reference: {ref}`deployment-none`.
 
 Yes. Preview the full resolved configuration without executing using \`\--dry-run\` :
 
-```
+```bash
 nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct --dry-run
 ```
 
@@ -72,7 +72,7 @@ Yes. Capture full request/response artifacts and retrieve them from the run’s 
 
 Enable detailed logging with CLI overrides:
 
-```shell
+```bash
 # Request + response logging (example at 1k each)
 # overrides 
 
@@ -88,7 +88,7 @@ These enable the **RequestLoggingInterceptor** and **ResponseLoggingInterceptor*
 
 Retrieve artifacts after the run:
 
-```
+```bash
 nemo-evaluator-launcher export <invocation_id> --dest local --output-dir ./artifacts --copy-logs
 ```
 
@@ -102,7 +102,7 @@ Reference: {ref}`interceptor-request-logging`.
 
 After a run completes, copy artifacts locally:
 
-```shell
+```bash
 nemo-evaluator-launcher debug <invocation_id> --copy-artifacts ./artifacts
 ```
 
@@ -110,7 +110,7 @@ Inside `./artifacts/` you’ll see the run config, `results.yaml` (aggregates), 
 
 Where the output is structured:
 
-```shell
+```bash
       <output_dir>/
       │   ├── run_config.yml
       │   ├── eval_factory_metrics.json
@@ -123,7 +123,7 @@ Where the output is structured:
     	  
 And response stats saved to metrics:
 
-```shell
+```bash
       - **Aggregated Stats**: ...
       - **Individual Stats**: ...
       - **Metrics File**: Final statistics saved to `eval_factory_metrics.json`
@@ -137,7 +137,7 @@ Reference: {ref}`evaluation-output`.
 
 Yes. JSON is included in the standard output exporter, along with automatic exporters for MLflow, Weights & Biases, and Google Sheets.
 
-```shell
+```bash
 nemo-evaluator-launcher export <invocation_id> --dest local --format json
 ```
 
@@ -166,7 +166,7 @@ Yes. Use a **Framework Definition File (FDF)**—a YAML that declares framework 
 
 **Skeleton FDF (excerpt):**
 
-```
+```yaml
 framework:
   name: my-custom-eval
   pkg_name: my_custom_eval
@@ -193,7 +193,7 @@ Reference: {ref}`framework-definition-file`.
 
 Exporters target **external systems** (e.g., W\&B, MLflow, Google Sheets). Each of those adds heavy/optional dependencies and auth integrations. To keep the base install lightweight and avoid forcing unused deps on every user, exporters ship as **optional extras**:
 
-```shell
+```bash
 # Only what you need
 pip install "nemo-evaluator-launcher[wandb]"
 pip install "nemo-evaluator-launcher[mlflow]"
@@ -213,7 +213,7 @@ NeMo Evaluator uses **Hydra** for configuration management, allowing flexible co
 
 Each evaluation is defined by a YAML configuration file that includes four primary sections:
 
-```
+```yaml
 defaults:
   - execution: local
   - deployment: none
@@ -245,7 +245,7 @@ Reference: {ref}`configuration-overview`.
 
 Yes. You can override any field in the YAML file directly from the command line using the `-o` flag:
 
-```
+```bash
 # Override output directory
 nemo-evaluator-launcher run --config-name your_config \
   -o execution.output_dir=my_results
@@ -261,7 +261,7 @@ Overrides are merged dynamically at runtime—ideal for testing new endpoints, s
 :::{tip}
 Always start with a dry run to validate your configuration before launching a full evaluation:
 
-```
+```bash
 nemo-evaluator-launcher run --config-name your_config --dry-run
 ```
 :::
@@ -274,7 +274,7 @@ Reference: {ref}`configuration-overview`.
 
 NeMo Evaluator separates **deployment** (how your model is served) from **execution** (where your evaluations are run). These are configured in the `defaults` section of your YAML file:
 
-```
+```yaml
 defaults:
   - execution: local      # Where to run: local, lepton, or slurm
   - deployment: none      # How to serve the model: none, vllm, sglang, nim, trtllm, generic
@@ -302,7 +302,7 @@ defaults:
 
 **Example:**
 
-```
+```yaml
 defaults:
   - execution: lepton
   - deployment: vllm
@@ -318,7 +318,7 @@ When in doubt:
 Always test first:  
  
 
-```
+```bash
 nemo-evaluator-launcher run --config-name your_config --dry-run
 ```
 
