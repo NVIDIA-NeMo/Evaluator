@@ -231,11 +231,13 @@ def slurm_executor(
         mounts.extend(custom_mounts)
 
     # [snippet-slurm-executor-start]
+    # [snippet-env-vars-slurm-start]
     env_vars = {
         # required for some eval benchmarks from lm-eval-harness
         "HF_DATASETS_TRUST_REMOTE_CODE": "1",
         "HF_TOKEN": "xxxxxx",  # [hf-token-slurm]
     }
+    # [snippet-env-vars-slurm-end]
     if custom_env_vars:
         env_vars |= custom_env_vars
 
@@ -268,11 +270,13 @@ def slurm_executor(
 
 def local_executor_torchrun() -> run.LocalExecutor:
     # [snippet-local-executor-start]
+    # [snippet-env-vars-local-start]
     env_vars = {
         # required for some eval benchmarks from lm-eval-harness
         "HF_DATASETS_TRUST_REMOTE_CODE": "1",
         "HF_TOKEN": "xxxxxx",  # [hf-token-local]
     }
+    # [snippet-env-vars-local-end]
 
     executor = run.LocalExecutor(env_vars=env_vars)
     # [snippet-local-executor-end]

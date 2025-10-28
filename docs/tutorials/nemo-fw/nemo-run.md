@@ -61,10 +61,23 @@ or a Slurm one:
 ```
 
 :::{note}
-Please make sure to update `HF_TOKEN` with your token
+Please make sure to update `HF_TOKEN` with your token in the NeMo Run script's env_vars:
 
-- in the NeMo Run script's [local_executor env_vars](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/scripts/evaluation_with_nemo_run.py#L274) (marked with `# [hf-token-local]`) if using local executor
-- in the [slurm_executor's env_vars](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/scripts/evaluation_with_nemo_run.py#L237) (marked with `# [hf-token-slurm]`) if using slurm_executor.
+If using **local executor**, update this section:
+
+```{literalinclude} ../../../scripts/evaluation_with_nemo_run.py
+:language: python
+:start-after: "# [snippet-env-vars-local-start]"
+:end-before: "# [snippet-env-vars-local-end]"
+```
+
+If using **slurm executor**, update this section:
+
+```{literalinclude} ../../../scripts/evaluation_with_nemo_run.py
+:language: python
+:start-after: "# [snippet-env-vars-slurm-start]"
+:end-before: "# [snippet-env-vars-slurm-end]"
+```
 :::
 
 Then, the two jobs are configured:
