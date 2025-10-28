@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 # Setup and Installation Issues
 
 Solutions for getting {{ product_name_short }} up and running, including installation problems, authentication setup, and model deployment issues.
