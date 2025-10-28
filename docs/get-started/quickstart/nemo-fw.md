@@ -109,7 +109,6 @@ if __name__ == "__main__":
 
 ## Next Steps
 
-- Explore {ref}`deployment-nemo-fw` for other deployment options
 - Integrate evaluation into your training pipeline
 - Run deployment and evaluation with NeMo Run
 - Configure adapters and interceptors for advanced evaluation scenarios

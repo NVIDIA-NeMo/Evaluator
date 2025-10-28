@@ -112,18 +112,6 @@ Configure your evaluations, create custom tasks, explore benchmarks, and extend 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
-<!-- :::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Configuration Parameters
-:link: eval-parameters
-:link-type: ref
-Comprehensive reference for evaluation configuration parameters, optimization patterns, and framework-specific settings.
-::: -->
-
-<!-- :::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Custom Task Configuration
-:link: eval-custom-tasks
-:link-type: ref
-Learn how to configure evaluations for tasks without pre-defined configurations using custom benchmark definitions.
-::: -->
-
 :::{grid-item-card} {octicon}`list-unordered;1.5em;sd-mr-1` Benchmark Catalog
 :link: eval-benchmarks
 :link-type: ref

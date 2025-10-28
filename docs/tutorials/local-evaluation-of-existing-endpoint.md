@@ -1,3 +1,4 @@
+(tutorials-local-eval-existing-endpoint)=
 # Local Evaluation of Existing Endpoint
 
 This tutorial shows how to evaluate an existing API endpoint using the Local executor.
