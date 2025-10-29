@@ -35,7 +35,7 @@ lm-evaluation-harness:
   * mmlu_prox
 ```
 
-## Deploy and Evaluate NeMo Checkpoints
+## Deploy and Evaluate Megatron Bridge Checkpoints
 
 The evaluation process employs a server-client approach, comprising two main phases. 
 - **Phase 1: Model Deployment**
@@ -98,14 +98,21 @@ To evaluate your model on a task without a pre-defined config, see ["Run Evaluat
 
 ## Evaluate Models Locally on Your Workstation
 
-This section outlines the steps to deploy and evaluate the Megatron Bridge using Python commands. This method is quick and easy, making it ideal for evaluation on a local workstation with GPUs, as it facilitates easier debugging. However, for running evaluations on clusters, it is recommended to use NeMo Run for its ease of use (see the next section).
+This section outlines the steps to deploy and evaluate the Megatron Bridge checkpoint using Python commands. This method is quick and easy, making it ideal for evaluation on a local workstation with GPUs, as it facilitates easier debugging. However, for running evaluations on clusters, it is recommended to use NeMo Run for its ease of use (see the next section).
 
-The deployment scripts are available inside the [`/opt/Export-Deploy/scripts/deploy/nlp/`](https://github.com/NVIDIA-NeMo/Export-Deploy/tree/main/scripts/deploy/nlp) directory. Below is an example command for deployment. It uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to Megatron Bridge format. To evaluate a checkpoint saved during pretraining or fine-tuning with [Megatron Bridge](https://docs.nvidia.com/nemo/megatron-bridge/latest/recipe-usage.html), provide the path to the saved checkpoint using the `--megatron_checkpoint` flag in the command below.
+To evaluate a checkpoint saved during pretraining or fine-tuning with [Megatron-Bridge](https://docs.nvidia.com/nemo/megatron-bridge/latest/recipe-usage.html), provide the path to the saved checkpoint using the `--megatron_checkpoint` flag in the deployment command below. Otherwise, Hugging Face checkpoints can be converted to Megatron Bridge using the single shell command:
+
+```bash
+huggingface-cli login --token <your token>
+python -c "from megatron.bridge import AutoBridge; AutoBridge.import_ckpt('meta-llama/Llama-3-8B','/workspace/mbridge_llama3_8b/')"
+```
+
+The deployment scripts are available inside the [`/opt/Export-Deploy/scripts/deploy/nlp/`](https://github.com/NVIDIA-NeMo/Export-Deploy/tree/main/scripts/deploy/nlp) directory. Below is an example command for deployment. It uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to Megatron Bridge format using the command shared above.
 
 ```shell
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_inframework_triton.py \
-  --megatron_checkpoint "/workspace/llama3_8b/iter_0000000" \
+  --megatron_checkpoint "/workspace/mbridge_llama3_8b/iter_0000000" \
   --triton_model_name "megatron_model" \
   --server_port 8080 \
   --num_gpus 1 \
