@@ -68,7 +68,9 @@ if __name__ == "__main__":
 
 ## Evaluate Automodel Checkpoints on Log-probability Benchmarks
 
-In order to evaluate automodel checkpoints on benchmarks that need log-probabilities, the deployment command remains the same as shared in [Deploy Automodel Checkpoints](#deploy-automodel-checkpoints). Log-probability benchmarks are supported with both `vLLM` backend (using the flag `--use_vllm_backend`) and direct deployment of the Automodel checkpoint. However, evaluation command requires path to the `tokenizer` and `tokenizer_backend` to be specified as shown below. `Tokenizer` files are present in the checkpoint directory itself.
+To evaluate Automodel checkpoints on benchmarks that require log-probabilities, use the same deployment command provided in [Deploy Automodel Checkpoints](#deploy-automodel-checkpoints). These benchmarks are supported by both the `vLLM` backend (enabled via the `--use_vllm_backend` flag) and by directly deploying the Automodel checkpoint.
+
+For evaluation, you must specify the path to the `tokenizer` and set the `tokenizer_backend` parameter as shown below. The `tokenizer` files are located within the checkpoint directory.
 
 ```python
 from nemo_evaluator.api import check_endpoint, evaluate
