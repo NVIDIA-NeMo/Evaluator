@@ -113,7 +113,7 @@ python \
   --inference_max_seq_length 4096
 ```
 
-> **Note:** Megatron Bridge creates checkpoints that contains directory `iter_N` (checkpoint at iteration N) containing the weights and other artifacts. Make sure to provide path to that directory. Hugging Face checkpoints converted to Megatron Bridge are stored under directory `iter_0000000` as shown in the command above. 
+> **Note:** Megatron Bridge creates checkpoints in directories named `iter_N`, where *N* is the iteration number. Each `iter_N` directory contains model weights and related artifacts. When using a checkpoint, make sure to provide the path to the appropriate `iter_N` directory. Hugging Face checkpoints converted for Megatron Bridge are typically stored in a directory named `iter_0000000`, as shown in the command above.
 
 > **Note:** In order to evaluate NeMo 2.0 checkpoints, replace the `--meagtron_checkpoint` flag in the deployment command above with `--nemo_checkpoint` and provide the path for NeMo checkpoint.
 
