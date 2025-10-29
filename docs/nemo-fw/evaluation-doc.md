@@ -98,7 +98,7 @@ To evaluate your model on a task without a pre-defined config, see ["Run Evaluat
 
 ## Evaluate Models Locally on Your Workstation
 
-This section outlines the steps to deploy and evaluate the Megatron Bridge using Python commands. This method is quick and easy, making it ideal for evaluation on a local workstation with GPUs, as it facilitates easier debugging. However, for running evaluations on clusters, it is recommended to use NeMo Run for its ease of use (see next section).
+This section outlines the steps to deploy and evaluate the Megatron Bridge using Python commands. This method is quick and easy, making it ideal for evaluation on a local workstation with GPUs, as it facilitates easier debugging. However, for running evaluations on clusters, it is recommended to use NeMo Run for its ease of use (see the next section).
 
 The deployment scripts are available inside [`/opt/Export-Deploy/scripts/deploy/nlp/`](https://github.com/NVIDIA-NeMo/Export-Deploy/tree/main/scripts/deploy/nlp) directory. Below is an example command for deployment. It uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to Megatron Bridge format. To evaluate a checkpoint saved during pretraining or fine-tuning with [Megatron Bridge](https://docs.nvidia.com/nemo/megatron-bridge/latest/recipe-usage.html), provide the path to the saved checkpoint using the `--megatron_checkpoint` flag in the command below.
 
