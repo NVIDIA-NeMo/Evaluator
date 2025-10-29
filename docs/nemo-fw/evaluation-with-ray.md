@@ -34,7 +34,7 @@ python \
 
 > **Note:** Adjust `num_replicas` based on the number of instances/replicas needed. Ensure that total `num_gpus` is equal to the `num_replicas` times model parallelism configuration (i.e., `tensor_model_parallel_size * pipeline_model_parallel_size * context_parallel_size`).
 
-> **Note:** In order to evaluate NeMo 2.0 checkpoints, replace the `--meagtron_checkpoint` flag in the deployment command above with `--nemo_checkpoint` and provide the path for NeMo checkpoint.
+> **Note:** To evaluate NeMo 2.0 checkpoints, replace the `--megatron_checkpoint` flag in the deployment command above with `--nemo_checkpoint` and provide the path for the NeMo checkpoint.
 
 
 ## Run Evaluations on Ray-Deployed Models
