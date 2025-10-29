@@ -66,7 +66,7 @@ if __name__ == "__main__":
     evaluate(target_cfg=eval_target, eval_cfg=eval_config)
 ```
 
-## Evaluate Automodel Checkpoints on Log-probability benchmarks
+## Evaluate Automodel Checkpoints on Log-probability Benchmarks
 
 In order to evaluate automodel checkpoints on benchmarks that need log-probabilities, the deployment command remains the same as shared in [Deploy Automodel Checkpoints](#deploy-automodel-checkpoints). Log-probability benchmarks are supported with both `vLLM` backend (using the flag `--use_vllm_backend`) and direct deployment of the Automodel checkpoint. However, evaluation command requires path to the `tokenizer` and `tokenizer_backend` to be specified as shown below. `Tokenizer` files are present in the checkpoint directory itself.
 
