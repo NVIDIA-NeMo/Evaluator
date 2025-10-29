@@ -35,6 +35,7 @@ lm-evaluation-harness:
   * mmlu_prox
 ```
 
+(deployment-nemo-fw)=
 ## Deploy and Evaluate NeMo Checkpoints
 
 The evaluation process employs a server-client approach, comprising two main phases. 

@@ -158,6 +158,10 @@ suppress_warnings = [
     "myst.xref_missing",  # Expected for Pydantic BaseModel docstrings that reference Pydantic's own documentation
 ]
 
+# -- Options for linkcheck builder -------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#confval-linkcheck_anchors
+linkcheck_anchors = False  # Disable checking for anchors in links
+
 # -- Options for Autodoc2 ---------------------------------------------------
 sys.path.insert(0, os.path.abspath(".."))
 sys.path.insert(0, os.path.abspath("../packages/nemo-evaluator/src"))
