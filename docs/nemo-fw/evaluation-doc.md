@@ -86,7 +86,7 @@ To enable additional evaluation harnesses, like  `simple-evals`, `BFCL`, `garak`
 pip install nvidia-simple-evals
 ```
 
-For more information on enabling additional evaluation harnesses, see ["Add On-Demand Evaluation Packages"](optional-eval-package.md) section.
+For more information on enabling additional evaluation harnesses, see the ["Add On-Demand Evaluation Packages"](optional-eval-package.md) section.
 If multiple harnesses are installed in your environment and they define a task with the same name, you must use the `<harness>.<task>` format to avoid ambiguity. For example:
 
 ```python
