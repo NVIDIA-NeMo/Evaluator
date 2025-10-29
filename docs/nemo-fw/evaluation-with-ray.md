@@ -17,7 +17,7 @@ Deployment with Ray Serve provides support for multiple replicas of your model a
 
 ## Deploy Models Using Ray Serve
 
-To deploy your model using Ray, use the `deploy` function with `serving_backend="ray"` use the command below where `--megatron_checkpoint` is the path to Megatron Bridge checkpoint.
+To deploy your model using Ray, use the `deploy` function with `serving_backend="ray". Run the following command, replacing `--megatron_checkpoint` with the path to your Megatron Bridge checkpoint:
 
 ```shell
 python \
