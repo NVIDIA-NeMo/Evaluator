@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 (create-framework-definition-file)=
 
 # Tutorial: Create a Framework Definition File

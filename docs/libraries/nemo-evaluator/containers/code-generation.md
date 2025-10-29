@@ -37,6 +37,35 @@ docker pull nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_com
 
 ---
 
+## Compute Eval Container
+
+**NGC Catalog**: [compute-eval](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/compute-eval)
+
+Container specialized for evaluating CUDA code generation.
+
+**Use Cases:**
+- CUDA code generation
+- CCCL programming problems
+
+**Pull Command:**
+```bash
+docker pull nvcr.io/nvidia/eval-factory/compute-eval:{{ docker_compose_latest }}
+```
+
+**Default Parameters:**
+
+| Parameter | Value |
+|-----------|-------|
+| `limit_samples` | `None` |
+| `max_new_tokens` | `2048` |
+| `temperature` | `0` |
+| `top_p` | `0.00001` |
+| `parallelism` | `1` |
+| `max_retries` | `2` |
+| `request_timeout` | `3600` |
+
+---
+
 ## LiveCodeBench Container
 
 **NGC Catalog**: [livecodebench](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/livecodebench)

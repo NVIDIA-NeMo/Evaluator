@@ -1,7 +1,3 @@
----
-orphan: true
----
-
 (evaluation-overview)=
 
 # About Evaluation
@@ -14,8 +10,8 @@ Before you run evaluations, ensure you have:
 
 1. **Chosen your approach**: See {ref}`get-started-overview` for installation and setup guidance
 2. **Deployed your model**: See {ref}`deployment-overview` for deployment options
-3. **OpenAI-compatible endpoint**: Your model must expose a compatible API
-4. **API credentials**: Access tokens for your model endpoint
+3. **OpenAI-compatible endpoint**: Your model must expose a compatible API (see {ref}`deployment-testing-compatibility`).
+4. **API credentials**: Access tokens for your model endpoint and Hugging Face Hub.
 
 ---
 
@@ -33,9 +29,11 @@ Before you run evaluations, ensure you have:
 **Step 2: Select Benchmarks**
 
 Common academic suites:
-- **Language Understanding**: `mmlu_pro`, `arc_challenge`, `hellaswag`, `truthfulqa`
-- **Mathematical Reasoning**: `gsm8k`, `math`
-- **Instruction Following**: `ifeval`, `gpqa_diamond`
+- **General Knowledge**: `mmlu_pro`, `gpqa_diamond`
+- **Mathematical Reasoning**: `AIME_2025`, `mgsm`
+- **Instruction Following**: `ifbench`, `mtbench`
+
+
 
 Discover all available tasks:
 ```bash
@@ -44,51 +42,38 @@ nemo-evaluator-launcher ls tasks
 
 **Step 3: Run Evaluation**
 
-Using Launcher CLI:
+Create `config.yml`:
+
+```yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+evaluation:
+  tasks:
+    - name: mmlu_pro
+    - name: ifbench
+```
+
+Launch the job:
+
 ```bash
+export NGC_API_KEY=nvapi-...
+
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
-    -o 'evaluation.tasks=["mmlu_pro", "gsm8k", "arc_challenge"]' \
-    -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
-    -o target.api_endpoint.api_key=${YOUR_API_KEY}
+    --config-dir . \
+    --config-name config.yml \
+    -o execution.output_dir=results \
+    -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
+    -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
+    -o +target.api_endpoint.api_key_name=NGC_API_KEY
 ```
 
-Using Python API:
-```python
-from nemo_evaluator.core.evaluate import evaluate
-from nemo_evaluator.api.api_dataclasses import (
-    EvaluationConfig, EvaluationTarget, ApiEndpoint, ConfigParams, EndpointType
-)
-
-# Configure and run
-eval_config = EvaluationConfig(
-    type="mmlu_pro",
-    output_dir="./results",
-    params=ConfigParams(
-        limit_samples=100,      # Start with subset
-        temperature=0.01,       # Near-deterministic
-        max_new_tokens=512,
-        parallelism=4
-    )
-)
-
-target_config = EvaluationTarget(
-    api_endpoint=ApiEndpoint(
-        url="https://integrate.api.nvidia.com/v1/chat/completions",
-        model_id="meta/llama-3.1-8b-instruct",
-        type=EndpointType.CHAT,
-        api_key="YOUR_API_KEY"
-    )
-)
-
-result = evaluate(eval_cfg=eval_config, target_cfg=target_config)
-```
-
-**Next Steps**:
+<!-- **Next Steps**:
 - {ref}`text-gen` - Complete text generation guide
 - {ref}`eval-parameters` - Optimize configuration parameters
-- {ref}`eval-benchmarks` - Explore all available benchmarks
+- {ref}`eval-benchmarks` - Explore all available benchmarks -->
 :::
 
 ---
@@ -99,12 +84,6 @@ Select a workflow based on your environment and desired level of control.
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
-
-:::{grid-item-card} {octicon}`play;1.5em;sd-mr-1` Run Evaluations
-:link: run-evals/index
-:link-type: doc
-Step-by-step guides for different evaluation scenarios using launcher, core API, and container workflows.
-:::
 
 :::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` Launcher Workflows
 :link: ../get-started/quickstart/launcher
@@ -132,18 +111,6 @@ Configure your evaluations, create custom tasks, explore benchmarks, and extend 
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
-
-:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Configuration Parameters
-:link: eval-parameters
-:link-type: ref
-Comprehensive reference for evaluation configuration parameters, optimization patterns, and framework-specific settings.
-:::
-
-:::{grid-item-card} {octicon}`tools;1.5em;sd-mr-1` Custom Task Configuration
-:link: eval-custom-tasks
-:link-type: ref
-Learn how to configure evaluations for tasks without pre-defined configurations using custom benchmark definitions.
-:::
 
 :::{grid-item-card} {octicon}`list-unordered;1.5em;sd-mr-1` Benchmark Catalog
 :link: eval-benchmarks
@@ -182,12 +149,6 @@ Export evaluation results to MLflow, Weights & Biases, Google Sheets, and other 
 :link: ../libraries/nemo-evaluator/interceptors/index
 :link-type: doc
 Configure request/response processing, logging, caching, and custom interceptors.
-:::
-
-:::{grid-item-card} {octicon}`alert;1.5em;sd-mr-1` Troubleshooting
-:link: ../troubleshooting/index
-:link-type: doc
-Resolve common evaluation issues, debug configuration problems, and optimize evaluation performance.
 :::
 
 ::::

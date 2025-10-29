@@ -61,6 +61,7 @@ nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/exampl
   -o +config.params.limit_samples=10
 ```
 
+(launcher-cli-dry-run)=
 ### Dry Run
 
 Preview the full resolved configuration without executing:

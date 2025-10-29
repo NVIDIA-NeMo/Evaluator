@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 import base64
+import copy
 import datetime
 from dataclasses import dataclass
 from typing import Optional
@@ -170,7 +171,9 @@ def get_eval_factory_command(
         + "&& $cmd run_eval --run_config config_ef.yaml"
     )
 
-    overrides = merged_nemo_evaluator_config.get("overrides", {})
+    # NOTE: see note and test about deprecating that.
+    overrides = copy.deepcopy(dict(cfg.evaluation.get("overrides", {})))
+    overrides.update(dict(user_task_config.get("overrides", {})))
     # NOTE(dfridman): Temporary fix to make sure that the overrides arg is not split into multiple lines.
     # Consider passing a JSON object on Eval Factory side
     overrides = {

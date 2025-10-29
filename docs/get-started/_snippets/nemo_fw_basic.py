@@ -11,25 +11,29 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import logging
-
-from nemo_evaluator.api import check_endpoint, evaluate
-
-logger = logging.getLogger(__name__)
-
+#!/usr/bin/env python3
 
 # [snippet-start]
-def wait_and_evaluate(target_cfg, eval_cfg):
-    server_ready = check_endpoint(
-        endpoint_url=target_cfg.api_endpoint.url,
-        endpoint_type=target_cfg.api_endpoint.type,
-        model_name=target_cfg.api_endpoint.model_id,
-    )
-    if not server_ready:
-        raise RuntimeError(
-            "Server is not ready to accept requests. Check the deployment logs for errors."
-        )
-    return evaluate(target_cfg=target_cfg, eval_cfg=eval_cfg)
+# Start Python in a new terminal
+# 3. Launch evaluation:
 
+from nemo_evaluator.api import evaluate
+from nemo_evaluator.api.api_dataclasses import (
+    ApiEndpoint,
+    EvaluationConfig,
+    EvaluationTarget,
+)
 
+# Configure evaluation
+api_endpoint = ApiEndpoint(
+    url="http://0.0.0.0:8080/v1/completions/",
+    type="completions",
+    model_id="megatron_model",
+)
+target = EvaluationTarget(api_endpoint=api_endpoint)
+config = EvaluationConfig(type="gsm8k", output_dir="results")
+
+# Run evaluation
+results = evaluate(target_cfg=target, eval_cfg=config)
+print(results)
 # [snippet-end]

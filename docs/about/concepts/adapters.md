@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 (adapters-concepts)=
 # Adapters
 
