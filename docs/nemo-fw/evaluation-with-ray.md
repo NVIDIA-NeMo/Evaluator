@@ -17,7 +17,7 @@ Deployment with Ray Serve provides support for multiple replicas of your model a
 
 ## Deploy Models Using Ray Serve
 
-To deploy your model using Ray, use the `deploy` function with `serving_backend="ray"`. Run the following command, replacing `--megatron_checkpoint` with the path to your Megatron Bridge checkpoint:
+To deploy your model using Ray, use the `deploy_ray_inframework.py` script available inside the [`/opt/Export-Deploy/scripts/deploy/nlp/`](https://github.com/NVIDIA-NeMo/Export-Deploy/tree/main/scripts/deploy/nlp) directory. Below is an example command for deployment. It uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to Megatron Bridge format.
 
 ```shell
 python \
