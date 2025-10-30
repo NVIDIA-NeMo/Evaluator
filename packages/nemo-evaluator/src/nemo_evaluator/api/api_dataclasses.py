@@ -129,11 +129,6 @@ class EvaluationMetadata(BaseModel):
         "https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator-launcher/configuration/index.html",
         default=None,
     )
-    launcher_unresolved_config: Optional[dict] = Field(
-        description="Same as resolved, but contains Hydra-style raw config used by the launcher, potentially with "
-        "Hydra interpolations, and so on",
-        default=None,
-    )
 
 
 class Evaluation(BaseModel):
