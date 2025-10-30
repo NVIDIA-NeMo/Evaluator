@@ -18,6 +18,7 @@ import json
 import os
 import signal
 import sys
+from typing import Optional
 
 import psutil
 import yaml
@@ -26,6 +27,7 @@ from nemo_evaluator.adapters.server import AdapterServerProcess
 from nemo_evaluator.api.api_dataclasses import (
     Evaluation,
     EvaluationConfig,
+    EvaluationMetadata,
     EvaluationResult,
     EvaluationTarget,
 )
@@ -47,7 +49,9 @@ def parse_output(evaluation: Evaluation) -> EvaluationResult:
 
 
 def evaluate(
-    eval_cfg: EvaluationConfig, target_cfg: EvaluationTarget
+    eval_cfg: EvaluationConfig,
+    target_cfg: EvaluationTarget,
+    metadata: Optional[EvaluationMetadata] = None,
 ) -> EvaluationResult:
     """
     Run an evaluation using configuration objects.
@@ -198,11 +202,16 @@ def evaluate(
     with open(metrics_path, "w") as f:
         json.dump(merged_metrics, f, indent=2)
 
+    metadata_block = _persist_metadata_and_build_block(
+        evaluation.config.output_dir, metadata
+    )
+
     evaluation_result_dict = {
         "git_hash": os.getenv("CORE_EVALS_GIT_HASH"),
         "command": evaluation.render_command(),
         **run_config,
         "results": evaluation_result.model_dump(exclude_none=True),
+        **metadata_block,
     }
 
     logger.info(yaml.dump(evaluation_result_dict))
@@ -211,3 +220,36 @@ def evaluate(
         yaml.dump(evaluation_result_dict, f)
 
     return evaluation_result
+
+
+def _persist_metadata_and_build_block(
+    out_dir: str, md: Optional[EvaluationMetadata]
+) -> dict:
+    """Persist launcher configs and return a results.yml extra block for metadata.
+
+    Returns {"metadata": {"versioning": {...}}} or {} if nothing to add.
+    """
+    if not md:
+        return {}
+
+    if md.launcher_unresolved_config:
+        with open(os.path.join(out_dir, "launcher_unresolved_config.yaml"), "w") as f:
+            yaml.safe_dump(md.launcher_unresolved_config, f, sort_keys=False)
+
+    if md.launcher_resolved_config:
+        with open(os.path.join(out_dir, "launcher_resolved_config.yaml"), "w") as f:
+            yaml.safe_dump(md.launcher_resolved_config, f, sort_keys=False)
+
+    versioning: dict = dict(md.versioning or {})
+    git_hash = os.getenv("CORE_EVALS_GIT_HASH")
+    if git_hash:
+        versioning["git-hash"] = git_hash
+    # TODO(agronskiy): we cannot import top level because due to alphabetic auto-sorting in
+    # nemo_evaluator this leads to circular imports. The said autosorting cannot
+    # yet be ignored per-import since this functionality is not supported yet in
+    # ruff.
+    from nemo_evaluator import __version__ as nemo_evaluator_version
+
+    versioning["nemo_evaluator_version"] = nemo_evaluator_version
+
+    return {"metadata": {"versioning": versioning}} if versioning else {}

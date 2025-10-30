@@ -114,6 +114,28 @@ class EvaluationConfig(BaseModel):
     type: Optional[str] = Field(description="Type of the task", default=None)
 
 
+class EvaluationMetadata(BaseModel):
+    """We put here various evaluation metadata that does not influence the evaluation."""
+
+    versioning: Optional[dict[str, str]] = Field(
+        description="Version(s) of the nemo-evaluator, nemo-evaluator-launcher, and other components "
+        "(if needed) used to trigger this evaluation. Format: "
+        "{component_name: version, component_name: version}.",
+        default=None,
+    )
+    launcher_resolved_config: Optional[dict] = Field(
+        description="If nemo-evaluator-launcher was used to trigger this evaluation, the full resolved "
+        "config of it. For more information, consider "
+        "https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator-launcher/configuration/index.html",
+        default=None,
+    )
+    launcher_unresolved_config: Optional[dict] = Field(
+        description="Same as resolved, but contains Hydra-style raw config used by the launcher, potentially with "
+        "Hydra interpolations, and so on",
+        default=None,
+    )
+
+
 class Evaluation(BaseModel):
     command: str = Field(description="jinja template of the command to be executed")
     framework_name: str = Field(description="Name of the framework")
