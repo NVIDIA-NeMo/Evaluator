@@ -37,6 +37,20 @@ Multimodal evaluation containers for vision-language understanding and reasoning
 Containers focused on safety evaluation, bias detection, and security testing.
 :::
 
+:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` Specialized Tools
+:link: specialized-tools
+:link-type: doc
+
+Containers focused on agentic AI capabilities and advanced reasoning.
+:::
+
+:::{grid-item-card} {octicon}`rocket;1.5em;sd-mr-1` Efficiency
+:link: efficiency
+:link-type: doc
+
+Containers for evaluating speed of input processing and output generation.
+:::
+
 ::::
 
 ---
@@ -73,4 +87,5 @@ Code Generation <code-generation>
 Vision-Language <vision-language>
 Safety & Security <safety-security>
 Specialized Tools <specialized-tools>
+Efficiency <efficiency>
 :::

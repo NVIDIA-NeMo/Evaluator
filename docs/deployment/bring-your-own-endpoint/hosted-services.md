@@ -26,7 +26,7 @@ NVIDIA's catalog of ready-to-use AI models with OpenAI-compatible APIs.
 
 ```bash
 # Get your NGC API key from https://build.nvidia.com
-export NGC_API_KEY="your-ngc-api-key"
+export NGC_API_KEY="nvapi-your-ngc-api-key"
 
 # Test authentication
 curl -H "Authorization: Bearer $NGC_API_KEY" \
@@ -59,8 +59,7 @@ evaluation:
   overrides:
     config.params.limit_samples: 100
   tasks:
-    - name: mmlu_pro
-    - name: gsm8k
+    - name: ifeval
 ```
 
 #### Multi-Model Comparison
@@ -81,63 +80,9 @@ nemo-evaluator-launcher run \
     --config-name local_llama_3_1_8b_instruct \
     -o target.api_endpoint.model_id=meta/llama-3.1-70b-instruct \
     -o execution.output_dir=./results/llama-3.1-70b
-```
 
-#### With Custom Adapters
-
-Configure adapters using the interceptor structure in Python. For detailed YAML configuration, see {ref}`adapters-configuration`.
-
-```python
-from nemo_evaluator import evaluate, ApiEndpoint, EvaluationTarget, EvaluationConfig
-from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
-
-adapter_config = AdapterConfig(
-    interceptors=[
-        InterceptorConfig(
-            name="system_message",
-            config={"system_message": "You are a helpful assistant that provides accurate and concise answers."}
-        ),
-        InterceptorConfig(
-            name="caching",
-            config={"cache_dir": "./nvidia_build_cache", "reuse_cached_responses": True}
-        ),
-        InterceptorConfig(
-            name="request_logging",
-            config={"max_requests": 20}
-        )
-    ]
-)
-
-api_endpoint = ApiEndpoint(
-    url="https://integrate.api.nvidia.com/v1/chat/completions",
-    model_id="meta/llama-3.1-8b-instruct",
-    api_key="NGC_API_KEY",  # Name of environment variable
-    adapter_config=adapter_config
-)
-target = EvaluationTarget(api_endpoint=api_endpoint)
-config = EvaluationConfig(type="mmlu_pro", output_dir="./results")
-results = evaluate(target_cfg=target, eval_cfg=config)
-```
-
-### NVIDIA Build CLI Usage
-
-Use `nemo-evaluator-launcher` (recommended) or `nemo-evaluator-launcher`:
-
-```bash
-# Basic evaluation
-nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
-    -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
-    -o target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
-    -o target.api_endpoint.api_key=${NGC_API_KEY}
-
-# Large model evaluation with limited samples
-nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
-    -o target.api_endpoint.model_id=meta/llama-3.1-405b-instruct \
-    -o config.params.limit_samples=50
+# Gather the results
+nemo-evaluator-launcher export <first-job-id> <second-job-id> --dest local --format json
 ```
 
 ## OpenAI API
@@ -181,8 +126,7 @@ evaluation:
   overrides:
     config.params.limit_samples: 100
   tasks:
-    - name: mmlu_pro
-    - name: gsm8k
+    - name: ifeval
 ```
 
 #### Cost-Optimized Configuration
@@ -211,28 +155,6 @@ evaluation:
     - name: mmlu_pro
 ```
 
-### OpenAI CLI Usage
-
-Use `nemo-evaluator-launcher` (recommended) or `nemo-evaluator-launcher`:
-
-```bash
-# GPT-4 evaluation
-nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
-    -o target.api_endpoint.url=https://api.openai.com/v1/chat/completions \
-    -o target.api_endpoint.model_id=gpt-4 \
-    -o target.api_endpoint.api_key=${OPENAI_API_KEY}
-
-# Cost-effective GPT-3.5 evaluation
-nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
-    -o target.api_endpoint.model_id=gpt-3.5-turbo \
-    -o config.params.limit_samples=50 \
-    -o config.params.parallelism=2
-```
-
 ## Troubleshooting
 
 ### Authentication Errors
@@ -259,7 +181,8 @@ evaluation:
     config.params.parallelism: 2  # Lower parallelism to respect rate limits
 ```
 
-## Next Steps
+<!-- TODO(martas): uncomment once we have guide for manual deployment -->
+<!-- ## Next Steps
 
-- **Add adapters**: Explore [adapter configurations](../adapters/configuration.md) for custom processing
 - **Self-host models**: Consider [manual deployment](manual-deployment.md) for full control
+- **Launcher-orchestrated deployment**: [Deploy](../launcher-orchestrated/index.md) models for evaluation with `nemo-evaluator-launcher` -->

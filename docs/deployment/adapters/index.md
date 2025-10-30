@@ -1,4 +1,9 @@
+---
+orphan: true
+---
+
 <!-- markdownlint-disable MD041 -->
+
 (adapters)=
 
 # Evaluation Adapters

@@ -20,6 +20,7 @@ It automatically initializes logging and conditionally loads internal components
 """
 
 import importlib
+import warnings
 
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.package_info import (
@@ -32,8 +33,21 @@ from nemo_evaluator_launcher.package_info import (
     __version__,
 )
 
-logger.info("Version info", pkg=__package_name__, ver=__version__)
+# Suppress pydantic warnings from third-party libraries (e.g., wandb) that are not
+# compatible with Pydantic 2.x field metadata on Python 3.13+
+warnings.filterwarnings(
+    "ignore",
+    message=r"The 'repr' attribute.*Field\(\).*",
+    category=Warning,
+)
+warnings.filterwarnings(
+    "ignore",
+    message=r"The 'frozen' attribute.*Field\(\).*",
+    category=Warning,
+)
 
+
+logger.info("Version info", pkg=__package_name__, ver=__version__)
 
 try:
     importlib.import_module("nemo_evaluator_launcher_internal")

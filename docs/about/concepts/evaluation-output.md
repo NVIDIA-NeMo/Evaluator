@@ -46,8 +46,6 @@ It is instructive to compare the configuration file cited above and the resultin
 :::
 
 
-## Output Structure
-
 The evaluation output contains the following general sections:
 
 | Section | Description |
@@ -77,3 +75,30 @@ The types of metrics available in the results differ for different evaluation ha
 | JSON Report | Machine-readable evaluation data |
 | Cache Files | Cached requests and responses |
 | Log Files | Detailed execution logs |
+
+
+## Exporting the Results
+
+Once the evaluation has finished and the `results.yaml` file was produced, the scores can be exported.
+In this example we show how the local export works. For information on other exporters, see {ref}`exporters-overview`.
+
+
+The results can be exported using the following command:
+
+```bash
+nemo-evaluator-launcher export <invocation_id> --dest local --format json
+```
+
+This command extracts the scores from the `results.yaml` and creates a `processed_results.json` file with the following content:
+
+```{literalinclude} ./_snippets/processed_results.json
+:language: json
+```
+
+The `nemo-evaluator-launcher export` can accept multiple invocation IDs and gather results accross different invocations, regardless if they have been run locally or using remote executors (see {ref}`executors-overview`), e.g.:
+
+```bash
+nemo-evaluator-launcher export <local-job-id> <slurm-job-id> --dest local --format json --output_dir combined-results
+```
+
+will create the `combined-results/processed_results.json` with the same stracuture as in the example above.

@@ -25,25 +25,27 @@ target:
 
 # specify the benchmarks to evaluate
 evaluation:
-  overrides:  # these overrides apply to all tasks; for task-specific overrides, use the `overrides` field
-    config.params.request_timeout: 3600
+  nemo_evaluator_config: 
+    config: # global config settings that apply to all tasks
+      params:
+        request_timeout: 3600  # timeout for API request in seconds
   tasks:
     - name: mgsm
-      config:
+      nemo_evaluator_config:  # task-specific configuration for mgsm benchmark
         target:
           api_endpoint:
             adapter_config:
               caching_dir: /results/cache
               endpoint_type: chat
               interceptors:
-                - name: "payload_modifier"
+                - name: "payload_modifier"  # modifies API request payload with custom parameters
                   config:
                     params_to_add:
                       extra_body:
                         chat_template_kwargs:
                           enable_thinking: false
                         thinking_budget: -1
-                - name: system_message
+                - name: system_message  # injects a system message to guide model behavior
                   enabled: true
                   config:
                     system_message: |
@@ -57,18 +59,18 @@ evaluation:
                       6. Present your final answer clearly within \boxed{} tags
 
                       Always think step by step and be thorough in your explanations.
-                - name: request_logging
+                - name: request_logging  # logs API requests for debugging and monitoring
                   enabled: true
                   config:
-                    max_requests: 1
+                    max_requests: 1  # limit number of requests to log
 
-                - name: caching
+                - name: caching  # caches API responses to avoid redundant calls
                   enabled: true
                   config:
                     cache_dir: /results/cache
                     reuse_cached_responses: true
 
-                - name: endpoint
+                - name: endpoint  # handles actual API communication
                   enabled: true
-                - name: response_stats
+                - name: response_stats  # collects statistics about API responses
                   enabled: true

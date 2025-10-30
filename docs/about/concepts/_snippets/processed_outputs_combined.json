@@ -1,0 +1,42 @@
+{
+  "export_timestamp": "2025-10-21T07:00:20.450434",
+  "benchmarks": {
+    "ifeval": {
+      "models": {
+        "meta/llama-3.1-8b-instruct": [
+          {
+            "invocation_id": "2dc369a025884656",
+            "job_id": "2dc369a025884656.1",
+            "harness": "lm-evaluation-harness",
+            "container": "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.08.1",
+            "scores": {
+              "ifeval_inst_level_loose_acc_inst_level_loose_acc": 0.875,
+              "ifeval_inst_level_strict_acc_inst_level_strict_acc": 0.875,
+              "ifeval_prompt_level_loose_acc_prompt_level_loose_acc": 0.8,
+              "ifeval_prompt_level_strict_acc_prompt_level_strict_acc": 0.8
+            },
+            "timestamp": "2025-10-21T06:34:10.138338",
+            "executor": "slurm"
+          }
+        ]
+      }
+    },
+    "gpqa_diamond": {
+      "models": {
+        "meta/llama-3.1-8b-instruct": [
+          {
+            "invocation_id": "dde213e0891bb95b",
+            "job_id": "dde213e0891bb95b.0",
+            "harness": "simple_evals",
+            "container": "nvcr.io/nvidia/eval-factory/simple-evals:25.08.1",
+            "scores": {
+              "gpqa_diamond_score_micro": 0.2
+            },
+            "timestamp": "2025-10-21T07:00:20.450409",
+            "executor": "local"
+          }
+        ]
+      }
+    }
+  }
+}

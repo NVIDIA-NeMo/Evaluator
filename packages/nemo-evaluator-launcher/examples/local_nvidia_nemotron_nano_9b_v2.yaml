@@ -40,12 +40,19 @@ target:
 
 # specify the benchmarks to evaluate
 evaluation:
-  overrides: # these overrides apply to all tasks; for task-specific overrides, use the `overrides` field
-    config.params.request_timeout: 3600
-    target.api_endpoint.adapter_config.use_reasoning: false # if true, strips reasoning tokens
-    target.api_endpoint.adapter_config.use_system_prompt: false
+  nemo_evaluator_config:  # global config settings that apply to all tasks
+    config:
+      params:
+        request_timeout: 3600  # timeout for API requests in seconds
+      target:
+        api_endpoint:
+          adapter_config:
+            use_reasoning: false  # if true, strips reasoning tokens and collects reasoning stats
+            use_system_prompt: false  # disables custom system prompt
   tasks:
     - name: simple_evals.mmlu_pro
-      overrides:
-        config.params.limit_samples: 10 # TEST ONLY: Limits all benchmarks to 10 samples total for quick testing
-        config.params.parallelism: 1
+      nemo_evaluator_config:  # task-specific configuration for mmlu_pro
+        config:
+          params:
+            limit_samples: 10  # TEST ONLY: Limits all benchmarks to 10 samples total for quick testing
+            parallelism: 1  # number of parallel requests

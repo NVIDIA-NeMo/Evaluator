@@ -42,6 +42,7 @@ from nemo_evaluator_launcher.common.helpers import (
     get_api_key_name,
     get_endpoint_url,
     get_eval_factory_command,
+    get_eval_factory_config,
     get_eval_factory_dataset_size_from_run_config,
     get_health_url,
     get_timestamp_string,
@@ -453,7 +454,15 @@ def _create_slurm_sbatch_script(
     # get task from mapping, overrides, urls
     tasks_mapping = load_tasks_mapping()
     task_definition = get_task_from_mapping(task.name, tasks_mapping)
-    health_url = get_health_url(cfg, get_endpoint_url(cfg, task, task_definition))
+
+    # Create merged config for get_endpoint_url
+    merged_nemo_evaluator_config = get_eval_factory_config(cfg, task)
+    health_url = get_health_url(
+        cfg,
+        get_endpoint_url(
+            cfg, merged_nemo_evaluator_config, task_definition["endpoint_type"]
+        ),
+    )
 
     # TODO(public release): convert to template
     s = "#!/bin/bash\n"

@@ -40,14 +40,19 @@ target:
 
 # specify the benchmarks to evaluate
 evaluation:
-  overrides: # these overrides apply to all tasks; for task-specific overrides, use the `overrides` field
-    config.params.request_timeout: 3600
-    config.params.parallelism: 1
-    config.params.limit_samples: 5 # TEST ONLY: Limits all benchmarks to 5 samples total for quick testing
-    target.api_endpoint.adapter_config.use_reasoning: false # if true, strips reasoning tokens
-    target.api_endpoint.adapter_config.use_system_prompt: true
-    target.api_endpoint.adapter_config.custom_system_prompt: >-
-      "Think step by step."
+  nemo_evaluator_config:  # global config settings that apply to all tasks
+    config:
+      params:
+        request_timeout: 3600  # timeout for API requests in seconds
+        parallelism: 1  # number of parallel requests
+        limit_samples: 5  # TEST ONLY: Limits all benchmarks to 10 samples total for quick testing
+      target:
+        api_endpoint:
+          adapter_config:
+            use_reasoning: false  # if true, strips reasoning tokens anc collects reasoning stats
+            use_system_prompt: true  # enables custom system prompt
+            custom_system_prompt: >-
+              "Think step by step."
   tasks:
     - name: gpqa_diamond
       env_vars:

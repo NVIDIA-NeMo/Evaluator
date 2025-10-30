@@ -252,3 +252,64 @@ docker pull nvcr.io/nvidia/eval-factory/mmath:{{ docker_compose_latest }}
 | `language` | `en` |
 
 **Supported Languages:** EN, ZH, AR, ES, FR, JA, KO, PT, TH, VI
+
+
+## ProfBench Container
+
+**NGC Catalog**: [profbench](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/profbench)
+
+Container for assessing performance accross professional domains in business and scientific research.
+
+**Use Cases:**
+- Evaluation of professional knowledge accross Physics PhD, Chemistry PhD, Finance MBA and Consulting MBA
+- Report generation capabilities
+- Quality assessment of LLM judges
+
+
+**Pull Command:**
+```bash
+docker pull nvcr.io/nvidia/eval-factory/profbench:{{ docker_compose_latest }}
+```
+
+**Default Parameters:**
+
+| Parameter | Value |
+|-----------|-------|
+| `limit_samples` | `None` |
+| `max_new_tokens` | `4096` |
+| `temperature` | `0.0` |
+| `top_p` | `0.00001` |
+| `parallelism` | `10` |
+| `max_retries` | `5` |
+| `request_timeout` | `600` |
+
+---
+
+## NeMo Skills Container
+
+**NGC Catalog**: [nemo-skills](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/nemo-skills)
+
+Container for assessing LLM capabilities in science, maths and agentic workflows.
+
+**Use Cases:**
+- Evaluation of reasoning capabilities
+- Advanced math and coding skills
+- Agentic workflow
+
+**Pull Command:**
+```bash
+docker pull nvcr.io/nvidia/eval-factory/nemo-skills:{{ docker_compose_latest }}
+```
+
+**Default Parameters:**
+
+| Parameter | Value |
+|-----------|-------|
+| `limit_samples` | `None` |
+| `max_new_tokens` | `65536` |
+| `temperature` | `None` |
+| `top_p` | `None` |
+| `parallelism` | `16` |
+
+
+---

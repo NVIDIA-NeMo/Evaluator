@@ -9,6 +9,7 @@ The NeMo Evaluator Core provides direct Python API access for custom configurati
 
 - Python environment
 - OpenAI-compatible endpoint (hosted or self-deployed) and an API key (if the endpoint is gated)
+- Verify endpoint compatibility using our {ref}`deployment-testing-compatibility` guide
 
 ## Quick Start
 

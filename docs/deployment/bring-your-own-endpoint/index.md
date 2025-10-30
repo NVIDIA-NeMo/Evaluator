@@ -21,7 +21,8 @@ With bring-your-own-endpoint, you:
 - Have specific security or compliance requirements
 - Use enterprise Kubernetes or MLOps pipelines
 
-## Deployment Approaches
+<!-- TODO(martas): uncomment once we have guide for manual deployment -->
+<!-- ## Deployment Approaches
 
 Choose the approach that best fits your infrastructure and requirements:
 
@@ -40,7 +41,7 @@ Deploy using vLLM, TensorRT-LLM, or custom serving frameworks for full control.
 Use NVIDIA Build, OpenAI API, or other cloud providers for instant availability.
 :::
 
-::::
+:::: -->
 
 ## Quick Examples
 
@@ -71,7 +72,7 @@ api_endpoint = ApiEndpoint(
 target = EvaluationTarget(api_endpoint=api_endpoint)
 
 # Run evaluation
-config = EvaluationConfig(type="mmlu_pro", output_dir="results")
+config = EvaluationConfig(type="gsm8k", output_dir="results")
 results = evaluate(eval_cfg=config, target_cfg=target)
 ```
 
@@ -82,10 +83,10 @@ Your endpoint must provide OpenAI-compatible APIs:
 ### Required Endpoints
 - **Completions**: `/v1/completions` (POST) - For text completion tasks
 - **Chat Completions**: `/v1/chat/completions` (POST) - For conversational tasks
-- **Health Check**: `/v1/triton_health` (GET) - For monitoring (recommended)
+- **Health Check**: `/v1/health` (GET) - For monitoring (recommended)
 
 ### Request/Response Format
-Must follow OpenAI API specifications for compatibility with evaluation frameworks.
+Must follow OpenAI API specifications for compatibility with evaluation frameworks. See the {ref}`deployment-testing-compatibility` guide to verify your endpoint's OpenAI compatibility.
 
 
 ## Configuration Management
@@ -105,31 +106,8 @@ target:
 
 evaluation:
   tasks:
-    - name: mmlu_pro
+    - name: mmlu
     - name: gsm8k
-```
-
-### With Adapters
-
-```yaml
-target:
-  api_endpoint:
-    url: http://your-endpoint:8080/v1/completions
-    model_id: your-model-name
-    
-    adapter_config:
-      # Caching for efficiency
-      use_caching: true
-      caching_dir: ./cache
-      
-      # Request logging for debugging
-      use_request_logging: true
-      max_logged_requests: 10
-      
-      # Custom processing
-      use_reasoning: true
-      start_reasoning_token: "<think>"
-      end_reasoning_token: "</think>"
 ```
 
 ## Key Benefits
@@ -154,16 +132,17 @@ target:
 4. **Run evaluations**: Use launcher or core library to run benchmarks
 5. **Monitor and optimize**: Track performance and optimize as needed
 
-## Next Steps
+<!-- TODO(martas): uncomment once we have guide for manual deployment -->
+<!-- ## Next Steps
 
 - **Manual Deployment**: Learn [Manual Deployment](manual-deployment.md) techniques
 - **Hosted Services**: Explore [Hosted Services](hosted-services.md) options
-- **Configure Adapters**: Set up [Evaluation Adapters](../adapters/index.md) for custom processing
+- **Configure Adapters**: Try [Launcher-orchestrated Deployment](../launcher-orchestrated/index.md) -->
 
 ```{toctree}
 :maxdepth: 1
 :hidden:
 
-Manual Deployment <manual-deployment>
 Hosted Services <hosted-services>
+Testing Endpoint Compatibility <testing-endpoint-oai-compatibility>
 ```
