@@ -240,14 +240,19 @@ class AdapterServer:
         enabled_post_eval_hooks = [
             hook for hook in self.adapter_config.post_eval_hooks if hook.enabled
         ]
+        enabled_pre_eval_hooks = [
+            hook for hook in self.adapter_config.pre_eval_hooks if hook.enabled
+        ]
 
-        if not enabled_interceptors and not enabled_post_eval_hooks:
+        if not enabled_interceptors and not enabled_post_eval_hooks and not enabled_pre_eval_hooks:
             warning_msg = (
-                "Adapter server cannot start: No enabled interceptors or "
+                "Adapter server cannot start: No enabled interceptors, pre-eval hooks or "
                 "post-eval hooks found. The server requires at least one enabled "
-                "interceptor or post-eval hook to function properly. "
+                "interceptor, pre-eval hook or post-eval hook to function properly. "
                 f"Configured interceptors: "
                 f"{[ic.name for ic in self.adapter_config.interceptors]}, "
+                f"Configured pre-eval hooks: "
+                f"{[hook.name for hook in self.adapter_config.pre_eval_hooks]}, "
                 f"Configured post-eval hooks: "
                 f"{[hook.name for hook in self.adapter_config.post_eval_hooks]}"
             )

@@ -244,9 +244,25 @@ class AdapterConfig(BaseModel):
                 for s in merged["post_eval_hooks"]
             ]
         
-        # Merge post_eval_hooks into interceptors for unified processing
-        # This maintains backward compatibility for the legacy post_eval_hooks field
-        interceptors = list(merged.get("interceptors", []))
+        # Syntactic sugar for pre_eval_hooks (backward compatibility)
+        if isinstance(merged.get("pre_eval_hooks"), list):
+            merged["pre_eval_hooks"] = [
+                {"name": s} if isinstance(s, str) else s
+                for s in merged["pre_eval_hooks"]
+            ]
+        
+        # Merge pre/post eval hooks into interceptors for unified processing
+        # This maintains backward compatibility for the legacy pre/post_eval_hooks fields
+        # Note: We keep pre/post_eval_hooks as separate fields for validation but also merge them into interceptors
+        interceptors = []
+        
+        # Add pre-eval hooks at the beginning (they run first before evaluation)
+        if merged.get("pre_eval_hooks"):
+            for hook in merged["pre_eval_hooks"]:
+                interceptors.append(hook)
+        
+        # Add regular interceptors
+        interceptors.extend(merged.get("interceptors", []))
         
         # Add post-eval hooks to the end of interceptors (they run last in post-eval phase)
         if merged.get("post_eval_hooks"):
@@ -254,9 +270,6 @@ class AdapterConfig(BaseModel):
                 interceptors.append(hook)
         
         merged["interceptors"] = interceptors
-        
-        # Clear pre_eval_hooks field if present (not supported - use interceptors instead)
-        merged.pop("pre_eval_hooks", None)
         
         try:
             config = cls(**merged)
