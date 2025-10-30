@@ -347,22 +347,28 @@ Install SDK <get-started/install>
 Quickstart <get-started/quickstart/index>
 :::
 
-<!-- :::{toctree}
+:::{toctree}
 :caption: Tutorials
 :hidden:
 
 About Tutorials <tutorials/index>
-::: -->
+Tutorials for NeMo Framework <tutorials/nemo-fw/index>
+Evaluate an Existing Endpoint <tutorials/local-evaluation-of-existing-endpoint>
+:::
 
-<!-- :::{toctree}
+
+<!--
+TODO: Add below once ready
+Evaluation Configuration Parameters <evaluation/parameters>
+Custom Task Configuration <evaluation/custom-tasks> 
+-->
+:::{toctree}
 :caption: Evaluation
 :hidden:
 
 About Model Evaluation <evaluation/index>
-Run Evals <evaluation/run-evals/index>
-Custom Task Configuration <evaluation/custom-tasks>
 Benchmark Catalog <evaluation/benchmarks>
-::: -->
+:::
 
 <!-- :::{toctree}
 :caption: NeMo Framework
@@ -371,15 +377,17 @@ Benchmark Catalog <evaluation/benchmarks>
 About NeMo Framework <nemo-fw/index>
 ::: -->
 
-<!-- :::{toctree}
+<!-- TODO: Add these pages once ready:
+Evaluation Adapters <deployment/adapters/index>
+Launcher-Orchestrated <deployment/launcher-orchestrated/index> -->
+
+:::{toctree}
 :caption: Model Deployment
 :hidden:
 
 About Model Deployment <deployment/index>
-Launcher-Orchestrated <deployment/launcher-orchestrated/index>
 Bring-Your-Own-Endpoint <deployment/bring-your-own-endpoint/index>
-Evaluation Adapters <deployment/adapters/index>
-::: -->
+:::
 
 :::{toctree}
 :caption: Libraries
@@ -399,12 +407,10 @@ Setup & Installation <troubleshooting/setup-issues/index>
 Runtime & Execution <troubleshooting/runtime-issues/index>
 ::: -->
 
-<!-- :::{toctree}
+:::{toctree}
 :caption: References
 :hidden:
 
 About References <references/index>
-Eval Parameters <evaluation/parameters>
-Eval Utils <references/evaluation-utils>
-API Documentation <apidocs/index.rst>
-::: -->
+FAQ <references/faq>
+:::

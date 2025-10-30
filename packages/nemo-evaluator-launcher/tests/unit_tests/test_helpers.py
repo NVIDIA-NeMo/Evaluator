@@ -39,25 +39,39 @@ def test_get_endpoint_url_none_uses_target_or_override():
         {
             "deployment": {"type": "none"},
             "target": {"api_endpoint": {"url": "http://orig"}},
+            "evaluation": {},
         }
     )
     user_task = _cfg(
-        {"overrides": {"config.target.api_endpoint.url": "http://override"}}
+        {
+            "nemo_evaluator_config": {
+                "target": {"api_endpoint": {"url": "http://override"}}
+            }
+        }
     )
     task_def = {"endpoint_type": "chat", "task": "simple_evals.mmlu"}
-    assert get_endpoint_url(cfg, user_task, task_def) == "http://override"
+    merged_config = get_eval_factory_config(cfg, user_task)
+    assert (
+        get_endpoint_url(cfg, merged_config, task_def["endpoint_type"])
+        == "http://override"
+    )
 
 
 def test_get_endpoint_url_none_missing_raises_valueerror():
     cfg = _cfg(
-        {"deployment": {"type": "none"}, "target": {"api_endpoint": {"url": "???"}}}
+        {
+            "deployment": {"type": "none"},
+            "target": {"api_endpoint": {"url": "???"}},
+            "evaluation": {},
+        }
     )
     user_task = _cfg({})
     task_def = {"endpoint_type": "chat", "task": "simple_evals.mmlu"}
     import pytest
 
     with pytest.raises(ValueError, match="API endpoint URL is not set"):
-        get_endpoint_url(cfg, user_task, task_def)
+        merged_config = get_eval_factory_config(cfg, user_task)
+        get_endpoint_url(cfg, merged_config, task_def["endpoint_type"])
 
 
 def test_get_endpoint_url_target_present_returns_target_with_override():
@@ -69,22 +83,38 @@ def test_get_endpoint_url_target_present_returns_target_with_override():
                 "endpoints": {"chat": "/v1/chat"},
             },
             "target": {"api_endpoint": {"url": "http://dyn"}},
+            "evaluation": {},
         }
     )
     user_task = _cfg(
-        {"overrides": {"config.target.api_endpoint.url": "http://dyn-ovr"}}
+        {
+            "nemo_evaluator_config": {
+                "target": {"api_endpoint": {"url": "http://dyn-ovr"}}
+            }
+        }
     )
     task_def = {"endpoint_type": "chat", "task": "simple_evals.mmlu"}
-    assert get_endpoint_url(cfg, user_task, task_def) == "http://dyn-ovr"
+    merged_config = get_eval_factory_config(cfg, user_task)
+    assert (
+        get_endpoint_url(cfg, merged_config, task_def["endpoint_type"])
+        == "http://dyn-ovr"
+    )
 
 
 def test_get_endpoint_url_local_builds_localhost():
     cfg = _cfg(
-        {"deployment": {"type": "vllm", "port": 8081, "endpoints": {"chat": "/v1"}}}
+        {
+            "deployment": {"type": "vllm", "port": 8081, "endpoints": {"chat": "/v1"}},
+            "evaluation": {},
+        }
     )
     user_task = _cfg({})
     task_def = {"endpoint_type": "chat", "task": "simple_evals.mmlu"}
-    assert get_endpoint_url(cfg, user_task, task_def) == "http://127.0.0.1:8081/v1"
+    merged_config = get_eval_factory_config(cfg, user_task)
+    assert (
+        get_endpoint_url(cfg, merged_config, task_def["endpoint_type"])
+        == "http://127.0.0.1:8081/v1"
+    )
 
 
 def test_get_health_url_none_returns_endpoint_url(monkeypatch):
@@ -208,6 +238,16 @@ def old_format_global_config():
 def old_format_task_config():
     """Task config using old 'config' format."""
     return {"config": {"params": {"temperature": 0.6}}}
+
+
+def test_start_deprecating_overrides():
+    """This test will start failing to remind of removing overrides"""
+    # What to do: remove all the respect of `overrides` in code.
+    from datetime import datetime
+
+    DEPRECATION_DATE = datetime(2025, 12, 1)
+    if datetime.now() > DEPRECATION_DATE:
+        pytest.fail(f"Deprectation of overrides should start {DEPRECATION_DATE}")
 
 
 def test_get_eval_factory_config_global_config_only(global_config):
