@@ -1,6 +1,6 @@
 # Use Ray Serve for Multi-Instance Evaluations
 
-This guide explains how to deploy and evaluate NeMo Framework models, trained with the Megatron-Core backend, using Ray Serve to enable multi-instance evaluation across available GPUs.
+This guide explains how to deploy and evaluate Megatron Bridge models, trained in NeMo Framework with the Megatron-Core backend, using Ray Serve to enable multi-instance evaluation across available GPUs.
 
 ## Introduction
 
@@ -17,12 +17,12 @@ Deployment with Ray Serve provides support for multiple replicas of your model a
 
 ## Deploy Models Using Ray Serve
 
-To deploy your model using Ray, use the `deploy` function with `serving_backend="ray"`:
+To deploy your model using Ray, use the `deploy_ray_inframework.py` script available inside the [`/opt/Export-Deploy/scripts/deploy/nlp/`](https://github.com/NVIDIA-NeMo/Export-Deploy/tree/main/scripts/deploy/nlp) directory. Below is an example command for deployment. It uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to Megatron Bridge format.
 
 ```shell
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
-  --nemo_checkpoint "meta-llama/Llama-3.1-8B" \
+  --megatron_checkpoint "/workspace/llama3_8b/iter_0000000" \
   --model_id "megatron_model" \
   --port 8080 \                          # Ray server port
   --num_gpus 4 \                         # Total GPUs available
@@ -34,12 +34,14 @@ python \
 
 > **Note:** Adjust `num_replicas` based on the number of instances/replicas needed. Ensure that total `num_gpus` is equal to the `num_replicas` times model parallelism configuration (i.e., `tensor_model_parallel_size * pipeline_model_parallel_size * context_parallel_size`).
 
+> **Note:** To evaluate NeMo 2.0 checkpoints, replace the `--megatron_checkpoint` flag in the deployment command above with `--nemo_checkpoint` and provide the path for the NeMo checkpoint.
+
 
 ## Run Evaluations on Ray-Deployed Models
 
 Once your model is deployed with Ray, you can run evaluations using the same evaluation API as with PyTriton deployment. It is recommended to use the [`check_endpoint`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/core/utils.py) function to verify that the endpoint is responsive and ready to accept requests before starting the evaluation.
 
-To evaluate on generation benchmarks use the code snippet below:
+To evaluate on generation benchmarks, use the code snippet below:
 
 ```python
 from nemo_evaluator.api import check_endpoint, evaluate
@@ -81,7 +83,7 @@ Note that in the example above, you must provide a path to the tokenizer:
 
 ```
         "extra": {
-            "tokenizer": "/workspace/llama3_8b_nemo2/context/nemo_tokenizer",
+            "tokenizer": "/workspace/llama3_8b/iter_0000000/tokenizer",
             "tokenizer_backend": "huggingface",
         },
 ```

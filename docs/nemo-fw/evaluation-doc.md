@@ -1,6 +1,6 @@
 # Evaluate Checkpoints Trained by NeMo Framework
 
-This guide provides step-by-step instructions for evaluating checkpoints trained using the NeMo Framework with the Megatron Core backend. This section specifically covers evaluation with [nvidia-lm-eval](https://pypi.org/project/nvidia-lm-eval/), a wrapper around the [
+This guide provides step-by-step instructions for evaluating [Megatron Bridge](https://docs.nvidia.com/nemo/megatron-bridge/latest/index.html) checkpoints trained using the NeMo Framework with the Megatron Core backend. This section specifically covers evaluation with [nvidia-lm-eval](https://pypi.org/project/nvidia-lm-eval/), a wrapper around the [
 lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness/tree/main) tool.
 
 Here, we focus on benchmarks in the `lm-evaluation-harness` that rely on text generation.
@@ -35,13 +35,12 @@ lm-evaluation-harness:
   * mmlu_prox
 ```
 
-(deployment-nemo-fw)=
-## Deploy and Evaluate NeMo Checkpoints
+## Deploy and Evaluate Megatron Bridge Checkpoints
 
 The evaluation process employs a server-client approach, comprising two main phases. 
 - **Phase 1: Model Deployment**
-    - Deployment via PyTriton: The NeMo Framework checkpoint is deployed in-framework on a PyTriton server by exposing OpenAI API (OAI)-compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed, enabling evaluation on both completion and chat benchmarks.
-    - Deployment via Ray: The NeMo Framework checkpoint can also be deployed in-framework on a Ray server. Ray Serve provides support for multi-instance evaluations, along with OpenAI API (OAI)-compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed. For more details on evaluations with Ray Serve, refer to ["Use Ray Serve for Multi-Instance Evaluations"](evaluation-with-ray.md).
+    - Deployment via PyTriton: The Megatron Bridge checkpoint is deployed in-framework on a PyTriton server by exposing OpenAI API (OAI)-compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed, enabling evaluation on both completion and chat benchmarks.
+    - Deployment via Ray: The Megatron Bridge checkpoint can also be deployed in-framework on a Ray server. Ray Serve provides support for multi-instance evaluations, along with OpenAI API (OAI)-compatible endpoints. Both completions (`v1/completions`) and chat-completions (`v1/chat/completions`) endpoints are exposed. For more details on evaluations with Ray Serve, refer to ["Use Ray Serve for Multi-Instance Evaluations"](evaluation-with-ray.md).
 
 - **Phase 2: Model Evaluation**
     - Evaluation via OAI Endpoints: Once the model is deployed, evaluation is performed by sending benchmark requests to the exposed OAI-compatible endpoints using their respective port. This allows assessment across a range of tasks and harnesses.
@@ -87,7 +86,7 @@ To enable additional evaluation harnesses, like  `simple-evals`, `BFCL`, `garak`
 pip install nvidia-simple-evals
 ```
 
-For more information on enabling additional evaluation harnesses, see ["Add On-Demand Evaluation Packages"](optional-eval-package.md) section.
+For more information on enabling additional evaluation harnesses, see the ["Add On-Demand Evaluation Packages"](optional-eval-package.md) section.
 If multiple harnesses are installed in your environment and they define a task with the same name, you must use the `<harness>.<task>` format to avoid ambiguity. For example:
 
 ```python
@@ -99,14 +98,21 @@ To evaluate your model on a task without a pre-defined config, see ["Run Evaluat
 
 ## Evaluate Models Locally on Your Workstation
 
-This section outlines the steps to deploy and evaluate a checkpoint trained by NeMo Framework directly using Python commands. This method is quick and easy, making it ideal for evaluation on a local workstation with GPUs, as it facilitates easier debugging. However, for running evaluations on clusters, it is recommended to use NeMo Run for its ease of use (see next section).
+This section outlines the steps to deploy and evaluate the Megatron Bridge checkpoint using Python commands. This method is quick and easy, making it ideal for evaluation on a local workstation with GPUs, as it facilitates easier debugging. However, for running evaluations on clusters, it is recommended to use NeMo Run for its ease of use (see the next section).
 
-The deployment scripts are available inside [`/opt/Export-Deploy/scripts/deploy/nlp/`](https://github.com/NVIDIA-NeMo/Export-Deploy/tree/main/scripts/deploy/nlp) directory. Below is an example command for deployment. It uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to NeMo format. To evaluate a checkpoint saved during [pretraining](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#pretraining) or [fine-tuning](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#fine-tuning), provide the path to the saved checkpoint using the `--nemo_checkpoint` flag in the command below.
+To evaluate a checkpoint saved during pretraining or fine-tuning with [Megatron-Bridge](https://docs.nvidia.com/nemo/megatron-bridge/latest/recipe-usage.html), provide the path to the saved checkpoint using the `--megatron_checkpoint` flag in the deployment command below. Otherwise, Hugging Face checkpoints can be converted to Megatron Bridge using the single shell command:
+
+```bash
+huggingface-cli login --token <your token>
+python -c "from megatron.bridge import AutoBridge; AutoBridge.import_ckpt('meta-llama/Llama-3-8B','/workspace/mbridge_llama3_8b/')"
+```
+
+The deployment scripts are available inside the [`/opt/Export-Deploy/scripts/deploy/nlp/`](https://github.com/NVIDIA-NeMo/Export-Deploy/tree/main/scripts/deploy/nlp) directory. Below is an example command for deployment. It uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to Megatron Bridge format using the command shared above.
 
 ```shell
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_inframework_triton.py \
-  --nemo_checkpoint "/workspace/llama3_8b_nemo2" \
+  --megatron_checkpoint "/workspace/mbridge_llama3_8b/iter_0000000" \
   --triton_model_name "megatron_model" \
   --server_port 8080 \
   --num_gpus 1 \
@@ -114,8 +120,12 @@ python \
   --inference_max_seq_length 4096
 ```
 
+> **Note:** Megatron Bridge creates checkpoints in directories named `iter_N`, where *N* is the iteration number. Each `iter_N` directory contains model weights and related artifacts. When using a checkpoint, make sure to provide the path to the appropriate `iter_N` directory. Hugging Face checkpoints converted for Megatron Bridge are typically stored in a directory named `iter_0000000`, as shown in the command above.
+
+> **Note:** To evaluate NeMo 2.0 checkpoints, replace the `--megatron_checkpoint` flag in the deployment command above with `--nemo_checkpoint` and provide the path for the NeMo checkpoint.
+
 The entry point for evaluation is the [`evaluate`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/core/evaluate.py) function. To run evaluations on the deployed model, use the following command. Make sure to open a new terminal within the same container to execute it. For longer evaluations, it is advisable to run both the deploy and evaluate commands in tmux sessions to prevent the processes from being terminated unexpectedly and aborting the runs.
-It is recommended to use [`check_endpoint`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/core/utils.py) function to verify that the endpoint is responsive and ready to accept requests before starting the evaluation.
+It is recommended to use the [`check_endpoint`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/core/utils.py) function to verify that the endpoint is responsive and ready to accept requests before starting the evaluation.
 
 ```python
 from nemo_evaluator.api import check_endpoint, evaluate
@@ -142,7 +152,7 @@ if __name__ == "__main__":
 
 > **Note:** To evaluate the chat endpoint, update the url by replacing `/v1/completions/` with `/v1/chat/completions/`. Additionally, set the `type` field to `"chat"` in both `ApiEndpoint` and `EvaluationConfig` to indicate a chat benchmark. A list of available chat benchmarks can be found in the [Deploy and Evaluate NeMo Checkpoints](#deploy-and-evaluate-nemo-checkpoints) section above.
 
-> **Note:** Please refer to [`deploy_inframework_triton.py`](https://github.com/NVIDIA-NeMo/Export-Deploy/blob/main/scripts/deploy/nlp/deploy_inframework_triton.py) script and [`evaluate`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/core/evaluate.py) function to review all available argument options, as the provided commands are only examples and do not include all arguments or their default values. For more detailed information on the arguments used in the ApiEndpoint and ConfigParams classes for evaluation, see [`api_dataclasses`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/api/api_dataclasses.py) submodule.
+> **Note:** Please refer to the [`deploy_inframework_triton.py`](https://github.com/NVIDIA-NeMo/Export-Deploy/blob/main/scripts/deploy/nlp/deploy_inframework_triton.py) script and [`evaluate`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/core/evaluate.py) function to review all available argument options, as the provided commands are only examples and do not include all arguments or their default values. For more detailed information on the arguments used in the ApiEndpoint and ConfigParams classes for evaluation, see the [`api_dataclasses`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/api/api_dataclasses.py) submodule.
 
 > **Tip:** If you encounter a TimeoutError on the eval client side, please increase the `request_timeout` parameter in `ConfigParams` class to a larger value like `1000` or `1200` seconds (the default is 300).
 
