@@ -82,9 +82,7 @@ def test_get_eval_factory_command_basic(monkeypatch):
     # Validate a few salient fields from the resolved config got embedded
     resolved = merged["metadata"]["launcher_resolved_config"]
     assert resolved["deployment"]["type"] == "none"
-    assert (
-        resolved["target"]["api_endpoint"]["url"] == "https://example.test/api"
-    )
+    assert resolved["target"]["api_endpoint"]["url"] == "https://example.test/api"
     assert resolved["target"]["api_endpoint"]["model_id"] == "model-123"
     assert resolved["evaluation"]["overrides"] == {"foo": "bar\n"}
 

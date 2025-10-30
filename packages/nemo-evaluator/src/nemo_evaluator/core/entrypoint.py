@@ -25,8 +25,8 @@ from nemo_evaluator import logging  # noqa: F401
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.api.api_dataclasses import (
     EvaluationConfig,
-    EvaluationTarget,
     EvaluationMetadata,
+    EvaluationTarget,
 )
 from nemo_evaluator.core.evaluate import evaluate
 from nemo_evaluator.core.input import (
