@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Decorators for registering interceptors and post-evaluation hooks with automatic interface detection."""
+"""Decorators for registering interceptors and pre/post-evaluation hooks with automatic interface detection."""
 
 import inspect
 from typing import Type
@@ -26,6 +26,7 @@ from nemo_evaluator.adapters.types import (
     RequestInterceptor,
     RequestToResponseInterceptor,
     ResponseInterceptor,
+    PreEvalHook,
 )
 
 
@@ -33,7 +34,7 @@ def register_for_adapter(
     name: str,
     description: str,
 ):
-    """Decorator to register interceptors or post-evaluation hooks with automatic interface detection.
+    """Decorator to register interceptors or pre/post-evaluation hooks with automatic interface detection.
 
     Args:
         name: Unique name for the adapter component
@@ -81,15 +82,17 @@ def register_for_adapter(
         implements_response = issubclass(cls, ResponseInterceptor)
         implements_request_to_response = issubclass(cls, RequestToResponseInterceptor)
         implements_post_eval_hook = issubclass(cls, PostEvalHook)
+        implements_pre_eval_hook = issubclass(cls, PreEvalHook)
 
         if not (
             implements_request
             or implements_response
             or implements_request_to_response
             or implements_post_eval_hook
+            or implements_pre_eval_hook
         ):
             raise ValueError(
-                f"Class {cls.__name__} must implement at least one of RequestInterceptor, ResponseInterceptor, RequestToResponseInterceptor, or PostEvalHook"
+                f"Class {cls.__name__} must implement at least one of RequestInterceptor, ResponseInterceptor, RequestToResponseInterceptor, PreEvalHook, or PostEvalHook"
             )
 
         # Validate that the class has a Params class

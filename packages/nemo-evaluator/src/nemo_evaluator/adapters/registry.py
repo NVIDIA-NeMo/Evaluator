@@ -26,6 +26,7 @@ from pydantic import BaseModel
 
 from nemo_evaluator.adapters.types import (
     PostEvalHook,
+    PreEvalHook,
     RequestInterceptor,
     RequestToResponseInterceptor,
     ResponseInterceptor,
@@ -67,6 +68,10 @@ class InterceptorMetadata:
         """Check if this is a post-evaluation hook"""
         return issubclass(self.interceptor_class, PostEvalHook)
 
+    def supports_pre_eval_hook(self) -> bool:
+        """Check if this is a pre-evaluation hook"""
+        return issubclass(self.interceptor_class, PreEvalHook)
+
 
 class InterceptorRegistry:
     """Central registry for all interceptors and post-evaluation hooks with interface awareness. Singleton."""
@@ -86,7 +91,8 @@ class InterceptorRegistry:
                 RequestInterceptor
                 | ResponseInterceptor
                 | RequestToResponseInterceptor
-                | PostEvalHook,
+                | PostEvalHook
+                | PreEvalHook,
             ] = {}
             self._initialized = True
 
@@ -103,6 +109,7 @@ class InterceptorRegistry:
             | ResponseInterceptor
             | RequestToResponseInterceptor
             | PostEvalHook
+            | PreEvalHook
         ],
         metadata: InterceptorMetadata,
     ) -> None:
@@ -113,9 +120,10 @@ class InterceptorRegistry:
             or issubclass(interceptor_class, ResponseInterceptor)
             or issubclass(interceptor_class, RequestToResponseInterceptor)
             or issubclass(interceptor_class, PostEvalHook)
+            or issubclass(interceptor_class, PreEvalHook)
         ):
             raise ValueError(
-                f"Class {interceptor_class.__name__} must implement at least one of RequestInterceptor, ResponseInterceptor, RequestToResponseInterceptor, or PostEvalHook"
+                f"Class {interceptor_class.__name__} must implement at least one of RequestInterceptor, ResponseInterceptor, RequestToResponseInterceptor, PreEvalHook, or PostEvalHook"
             )
 
         metadata.interceptor_class = interceptor_class
@@ -132,8 +140,9 @@ class InterceptorRegistry:
         | ResponseInterceptor
         | RequestToResponseInterceptor
         | PostEvalHook
-    ):
-        """Get or create an interceptor or post-evaluation hook instance with caching"""
+        | PreEvalHook
+    ) | None:
+        """Get or create an interceptor or pre/post-evaluation hook instance with caching"""
         # Use a stable JSON string as cache key to handle unhashable types
         cache_key = f"{name}_{json.dumps(config, sort_keys=True, default=str)}"
 
@@ -172,10 +181,11 @@ class InterceptorRegistry:
 
     def _discover_from_modules(self, modules: Optional[list[str]]) -> None:
         """Discover components from specified modules."""
-        # Always load the default interceptors and reports modules
+        # Always load the default interceptors, pre_hooks, and reports modules
         modules = modules or []
         default_modules = [
             "nemo_evaluator.adapters.interceptors",
+            "nemo_evaluator.adapters.pre_hooks",
             "nemo_evaluator.adapters.reports",
             "nemo_evaluator_internal.adapters.interceptors",
         ]
@@ -253,6 +263,14 @@ class InterceptorRegistry:
             if metadata.supports_post_eval_hook()
         }
 
+    def get_pre_eval_hooks(self) -> dict[str, InterceptorMetadata]:
+        """Get all pre-evaluation hooks"""
+        return {
+            name: metadata
+            for name, metadata in self._metadata.items()
+            if metadata.supports_pre_eval_hook()
+        }
+
     def get_interceptors(self) -> dict[str, InterceptorMetadata]:
         """Get all interceptors (excluding post-eval hooks)"""
         return {
@@ -282,6 +300,11 @@ class InterceptorRegistry:
         """Check if a component is a post-evaluation hook"""
         metadata = self._metadata.get(name)
         return metadata.supports_post_eval_hook() if metadata else False
+
+    def is_pre_eval_hook(self, name: str) -> bool:
+        """Check if a component is a pre-evaluation hook"""
+        metadata = self._metadata.get(name)
+        return metadata.supports_pre_eval_hook() if metadata else False
 
     def clear_cache(self) -> None:
         """Clear the instance cache"""
