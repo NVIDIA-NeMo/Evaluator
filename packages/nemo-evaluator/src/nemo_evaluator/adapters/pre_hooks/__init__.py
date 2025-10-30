@@ -18,9 +18,6 @@
 from nemo_evaluator.adapters.pre_hooks.dataset_download_prehook import (
     DatasetDownloadPreHook,
 )
-from nemo_evaluator.adapters.pre_hooks.package_install_prehook import (
-    PackageInstallPreHook,
-)
 
-__all__ = ["DatasetDownloadPreHook", "PackageInstallPreHook"]
+__all__ = ["DatasetDownloadPreHook"]
 

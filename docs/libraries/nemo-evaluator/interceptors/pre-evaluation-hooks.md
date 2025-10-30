@@ -2,7 +2,7 @@
 
 Prepare the evaluation environment before evaluations start.
 
-Pre-evaluation hooks execute in the parent process before the adapter server starts. This eliminates race conditions and ensures all setup completes before evaluation requests can be processed. Common use cases include downloading datasets, installing packages, and prefilling caches.
+Pre-evaluation hooks execute in the parent process before the adapter server starts. This eliminates race conditions and ensures all setup completes before evaluation requests can be processed. Common use cases include downloading datasets and prefilling caches.
 
 ```{note}
 Pre-evaluation hooks run **before** the server starts, ensuring atomic setup with no race conditions.
@@ -129,84 +129,9 @@ source_config:
   project: "my-project"
 ```
 
-### Package Installation
-
-Install Python packages using pip before evaluation starts.
-
-#### YAML Configuration (Recommended)
-
-Configure as an interceptor:
-
-```yaml
-target:
-  api_endpoint:
-    adapter_config:
-      interceptors:
-      - name: "package_install_prehook"
-        enabled: true
-        config:
-          packages:
-            - "transformers>=4.30"
-            - "accelerate"
-          check_installed: true
-          upgrade: false
-          fail_on_error: true
-```
-
-#### Legacy Configuration (Backward Compatible)
-
-```yaml
-target:
-  api_endpoint:
-    adapter_config:
-      pre_eval_hooks:
-      - name: "package_install_prehook"
-        enabled: true
-        config:
-          packages:
-            - "transformers>=4.30"
-            - "accelerate"
-          check_installed: true
-          upgrade: false
-          fail_on_error: true
-```
-
-#### Configuration Options
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `packages` | List of package specifications to install | `[]` |
-| `requirements_file` | Path to requirements.txt file | `None` |
-| `upgrade` | Upgrade packages if already installed | `false` |
-| `check_installed` | Skip packages already installed | `true` |
-| `fail_on_error` | Fail evaluation if installation fails | `true` |
-| `extra_args` | Additional arguments for pip | `[]` |
-
-#### Using Requirements File
-
-```yaml
-pre_eval_hooks:
-- name: "package_install_prehook"
-  config:
-    requirements_file: "/workspace/requirements.txt"
-```
-
-#### Advanced Configuration
-
-```yaml
-pre_eval_hooks:
-- name: "package_install_prehook"
-  config:
-    packages: ["torch==2.0.0"]
-    upgrade: true
-    extra_args: 
-      - "--index-url"
-      - "https://download.pytorch.org/whl/cu118"
-```
-
 ## Multiple Pre-Hooks
 
-Chain multiple pre-hooks in the interceptors list. They execute in the order specified:
+You can combine the dataset download hook with other interceptors in the interceptors list:
 
 ```yaml
 target:
@@ -214,11 +139,6 @@ target:
     adapter_config:
       interceptors:
         # Pre-hooks run first (in order)
-        - name: "package_install_prehook"
-          config:
-            packages: ["datasets", "boto3"]
-            check_installed: true
-        
         - name: "dataset_download_prehook"
           config:
             target_path: "/workspace/data/custom"
@@ -233,7 +153,7 @@ target:
         - name: "endpoint"
 ```
 
-The system automatically recognizes which interceptors implement the `PreEvalHook` interface and executes them before the server starts.
+The system automatically recognizes which interceptors implement the `PreEvalHook` interface and executes them before the server starts. You can also create custom pre-hooks (see below).
 
 ## Execution Model
 
@@ -291,9 +211,9 @@ pre_eval_hooks:
 
 1. **Use environment variables** for sensitive data like API keys and credentials
 2. **Set `force_download: false`** for datasets to avoid unnecessary re-downloads
-3. **Enable `check_installed: true`** for packages to skip what's already available
-4. **Order matters**: Install packages before downloading datasets if downloads need those packages
-5. **Use `fail_on_error: true`** to catch setup issues early before evaluation starts
+3. **Verify paths have proper permissions** before running evaluation
+4. **Test pre-hooks independently** to ensure they work before running full evaluations
+5. **Check available disk space** especially when downloading large datasets
 
 ## Troubleshooting
 
@@ -306,10 +226,10 @@ pre_eval_hooks:
 - Set `force_download: false` in configuration
 - Verify `target_path` matches existing location exactly
 
-**Package installation fails**
-- Check network connectivity
-- Verify package names and versions exist
-- Try with `extra_args: ["--verbose"]` for detailed output
+**Credentials not working**
+- Ensure environment variables are properly exported
+- Check that credentials have appropriate permissions (read for S3, NGC API key valid, etc.)
+- Test credentials independently before using in pre-hook
 
 **Server never starts**
 - Check if pre-hook is failing
