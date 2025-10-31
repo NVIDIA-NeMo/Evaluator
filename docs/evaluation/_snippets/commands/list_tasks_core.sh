@@ -4,5 +4,5 @@
 
 # [snippet-start]
 # List benchmarks available in the container
-docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:25.09.1 nemo-evaluator ls
+docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:25.10 nemo-evaluator ls
 # [snippet-end]
