@@ -33,7 +33,7 @@ export:
     tracking_uri: "http://mlflow.example.com:5000"
     experiment_name: "llm-evaluation"
     description: "Llama 3.1 8B evaluation"
-    log_metrics: ["accuracy", "f1"]
+    log_metrics: ["mmlu_score_macro", "mmlu_score_micro"]
     tags:
       model_family: "llama"
       version: "3.1"
