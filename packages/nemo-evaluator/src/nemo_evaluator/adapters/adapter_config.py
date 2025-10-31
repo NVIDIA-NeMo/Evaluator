@@ -508,6 +508,8 @@ class AdapterConfig(BaseModel):
             legacy_config["process_reasoning_traces"] = legacy_config["use_reasoning"]
 
         if legacy_config["process_reasoning_traces"]:
+            # give parity back
+            legacy_config["use_reasoning"] = legacy_config["process_reasoning_traces"]
             config = {
                 "end_reasoning_token": legacy_config["end_reasoning_token"],
             }
