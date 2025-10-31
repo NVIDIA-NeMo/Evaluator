@@ -114,6 +114,21 @@ class EvaluationConfig(BaseModel):
     type: Optional[str] = Field(description="Type of the task", default=None)
 
 
+class EvaluationMetadata(BaseModel):
+    """We put here various evaluation metadata that does not influence the evaluation."""
+
+    versioning: Optional[dict[str, str]] = Field(
+        description="Version(s) of any components"
+        "(if needed) used to trigger this evaluation. Format: "
+        "{component_name: version, component_name: version}.",
+        default=None,
+    )
+    data: Optional[dict] = Field(
+        description="Free form (unstructured) data that is of use for tracking meta information.",
+        default=None,
+    )
+
+
 class Evaluation(BaseModel):
     command: str = Field(description="jinja template of the command to be executed")
     framework_name: str = Field(description="Name of the framework")

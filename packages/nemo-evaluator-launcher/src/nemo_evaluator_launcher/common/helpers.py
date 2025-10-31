@@ -22,6 +22,7 @@ from typing import Optional
 import yaml
 from omegaconf import DictConfig, OmegaConf
 
+from nemo_evaluator_launcher.cli.version import get_versions
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 
@@ -161,6 +162,20 @@ def get_eval_factory_command(
         merged_nemo_evaluator_config,
         ["target", "api_endpoint", "api_key"],
         "API_KEY",
+    )
+    _set_nested_optionally_overriding(
+        merged_nemo_evaluator_config,
+        [
+            "metadata",
+            "data",
+            "launcher_resolved_config",
+        ],
+        OmegaConf.to_container(cfg, resolve=True),
+    )
+    _set_nested_optionally_overriding(
+        merged_nemo_evaluator_config,
+        ["metadata", "versioning"],
+        get_versions(),
     )
 
     create_file_cmd = _yaml_to_echo_command(

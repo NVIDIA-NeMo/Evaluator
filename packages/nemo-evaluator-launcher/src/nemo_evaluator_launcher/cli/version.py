@@ -19,6 +19,29 @@ import importlib
 from dataclasses import dataclass
 
 from nemo_evaluator_launcher import __package_name__, __version__
+from nemo_evaluator_launcher.common.logging_utils import logger
+
+
+def get_versions() -> dict:
+    internal_module_name = "nemo_evaluator_launcher_internal"
+    res = {__package_name__: __version__}
+    # Check for internal package
+    try:
+        internal_module = importlib.import_module(internal_module_name)
+        # Try to get version from internal package
+        internal_version = getattr(internal_module, "__version__", None)
+        if internal_version:
+            res[internal_module_name] = internal_version
+        else:
+            res[internal_module_name] = "available (version unknown)"
+    except ImportError:
+        # Internal package not available - this is expected in many cases
+        pass
+    except Exception as e:
+        logger.error(f"nemo_evaluator_launcher_internal: error loading ({e})")
+        raise
+
+    return res
 
 
 @dataclass
@@ -27,26 +50,6 @@ class Cmd:
 
     def execute(self) -> None:
         """Execute the version command."""
-        print(f"{__package_name__}: {__version__}")
-
-        # Check for internal package
-        try:
-            internal_module = importlib.import_module(
-                "nemo_evaluator_launcher_internal"
-            )
-            # Try to get version from internal package
-            try:
-                internal_version = getattr(internal_module, "__version__", None)
-                if internal_version:
-                    print(f"nemo-evaluator-launcher-internal: {internal_version}")
-                else:
-                    print(
-                        "nemo-evaluator-launcher-internal: available (version unknown)"
-                    )
-            except Exception:
-                print("nemo-evaluator-launcher-internal: available (version unknown)")
-        except ImportError:
-            # Internal package not available - this is expected in many cases
-            pass
-        except Exception as e:
-            print(f"nemo-evaluator-launcher-internal: error loading ({e})")
+        res = get_versions()
+        for package, version in res.items():
+            print(f"{package}: {version}")

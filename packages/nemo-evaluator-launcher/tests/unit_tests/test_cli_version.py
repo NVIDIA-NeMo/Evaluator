@@ -19,6 +19,8 @@ from contextlib import redirect_stdout
 from io import StringIO
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from nemo_evaluator_launcher import __package_name__, __version__
 from nemo_evaluator_launcher.cli.main import create_parser, main
 from nemo_evaluator_launcher.cli.version import Cmd as VersionCmd
@@ -63,7 +65,7 @@ class TestVersionCommand:
         assert f"{__package_name__}: {__version__}" in lines[0]
 
         # Should contain internal package version
-        assert "nemo-evaluator-launcher-internal: 1.2.3-internal" in lines[1]
+        assert "nemo_evaluator_launcher_internal: 1.2.3-internal" in lines[1]
 
         # Verify import was called
         mock_import_module.assert_called_with("nemo_evaluator_launcher_internal")
@@ -91,7 +93,7 @@ class TestVersionCommand:
 
         # Should indicate internal package is available but version unknown
         assert (
-            "nemo-evaluator-launcher-internal: available (version unknown)" in lines[1]
+            "nemo_evaluator_launcher_internal: available (version unknown)" in lines[1]
         )
 
     @patch("importlib.import_module")
@@ -113,7 +115,7 @@ class TestVersionCommand:
 
         # Should only contain main package version (no internal package line)
         assert f"{__package_name__}: {__version__}" in result
-        assert "nemo-evaluator-launcher-internal" not in result
+        assert "nemo_evaluator_launcher_internal" not in result
 
     @patch("importlib.import_module")
     def test_version_cmd_with_internal_package_other_error(self, mock_import_module):
@@ -123,22 +125,8 @@ class TestVersionCommand:
 
         cmd = VersionCmd()
 
-        # Capture output
-        output = StringIO()
-        with redirect_stdout(output):
+        with pytest.raises(Exception, match=".*Some other error.*"):
             cmd.execute()
-
-        result = output.getvalue().strip()
-        lines = result.split("\n")
-
-        # Should contain main package version
-        assert f"{__package_name__}: {__version__}" in lines[0]
-
-        # Should indicate internal package error
-        assert (
-            "nemo-evaluator-launcher-internal: error loading (Some other error)"
-            in lines[1]
-        )
 
 
 class TestVersionCLIIntegration:
