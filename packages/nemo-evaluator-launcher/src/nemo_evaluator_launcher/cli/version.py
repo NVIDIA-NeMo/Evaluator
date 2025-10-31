@@ -38,7 +38,8 @@ def get_versions() -> dict:
         # Internal package not available - this is expected in many cases
         pass
     except Exception as e:
-        logger.error(f"nemo-evaluator-launcher-internal: error loading ({e})")
+        logger.error(f"nemo_evaluator_launcher_internal: error loading ({e})")
+        raise
 
     return res
 
