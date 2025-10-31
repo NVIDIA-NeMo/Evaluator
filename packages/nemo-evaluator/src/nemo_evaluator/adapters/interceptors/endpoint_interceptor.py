@@ -36,6 +36,8 @@ from nemo_evaluator.logging import BaseLoggingParams, get_logger
 )
 @final
 class EndpointInterceptor(RequestToResponseInterceptor):
+    """Responsible for direct communication with the endpoint without changing payload. Put at the end of Interceptor chain."""
+
     class Params(BaseLoggingParams):
         """Configuration parameters for endpoint interceptor."""
 
