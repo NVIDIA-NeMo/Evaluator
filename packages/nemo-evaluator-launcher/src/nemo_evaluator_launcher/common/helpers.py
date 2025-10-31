@@ -167,6 +167,7 @@ def get_eval_factory_command(
         merged_nemo_evaluator_config,
         [
             "metadata",
+            "data",
             "launcher_resolved_config",
         ],
         OmegaConf.to_container(cfg, resolve=True),
