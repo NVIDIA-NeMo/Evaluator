@@ -123,7 +123,7 @@ class LocalExecutor(BaseExecutor):
 
                 # health_url
                 health_url = get_health_url(
-                    cfg, get_endpoint_url(cfg, task, task_definition)
+                    cfg, get_endpoint_url(cfg, task, task_definition["endpoint_type"])
                 )
 
                 # mounts
