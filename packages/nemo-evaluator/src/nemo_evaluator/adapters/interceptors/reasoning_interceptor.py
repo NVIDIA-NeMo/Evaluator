@@ -34,13 +34,13 @@ from nemo_evaluator.adapters.types import (
 from nemo_evaluator.logging import BaseLoggingParams, get_logger
 
 
+@final
 @register_for_adapter(
     name="reasoning",
     description="Processes reasoning content in API responses",
 )
-@final
 class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
-    """Adds reasoning information to responses and tracks reasoning metrics.
+    """Processes reasoning tokens from response. Collects statistics. Strips and/or moves reasoning tokens.
 
     | Tracks the following statistics:
     | - Total responses processed

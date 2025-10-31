@@ -32,11 +32,11 @@ from nemo_evaluator.logging import BaseLoggingParams, get_logger
 
 @register_for_adapter(
     name="system_message",
-    description="Adds system message to requests",
+    description="Adds or modifies system message in requests.",
 )
 @final
 class SystemMessageInterceptor(RequestInterceptor):
-    """Adds system message to requests."""
+    """Adds or modifies system message in requests."""
 
     class Params(BaseLoggingParams):
         """Configuration parameters for system message interceptor."""
@@ -44,8 +44,6 @@ class SystemMessageInterceptor(RequestInterceptor):
         system_message: str = Field(
             ..., description="System message to add to requests"
         )
-
-    system_message: str
 
     def __init__(self, params: Params):
         """
