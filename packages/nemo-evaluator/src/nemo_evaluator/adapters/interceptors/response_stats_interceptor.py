@@ -35,6 +35,18 @@ from nemo_evaluator.adapters.types import (
 from nemo_evaluator.logging import BaseLoggingParams, get_logger
 
 
+class _NoOpLock:
+    """A no-op lock that does nothing - for testing without synchronization."""
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return False
+    def acquire(self, blocking=True):
+        return True
+    def release(self):
+        pass
+
+
 @register_for_adapter(
     name="response_stats",
     description="Collects aggregated statistics from API responses for metrics collection",
@@ -81,6 +93,10 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
             default=100,
             description="How often (every how many responses) to log aggregated response statistics. Default is 100.",
         )
+        disable_lock: bool = Field(
+            default=False,
+            description="Disable thread synchronization locks (for testing). When True, uses unique keys for dicts to avoid conflicts.",
+        )
 
     def __init__(self, params: Params):
         """
@@ -98,11 +114,21 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
         self.logging_aggregated_stats_interval = (
             params.logging_aggregated_stats_interval
         )
+        self.disable_lock = params.disable_lock
+        
         # Get logger for this interceptor with interceptor context
         self.logger = get_logger(self.__class__.__name__)
 
         # Initialize lock and stats first
-        self._lock = threading.Lock()
+        if self.disable_lock:
+            self._lock = _NoOpLock()
+            # Generate random hash for dict keys to avoid conflicts
+            import random
+            import string
+            self._dict_key_suffix = '_' + ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+        else:
+            self._lock = threading.Lock()
+            self._dict_key_suffix = ''
         self._adapter_start_time = time.time()  # Record adapter initialization time
         self._stats = {
             # Average statistics
@@ -153,7 +179,19 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
             save_individuals=self.save_individuals,
             cache_dir=self.cache_dir,
             logging_aggregated_stats_interval=self.logging_aggregated_stats_interval,
+            disable_lock=self.disable_lock,
         )
+
+    def _get_unique_dict_key(self, key):
+        """Get a unique dict key by appending suffix when locks are disabled."""
+        if self.disable_lock and self._dict_key_suffix:
+            return f"{key}{self._dict_key_suffix}"
+        return key
+    
+    def _increment_dict_counter(self, dict_obj: dict, key, increment: int = 1):
+        """Increment a counter in a dict, using unique keys when locks are disabled."""
+        unique_key = self._get_unique_dict_key(key)
+        dict_obj[unique_key] = dict_obj.get(unique_key, 0) + increment
 
     def _load_aggregated_cached_stats(self) -> None:
         """Load interceptor state from cache."""
@@ -300,9 +338,7 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
             # Update finish reasons
             finish_reason = individual_stats.get("finish_reason")
             if isinstance(finish_reason, str):
-                self._stats["finish_reason"][finish_reason] = (
-                    self._stats["finish_reason"].get(finish_reason, 0) + 1
-                )
+                self._increment_dict_counter(self._stats["finish_reason"], finish_reason)
 
             # Update tool calls and function calls
             tool_calls_count = individual_stats.get("tool_calls_count", 0)
@@ -329,9 +365,7 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
 
             # Track the specific status code
             status_code = adapter_response.r.status_code
-            self._stats["status_codes"][status_code] = (
-                self._stats["status_codes"].get(status_code, 0) + 1
-            )
+            self._increment_dict_counter(self._stats["status_codes"], status_code)
 
             # Track latency statistics
             if (
