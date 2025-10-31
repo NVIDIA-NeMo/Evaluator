@@ -118,15 +118,13 @@ class EvaluationMetadata(BaseModel):
     """We put here various evaluation metadata that does not influence the evaluation."""
 
     versioning: Optional[dict[str, str]] = Field(
-        description="Version(s) of the nemo-evaluator, nemo-evaluator-launcher, and other components "
+        description="Version(s) of any components"
         "(if needed) used to trigger this evaluation. Format: "
         "{component_name: version, component_name: version}.",
         default=None,
     )
-    launcher_resolved_config: Optional[dict] = Field(
-        description="If nemo-evaluator-launcher was used to trigger this evaluation, the full resolved "
-        "config of it. For more information, consider "
-        "https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator-launcher/configuration/index.html",
+    data: Optional[dict] = Field(
+        description="Free form (unstructured) data that is of use for tracking meta information.",
         default=None,
     )
 

@@ -41,9 +41,25 @@ def installed_modules(n: int, monkeypatch):
         return
 
     pkg = "core_evals"
-    spec = importlib.machinery.PathFinder().find_spec(
-        pkg, [os.path.join(Path(__file__).parent.absolute(), f"installed_modules/{n}")]
-    )
+    # Prefer a sibling installed_modules/<n> directory; fallback to functional_tests location.
+    search_paths = [
+        os.path.join(Path(__file__).parent.absolute(), f"installed_modules/{n}"),
+        os.path.join(
+            Path(__file__).parents[2].absolute(),
+            "functional_tests",
+            "installed_modules",
+            str(n),
+        ),
+    ]
+    spec = None
+    for sp in search_paths:
+        spec = importlib.machinery.PathFinder().find_spec(pkg, [sp])
+        if spec is not None:
+            break
+    if spec is None:
+        raise RuntimeError(
+            f"Could not locate dummy package for {pkg} in {search_paths}"
+        )
     mod = importlib.util.module_from_spec(spec)
     sys.modules[pkg] = mod
     spec.loader.exec_module(mod)
@@ -72,7 +88,7 @@ def test_metadata_full(monkeypatch, tmp_path):
     cfg = _basic_run_config(tmp_path)
     cfg["metadata"] = {
         "versioning": {"foo": "1.2.3"},
-        "launcher_resolved_config": {"b": 2},
+        "data": {"b": 2},
     }
 
     cfg_path = tmp_path / "run.yml"
@@ -84,20 +100,27 @@ def test_metadata_full(monkeypatch, tmp_path):
     run_eval()
 
     # Files persisted
-    resolved = tmp_path / "launcher_resolved_config.yaml"
+    md_file = tmp_path / "metadata.yaml"
     results_path = tmp_path / "results.yml"
 
-    assert resolved.exists()
+    assert md_file.exists()
     assert results_path.exists()
 
-    assert yaml.safe_load(resolved.read_text()) == {"b": 2}
+    expected_versioning = {
+        "foo": "1.2.3",
+        "git-hash": "abc123",
+        "nemo_evaluator_version": nemo_evaluator_version,
+    }
+    expected_metadata_full = {
+        "versioning": expected_versioning,
+        "data": {"b": 2},
+    }
+    assert yaml.safe_load(md_file.read_text()) == expected_metadata_full
 
     results = yaml.safe_load(results_path.read_text())
     assert results["git_hash"] == "abc123"
-    mv = results["metadata"]["versioning"]
-    assert mv["foo"] == "1.2.3"
-    assert mv["git-hash"] == "abc123"
-    assert mv["nemo_evaluator_version"] == nemo_evaluator_version
+    assert results["metadata"]["versioning"] == expected_versioning
+    assert "data" not in results["metadata"]
 
 
 def test_no_metadata(monkeypatch, tmp_path):
@@ -113,7 +136,7 @@ def test_no_metadata(monkeypatch, tmp_path):
 
     results = yaml.safe_load((tmp_path / "results.yml").read_text())
     assert "metadata" not in results
-    assert not (tmp_path / "launcher_resolved_config.yaml").exists()
+    assert not (tmp_path / "metadata.yaml").exists()
 
 
 def test_env_versioning_and_resolved_only(monkeypatch, tmp_path):
@@ -121,7 +144,7 @@ def test_env_versioning_and_resolved_only(monkeypatch, tmp_path):
     from nemo_evaluator import __version__ as nemo_evaluator_version
 
     cfg = _basic_run_config(tmp_path)
-    cfg["metadata"] = {"launcher_resolved_config": {"x": 7}}
+    cfg["metadata"] = {"data": {"x": 7}}
     cfg_path = tmp_path / "run.yml"
     cfg_path.write_text(yaml.safe_dump(cfg))
 
@@ -130,14 +153,13 @@ def test_env_versioning_and_resolved_only(monkeypatch, tmp_path):
     )
     run_eval()
 
-    assert not (tmp_path / "launcher_unresolved_config.yaml").exists()
-    assert (tmp_path / "launcher_resolved_config.yaml").exists()
+    assert (tmp_path / "metadata.yaml").exists()
 
-    mv = yaml.safe_load((tmp_path / "results.yml").read_text())["metadata"][
-        "versioning"
-    ]
+    results = yaml.safe_load((tmp_path / "results.yml").read_text())
+    mv = results["metadata"]["versioning"]
     assert mv["git-hash"] == "deadbeef"
     assert mv["nemo_evaluator_version"] == nemo_evaluator_version
+    assert "data" not in results["metadata"]
 
 
 def test_only_versioning_no_env(monkeypatch, tmp_path):
@@ -168,7 +190,7 @@ def test_only_versioning_no_env(monkeypatch, tmp_path):
 def test_invalid_metadata_raises(monkeypatch, tmp_path):
     # Non-dict field should cause validation error for resolved config
     cfg = _basic_run_config(tmp_path)
-    cfg["metadata"] = {"launcher_resolved_config": "not-a-dict"}
+    cfg["metadata"] = {"data": "not-a-dict"}
     cfg_path = tmp_path / "run.yml"
     cfg_path.write_text(yaml.safe_dump(cfg))
 
