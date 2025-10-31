@@ -8,11 +8,6 @@
   - NGC Catalog
   - Latest Tag
   - Key Benchmarks
-* - **agentic_eval**
-  - Agentic AI evaluation framework
-  - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/agentic_eval)
-  - {{ docker_compose_latest }}
-  - agentic_eval_answer_accuracy, agentic_eval_goal_accuracy_with_reference, agentic_eval_goal_accuracy_without_reference, agentic_eval_topic_adherence, agentic_eval_tool_call_accuracy
 * - **bfcl**
   - Function calling evaluation
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl)
@@ -42,22 +37,22 @@
   - Holistic evaluation framework
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/helm)
   - {{ docker_compose_latest }}
-  - ci_bench, ehr_sql, head_qa, med_dialog_healthcaremagic, med_dialog_icliniq, medbullets, medcalc_bench, medec, medhallu, medi_qa, medication_qa, mtsamples_procedures, mtsamples_replicate, pubmed_qa, race_based_med
+  - aci_bench, ehr_sql, head_qa, med_dialog_healthcaremagic, med_dialog_icliniq, medbullets, medcalc_bench, medec, medhallu, medi_qa, medication_qa, mtsamples_procedures, mtsamples_replicate, pubmed_qa, race_based_med
 * - **hle**
   - Academic knowledge and problem solving
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/hle)
   - {{ docker_compose_latest }}
-  - hle
+  - hle, hle_aa_v2
 * - **ifbench**
   - Instruction following evaluation
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/ifbench)
   - {{ docker_compose_latest }}
-  - ifbench
+  - ifbench, ifbench_aa_v2
 * - **livecodebench**
   - Live coding evaluation
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/livecodebench)
   - {{ docker_compose_latest }}
-  - AA_codegeneration, codeexecution_v2, codeexecution_v2_cot, codegeneration_notfast, codegeneration_release_latest, codegeneration_release_v1, codegeneration_release_v2, codegeneration_release_v3, codegeneration_release_v4, codegeneration_release_v5, codegeneration_release_v6, livecodebench_0724_0125, livecodebench_0824_0225
+  - AA_codegeneration, codeexecution_v2, codeexecution_v2_cot, codegeneration_notfast, codegeneration_release_latest, codegeneration_release_v1, codegeneration_release_v2, codegeneration_release_v3, codegeneration_release_v4, codegeneration_release_v5, codegeneration_release_v6, livecodebench_0724_0125, livecodebench_0824_0225, livecodebench_aa_v2, testoutputprediction
 * - **lm-evaluation-harness**
   - Language model benchmarks
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/lm-evaluation-harness)
@@ -77,32 +72,27 @@
   - Language model benchmarks (science, math, agentic)
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/nemo_skills)
   - {{ docker_compose_latest }}
-  - ns_aime2024, ns_aime2025, ns_aime2025_ef, ns_bfcl_v3, ns_gpqa, ns_gpqa_ef, ns_hle, ns_livecodebench, ns_mmlu, ns_mmlu_pro
+  - ns_aime2024, ns_aime2025, ns_bfcl_v3, ns_gpqa, ns_hle, ns_livecodebench, ns_mmlu, ns_mmlu_pro
 * - **profbench**
   - Professional domains in Business and Scientific Research
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/profbench)
   - {{ docker_compose_latest }}
-  - report_generation, llm_judge
-* - **rag_retriever_eval**
-  - RAG system evaluation
-  - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/rag_retriever_eval)
-  - {{ docker_compose_latest }}
-  - RAG, Retriever
+  - llm_judge, report_generation
 * - **safety-harness**
   - Safety and bias evaluation
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/safety-harness)
   - {{ docker_compose_latest }}
-  - aegis_v2, aegis_v2_ar, aegis_v2_de, aegis_v2_es, aegis_v2_fr, aegis_v2_hi, aegis_v2_ja, aegis_v2_reasoning, aegis_v2_th, aegis_v2_zh-CN, bbq_full, bbq_small, wildguard
+  - aegis_v2, aegis_v2_reasoning, wildguard
 * - **scicode**
   - Coding for scientific research
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/scicode)
   - {{ docker_compose_latest }}
-  - aa_scicode, scicode, scicode_background
+  - aa_scicode, scicode, scicode_aa_v2, scicode_background
 * - **simple-evals**
   - Basic evaluation tasks
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/simple-evals)
   - {{ docker_compose_latest }}
-  - AA_AIME_2024, AA_math_test_500, AIME_2024, AIME_2025, aime_2024_nemo, aime_2025_nemo, gpqa_diamond, gpqa_diamond_aa_v2, gpqa_diamond_aa_v2_llama_4, gpqa_diamond_nemo, gpqa_extended, gpqa_main, humaneval, humanevalplus, math_test_500, math_test_500_nemo, mgsm, mmlu, mmlu_am, mmlu_ar, mmlu_ar-lite, mmlu_bn, mmlu_bn-lite, mmlu_cs, mmlu_de, mmlu_de-lite, mmlu_el, mmlu_en, mmlu_en-lite, mmlu_es, mmlu_es-lite, mmlu_fa, mmlu_fil, mmlu_fr, mmlu_fr-lite, mmlu_ha, mmlu_he, mmlu_hi, mmlu_hi-lite, mmlu_id, mmlu_id-lite, mmlu_ig, mmlu_it, mmlu_it-lite, mmlu_ja, mmlu_ja-lite, mmlu_ko, mmlu_ko-lite, mmlu_ky, mmlu_llama_4, mmlu_lt, mmlu_mg, mmlu_ms, mmlu_my-lite, mmlu_ne, mmlu_nl, mmlu_ny, mmlu_pl, mmlu_pro, mmlu_pro_llama_4, mmlu_pt, mmlu_pt-lite, mmlu_ro, mmlu_ru, mmlu_si, mmlu_sn, mmlu_so, mmlu_sr, mmlu_sv, mmlu_sw, mmlu_sw-lite, mmlu_te, mmlu_tr, mmlu_uk, mmlu_vi, mmlu_yo, mmlu_yo-lite, mmlu_zh-lite, simpleqa
+  - AA_AIME_2024, AA_math_test_500, AIME_2024, AIME_2025, AIME_2025_aa_v2, aime_2024_nemo, aime_2025_nemo, browsecomp, gpqa_diamond, gpqa_diamond_aa_v2, gpqa_diamond_aa_v2_llama_4, gpqa_diamond_nemo, gpqa_extended, gpqa_main, healthbench, healthbench_consensus, healthbench_hard, humaneval, humanevalplus, math_test_500, math_test_500_nemo, mgsm, mgsm_aa_v2, mmlu, mmlu_am, mmlu_ar, mmlu_ar-lite, mmlu_bn, mmlu_bn-lite, mmlu_cs, mmlu_de, mmlu_de-lite, mmlu_el, mmlu_en, mmlu_en-lite, mmlu_es, mmlu_es-lite, mmlu_fa, mmlu_fil, mmlu_fr, mmlu_fr-lite, mmlu_ha, mmlu_he, mmlu_hi, mmlu_hi-lite, mmlu_id, mmlu_id-lite, mmlu_ig, mmlu_it, mmlu_it-lite, mmlu_ja, mmlu_ja-lite, mmlu_ko, mmlu_ko-lite, mmlu_ky, mmlu_llama_4, mmlu_lt, mmlu_mg, mmlu_ms, mmlu_my-lite, mmlu_ne, mmlu_nl, mmlu_ny, mmlu_pl, mmlu_pro, mmlu_pro_aa_v2, mmlu_pro_llama_4, mmlu_pt, mmlu_pt-lite, mmlu_ro, mmlu_ru, mmlu_si, mmlu_sn, mmlu_so, mmlu_sr, mmlu_sv, mmlu_sw, mmlu_sw-lite, mmlu_te, mmlu_tr, mmlu_uk, mmlu_vi, mmlu_yo, mmlu_yo-lite, mmlu_zh-lite, simpleqa
 * - **tooltalk**
   - Tool usage evaluation
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk)
@@ -112,5 +102,5 @@
   - Vision-language model evaluation
   - [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit)
   - {{ docker_compose_latest }}
-  - ai2d_judge, chartqa, ocrbench, slidevqa
+  - ai2d_judge, chartqa, mathvista-mini, mmmu_judge, ocrbench, slidevqa
 ```
