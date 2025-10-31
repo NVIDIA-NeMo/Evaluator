@@ -610,7 +610,7 @@ class LeptonExecutor(BaseExecutor):
                 job_state = lepton_status.get("state", "Unknown")
 
                 # Map Lepton job states to our execution states
-                if job_state == "Succeeded":
+                if job_state in ["Succeeded", "Completed"]:
                     state = ExecutionState.SUCCESS
                 elif job_state in ["Running", "Pending", "Starting"]:
                     state = ExecutionState.RUNNING
