@@ -14,6 +14,15 @@ Modeling Target
     EndpointType
     EvaluationTarget
 
+Modeling Evaluation
+---------------
+.. autosummary::
+    :nosignatures:
+    :recursive:
+
+    EvaluationConfig
+    ConfigParams
+
 
 Modeling Result
 ---------------
@@ -36,10 +45,3 @@ Modeling Result
     :undoc-members:
 
 
-.. .. autoprogram:: nemo_evaluator.core.entrypoint:get_parser()
-..     :prog: nemo-evaluator
-..     :start_command: run_eval
-
-
-.. .. autoprogram:: nemo_evaluator_launcher.cli.main:create_parser()
-..     :prog: nemo-evaluator-launcher
