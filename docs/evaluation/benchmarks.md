@@ -2,16 +2,20 @@
 
 # Benchmark Catalog
 
-Comprehensive catalog of 100+ benchmarks across 18 evaluation harnesses, all available through NGC containers and the NeMo Evaluator platform.
+Comprehensive catalog of hundreds of benchmarks across popular evaluation harnesses, all available through NGC containers and the NeMo Evaluator platform.
 
-
-## Overview
-
-NeMo Evaluator provides access to benchmarks across multiple domains through pre-built NGC containers and the unified launcher CLI. Each container specializes in different evaluation domains while maintaining consistent interfaces and reproducible results.
 
 ## Available via Launcher
 
 ```{literalinclude} _snippets/commands/list_tasks.sh
+:language: bash
+:start-after: "# [snippet-start]"
+:end-before: "# [snippet-end]"
+```
+
+## Available via Direct Container Access
+
+```{literalinclude} _snippets/commands/list_tasks_core.sh
 :language: bash
 :start-after: "# [snippet-start]"
 :end-before: "# [snippet-end]"
@@ -22,31 +26,19 @@ NeMo Evaluator provides access to benchmarks across multiple domains through pre
 :::{admonition} Benchmark Selection Guide
 :class: tip
 
-**For Language Understanding & General Knowledge**:
-Recommended suite for comprehensive model evaluation:
+**For General Knowledge**:
 - `mmlu_pro` - Expert-level knowledge across 14 domains
-- `arc_challenge` - Complex reasoning and science questions
-- `hellaswag` - Commonsense reasoning about situations
-- `truthfulqa` - Factual accuracy vs. plausibility
-
-```bash
-nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_academic_suite \
-    -o 'evaluation.tasks=["mmlu_pro", "arc_challenge", "hellaswag", "truthfulqa"]'
-```
+- `gpqa_diamond` - Graduate-level science questions
 
 **For Mathematical & Quantitative Reasoning**:
-- `gsm8k` - Grade school math word problems
-- `math` - Competition-level mathematics
+- `AIME_2025` - American Invitational Mathematics Examination (AIME) 2025 questions
 - `mgsm` - Multilingual math reasoning
 
 **For Instruction Following & Alignment**:
-- `ifeval` - Precise instruction following
-- `gpqa_diamond` - Graduate-level science questions
+- `ifbench` - Precise instruction following
 - `mtbench` - Multi-turn conversation quality
 
-**See benchmark details below** for complete task descriptions and requirements.
+See benchmark categories below and {ref}`benchmarks-full-list` for more details.
 :::
 
 ## Benchmark Categories
@@ -55,192 +47,332 @@ nemo-evaluator-launcher run \
 
 ```{list-table}
 :header-rows: 1
-:widths: 20 30 30 20
+:widths: 20 30 30 50
 
 * - Container
-  - Benchmarks
   - Description
   - NGC Catalog
+  - Benchmarks
 * - **simple-evals**
-  - MMLU Pro, GSM8K, ARC Challenge
-  - Core academic benchmarks
+  - Common evaluation tasks
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/simple-evals)
+  - GPQA-D, MATH-500, AIME 24 & 25, HumanEval, MGSM, MMMLU, MMMLU-Pro, MMMLU-lite (AR, BN, DE, EN, ES, FR, HI, ID, IT, JA, KO, MY, PT, SW, YO, ZH), SimpleQA 
 * - **lm-evaluation-harness**
-  - MMLU, HellaSwag, TruthfulQA, PIQA
-  - Language model evaluation suite
+  - Language model benchmarks
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/lm-evaluation-harness)
+  - ARC Challenge (also multilingual), GSM8K, HumanEval, HumanEval+, MBPP, MINERVA MMMLU-Pro, RACE, TruthfulQA, AGIEval, BBH, BBQ, CSQA, Frames, Global MMMLU, GPQA-D, HellaSwag (also multilingual), IFEval, MGSM, MMMLU, MMMLU-Pro, MMMLU-ProX (de, es, fr, it, ja), MMLU-Redux, MUSR, OpenbookQA, Piqa, Social IQa, TruthfulQA, WikiLingua, WinoGrande
 * - **hle**
-  - Humanity's Last Exam
-  - Multi-modal benchmark at the frontier of human knowledge
+  - Academic knowledge and problem solving
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/hle)
+  - HLE 
 * - **ifbench**
-  - Instruction Following Benchmark
-  - Precise instruction following evaluation
+  - Instruction following
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/ifbench)
-* - **mmath**
-  - Multilingual Mathematical Reasoning
-  - Math reasoning across multiple languages
-  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mmath)
+  - IFBench 
 * - **mtbench**
-  - MT-Bench
   - Multi-turn conversation evaluation
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench)
+  - MT-Bench
+* - **nemo-skills**
+  - Language model benchmarks (science, math, agentic) 
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/nemo_skills)
+  - AIME 24 & 25, BFCL_v3, GPQA, HLE, LiveCodeBench, MMLU, MMLU-Pro 
+* - **profbench**
+  - Evaluation of professional knowledge accross Physics PhD, Chemistry PhD, Finance MBA and Consulting MBA
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench)
+  - Report Gerenation, LLM Judge
 ```
+
+:::{note}
+BFCL tasks from the nemo-skills container require function calling capabilities. See {ref}`deployment-testing-compatibility` for checking if your endpoint is compatible.
+:::
 
 **Example Usage:**
-```bash
-# Run academic benchmark suite
-nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
-    -o 'evaluation.tasks=["mmlu_pro", "gsm8k", "arc_challenge"]'
+
+Create `config.yml`:
+
+```yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+evaluation:
+  tasks:
+    - name: ifeval
+    - name: gsm8k_cot_instruct
+    - name: gpqa_diamond
 ```
 
-**Python API Example:**
-```python
-# Evaluate multiple academic benchmarks
-academic_tasks = ["mmlu_pro", "gsm8k", "arc_challenge"]
-for task in academic_tasks:
-    eval_config = EvaluationConfig(
-        type=task,
-        output_dir=f"./results/{task}/",
-        params=ConfigParams(temperature=0.01, parallelism=4)
-    )
-    result = evaluate(eval_cfg=eval_config, target_cfg=target_config)
+Run evaluation:
+
+```bash
+export NGC_API_KEY=nvapi-...
+export HF_TOKEN=hf_...
+
+nemo-evaluator-launcher run \
+    --config-dir . \
+    --config-name config.yml \
+    -o execution.output_dir=results \
+    -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
+    -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
+    -o +target.api_endpoint.api_key_name=NGC_API_KEY
 ```
 
 ###  **Code Generation**
 
 ```{list-table}
 :header-rows: 1
-:widths: 25 30 30 15
+:widths: 20 30 30 50
 
 * - Container
-  - Benchmarks
   - Description
   - NGC Catalog
+  - Benchmarks
 * - **bigcode-evaluation-harness**
-  - HumanEval, MBPP, APPS
-  - Code generation and completion
+  - Code generation evaluation
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bigcode-evaluation-harness)
+  - MBPP, MBPP-Plus, HumanEval, HumanEval+, Multiple (cpp, cs, d, go, java, jl, js, lua, php, pl, py, r, rb, rkt, rs, scala, sh, swift, ts) 
 * - **livecodebench**
-  - Live coding contests from LeetCode, AtCoder, CodeForces
-  - Contamination-free coding evaluation
+  - Coding
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/livecodebench)
+  - LiveCodeBench (v1-v6, 0724_0125, 0824_0225) 
 * - **scicode**
-  - Scientific research code generation
-  - Scientific computing and research
+  - Coding for scientific research
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/scicode)
+  - SciCode 
 ```
 
 **Example Usage:**
+
+Create `config.yml`:
+
+```yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+evaluation:
+  tasks:
+    - name: humaneval_instruct
+    - name: mbbp
+```
+
+Run evaluation:
+
 ```bash
-# Run code generation evaluation
+export NGC_API_KEY=nvapi-...
+
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
-    -o 'evaluation.tasks=["humaneval", "mbpp"]'
+    --config-dir . \
+    --config-name config.yml \
+    -o execution.output_dir=results \
+    -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
+    -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
+    -o +target.api_endpoint.api_key_name=NGC_API_KEY
 ```
 
 ###  **Safety and Security**
 
 ```{list-table}
 :header-rows: 1
-:widths: 25 35 25 15
+:widths: 20 30 30 50
 
 * - Container
-  - Benchmarks
   - Description
   - NGC Catalog
+  - Benchmarks
+* - **garak**
+  - Safety and vulnerability testing
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/garak)
+  - Garak
 * - **safety-harness**
-  - Toxicity, bias, alignment tests
   - Safety and bias evaluation
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/safety-harness)
-* - **garak**
-  - Prompt injection, jailbreaking
-  - Security vulnerability scanning
-  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/garak)
+  - Aegis v2, BBQ, WildGuard
 ```
 
 **Example Usage:**
-```bash
-# Run comprehensive safety evaluation
-nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
-    -o 'evaluation.tasks=["aegis_v2", "garak"]'
+
+Create `config.yml`:
+
+```yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+evaluation:
+  tasks:
+    - name: aegis_v2
+    - name: garak
 ```
 
-###  **Function Calling and Agentic AI**
+Run evaluation:
+
+```bash
+export NGC_API_KEY=nvapi-...
+export HF_TOKEN=hf_...
+
+nemo-evaluator-launcher run \
+    --config-dir . \
+    --config-name config.yml \
+    -o execution.output_dir=results \
+    -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
+    -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
+    -o +target.api_endpoint.api_key_name=NGC_API_KEY
+```
+
+###  **Function Calling**
 
 ```{list-table}
 :header-rows: 1
-:widths: 25 30 30 15
+:widths: 20 30 30 50
 
 * - Container
-  - Benchmarks
   - Description
   - NGC Catalog
+  - Benchmarks
 * - **bfcl**
-  - Berkeley Function Calling Leaderboard
-  - Function calling evaluation
+  - Function calling
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl)
-* - **agentic_eval**
-  - Tool usage, planning tasks
-  - Agentic AI evaluation
-  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/agentic_eval)
+  - BFCL v2 and v3 
 * - **tooltalk**
-  - Tool interaction evaluation
-  - Tool usage assessment
-  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk)
+ - Tool usage evaluation
+ - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk)
+ - ToolTalk 
 ```
+
+:::{note}
+Some of the tasks in this category require function calling capabilities. See {ref}`deployment-testing-compatibility` for checking if your endpoint is compatible.
+:::
+
+**Example Usage:**
+
+Create `config.yml`:
+
+```yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+evaluation:
+  tasks:
+    - name: bfclv2_ast_prompting
+    - name: tooltalk
+```
+
+Run evaluation:
+
+```bash
+export NGC_API_KEY=nvapi-...
+
+nemo-evaluator-launcher run \
+    --config-dir . \
+    --config-name config.yml \
+    -o execution.output_dir=results \
+    -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
+    -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
+    -o +target.api_endpoint.api_key_name=NGC_API_KEY
+```
+
 
 ###  **Vision-Language Models**
 
 ```{list-table}
 :header-rows: 1
-:widths: 25 35 25 15
+:widths: 20 30 30 50
 
 * - Container
-  - Benchmarks
   - Description
   - NGC Catalog
+  - Benchmarks
 * - **vlmevalkit**
-  - VQA, image captioning, visual reasoning
   - Vision-language model evaluation
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit)
+  - AI2D, ChartQA, OCRBench, SlideVQA
 ```
 
-###  **Retrieval and RAG**
+:::{note}
+The tasks in this category require a VLM chat endpoint. See {ref}`deployment-testing-compatibility` for checking if your endpoint is compatible.
+:::
 
-```{list-table}
-:header-rows: 1
-:widths: 25 35 25 15
+**Example Usage:**
 
-* - Container
-  - Benchmarks
-  - Description
-  - NGC Catalog
-* - **rag_retriever_eval**
-  - Document retrieval, context relevance
-  - RAG system evaluation
-  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/rag_retriever_eval)
+Create `config.yml`:
+
+```yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+evaluation:
+  tasks:
+    - name: ocrbench
+    - name: chartqa
+```
+
+Run evaluation:
+
+```bash
+export NGC_API_KEY=nvapi-...
+
+nemo-evaluator-launcher run \
+    --config-dir . \
+    --config-name config.yml \
+    -o execution.output_dir=results \
+    -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
+    -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
+    -o +target.api_endpoint.api_key_name=NGC_API_KEY
 ```
 
 ###  **Domain-Specific**
 
 ```{list-table}
 :header-rows: 1
-:widths: 25 35 25 15
+:widths: 20 30 30 50
 
 * - Container
-  - Benchmarks
   - Description
   - NGC Catalog
+  - Benchmarks
 * - **helm**
-  - Medical AI evaluation (MedHELM)
-  - Healthcare-specific benchmarking
+  - Holistic evaluation framework
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/helm)
+  - MedHelm 
+```
+
+**Example Usage:**
+
+Create `config.yml`:
+
+```yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+evaluation:
+  tasks:
+    - name: pubmed_qa
+    - name: medcalc_bench
+```
+
+Run evaluation:
+
+```bash
+export NGC_API_KEY=nvapi-...
+
+nemo-evaluator-launcher run \
+    --config-dir . \
+    --config-name config.yml \
+    -o execution.output_dir=results \
+    -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
+    -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
+    -o +target.api_endpoint.api_key_name=NGC_API_KEY
 ```
 
 ## Container Details
@@ -284,7 +416,7 @@ NeMo Evaluator provides multiple integration options to fit your workflow:
 ```bash
 # Launcher CLI (recommended for most users)
 nemo-evaluator-launcher ls tasks
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_mmlu_evaluation
+nemo-evaluator-launcher run --config-dir . --config-name local_mmlu_evaluation.yaml
 
 # Container direct execution
 docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} nemo-evaluator ls
@@ -294,17 +426,6 @@ docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_lates
 ```
 
 ## Benchmark Selection Best Practices
-
-### For Academic Publications
-
-**Recommended Core Suite**:
-1. **MMLU Pro** or **MMLU** - Broad knowledge assessment
-2. **GSM8K** - Mathematical reasoning
-3. **ARC Challenge** - Scientific reasoning
-4. **HellaSwag** - Commonsense reasoning
-5. **TruthfulQA** - Factual accuracy
-
-This suite provides comprehensive coverage across major evaluation dimensions.
 
 ### For Model Development
 
@@ -333,14 +454,17 @@ params = ConfigParams(
 ### For Specialized Domains
 
 - **Code Models**: Focus on `humaneval`, `mbpp`, `livecodebench`
-- **Instruction Models**: Emphasize `ifeval`, `mtbench`, `gpqa_diamond`
+- **Instruction Models**: Emphasize `ifbench`, `mtbench`
 - **Multilingual Models**: Include `arc_multilingual`, `hellaswag_multilingual`, `mgsm`
 - **Safety-Critical**: Prioritize `safety-harness` and `garak` evaluations
 
+(benchmarks-full-list)=
+## Full Benchmarks List
+
+```{include} ../_resources/tasks-table.md
+```
+
 ## Next Steps
 
-- **Quick Start**: See {ref}`evaluation-overview` for the fastest path to your first evaluation
-- **Task-Specific Guides**: Explore {ref}`eval-run` for detailed evaluation workflows
-- **Configuration**: Review {ref}`eval-parameters` for optimizing evaluation settings
 - **Container Details**: Browse {ref}`nemo-evaluator-containers` for complete specifications
 - **Custom Benchmarks**: Learn {ref}`framework-definition-file` for custom evaluations

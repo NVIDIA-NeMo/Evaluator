@@ -46,6 +46,14 @@ Unified CLI experience with automated container management, built-in orchestrati
 Programmatic control with full adapter features, custom configurations, and direct API access for integration into existing workflows.
 :::
 
+:::{grid-item-card} {octicon}`gear;1.5em;sd-mr-1` NeMo Framework Container
+:link: gs-quickstart-nemo-fw
+:link-type: ref
+**For NeMo Framework Users**
+
+End-to-end training and evaluation of large language models (LLMs).
+:::
+
 :::{grid-item-card} {octicon}`container;1.5em;sd-mr-1` Container Direct
 :link: gs-quickstart-container
 :link-type: ref
@@ -68,8 +76,7 @@ NeMo Evaluator works with any OpenAI-compatible endpoint. You have several optio
 
 ### **Self-Hosted Options**
 
-If you prefer to host your own models:
-
+If you prefer to host your own models, verify OpenAI compatibility using our {ref}`deployment-testing-compatibility` guide.
 
 If you are deploying the model locally with Docker, you can use a dedicated docker network.
 This will provide a secure connetion between deployment and evaluation docker containers.
@@ -272,5 +279,6 @@ nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/exampl
 
 NeMo Evaluator Launcher <launcher>
 NeMo Evaluator Core <core>
+NeMo Framework Container <nemo-fw>
 Container Direct <container>
 ```

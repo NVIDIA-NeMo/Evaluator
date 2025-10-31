@@ -46,6 +46,8 @@ else:
 
 ## Chat vs. Completions Configuration
 
+Before troubleshooting endpoint issues, verify your endpoint supports the required OpenAI API format using our {ref}`deployment-testing-compatibility` guide.
+
 ###  Problem: Chat evaluation fails with base model
 
 :::{admonition} Issue
