@@ -200,7 +200,7 @@ def global_config():
                     "target": {
                         "api_endpoint": {
                             "adapter_config": {
-                                "use_reasoning": False,
+                                "process_reasoning_traces": False,
                                 "use_system_prompt": True,
                                 "custom_system_prompt": "Think step by step.",
                             }
@@ -268,7 +268,7 @@ def test_get_eval_factory_config_global_config_only(global_config):
             "target": {
                 "api_endpoint": {
                     "adapter_config": {
-                        "use_reasoning": False,
+                        "process_reasoning_traces": False,
                         "use_system_prompt": True,
                         "custom_system_prompt": "Think step by step.",
                     }
@@ -330,7 +330,7 @@ def test_get_eval_factory_config_mixed_old_and_new_format(
             "target": {
                 "api_endpoint": {
                     "adapter_config": {
-                        "use_reasoning": False,
+                        "process_reasoning_traces": False,
                         "use_system_prompt": True,
                         "custom_system_prompt": "Think step by step.",
                     }
@@ -376,7 +376,7 @@ def test_get_eval_factory_config_complex_real_world_scenario(
             "target": {
                 "api_endpoint": {
                     "adapter_config": {
-                        "use_reasoning": False,  # From global
+                        "process_reasoning_traces": False,  # From global
                         "use_system_prompt": True,  # From global
                         "custom_system_prompt": "Think step by step.",  # From global
                     }
