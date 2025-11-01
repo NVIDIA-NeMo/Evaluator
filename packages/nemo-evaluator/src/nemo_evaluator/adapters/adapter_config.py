@@ -143,6 +143,7 @@ class AdapterConfig(BaseModel):
             "use_nvcf": False,
             "use_response_logging": False,
             "use_reasoning": False,
+            "process_reasoning_traces": False,
             "use_progress_tracking": False,
             "use_raise_client_errors": False,
             "include_json": True,
@@ -497,6 +498,18 @@ class AdapterConfig(BaseModel):
             )
 
         if legacy_config["use_reasoning"]:
+            from nemo_evaluator.logging import get_logger
+
+            logger = get_logger(__name__)
+            logger.warning(
+                '"use_reasoning" is deprecated as it might suggest it touches on switching on/off reasoning for mode when it does not. Use "process_reasoning_traces" instead.'
+            )
+            # since we aim at parity between process_reasoning_traces and use_reasoning during deprecation period:
+            legacy_config["process_reasoning_traces"] = legacy_config["use_reasoning"]
+
+        if legacy_config["process_reasoning_traces"]:
+            # give parity back
+            legacy_config["use_reasoning"] = legacy_config["process_reasoning_traces"]
             config = {
                 "end_reasoning_token": legacy_config["end_reasoning_token"],
             }

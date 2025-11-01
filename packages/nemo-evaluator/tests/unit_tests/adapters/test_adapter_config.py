@@ -280,7 +280,7 @@ def test_from_legacy_config():
         "use_caching": True,
         "caching_dir": "/tmp/cache",
         "save_responses": True,
-        "use_reasoning": True,
+        "process_reasoning_traces": True,
         "end_reasoning_token": "</think>",
         "output_dir": "/tmp/output",
         "generate_html_report": True,
@@ -740,7 +740,7 @@ def test_legacy_config_without_params_to_add():
 def test_legacy_reasoning_interceptor_basic():
     """Test basic legacy reasoning interceptor configuration."""
     legacy_config = {
-        "use_reasoning": True,
+        "process_reasoning_traces": True,
         "end_reasoning_token": "</think>",
     }
 
@@ -769,7 +769,7 @@ def test_legacy_reasoning_interceptor_basic():
 def test_legacy_reasoning_interceptor_with_start_token():
     """Test legacy reasoning interceptor with start token configuration."""
     legacy_config = {
-        "use_reasoning": True,
+        "process_reasoning_traces": True,
         "start_reasoning_token": "<think>",
         "end_reasoning_token": "</think>",
     }
@@ -794,7 +794,7 @@ def test_legacy_reasoning_interceptor_with_start_token():
 def test_legacy_reasoning_interceptor_with_include_if_not_finished():
     """Test legacy reasoning interceptor with include_if_not_finished parameter."""
     legacy_config = {
-        "use_reasoning": True,
+        "process_reasoning_traces": True,
         "include_if_reasoning_not_finished": False,
         "end_reasoning_token": "</think>",
     }
@@ -819,7 +819,7 @@ def test_legacy_reasoning_interceptor_with_include_if_not_finished():
 def test_legacy_reasoning_interceptor_with_track_reasoning():
     """Test legacy reasoning interceptor with track_reasoning parameter."""
     legacy_config = {
-        "use_reasoning": True,
+        "process_reasoning_traces": True,
         "track_reasoning": False,
         "end_reasoning_token": "</think>",
     }
@@ -844,7 +844,7 @@ def test_legacy_reasoning_interceptor_with_track_reasoning():
 def test_legacy_reasoning_interceptor_all_parameters():
     """Test legacy reasoning interceptor with all parameters configured."""
     legacy_config = {
-        "use_reasoning": True,
+        "process_reasoning_traces": True,
         "start_reasoning_token": "<think>",
         "end_reasoning_token": "</think>",
         "include_if_reasoning_not_finished": True,
@@ -873,7 +873,7 @@ def test_legacy_reasoning_interceptor_all_parameters():
 def test_legacy_reasoning_interceptor_defaults():
     """Test legacy reasoning interceptor with minimal configuration (defaults)."""
     legacy_config = {
-        "use_reasoning": True,
+        "process_reasoning_traces": True,
     }
 
     adapter_config = AdapterConfig.from_legacy_config(legacy_config)
@@ -903,7 +903,7 @@ def test_legacy_reasoning_interceptor_defaults():
         (
             "no_output_dir_no_caching_dir",
             {
-                "use_reasoning": True,
+                "process_reasoning_traces": True,
                 "tracking_requests_stats": True,
                 "use_caching": True,
                 "generate_html_report": True,
@@ -917,7 +917,7 @@ def test_legacy_reasoning_interceptor_defaults():
         (
             "with_output_dir_no_caching_dir",
             {
-                "use_reasoning": True,
+                "process_reasoning_traces": True,
                 "tracking_requests_stats": True,
                 "use_caching": True,
                 "generate_html_report": True,
@@ -932,7 +932,7 @@ def test_legacy_reasoning_interceptor_defaults():
         (
             "with_caching_dir",
             {
-                "use_reasoning": True,
+                "process_reasoning_traces": True,
                 "tracking_requests_stats": True,
                 "use_caching": True,
                 "generate_html_report": True,
