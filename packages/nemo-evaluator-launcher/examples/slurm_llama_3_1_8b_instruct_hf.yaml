@@ -61,16 +61,16 @@ deployment:
 
 # specify the benchmarks to evaluate
 evaluation:
-  nemo_evaluator_config:  # global config settings that apply to all tasks
+  nemo_evaluator_config: # global config settings that apply to all tasks
     config:
       params:
-        request_timeout: 3600  # timeout for API requests in seconds
-      target:
-        api_endpoint:
-          adapter_config:
-            use_reasoning: false  # if true, strips reasoning tokens and collects reasoning stats
-            use_system_prompt: true  # enables custom system prompt
-            custom_system_prompt: >-
-              "Think step by step."
+        request_timeout: 3600 # timeout for API requests in seconds
+    target:
+      api_endpoint:
+        adapter_config:
+          use_reasoning: false # if true, strips reasoning tokens and collects reasoning stats
+          use_system_prompt: true # enables custom system prompt
+          custom_system_prompt: >-
+            "Think step by step."
   tasks:
-    - name: ifeval  # use the default benchmark configuration
+    - name: ifeval # use the default benchmark configuration
