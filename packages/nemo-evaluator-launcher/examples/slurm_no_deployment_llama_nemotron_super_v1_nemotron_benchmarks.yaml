@@ -48,22 +48,22 @@ target:
 
 # specify the benchmarks to evaluate
 evaluation:
-  nemo_evaluator_config:  # global config settings that apply to all tasks
+  nemo_evaluator_config: # global config settings that apply to all tasks
     config:
       # apply recommended sampling parameters for reasoning-on mode
       params:
-        temperature: 0.6  # sampling temperature
-        top_p: 0.95  # nucleus sampling parameter
-        max_new_tokens: 65536  # maximum tokens to generate (large for reasoning)
-        parallelism: 1  # number of parallel requests
-        request_timeout: 3600  # timeout for API requests in seconds
-      target:
-        api_endpoint:
-          adapter_config:
-            use_reasoning: true  # if true, strips reasoning tokens and collects reasoning stats
-            use_system_prompt: true  # enables custom system prompt
-            custom_system_prompt: >-  # turn on thinking mode
-              "detailed thinking on"
+        temperature: 0.6 # sampling temperature
+        top_p: 0.95 # nucleus sampling parameter
+        max_new_tokens: 65536 # maximum tokens to generate (large for reasoning)
+        parallelism: 1 # number of parallel requests
+        request_timeout: 3600 # timeout for API requests in seconds
+    target:
+      api_endpoint:
+        adapter_config:
+          use_reasoning: true # if true, strips reasoning tokens and collects reasoning stats
+          use_system_prompt: true # enables custom system prompt
+          custom_system_prompt: >- # turn on thinking mode
+            "detailed thinking on"
   tasks:
     - name: gpqa_diamond_nemo
       env_vars:
@@ -79,16 +79,16 @@ evaluation:
 
     - name: livecodebench_0824_0225
 
-    - name: ifeval  # evaluated in reasoning-off mode
-      nemo_evaluator_config:  # task-specific configuration for ifeval
+    - name: ifeval # evaluated in reasoning-off mode
+      nemo_evaluator_config: # task-specific configuration for ifeval
         config:
           params:
-            temperature: 0  # deterministic generation
-            top_p: 1e-5  # minimal sampling
-            max_new_tokens: 4096  # maximum tokens to generate
-          target:
-            api_endpoint:
-              adapter_config:
-                use_system_prompt: true  # enables custom system prompt
-                custom_system_prompt: >-  # turn off thinking mode
-                  "detailed thinking off"
+            temperature: 0 # deterministic generation
+            top_p: 1e-5 # minimal sampling
+            max_new_tokens: 4096 # maximum tokens to generate
+        target:
+          api_endpoint:
+            adapter_config:
+              use_system_prompt: true # enables custom system prompt
+              custom_system_prompt: >- # turn off thinking mode
+                "detailed thinking off"
