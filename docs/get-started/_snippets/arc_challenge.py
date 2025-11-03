@@ -42,7 +42,7 @@ eval_config = EvaluationConfig(
         top_p=0,
         parallelism=1,
         extra={
-            "tokenizer": "/checkpoint/tokenizer",
+            "tokenizer": "/checkpoints/llama-3_2-1b-instruct_v2.0/context/nemo_tokenizer",
             "tokenizer_backend": "huggingface",
         },
     ),

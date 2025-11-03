@@ -1,8 +1,0 @@
-{
-  "filename": "deployment/bring-your-own-endpoint/hosted-services.md",
-  "lineno": 158,
-  "status": "broken",
-  "code": 0,
-  "uri": "https://platform.openai.com/docs/models",
-  "info": "403 Client Error: Forbidden for url: https://platform.openai.com/docs/models"
-}

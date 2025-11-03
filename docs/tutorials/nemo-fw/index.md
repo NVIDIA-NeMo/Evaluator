@@ -61,3 +61,12 @@ Master custom evaluation workflows by running WikiText benchmark with advanced c
    ```
 
 3. Navigate to the `tutorials/` directory and open the desired notebook
+
+
+
+:::{toctree}
+:caption: Tutorials
+:hidden:
+
+nemo-run
+:::

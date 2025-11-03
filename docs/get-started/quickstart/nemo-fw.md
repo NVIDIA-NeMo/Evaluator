@@ -20,7 +20,7 @@ The NeMo Evaluator is integrated within NeMo Framework, offering streamlined dep
 # 1. Start NeMo Framework Container
 
 TAG=...
-CHECKPOINT_PATH=/path/to/checkpoint/lama-3_2-1b-instruct_v2.0/iter_0000000"  # use absolute path
+CHECKPOINT_PATH=/path/to/checkpoint/lama-3_2-1b-instruct_v2.0/"  # use absolute path
 
 docker run --rm -it -w /workdir -v $(pwd):/workdir -v $CHECKPOINT_PATH:/checkpoint/ \
   --entrypoint bash \
@@ -34,7 +34,7 @@ docker run --rm -it -w /workdir -v $(pwd):/workdir -v $CHECKPOINT_PATH:/checkpoi
 # 2. Deploy a Model
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
-  --megatron_checkpoint /checkpoint \
+  --nemo_checkpoint /checkpoint \
   --model_id megatron_model \
   --port 8080 \
   --host 0.0.0.0
@@ -72,7 +72,7 @@ Deploy multiple instances of your model:
 ```shell
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
-  --megatron_checkpoint /checkpoint \
+  --nemo_checkpoint /checkpoint \
   --model_id "megatron_model" \
   --port 8080 \                          # Ray server port
   --num_gpus 4 \                         # Total GPUs available
@@ -109,7 +109,6 @@ if __name__ == "__main__":
 
 ## Next Steps
 
-- Explore {ref}`deployment-nemo-fw` for other deployment options
 - Integrate evaluation into your training pipeline
 - Run deployment and evaluation with NeMo Run
 - Configure adapters and interceptors for advanced evaluation scenarios

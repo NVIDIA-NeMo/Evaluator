@@ -1,3 +1,4 @@
+(deployment-testing-compatibility)=
 # Testing Endpoint Compatibility
 
 This guide helps you test your hosted endpoint to verify OpenAI-compatible API compatibility using `curl` requests for different task types. Models deployed using `nemo-evaluator-launcher` should be compatible with these tests.

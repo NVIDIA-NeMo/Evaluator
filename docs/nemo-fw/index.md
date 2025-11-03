@@ -1,3 +1,6 @@
+---
+orphan: true
+---
 # Evaluate checkpoints trained by NeMo Framework
 
 The NeMo Framework is NVIDIA’s GPU-accelerated, end-to-end training platform for large language models (LLMs), multimodal models, and speech models. It enables seamless scaling of both pretraining and post-training workloads, from a single GPU to clusters with thousands of nodes, supporting Hugging Face/PyTorch and Megatron models. NeMo includes a suite of libraries and curated training recipes to help users build models from start to finish.
@@ -168,6 +171,7 @@ python \
 
 evaluation-doc.md
 evaluation-hf.md
+evaluation-mbridge.md
 ```
 
 ```{toctree}

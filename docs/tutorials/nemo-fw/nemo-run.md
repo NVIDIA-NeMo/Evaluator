@@ -63,8 +63,8 @@ or a Slurm one:
 :::{note}
 Please make sure to update `HF_TOKEN` with your token
 
-- in the NeMo Run script's [local_executor env_vars](https://github.com/nvidia-nemo/evaluator/blob/main/scripts/evaluation_with_nemo_run.py#l267) if using local executor
-- in the [slurm_executor's env_vars](https://github.com/nvidia-nemo/evaluator/blob/main/scripts/evaluation_with_nemo_run.py#l232) if using slurm_executor.
+- in the NeMo Run script's [local_executor env_vars](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/scripts/evaluation_with_nemo_run.py#L274) if using local executor
+- in the [slurm_executor's env_vars](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/scripts/evaluation_with_nemo_run.py#L237) if using slurm_executor.
 :::
 
 Then, the two jobs are configured:

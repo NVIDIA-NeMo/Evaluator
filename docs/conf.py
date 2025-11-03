@@ -136,7 +136,7 @@ myst_substitutions = {
     "support_email": "update-me",
     "min_python_version": "3.8",
     "recommended_cuda": "12.0+",
-    "docker_compose_latest": "25.09",
+    "docker_compose_latest": "25.10",
 }
 
 # Enable figure numbering
@@ -157,6 +157,10 @@ suppress_warnings = [
     "ref.python",  # Expected for ambiguous autodoc2 cross-references (e.g., multiple 'Params' classes)
     "myst.xref_missing",  # Expected for Pydantic BaseModel docstrings that reference Pydantic's own documentation
 ]
+
+# -- Options for linkcheck builder -------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#confval-linkcheck_anchors
+linkcheck_anchors = False  # Disable checking for anchors in links
 
 # -- Options for Autodoc2 ---------------------------------------------------
 sys.path.insert(0, os.path.abspath(".."))
