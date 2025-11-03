@@ -15,10 +15,11 @@
 
 """Progress tracking interceptor that tracks number of samples processed via webhook."""
 
+import asyncio
 import os
 import pathlib
 import threading
-from typing import Optional, final
+from typing import Annotated, Optional, final
 
 import requests
 from pydantic import Field
@@ -48,9 +49,15 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
             default="http://localhost:8000",
             description="URL to post the number of processed samples to. Supports expansion of shell variables if present.",
         )
-        progress_tracking_interval: int = Field(
+        progress_tracking_interval: Annotated[int, Field(gt=0)] = Field(
             default=1,
             description="How often (every how many samples) to send a progress information.",
+        )
+        progress_tracking_interval_seconds: Optional[
+            Annotated[float | None, Field(gt=0)]
+        ] = Field(
+            default=None,
+            description="How often (every N seconds) to send a progress information in addition to progress_tracking_interval.",
         )
         request_method: str = Field(
             default="PATCH",
@@ -83,7 +90,18 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
         else:
             self.progress_filepath = None
         self._samples_processed = self._initialize_samples_processed()
+        self._last_updated_samples_processed = self._samples_processed
         self._lock = threading.Lock()
+
+        # Optional update on timer
+        self.progress_tracking_interval_seconds = (
+            params.progress_tracking_interval_seconds
+        )
+        self._update_on_timer_task = None
+        if self.progress_tracking_interval_seconds:
+            self._update_on_timer_task = asyncio.create_task(
+                self._update_on_timer(self.progress_tracking_interval_seconds)
+            )
 
         # Get logger for this interceptor with interceptor context
         self.logger = get_logger(self.__class__.__name__)
@@ -92,6 +110,7 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
             "Progress tracking interceptor initialized",
             progress_tracking_url=self.progress_tracking_url,
             progress_tracking_interval=self.progress_tracking_interval,
+            progress_tracking_interval_seconds=self.progress_tracking_interval_seconds,
             output_dir=str(self.progress_filepath) if self.progress_filepath else None,
             initial_samples_processed=self._samples_processed,
         )
@@ -151,6 +170,28 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
                 samples_processed=num_samples,
             )
 
+    async def _update_on_timer(self, interval_seconds: float):
+        assert interval_seconds > 0
+        while True:
+            await asyncio.sleep(interval_seconds)
+            with self._lock:
+                if self._last_updated_samples_processed == self._samples_processed:
+                    continue
+                curr_samples = self._samples_processed
+
+            if self.progress_tracking_url is not None:
+                self._send_progress(curr_samples)
+            if self.progress_filepath is not None:
+                self._write_progress(curr_samples)
+
+            self.logger.info(
+                "Progress milestone updated on time interval",
+                samples_processed=curr_samples,
+                interval=self.progress_tracking_interval,
+            )
+            with self._lock:
+                self._last_updated_samples_processed = curr_samples
+
     @final
     def intercept_response(
         self, ar: AdapterResponse, context: AdapterGlobalContext
@@ -177,6 +218,8 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
                 samples_processed=curr_samples,
                 interval=self.progress_tracking_interval,
             )
+            with self._lock:
+                self._last_updated_samples_processed = curr_samples
 
         return ar
 
@@ -184,6 +227,11 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
         self.logger.info(
             "Post-eval hook executed", total_samples_processed=self._samples_processed
         )
+        with self._lock:
+            if self._update_on_timer_task:
+                self._update_on_timer_task.cancel()
+            if self._samples_processed == self._last_updated_samples_processed:
+                return
 
         if self.progress_tracking_url is not None:
             self._send_progress(self._samples_processed)
