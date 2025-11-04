@@ -471,15 +471,12 @@ def _extract_metrics_from_results(results: dict) -> Dict[str, float]:
         section_data = results.get(section)
         if isinstance(section_data, dict):
             for task_name, task_data in section_data.items():
-                if isinstance(task_data, dict) and "metrics" in task_data:
-                    task_metrics = _extract_task_metrics(
-                        task_name, task_data["metrics"]
-                    )
-                    _safe_update_metrics(
-                        target=metrics,
-                        source=task_metrics,
-                        context=f" while extracting results for task '{task_name}'",
-                    )
+                task_metrics = _extract_task_metrics(task_name, task_data["metrics"])
+                _safe_update_metrics(
+                    target=metrics,
+                    source=task_metrics,
+                    context=f" while extracting results for task '{task_name}'",
+                )
     return metrics
 
 
@@ -524,34 +521,22 @@ def _extract_task_metrics(task_name: str, metrics_data: dict) -> Dict[str, float
 
     for metric_name, metric_data in metrics_data.items():
         try:
-            if isinstance(metric_data, dict):
-                if "scores" in metric_data:
-                    # Handle nested scores (e.g., mmlu macro/micro)
-                    for score_type, score_data in metric_data["scores"].items():
-                        if isinstance(score_data, dict) and "value" in score_data:
-                            key = f"{task_name}_{metric_name}_{score_type}"
-                            _safe_set_metric(
-                                container=extracted,
-                                key=key,
-                                new_value=score_data["value"],
-                                context=f" in task '{task_name}'",
-                            )
-                elif "value" in metric_data:
-                    key = f"{task_name}_{metric_name}"
-                    _safe_set_metric(
-                        container=extracted,
-                        key=key,
-                        new_value=metric_data["value"],
-                        context=f" in task '{task_name}'",
-                    )
-            elif isinstance(metric_data, (int, float)):
-                key = f"{task_name}_{metric_name}"
+            for score_type, score_data in metric_data["scores"].items():
+                key = f"{task_name}_{metric_name}_{score_type}"
                 _safe_set_metric(
                     container=extracted,
                     key=key,
-                    new_value=metric_data,
+                    new_value=score_data["value"],
                     context=f" in task '{task_name}'",
                 )
+                for stat_name, stat_value in metric_data.get("stats", {}).items():
+                    stats_key = f"{key}_{stat_name}"
+                    _safe_set_metric(
+                        container=extracted,
+                        key=stats_key,
+                        new_value=stat_value,
+                        context=f" in task '{task_name}'",
+                    )
         except (ValueError, TypeError) as e:
             logger.warning(
                 f"Failed to extract metric {metric_name} for task {task_name}: {e}"

@@ -90,7 +90,7 @@ class TestMetricsExtraction:
         artifacts = tmp_path / "artifacts"
         artifacts.mkdir(parents=True)
         (artifacts / "results.yml").write_text(
-            "results: {tasks: {demo: {metrics: {accuracy: {value: 0.9}, f1: {value: 0.5}}}}}",
+            "results: {tasks: {demo: {metrics: {metric: {scores: {accuracy: {value: 0.9}, f1: {value: 0.5}}}}}}}",
             encoding="utf-8",
         )
         (artifacts / "foo.json").write_text('{"score": 0.75}', encoding="utf-8")
@@ -109,11 +109,10 @@ class TestMetricsExtraction:
 
         all_metrics = extract_accuracy_metrics(jd, get_paths)
         filtered = extract_accuracy_metrics(jd, get_paths, log_metrics=["acc"])
-
-        assert all_metrics.get("demo_accuracy") == 0.9
+        assert all_metrics.get("demo_metric_accuracy") == 0.9
         assert all_metrics.get("foo_score") == 0.75
-        assert "demo_f1" in all_metrics
-        assert set(filtered.keys()) == {"demo_accuracy"}
+        assert "demo_metric_f1" in all_metrics
+        assert set(filtered.keys()) == {"demo_metric_accuracy"}
 
     def test_metric_conflict_raises(self):
         target = {"k": 1.0}
@@ -133,8 +132,7 @@ results:
           scores:
             macro: { value: 0.81 }
             micro: { value: 0.86 }
-        score: 0.7
-        broken: { value: "not-a-number" }
+            broken: { value: "not-a-number" }
             """.strip(),
             encoding="utf-8",
         )
@@ -156,7 +154,6 @@ results:
         metrics = extract_accuracy_metrics(jd, get_paths)
         assert metrics["demo_accuracy_macro"] == 0.81
         assert metrics["demo_accuracy_micro"] == 0.86
-        assert metrics["demo_score"] == 0.7
         # 'broken' is ignored due to ValueError in float cast
 
     def test_remote_storage_and_get_paths_error(self, tmp_path: Path):
