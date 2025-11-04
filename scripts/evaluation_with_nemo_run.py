@@ -41,8 +41,8 @@ python \
   --server_port {server_port} \
   --num_gpus {devices} \
   --num_nodes {nodes} \
-  --tensor_parallelism_size {tensor_model_parallel_size} \
-  --pipeline_parallelism_size {pipeline_model_parallel_size} \
+  --tensor_model_parallel_size {tensor_model_parallel_size} \
+  --pipeline_model_parallel_size {pipeline_model_parallel_size} \
   --max_batch_size {max_batch_size} \
   {additional_args}
 """
@@ -55,7 +55,6 @@ python \
   --port {server_port} \
   --host {server_address} \
   --num_gpus {devices} \
-  --num_nodes {nodes} \
   --tensor_model_parallel_size {tensor_model_parallel_size} \
   --pipeline_model_parallel_size {pipeline_model_parallel_size} \
   --max_batch_size {max_batch_size} \
@@ -290,8 +289,8 @@ def main():
         "max_input_len": args.max_input_len,
         "tensor_model_parallel_size": args.tensor_parallelism_size,
         "pipeline_model_parallel_size": args.pipeline_parallelism_size,
-        "max_batch_size": args.batch_size,
-        "devices": args.devices,
+        "max_batch_size": args.batch_size, #TODO check in llama 405B run
+        "num_gpus": args.devices if args.serving_backend == "pytriton" else args.devices * args.nodes,
         "nodes": args.nodes,
         "num_replicas": args.num_replicas,
     }
@@ -308,6 +307,9 @@ def main():
         )
         deploy_run_script = run.Script(inline=deploy_script)
     elif args.serving_backend == "ray":
+        # Ray deployment with nem-run requires python executable path to be set, else it cannot find the libraries
+        # like mcore, mbridge, etc.
+        additional_args += f" --runtime_env {"py_executable": "/opt/venv/bin/python"}"
         if args.num_cpus_per_replica:
             additional_args += f" --num_cpus_per_replica {args.num_cpus_per_replica}"
         deploy_script = RAY_DEPLOY_SCRIPT.format(
