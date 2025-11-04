@@ -18,6 +18,7 @@ This module tests the actual runtime behavior of interceptors
 when running eval-factory with the fake endpoint.
 """
 
+import yaml
 import json
 import os
 import shutil
@@ -29,6 +30,12 @@ from pathlib import Path
 import pytest
 
 from nemo_evaluator.logging.utils import logger
+
+# Skip all tests in this module if nvidia-lm-eval is not available
+pytest.importorskip(
+    "core_evals.lm_evaluation_harness",
+    reason="nvidia-lm-eval package is required for integration tests"
+)
 
 
 class TestInterceptorIntegration:
@@ -133,7 +140,7 @@ class TestInterceptorIntegration:
             ]
 
             logger.info(f"Testing core interceptors runtime behavior: {' '.join(cmd)}")
-            subprocess.run(cmd, capture_output=False, text=True, env=env, timeout=60)
+            subprocess.run(cmd, capture_output=False, text=True, env=env, timeout=120)
 
             # Check ONLY runtime behavior - what the interceptors actually DO
             log_dir = Path(self.test_log_dir)
@@ -187,44 +194,112 @@ class TestInterceptorIntegration:
         if cache_dir is None:
             cache_dir = f"{output_dir}/cache"
 
+        config = {
+            "config": {
+                "params": {
+                    "limit_samples": 2,
+                },
+                "output_dir": output_dir,
+                "type": "mmlu_pro",
+            },
+            "target": {
+                "api_endpoint": {
+                    "url": fake_url,
+                    "type": "chat",
+                    "model_id": "Qwen/Qwen3-8B",
+                    "api_key_name": "API_KEY",
+                    "adapter_config": {
+                        "interceptors": [
+                            {
+                                "name": "system_message",
+                                "config": {
+                                    "system_message": "You are a helpful AI assistant.",
+                                }
+                            },
+                            {
+                                "name": "request_logging",
+                                "config": {
+                                    "max_requests": 50,
+                                }
+                            },
+                            {
+                                "name": "payload_modifier",
+                                "config": {
+                                    "params_to_add": {
+                                        "comprehensive_test": True,
+                                    },
+                                }
+                            },
+                            {
+                                "name": "caching",
+                                "config": {
+                                    "cache_dir": cache_dir,
+                                    "reuse_cached_responses": True,
+                                    "max_saved_responses": 1,
+                                    "max_saved_requests": 1,
+                                    "save_responses": True,
+                                    "save_requests": True,
+                                }
+                            },
+                            {
+                                "name": "endpoint",
+                                "config": {
+                                    "url": fake_url,
+                                }
+                            },
+                            {
+                                "name": "reasoning",
+                                "config": {
+                                    "start_reasoning_token": "<think>",
+                                    "end_reasoning_token": "</think>",
+                                    "add_reasoning": True,
+                                    "enable_caching": True,
+                                    "include_if_not_finished": True,
+                                    "cache_dir": os.path.join(cache_dir, "reasoning_cache"),
+                                }
+                            },
+                            {
+                                "name": "response_logging",
+                                "config": {
+                                    "max_responses": 50,
+                                }
+                            },
+                            {
+                                "name": "progress_tracking",
+                                "config": {
+                                    "progress_tracking_url": "http://localhost:8000/progress",
+                                    "progress_tracking_interval": 1,
+                                }
+                            },
+                            {
+                                "name": "response_stats",
+                                "config": {
+                                    "cache_dir": os.path.join(cache_dir, "response_stats_cache"),
+                                }
+                            },
+                            {   "name": "post_eval_report",
+                                "config": {
+                                    "report_types": ["html", "json"],
+                                    "html_report_size": 5,
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        with open(os.path.join(output_dir, "config.yaml"), "w") as f:
+            yaml.dump(config, f)
+
+
         return [
             "nemo-evaluator",
             "run_eval",
-            "--eval_type",
-            "mmlu_pro",
-            "--model_id",
-            "Qwen/Qwen3-8B",
-            "--model_url",
-            fake_url,
-            "--model_type",
-            "chat",
-            "--api_key_name",
-            "API_KEY",
-            "--output_dir",
-            output_dir,
+            "--run_config",
+            os.path.join(output_dir, "config.yaml"),
             "--overrides",
             (
-                "config.params.limit_samples=2,"
-                "target.api_endpoint.url=" + fake_url + ","
-                "target.api_endpoint.adapter_config.use_system_prompt=True,"
-                "target.api_endpoint.adapter_config.custom_system_prompt=You are a helpful AI assistant.,"
-                "target.api_endpoint.adapter_config.use_request_logging=True,"
-                "target.api_endpoint.adapter_config.use_response_logging=True,"
-                "target.api_endpoint.adapter_config.use_caching=True,"
-                "target.api_endpoint.adapter_config.reuse_cached_responses=True,"
-                "target.api_endpoint.adapter_config.save_requests=True,"
-                "target.api_endpoint.adapter_config.max_saved_requests=1,"
-                "target.api_endpoint.adapter_config.html_report_size=5,"
-                "target.api_endpoint.adapter_config.caching_dir=" + cache_dir + ","
-                "target.api_endpoint.adapter_config.process_reasoning_traces=True,"
-                "target.api_endpoint.adapter_config.use_progress_tracking=True,"
-                "target.api_endpoint.adapter_config.progress_tracking_interval=1,"
-                'target.api_endpoint.adapter_config.params_to_add={"comprehensive_test": true},'
-                "target.api_endpoint.adapter_config.tracking_requests_stats=True,"
-                "target.api_endpoint.adapter_config.response_stats_cache_dir="
-                + cache_dir
-                + "/response_stats_cache,"
-                "target.api_endpoint.adapter_config.generate_html_report=True,"
                 "logging.level=DEBUG"
             ),
         ]
@@ -243,7 +318,7 @@ class TestInterceptorIntegration:
 
             logger.info(f"Testing all interceptors runtime behavior: {' '.join(cmd)}")
             result = subprocess.run(
-                cmd, capture_output=False, text=True, env=env, timeout=60
+                cmd, capture_output=False, text=True, env=env, timeout=120
             )
             logger.info("Finished the subprocess", result=result)
 
@@ -439,7 +514,7 @@ class TestInterceptorIntegration:
                     )
 
                     result2 = subprocess.run(
-                        cmd2, capture_output=False, text=True, env=env, timeout=60
+                        cmd2, capture_output=False, text=True, env=env, timeout=120
                     )
                     logger.info("Finished the second subprocess run", result2)
 

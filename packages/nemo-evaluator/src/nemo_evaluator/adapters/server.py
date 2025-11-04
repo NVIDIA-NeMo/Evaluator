@@ -82,26 +82,58 @@ def wait_for_server(
     host: str, port: int, max_wait: float = 300, interval: float = 0.2
 ) -> bool:
     """Wait for server to be ready with timeout.
+    
+    This function checks both that the port is open AND that the server
+    health check passes (indicating pre-eval hooks have completed).
 
     Args:
         host: The host to check
         port: The port to check
-        max_wait: Maximum time to wait in seconds (default: 10)
+        max_wait: Maximum time to wait in seconds (default: 300)
         interval: Time between checks in seconds (default: 0.2)
 
     Returns:
         bool: True if server is ready, False if timeout exceeded
     """
     start_time = time.time()
+    health_url = f"http://{host}:{port}/adapterserver/health"
 
+    init_started = False
+    health_check_attempted = False
     while time.time() - start_time < max_wait:
         try:
-            if is_port_open(host, port):
-                return True
-        except Exception:
+            # First check if port is open
+            if is_port_open(host, port, timeout=0.5):
+                if not init_started:
+                    logger.info(f"Server port {port} is open, checking health endpoint")
+                    init_started = True
+                # Then check health endpoint
+                try:
+                    response = requests.get(health_url, timeout=1.0)
+                    if not health_check_attempted:
+                        logger.info(f"Health check endpoint responded with status {response.status_code}")
+                        health_check_attempted = True
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get("status") == "ready" and data.get("pre_eval_hooks_completed"):
+                            logger.info("Server is ready and pre-eval hooks completed")
+                            return True
+                        else:
+                            logger.warning(f"Server not ready yet: {data}")
+                except requests.RequestException as e:
+                    # Server port is open but not responding yet
+                    if health_check_attempted:
+                        logger.debug(f"Health check request failed: {e}")
+                    pass
+            elif init_started:
+                logger.error("Server port closed after opening - initialization failed!")
+                return False
+        except Exception as e:
+            logger.debug(f"Error in wait_for_server loop: {e}")
             pass
         time.sleep(interval)
 
+    logger.error(f"Server failed to become ready within {max_wait} seconds")
     return False
 
 
@@ -171,18 +203,18 @@ class AdapterServer:
         self.adapter_chain: List[
             RequestInterceptor | RequestToResponseInterceptor | ResponseInterceptor
         ] = []
-        self.post_eval_hooks: List[PostEvalHook] = []
         self.pre_eval_hooks: List[PreEvalHook] = []
-        self._post_eval_hooks_executed: bool = False
+        self.post_eval_hooks: List[PostEvalHook] = []
         self._pre_eval_hooks_executed: bool = False
+        self._post_eval_hooks_executed: bool = False
 
         self.app = flask.Flask(__name__)
         self.app.route("/", defaults={"path": ""}, methods=["POST"])(self._handler)
         self.app.route("/<path:path>", methods=["POST"])(self._handler)
-
-        # Add route for running pre-eval hooks
-        self.app.route("/adapterserver/run-pre-hook", methods=["POST"])(
-            self._run_pre_eval_hooks_handler
+        
+        # Add health check endpoint
+        self.app.route("/adapterserver/health", methods=["GET"])(
+            self._health_check_handler
         )
         
         # Add route for running post-eval hooks
@@ -322,7 +354,7 @@ class AdapterServer:
 
                 self.adapter_chain.append(adapter)
 
-                # Track which adapters are pre/post-eval hooks for execution timing
+                # Track pre/post-eval hooks for execution timing
                 if isinstance(adapter, PreEvalHook):
                     self.pre_eval_hooks.append(adapter)
                 if isinstance(adapter, PostEvalHook):
@@ -335,6 +367,9 @@ class AdapterServer:
             pre_eval_hooks=[type(h).__name__ for h in self.pre_eval_hooks],
             post_eval_hooks=[type(h).__name__ for h in self.post_eval_hooks],
         )
+        
+        # Execute pre-eval hooks immediately after building the chain
+        self._execute_pre_eval_hooks()
 
     def run(self) -> None:
         """Start the Flask server."""
@@ -537,19 +572,23 @@ class AdapterServer:
             request_logger = get_logger()
             request_logger.error("failed_request_response_pair", data=log_data)
 
-    def _run_pre_eval_hooks_handler(self) -> flask.Response:
-        """Handler for the pre-eval hooks endpoint."""
-        try:
-            self.run_pre_eval_hooks()
-            return flask.jsonify(
-                {
-                    "status": "success",
-                    "message": "Pre-eval hooks executed successfully",
-                }
-            )
-        except Exception as e:
-            logger.error(f"Failed to run pre-eval hooks: {e}")
-            return flask.jsonify({"status": "error", "message": str(e)}), 500
+    def _health_check_handler(self) -> flask.Response:
+        """Health check endpoint that reports server readiness.
+        
+        Returns 200 only when the server is fully initialized, including
+        completion of all pre-eval hooks.
+        """
+        if self._pre_eval_hooks_executed:
+            return flask.jsonify({
+                "status": "ready",
+                "pre_eval_hooks_completed": True,
+                "adapters": [type(a).__name__ for a in self.adapter_chain],
+            })
+        else:
+            return flask.jsonify({
+                "status": "initializing",
+                "pre_eval_hooks_completed": False,
+            }), 503  # Service Unavailable
 
     def _run_post_eval_hooks_handler(self) -> flask.Response:
         """Handler for the post-eval hooks endpoint."""
@@ -588,10 +627,20 @@ class AdapterServer:
         self._post_eval_hooks_executed = True
         logger.info("Post-eval hooks execution completed")
 
-    def run_pre_eval_hooks(self) -> None:
-        """Run all configured pre-evaluation hooks."""
+    def _execute_pre_eval_hooks(self) -> None:
+        """Execute pre-evaluation hooks during server initialization.
+        
+        This is called automatically after the adapter chain is built to ensure
+        all adapters are properly initialized before handling any requests.
+        """
         if self._pre_eval_hooks_executed:
             logger.warning("Pre-eval hooks have already been executed, skipping")
+            return
+
+        if not self.pre_eval_hooks:
+            # No pre-eval hooks to execute, but mark as completed so health check passes
+            self._pre_eval_hooks_executed = True
+            logger.info("No pre-evaluation hooks to execute")
             return
 
         global_context = AdapterGlobalContext(
@@ -599,17 +648,18 @@ class AdapterServer:
             url=self.api_url,
         )
 
+        logger.info("Executing pre-evaluation hooks during server initialization")
+        
         for hook in self.pre_eval_hooks:
             try:
                 hook.pre_eval_hook(global_context)
-                logger.info(f"Successfully ran pre-eval hook: {type(hook).__name__}")
+                logger.info(f"Successfully executed pre-eval hook: {type(hook).__name__}")
             except Exception as e:
                 logger.error(f"Pre-eval hook {type(hook).__name__} failed: {e}")
-                # Continue with other hooks
-                continue
+                raise RuntimeError(f"Pre-eval hook {type(hook).__name__} failed: {e}") from e
 
         self._pre_eval_hooks_executed = True
-        logger.info("Pre-eval hooks execution completed")
+        logger.info("Pre-evaluation hooks execution completed")
 
     def generate_report(self) -> None:
         """Generate HTML report of cached requests and responses."""
@@ -657,60 +707,6 @@ class AdapterServerProcess:
                 continue
         raise OSError("No free port found in range")
 
-    def _run_pre_eval_hooks_in_parent_process(
-        self, adapter_config: AdapterConfig, output_dir: str, api_url: str
-    ) -> None:
-        """Run pre-eval hooks in the parent process before spawning the server.
-        
-        This ensures hooks complete before any evaluation requests can be processed,
-        eliminating race conditions.
-        """
-        # Initialize registry and discover components
-        registry = InterceptorRegistry.get_instance()
-        registry.discover_components(
-            modules=adapter_config.discovery.modules,
-            dirs=adapter_config.discovery.dirs,
-        )
-        
-        # Build all adapters using unified loading logic
-        adapter_instances = []
-        for adapter_cfg in adapter_config.interceptors:
-            if adapter_cfg.enabled:
-                adapter = registry._get_or_create_instance(
-                    adapter_cfg.name,
-                    adapter_cfg.config,
-                )
-                adapter_instances.append(adapter)
-        
-        # Collect adapters that implement PreEvalHook interface
-        pre_eval_hooks = [
-            adapter for adapter in adapter_instances
-            if isinstance(adapter, PreEvalHook)
-        ]
-        
-        if not pre_eval_hooks:
-            return
-        
-        logger.info("Running pre-evaluation hooks before starting server")
-        
-        # Create global context
-        global_context = AdapterGlobalContext(
-            output_dir=output_dir,
-            url=api_url,
-        )
-        
-        # Execute hooks
-        for hook in pre_eval_hooks:
-            try:
-                logger.info(f"Running pre-eval hook: {type(hook).__name__}")
-                hook.pre_eval_hook(global_context)
-                logger.info(f"Successfully ran pre-eval hook: {type(hook).__name__}")
-            except Exception as e:
-                logger.error(f"Pre-eval hook {type(hook).__name__} failed: {e}")
-                raise RuntimeError(f"Pre-eval hook {type(hook).__name__} failed: {e}") from e
-        
-        logger.info("Pre-evaluation hooks completed successfully")
-
     def __enter__(self):
         adapter_config = self.evaluation.target.api_endpoint.adapter_config
         if not adapter_config:
@@ -728,12 +724,7 @@ class AdapterServerProcess:
         output_dir = self.evaluation.config.output_dir
         self.port = self._find_and_reserve_free_port(adapter_host=adapter_host)
         
-        # Run pre-eval hooks BEFORE starting the server to eliminate race conditions
-        self._run_pre_eval_hooks_in_parent_process(
-            adapter_config, output_dir, self.original_url
-        )
-        
-        # Now start the server process
+        # Start the server process
         self.evaluation.target.api_endpoint.url = f"http://{adapter_host}:{self.port}"
         self.process = multiprocessing.get_context("spawn").Process(
             target=_run_adapter_server,

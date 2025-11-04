@@ -683,16 +683,20 @@ def test_test_mode_cache_miss_with_similar_request(tmp_path, mock_context):
     """Test that test_mode raises error on cache miss and shows diff with similar request"""
     from nemo_evaluator.adapters.interceptors.caching_interceptor import CacheMissInTestModeError
     
-    # Create cache with one request
+    # Generate the correct cache key for the cached data
+    cached_data = {"prompt": "Hello world", "parameters": {"temperature": 0.7}}
+    cache_key = CachingInterceptor._generate_cache_key(cached_data)
+    
+    # Create cache with the correctly generated key
     cache_data = {
         "requests": {
-            "key1": {"prompt": "Hello world", "parameters": {"temperature": 0.7}},
+            cache_key: cached_data,
         },
         "responses": {
-            "key1": b'{"result": "success1"}',
+            cache_key: b'{"result": "success1"}',
         },
         "headers": {
-            "key1": {"Content-Type": "application/json"},
+            cache_key: {"Content-Type": "application/json"},
         },
     }
     
@@ -729,8 +733,8 @@ def test_test_mode_cache_miss_with_similar_request(tmp_path, mock_context):
     error = exc_info.value
     assert error.request_data == test_data
     assert error.most_similar_request is not None
-    assert error.similarity_score > 0
-    assert error.diff is not None
+    assert error.similarity_score >= 98.0
+    assert error.diff is not None and len(error.diff) > 0
     assert "temperature" in error.diff or "prompt" in error.diff
 
 
@@ -775,16 +779,20 @@ def test_test_mode_cache_hit_works_normally(tmp_path, mock_context):
     """Test that test_mode works normally when there's a cache hit"""
     from nemo_evaluator.adapters.interceptors.caching_interceptor import CacheMissInTestModeError
     
-    # Create cache with one request
+    # Generate the correct cache key for the test data
+    test_data = {"prompt": "Hello world", "parameters": {"temperature": 0.7}}
+    cache_key = CachingInterceptor._generate_cache_key(test_data)
+    
+    # Create cache with the correctly generated key
     cache_data = {
         "requests": {
-            "key1": {"prompt": "Hello world", "parameters": {"temperature": 0.7}},
+            cache_key: test_data,
         },
         "responses": {
-            "key1": b'{"result": "success1"}',
+            cache_key: b'{"result": "success1"}',
         },
         "headers": {
-            "key1": {"Content-Type": "application/json"},
+            cache_key: {"Content-Type": "application/json"},
         },
     }
     
@@ -806,7 +814,6 @@ def test_test_mode_cache_hit_works_normally(tmp_path, mock_context):
     interceptor.pre_eval_hook(mock_context)
     
     # Make the exact same request that's in cache
-    test_data = {"prompt": "Hello world", "parameters": {"temperature": 0.7}}
     request = Request.from_values(
         method="POST",
         headers={"Content-Type": "application/json"},
@@ -825,16 +832,20 @@ def test_test_mode_cache_hit_works_normally(tmp_path, mock_context):
 
 def test_test_mode_disabled_allows_cache_miss(tmp_path, mock_context):
     """Test that disabling test_mode allows cache misses without error"""
-    # Create cache with one request
+    # Generate the correct cache key for the cached data
+    cached_data = {"prompt": "Hello world", "parameters": {"temperature": 0.7}}
+    cache_key = CachingInterceptor._generate_cache_key(cached_data)
+    
+    # Create cache with the correctly generated key
     cache_data = {
         "requests": {
-            "key1": {"prompt": "Hello world", "parameters": {"temperature": 0.7}},
+            cache_key: cached_data,
         },
         "responses": {
-            "key1": b'{"result": "success1"}',
+            cache_key: b'{"result": "success1"}',
         },
         "headers": {
-            "key1": {"Content-Type": "application/json"},
+            cache_key: {"Content-Type": "application/json"},
         },
     }
     
