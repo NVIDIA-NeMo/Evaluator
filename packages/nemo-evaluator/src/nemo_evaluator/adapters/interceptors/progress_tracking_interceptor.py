@@ -15,10 +15,10 @@
 
 """Progress tracking interceptor that tracks number of samples processed via webhook."""
 
-import asyncio
 import os
 import pathlib
 import threading
+import time
 from typing import Annotated, Optional, final
 
 import requests
@@ -93,18 +93,21 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
         self._last_updated_samples_processed = self._samples_processed
         self._lock = threading.Lock()
 
+        # Get logger for this interceptor with interceptor context
+        self.logger = get_logger(self.__class__.__name__)
+
         # Optional update on timer
         self.progress_tracking_interval_seconds = (
             params.progress_tracking_interval_seconds
         )
-        self._update_on_timer_task = None
         if self.progress_tracking_interval_seconds:
-            self._update_on_timer_task = asyncio.create_task(
-                self._update_on_timer(self.progress_tracking_interval_seconds)
+            self._timer_stopped = False
+            self._update_on_timer_thread = threading.Thread(
+                target=self._update_on_timer,
+                kwargs={"interval_seconds": self.progress_tracking_interval_seconds},
+                daemon=True,
             )
-
-        # Get logger for this interceptor with interceptor context
-        self.logger = get_logger(self.__class__.__name__)
+            self._update_on_timer_thread.start()
 
         self.logger.info(
             "Progress tracking interceptor initialized",
@@ -170,11 +173,17 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
                 samples_processed=num_samples,
             )
 
-    async def _update_on_timer(self, interval_seconds: float):
+    def _update_on_timer(self, interval_seconds: float):
+        """
+        Sends an update on a timed interval if there has been a change since the last update.
+        This is a blocking function that is expected to be executed in a thread.
+        """
         assert interval_seconds > 0
         while True:
-            await asyncio.sleep(interval_seconds)
+            time.sleep(interval_seconds)
             with self._lock:
+                if self._timer_stopped:
+                    return
                 if self._last_updated_samples_processed == self._samples_processed:
                     continue
                 curr_samples = self._samples_processed
@@ -228,8 +237,8 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
             "Post-eval hook executed", total_samples_processed=self._samples_processed
         )
         with self._lock:
-            if self._update_on_timer_task:
-                self._update_on_timer_task.cancel()
+            if self.progress_tracking_interval_seconds:
+                self._timer_stopped = True
             if self._samples_processed == self._last_updated_samples_processed:
                 return
 
