@@ -94,6 +94,11 @@ class FakeEndpoint:
             """Health check endpoint."""
             return jsonify({"status": "healthy", "service": "fake-endpoint"})
 
+        @self.app.route("/progress", methods=["PATCH"])
+        def progress():
+            """Progress tracking endpoint."""
+            return jsonify({"status": "ok"})
+
         @self.app.route("/", methods=["GET"])
         def root():
             """Root endpoint with service information."""

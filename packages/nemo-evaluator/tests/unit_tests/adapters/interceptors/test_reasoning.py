@@ -204,7 +204,7 @@ def test_migration(
     url = f"http://{AdapterServer.DEFAULT_ADAPTER_HOST}:{adapter_server_migration.port}"
 
     # Wait for server to be ready
-    wait_for_server("localhost", 3825)
+    wait_for_server("localhost", adapter_server_migration.port)
 
     # We parametrize the response of the openai fake server.
     response_data = {

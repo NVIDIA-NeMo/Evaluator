@@ -16,13 +16,15 @@
 """Utilities for adapter testing."""
 
 import multiprocessing
+import socket
+import time
 from typing import Any, Union
 
 import pytest
 from flask import Flask, jsonify, request
 
 from nemo_evaluator.adapters.registry import InterceptorRegistry
-from nemo_evaluator.adapters.server import AdapterServer, wait_for_server
+from nemo_evaluator.adapters.server import AdapterServer
 from nemo_evaluator.adapters.types import (
     RequestInterceptor,
     RequestToResponseInterceptor,
@@ -68,6 +70,36 @@ def create_and_run_fake_endpoint(port: int = 3300):
     app.run(host="localhost", port=port)
 
 
+def wait_for_port_open(host: str, port: int, timeout: float = 10.0, interval: float = 0.1) -> bool:
+    """Wait for a port to open (simple check without health endpoint).
+    
+    This is a simpler version for testing fake endpoints that don't have
+    health check endpoints.
+    
+    Args:
+        host: The host to check
+        port: The port to check
+        timeout: Maximum time to wait in seconds
+        interval: Time between checks in seconds
+        
+    Returns:
+        bool: True if port is open, False if timeout exceeded
+    """
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(0.5)
+            result = sock.connect_ex((host, port))
+            sock.close()
+            if result == 0:
+                return True
+        except Exception:
+            pass
+        time.sleep(interval)
+    return False
+
+
 def create_fake_endpoint_process_on_port(port: int = 3300):
     """Create a process running a fake OpenAI endpoint on the specified port.
 
@@ -83,8 +115,8 @@ def create_fake_endpoint_process_on_port(port: int = 3300):
     p.start()
 
     try:
-        # Wait for the server to be ready
-        if not wait_for_server("localhost", port):
+        # Wait for the server port to be ready (simple port check, no health endpoint)
+        if not wait_for_port_open("localhost", port, timeout=10.0):
             p.terminate()
             p.join(timeout=5)  # Give it some time to terminate
             pytest.fail(

@@ -148,18 +148,12 @@ def test_logging_interceptor_with_adapter_server(capfd, tmp_path):
     try:
         # Start fake endpoint
         fake_endpoint = create_fake_endpoint_process()
-        # Start adapter server
-
-        # Get the actual port from environment variable or default
-        import os
-
-        adapter_port = int(os.environ.get("ADAPTER_PORT", 3825))
 
         evaluation = Evaluation(
             command="",
             framework_name="",
             pkg_name="",
-            config=EvaluationConfig(),
+            config=EvaluationConfig(output_dir=output_dir),
             target=EvaluationTarget(
                 api_endpoint=ApiEndpoint(url=api_url, adapter_config=adapter_config)
             ),

@@ -58,11 +58,11 @@ class TestMultipleInstances:
             adapter_config=config,
         )
 
-        # Verify that both interceptors are in the chain
-        assert len(server.interceptor_chain) == 2
+        # Verify that both adapters are in the chain
+        assert len(server.adapter_chain) == 2
         assert all(
-            "caching" in type(interceptor).__name__.lower()
-            for interceptor in server.interceptor_chain
+            "caching" in type(adapter).__name__.lower()
+            for adapter in server.adapter_chain
         )
 
     def test_multiple_logging_instances(self):
@@ -94,8 +94,8 @@ class TestMultipleInstances:
             adapter_config=config,
         )
 
-        # Verify that all interceptors are in the chain
-        assert len(server.interceptor_chain) == 3
+        # Verify that all adapters are in the chain
+        assert len(server.adapter_chain) == 3
 
     def test_disabled_interceptors_are_skipped(self):
         """Test that disabled interceptors are not included in the chain."""
@@ -125,8 +125,8 @@ class TestMultipleInstances:
             adapter_config=config,
         )
 
-        # Only enabled interceptors should be in the chain
-        assert len(server.interceptor_chain) == 2
+        # Only enabled adapters should be in the chain
+        assert len(server.adapter_chain) == 2
 
     def test_mixed_enabled_disabled_instances(self):
         """Test mixing enabled and disabled instances of the same interceptor."""
@@ -157,21 +157,21 @@ class TestMultipleInstances:
         )
 
         # Only the enabled instances should be in the chain
-        assert len(server.interceptor_chain) == 2
+        assert len(server.adapter_chain) == 2
 
     def test_validation_still_works(self):
-        """Test that validation still works for unknown interceptors."""
+        """Test that validation still works for unknown adapters."""
         config = AdapterConfig(
             interceptors=[
                 InterceptorConfig(
-                    name="nonexistent_interceptor",
+                    name="nonexistent_adapter",
                     enabled=True,
                     config={},
                 ),
             ]
         )
 
-        with pytest.raises(ValueError, match="Unknown interceptor"):
+        with pytest.raises(ValueError, match="Unknown adapter"):
             AdapterServer(
                 api_url="https://api.example.com",
                 output_dir="/tmp/output",
