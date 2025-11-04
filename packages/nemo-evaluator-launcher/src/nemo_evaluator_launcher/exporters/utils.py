@@ -521,22 +521,8 @@ def _extract_from_json_files(artifacts_dir: Path) -> Dict[str, float]:
 def _extract_task_metrics(task_name: str, metrics_data: dict) -> Dict[str, float]:
     """Extract metrics from a task's metrics data."""
     extracted = {}
-    score_patterns = [
-        "acc",
-        "accuracy",
-        "score",
-        "exact_match",
-        "f1",
-        "em",
-        "pass@1",
-        "pass@k",
-    ]
 
     for metric_name, metric_data in metrics_data.items():
-        # Only extract score-like metrics
-        if not any(pattern in metric_name.lower() for pattern in score_patterns):
-            continue
-
         try:
             if isinstance(metric_data, dict):
                 if "scores" in metric_data:
