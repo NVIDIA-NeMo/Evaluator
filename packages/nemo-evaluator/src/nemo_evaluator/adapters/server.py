@@ -168,7 +168,7 @@ class AdapterServer:
             output_dir: Directory for output files
             adapter_config: Adapter configuration including interceptors and discovery
         """
-        self.interceptor_chain: List[
+        self.adapter_chain: List[
             RequestInterceptor | RequestToResponseInterceptor | ResponseInterceptor
         ] = []
         self.post_eval_hooks: List[PostEvalHook] = []
@@ -205,99 +205,100 @@ class AdapterServer:
             modules=adapter_config.discovery.modules, dirs=adapter_config.discovery.dirs
         )
 
-
         logger.info(
-            "Using interceptors (includes pre/post-eval hooks)",
-            interceptors=[ic.name for ic in adapter_config.interceptors if ic.enabled],
+            "Using adapters (interceptors + pre/post-eval hooks)",
+            adapters=[ic.name for ic in adapter_config.interceptors if ic.enabled],
         )
 
-        # Validate and build chains
-        self._validate_and_build_chains()
+        # Validate and build the unified adapter chain
+        self._validate_and_build_adapter_chain()
 
-    def _validate_and_build_chains(self) -> None:
-        """Validate configuration and build interceptor chains"""
+    def _validate_and_build_adapter_chain(self) -> None:
+        """Validate configuration and build the unified adapter chain."""
         try:
             # Check if adapter chain is properly defined
             self._validate_adapter_chain_definition()
 
-            # Validate interceptor order
-            self._validate_interceptor_order()
+            # Validate adapter order
+            self._validate_adapter_order()
 
-            # Build the chains
-            self._build_pre_eval_hooks()
-            self._build_interceptor_chains()
-            self._build_post_eval_hooks()
+            # Build the unified adapter chain
+            self._build_adapter_chain()
 
         except Exception as e:
-            logger.error(f"Failed to build interceptor chains: {e}")
+            logger.error(f"Failed to build adapter chain: {e}")
             raise
 
     def _validate_adapter_chain_definition(self) -> None:
-        """Validate that the adapter chain is properly defined with at least one enabled interceptor or post-eval hook."""
-        enabled_interceptors = [
+        """Validate that the adapter chain is properly defined with at least one enabled adapter."""
+        enabled_adapters = [
             ic for ic in self.adapter_config.interceptors if ic.enabled
         ]
-        enabled_post_eval_hooks = [
-            hook for hook in self.adapter_config.post_eval_hooks if hook.enabled
-        ]
-        enabled_pre_eval_hooks = [
-            hook for hook in self.adapter_config.pre_eval_hooks if hook.enabled
-        ]
 
-        if not enabled_interceptors and not enabled_post_eval_hooks and not enabled_pre_eval_hooks:
+        if not enabled_adapters:
             warning_msg = (
-                "Adapter server cannot start: No enabled interceptors, pre-eval hooks or "
-                "post-eval hooks found. The server requires at least one enabled "
-                "interceptor, pre-eval hook or post-eval hook to function properly. "
-                f"Configured interceptors: "
-                f"{[ic.name for ic in self.adapter_config.interceptors]}, "
-                f"Configured pre-eval hooks: "
-                f"{[hook.name for hook in self.adapter_config.pre_eval_hooks]}, "
-                f"Configured post-eval hooks: "
-                f"{[hook.name for hook in self.adapter_config.post_eval_hooks]}"
+                "Adapter server cannot start: No enabled adapters found. "
+                "The server requires at least one enabled adapter (interceptor, pre-eval hook, or post-eval hook) "
+                "to function properly. "
+                f"Configured adapters: {[ic.name for ic in self.adapter_config.interceptors]}"
             )
             logger.warning(warning_msg)
             raise RuntimeError(warning_msg)
 
-    def _validate_interceptor_order(self) -> None:
-        """Validate that the configured interceptor list follows the correct stage order.
+    def _validate_adapter_order(self) -> None:
+        """Validate that the configured adapter list follows the correct stage order.
 
         The order must be: Request -> RequestToResponse -> Response
+
+        Note: Adapters that ONLY implement PreEvalHook or PostEvalHook interfaces are skipped
+        from stage order validation since they don't participate in request/response processing.
         """
         # Define stage hierarchy and allowed transitions
         STAGE_ORDER = ["request", "request_to_response", "response"]
         current_stage_idx = 0
 
-        for interceptor_config in self.adapter_config.interceptors:
-            if not interceptor_config.enabled:
+        for adapter_config in self.adapter_config.interceptors:
+            if not adapter_config.enabled:
                 continue
 
-            metadata = self.registry.get_metadata(interceptor_config.name)
+            metadata = self.registry.get_metadata(adapter_config.name)
             if metadata is None:
-                raise ValueError(f"Unknown interceptor: {interceptor_config.name}")
+                raise ValueError(f"Unknown adapter: {adapter_config.name}")
 
-            # Determine the stage of this interceptor
+            # Check if this adapter implements any request/response interceptor interfaces
+            has_interceptor_interface = (
+                metadata.supports_request_interception() or
+                metadata.supports_request_to_response_interception() or
+                metadata.supports_response_interception()
+            )
+
+            # Skip stage validation for adapters that only implement PreEvalHook/PostEvalHook
+            # (they don't participate in request/response processing)
+            if not has_interceptor_interface:
+                continue
+
+            # Determine the stage of this adapter
             if metadata.supports_request_to_response_interception():
-                interceptor_stage = "request_to_response"
+                adapter_stage = "request_to_response"
             elif metadata.supports_request_interception():
-                interceptor_stage = "request"
+                adapter_stage = "request"
             elif metadata.supports_response_interception():
-                interceptor_stage = "response"
+                adapter_stage = "response"
             else:
                 raise ValueError(
-                    f"Interceptor {interceptor_config.name} doesn't implement any known interface"
+                    f"Adapter {adapter_config.name} doesn't implement any known interceptor interface"
                 )
 
             # Find the stage index
             try:
-                stage_idx = STAGE_ORDER.index(interceptor_stage)
+                stage_idx = STAGE_ORDER.index(adapter_stage)
             except ValueError:
-                raise ValueError(f"Unknown stage: {interceptor_stage}")
+                raise ValueError(f"Unknown stage: {adapter_stage}")
 
             # Validate progression: can only move forward or stay at same stage
             if stage_idx < current_stage_idx:
                 raise ValueError(
-                    f"Invalid stage order: interceptor {interceptor_config.name} (stage: {interceptor_stage}) "
+                    f"Invalid stage order: adapter {adapter_config.name} (stage: {adapter_stage}) "
                     f"appears after {STAGE_ORDER[current_stage_idx]} stage. "
                     f"Expected order: Request -> RequestToResponse -> Response"
                 )
@@ -305,61 +306,34 @@ class AdapterServer:
             # Update current stage if we've moved forward
             current_stage_idx = max(current_stage_idx, stage_idx)
 
-    def _build_interceptor_chains(self) -> None:
-        """Build interceptor chains from validated configuration"""
-        # Build the chain in the configured order
-        self.interceptor_chain = []
-        for interceptor_config in self.adapter_config.interceptors:
-            if interceptor_config.enabled:
-                interceptor = self.registry._get_or_create_instance(
-                    interceptor_config.name,
-                    interceptor_config.config,
+    def _build_adapter_chain(self) -> None:
+        """Build the unified adapter chain from validated configuration."""
+        self.adapter_chain = []
+        self.pre_eval_hooks = []
+        self.post_eval_hooks = []
+
+        # Build the chain in the configured order - all adapters loaded uniformly
+        for adapter_config in self.adapter_config.interceptors:
+            if adapter_config.enabled:
+                adapter = self.registry._get_or_create_instance(
+                    adapter_config.name,
+                    adapter_config.config,
                 )
 
-                self.interceptor_chain.append(interceptor)
+                self.adapter_chain.append(adapter)
+
+                # Track which adapters are pre/post-eval hooks for execution timing
+                if isinstance(adapter, PreEvalHook):
+                    self.pre_eval_hooks.append(adapter)
+                if isinstance(adapter, PostEvalHook):
+                    self.post_eval_hooks.append(adapter)
 
         # Log the chain for debugging
         logger.info(
-            "Built interceptor chain",
-            interceptors=[type(i).__name__ for i in self.interceptor_chain],
-        )
-
-    def _build_pre_eval_hooks(self) -> None:
-        """Build pre-evaluation hooks from interceptors that implement PreEvalHook interface.
-        
-        Pre/post eval hooks are now unified with interceptors. Any interceptor that implements
-        the PreEvalHook interface will be automatically recognized and executed before evaluation.
-        """
-        self.pre_eval_hooks = []
-
-        # Collect all interceptors that implement PreEvalHook interface
-        for interceptor in self.interceptor_chain:
-            if isinstance(interceptor, PreEvalHook):
-                self.pre_eval_hooks.append(interceptor)
-
-        # Log the hooks for debugging
-        logger.info(
-            "Built pre-eval hooks from interceptor chain",
-            hooks=[type(h).__name__ for h in self.pre_eval_hooks],
-        )
-
-    def _build_post_eval_hooks(self) -> None:
-        """Build post-evaluation hooks from interceptors that implement PostEvalHook interface.
-        
-        Pre/post eval hooks are now unified with interceptors. Any interceptor that implements
-        the PostEvalHook interface will be automatically recognized and executed after evaluation.
-        """
-        self.post_eval_hooks = []
-
-        # Collect all interceptors that implement PostEvalHook interface
-        for interceptor in self.interceptor_chain:
-            if isinstance(interceptor, PostEvalHook):
-                self.post_eval_hooks.append(interceptor)
-
-        # Log the hooks for debugging
-        logger.info(
-            "Built post-eval hooks from interceptor chain",
-            hooks=[type(h).__name__ for h in self.post_eval_hooks],
+            "Built unified adapter chain",
+            adapters=[type(a).__name__ for a in self.adapter_chain],
+            pre_eval_hooks=[type(h).__name__ for h in self.pre_eval_hooks],
+            post_eval_hooks=[type(h).__name__ for h in self.post_eval_hooks],
         )
 
     def run(self) -> None:
@@ -430,20 +404,20 @@ class AdapterServer:
                 rctx=AdapterRequestContext(request_id=request_id),
             )
 
-            # Process through interceptor chain
+            # Process through adapter chain (request phase)
             current_request = adapter_request
             adapter_response = None
 
-            for interceptor in self.interceptor_chain:
+            for adapter in self.adapter_chain:
                 try:
                     if isinstance(
-                        interceptor, (RequestInterceptor, RequestToResponseInterceptor)
+                        adapter, (RequestInterceptor, RequestToResponseInterceptor)
                     ):
-                        result = interceptor.intercept_request(
+                        result = adapter.intercept_request(
                             current_request, global_context
                         )
 
-                        # If interceptor returns a response, we're done with request processing
+                        # If adapter returns a response, we're done with request processing
                         if isinstance(result, AdapterResponse):
                             adapter_response = result
                             break
@@ -456,20 +430,20 @@ class AdapterServer:
 
                 except Exception as e:
                     request_logger.error(
-                        f"Request interceptor {type(interceptor).__name__} failed: {e}"
+                        f"Request adapter {type(adapter).__name__} failed: {e}"
                     )
-                    # Continue with next interceptor
+                    # Continue with next adapter
                     continue
 
             if adapter_response is None:
-                raise RuntimeError("No adapter interceptor returned response")
+                raise RuntimeError("No adapter returned response")
 
-            # Process through response interceptors (in reverse order for response phase)
+            # Process through adapter chain (response phase, in reverse order)
             current_response = adapter_response
-            for interceptor in reversed(self.interceptor_chain):
+            for adapter in reversed(self.adapter_chain):
                 try:
-                    if isinstance(interceptor, ResponseInterceptor):
-                        current_response = interceptor.intercept_response(
+                    if isinstance(adapter, ResponseInterceptor):
+                        current_response = adapter.intercept_response(
                             current_response, global_context
                         )
                 except FatalErrorException:
@@ -477,9 +451,9 @@ class AdapterServer:
                     raise
                 except Exception as e:
                     request_logger.error(
-                        f"Response interceptor {type(interceptor).__name__} failed: {e}"
+                        f"Response adapter {type(adapter).__name__} failed: {e}"
                     )
-                    # Continue with next interceptor
+                    # Continue with next adapter
                     continue
 
             # Log request completion (request_id is automatically included from context)
@@ -690,9 +664,6 @@ class AdapterServerProcess:
         
         This ensures hooks complete before any evaluation requests can be processed,
         eliminating race conditions.
-        
-        Pre-eval hooks are now unified with interceptors - any interceptor that implements
-        the PreEvalHook interface will be automatically recognized and executed.
         """
         # Initialize registry and discover components
         registry = InterceptorRegistry.get_instance()
@@ -701,20 +672,20 @@ class AdapterServerProcess:
             dirs=adapter_config.discovery.dirs,
         )
         
-        # Build all interceptors (which includes pre/post hooks merged in from config)
-        interceptor_instances = []
-        for interceptor_config in adapter_config.interceptors:
-            if interceptor_config.enabled:
-                interceptor = registry._get_or_create_instance(
-                    interceptor_config.name,
-                    interceptor_config.config,
+        # Build all adapters using unified loading logic
+        adapter_instances = []
+        for adapter_cfg in adapter_config.interceptors:
+            if adapter_cfg.enabled:
+                adapter = registry._get_or_create_instance(
+                    adapter_cfg.name,
+                    adapter_cfg.config,
                 )
-                interceptor_instances.append(interceptor)
+                adapter_instances.append(adapter)
         
-        # Collect interceptors that implement PreEvalHook interface
+        # Collect adapters that implement PreEvalHook interface
         pre_eval_hooks = [
-            interceptor for interceptor in interceptor_instances
-            if isinstance(interceptor, PreEvalHook)
+            adapter for adapter in adapter_instances
+            if isinstance(adapter, PreEvalHook)
         ]
         
         if not pre_eval_hooks:
@@ -744,12 +715,9 @@ class AdapterServerProcess:
         adapter_config = self.evaluation.target.api_endpoint.adapter_config
         if not adapter_config:
             return
-        enabled_interceptors = [ic for ic in adapter_config.interceptors if ic.enabled]
-        enabled_post_eval_hooks = [
-            hook for hook in adapter_config.post_eval_hooks if hook.enabled
-        ]
-
-        if not enabled_interceptors and not enabled_post_eval_hooks:
+        
+        enabled_adapters = [ic for ic in adapter_config.interceptors if ic.enabled]
+        if not enabled_adapters:
             return
 
         # Get host from environment variable or use default

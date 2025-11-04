@@ -496,8 +496,8 @@ def test_export_cache_to_binary(tmp_path, create_response, mock_context):
     # Export cache
     interceptor.post_eval_hook(mock_context)
     
-    # Verify .cache file was created
-    cache_file = tmp_path / "test_output" / "cache_export.cache"
+    # Verify .cache file was created in cache directory
+    cache_file = tmp_path / "cache" / "cache_export.cache"
     assert cache_file.exists()
     
     # Load and verify binary content
@@ -603,7 +603,8 @@ def test_export_and_import_roundtrip(tmp_path, create_response, mock_context):
     # Export cache
     interceptor1.post_eval_hook(mock_context)
     
-    cache_file = tmp_path / "test_output" / "cache_export.cache"
+    # Cache file should be in the cache directory
+    cache_file = tmp_path / "cache1" / "cache_export.cache"
     assert cache_file.exists()
     
     # Create second interceptor and import the exported cache
@@ -673,8 +674,8 @@ def test_export_without_flag_does_not_create_file(tmp_path, create_response, moc
     # Call post_eval_hook
     interceptor.post_eval_hook(mock_context)
     
-    # Verify no cache file was created
-    cache_file = tmp_path / "test_output" / "cache_export.cache"
+    # Verify no cache file was created in cache directory
+    cache_file = tmp_path / "cache" / "cache_export.cache"
     assert not cache_file.exists()
 
 

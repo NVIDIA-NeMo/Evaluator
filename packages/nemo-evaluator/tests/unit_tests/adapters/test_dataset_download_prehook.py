@@ -15,8 +15,6 @@
 
 """Tests for DatasetDownloadPreHook functionality."""
 
-import shutil
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -187,7 +185,7 @@ def test_local_source_not_found(tmpdir):
         hook.pre_eval_hook(context)
 
 
-@patch("nemo_evaluator.adapters.pre_hooks.dataset_download_prehook.load_dataset")
+@patch("datasets.load_dataset")
 def test_huggingface_download(mock_load_dataset, tmpdir):
     """Test downloading from HuggingFace."""
     target_dir = tmpdir / "target"
@@ -282,17 +280,17 @@ def test_s3_download(mock_session, tmpdir):
 def test_ngc_download(mock_run, tmpdir):
     """Test downloading from NGC."""
     target_dir = tmpdir / "dataset"
-    target_dir.mkdir()
 
     # Mock successful subprocess run
     mock_run.return_value = MagicMock(returncode=0)
 
-    # Create hook
+    # Create hook with force_download to ensure download happens
     params = DatasetDownloadPreHook.Params(
         target_path=str(target_dir),
         source_type="ngc",
         source_path="nvidia/test-dataset:v1",
         source_config={"api_key": "test_api_key"},
+        force_download=True,  # Force download to bypass existence check
     )
     hook = DatasetDownloadPreHook(params)
 

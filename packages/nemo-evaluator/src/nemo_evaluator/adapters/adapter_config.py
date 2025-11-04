@@ -56,61 +56,40 @@ class DiscoveryConfig(BaseModel):
     )
 
 
-class InterceptorConfig(BaseModel):
-    """Configuration for a single interceptor"""
+class AdapterItemConfig(BaseModel):
+    """Configuration for a single adapter (interceptor, pre-eval hook, or post-eval hook)."""
 
-    name: str = Field(description="Name of the interceptor to use")
+    name: str = Field(description="Name of the adapter to use")
     enabled: bool = Field(
-        description="Whether this interceptor is enabled", default=True
+        description="Whether this adapter is enabled", default=True
     )
     config: dict[str, Any] = Field(
-        description="Configuration for the interceptor", default_factory=dict
+        description="Configuration for the adapter", default_factory=dict
     )
 
 
-class PostEvalHookConfig(BaseModel):
-    """Configuration for a single post-evaluation hook"""
-
-    name: str = Field(description="Name of the post-evaluation hook to use")
-    enabled: bool = Field(
-        description="Whether this post-evaluation hook is enabled", default=True
-    )
-    config: dict[str, Any] = Field(
-        description="Configuration for the post-evaluation hook", default_factory=dict
-    )
-
-    class Config:
-        use_enum_values = True
-
-
-class PreEvalHookConfig(BaseModel):
-    """Configuration for a single pre-evaluation hook"""
-
-    name: str = Field(description="Name of the post-evaluation hook to use")
-    enabled: bool = Field(
-        description="Whether this post-evaluation hook is enabled", default=True
-    )
-    config: dict[str, Any] = Field(
-        description="Configuration for the post-evaluation hook", default_factory=dict
-    )
+# Backward compatibility aliases
+InterceptorConfig = AdapterItemConfig
+PostEvalHookConfig = AdapterItemConfig
+PreEvalHookConfig = AdapterItemConfig
 
 
 class AdapterConfig(BaseModel):
-    """Adapter configuration with registry-based interceptor support"""
+    """Adapter configuration with unified adapter loading support."""
 
     discovery: DiscoveryConfig = Field(
         description="Configuration for discovering 3rd party modules and directories",
         default_factory=DiscoveryConfig,
     )
-    interceptors: list[InterceptorConfig] = Field(
+    interceptors: list[AdapterItemConfig] = Field(
         description="List of interceptors to use with their configurations",
         default_factory=list,
     )
-    post_eval_hooks: list[PostEvalHookConfig] = Field(
+    post_eval_hooks: list[AdapterItemConfig] = Field(
         description="List of post-evaluation hooks to use with their configurations",
         default_factory=list,
     )
-    pre_eval_hooks: list[PreEvalHookConfig] = Field(
+    pre_eval_hooks: list[AdapterItemConfig] = Field(
         description="List of pre-evaluation hooks to use with their configurations",
         default_factory=list,
     )
@@ -251,23 +230,32 @@ class AdapterConfig(BaseModel):
                 for s in merged["pre_eval_hooks"]
             ]
         
-        # Merge pre/post eval hooks into interceptors for unified processing
-        # This maintains backward compatibility for the legacy pre/post_eval_hooks fields
-        # Note: We keep pre/post_eval_hooks as separate fields for validation but also merge them into interceptors
         interceptors = []
         
-        # Add pre-eval hooks at the beginning (they run first before evaluation)
+        # Track which names we've seen from OTHER categories to prevent cross-category duplicates
+        pre_eval_names = set()
+        interceptor_names = set()
+
+        # Add pre-eval hooks at the beginning (highest priority)
         if merged.get("pre_eval_hooks"):
             for hook in merged["pre_eval_hooks"]:
+                name = hook["name"] if isinstance(hook, dict) else hook
+                pre_eval_names.add(name)
                 interceptors.append(hook)
         
-        # Add regular interceptors
-        interceptors.extend(merged.get("interceptors", []))
+        # Add regular interceptors in the middle (skip if already in pre_eval)
+        for interceptor in merged.get("interceptors", []):
+            name = interceptor["name"] if isinstance(interceptor, dict) else interceptor
+            if name not in pre_eval_names:
+                interceptor_names.add(name)
+                interceptors.append(interceptor)
         
-        # Add post-eval hooks to the end of interceptors (they run last in post-eval phase)
+        # Add post-eval hooks at the end (skip if already in pre_eval or interceptors)
         if merged.get("post_eval_hooks"):
             for hook in merged["post_eval_hooks"]:
-                interceptors.append(hook)
+                name = hook["name"] if isinstance(hook, dict) else hook
+                if name not in pre_eval_names and name not in interceptor_names:
+                    interceptors.append(hook)
         
         merged["interceptors"] = interceptors
         
@@ -356,7 +344,7 @@ class AdapterConfig(BaseModel):
             and legacy_config["custom_system_prompt"] is not None
         ):
             interceptors.append(
-                InterceptorConfig(
+                AdapterItemConfig(
                     name="system_message",
                     enabled=True,
                     config={
@@ -380,7 +368,7 @@ class AdapterConfig(BaseModel):
                 config["params_to_rename"] = params_to_rename
 
             interceptors.append(
-                InterceptorConfig(
+                AdapterItemConfig(
                     name="payload_modifier",
                     enabled=True,
                     config=config,
@@ -390,7 +378,7 @@ class AdapterConfig(BaseModel):
         # Add omni info interceptor if specified (Request)
         if legacy_config["use_omni_info"]:
             interceptors.append(
-                InterceptorConfig(
+                AdapterItemConfig(
                     name="omni_info",
                     enabled=True,
                     config={
@@ -409,7 +397,7 @@ class AdapterConfig(BaseModel):
             if legacy_config["max_logged_requests"] is not None:
                 config["max_requests"] = legacy_config["max_logged_requests"]
             interceptors.append(
-                InterceptorConfig(
+                AdapterItemConfig(
                     name="request_logging",
                     config=config,
                 )
@@ -487,7 +475,7 @@ class AdapterConfig(BaseModel):
                 config["max_saved_responses"] = max_saved_responses
 
             interceptors.append(
-                InterceptorConfig(
+                AdapterItemConfig(
                     name="caching",
                     enabled=True,
                     config=config,
@@ -497,7 +485,7 @@ class AdapterConfig(BaseModel):
         # Add the final request interceptor - either nvcf or endpoint
         if legacy_config["use_nvcf"]:
             interceptors.append(
-                InterceptorConfig(
+                AdapterItemConfig(
                     name="nvcf",
                     enabled=True,
                     config={},
@@ -505,7 +493,7 @@ class AdapterConfig(BaseModel):
             )
         else:
             # Only add endpoint if nvcf is not used
-            interceptors.append(InterceptorConfig(name="endpoint"))
+            interceptors.append(AdapterItemConfig(name="endpoint"))
 
         # Add response stats interceptor right after endpoint if tracking is enabled
         # Default to True if not explicitly set in legacy config
@@ -521,7 +509,7 @@ class AdapterConfig(BaseModel):
                 ],
             }
             interceptors.append(
-                InterceptorConfig(
+                AdapterItemConfig(
                     name="response_stats",
                     enabled=True,
                     config=config,
@@ -535,7 +523,7 @@ class AdapterConfig(BaseModel):
             if legacy_config["max_logged_responses"] is not None:
                 config["max_responses"] = legacy_config["max_logged_responses"]
             interceptors.append(
-                InterceptorConfig(
+                AdapterItemConfig(
                     name="response_logging",
                     config=config,
                 )
@@ -570,7 +558,7 @@ class AdapterConfig(BaseModel):
             ]
 
             interceptors.append(
-                InterceptorConfig(
+                AdapterItemConfig(
                     name="reasoning",
                     config=config,
                 )
@@ -587,7 +575,7 @@ class AdapterConfig(BaseModel):
                 config["progress_tracking_url"] = legacy_config["progress_tracking_url"]
 
             interceptors.append(
-                InterceptorConfig(
+                AdapterItemConfig(
                     name="progress_tracking",
                     config=config,
                 )
@@ -606,7 +594,7 @@ class AdapterConfig(BaseModel):
             default_params = RaiseClientErrorInterceptor.Params()
 
             interceptors.append(
-                InterceptorConfig(
+                AdapterItemConfig(
                     name="raise_client_errors",
                     enabled=True,
                     config={},
@@ -628,7 +616,7 @@ class AdapterConfig(BaseModel):
                 report_types.append("json")
 
             post_eval_hooks.append(
-                PostEvalHookConfig(
+                AdapterItemConfig(
                     name="post_eval_report",
                     enabled=True,
                     config={

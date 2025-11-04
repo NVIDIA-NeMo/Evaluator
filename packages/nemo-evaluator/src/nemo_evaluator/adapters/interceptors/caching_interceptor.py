@@ -581,8 +581,8 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor, PreE
         """
         if self.export_cache:
             try:
-                # Generate output filename
-                output_file = os.path.join(context.output_dir, "cache_export.cache")
+                # Generate output filename in cache directory
+                output_file = os.path.join(self.cache_dir, "cache_export.cache")
                 
                 self.logger.info(
                     "Exporting cache to binary file",

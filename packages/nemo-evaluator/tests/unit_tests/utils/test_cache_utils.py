@@ -58,6 +58,7 @@ def adapter_server_with_cache(
         interceptors=[
             dict(
                 name="caching",
+                enabled=True,
                 config={
                     "cache_dir": str(tmp_path / "cache"),
                     "reuse_cached_responses": True,
@@ -67,17 +68,21 @@ def adapter_server_with_cache(
             ),
             dict(
                 name="endpoint",
+                enabled=True,
                 config={},
             ),
             dict(
                 name="response_logging",
+                enabled=True,
+                config={},
             ),
             dict(
                 name="reasoning",
+                enabled=True,
+                config={"end_reasoning_token": "</think>"},
             ),
         ]
     )
-
     evaluation = Evaluation(
         command="",
         framework_name="",

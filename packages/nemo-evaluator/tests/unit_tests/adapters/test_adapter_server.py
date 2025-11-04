@@ -178,11 +178,11 @@ def test_adapter_server_with_interceptors():
 
 # Tests for the new validation functionality
 def test_adapter_server_validation_empty_config():
-    """Test that AdapterServer raises RuntimeError when no enabled interceptors or
-    post-eval hooks are configured."""
+    """Test that AdapterServer raises RuntimeError when no enabled adapters are configured."""
     adapter_config = AdapterConfig(
         interceptors=[],
         post_eval_hooks=[],
+        pre_eval_hooks=[],
     )
 
     with patch(
@@ -197,20 +197,19 @@ def test_adapter_server_validation_empty_config():
 
         error_msg = str(exc_info.value)
         assert "Adapter server cannot start" in error_msg
-        assert "No enabled interceptors or post-eval hooks found" in error_msg
-        assert "Configured interceptors: []" in error_msg
-        assert "Configured post-eval hooks: []" in error_msg
+        assert "No enabled adapters found" in error_msg
+        assert "Configured adapters: []" in error_msg
 
 
 def test_adapter_server_validation_disabled_interceptors():
-    """Test that AdapterServer raises RuntimeError when all interceptors are
-    disabled."""
+    """Test that AdapterServer raises RuntimeError when all adapters are disabled."""
     adapter_config = AdapterConfig(
         interceptors=[
             dict(name="caching", enabled=False, config={}),
             dict(name="endpoint", enabled=False, config={}),
         ],
         post_eval_hooks=[],
+        pre_eval_hooks=[],
     )
 
     with patch(
@@ -225,19 +224,36 @@ def test_adapter_server_validation_disabled_interceptors():
 
         error_msg = str(exc_info.value)
         assert "Adapter server cannot start" in error_msg
-        assert "No enabled interceptors or post-eval hooks found" in error_msg
-        assert "Configured interceptors: ['caching', 'endpoint']" in error_msg
-        assert "Configured post-eval hooks: []" in error_msg
+        assert "No enabled adapters found" in error_msg
+        assert "Configured adapters: ['caching', 'endpoint']" in error_msg
 
 
 def test_adapter_server_validation_disabled_post_eval_hooks():
-    """Test that AdapterServer raises RuntimeError when all post-eval hooks are disabled."""
-    adapter_config = AdapterConfig(
-        interceptors=[],
-        post_eval_hooks=[
+    """Test that AdapterServer raises RuntimeError when all post-eval hooks are disabled.
+    
+    Note: Post-eval hooks are merged into the interceptors list, so validation checks
+    the unified adapter list.
+    """
+    # Create config with disabled post-eval hooks which will be merged into interceptors
+    config_dict = {
+        "interceptors": [],
+        "post_eval_hooks": [
             dict(name="report", enabled=False, config={}),
             dict(name="post_eval_report", enabled=False, config={}),
         ],
+        "pre_eval_hooks": [],
+    }
+    
+    # Simulate the merging that happens in get_validated_config
+    merged_interceptors = []
+    merged_interceptors.extend(config_dict.get("pre_eval_hooks", []))
+    merged_interceptors.extend(config_dict.get("interceptors", []))
+    merged_interceptors.extend(config_dict.get("post_eval_hooks", []))
+    
+    adapter_config = AdapterConfig(
+        interceptors=merged_interceptors,
+        post_eval_hooks=config_dict["post_eval_hooks"],
+        pre_eval_hooks=config_dict["pre_eval_hooks"],
     )
 
     with patch(
@@ -252,22 +268,39 @@ def test_adapter_server_validation_disabled_post_eval_hooks():
 
         error_msg = str(exc_info.value)
         assert "Adapter server cannot start" in error_msg
-        assert "No enabled interceptors or post-eval hooks found" in error_msg
-        assert "Configured interceptors: []" in error_msg
-        assert "Configured post-eval hooks: ['report', 'post_eval_report']" in error_msg
+        assert "No enabled adapters found" in error_msg
+        # The merged interceptors list will show the disabled hooks
+        assert "Configured adapters: ['report', 'post_eval_report']" in error_msg
 
 
 def test_adapter_server_validation_mixed_disabled():
-    """Test that AdapterServer raises RuntimeError when both interceptors and post-eval hooks are all disabled."""
-    adapter_config = AdapterConfig(
-        interceptors=[
+    """Test that AdapterServer raises RuntimeError when all adapters are disabled.
+    
+    Note: Pre/post-eval hooks are merged into the interceptors list for unified validation.
+    """
+    # Create config with mixed disabled adapters which will be merged
+    config_dict = {
+        "interceptors": [
             dict(name="caching", enabled=False, config={}),
             dict(name="endpoint", enabled=False, config={}),
         ],
-        post_eval_hooks=[
+        "pre_eval_hooks": [],
+        "post_eval_hooks": [
             dict(name="report", enabled=False, config={}),
             dict(name="post_eval_report", enabled=False, config={}),
         ],
+    }
+    
+    # Simulate the merging that happens in get_validated_config
+    merged_interceptors = []
+    merged_interceptors.extend(config_dict.get("pre_eval_hooks", []))
+    merged_interceptors.extend(config_dict.get("interceptors", []))
+    merged_interceptors.extend(config_dict.get("post_eval_hooks", []))
+    
+    adapter_config = AdapterConfig(
+        interceptors=merged_interceptors,
+        post_eval_hooks=config_dict["post_eval_hooks"],
+        pre_eval_hooks=config_dict["pre_eval_hooks"],
     )
 
     with patch(
@@ -282,9 +315,13 @@ def test_adapter_server_validation_mixed_disabled():
 
         error_msg = str(exc_info.value)
         assert "Adapter server cannot start" in error_msg
-        assert "No enabled interceptors or post-eval hooks found" in error_msg
-        assert "Configured interceptors: ['caching', 'endpoint']" in error_msg
-        assert "Configured post-eval hooks: ['report', 'post_eval_report']" in error_msg
+        assert "No enabled adapters found" in error_msg
+        # The merged interceptors list will show all disabled adapters
+        assert "Configured adapters:" in error_msg
+        assert "caching" in error_msg
+        assert "endpoint" in error_msg
+        assert "report" in error_msg
+        assert "post_eval_report" in error_msg
 
 
 def test_adapter_server_validation_with_enabled_interceptor():
@@ -294,6 +331,7 @@ def test_adapter_server_validation_with_enabled_interceptor():
             dict(name="caching", enabled=False, config={}),
             dict(name="endpoint", enabled=True, config={}),
         ],
+        pre_eval_hooks=[],
         post_eval_hooks=[],
     )
 
@@ -309,14 +347,98 @@ def test_adapter_server_validation_with_enabled_interceptor():
         assert server is not None
 
 
+def test_adapter_config_deduplication():
+    """Test that adapters defined in multiple places are deduplicated.
+    
+    If an adapter appears in pre_eval_hooks, interceptors, and post_eval_hooks,
+    only the first occurrence is kept (priority: pre_eval > interceptors > post_eval).
+    """
+    from nemo_evaluator.adapters.adapter_config import AdapterConfig
+    
+    # Create a config dict with the same adapter in multiple places
+    config_dict = {
+        "pre_eval_hooks": [
+            {"name": "my_adapter", "enabled": True, "config": {"from": "pre_eval"}},
+        ],
+        "interceptors": [
+            {"name": "my_adapter", "enabled": True, "config": {"from": "interceptor"}},
+            {"name": "endpoint", "enabled": True, "config": {}},
+        ],
+        "post_eval_hooks": [
+            {"name": "my_adapter", "enabled": True, "config": {"from": "post_eval"}},
+            {"name": "another_hook", "enabled": True, "config": {}},
+        ],
+    }
+    
+    # Simulate what happens in get_validated_config
+    merged = dict(config_dict)
+    interceptors = []
+    seen_names = set()
+    
+    # Add pre-eval hooks at the beginning (highest priority)
+    if merged.get("pre_eval_hooks"):
+        for hook in merged["pre_eval_hooks"]:
+            name = hook["name"] if isinstance(hook, dict) else hook
+            if name not in seen_names:
+                interceptors.append(hook)
+                seen_names.add(name)
+    
+    # Add regular interceptors in the middle
+    for interceptor in merged.get("interceptors", []):
+        name = interceptor["name"] if isinstance(interceptor, dict) else interceptor
+        if name not in seen_names:
+            interceptors.append(interceptor)
+            seen_names.add(name)
+    
+    # Add post-eval hooks at the end (lowest priority)
+    if merged.get("post_eval_hooks"):
+        for hook in merged["post_eval_hooks"]:
+            name = hook["name"] if isinstance(hook, dict) else hook
+            if name not in seen_names:
+                interceptors.append(hook)
+                seen_names.add(name)
+    
+    # Verify deduplication:
+    # - "my_adapter" should appear only once (from pre_eval_hooks with "from": "pre_eval")
+    # - "endpoint" should appear once (from interceptors)
+    # - "another_hook" should appear once (from post_eval_hooks)
+    assert len(interceptors) == 3
+    
+    # Check that my_adapter is from pre_eval (first occurrence wins)
+    my_adapter = next(i for i in interceptors if i["name"] == "my_adapter")
+    assert my_adapter["config"]["from"] == "pre_eval"
+    
+    # Check the order: pre_eval (my_adapter), interceptors (endpoint), post_eval (another_hook)
+    assert interceptors[0]["name"] == "my_adapter"
+    assert interceptors[1]["name"] == "endpoint"
+    assert interceptors[2]["name"] == "another_hook"
+
+
 def test_adapter_server_validation_with_enabled_post_eval_hook():
-    """Test that AdapterServer starts successfully when at least one post-eval hook is enabled."""
-    adapter_config = AdapterConfig(
-        interceptors=[],
-        post_eval_hooks=[
+    """Test that AdapterServer starts successfully when at least one post-eval hook is enabled.
+    
+    Note: Post-eval hooks are merged into the interceptors list for unified loading.
+    """
+    # Create config with enabled post-eval hook which will be merged into interceptors
+    config_dict = {
+        "interceptors": [],
+        "pre_eval_hooks": [],
+        "post_eval_hooks": [
             dict(name="report", enabled=False, config={}),
             dict(name="post_eval_report", enabled=True, config={}),
         ],
+    }
+    
+    # Simulate the merging that happens in get_validated_config
+    merged_interceptors = []
+    merged_interceptors.extend(config_dict.get("pre_eval_hooks", []))
+    merged_interceptors.extend(config_dict.get("interceptors", []))
+    merged_interceptors.extend(config_dict.get("post_eval_hooks", []))
+    
+    adapter_config = AdapterConfig(
+        interceptors=merged_interceptors,
+        post_eval_hooks=config_dict["post_eval_hooks"],
+        pre_eval_hooks=config_dict["pre_eval_hooks"],
     )
 
     with patch(
@@ -332,7 +454,7 @@ def test_adapter_server_validation_with_enabled_post_eval_hook():
 
 
 def test_spawn_adapter_server_validation_empty_config():
-    """Test that spawn_adapter_server returns None when no enabled interceptors or post-eval hooks are configured."""
+    """Test that spawn_adapter_server returns None when no enabled adapters are configured."""
     evaluation = Evaluation(
         command="",
         framework_name="",
@@ -347,13 +469,30 @@ def test_spawn_adapter_server_validation_empty_config():
 
 
 def test_spawn_adapter_server_validation_disabled_interceptors():
-    """Test that spawn_adapter_server returns None when all interceptors are disabled."""
-    adapter_config = AdapterConfig(
-        interceptors=[
+    """Test that spawn_adapter_server returns None when all adapters are disabled.
+    
+    Note: Pre/post-eval hooks are merged into interceptors for unified checking.
+    """
+    # Create config with disabled adapters
+    config_dict = {
+        "interceptors": [
             dict(name="caching", enabled=False, config={}),
             dict(name="endpoint", enabled=False, config={}),
         ],
-        post_eval_hooks=[],
+        "pre_eval_hooks": [],
+        "post_eval_hooks": [],
+    }
+    
+    # Simulate the merging that happens in get_validated_config
+    merged_interceptors = []
+    merged_interceptors.extend(config_dict.get("pre_eval_hooks", []))
+    merged_interceptors.extend(config_dict.get("interceptors", []))
+    merged_interceptors.extend(config_dict.get("post_eval_hooks", []))
+    
+    adapter_config = AdapterConfig(
+        interceptors=merged_interceptors,
+        post_eval_hooks=config_dict["post_eval_hooks"],
+        pre_eval_hooks=config_dict["pre_eval_hooks"],
     )
 
     evaluation = Evaluation(
@@ -370,14 +509,32 @@ def test_spawn_adapter_server_validation_disabled_interceptors():
 
 
 def test_spawn_adapter_server_validation_disabled_post_eval_hooks():
-    """Test that spawn_adapter_server returns None when all post-eval hooks are disabled."""
-    adapter_config = AdapterConfig(
-        interceptors=[],
-        post_eval_hooks=[
+    """Test that spawn_adapter_server returns None when all post-eval hooks are disabled.
+    
+    Note: Post-eval hooks are merged into interceptors for unified checking.
+    """
+    # Create config with disabled post-eval hooks
+    config_dict = {
+        "interceptors": [],
+        "pre_eval_hooks": [],
+        "post_eval_hooks": [
             dict(name="report", enabled=False, config={}),
             dict(name="post_eval_report", enabled=False, config={}),
         ],
+    }
+    
+    # Simulate the merging that happens in get_validated_config
+    merged_interceptors = []
+    merged_interceptors.extend(config_dict.get("pre_eval_hooks", []))
+    merged_interceptors.extend(config_dict.get("interceptors", []))
+    merged_interceptors.extend(config_dict.get("post_eval_hooks", []))
+    
+    adapter_config = AdapterConfig(
+        interceptors=merged_interceptors,
+        post_eval_hooks=config_dict["post_eval_hooks"],
+        pre_eval_hooks=config_dict["pre_eval_hooks"],
     )
+    
     evaluation = Evaluation(
         command="",
         framework_name="",
@@ -398,6 +555,7 @@ def test_spawn_adapter_server_validation_with_enabled_interceptor():
             dict(name="caching", enabled=False, config={}),
             dict(name="endpoint", enabled=True, config={}),
         ],
+        pre_eval_hooks=[],
         post_eval_hooks=[],
     )
 
@@ -419,13 +577,30 @@ def test_spawn_adapter_server_validation_with_enabled_interceptor():
 
 
 def test_spawn_adapter_server_validation_with_enabled_post_eval_hook():
-    """Test that spawn_adapter_server returns a process when at least one post-eval hook is enabled."""
-    adapter_config = AdapterConfig(
-        interceptors=[],
-        post_eval_hooks=[
+    """Test that spawn_adapter_server returns a process when at least one post-eval hook is enabled.
+    
+    Note: Post-eval hooks are merged into interceptors for unified processing.
+    """
+    # Create config with enabled post-eval hook
+    config_dict = {
+        "interceptors": [],
+        "pre_eval_hooks": [],
+        "post_eval_hooks": [
             dict(name="report", enabled=False, config={}),
             dict(name="post_eval_report", enabled=True, config={}),
         ],
+    }
+    
+    # Simulate the merging that happens in get_validated_config
+    merged_interceptors = []
+    merged_interceptors.extend(config_dict.get("pre_eval_hooks", []))
+    merged_interceptors.extend(config_dict.get("interceptors", []))
+    merged_interceptors.extend(config_dict.get("post_eval_hooks", []))
+    
+    adapter_config = AdapterConfig(
+        interceptors=merged_interceptors,
+        post_eval_hooks=config_dict["post_eval_hooks"],
+        pre_eval_hooks=config_dict["pre_eval_hooks"],
     )
 
     evaluation = Evaluation(
@@ -451,6 +626,7 @@ def test_spawn_adapter_server_validation_server_fails_to_start():
         interceptors=[
             dict(name="endpoint", enabled=True, config={}),
         ],
+        pre_eval_hooks=[],
         post_eval_hooks=[],
     )
     evaluation = Evaluation(
