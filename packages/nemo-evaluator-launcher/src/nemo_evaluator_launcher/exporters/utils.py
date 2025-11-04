@@ -534,7 +534,10 @@ def _extract_task_metrics(task_name: str, task_data: dict) -> Dict[str, float]:
     for metric_name, metric_data in metrics_data.items():
         try:
             for score_type, score_data in metric_data["scores"].items():
-                key = f"{task_name}_{metric_name}_{score_type}"
+                if score_type != metric_name:
+                    key = f"{task_name}_{metric_name}_{score_type}"
+                else:
+                    key = f"{task_name}_{metric_name}"
                 _safe_set_metric(
                     container=extracted,
                     key=key,
