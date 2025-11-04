@@ -471,7 +471,7 @@ def _extract_metrics_from_results(results: dict) -> Dict[str, float]:
         section_data = results.get(section)
         if isinstance(section_data, dict):
             for task_name, task_data in section_data.items():
-                task_metrics = _extract_task_metrics(task_name, task_data["metrics"])
+                task_metrics = _extract_task_metrics(task_name, task_data)
                 _safe_update_metrics(
                     target=metrics,
                     source=task_metrics,
@@ -515,9 +515,21 @@ def _extract_from_json_files(artifacts_dir: Path) -> Dict[str, float]:
     return metrics
 
 
-def _extract_task_metrics(task_name: str, metrics_data: dict) -> Dict[str, float]:
+def _extract_task_metrics(task_name: str, task_data: dict) -> Dict[str, float]:
     """Extract metrics from a task's metrics data."""
     extracted = {}
+
+    metrics_data = task_data.get("metrics", {})
+    if "groups" in task_data:
+        for group_name, group_data in task_data["groups"].items():
+            group_extracted = _extract_task_metrics(
+                f"{task_name}_{group_name}", group_data
+            )
+            _safe_update_metrics(
+                target=extracted,
+                source=group_extracted,
+                context=f" in task '{task_name}'",
+            )
 
     for metric_name, metric_data in metrics_data.items():
         try:

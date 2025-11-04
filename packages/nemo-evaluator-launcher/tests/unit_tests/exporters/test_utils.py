@@ -156,6 +156,53 @@ results:
         assert metrics["demo_accuracy_micro"] == 0.86
         # 'broken' is ignored due to ValueError in float cast
 
+    def test_nested_groups(self, tmp_path: Path):
+        # results.yml with nested scores, numeric metric, and a broken metric
+        (tmp_path / "artifacts").mkdir(parents=True)
+        (tmp_path / "artifacts" / "results.yml").write_text(
+            """
+results:
+  groups:
+    demo:
+      groups:
+        subgroup_one:
+          metrics:
+            accuracy:
+              scores:
+                macro: { value: 0.4 }
+        subgroup_two:
+          metrics:
+            accuracy:
+              scores:
+                macro: { value: 0.8 }
+      metrics:
+        accuracy:
+          scores:
+            macro: { value: 0.6 }
+            """.strip(),
+            encoding="utf-8",
+        )
+        jd = JobData(
+            "i1",
+            "i1.0",
+            0.0,
+            "local",
+            {},
+            {"evaluation": {"tasks": [{"name": "demo"}]}},
+        )
+
+        def get_paths(_):
+            return {
+                "artifacts_dir": tmp_path / "artifacts",
+                "storage_type": "local_filesystem",
+            }
+
+        metrics = extract_accuracy_metrics(jd, get_paths)
+
+        assert metrics["demo_accuracy_macro"] == 0.6
+        assert metrics["demo_subgroup_one_accuracy_macro"] == 0.4
+        assert metrics["demo_subgroup_two_accuracy_macro"] == 0.8
+
     def test_remote_storage_and_get_paths_error(self, tmp_path: Path):
         jd = JobData(
             "i2", "i2.0", 0.0, "local", {}, {"evaluation": {"tasks": [{"name": "x"}]}}
