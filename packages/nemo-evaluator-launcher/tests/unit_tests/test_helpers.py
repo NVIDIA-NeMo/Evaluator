@@ -388,8 +388,11 @@ def test_get_eval_factory_config_complex_real_world_scenario(
     assert result == expected
 
 
-def test_get_eval_factory_command_pre_cmd_task_overrides_global():
+def test_get_eval_factory_command_pre_cmd_task_overrides_global(monkeypatch):
     from nemo_evaluator_launcher.common.helpers import get_eval_factory_command
+
+    # Trust pre_cmd for the purpose of this unit test
+    monkeypatch.setenv("NEMO_EVALUATOR_TRUST_PRE_CMD", "1")
 
     # Build a minimal config where endpoint URL resolution is simple
     cfg = _cfg(
@@ -430,8 +433,11 @@ def test_get_eval_factory_command_pre_cmd_task_overrides_global():
     assert " run_eval --run_config config_ef.yaml" in cmd_and_dbg.cmd
 
 
-def test_get_eval_factory_command_pre_cmd_from_global_when_task_absent():
+def test_get_eval_factory_command_pre_cmd_from_global_when_task_absent(monkeypatch):
     from nemo_evaluator_launcher.common.helpers import get_eval_factory_command
+
+    # Trust pre_cmd for the purpose of this unit test
+    monkeypatch.setenv("NEMO_EVALUATOR_TRUST_PRE_CMD", "1")
 
     cfg = _cfg(
         {
