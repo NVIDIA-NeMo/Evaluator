@@ -386,3 +386,90 @@ def test_get_eval_factory_config_complex_real_world_scenario(
     }
 
     assert result == expected
+
+
+def test_get_eval_factory_command_pre_cmd_task_overrides_global():
+    from nemo_evaluator_launcher.common.helpers import get_eval_factory_command
+
+    # Build a minimal config where endpoint URL resolution is simple
+    cfg = _cfg(
+        {
+            "deployment": {"type": "none"},
+            "target": {"api_endpoint": {"url": "http://example/v1", "model_id": "m"}},
+            "evaluation": {
+                "pre_cmd": "export GLOBAL_X=1",
+                "nemo_evaluator_config": {"config": {"params": {}}},
+            },
+        }
+    )
+    user_task_config = _cfg(
+        {
+            "name": "some_task",
+            "pre_cmd": "export TASK_Y=2",
+            "nemo_evaluator_config": {"config": {"params": {}}},
+        }
+    )
+    task_definition = {"endpoint_type": "chat", "task": "some_task"}
+
+    cmd_and_dbg = get_eval_factory_command(cfg, user_task_config, task_definition)
+
+    # pre_cmd is written into pre_cmd.sh and sourced
+    assert "source pre_cmd.sh" in cmd_and_dbg.cmd
+
+    # Task-level pre_cmd should win over global
+    import base64
+
+    expected_b64 = base64.b64encode(b"export TASK_Y=2").decode("utf-8")
+    assert f'echo "{expected_b64}" | base64 -d > pre_cmd.sh' in cmd_and_dbg.cmd
+
+    # Debug string should include human-readable contents
+    assert "# Contents of pre_cmd.sh" in cmd_and_dbg.debug
+    assert "# export TASK_Y=2" in cmd_and_dbg.debug
+
+    # Command should invoke eval factory
+    assert " run_eval --run_config config_ef.yaml" in cmd_and_dbg.cmd
+
+
+def test_get_eval_factory_command_pre_cmd_from_global_when_task_absent():
+    from nemo_evaluator_launcher.common.helpers import get_eval_factory_command
+
+    cfg = _cfg(
+        {
+            "deployment": {"type": "none"},
+            "target": {"api_endpoint": {"url": "http://example/v1", "model_id": "m"}},
+            "evaluation": {
+                "pre_cmd": "echo hello",
+                "nemo_evaluator_config": {"config": {"params": {}}},
+            },
+        }
+    )
+    user_task_config = _cfg({"name": "some_task"})
+    task_definition = {"endpoint_type": "chat", "task": "some_task"}
+
+    cmd_and_dbg = get_eval_factory_command(cfg, user_task_config, task_definition)
+
+    import base64
+
+    expected_b64 = base64.b64encode(b"echo hello").decode("utf-8")
+    assert f'echo "{expected_b64}" | base64 -d > pre_cmd.sh' in cmd_and_dbg.cmd
+    assert "# echo hello" in cmd_and_dbg.debug
+
+
+def test_get_eval_factory_command_pre_cmd_empty_when_not_provided():
+    from nemo_evaluator_launcher.common.helpers import get_eval_factory_command
+
+    cfg = _cfg(
+        {
+            "deployment": {"type": "none"},
+            "target": {"api_endpoint": {"url": "http://example/v1", "model_id": "m"}},
+            "evaluation": {"nemo_evaluator_config": {"config": {"params": {}}}},
+        }
+    )
+    user_task_config = _cfg({"name": "some_task"})
+    task_definition = {"endpoint_type": "chat", "task": "some_task"}
+
+    cmd_and_dbg = get_eval_factory_command(cfg, user_task_config, task_definition)
+
+    # Even with empty pre_cmd, the script is still created and sourced
+    assert 'echo "" | base64 -d > pre_cmd.sh' in cmd_and_dbg.cmd
+    assert "source pre_cmd.sh" in cmd_and_dbg.cmd
