@@ -122,6 +122,7 @@ def get_eval_factory_command(
     cfg: DictConfig,
     user_task_config: DictConfig,
     task_definition: dict,
+    trust_pre_cmd: bool = False,
 ) -> CmdAndReadableComment:
     # This gets the eval_factory_config merged from both top-level and task-level.
     merged_nemo_evaluator_config = get_eval_factory_config(
@@ -172,22 +173,24 @@ def get_eval_factory_command(
     )
 
     if pre_cmd:
-        if os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":
+        if trust_pre_cmd or os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":
             logger.warning(
                 "Found non-empty pre_cmd that might be a security risk if executed. "
-                "NEMO_EVALUATOR_TRUST_PRE_CMD=1 is set so we proceed.",
+                "NEMO_EVALUATOR_TRUST_PRE_CMD=1 `trust_pre_cmd` is set so we proceed.",
                 pre_cmd=pre_cmd,
+                trust_pre_cmd=trust_pre_cmd,
             )
         else:
             logger.error(
                 "Found non-empty pre_cmd and NEMO_EVALUATOR_TRUST_PRE_CMD is not set. "
                 "To continue, make sure you trust the command "
-                "and set NEMO_EVALUATOR_TRUST_PRE_CMD=1.",
+                "and set NEMO_EVALUATOR_TRUST_PRE_CMD=1 or use `trust_pre_cmd` argument.",
                 pre_cmd=pre_cmd,
+                trust_pre_cmd=trust_pre_cmd,
             )
-            raise EnvironmentError(
+            raise AttributeError(
                 "Untrusted pre_cmd found in config, make sure you trust and "
-                "set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
+                "set NEMO_EVALUATOR_TRUST_PRE_CMD=1 or use `trust_pre_cmd` argument."
             )
 
     create_pre_script_cmd = _str_to_echo_command(pre_cmd, filename="pre_cmd.sh")

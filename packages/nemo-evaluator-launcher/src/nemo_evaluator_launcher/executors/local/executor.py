@@ -157,7 +157,7 @@ class LocalExecutor(BaseExecutor):
             task_output_dir = output_dir / task.name
             task_output_dir.mkdir(parents=True, exist_ok=True)
             eval_factory_command_struct = get_eval_factory_command(
-                cfg, task, task_definition
+                cfg, task, task_definition, trust_pre_cmd=dry_run
             )
             eval_factory_command = eval_factory_command_struct.cmd
             # The debug comment for placing into the script and easy debug. Reason

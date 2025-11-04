@@ -122,6 +122,7 @@ class SlurmExecutor(BaseExecutor):
                     remote_task_subdir=remote_task_subdir,
                     invocation_id=invocation_id,
                     job_id=job_id,
+                    dry_run=dry_run,
                 )
                 local_runsub_path = local_task_subdir / "run.sub"
                 remote_runsub_path = remote_task_subdir / "run.sub"
@@ -438,6 +439,7 @@ def _create_slurm_sbatch_script(
     remote_task_subdir: Path,
     invocation_id: str,
     job_id: str,
+    dry_run: bool,
 ) -> str:
     """Generate the contents of a SLURM sbatch script for a given evaluation task.
 
@@ -599,7 +601,9 @@ def _create_slurm_sbatch_script(
     ):
         evaluation_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
-    eval_factory_command_struct = get_eval_factory_command(cfg, task, task_definition)
+    eval_factory_command_struct = get_eval_factory_command(
+        cfg, task, task_definition, trust_pre_cmd=dry_run
+    )
     eval_factory_command = eval_factory_command_struct.cmd
     # The debug comment for placing into the script and easy debug. Reason
     # (see `CmdAndReadableComment`) is the current way of passing the command

@@ -407,7 +407,7 @@ class LeptonExecutor(BaseExecutor):
 
                     # Generate command with the correct endpoint URL
                     eval_command_struct = get_eval_factory_command(
-                        cfg, task, task_definition
+                        cfg, task, task_definition, trust_pre_cmd=dry_run
                     )
                     eval_command = eval_command_struct.cmd
                     # Debug string for explainability of some base64-parts of the command

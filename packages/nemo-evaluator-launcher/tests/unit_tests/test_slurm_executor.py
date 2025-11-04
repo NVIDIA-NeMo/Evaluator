@@ -143,6 +143,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            dry_run=False,
         )
 
         # Check that deployment environment variables are exported
@@ -174,6 +175,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            dry_run=False,
         )
 
         # Check that evaluation environment variables are exported
@@ -204,6 +206,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            dry_run=False,
         )
 
         # Check that deployment mounts are added to deployment container
@@ -235,6 +238,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            dry_run=False,
         )
 
         # Check that evaluation mounts are added to evaluation container
@@ -258,6 +262,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            dry_run=False,
         )
 
         # Should NOT contain --no-container-mount-home when mount_home is True
@@ -280,6 +285,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            dry_run=False,
         )
 
         # Should contain --no-container-mount-home when mount_home is False
@@ -299,6 +305,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            dry_run=False,
         )
 
         # Should NOT contain --no-container-mount-home by default (mount_home defaults to True)
@@ -326,6 +333,7 @@ class TestSlurmExecutorFeatures:
                 remote_task_subdir=Path("/test/remote"),
                 invocation_id="test123",
                 job_id="test123.0",
+                dry_run=False,
             )
 
             # Check that deprecation warnings were issued
@@ -373,6 +381,7 @@ class TestSlurmExecutorFeatures:
                 remote_task_subdir=Path("/test/remote"),
                 invocation_id="test123",
                 job_id="test123.0",
+                dry_run=False,
             )
 
         # Both old and new env vars should be present
@@ -407,6 +416,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            dry_run=False,
         )
 
         # Script should be generated successfully without errors
@@ -430,6 +440,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
+            dry_run=False,
         )
 
         # Environment variables should still be exported
@@ -482,6 +493,7 @@ class TestSlurmExecutorFeatures:
                 remote_task_subdir=Path("/test/remote"),
                 invocation_id="test123",
                 job_id="test123.0",
+                dry_run=False,
             )
 
         # All environment variables should be exported
