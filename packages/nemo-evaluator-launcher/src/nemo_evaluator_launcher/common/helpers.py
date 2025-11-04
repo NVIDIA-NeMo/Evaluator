@@ -16,6 +16,7 @@
 import base64
 import copy
 import datetime
+import os
 from dataclasses import dataclass
 from typing import Optional
 
@@ -169,6 +170,25 @@ def get_eval_factory_command(
     pre_cmd: str = (
         user_task_config.get("pre_cmd") or cfg.evaluation.get("pre_cmd") or ""
     )
+
+    if pre_cmd:
+        if os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":
+            logger.warning(
+                "Found non-empty pre_cmd that might be a security risk if executed. "
+                "NEMO_EVALUATOR_TRUST_PRE_CMD=1 is set so we proceed.",
+                pre_cmd=pre_cmd,
+            )
+        else:
+            logger.error(
+                "Found non-empty pre_cmd and NEMO_EVALUATOR_TRUST_PRE_CMD is not set. "
+                "To continue, make sure you trust the command "
+                "and set NEMO_EVALUATOR_TRUST_PRE_CMD=1.",
+                pre_cmd=pre_cmd,
+            )
+            raise EnvironmentError(
+                "Untrusted pre_cmd found in config, make sure you trust and "
+                "set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
+            )
 
     create_pre_script_cmd = _str_to_echo_command(pre_cmd, filename="pre_cmd.sh")
 

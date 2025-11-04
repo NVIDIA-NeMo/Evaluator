@@ -305,7 +305,8 @@ evaluation:
 ```
 
 For security reasons (running configs from untrusted sources), if `pre_cmd` is
-non-empty, the `nemo-evaluator-launcher` will fail unless `--trust-config` is supplied.
+non-empty, the `nemo-evaluator-launcher` will fail unless `NEMO_EVALUATOR_TRUST_PRE_CMD=1` environment
+variable is supplied.
 
 ## Getting Help
 
