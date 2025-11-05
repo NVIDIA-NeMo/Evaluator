@@ -108,7 +108,7 @@ def test_metadata_full(monkeypatch, tmp_path):
     expected_versioning = {
         "foo": "1.2.3",
         "git-hash": "abc123",
-        "nemo_evaluator_version": nemo_evaluator_version,
+        "nemo_evaluator": nemo_evaluator_version,
     }
     expected_metadata_full = {
         "versioning": expected_versioning,
@@ -156,7 +156,7 @@ def test_env_versioning_and_resolved_only(monkeypatch, tmp_path):
     results = yaml.safe_load((tmp_path / "results.yml").read_text())
     mv = results["metadata"]["versioning"]
     assert mv["git-hash"] == "deadbeef"
-    assert mv["nemo_evaluator_version"] == nemo_evaluator_version
+    assert mv["nemo_evaluator"] == nemo_evaluator_version
 
 
 def test_only_versioning_no_env(monkeypatch, tmp_path):
@@ -180,5 +180,5 @@ def test_only_versioning_no_env(monkeypatch, tmp_path):
     ]
     assert mv["bar"] == "9.9.9"
 
-    assert mv["nemo_evaluator_version"] == nemo_evaluator_version
+    assert mv["nemo_evaluator"] == nemo_evaluator_version
     assert "git-hash" not in mv

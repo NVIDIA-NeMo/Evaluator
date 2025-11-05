@@ -265,7 +265,7 @@ def _persist_metadata_and_build_results_block(
     # ruff.
     from nemo_evaluator import __version__ as nemo_evaluator_version
 
-    updated_versioning["nemo_evaluator_version"] = nemo_evaluator_version
+    updated_versioning["nemo_evaluator"] = nemo_evaluator_version
 
     # Construct full metadata payload to persist and return, augmenting versioning
     # with inferred fields (git-hash, nemo_evaluator_version).
