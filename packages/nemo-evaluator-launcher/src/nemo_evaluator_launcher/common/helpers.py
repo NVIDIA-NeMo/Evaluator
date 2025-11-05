@@ -183,6 +183,11 @@ def get_eval_factory_command(
             pre_cmd=pre_cmd,
         )
         is_potentially_unsafe = True
+        _set_nested_optionally_overriding(
+            merged_nemo_evaluator_config,
+            ["metadata", "data", "pre_cmd"],
+            pre_cmd,
+        )
 
     create_pre_script_cmd = _str_to_echo_command(pre_cmd, filename="pre_cmd.sh")
 
