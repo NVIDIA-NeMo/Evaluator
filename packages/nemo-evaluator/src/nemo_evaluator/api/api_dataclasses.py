@@ -36,6 +36,8 @@ class EndpointType(str, Enum):
 
 
 class ApiEndpoint(BaseModel):
+    """API endpoint configuration."""
+
     model_config = ConfigDict(use_enum_values=True)
 
     api_key: Optional[str] = Field(
@@ -57,12 +59,16 @@ class ApiEndpoint(BaseModel):
 
 
 class EvaluationTarget(BaseModel):
+    """Target configuration for API endpoints."""
+
     api_endpoint: Optional[ApiEndpoint] = Field(
         description="API endpoint to be used for evaluation", default=None
     )
 
 
 class ConfigParams(BaseModel):
+    """Parameters for evaluation execution."""
+
     limit_samples: Optional[int | float] = Field(
         description="Limit number of evaluation samples", default=None
     )
@@ -94,6 +100,8 @@ class ConfigParams(BaseModel):
 
 
 class EvaluationConfig(BaseModel):
+    """Configuration for evaluation runs."""
+
     output_dir: Optional[str] = Field(
         description="Directory to output the results", default=None
     )
@@ -104,6 +112,12 @@ class EvaluationConfig(BaseModel):
         description="Supported endpoint types like chat or completions", default=None
     )
     type: Optional[str] = Field(description="Type of the task", default=None)
+
+
+class EvaluationMetadata(dict):
+    """We put here various evaluation metadata that does not influence the evaluation."""
+
+    pass
 
 
 class Evaluation(BaseModel):

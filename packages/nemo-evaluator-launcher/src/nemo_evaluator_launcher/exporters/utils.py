@@ -16,6 +16,7 @@
 """Shared utilities for metrics and configuration handling."""
 
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple
@@ -148,15 +149,12 @@ def extract_exporter_config(
     """Extract and merge exporter configuration from multiple sources."""
     config = {}
 
-    # Get config from dedicated field
+    # root-level `export.<exporter-name>`
     if job_data.config:
-        execution_config = job_data.config.get("execution", {})
-        auto_export_config = execution_config.get("auto_export", {})
-        exporter_configs = auto_export_config.get("configs", {})
-        yaml_config = exporter_configs.get(exporter_name, {})
-
-        # No conversion needed
-        config.update(yaml_config)
+        export_block = (job_data.config or {}).get("export", {})
+        yaml_config = (export_block or {}).get(exporter_name, {})
+        if yaml_config:
+            config.update(yaml_config)
 
     # From webhook metadata (if triggered by webhook)
     if "webhook_metadata" in job_data.data:
@@ -167,8 +165,6 @@ def extract_exporter_config(
             "source_artifact": f"{webhook_data.get('artifact_name', 'unknown')}:{webhook_data.get('artifact_version', 'unknown')}",
             "config_source": webhook_data.get("config_file", "unknown"),
         }
-
-        # For W&B specifically, extract run info if available
         if exporter_name == "wandb" and webhook_data.get("webhook_source") == "wandb":
             wandb_specific = {
                 "entity": webhook_data.get("entity"),
@@ -176,10 +172,9 @@ def extract_exporter_config(
                 "run_id": webhook_data.get("run_id"),
             }
             webhook_config.update({k: v for k, v in wandb_specific.items() if v})
-
         config.update(webhook_config)
 
-    # Constructor config: allows CLI overrides
+    # allows CLI overrides
     if constructor_config:
         config.update(constructor_config)
 
@@ -269,6 +264,14 @@ def get_container_from_mapping(job_data: JobData) -> str:
         return None
 
 
+def get_artifact_root(job_data: JobData) -> str:
+    """Get artifact root from job data."""
+    bench = get_benchmark_info(job_data)
+    h = bench.get("harness", "unknown")
+    b = bench.get("benchmark", get_task_name(job_data))
+    return f"{h}.{b}"
+
+
 # =============================================================================
 # GITLAB DOWNLOAD
 # =============================================================================
@@ -288,91 +291,6 @@ def download_gitlab_artifacts(
         Dictionary mapping artifact names to local file paths
     """
     raise NotImplementedError("Downloading from gitlab is not implemented")
-    # TODO: rework this logic
-    # pipeline_id = paths["pipeline_id"]
-    # project_id = paths["project_id"]
-    # gitlab_token = os.getenv("GITLAB_TOKEN")
-    #
-    # if not gitlab_token:
-    #     raise RuntimeError(
-    #         "GITLAB_TOKEN environment variable required for GitLab remote downloads"
-    #     )
-    #
-    # # GitLab API endpoint for artifacts
-    # base_url = "TODO: replace"
-    # artifacts_url = "TODO: replace"
-    #
-    # headers = {"Private-Token": gitlab_token}
-    # downloaded_artifacts = {}
-    #
-    # try:
-    #     # Get pipeline jobs
-    #     response = requests.get(artifacts_url, headers=headers, timeout=30)
-    #     response.raise_for_status()
-    #     jobs = response.json()
-    #
-    #     for job in jobs:
-    #         if job.get("artifacts_file"):
-    #             job_id = job["id"]
-    #             job_name = job.get("name", f"job_{job_id}")
-    #             artifacts_download_url = (
-    #                 f"{base_url}/api/v4/projects/{project_id}/jobs/{job_id}/artifacts"
-    #             )
-    #
-    #             logger.info(f"Downloading artifacts from job: {job_name}")
-    #
-    #             # Download job artifacts
-    #             response = requests.get(
-    #                 artifacts_download_url, headers=headers, timeout=300
-    #             )
-    #             response.raise_for_status()
-    #
-    #             if extract_specific:
-    #                 # Extract specific files from ZIP
-    #                 with tempfile.NamedTemporaryFile(
-    #                     suffix=".zip", delete=False
-    #                 ) as temp_zip:
-    #                     temp_zip.write(response.content)
-    #                     temp_zip_path = temp_zip.name
-    #
-    #                 try:
-    #                     with zipfile.ZipFile(temp_zip_path, "r") as zip_ref:
-    #                         # Create artifacts directory
-    #                         artifacts_dir = export_dir / "artifacts"
-    #                         artifacts_dir.mkdir(parents=True, exist_ok=True)
-    #
-    #                         # Extract to be logged artifacts
-    #                         for member in zip_ref.namelist():
-    #                             filename = Path(member).name
-    #                             if filename in get_relevant_artifacts():
-    #                                 # Extract the file
-    #                                 source = zip_ref.open(member)
-    #                                 target_path = artifacts_dir / filename
-    #                                 with open(target_path, "wb") as f:
-    #                                     f.write(source.read())
-    #                                 source.close()
-    #
-    #                                 downloaded_artifacts[filename] = target_path
-    #                                 logger.info(f"Extracted: {filename}")
-    #                 finally:
-    #                     os.unlink(temp_zip_path)
-    #             else:
-    #                 # Save as ZIP files (original behavior)
-    #                 artifacts_zip = export_dir / f"job_{job_id}_artifacts.zip"
-    #                 with open(artifacts_zip, "wb") as f:
-    #                     f.write(response.content)
-    #
-    #                 downloaded_artifacts[f"job_{job_id}_artifacts.zip"] = artifacts_zip
-    #                 logger.info(f"Downloaded: {artifacts_zip.name}")
-    #
-    # except requests.RequestException as e:
-    #     logger.error(f"GitLab API request failed: {e}")
-    #     raise RuntimeError(f"GitLab API request failed: {e}")
-    # except Exception as e:
-    #     logger.error(f"GitLab remote download failed: {e}")
-    #     raise RuntimeError(f"GitLab remote download failed: {e}")
-    #
-    # return downloaded_artifacts
 
 
 # =============================================================================
@@ -389,21 +307,28 @@ def ssh_setup_masters(jobs: Dict[str, JobData]) -> Dict[Tuple[str, str], str]:
     remote_pairs: set[tuple[str, str]] = set()
     for jd in jobs.values():
         try:
-            paths = jd.data.get("paths") or {}
-            if paths.get("storage_type") == "remote_ssh":
-                remote_pairs.add((paths["username"], paths["hostname"]))
+            # Preferred: explicit 'paths' from job data
+            p = (jd.data or {}).get("paths") or {}
+            if (
+                p.get("storage_type") == "remote_ssh"
+                and p.get("username")
+                and p.get("hostname")
+            ):
+                remote_pairs.add((p["username"], p["hostname"]))
+                continue
+            # Fallback: common slurm fields (works with BaseExporter.get_job_paths)
+            d = jd.data or {}
+            if jd.executor == "slurm" and d.get("username") and d.get("hostname"):
+                remote_pairs.add((d["username"], d["hostname"]))
         except Exception:
             pass
 
     if not remote_pairs:
-        return {}  # no remote jobs
+        return {}
 
-    # Ensure connections directory exists (like execDB does)
     CONNECTIONS_DIR.mkdir(parents=True, exist_ok=True)
-
     control_paths: Dict[Tuple[str, str], str] = {}
     for username, hostname in remote_pairs:
-        # Simple socket name
         socket_path = CONNECTIONS_DIR / f"{username}_{hostname}.sock"
         try:
             cmd = [
@@ -454,9 +379,10 @@ def ssh_download_artifacts(
     config: Dict[str, Any] | None = None,
     control_paths: Dict[Tuple[str, str], str] | None = None,
 ) -> List[str]:
-    """Download artifacts via SSH with optional connection reuse."""
+    """Download artifacts/logs via SSH with optional connection reuse."""
     exported_files: List[str] = []
     copy_logs = bool((config or {}).get("copy_logs", False))
+    copy_artifacts = bool((config or {}).get("copy_artifacts", True))
     only_required = bool((config or {}).get("only_required", True))
 
     control_path = None
@@ -473,44 +399,49 @@ def ssh_download_artifacts(
                 str(local_path),
             ]
         )
-        result = subprocess.run(cmd, capture_output=True)
-        return result.returncode == 0
+        return subprocess.run(cmd, capture_output=True).returncode == 0
 
     export_dir.mkdir(parents=True, exist_ok=True)
-    (export_dir / "artifacts").mkdir(parents=True, exist_ok=True)
 
-    available_local = (
-        get_available_artifacts(paths.get("artifacts_dir", Path()))
-        if not only_required
-        else None
-    )
-    artifact_names = (
-        [a for a in get_relevant_artifacts()]
-        if only_required
-        else (available_local or [])
-    )
+    # Artifacts
+    if copy_artifacts:
+        art_dir = export_dir / "artifacts"
+        art_dir.mkdir(parents=True, exist_ok=True)
 
-    for artifact in artifact_names:
-        remote_file = f"{paths['remote_path']}/artifacts/{artifact}"
-        local_file = export_dir / "artifacts" / artifact
-        if scp_file(remote_file, local_file):
-            exported_files.append(str(local_file))
+        if only_required:
+            for artifact in get_relevant_artifacts():
+                remote_file = f"{paths['remote_path']}/artifacts/{artifact}"
+                local_file = art_dir / artifact
+                local_file.parent.mkdir(parents=True, exist_ok=True)
+                if scp_file(remote_file, local_file):
+                    exported_files.append(str(local_file))
+        else:
+            # Copy known files individually to avoid subfolders and satisfy tests
+            for artifact in get_available_artifacts(paths.get("artifacts_dir", Path())):
+                remote_file = f"{paths['remote_path']}/artifacts/{artifact}"
+                local_file = art_dir / artifact
+                if scp_file(remote_file, local_file):
+                    exported_files.append(str(local_file))
 
+    # Logs (top-level only)
     if copy_logs:
-        remote_logs = f"{paths['remote_path']}/logs"
         local_logs = export_dir / "logs"
+        remote_logs = f"{paths['remote_path']}/logs"
         cmd = (
             ["scp", "-r"]
             + ssh_opts
             + [
-                f"{paths['username']}@{paths['hostname']}:{remote_logs}",
+                f"{paths['username']}@{paths['hostname']}:{remote_logs}/.",
                 str(local_logs),
             ]
         )
         if subprocess.run(cmd, capture_output=True).returncode == 0:
-            exported_files.extend(
-                [str(f) for f in local_logs.rglob("*") if f.is_file()]
-            )
+            for p in local_logs.iterdir():
+                if p.is_dir():
+                    import shutil
+
+                    shutil.rmtree(p, ignore_errors=True)
+            exported_files.extend([str(f) for f in local_logs.glob("*") if f.is_file()])
 
     return exported_files
 
@@ -522,15 +453,15 @@ def ssh_download_artifacts(
 
 def _get_artifacts_dir(paths: Dict[str, Any]) -> Path:
     """Get artifacts directory from paths."""
-    if paths["storage_type"] == "local_filesystem":
-        return paths["artifacts_dir"]
-    elif paths["storage_type"] == "gitlab_ci_local":
-        return paths["artifacts_dir"]
-    elif paths["storage_type"] == "remote_ssh":
+    storage_type = paths.get("storage_type")
+
+    # For SSH-based remote access, artifacts aren't available locally yet
+    if storage_type == "remote_ssh":
         return None
-    else:
-        logger.error(f"Unsupported storage type: {paths['storage_type']}")
-        return None
+
+    # For all local access (local_filesystem, remote_local, gitlab_ci_local)
+    # return the artifacts_dir from paths
+    return paths.get("artifacts_dir")
 
 
 def _extract_metrics_from_results(results: dict) -> Dict[str, float]:
@@ -540,15 +471,12 @@ def _extract_metrics_from_results(results: dict) -> Dict[str, float]:
         section_data = results.get(section)
         if isinstance(section_data, dict):
             for task_name, task_data in section_data.items():
-                if isinstance(task_data, dict) and "metrics" in task_data:
-                    task_metrics = _extract_task_metrics(
-                        task_name, task_data["metrics"]
-                    )
-                    _safe_update_metrics(
-                        target=metrics,
-                        source=task_metrics,
-                        context=f" while extracting results for task '{task_name}'",
-                    )
+                task_metrics = _extract_task_metrics(task_name, task_data)
+                _safe_update_metrics(
+                    target=metrics,
+                    source=task_metrics,
+                    context=f" while extracting results for task '{task_name}'",
+                )
     return metrics
 
 
@@ -587,54 +515,43 @@ def _extract_from_json_files(artifacts_dir: Path) -> Dict[str, float]:
     return metrics
 
 
-def _extract_task_metrics(task_name: str, metrics_data: dict) -> Dict[str, float]:
+def _extract_task_metrics(task_name: str, task_data: dict) -> Dict[str, float]:
     """Extract metrics from a task's metrics data."""
     extracted = {}
-    score_patterns = [
-        "acc",
-        "accuracy",
-        "score",
-        "exact_match",
-        "f1",
-        "em",
-        "pass@1",
-        "pass@k",
-    ]
+
+    metrics_data = task_data.get("metrics", {})
+    if "groups" in task_data:
+        for group_name, group_data in task_data["groups"].items():
+            group_extracted = _extract_task_metrics(
+                f"{task_name}_{group_name}", group_data
+            )
+            _safe_update_metrics(
+                target=extracted,
+                source=group_extracted,
+                context=f" in task '{task_name}'",
+            )
 
     for metric_name, metric_data in metrics_data.items():
-        # Only extract score-like metrics
-        if not any(pattern in metric_name.lower() for pattern in score_patterns):
-            continue
-
         try:
-            if isinstance(metric_data, dict):
-                if "scores" in metric_data:
-                    # Handle nested scores (e.g., mmlu macro/micro)
-                    for score_type, score_data in metric_data["scores"].items():
-                        if isinstance(score_data, dict) and "value" in score_data:
-                            key = f"{task_name}_{metric_name}_{score_type}"
-                            _safe_set_metric(
-                                container=extracted,
-                                key=key,
-                                new_value=score_data["value"],
-                                context=f" in task '{task_name}'",
-                            )
-                elif "value" in metric_data:
+            for score_type, score_data in metric_data["scores"].items():
+                if score_type != metric_name:
+                    key = f"{task_name}_{metric_name}_{score_type}"
+                else:
                     key = f"{task_name}_{metric_name}"
-                    _safe_set_metric(
-                        container=extracted,
-                        key=key,
-                        new_value=metric_data["value"],
-                        context=f" in task '{task_name}'",
-                    )
-            elif isinstance(metric_data, (int, float)):
-                key = f"{task_name}_{metric_name}"
                 _safe_set_metric(
                     container=extracted,
                     key=key,
-                    new_value=metric_data,
+                    new_value=score_data["value"],
                     context=f" in task '{task_name}'",
                 )
+                for stat_name, stat_value in metric_data.get("stats", {}).items():
+                    stats_key = f"{key}_{stat_name}"
+                    _safe_set_metric(
+                        container=extracted,
+                        key=stats_key,
+                        new_value=stat_value,
+                        context=f" in task '{task_name}'",
+                    )
         except (ValueError, TypeError) as e:
             logger.warning(
                 f"Failed to extract metric {metric_name} for task {task_name}: {e}"
@@ -667,3 +584,41 @@ def _safe_update_metrics(
     """Update target from source safely, raising on collisions with detailed values."""
     for k, v in source.items():
         _safe_set_metric(target, k, v, context)
+
+
+# =============================================================================
+# MLFLOW FUNCTIONS
+# =============================================================================
+
+# MLflow constants
+_MLFLOW_KEY_MAX = 250
+_MLFLOW_PARAM_VAL_MAX = 250
+_MLFLOW_TAG_VAL_MAX = 5000
+
+_INVALID_KEY_CHARS = re.compile(r"[^/\w.\- ]")
+_MULTI_UNDERSCORE = re.compile(r"_+")
+
+
+def mlflow_sanitize(s: Any, kind: str = "key") -> str:
+    """
+    Sanitize strings for MLflow logging.
+
+    kind:
+      - "key", "metric", "tag_key", "param_key": apply key rules
+      - "tag_value": apply tag value rules
+      - "param_value": apply param value rules
+    """
+    s = "" if s is None else str(s)
+
+    if kind in ("key", "metric", "tag_key", "param_key"):
+        # common replacements
+        s = s.replace("pass@", "pass_at_")
+        # drop disallowed chars, collapse underscores, trim
+        s = _INVALID_KEY_CHARS.sub("_", s)
+        s = _MULTI_UNDERSCORE.sub("_", s).strip()
+        return s[:_MLFLOW_KEY_MAX] or "key"
+
+    # values: normalize whitespace, enforce length
+    s = s.replace("\n", " ").replace("\r", " ").strip()
+    max_len = _MLFLOW_TAG_VAL_MAX if kind == "tag_value" else _MLFLOW_PARAM_VAL_MAX
+    return s[:max_len]

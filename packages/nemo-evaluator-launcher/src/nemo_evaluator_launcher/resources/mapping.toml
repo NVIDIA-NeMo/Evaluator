@@ -1,6 +1,6 @@
 # NOTE(agronskiy): checked parity
 [lm-evaluation-harness]
-container = "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.08.1"
+container = "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.10"
 
 [lm-evaluation-harness.tasks.chat.ifeval]
 required_env_vars = []
@@ -124,7 +124,7 @@ required_env_vars = []
 ###############################################################################
 # NOTE(agronskiy): checked parity
 [mtbench]
-container = "nvcr.io/nvidia/eval-factory/mtbench:25.08.1"
+container = "nvcr.io/nvidia/eval-factory/mtbench:25.10"
 
 [mtbench.tasks.chat.mtbench]
 
@@ -134,7 +134,7 @@ container = "nvcr.io/nvidia/eval-factory/mtbench:25.08.1"
 ###############################################################################
 # NOTE(agronskiy): checked parity
 [ifbench]
-container = "nvcr.io/nvidia/eval-factory/ifbench:25.08.1"
+container = "nvcr.io/nvidia/eval-factory/ifbench:25.10"
 
 [ifbench.tasks.chat.ifbench]
 required_env_vars = []
@@ -142,7 +142,7 @@ required_env_vars = []
 
 ###############################################################################
 [simple_evals]
-container = "nvcr.io/nvidia/eval-factory/simple-evals:25.08.1"
+container = "nvcr.io/nvidia/eval-factory/simple-evals:25.10"
 
 [simple_evals.tasks.chat.gpqa_diamond]
 required_env_vars = ["HF_TOKEN"]
@@ -213,7 +213,7 @@ required_env_vars = []
 ###############################################################################
 # NOTE(agronskiy): checked parity
 [bigcode-evaluation-harness]
-container = "nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.08.1"
+container = "nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.10"
 
 [bigcode-evaluation-harness.tasks.chat.mbpp]
 required_env_vars = []
@@ -226,12 +226,12 @@ required_env_vars = []
 [bigcode-evaluation-harness.tasks.completions.humaneval]
 required_env_vars = []
 
-[bigcode-evaluation-harness.tasks.completions.humaneval_instruct]
+[bigcode-evaluation-harness.tasks.chat.humaneval_instruct]
 
 
 ###############################################################################
 [livecodebench]
-container = "nvcr.io/nvidia/eval-factory/livecodebench:25.08.1"
+container = "nvcr.io/nvidia/eval-factory/livecodebench:25.10"
 
 [livecodebench.tasks.chat.livecodebench_0724_0125]
 required_env_vars = []
@@ -242,7 +242,7 @@ required_env_vars = []
 
 ###############################################################################
 [scicode]
-container = "nvcr.io/nvidia/eval-factory/scicode:25.08.1"
+container = "nvcr.io/nvidia/eval-factory/scicode:25.10"
 
 [scicode.tasks.chat.aa_scicode]
 required_env_vars = []
@@ -250,7 +250,7 @@ required_env_vars = []
 
 ###############################################################################
 [hle]
-container = "nvcr.io/nvidia/eval-factory/hle:25.08.1"
+container = "nvcr.io/nvidia/eval-factory/hle:25.10"
 
 [hle.tasks.chat.hle]
 required_env_vars = ["HF_TOKEN", "OPENAI_CLIENT_ID", "OPENAI_CLIENT_SECRET"]
@@ -258,7 +258,7 @@ required_env_vars = ["HF_TOKEN", "OPENAI_CLIENT_ID", "OPENAI_CLIENT_SECRET"]
 
 ###############################################################################
 [bfcl]
-container = "nvcr.io/nvidia/eval-factory/bfcl:25.08.1"
+container = "nvcr.io/nvidia/eval-factory/bfcl:25.10"
 
 [bfcl.tasks.chat.bfclv2_ast_prompting]
 required_env_vars = []
@@ -268,8 +268,19 @@ required_env_vars = []
 
 
 ###############################################################################
+[profbench]
+container = "nvcr.io/nvidia/eval-factory/profbench:25.10"
+
+[profbench.tasks.chat.llm_judge]
+required_env_vars = []
+
+[profbench.tasks.chat.report_generation]
+required_env_vars = []
+
+
+###############################################################################
 [vlmevalkit]
-container = "nvcr.io/nvidia/eval-factory/vlmevalkit:25.08.1"
+container = "nvcr.io/nvidia/eval-factory/vlmevalkit:25.10"
 
 [vlmevalkit.tasks.vlm.ocrbench]
 required_env_vars = []
@@ -286,15 +297,40 @@ required_env_vars = ["OPENAI_CLIENT_ID", "OPENAI_CLIENT_SECRET"]
 
 ###############################################################################
 [garak]
-container = "nvcr.io/nvidia/eval-factory/garak:25.08.1"
+container = "nvcr.io/nvidia/eval-factory/garak:25.10"
 
 [garak.tasks.chat.garak]
 required_env_vars = []
 
+###############################################################################
+# NOTE(wprazuch): to verify if the tasks need any env var setting
+[nemo_skills]
+container = "nvcr.io/nvidia/eval-factory/nemo_skills:25.10"
+
+[nemo_skills.tasks.chat.ns_aime2024]
+required_env_vars = ["JUDGE_API_KEY"]
+
+[nemo_skills.tasks.chat.ns_aime2025]
+required_env_vars = []
+
+[nemo_skills.tasks.chat.ns_bfcl_v3]
+required_env_vars = []
+
+[nemo_skills.tasks.chat.ns_gpqa]
+required_env_vars = ["HF_TOKEN"]
+
+[nemo_skills.tasks.chat.ns_hle]
+required_env_vars = []
+
+[nemo_skills.tasks.chat.ns_mmlu]
+required_env_vars = ["HF_TOKEN"]
+
+[nemo_skills.tasks.chat.ns_mmlu_pro]
+required_env_vars = ["HF_TOKEN"]
 
 ###############################################################################
 [safety-harness]
-container = "nvcr.io/nvidia/eval-factory/safety-harness:25.08.1"
+container = "nvcr.io/nvidia/eval-factory/safety-harness:25.10"
 
 [safety-harness.tasks.chat.aegis_v2]
 required_env_vars = ["HF_TOKEN"]
@@ -303,7 +339,7 @@ required_env_vars = ["HF_TOKEN"]
 ###############################################################################
 # NOTE(agronskiy): checked parity
 [helm]
-container = "nvcr.io/nvidia/eval-factory/helm:25.08.1"
+container = "nvcr.io/nvidia/eval-factory/helm:25.10"
 
 [helm.tasks.chat.medcalc_bench]
 
@@ -339,6 +375,6 @@ container = "nvcr.io/nvidia/eval-factory/helm:25.08.1"
 ###############################################################################
 # NOTE(agronskiy): checked parity
 [tooltalk]
-container = "nvcr.io/nvidia/eval-factory/tooltalk:25.08.1"
+container = "nvcr.io/nvidia/eval-factory/tooltalk:25.10"
 
 [tooltalk.tasks.chat.tooltalk]

@@ -14,16 +14,17 @@
 # limitations under the License.
 #
 # Each slurm cluster has its own flavour, below we provide some defaults that might meet one's needs.
-hostname: ???
-username: ${oc.env:USER}
-account: ???
+type: slurm              # Executor is chosen based on this field
+hostname: ???            # SLURM headnode (login) hostname (required)
+username: ${oc.env:USER} # Defaults to $USER env var
+account: ???             # SLURM account allocation (required)
+output_dir: ???          # Absolute path accessible on compute nodes (required)
 partition: batch
 num_nodes: 1
 ntasks_per_node: 1
 gres: gpu:8
 walltime: 01:00:00
 subproject: nemo-evaluator-launcher
-output_dir: ???
 env_vars:
   deployment: {}
   evaluation: {}

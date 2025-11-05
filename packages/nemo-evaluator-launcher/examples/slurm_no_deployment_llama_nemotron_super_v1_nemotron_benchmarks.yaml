@@ -32,8 +32,10 @@ defaults:
 
 # override default execution arguments
 execution:
-  account: ???
-  output_dir: /some/filesystem/path/available/to/slurm/node
+  hostname: ??? # SLURM headnode (login) hostname (required)
+  username: ${oc.env:USER} # Cluster username; defaults to $USER
+  account: ??? # SLURM account allocation (required)
+  output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
   walltime: 02:00:00
   partition: cpu_short # no deployment -> no GPUs needed
   gpus_per_node: null # no deployment -> no GPUs needed
@@ -42,22 +44,26 @@ target:
   api_endpoint:
     model_id: nvidia/llama-3.3-nemotron-super-49b-v1
     url: https://integrate.api.nvidia.com/v1/chat/completions
-    api_key_name: API_KEY # API Key with access to build.nvidia.com
+    api_key_name: NGC_API_KEY # API Key with access to build.nvidia.com
 
 # specify the benchmarks to evaluate
 evaluation:
-  overrides: # these overrides apply to all tasks; for task-specific overrides, use the `overrides` field
-    # apply recommended sampling parameters for reasoning-on mode
-    config.params.temperature: 0.6
-    config.params.top_p: 0.95
-    config.params.max_new_tokens: 65536
-    config.params.parallelism: 8
-    config.params.request_timeout: 3600
-    target.api_endpoint.adapter_config.use_reasoning: true # if true, strips reasoning tokens
-    target.api_endpoint.adapter_config.use_system_prompt: true
-    target.api_endpoint.adapter_config.custom_system_prompt:
-      >- # turn on thinking mode
-      "detailed thinking on"
+  nemo_evaluator_config: # global config settings that apply to all tasks
+    config:
+      # apply recommended sampling parameters for reasoning-on mode
+      params:
+        temperature: 0.6 # sampling temperature
+        top_p: 0.95 # nucleus sampling parameter
+        max_new_tokens: 65536 # maximum tokens to generate (large for reasoning)
+        parallelism: 1 # number of parallel requests
+        request_timeout: 3600 # timeout for API requests in seconds
+    target:
+      api_endpoint:
+        adapter_config:
+          use_reasoning: true # if true, strips reasoning tokens and collects reasoning stats
+          use_system_prompt: true # enables custom system prompt
+          custom_system_prompt: >- # turn on thinking mode
+            "detailed thinking on"
   tasks:
     - name: gpqa_diamond_nemo
       env_vars:
@@ -74,24 +80,15 @@ evaluation:
     - name: livecodebench_0824_0225
 
     - name: ifeval # evaluated in reasoning-off mode
-      overrides:
-        config.params.temperature: 0
-        config.params.top_p: 1e-5
-        config.params.max_new_tokens: 4096
-        target.api_endpoint.adapter_config.use_system_prompt: true
-        target.api_endpoint.adapter_config.custom_system_prompt:
-          >- # turn off thinking mode
-          "detailed thinking off"
-
-    - name: arena-hard-v0-1 # evaluated in reasoning-off mode
-      overrides:
-        config.params.temperature: 0
-        config.params.top_p: 1e-5
-        config.params.max_new_tokens: 4096
-        target.api_endpoint.adapter_config.use_system_prompt: true
-        target.api_endpoint.adapter_config.custom_system_prompt:
-          >- # turn off thinking mode
-          "detailed thinking off"
-      env_vars:
-        OPENAI_CLIENT_ID: OPENAI_CLIENT_ID_FOR_ARENA_HARD_V0_1
-        OPENAI_CLIENT_SECRET: OPENAI_CLIENT_SECRET_FOR_ARENA_HARD_V0_1
+      nemo_evaluator_config: # task-specific configuration for ifeval
+        config:
+          params:
+            temperature: 0 # deterministic generation
+            top_p: 1e-5 # minimal sampling
+            max_new_tokens: 4096 # maximum tokens to generate
+        target:
+          api_endpoint:
+            adapter_config:
+              use_system_prompt: true # enables custom system prompt
+              custom_system_prompt: >- # turn off thinking mode
+                "detailed thinking off"

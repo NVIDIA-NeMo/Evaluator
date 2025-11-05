@@ -143,6 +143,7 @@ class AdapterConfig(BaseModel):
             "use_nvcf": False,
             "use_response_logging": False,
             "use_reasoning": False,
+            "process_reasoning_traces": False,
             "use_progress_tracking": False,
             "use_raise_client_errors": False,
             "include_json": True,
@@ -166,7 +167,7 @@ class AdapterConfig(BaseModel):
         }
 
     @classmethod
-    def get_validated_config(cls, run_config: dict[str, Any]) -> "AdapterConfig | None":
+    def get_validated_config(cls, run_config: dict[str, Any]) -> "AdapterConfig":
         """Extract and validate adapter configuration from run_config.
 
         Args:
@@ -199,7 +200,6 @@ class AdapterConfig(BaseModel):
         if not global_cfg and not local_cfg:
             # Create default adapter config with caching enabled by default
             return cls.from_legacy_config({}, run_config)
-
         merged = dict(global_cfg) if global_cfg else {}
         if local_cfg:
             local_discovery = local_cfg.get("discovery")
@@ -227,7 +227,6 @@ class AdapterConfig(BaseModel):
                 {"name": s} if isinstance(s, str) else s
                 for s in merged["post_eval_hooks"]
             ]
-
         try:
             config = cls(**merged)
 
@@ -499,6 +498,18 @@ class AdapterConfig(BaseModel):
             )
 
         if legacy_config["use_reasoning"]:
+            from nemo_evaluator.logging import get_logger
+
+            logger = get_logger(__name__)
+            logger.warning(
+                '"use_reasoning" is deprecated as it might suggest it touches on switching on/off reasoning for mode when it does not. Use "process_reasoning_traces" instead.'
+            )
+            # since we aim at parity between process_reasoning_traces and use_reasoning during deprecation period:
+            legacy_config["process_reasoning_traces"] = legacy_config["use_reasoning"]
+
+        if legacy_config["process_reasoning_traces"]:
+            # give parity back
+            legacy_config["use_reasoning"] = legacy_config["process_reasoning_traces"]
             config = {
                 "end_reasoning_token": legacy_config["end_reasoning_token"],
             }
@@ -532,7 +543,7 @@ class AdapterConfig(BaseModel):
                     config=config,
                 )
             )
-        if legacy_config["use_progress_tracking"] or legacy_config["output_dir"]:
+        if legacy_config["use_progress_tracking"]:
             config = {
                 "progress_tracking_interval": legacy_config[
                     "progress_tracking_interval"

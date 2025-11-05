@@ -16,29 +16,90 @@
 import base64
 import copy
 import datetime
+from dataclasses import dataclass
 from typing import Optional
 
 import yaml
 from omegaconf import DictConfig, OmegaConf
 
+from nemo_evaluator_launcher.cli.version import get_versions
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 
-def _yaml_to_echo_command(yaml_str: str, filename: str = "config_ef.yaml") -> str:
-    yaml_str_b64 = base64.b64encode(yaml_str.encode("utf-8")).decode("utf-8")
-    return f'echo "{yaml_str_b64}" | base64 -d > {filename}'
+@dataclass(frozen=True)
+class CmdAndReadableComment:
+    """See the comment to `_yaml_to_echo_command`."""
+
+    # Actual command. Might include hard-to-debug elements such as base64-encoded
+    # configs.
+    cmd: str
+    # A debuggale readable comment that can be passed along for accompanying
+    # the actual command
+    debug: str
+    # Whether the content might be potentially unsafe. This is a flag useful for
+    # downstream callers who want to raise exceptions e.g. when a script was
+    # saved that would execute this command.
+    is_potentially_unsafe: bool = False
+
+
+def _str_to_echo_command(str_to_save: str, filename: str) -> CmdAndReadableComment:
+    """Create a safe (see below) echo command saving a string to file.
+
+    Safety in this context means the ability to pass such echo command through the
+    `bash -c '...'` boundaries for example.
+
+    Naturally, enconding with base64 creates debuggability issues. For that, the second
+    output of the function is the string with bash comment signs prepended.
+    """
+    str_to_save_b64 = base64.b64encode(str_to_save.encode("utf-8")).decode("utf-8")
+    debug_str = "\n".join(
+        [f"# Contents of {filename}"] + ["# " + s for s in str_to_save.splitlines()]
+    )
+    return CmdAndReadableComment(
+        cmd=f'echo "{str_to_save_b64}" | base64 -d > {filename}', debug=debug_str
+    )
+
+
+def _set_nested_optionally_overriding(
+    d: dict, keys: list[str], val: object, *, override_if_exists: bool = False
+):
+    """Sets d[...keys....] = value, creating keys all the way"""
+    temp = d
+    for key in keys[:-1]:
+        temp = temp.setdefault(key, {})
+    if override_if_exists or keys[-1] not in temp:
+        temp[keys[-1]] = val
 
 
 def get_eval_factory_config(
-    cfg: DictConfig, user_task_config: DictConfig, task_definition: dict
+    cfg: DictConfig,
+    user_task_config: DictConfig,
 ) -> dict:
     """Extract config fields for eval factory.
 
     This function extracts the config field similar to how overrides are handled.
+
+    Overrides will start to be deprecated (or not, but at least a warning will be logged).
     """
+
+    if cfg.evaluation.get("overrides") or user_task_config.get("overrides"):
+        # TODO(agronskiy): start removing overrides, test `test_start_deprecating_overrides`
+        # will start failing soon.
+        logger.warning(
+            "We are deprecating using old-style dot-delimited overrides "
+            "in favour of `nemo_evaluator_config` field. Please check "
+            "the documentation."
+        )
+
+    logger.debug("Getting nemo evaluator merged config")
     # Extract config fields similar to overrides - convert to basic Python types first
-    cfg_config = cfg.evaluation.get("config", {})
-    user_config = user_task_config.get("config", {})
+    # Support both new and old format for backward compatibility
+    cfg_config = cfg.evaluation.get("nemo_evaluator_config") or cfg.evaluation.get(
+        "config", {}
+    )
+    user_config = user_task_config.get("nemo_evaluator_config") or user_task_config.get(
+        "config", {}
+    )
 
     # Convert OmegaConf objects to basic Python types
     if cfg_config:
@@ -47,17 +108,115 @@ def get_eval_factory_config(
         user_config = OmegaConf.to_container(user_config, resolve=True)
 
     # Merge the configs
-    config_fields = copy.deepcopy(cfg_config or {})
-    config_fields.update(user_config or {})
+    merged_nemo_evaluator_config: dict = OmegaConf.to_container(
+        OmegaConf.merge(cfg_config, user_config)
+    )
 
-    return config_fields
+    logger.debug(
+        "Merged nemo evaluator config, not final",
+        source_global_cfg=cfg_config,
+        source_task_config=user_config,
+        result=merged_nemo_evaluator_config,
+    )
+
+    return merged_nemo_evaluator_config
 
 
 def get_eval_factory_command(
-    cfg: DictConfig, user_task_config: DictConfig, task_definition: dict
-) -> str:
-    config_fields = get_eval_factory_config(cfg, user_task_config, task_definition)
+    cfg: DictConfig,
+    user_task_config: DictConfig,
+    task_definition: dict,
+) -> CmdAndReadableComment:
+    # This gets the eval_factory_config merged from both top-level and task-level.
+    merged_nemo_evaluator_config = get_eval_factory_config(
+        cfg,
+        user_task_config,
+    )
 
+    # We now prepare the config to be passed to `nemo-evaluator` command.
+    _set_nested_optionally_overriding(
+        merged_nemo_evaluator_config,
+        ["target", "api_endpoint", "url"],
+        get_endpoint_url(
+            cfg,
+            merged_nemo_evaluator_config=merged_nemo_evaluator_config,
+            endpoint_type=task_definition["endpoint_type"],
+        ),
+    )
+    _set_nested_optionally_overriding(
+        merged_nemo_evaluator_config,
+        ["target", "api_endpoint", "model_id"],
+        get_served_model_name(cfg),
+    )
+    _set_nested_optionally_overriding(
+        merged_nemo_evaluator_config,
+        ["target", "api_endpoint", "type"],
+        task_definition["endpoint_type"],
+    )
+    _set_nested_optionally_overriding(
+        merged_nemo_evaluator_config,
+        ["config", "type"],
+        task_definition["task"],
+    )
+    _set_nested_optionally_overriding(
+        merged_nemo_evaluator_config,
+        ["config", "output_dir"],
+        "/results",
+    )
+    _set_nested_optionally_overriding(
+        merged_nemo_evaluator_config,
+        ["target", "api_endpoint", "api_key"],
+        "API_KEY",
+    )
+    _set_nested_optionally_overriding(
+        merged_nemo_evaluator_config,
+        [
+            "metadata",
+            "launcher_resolved_config",
+        ],
+        OmegaConf.to_container(cfg, resolve=True),
+    )
+    _set_nested_optionally_overriding(
+        merged_nemo_evaluator_config,
+        ["metadata", "versioning"],
+        get_versions(),
+    )
+
+    # Now get the pre_cmd either from `evaluation.pre_cmd` or task-level pre_cmd. Note the
+    # order -- task level wins.
+    pre_cmd: str = (
+        user_task_config.get("pre_cmd") or cfg.evaluation.get("pre_cmd") or ""
+    )
+
+    is_potentially_unsafe = False
+    if pre_cmd:
+        logger.warning(
+            "Found non-empty pre_cmd that might be a security risk if executed. "
+            "Setting `is_potentially_unsafe` to `True`",
+            pre_cmd=pre_cmd,
+        )
+        is_potentially_unsafe = True
+        _set_nested_optionally_overriding(
+            merged_nemo_evaluator_config,
+            ["metadata", "pre_cmd"],
+            pre_cmd,
+        )
+
+    create_pre_script_cmd = _str_to_echo_command(pre_cmd, filename="pre_cmd.sh")
+
+    create_yaml_cmd = _str_to_echo_command(
+        yaml.safe_dump(merged_nemo_evaluator_config), "config_ef.yaml"
+    )
+
+    # NOTE: we use `source` to allow tricks like exports etc (if needed) -- it runs in the same
+    # shell as the command.
+    eval_command = (
+        "cmd=$(command -v nemo-evaluator >/dev/null 2>&1 && echo nemo-evaluator || echo eval-factory) "
+        + "&& source pre_cmd.sh "
+        + "&& $cmd run_eval --run_config config_ef.yaml"
+    )
+
+    # NOTE: see note and test about deprecating that.
     overrides = copy.deepcopy(dict(cfg.evaluation.get("overrides", {})))
     overrides.update(dict(user_task_config.get("overrides", {})))
     # NOTE(dfridman): Temporary fix to make sure that the overrides arg is not split into multiple lines.
@@ -66,32 +225,46 @@ def get_eval_factory_command(
         k: (v.strip("\n") if isinstance(v, str) else v) for k, v in overrides.items()
     }
     overrides_str = ",".join([f"{k}={v}" for k, v in overrides.items()])
-    model_url = get_endpoint_url(cfg, user_task_config, task_definition)
-
-    model_id = get_served_model_name(cfg)
-    model_type = task_definition["endpoint_type"]
-    eval_type = task_definition["task"]
-
-    create_file_cmd = _yaml_to_echo_command(
-        yaml.safe_dump(config_fields), "config_ef.yaml"
-    )
-    eval_command = f"""eval-factory run_eval --model_id {model_id} --model_type {model_type} --eval_type {eval_type} --model_url {model_url} --api_key_name API_KEY --output_dir /results --run_config config_ef.yaml"""
-
-    if overrides:
+    if overrides_str:
         eval_command = f"{eval_command} --overrides {overrides_str}"
 
-    return create_file_cmd + " && " + "cat config_ef.yaml && " + eval_command
+    # We return both the command and the debugging base64-decoded strings, useful
+    # for exposing when building scripts.
+    return CmdAndReadableComment(
+        cmd=create_pre_script_cmd.cmd
+        + " && "
+        + create_yaml_cmd.cmd
+        + " && "
+        + eval_command,
+        debug=create_pre_script_cmd.debug + "\n\n" + create_yaml_cmd.debug,
+        is_potentially_unsafe=is_potentially_unsafe,
+    )
 
 
 def get_endpoint_url(
-    cfg: DictConfig, user_task_config: DictConfig, task_definition: dict
+    cfg: DictConfig,
+    merged_nemo_evaluator_config: dict,
+    endpoint_type: str,
 ) -> str:
     def apply_url_override(url: str) -> str:
         """Apply user URL override if provided."""
-        override_url = user_task_config.get("overrides", {}).get(
-            "config.target.api_endpoint.url"
+        nemo_evaluator_config_url = (
+            merged_nemo_evaluator_config.get("target", {})
+            .get("api_endpoint", {})
+            .get("url", None)
         )
-        return override_url if override_url is not None else url
+
+        if nemo_evaluator_config_url:
+            return nemo_evaluator_config_url
+
+        # Being deprecated, see `get_eval_factory_config` message.
+        overrides_old_style_url = merged_nemo_evaluator_config.get("overrides", {}).get(
+            "target.api_endpoint.url", None
+        )
+        if overrides_old_style_url:
+            return overrides_old_style_url
+
+        return url
 
     if cfg.deployment.type == "none":
         # For deployment: none, use target URL regardless of executor type
@@ -113,8 +286,7 @@ def get_endpoint_url(
 
     else:
         # Local executor - use localhost
-        task_endpoint_type = task_definition["endpoint_type"]
-        endpoint_uri = cfg.deployment.endpoints[task_endpoint_type]
+        endpoint_uri = cfg.deployment.endpoints[endpoint_type]
         endpoint_url = f"http://127.0.0.1:{cfg.deployment.port}{endpoint_uri}"
         return endpoint_url
 

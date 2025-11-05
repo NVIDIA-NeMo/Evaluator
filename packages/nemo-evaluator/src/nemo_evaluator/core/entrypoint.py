@@ -23,7 +23,11 @@ import yaml
 # Import logging to ensure centralized logging is configured
 from nemo_evaluator import logging  # noqa: F401
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
-from nemo_evaluator.api.api_dataclasses import EvaluationConfig, EvaluationTarget
+from nemo_evaluator.api.api_dataclasses import (
+    EvaluationConfig,
+    EvaluationMetadata,
+    EvaluationTarget,
+)
 from nemo_evaluator.core.evaluate import evaluate
 from nemo_evaluator.core.input import (
     _get_framework_evaluations,
@@ -137,16 +141,46 @@ def run(args) -> None:
         print(cmd)
         exit(0)
 
+    metadata_cfg: EvaluationMetadata | None = run_config.get("metadata")
     adapter_config = AdapterConfig.get_validated_config(run_config)
     eval_cfg = EvaluationConfig(**run_config["config"])
     target_cfg = EvaluationTarget(**run_config["target"])
     target_cfg.api_endpoint.adapter_config = adapter_config
 
-    evaluate(eval_cfg=eval_cfg, target_cfg=target_cfg)
+    evaluate(eval_cfg=eval_cfg, target_cfg=target_cfg, metadata=metadata_cfg)
 
 
 def run_eval() -> None:
+    """
+    CLI entry point for running evaluations.
+
+    This function parses command line arguments and executes evaluations.
+    It does not take parameters directly - all configuration is passed via CLI arguments.
+
+    CLI Arguments:
+        --eval_type: Type of evaluation to run (e.g., "mmlu_pro", "gsm8k")
+        --model_id: Model identifier (e.g "meta/llama-3.1-8b-instruct")
+        --model_url: API endpoint URL (e.g "https://integrate.api.nvidia.com/v1/chat/completions" for chat endpoint type)
+        --model_type: Endpoint type ("chat", "completions", "vlm", "embedding")
+        --api_key_name: Environment variable name for API key integration with endpoints (optional)
+        --output_dir: Output directory for results
+        --run_config: Path to YAML Run Configuration file (optional)
+        --overrides: Comma-separated dot-style parameter overrides (optional)
+        --dry_run: Show rendered config without running (optional)
+        --debug: Enable debug logging (optional, deprecated, use NV_LOG_LEVEL=DEBUG env var)
+
+    Usage:
+        run_eval()  # Parses sys.argv automatically
+    """
     args = get_args()
+
+    if sys.argv[0].endswith("eval-factory"):
+        from nemo_evaluator.logging import get_logger
+
+        logger = get_logger(__name__)
+        logger.warning(
+            "You appear to be using a deprecated eval_factory command. Please use nemo-evaluator instead with the same arguments. eval-factory command is going to be removed before 25.12 containers are released."
+        )
 
     if args.command == "ls":
         show_available_tasks()

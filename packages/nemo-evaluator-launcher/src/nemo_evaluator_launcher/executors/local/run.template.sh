@@ -17,6 +17,11 @@
 # check if docker exists
 command -v docker >/dev/null 2>&1 || { echo 'docker not found'; exit 1; }
 
+# Initialize: remove killed jobs file from previous runs
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+killed_jobs_file="$script_dir/killed_jobs.txt"
+rm -f "$killed_jobs_file"
+
 {% for task in evaluation_tasks %}
 # {{ task.job_id }} {{ task.name }}
 
@@ -28,13 +33,20 @@ mkdir -m 777 -p "$task_dir"
 mkdir -m 777 -p "$artifacts_dir"
 mkdir -m 777 -p "$logs_dir"
 
-# Create pre-start stage file
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.pre-start"
+# Check if this job was killed
+if [ -f "$killed_jobs_file" ] && grep -q "^{{ task.job_id }}$" "$killed_jobs_file"; then
+    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Job {{ task.job_id }} ({{ task.name }}) was killed, skipping execution" | tee -a "$logs_dir/stdout.log"
+else
+    # Create pre-start stage file
+    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.pre-start"
 
-# Docker run with eval factory command
-(
-    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.running"
-    docker run --rm --shm-size=100g \
+    # Debug contents of the eval factory command's config
+    {{ task.eval_factory_command_debug_comment | indent(4) }}
+
+    # Docker run with eval factory command
+    (
+        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.running"
+        docker run --rm --shm-size=100g {{ extra_docker_args }} \
       --name {{ task.container_name }} \
       --volume "$artifacts_dir":/results \
       {% for env_var in task.env_vars -%}
@@ -42,7 +54,7 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.pre-start"
       {% endfor -%}
       {{ task.eval_image }} \
       bash -c '
-        {{ task.eval_factory_command }} ;
+        {{ task.eval_factory_command | indent(8) }} ;
         exit_code=$?
         chmod 777 -R /results;
         if [ "$exit_code" -ne 0 ]; then
@@ -85,4 +97,7 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.pre-start"
 )
 
 {% endif %}
+fi
+
+
 {% endfor %}
