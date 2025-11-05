@@ -198,7 +198,7 @@ def get_eval_factory_command(
         is_potentially_unsafe = True
         _set_nested_optionally_overriding(
             merged_nemo_evaluator_config,
-            ["metadata", "data", "pre_cmd"],
+            ["metadata", "pre_cmd"],
             pre_cmd,
         )
 
