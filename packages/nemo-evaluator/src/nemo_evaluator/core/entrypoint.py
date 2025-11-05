@@ -141,11 +141,7 @@ def run(args) -> None:
         print(cmd)
         exit(0)
 
-    metadata_cfg: EvaluationMetadata | None = None
-    metadata_raw = run_config.get("metadata")
-    if isinstance(metadata_raw, dict):
-        metadata_cfg = EvaluationMetadata.model_validate(metadata_raw)
-
+    metadata_cfg: EvaluationMetadata | None = run_config.get("metadata")
     adapter_config = AdapterConfig.get_validated_config(run_config)
     eval_cfg = EvaluationConfig(**run_config["config"])
     target_cfg = EvaluationTarget(**run_config["target"])

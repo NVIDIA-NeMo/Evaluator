@@ -183,18 +183,3 @@ def test_only_versioning_no_env(monkeypatch, tmp_path):
 
     assert mv["nemo_evaluator_version"] == nemo_evaluator_version
     assert "git-hash" not in mv
-
-
-def test_invalid_metadata_raises(monkeypatch, tmp_path):
-    # Non-dict field should cause validation error for resolved config
-    cfg = _basic_run_config(tmp_path)
-    cfg["metadata"] = {"data": "not-a-dict"}
-    cfg_path = tmp_path / "run.yml"
-    cfg_path.write_text(yaml.safe_dump(cfg))
-
-    monkeypatch.setattr(
-        sys, "argv", ["prog", "run_eval", "--run_config", str(cfg_path)]
-    )
-
-    with pytest.raises(ValidationError):
-        run_eval()
