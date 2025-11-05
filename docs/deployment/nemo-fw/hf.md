@@ -2,7 +2,7 @@
 
 This guide provides step-by-step instructions for evaluating checkpoints trained using the NeMo Framework with the Automodel backend. This section specifically covers evaluation with [nvidia-lm-eval](https://pypi.org/project/nvidia-lm-eval/), a wrapper around the [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness/tree/main) tool.
 
-Here, we focus on benchmarks within the `lm-evaluation-harness` that depend on text generation. For a detailed comparison between generation-based and log-probability-based benchmarks, refer to ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md). Evaluation on log-probability-based benchmarks is available in [Evaluate Automodel Checkpoints on Log-probability benchmarks](#evaluate-automodel-checkpoints-on-log-probability-benchmarks).
+Here, we focus on benchmarks within the `lm-evaluation-harness` that depend on text generation. Evaluation on log-probability-based benchmarks is available in [Evaluate Automodel Checkpoints on Log-probability benchmarks](#evaluate-automodel-checkpoints-on-log-probability-benchmarks).
 
 ## Deploy Automodel Checkpoints
 
@@ -32,14 +32,16 @@ To install `vLLM` outside of the NeMo Framework container, follow the steps ment
 
 If you prefer to evaluate the Automodel checkpoint without using the `vLLM` backend, remove the `--use_vllm_backend` flag from the command above.
 
-> **Note:** To speed up evaluation using multiple instances, increase the `num_replicas` parameter.
-For additional guidance, refer to ["Use Ray Serve for Multi-Instance Evaluations"](evaluation-with-ray.md).
+:::{note}
+To speed up evaluation using multiple instances, increase the `num_replicas` parameter.
+For additional guidance, refer to {ref}`nemo-fw-ray`.
+:::
 
 ## Evaluate Automodel Checkpoints
 
 This section outlines the steps to evaluate Automodel checkpoints using Python commands. This method is quick and easy, making it ideal for interactive evaluations. 
 
-Once deployment is successful, you can run evaluations using the same evaluation API described in other sections, such as the ["Evaluate Models Locally on Your Workstation"](evaluation-doc.md#evaluate-models-locally-on-your-workstation) section.
+Once deployment is successful, you can run evaluations using the {ref}`lib-core` API.
 
 Before starting the evaluation, it’s recommended to use the [`check_endpoint`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/core/utils.py) function to verify that the endpoint is responsive and ready to accept requests.
 

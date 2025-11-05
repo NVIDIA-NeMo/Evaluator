@@ -3,7 +3,7 @@
 This guide provides step-by-step instructions for evaluating [Megatron Bridge](https://docs.nvidia.com/nemo/megatron-bridge/latest/index.html) checkpoints trained using the NeMo Framework with the Megatron Core backend. This section specifically covers evaluation with [nvidia-lm-eval](https://pypi.org/project/nvidia-lm-eval/), a wrapper around the [
 lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness/tree/main) tool.
 
-First, we focus on benchmarks within the `lm-evaluation-harness` that depend on text generation. For a detailed comparison between generation-based and log-probability-based benchmarks, refer to ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md). Evaluation on log-probability-based benchmarks is available in the subsequent section [Evaluate Megatron Bridge Checkpoints on Log-probability benchmarks](#evaluate-megatron-bridge-checkpoints-on-log-probability-benchmarks).
+First, we focus on benchmarks within the `lm-evaluation-harness` that depend on text generation. Evaluation on log-probability-based benchmarks is available in the subsequent section [Evaluate Megatron Bridge Checkpoints on Log-probability benchmarks](#evaluate-megatron-bridge-checkpoints-on-log-probability-benchmarks).
 
 ## Deploy Megatron Bridge Checkpoints
 
@@ -29,13 +29,17 @@ python \
   --context_parallel_size 1              # Context parallelism per replica
 ```
 
-> **Note:** Megatron Bridge creates checkpoints in directories named `iter_N`, where *N* is the iteration number. Each `iter_N` directory contains model weights and related artifacts. When using a checkpoint, make sure to provide the path to the appropriate `iter_N` directory. Hugging Face checkpoints converted for Megatron Bridge are typically stored in a directory named `iter_0000000`, as shown in the command above.
+:::{note}
+Megatron Bridge creates checkpoints in directories named `iter_N`, where *N* is the iteration number. Each `iter_N` directory contains model weights and related artifacts. When using a checkpoint, make sure to provide the path to the appropriate `iter_N` directory. Hugging Face checkpoints converted for Megatron Bridge are typically stored in a directory named `iter_0000000`, as shown in the command above.
+:::
 
-> **Note:** Megatron Bridge deployment for evaluation is supported only with Ray Serve and not PyTriton.
+:::{note}
+Megatron Bridge deployment for evaluation is supported only with Ray Serve and not PyTriton.
+:::
 
 ## Evaluate Megatron Bridge Checkpoints
 
-Once deployment is successful, you can run evaluations using the same evaluation API described in other sections, such as the ["Evaluate Models Locally on Your Workstation"](evaluation-doc.md#evaluate-models-locally-on-your-workstation) section.
+Once deployment is successful, you can run evaluations using the NeMo Evaluator API. See {ref}`lib-core` for more details.
 
 Before starting the evaluation, it’s recommended to use the [`check_endpoint`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/core/utils.py) function to verify that the endpoint is responsive and ready to accept requests.
 

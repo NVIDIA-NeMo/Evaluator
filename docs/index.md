@@ -387,6 +387,7 @@ Launcher-Orchestrated <deployment/launcher-orchestrated/index> -->
 
 About Model Deployment <deployment/index>
 Bring-Your-Own-Endpoint <deployment/bring-your-own-endpoint/index>
+Use NeMo Framework <deployment/nemo-fw/index>
 :::
 
 :::{toctree}

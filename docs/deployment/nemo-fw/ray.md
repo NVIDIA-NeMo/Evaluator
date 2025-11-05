@@ -6,7 +6,9 @@ This guide explains how to deploy and evaluate NeMo Framework models, trained wi
 
 Deployment with Ray Serve provides support for multiple replicas of your model across available GPUs, enabling higher throughput and better resource utilization during evaluation. This approach is particularly beneficial for evaluation scenarios where you need to process large datasets efficiently and would like to accelerate evaluation.
 
-> **Note:** Multi-instance evaluation with Ray is currently supported only on a single node with model parallelism. Support for multi-node will be added in upcoming releases.
+:::{note}
+Multi-instance evaluation with Ray is currently supported only on a single node with model parallelism. Support for multi-node will be added in upcoming releases.
+:::
 
 ## Key Benefits of Ray Deployment
 
@@ -17,7 +19,7 @@ Deployment with Ray Serve provides support for multiple replicas of your model a
 
 ## Deploy Models Using Ray Serve
 
-To deploy your model using Ray, use the `deploy` function with `serving_backend="ray"`:
+To deploy your model using Ray, use the `deploy_ray_inframework.py` script from [NeMo Export-Deploy](https://github.com/NVIDIA-NeMo/Export-Deploy):
 
 ```shell
 python \
@@ -32,7 +34,9 @@ python \
   --context_parallel_size 1              # Context parallelism per replica
 ```
 
-> **Note:** Adjust `num_replicas` based on the number of instances/replicas needed. Ensure that total `num_gpus` is equal to the `num_replicas` times model parallelism configuration (i.e., `tensor_model_parallel_size * pipeline_model_parallel_size * context_parallel_size`).
+:::{note}
+Adjust `num_replicas` based on the number of instances/replicas needed. Ensure that total `num_gpus` is equal to the `num_replicas` times model parallelism configuration (i.e., `tensor_model_parallel_size * pipeline_model_parallel_size * context_parallel_size`).
+:::
 
 
 ## Run Evaluations on Ray-Deployed Models
@@ -63,10 +67,13 @@ if __name__ == "__main__":
         )
     evaluate(target_cfg=eval_target, eval_cfg=eval_config)
 ```
-> **Note:** To evaluate the chat endpoint, update the url by replacing `/v1/completions/` with `/v1/chat/completions/`. Additionally, set the `type` field to `"chat"` in both `ApiEndpoint` and `EvaluationConfig` to indicate a chat benchmark. A list of available chat benchmarks can be found in the ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md#evaluate-checkpoints-trained-by-nemo-framework) page.
+
+To evaluate the chat endpoint, update the url by replacing `/v1/completions/` with `/v1/chat/completions/`. Additionally, set the `type` field to `"chat"` in both `ApiEndpoint` and `EvaluationConfig` to indicate a chat benchmark.
+<!-- A list of available chat benchmarks can be found in the ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md#evaluate-checkpoints-trained-by-nemo-framework) page. -->
+
 
 To evaluate log-probability benchmarks (e.g., `arc_challenge`), run the following code snippet after deployment.
-For a comparison between generation benchmarks and log-probability benchmarks, refer to the ["Evaluate Checkpoints Trained by NeMo Framework"](evaluation-doc.md) section.
+<!-- For a comparison between generation benchmarks and log-probability benchmarks, refer to the ["Evaluate Checkpoints Trained by NeMo Framework"](index.md) section. -->
 
 Make sure to open a new terminal within the same container to execute it.
 
@@ -86,6 +93,8 @@ Note that in the example above, you must provide a path to the tokenizer:
         },
 ```
 
-For more details on log-probability benchmarks, refer to ["Evaluate LLMs Using Log-Probabilities"](logprobs.md).
+<!-- For more details on log-probability benchmarks, refer to ["Evaluate LLMs Using Log-Probabilities"](logprobs.md). -->
 
-> **Tip:** To get a performance boost from multiple replicas in Ray, increase the parallelism value in your `EvaluationConfig`. You won't see any speed improvement if `parallelism=1`. Try setting it to a higher value, such as 4 or 8.
+:::{tip}
+To get a performance boost from multiple replicas in Ray, increase the parallelism value in your `EvaluationConfig`. You won't see any speed improvement if `parallelism=1`. Try setting it to a higher value, such as 4 or 8.
+:::
