@@ -92,14 +92,15 @@ class LeptonExecutor(BaseExecutor):
 
         # TODO(agronskiy): the structure of this executor differs from others,
         # so the best place to check for unsafe commands yelids a bit of duplication.
+        # We can't use the get_eval_factory_command here because the port is not yet
+        # populated.
         # Refactor the whole thing.
         is_potentially_unsafe = False
         for idx, task in enumerate(cfg.evaluation.tasks):
-            task_definition = get_task_from_mapping(task.name, tasks_mapping)
-            eval_command_struct = get_eval_factory_command(cfg, task, task_definition)
-            is_potentially_unsafe = (
-                is_potentially_unsafe or eval_command_struct.is_potentially_unsafe
-            )
+            pre_cmd: str = task.get("pre_cmd") or cfg.evaluation.get("pre_cmd") or ""
+            if pre_cmd:
+                is_potentially_unsafe = True
+                break
 
         # DRY-RUN mode
         if dry_run:
