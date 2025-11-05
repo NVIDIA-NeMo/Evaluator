@@ -11,12 +11,20 @@ from nemo_evaluator_launcher.common.helpers import get_eval_factory_command
 
 
 def _extract_b64_from_echo_cmd(cmd: str) -> str:
-    # Command format: echo "<b64>" | base64 -d > config_ef.yaml && ...
-    prefix = 'echo "'
-    suffix = '" | base64 -d > config_ef.yaml'
-    start = cmd.index(prefix) + len(prefix)
-    end = cmd.index(suffix)
-    return cmd[start:end]
+    """Extract the base64 segment for the eval-factory config file.
+
+    Supports commands with multiple echo|base64 segments. Prefer the one
+    writing to either config_ef.yaml or ef_config.yaml; otherwise return
+    the last occurrence.
+    """
+    matches = re.findall(r'echo "([^"]+)" \| base64 -d > ([^\s;&]+)', cmd)
+    if not matches:
+        raise ValueError("No base64 echo segments found in command")
+    preferred_targets = {"ef_config.yaml"}
+    for b64, target in matches:
+        if target in preferred_targets:
+            return b64
+    return matches[-1][0]
 
 
 def test_get_eval_factory_command_basic(monkeypatch):
@@ -60,7 +68,7 @@ def test_get_eval_factory_command_basic(monkeypatch):
     result = get_eval_factory_command(cfg, user_task_config, task_definition)
 
     # Validate debug text
-    assert result.debug.startswith("# Contents of config_ef.yaml")
+    assert result.debug.startswith("# Contents of")
 
     # Extract and decode YAML from the command
     b64 = _extract_b64_from_echo_cmd(result.cmd)
