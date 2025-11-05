@@ -36,6 +36,10 @@ class CmdAndReadableComment:
     # A debuggale readable comment that can be passed along for accompanying
     # the actual command
     debug: str
+    # Whether the content might be potentially unsafe. This is a flag useful for
+    # downstream callers who want to raise exceptions e.g. when a script was
+    # saved that would execute this command.
+    is_potentially_unsafe: bool = False
 
 
 def _str_to_echo_command(str_to_save: str, filename: str) -> CmdAndReadableComment:
@@ -122,7 +126,6 @@ def get_eval_factory_command(
     cfg: DictConfig,
     user_task_config: DictConfig,
     task_definition: dict,
-    trust_pre_cmd: bool = False,
 ) -> CmdAndReadableComment:
     # This gets the eval_factory_config merged from both top-level and task-level.
     merged_nemo_evaluator_config = get_eval_factory_config(
@@ -172,26 +175,14 @@ def get_eval_factory_command(
         user_task_config.get("pre_cmd") or cfg.evaluation.get("pre_cmd") or ""
     )
 
+    is_potentially_unsafe = False
     if pre_cmd:
-        if trust_pre_cmd or os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":
-            logger.warning(
-                "Found non-empty pre_cmd that might be a security risk if executed. "
-                "NEMO_EVALUATOR_TRUST_PRE_CMD=1 `trust_pre_cmd` is set so we proceed.",
-                pre_cmd=pre_cmd,
-                trust_pre_cmd=trust_pre_cmd,
-            )
-        else:
-            logger.error(
-                "Found non-empty pre_cmd and NEMO_EVALUATOR_TRUST_PRE_CMD is not set. "
-                "To continue, make sure you trust the command "
-                "and set NEMO_EVALUATOR_TRUST_PRE_CMD=1 or use `trust_pre_cmd` argument.",
-                pre_cmd=pre_cmd,
-                trust_pre_cmd=trust_pre_cmd,
-            )
-            raise AttributeError(
-                "Untrusted pre_cmd found in config, make sure you trust and "
-                "set NEMO_EVALUATOR_TRUST_PRE_CMD=1 or use `trust_pre_cmd` argument."
-            )
+        logger.warning(
+            "Found non-empty pre_cmd that might be a security risk if executed. "
+            "Setting `is_potentially_unsafe` to `True`",
+            pre_cmd=pre_cmd,
+        )
+        is_potentially_unsafe = True
 
     create_pre_script_cmd = _str_to_echo_command(pre_cmd, filename="pre_cmd.sh")
 
@@ -228,6 +219,7 @@ def get_eval_factory_command(
         + " && "
         + eval_command,
         debug=create_pre_script_cmd.debug + "\n\n" + create_yaml_cmd.debug,
+        is_potentially_unsafe=is_potentially_unsafe,
     )
 
 
