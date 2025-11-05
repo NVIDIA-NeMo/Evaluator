@@ -24,7 +24,6 @@ from typing import Any, List, Optional, Union
 import yaml
 from omegaconf import DictConfig, OmegaConf
 
-from nemo_evaluator_launcher.api.context import DRY_RUN_CONTEXT_VAR
 from nemo_evaluator_launcher.api.types import RunConfig
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.common.mapping import load_tasks_mapping
@@ -96,11 +95,8 @@ def run_eval(cfg: RunConfig, dry_run: bool = False) -> Optional[str]:
     if dry_run:
         print(OmegaConf.to_yaml(cfg))
 
-    # TODO(agronskiy): switch to ContextVar fully.
-    DRY_RUN_CONTEXT_VAR.set(dry_run)
-
     _check_api_endpoint_when_deployment_is_configured(cfg)
-    return get_executor(cfg.execution.type).execute_eval(cfg, DRY_RUN_CONTEXT_VAR.get())
+    return get_executor(cfg.execution.type).execute_eval(cfg, dry_run)
 
 
 def get_status(ids_or_prefixes: list[str]) -> list[dict[str, Any]]:

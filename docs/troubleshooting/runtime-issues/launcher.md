@@ -285,7 +285,7 @@ wandb login
 ### Injecting Custom Command Into Evaluation Container
 
 :::{note}
-Do not use this functionality for running at scale, because it a) introduces
+Do not use this functionality for running at scale, because it a) 
 reduces the reproducility of evaluations; b) introduces security issues (remote command execution).
 :::
 
