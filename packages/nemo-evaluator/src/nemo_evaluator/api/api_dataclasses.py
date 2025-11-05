@@ -114,19 +114,10 @@ class EvaluationConfig(BaseModel):
     type: Optional[str] = Field(description="Type of the task", default=None)
 
 
-class EvaluationMetadata(BaseModel):
+class EvaluationMetadata(dict):
     """We put here various evaluation metadata that does not influence the evaluation."""
 
-    versioning: Optional[dict[str, str]] = Field(
-        description="Version(s) of any components"
-        "(if needed) used to trigger this evaluation. Format: "
-        "{component_name: version, component_name: version}.",
-        default=None,
-    )
-    data: Optional[dict] = Field(
-        description="Free form (unstructured) data that is of use for tracking meta information.",
-        default=None,
-    )
+    pass
 
 
 class Evaluation(BaseModel):

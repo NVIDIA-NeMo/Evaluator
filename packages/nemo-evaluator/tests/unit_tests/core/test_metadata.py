@@ -120,7 +120,6 @@ def test_metadata_full(monkeypatch, tmp_path):
     results = yaml.safe_load(results_path.read_text())
     assert results["git_hash"] == "abc123"
     assert results["metadata"]["versioning"] == expected_versioning
-    assert "data" not in results["metadata"]
 
 
 def test_no_metadata(monkeypatch, tmp_path):
@@ -159,7 +158,6 @@ def test_env_versioning_and_resolved_only(monkeypatch, tmp_path):
     mv = results["metadata"]["versioning"]
     assert mv["git-hash"] == "deadbeef"
     assert mv["nemo_evaluator_version"] == nemo_evaluator_version
-    assert "data" not in results["metadata"]
 
 
 def test_only_versioning_no_env(monkeypatch, tmp_path):

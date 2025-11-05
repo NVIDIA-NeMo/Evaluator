@@ -80,7 +80,7 @@ def test_get_eval_factory_command_basic(monkeypatch):
     assert "metadata" in merged and isinstance(merged["metadata"], dict)
     assert merged["metadata"]["versioning"] == "TEST_VER"
     # Validate a few salient fields from the resolved config got embedded
-    resolved = merged["metadata"]["data"]["launcher_resolved_config"]
+    resolved = merged["metadata"]["launcher_resolved_config"]
     assert resolved["deployment"]["type"] == "none"
     assert resolved["target"]["api_endpoint"]["url"] == "https://example.test/api"
     assert resolved["target"]["api_endpoint"]["model_id"] == "model-123"

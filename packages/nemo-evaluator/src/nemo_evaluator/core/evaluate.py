@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import importlib
 import json
 import os
@@ -250,9 +251,11 @@ def _persist_metadata_and_build_results_block(
     if not md:
         return {}
 
+    md_modified = copy.deepcopy(md)
+
     # Build versioning block first so we can include it as a commented header
     # in the persisted metadata file for better provenance/debuggability.
-    updated_versioning: dict = dict(md.versioning or {})
+    updated_versioning: dict = dict(md_modified.get("versioning", {}))
     git_hash = os.getenv("CORE_EVALS_GIT_HASH")
     if git_hash:
         updated_versioning["git-hash"] = git_hash
@@ -266,15 +269,15 @@ def _persist_metadata_and_build_results_block(
 
     # Construct full metadata payload to persist and return, augmenting versioning
     # with inferred fields (git-hash, nemo_evaluator_version).
-    metadata_payload: dict = md.model_dump(exclude_none=True)
-    metadata_payload["versioning"] = updated_versioning
+    md_modified["versioning"] = updated_versioning
 
-    # Persist the entire metadata payload as a single file
-    _write_with_versioning_header(
-        out_dir=out_dir,
-        filename="metadata.yaml",
-        payload=metadata_payload,
-        versioning=updated_versioning,
-    )
+    with open(os.path.join(out_dir, "metadata.yaml"), "w") as f:
+        yaml.safe_dump(md_modified, f, sort_keys=False)
 
-    return {"metadata": {"versioning": updated_versioning}}
+    # For the results.yaml block we only return versioning to keep uncluttered
+    return {
+        "metadata": {
+            "versioning": updated_versioning,
+            "__skipped_fields": "see metadata.yaml for the rest of the fields",
+        }
+    }
