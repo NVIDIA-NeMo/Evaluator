@@ -293,7 +293,7 @@ def main():
         "max_input_len": args.max_input_len,
         "tensor_model_parallel_size": args.tensor_parallelism_size,
         "pipeline_model_parallel_size": args.pipeline_parallelism_size,
-        "max_batch_size": args.batch_size, #TODO check in llama 405B run
+        "max_batch_size": args.batch_size,
         "num_gpus": args.devices if args.serving_backend == "pytriton" else args.devices * args.nodes,
         "nodes": args.nodes,
         "num_replicas": args.num_replicas,
