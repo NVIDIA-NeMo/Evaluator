@@ -114,6 +114,12 @@ class EvaluationConfig(BaseModel):
     type: Optional[str] = Field(description="Type of the task", default=None)
 
 
+class EvaluationMetadata(dict):
+    """We put here various evaluation metadata that does not influence the evaluation."""
+
+    pass
+
+
 class Evaluation(BaseModel):
     command: str = Field(description="jinja template of the command to be executed")
     framework_name: str = Field(description="Name of the framework")
