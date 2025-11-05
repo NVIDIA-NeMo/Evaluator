@@ -119,7 +119,7 @@ class LeptonExecutor(BaseExecutor):
                 print(
                     red(
                         "\nFound `pre_cmd` which carries security risk. When running without --dry-run "
-                        "to set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
+                        "make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
                     )
                 )
 
