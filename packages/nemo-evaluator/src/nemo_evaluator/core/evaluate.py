@@ -72,6 +72,10 @@ def evaluate(
     evaluation = validate_configuration(run_config)
     prepare_output_directory(evaluation)
 
+    metadata_block = _persist_metadata_and_build_results_block(
+        evaluation.config.output_dir, metadata
+    )
+
     def kill_all(signum=None, frame=None):
         """Kill all processes and exit."""
         logger.critical("FATAL: Terminating all processes...")
@@ -201,10 +205,6 @@ def evaluate(
     # Write merged metrics to file
     with open(metrics_path, "w") as f:
         json.dump(merged_metrics, f, indent=2)
-
-    metadata_block = _persist_metadata_and_build_results_block(
-        evaluation.config.output_dir, metadata
-    )
 
     evaluation_result_dict = {
         "git_hash": os.getenv("CORE_EVALS_GIT_HASH"),
