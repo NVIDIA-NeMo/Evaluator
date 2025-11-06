@@ -196,16 +196,14 @@ class ScoreStats(BaseModel):
 
 
 class Score(BaseModel):
+    """Atomic class that contains the value of particular metric and corresponding stats"""
+
     value: float = Field(description="The value/score produced on this metric")
     stats: ScoreStats = Field(description="Statistics associated with this metric")
 
 
 class MetricResult(BaseModel):
-    """_summary_
-
-    Args:
-        BaseModel (_type_): _description_
-    """
+    """Defines mapping from metric name to its scores."""
 
     scores: Dict[str, Score] = Field(
         default_factory=dict, description="Mapping from metric name to scores."
@@ -213,6 +211,8 @@ class MetricResult(BaseModel):
 
 
 class TaskResult(BaseModel):
+    """Defines set of metrics that were calculated for particular task."""
+
     metrics: Dict[str, MetricResult] = Field(
         default_factory=dict,
         description="The value for all the metrics computed for the task",
@@ -220,7 +220,7 @@ class TaskResult(BaseModel):
 
 
 class GroupResult(BaseModel):
-    """The evaluation results for a group."""
+    """Some tasks can be grouped or logically split. This class defines result on grouping level."""
 
     groups: Optional[Dict[str, "GroupResult"]] = Field(
         default=None, description="The results for the subgroups."
