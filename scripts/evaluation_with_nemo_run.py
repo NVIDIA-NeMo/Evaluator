@@ -238,7 +238,7 @@ def slurm_executor(
     if custom_env_vars:
         env_vars |= custom_env_vars
 
-    # Recommended to use this over run.Packager() as it can lead to fiddle serialization errors importing 
+    # Recommended to use this over run.Packager() as it can lead to fiddle serialization errors importing
     # 'wait_and_evaluate' method from 'helpers'
     packager = run.Config(run.GitArchivePackager, subpath="scripts")
 
@@ -294,7 +294,9 @@ def main():
         "tensor_model_parallel_size": args.tensor_parallelism_size,
         "pipeline_model_parallel_size": args.pipeline_parallelism_size,
         "max_batch_size": args.batch_size,
-        "num_gpus": args.devices if args.serving_backend == "pytriton" else args.devices * args.nodes,
+        "devices": args.devices
+        if args.serving_backend == "pytriton"
+        else args.devices * args.nodes,
         "nodes": args.nodes,
         "num_replicas": args.num_replicas,
     }
@@ -313,13 +315,15 @@ def main():
     elif args.serving_backend == "ray":
         # Ray deployment with nem-run requires python executable path to be set, else it cannot find the libraries
         # like mcore, mbridge, etc.
-        additional_args += f" --runtime_env {"py_executable": "/opt/venv/bin/python"}"
+        additional_args += ' --runtime_env {"py_executable": "/opt/venv/bin/python"}'
         if args.num_cpus_per_replica:
             additional_args += f" --num_cpus_per_replica {args.num_cpus_per_replica}"
         deploy_script = RAY_DEPLOY_SCRIPT.format(
             **commons_args, additional_args=additional_args
         )
-        deploy_run_script = run.Script(inline=deploy_script, metadata={"use_with_ray_cluster": True})
+        deploy_run_script = run.Script(
+            inline=deploy_script, metadata={"use_with_ray_cluster": True}
+        )
     else:
         raise ValueError(f"Invalid serving backend: {args.serving_backend}")
 
