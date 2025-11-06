@@ -1,4 +1,4 @@
-nemo_evaluator.adapters
+``nemo_evaluator.adapters``
 =======================
 
 Interceptors and PostEvalHooks are important part of NeMo Evaluator SDK. They expand functionality of each harness, providing a standardized way of enabling features in your evaluation runs.  

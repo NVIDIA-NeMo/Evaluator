@@ -416,6 +416,6 @@ About References <references/index>
 FAQ <references/faq>
 Eval Parameters <evaluation/parameters>
 Eval Utils <references/evaluation-utils>
-API Reference <apireference/index>
+Core Python API  <apireference/nemo-evaluator/api/index>
 :::
 

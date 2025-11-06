@@ -13,3 +13,6 @@ The central point of evaluation is ``evaluate()`` function that takes standarize
     :hidden:
     
     api-dataclasses
+    nemo-evaluator.adapters <../adapters/adapters>
+
+
