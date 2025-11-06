@@ -1,6 +1,6 @@
 .. _modelling-inout:
 
-``nemo.evaluator.api.api_dataclasses``
+``nemo_evaluator.api.api_dataclasses``
 ======================================
 
 
