@@ -478,6 +478,8 @@ def _create_slurm_sbatch_script(
         s += "#SBATCH --gpus-per-node {}\n".format(cfg.execution.gpus_per_node)
     if hasattr(cfg.execution, "gres"):
         s += "#SBATCH --gres {}\n".format(cfg.execution.gres)
+    if cfg.execution.get("sbatch_comment"):
+        s += "#SBATCH --comment='{}'\n".format(cfg.execution.sbatch_comment)
     job_name = "{account}-{subproject}.{details}".format(
         account=cfg.execution.account,
         subproject=cfg.execution.subproject,
@@ -566,32 +568,19 @@ def _create_slurm_sbatch_script(
         )
 
         # wait for the server to initialize
-        # Determine IP list based on deployment mode
+        health_path = cfg.deployment.get("health_check_path", "/health")
+        # For multi-instance check all node IPs, for single instance check localhost
         if cfg.deployment.get("multiple_instances", False):
             ip_list = '"${NODES_IPS_ARRAY[@]}"'
         else:
             ip_list = '"127.0.0.1"'
-
-        # Check if health endpoint is available
-        health_path = cfg.deployment.endpoints.get("health")
-        if health_path is None:
-            # Use timeout-based wait when health endpoint is not available
-            server_timeout = cfg.deployment.get("server_timeout", 60)
-            s += _get_wait_for_server_timeout(
-                ip_list=ip_list,
-                timeout=server_timeout,
-                service_name="server",
-                check_pid=True,
-            )
-        else:
-            # Use health check-based wait
-            s += _get_wait_for_server_handler(
-                ip_list,
-                cfg.deployment.port,
-                health_path,
-                "server",
-                check_pid=True,
-            )
+        s += _get_wait_for_server_handler(
+            ip_list,
+            cfg.deployment.port,
+            health_path,
+            "server",
+            check_pid=True,
+        )
         s += "\n\n"
 
         # add HAProxy load balancer only if multiple_instances is true
@@ -1229,12 +1218,11 @@ def _get_wait_for_server_handler(
     health_check_path: str,
     service_name: str = "server",
     check_pid: bool = False,
-    pid_var: str = "SERVER_PID",
 ):
     """Generate wait for server handler that takes a list of IPs."""
     pid_check = ""
     if check_pid:
-        pid_check = f'kill -0 "${pid_var}" 2>/dev/null || {{ echo "{service_name} process ${pid_var} died"; exit 1; }}'
+        pid_check = 'kill -0 "$SERVER_PID" 2>/dev/null || { echo "Server process $SERVER_PID died"; exit 1; }'
 
     handler = f"""date
 # wait for the {service_name} to initialize
@@ -1248,35 +1236,7 @@ for ip in {ip_list}; do
 done
 date
 """.strip()
-    return handler
 
-
-def _get_wait_for_server_timeout(
-    ip_list: str,
-    timeout: int,
-    service_name: str = "server",
-    check_pid: bool = False,
-    pid_var: str = "SERVER_PID",
-):
-    """Generate timeout-based wait for server handler (no health checks)."""
-    pid_check = ""
-    if check_pid:
-        pid_check = f'kill -0 "${pid_var}" 2>/dev/null || {{ echo "{service_name} process ${pid_var} died during startup"; exit 1; }}'
-
-    handler = f"""date
-# wait for the {service_name} to initialize (timeout-based, no health check)
-for ip in {ip_list}; do
-  echo "Waiting {timeout} seconds for {service_name} on $ip..."
-  ELAPSED=0
-  while [ $ELAPSED -lt {timeout} ]; do
-    {pid_check}
-    sleep 5
-    ELAPSED=$((ELAPSED + 5))
-  done
-  echo "{service_name} startup wait complete on $ip (waited $ELAPSED seconds)"
-done
-date
-""".strip()
     return handler
 
 
@@ -1305,28 +1265,10 @@ def _get_proxy_server_srun_command(cfg, remote_task_subdir):
     # Wait for HAProxy to be ready on localhost
     proxy_config = cfg.execution.get("proxy", {}).get("config", {})
     haproxy_port = proxy_config.get("haproxy_port", 5009)
-    health_path = proxy_config.get("health_check_path")
-
-    if health_path is None:
-        # Use timeout-based wait when health endpoint is not available
-        proxy_timeout = proxy_config.get("server_timeout", 60)
-        s += _get_wait_for_server_timeout(
-            ip_list="127.0.0.1",
-            timeout=proxy_timeout,
-            service_name="HAProxy",
-            check_pid=True,
-            pid_var="HAPROXY_PID",
-        )
-    else:
-        # Use health check-based wait
-        s += _get_wait_for_server_handler(
-            ip_list="127.0.0.1",
-            port=haproxy_port,
-            health_check_path=health_path,
-            service_name="HAProxy",
-            check_pid=True,
-            pid_var="HAPROXY_PID",
-        )
+    health_path = proxy_config.get("health_check_path", "/health")
+    s += _get_wait_for_server_handler(
+        "127.0.0.1", haproxy_port, health_path, "HAProxy", check_pid=False
+    )
     s += "\n"
 
     return s

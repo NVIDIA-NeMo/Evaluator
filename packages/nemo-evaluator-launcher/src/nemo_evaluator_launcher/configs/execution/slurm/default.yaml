@@ -25,6 +25,7 @@ ntasks_per_node: 1
 gres: gpu:8
 walltime: 01:00:00
 subproject: nemo-evaluator-launcher
+sbatch_comment: null  # Optional: Custom comment for #SBATCH --comment (e.g., GPU reaper exemption JSON)
 env_vars:
   deployment: {}
   evaluation: {}
