@@ -1,7 +1,7 @@
-``nemo.evaluator.api``
+``nemo_evaluator.api``
 ======================================
 
-The central point of evaluation is ``evaluate()`` function that takes standarized input and returns standarized output modelled through pydantic classes.
+The central point of evaluation is ``evaluate()`` function that takes standarized input and returns standarized output. See :ref:`modelling-inout` to learn how to instantiate standardized input and consume standardized output.
 
 .. automodule:: nemo_evaluator.api
     :members:

@@ -191,6 +191,18 @@ def merge_dicts(dict1, dict2):
 def get_available_evaluations() -> tuple[
     dict[str, dict[str, Evaluation]], dict[str, Evaluation], dict
 ]:
+    """
+    Returns all available evaluations in Evaluation objects
+    .. important:: Only evaluations from installed wheels are being returned.
+
+    Returns:
+        tuple[ dict[str, dict[str, Evaluation]], dict[str, Evaluation], dict ]:
+        Tuple with the following elements:
+        1. Mapping: harness name -> tasks (dict)
+        2. Mapping: harness name -> default configs (for non exposed tasks). Returned Evaluation should serve as a blueprint
+        3. Mapping: task name -> list of Evaluations
+    """
+
     all_framework_eval_mappings = {}
     all_framework_defaults = {}
     all_eval_name_mapping = {}

@@ -201,7 +201,7 @@ def check_endpoint(
     max_retries: int = 600,
     retry_interval: int = 2,
 ) -> bool:
-    """Checks if the OpenAI-competible endpoint is alive by sending a simple prompt.
+    """Checks if the OpenAI-compatible endpoint is alive by sending a simple prompt.
 
     Args:
         endpoint_url (str): Full endpoint URL. For most servers that means either ``/v1/chat/completions`` or ``/completions`` must be provided
