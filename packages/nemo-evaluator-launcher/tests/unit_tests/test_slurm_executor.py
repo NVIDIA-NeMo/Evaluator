@@ -143,7 +143,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        )
+        ).cmd
 
         # Check that deployment environment variables are exported
         assert "export DEPLOY_VAR1=deploy_value1" in script
@@ -174,7 +174,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        )
+        ).cmd
 
         # Check that evaluation environment variables are exported
         assert "export EVAL_VAR1=eval_value1" in script
@@ -204,7 +204,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        )
+        ).cmd
 
         # Check that deployment mounts are added to deployment container
         assert "/host/path1:/container/path1" in script
@@ -235,7 +235,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        )
+        ).cmd
 
         # Check that evaluation mounts are added to evaluation container
         assert "/host/eval1:/container/eval1" in script
@@ -258,7 +258,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        )
+        ).cmd
 
         # Should NOT contain --no-container-mount-home when mount_home is True
         assert "--no-container-mount-home" not in script
@@ -280,7 +280,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        )
+        ).cmd
 
         # Should contain --no-container-mount-home when mount_home is False
         assert "--no-container-mount-home" in script
@@ -299,7 +299,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        )
+        ).cmd
 
         # Should NOT contain --no-container-mount-home by default (mount_home defaults to True)
         assert "--no-container-mount-home" not in script
@@ -326,7 +326,7 @@ class TestSlurmExecutorFeatures:
                 remote_task_subdir=Path("/test/remote"),
                 invocation_id="test123",
                 job_id="test123.0",
-            )
+            ).cmd
 
             # Check that deprecation warnings were issued
             deprecation_warnings = [
@@ -373,7 +373,7 @@ class TestSlurmExecutorFeatures:
                 remote_task_subdir=Path("/test/remote"),
                 invocation_id="test123",
                 job_id="test123.0",
-            )
+            ).cmd
 
         # Both old and new env vars should be present
         assert "export OLD_VAR=old_value" in script
@@ -407,7 +407,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        )
+        ).cmd
 
         # Script should be generated successfully without errors
         assert "srun" in script
@@ -430,7 +430,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        )
+        ).cmd
 
         # Environment variables should still be exported
         assert "export DEPLOY_VAR=deploy_value" in script
@@ -482,7 +482,7 @@ class TestSlurmExecutorFeatures:
                 remote_task_subdir=Path("/test/remote"),
                 invocation_id="test123",
                 job_id="test123.0",
-            )
+            ).cmd
 
         # All environment variables should be exported
         assert "export DEPLOY_VAR1=deploy_value1" in script
