@@ -31,14 +31,23 @@ defaults:
   - _self_
 
 # override default execution arguments
-execution:
+execution:  
   hostname: ??? # SLURM headnode (login) hostname (required)
   username: ${oc.env:USER} # Cluster username; defaults to $USER.
   account: ??? # SLURM account allocation (required)
   output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
   walltime: 02:00:00
-  partition: cpu_short # no deployment -> no GPUs needed
-  gpus_per_node: null # no deployment -> no GPUs needed
+  # partition: backfill
+  
+  auto_export:
+    destinations: ["mlflow"]
+  
+  # Export-related env vars (placeholders expanded at runtime)
+  env_vars:
+    export:
+      MLFLOW_TRACKING_URI: MLFLOW_TRACKING_URI # Or set tracking_uri under export.mflow
+      PATH: ??? # Absolute path to conda/venv bin directory containing nemo-evaluator-launcher (required for auto-export)
+      # Example: "/lustre/fsw/portfolios/coreai/users/USERNAME/miniconda3/envs/nemo-evaluator/bin:$PATH"
 
 target:
   api_endpoint:
@@ -48,40 +57,25 @@ target:
 
 # specify the benchmarks to evaluate
 evaluation:
-  nemo_evaluator_config: # global config settings that apply to all tasks
-    config:
-      params:
-        request_timeout: 3600 # timeout for API requests in seconds
-        parallelism: 1 # number of parallel requests
-    target:
-      api_endpoint:
-        adapter_config:
-          use_reasoning: false # if true, strips reasoning tokens and collects reasoning stats
-          use_system_prompt: true # enables custom system prompt
-          custom_system_prompt: >-
-            "Think step by step."
   tasks:
-    - name: ifeval # use the default benchmark configuration
     - name: gpqa_diamond
-      nemo_evaluator_config: # task-specific configuration for gpqa_diamond
-        config:
-          params:
-            temperature: 0.6 # sampling temperature
-            top_p: 0.95 # nucleus sampling parameter
-            max_new_tokens: 8192 # maximum tokens to generate
       env_vars:
         HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
-    - name: mbpp
-      nemo_evaluator_config: # task-specific configuration for mbpp
-        config:
-          params:
-            temperature: 0.2 # sampling temperature
-            top_p: 0.95 # nucleus sampling parameter
-            max_new_tokens: 2048 # maximum tokens to generate
-            extra:
-              n_samples: 5 # sample 5 predictions per prompt
-        target:
-          api_endpoint:
-            adapter_config:
-              custom_system_prompt: >-
-                "You must only provide the code implementation"
+
+# Exporter configurations (paired with auto-export only)
+export:
+  mlflow:
+    tracking_uri: ??? # MLflow server URL accessible from compute nodes (http://hostname:port)
+    experiment_name: "nv-eval"
+    description: "nemo-evaluator-launcher Evaluation test run with REMOTE auto-export"
+    log_metrics: ["gpqa_diamond_score_micro"]
+    log_logs: true
+    only_required: false
+    
+    # MLflow tags (key-value pairs)
+    tags:
+      framework: "none"
+    
+    # Additional metadata goes into mlflow.log_params()
+    extra_metadata:
+      experiment_phase: "baseline"

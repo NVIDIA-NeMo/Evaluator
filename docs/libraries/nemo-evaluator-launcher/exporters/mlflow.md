@@ -7,6 +7,44 @@ Exports accuracy metrics and artifacts to an MLflow Tracking Server.
 - **Purpose**: Centralize metrics, parameters, and artifacts in MLflow for experiment tracking
 - **Requirements**: `mlflow` package installed and a reachable MLflow tracking server
 
+:::{dropdown} **Prerequisites: MLflow Server Setup**
+:open:
+
+Before exporting results, ensure that an **MLflow Tracking Server** is running and reachable.  
+If no server is active, export attempts will fail with connection errors.
+
+### Quick Start: Local Tracking Server
+
+For local development or testing:
+
+```bash
+# Install MLflow
+pip install nemo-evaluator-launcher[mlflow]
+
+# Start a local tracking server (runs on: http://127.0.0.1:5000)
+mlflow server --host 127.0.0.1 --port 5000
+```
+
+This starts MLflow with a local SQLite backend and a file-based artifact store under current directory.
+
+### Production Deployments
+
+For production or multi-user setups:
+
+* **Remote MLflow Server**: Deploy MLflow on a dedicated VM or container.
+* **Docker**:
+
+  ```bash
+  docker run -p 5000:5000 ghcr.io/mlflow/mlflow:latest \
+    mlflow server --host 0.0.0.0
+  ```
+* **Cloud-Managed Services**: Use hosted options such as **Databricks MLflow** or **AWS SageMaker MLflow**.
+
+For detailed deployment and configuration options, see the
+[official MLflow Tracking Server documentation](https://mlflow.org/docs/latest/tracking/server.html).
+
+:::
+
 ## Usage
 
 Export evaluation results to MLflow Tracking Server for centralized experiment management.
@@ -26,14 +64,14 @@ execution:
   env_vars:
     export:
       MLFLOW_TRACKING_URI: MLFLOW_TRACKING_URI # or set tracking_uri under export.mflow
-      PATH: "/path/to/conda/env/bin:$PATH"
+      PATH: "/path/to/conda/env/bin:$PATH" # set for slurm executor jobs
 
 export:
   mlflow:
     tracking_uri: "http://mlflow.example.com:5000"
     experiment_name: "llm-evaluation"
     description: "Llama 3.1 8B evaluation"
-    log_metrics: ["accuracy", "f1"]
+    log_metrics: ["mmlu_score_macro", "mmlu_score_micro"]
     tags:
       model_family: "llama"
       version: "3.1"

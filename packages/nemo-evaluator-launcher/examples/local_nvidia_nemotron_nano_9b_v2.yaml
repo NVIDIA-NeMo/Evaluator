@@ -40,19 +40,19 @@ target:
 
 # specify the benchmarks to evaluate
 evaluation:
-  nemo_evaluator_config:  # global config settings that apply to all tasks
+  nemo_evaluator_config: # global config settings that apply to all tasks
     config:
       params:
-        request_timeout: 3600  # timeout for API requests in seconds
-      target:
-        api_endpoint:
-          adapter_config:
-            use_reasoning: false  # if true, strips reasoning tokens and collects reasoning stats
-            use_system_prompt: false  # disables custom system prompt
+        request_timeout: 3600 # timeout for API requests in seconds
+    target:
+      api_endpoint:
+        adapter_config:
+          use_reasoning: false # if true, strips reasoning tokens and collects reasoning stats
+          use_system_prompt: false # disables custom system prompt
   tasks:
     - name: simple_evals.mmlu_pro
-      nemo_evaluator_config:  # task-specific configuration for mmlu_pro
+      nemo_evaluator_config: # task-specific configuration for mmlu_pro
         config:
           params:
-            limit_samples: 10  # TEST ONLY: Limits all benchmarks to 10 samples total for quick testing
-            parallelism: 1  # number of parallel requests
+            limit_samples: 10 # TEST ONLY: Limits all benchmarks to 10 samples total for quick testing
+            parallelism: 1 # number of parallel requests

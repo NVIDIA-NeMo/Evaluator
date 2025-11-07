@@ -39,6 +39,7 @@ from nemo_evaluator_launcher.common.execdb import (
     generate_job_id,
 )
 from nemo_evaluator_launcher.common.helpers import (
+    CmdAndReadableComment,
     get_api_key_name,
     get_endpoint_url,
     get_eval_factory_command,
@@ -47,11 +48,12 @@ from nemo_evaluator_launcher.common.helpers import (
     get_health_url,
     get_timestamp_string,
 )
+from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.mapping import (
     get_task_from_mapping,
     load_tasks_mapping,
 )
-from nemo_evaluator_launcher.common.printing_utils import bold, cyan, grey
+from nemo_evaluator_launcher.common.printing_utils import bold, cyan, grey, red
 from nemo_evaluator_launcher.executors.base import (
     BaseExecutor,
     ExecutionState,
@@ -95,6 +97,7 @@ class SlurmExecutor(BaseExecutor):
             tasks_mapping = load_tasks_mapping()
             eval_images: list[str] = []
 
+            is_potentially_unsafe = False
             for idx, task in enumerate(cfg.evaluation.tasks):
                 # calculate job_id
                 job_id = f"{invocation_id}.{idx}"
@@ -115,13 +118,20 @@ class SlurmExecutor(BaseExecutor):
                 eval_images.append(eval_image)
 
                 # generate and write down sbatch script
-                sbatch_script_content_str = _create_slurm_sbatch_script(
+                sbatch_script_content_struct = _create_slurm_sbatch_script(
                     cfg=cfg,
                     task=task,
                     eval_image=eval_image,
                     remote_task_subdir=remote_task_subdir,
                     invocation_id=invocation_id,
                     job_id=job_id,
+                )
+                sbatch_script_content_str = sbatch_script_content_struct.cmd
+
+                # We accumulate if any task contains unsafe commands
+                is_potentially_unsafe = (
+                    is_potentially_unsafe
+                    or sbatch_script_content_struct.is_potentially_unsafe
                 )
                 local_runsub_path = local_task_subdir / "run.sub"
                 remote_runsub_path = remote_task_subdir / "run.sub"
@@ -139,7 +149,33 @@ class SlurmExecutor(BaseExecutor):
                     with open(local_runsub_path, "r") as f:
                         print(grey(f.read()))
                 print(bold("To submit jobs") + ", run the executor without --dry-run")
+                if is_potentially_unsafe:
+                    print(
+                        red(
+                            "\nFound `pre_cmd` which carries security risk. When running without --dry-run "
+                            "make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
+                        )
+                    )
+
                 return invocation_id
+
+            if is_potentially_unsafe:
+                if os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":
+                    logger.warning(
+                        "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                        "is set, proceeding with caution."
+                    )
+
+                else:
+                    logger.error(
+                        "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                        "is not set. This might carry security risk and unstable environments. "
+                        "To continue, make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1.",
+                    )
+                    raise AttributeError(
+                        "Untrusted command found in config, make sure you trust and "
+                        "set NEMO_EVALUATOR_TRUST_PRE_CMD=1."
+                    )
 
             socket = str(Path(tmpdirname) / "socket")
             socket_or_none = _open_master_connection(
@@ -438,7 +474,7 @@ def _create_slurm_sbatch_script(
     remote_task_subdir: Path,
     invocation_id: str,
     job_id: str,
-) -> str:
+) -> CmdAndReadableComment:
     """Generate the contents of a SLURM sbatch script for a given evaluation task.
 
     Args:
@@ -599,7 +635,11 @@ def _create_slurm_sbatch_script(
     ):
         evaluation_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
-    eval_factory_command_struct = get_eval_factory_command(cfg, task, task_definition)
+    eval_factory_command_struct = get_eval_factory_command(
+        cfg,
+        task,
+        task_definition,
+    )
     eval_factory_command = eval_factory_command_struct.cmd
     # The debug comment for placing into the script and easy debug. Reason
     # (see `CmdAndReadableComment`) is the current way of passing the command
@@ -646,7 +686,12 @@ def _create_slurm_sbatch_script(
         export_env = dict(cfg.execution.get("env_vars", {}).get("export", {}) or {})
         s += _generate_auto_export_section(cfg, job_id, destinations, export_env)
 
-    return s
+    debug_str = "\n".join(["# " + line for line in s.splitlines()])
+    return CmdAndReadableComment(
+        cmd=s,
+        debug=debug_str,
+        is_potentially_unsafe=eval_factory_command_struct.is_potentially_unsafe,
+    )
 
 
 def _generate_auto_export_section(

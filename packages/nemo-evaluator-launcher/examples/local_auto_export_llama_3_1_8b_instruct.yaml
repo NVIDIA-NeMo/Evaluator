@@ -49,7 +49,7 @@ export:
     tracking_uri: "http://mlflow.nvidia.com:5003"
     experiment_name: "nv-eval"
     description: "nemo-evaluator-launcher Evaluation test run with auto-export"
-    log_metrics: ["accuracy", "pass@1"]
+    log_metrics: ["gpqa_diamond_score_micro"]
     log_logs: true
     only_required: false
     

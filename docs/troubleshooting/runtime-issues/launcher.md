@@ -158,7 +158,7 @@ Error: Cannot connect to Docker daemon
 **Fix**: Start Docker daemon:
 ```bash
 # macOS/Windows: Start Docker Desktop
-# Linux: 
+# Linux:
 sudo systemctl start docker
 ```
 
@@ -279,6 +279,34 @@ Error: Invalid W&B credentials
 # W&B
 wandb login
 ```
+
+## Advanced Debugging Techniques
+
+### Injecting Custom Command Into Evaluation Container
+
+:::{note}
+Do not use this functionality for running at scale, because it a) 
+reduces the reproducility of evaluations; b) introduces security issues (remote command execution).
+:::
+
+For various debugging or testing purposes, one can supply a field `pre_cmd` under
+the following configuration positions:
+
+```yaml
+...
+evaluation:
+  pre_cmd: |
+    any script that will be executed inside of
+    the container before running evaluation
+    it can be multiline
+  tasks:
+    - name: <task>
+      pre_cmd: one can override this command
+```
+
+For security reasons (running configs from untrusted sources), if `pre_cmd` is
+non-empty, the `nemo-evaluator-launcher` will fail unless `NEMO_EVALUATOR_TRUST_PRE_CMD=1` environment
+variable is supplied.
 
 ## Getting Help
 

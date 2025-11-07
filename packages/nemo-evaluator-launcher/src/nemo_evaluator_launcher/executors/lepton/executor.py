@@ -18,6 +18,7 @@
 Handles deployment and evaluation using Lepton endpoints with NIM containers.
 """
 
+import os
 import time
 from pathlib import Path
 from typing import List
@@ -36,6 +37,7 @@ from nemo_evaluator_launcher.common.mapping import (
     get_task_from_mapping,
     load_tasks_mapping,
 )
+from nemo_evaluator_launcher.common.printing_utils import red
 from nemo_evaluator_launcher.executors.base import (
     BaseExecutor,
     ExecutionState,
@@ -88,6 +90,18 @@ class LeptonExecutor(BaseExecutor):
         # Generate invocation ID
         invocation_id = generate_invocation_id()
 
+        # TODO(agronskiy): the structure of this executor differs from others,
+        # so the best place to check for unsafe commands yelids a bit of duplication.
+        # We can't use the get_eval_factory_command here because the port is not yet
+        # populated.
+        # Refactor the whole thing.
+        is_potentially_unsafe = False
+        for idx, task in enumerate(cfg.evaluation.tasks):
+            pre_cmd: str = task.get("pre_cmd") or cfg.evaluation.get("pre_cmd") or ""
+            if pre_cmd:
+                is_potentially_unsafe = True
+                break
+
         # DRY-RUN mode
         if dry_run:
             output_dir = Path(cfg.execution.output_dir).absolute() / invocation_id
@@ -102,7 +116,33 @@ class LeptonExecutor(BaseExecutor):
             else:
                 print(f"with endpoint type '{cfg.deployment.type}'")
 
+            if is_potentially_unsafe:
+                print(
+                    red(
+                        "\nFound `pre_cmd` which carries security risk. When running without --dry-run "
+                        "make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
+                    )
+                )
+
             return invocation_id
+
+        if is_potentially_unsafe:
+            if os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":
+                logger.warning(
+                    "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                    "is set, proceeding with caution."
+                )
+
+            else:
+                logger.error(
+                    "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                    "is not set. This might carry security risk and unstable environments. "
+                    "To continue, make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1.",
+                )
+                raise AttributeError(
+                    "Untrusted command found in config, make sure you trust and "
+                    "set NEMO_EVALUATOR_TRUST_PRE_CMD=1."
+                )
 
         # For deployment: none, we use the existing endpoint for all tasks
         if cfg.deployment.type == "none":
@@ -610,7 +650,7 @@ class LeptonExecutor(BaseExecutor):
                 job_state = lepton_status.get("state", "Unknown")
 
                 # Map Lepton job states to our execution states
-                if job_state == "Succeeded":
+                if job_state in ["Succeeded", "Completed"]:
                     state = ExecutionState.SUCCESS
                 elif job_state in ["Running", "Pending", "Starting"]:
                     state = ExecutionState.RUNNING

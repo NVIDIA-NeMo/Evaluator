@@ -171,6 +171,7 @@ python \
 
 evaluation-doc.md
 evaluation-hf.md
+evaluation-mbridge.md
 ```
 
 ```{toctree}
