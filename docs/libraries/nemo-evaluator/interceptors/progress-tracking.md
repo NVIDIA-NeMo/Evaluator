@@ -33,12 +33,7 @@ target:
 
 ## Configuration Options
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `progress_tracking_url` | `str \| None` | `"http://localhost:8000"` | URL to post progress updates. Supports expansion of shell variables. |
-| `progress_tracking_interval` | `int` | `1` | Update every N samples |
-| `request_method` | `str` | `"PATCH"` | HTTP method for progress updates |
-| `output_dir` | `str \| None` | `None` | Directory to save progress file |
+For detailed configuration options, please refer to the {ref}`interceptor_reference` Python API reference.
 
 ## Behavior
 

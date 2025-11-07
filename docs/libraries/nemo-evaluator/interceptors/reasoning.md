@@ -36,18 +36,7 @@ target:
 
 ## Configuration Options
 
-| Parameter | Description | Default | Type |
-|-----------|-------------|---------|------|
-| `start_reasoning_token` | Token that marks the start of reasoning section | `"<think>"` | str \| None |
-| `end_reasoning_token` | Token that marks the end of reasoning section | `"</think>"` | str |
-| `add_reasoning` | Whether to add reasoning information | `True` | bool |
-| `migrate_reasoning_content` | Migrate reasoning_content to content field with tokens | `False` | bool |
-| `enable_reasoning_tracking` | Enable reasoning tracking and logging | `True` | bool |
-| `include_if_not_finished` | Include reasoning content if reasoning is not finished (end token not found) | `True` | bool |
-| `stats_file_saving_interval` | How often (every N responses) to save stats to file | `None` | int \| None |
-| `enable_caching` | Whether to enable caching of reasoning statistics | `True` | bool |
-| `cache_dir` | Custom cache directory for reasoning stats | `"/tmp/reasoning_interceptor"` | str |
-| `logging_aggregated_stats_interval` | How often (every N responses) to log aggregated reasoning statistics | `100` | int |
+For detailed configuration options, please refer to the {ref}`interceptor_reference` Python API reference.
 
 ## Processing Examples
 

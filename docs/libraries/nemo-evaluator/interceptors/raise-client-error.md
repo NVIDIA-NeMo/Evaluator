@@ -84,12 +84,7 @@ target:
 
 ## Configuration Options
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `exclude_status_codes` | `List[int]` | `[408, 429]` | Status codes to exclude from raising client errors when present in the status code range |
-| `status_codes` | `List[int]` | `None` | Specific list of status codes that should raise exceptions. If provided, this takes precedence over range settings |
-| `status_code_range_start` | `int` | `400` | Start of the status code range (inclusive) for which to raise exceptions |
-| `status_code_range_end` | `int` | `499` | End of the status code range (inclusive) for which to raise exceptions |
+For detailed configuration options, please refer to the {ref}`interceptor_reference` Python API reference.
 
 ## Behavior
 
