@@ -47,11 +47,7 @@ In the example above, the `reasoning_content` field will be removed recursively 
 
 ## Configuration Options
 
-| Parameter | Type | Description | Example |
-|-----------|------|-------------|---------|
-| `params_to_add` | `dict` | Dictionary of parameters to add to requests | `{"temperature": 0.7, "top_p": 0.9}` |
-| `params_to_remove` | `list` | List of parameter names to recursively remove from requests | `["top_k", "frequency_penalty"]` |
-| `params_to_rename` | `dict` | Dictionary mapping old parameter names to new names | `{"old_param": "new_param"}` |
+For detailed configuration options, please refer to the {ref}`interceptor_reference` Python API reference.
 
 :::{note}
 The interceptor applies operations in the following order: remove → add → rename. This means you can remove a parameter and then add a different value for the same parameter name.
