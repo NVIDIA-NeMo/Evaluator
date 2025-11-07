@@ -43,27 +43,9 @@ Once deployment is successful, you can run evaluations using the NeMo Evaluator 
 
 Before starting the evaluation, it’s recommended to use the [`check_endpoint`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/core/utils.py) function to verify that the endpoint is responsive and ready to accept requests.
 
-```python
-from nemo_evaluator.api import check_endpoint, evaluate
-from nemo_evaluator.api.api_dataclasses import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
-
-# Configure the evaluation target
-api_endpoint = ApiEndpoint(
-    url="http://0.0.0.0:8080/v1/completions/",
-    type="completions",
-    model_id="megatron_model",
-)
-eval_target = EvaluationTarget(api_endpoint=api_endpoint)
-eval_params = ConfigParams(top_p=0, temperature=0, limit_samples=2, parallelism=1)
-eval_config = EvaluationConfig(type='mmlu', params=eval_params, output_dir="results")
-
-if __name__ == "__main__":
-    check_endpoint(
-            endpoint_url=eval_target.api_endpoint.url,
-            endpoint_type=eval_target.api_endpoint.type,
-            model_name=eval_target.api_endpoint.model_id,
-        )
-    evaluate(target_cfg=eval_target, eval_cfg=eval_config)
+```{literalinclude} _snippets/mmlu.py
+:language: python
+:start-after: "## Run the evaluation"
 ```
 
 ## Evaluate Megatron Bridge Checkpoints on Log-probability Benchmarks
@@ -72,30 +54,7 @@ To evaluate Megatron Bridge checkpoints on benchmarks that require log-probabili
 
 For evaluation, you must specify the path to the `tokenizer` and set the `tokenizer_backend` parameter as shown below. The `tokenizer` files are located within the `tokenizer` directory of the checkpoint.
 
-```python
-from nemo_evaluator.api import check_endpoint, evaluate
-from nemo_evaluator.api.api_dataclasses import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
-
-# Configure the evaluation target
-api_endpoint = ApiEndpoint(
-    url="http://0.0.0.0:8080/v1/completions/",
-    type="completions",
-    model_id="megatron_model",
-)
-eval_target = EvaluationTarget(api_endpoint=api_endpoint)
-eval_params = ConfigParams(top_p=0, temperature=0, limit_samples=1, parallelism=1,
-                            extra={
-                                "tokenizer": '/workspace/mbridge_llama3_8b/iter_0000000/tokenizer',
-                                "tokenizer_backend": "huggingface",
-                                },
-                            )
-eval_config = EvaluationConfig(type='arc_challenge', params=eval_params, output_dir="results")
-
-if __name__ == "__main__":
-    check_endpoint(
-            endpoint_url=eval_target.api_endpoint.url,
-            endpoint_type=eval_target.api_endpoint.type,
-            model_name=eval_target.api_endpoint.model_id,
-        )
-    evaluate(target_cfg=eval_target, eval_cfg=eval_config)
+```{literalinclude} _snippets/arc_challenge_mbridge.py
+:language: python
+:start-after: "## Run the evaluation"
 ```

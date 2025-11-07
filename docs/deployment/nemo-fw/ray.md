@@ -1,3 +1,4 @@
+(nemo-fw-ray)=
 # Use Ray Serve for Multi-Instance Evaluations
 
 This guide explains how to deploy and evaluate NeMo Framework models, trained with the Megatron-Core backend, using Ray Serve to enable multi-instance evaluation across available GPUs.
@@ -45,27 +46,9 @@ Once your model is deployed with Ray, you can run evaluations using the same eva
 
 To evaluate on generation benchmarks use the code snippet below:
 
-```python
-from nemo_evaluator.api import check_endpoint, evaluate
-from nemo_evaluator.api.api_dataclasses import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
-
-# Configure the evaluation target
-api_endpoint = ApiEndpoint(
-    url="http://0.0.0.0:8080/v1/completions/",
-    type="completions",
-    model_id="megatron_model",
-)
-eval_target = EvaluationTarget(api_endpoint=api_endpoint)
-eval_params = ConfigParams(top_p=0, temperature=0, limit_samples=2, parallelism=1)
-eval_config = EvaluationConfig(type='mmlu', params=eval_params, output_dir="results")
-
-if __name__ == "__main__":
-    check_endpoint(
-            endpoint_url=eval_target.api_endpoint.url,
-            endpoint_type=eval_target.api_endpoint.type,
-            model_name=eval_target.api_endpoint.model_id,
-        )
-    evaluate(target_cfg=eval_target, eval_cfg=eval_config)
+```{literalinclude} _snippets/mmlu.py
+:language: python
+:start-after: "## Run the evaluation"
 ```
 
 To evaluate the chat endpoint, update the url by replacing `/v1/completions/` with `/v1/chat/completions/`. Additionally, set the `type` field to `"chat"` in both `ApiEndpoint` and `EvaluationConfig` to indicate a chat benchmark.
@@ -78,16 +61,15 @@ To evaluate log-probability benchmarks (e.g., `arc_challenge`), run the followin
 Make sure to open a new terminal within the same container to execute it.
 
 
-```{literalinclude} ../../scripts/snippets/arc_challenge.py
+```{literalinclude} _snippets/arc_challenge.py
 :language: python
 :start-after: "## Run the evaluation"
-:linenos:
 ```
 
 Note that in the example above, you must provide a path to the tokenizer:
 
-```
-        "extra": {
+```python
+        extra={
             "tokenizer": "/workspace/llama3_8b_nemo2/context/nemo_tokenizer",
             "tokenizer_backend": "huggingface",
         },

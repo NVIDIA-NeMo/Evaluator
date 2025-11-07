@@ -21,15 +21,10 @@ It supports model parallelism across single-node and multi-node configurations, 
 The deployment scripts are available inside [`/opt/Export-Deploy/scripts/deploy/nlp/`](https://github.com/NVIDIA-NeMo/Export-Deploy/tree/main/scripts/deploy/nlp) directory.
 The example command below uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to NeMo format. To evaluate a checkpoint saved during [pretraining](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#pretraining) or [fine-tuning](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#fine-tuning), provide the path to the saved checkpoint using the `--nemo_checkpoint` flag in the command below.
 
-```shell
-python \
-  /opt/Export-Deploy/scripts/deploy/nlp/deploy_inframework_triton.py \
-  --nemo_checkpoint "/workspace/llama3_8b_nemo2" \
-  --triton_model_name "megatron_model" \
-  --server_port 8080 \
-  --num_gpus 1 \
-  --max_batch_size 4 \
-  --inference_max_seq_length 4096
+```{literalinclude} _snippets/deploy_pytriton.sh
+:language: bash
+:start-after: "# [snippet-start]"
+:end-before: "# [snippet-end]"
 ```
 
 When working with a larger model, you can use model parallelism to distribute the model across available devices.
@@ -62,27 +57,9 @@ Make sure to adjust the parameters to match your available resource and model ar
 The entry point for evaluation is the [`evaluate`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/core/evaluate.py) function. To run evaluations on the deployed model, use the following command. Make sure to open a new terminal within the same container to execute it. For longer evaluations, it is advisable to run both the deploy and evaluate commands in tmux sessions to prevent the processes from being terminated unexpectedly and aborting the runs.
 It is recommended to use [`check_endpoint`](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/core/utils.py) function to verify that the endpoint is responsive and ready to accept requests before starting the evaluation.
 
-```python
-from nemo_evaluator.api import check_endpoint, evaluate
-from nemo_evaluator.api.api_dataclasses import EvaluationConfig, ApiEndpoint, EvaluationTarget, ConfigParams
-
-# Configure the evaluation target
-api_endpoint = ApiEndpoint(
-    url="http://0.0.0.0:8080/v1/completions/",
-    type="completions",
-    model_id="megatron_model",
-)
-eval_target = EvaluationTarget(api_endpoint=api_endpoint)
-eval_params = ConfigParams(top_p=0, temperature=0, limit_samples=2, parallelism=1)
-eval_config = EvaluationConfig(type='mmlu', params=eval_params, output_dir="results")
-
-if __name__ == "__main__":
-    check_endpoint(
-            endpoint_url=eval_target.api_endpoint.url,
-            endpoint_type=eval_target.api_endpoint.type,
-            model_name=eval_target.api_endpoint.model_id,
-        )
-    evaluate(target_cfg=eval_target, eval_cfg=eval_config)
+```{literalinclude} _snippets/mmlu.py
+:language: python
+:start-after: "## Run the evaluation"
 ```
 
 To evaluate the chat endpoint, update the url by replacing `/v1/completions/` with `/v1/chat/completions/`. Additionally, set the `type` field to `"chat"` in both `ApiEndpoint` and `EvaluationConfig` to indicate a chat benchmark.
@@ -93,16 +70,15 @@ To evaluate log-probability benchmarks (e.g., `arc_challenge`), run the followin
 Make sure to open a new terminal within the same container to execute it.
 
 
-```{literalinclude} ../../scripts/snippets/arc_challenge.py
+```{literalinclude} _snippets/arc_challenge.py
 :language: python
 :start-after: "## Run the evaluation"
-:linenos:
 ```
 
 Note that in the example above, you must provide a path to the tokenizer:
 
-```
-        "extra": {
+```python
+        extra={
             "tokenizer": "/workspace/llama3_8b_nemo2/context/nemo_tokenizer",
             "tokenizer_backend": "huggingface",
         },
