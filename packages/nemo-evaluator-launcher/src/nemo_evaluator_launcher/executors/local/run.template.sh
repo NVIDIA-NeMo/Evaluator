@@ -47,7 +47,7 @@ else
     (
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.running"
         {% if task.deployment %}
-        docker run --rm --shm-size=100g --gpus all {{ extra_docker_args }} \
+        docker run --rm --shm-size=100g --gpus all {{ task.deployment.extra_docker_args }} \
         --name {{ task.deployment.container_name }} \
         -p {{ task.deployment.port }}:{{ task.deployment.port }} \
         {% for env_var in task.deployment.env_vars -%}
@@ -75,7 +75,8 @@ else
         date
 
         {% endif %}
-        docker run --rm --shm-size=100g --network host {{ extra_docker_args }} \
+        docker run --rm --shm-size=100g {{ extra_docker_args }} \
+        {% if task.deployment %}--network container:$SERVER_CONTAINER_NAME \{% endif %}
       --name {{ task.client_container_name }} \
       --volume "$artifacts_dir":/results \
       {% for env_var in task.env_vars -%}

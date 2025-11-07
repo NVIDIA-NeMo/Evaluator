@@ -101,6 +101,10 @@ class LocalExecutor(BaseExecutor):
 
         execution_mode = cfg.execution.get("mode", "parallel")
         if execution_mode == "parallel":
+            if cfg.deployment.type is not None:
+                raise ValueError(
+                    "Execution mode 'parallel' is not supported with deployment type 'none'. Use 'sequential' instead."
+                )
             is_execution_mode_sequential = False
         elif execution_mode == "sequential":
             is_execution_mode_sequential = True
@@ -152,8 +156,14 @@ class LocalExecutor(BaseExecutor):
                     deployment_env_vars.update(cfg.deployment["env_vars"])
 
                 command = cfg.deployment.command
-                if cfg.deployment.type == "vllm":
-                    command = command.replace("vllm serve", "--model")
+                deployment_extra_docker_args = cfg.execution.get(
+                    "extra_docker_args", ""
+                )
+                if (
+                    cfg.deployment.type == "vllm"
+                    and "--entrypoint" not in deployment_extra_docker_args
+                ):
+                    deployment_extra_docker_args += " --entrypoint ''"
 
                 deployment = {
                     "container_name": server_container_name,
@@ -163,6 +173,7 @@ class LocalExecutor(BaseExecutor):
                     "env_vars": [f"{k}={v}" for k, v in deployment_env_vars.items()],
                     "health_url": health_url,
                     "port": cfg.deployment.port,
+                    "extra_docker_args": deployment_extra_docker_args,
                 }
 
             # Create job ID as <invocation_id>.<n>
