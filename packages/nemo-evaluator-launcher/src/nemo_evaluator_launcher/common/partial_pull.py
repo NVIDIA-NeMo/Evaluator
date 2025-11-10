@@ -239,6 +239,210 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
             return None
 
 
+class NvcrRegistryAuthenticator(RegistryAuthenticator):
+    """NVIDIA Container Registry (nvcr.io) implementation using Docker Registry API v2."""
+
+    def __init__(self, registry_url: str, username: str, password: str):
+        """Initialize the authenticator.
+
+        Args:
+            registry_url: The registry URL (e.g., 'nvcr.io')
+            username: Registry username (typically '$oauthtoken' for API key auth)
+            password: Registry password or API key
+        """
+        self.registry_url = registry_url.rstrip("/")
+        self.username = username
+        self.password = password
+        self.bearer_token: Optional[str] = None
+        self.session = requests.Session()
+
+    def authenticate(self, repository: Optional[str] = None) -> bool:
+        """Authenticate with nvcr.io using Docker Registry API v2 Bearer token flow.
+
+        Args:
+            repository: Optional repository name for authentication scope.
+                If provided, will be used in the token request scope.
+
+        Returns:
+            True if authentication successful, False otherwise
+        """
+        try:
+            logger.debug(
+                "Authenticating with nvcr.io registry",
+                registry_url=self.registry_url,
+            )
+
+            # Docker Registry API v2 authentication flow
+            # Step 1: Try to access /v2/ endpoint to get authentication challenge
+            v2_url = f"https://{self.registry_url}/v2/"
+            logger.debug("Requesting authentication challenge", url=v2_url)
+
+            response = self.session.get(v2_url)
+
+            # If we get 200, no auth needed (public registry)
+            if response.status_code == 200:
+                logger.debug("Registry is public, no authentication needed")
+                return True
+
+            # If we get 401, parse WWW-Authenticate header
+            if response.status_code != 401:
+                logger.error(
+                    "Unexpected response from registry",
+                    status_code=response.status_code,
+                    response_preview=response.text[:200],
+                )
+                return False
+
+            www_authenticate = response.headers.get("WWW-Authenticate", "")
+            if not www_authenticate:
+                logger.error("No WWW-Authenticate header in 401 response")
+                return False
+
+            # Parse WWW-Authenticate header
+            # Format: Bearer realm="https://auth.example.com/token",service="registry.example.com",scope="repository:name:pull"
+            auth_params = {}
+            for part in www_authenticate.replace("Bearer ", "").split(","):
+                if "=" in part:
+                    key, value = part.split("=", 1)
+                    auth_params[key.strip()] = value.strip('"')
+
+            realm = auth_params.get("realm")
+            service = auth_params.get("service", "")
+            scope = auth_params.get("scope", "")
+
+            if not realm:
+                logger.error("No realm in WWW-Authenticate header")
+                return False
+
+            # Step 2: Request token from realm
+            token_url = realm
+            params = {"service": service}
+            if scope:
+                params["scope"] = scope
+            elif repository:
+                # Construct scope if not provided
+                params["scope"] = f"repository:{repository}:pull"
+
+            logger.debug("Requesting Bearer token", token_url=token_url, params=params)
+
+            token_response = self.session.get(
+                token_url,
+                params=params,
+                auth=(self.username, self.password),
+            )
+
+            if token_response.status_code != 200:
+                logger.error(
+                    "Token request failed",
+                    status_code=token_response.status_code,
+                    response_preview=token_response.text[:200],
+                )
+                return False
+
+            token_data = token_response.json()
+            self.bearer_token = token_data.get("token") or token_data.get("access_token")
+
+            if not self.bearer_token:
+                logger.error(
+                    "No token in response",
+                    response_keys=list(token_data.keys()),
+                )
+                return False
+
+            logger.debug(
+                "Authentication successful",
+                token_length=len(self.bearer_token) if self.bearer_token else 0,
+            )
+
+            # Set up session with bearer token
+            self.session.headers.update(
+                {
+                    "Authorization": f"Bearer {self.bearer_token}",
+                    "Accept": "application/vnd.docker.distribution.manifest.v2+json",
+                }
+            )
+
+            return True
+
+        except Exception as e:
+            logger.error("Authentication error", error=str(e), exc_info=True)
+            return False
+
+    def get_manifest(self, repository: str, reference: str) -> Optional[Dict]:
+        """Get the manifest for a specific image reference.
+
+        Args:
+            repository: The repository name
+            reference: The tag or digest
+
+        Returns:
+            The manifest as a dictionary, or None if failed
+        """
+        try:
+            url = f"https://{self.registry_url}/v2/{repository}/manifests/{reference}"
+            logger.debug("Fetching manifest", url=url)
+
+            response = self.session.get(url)
+
+            if response.status_code == 200:
+                manifest = response.json()
+                logger.debug(
+                    "Successfully retrieved manifest",
+                    schema_version=manifest.get("schemaVersion", "unknown"),
+                    media_type=manifest.get("mediaType", "unknown"),
+                    layers_count=len(manifest.get("layers", [])),
+                )
+                return manifest
+            else:
+                logger.error(
+                    "Failed to get manifest",
+                    status_code=response.status_code,
+                    response_preview=response.text[:200],
+                )
+                return None
+
+        except Exception as e:
+            logger.error("Error fetching manifest", error=str(e), exc_info=True)
+            return None
+
+    def get_blob(self, repository: str, digest: str) -> Optional[bytes]:
+        """Download a blob (layer) by its digest.
+
+        Args:
+            repository: The repository name
+            digest: The blob digest
+
+        Returns:
+            The blob content as bytes, or None if failed
+        """
+        try:
+            url = f"https://{self.registry_url}/v2/{repository}/blobs/{digest}"
+            logger.debug("Downloading blob", digest_preview=digest[:20])
+
+            response = self.session.get(url, stream=True)
+
+            if response.status_code == 200:
+                content = response.content
+                logger.debug("Downloaded blob", size_bytes=len(content))
+                return content
+            else:
+                logger.error(
+                    "Failed to download blob",
+                    status_code=response.status_code,
+                    digest_preview=digest[:20],
+                )
+                return None
+
+        except Exception as e:
+            logger.error(
+                "Error downloading blob",
+                error=str(e),
+                digest_preview=digest[:20],
+                exc_info=True,
+            )
+            return None
+
+
 class LayerInspector:
     """Utility class for inspecting Docker layers."""
 
