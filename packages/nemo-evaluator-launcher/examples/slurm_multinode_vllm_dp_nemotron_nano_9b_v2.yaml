@@ -104,6 +104,6 @@ evaluation:
           max_logged_requests: 10
 
   tasks:
-    - name: ns_aime2024 # Use the default benchmark configuration
+    - name: gsm8k_cot_instruct # Use the default benchmark configuration
 
 
