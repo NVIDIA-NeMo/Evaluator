@@ -14,12 +14,14 @@
 # limitations under the License.
 #
 import importlib
+import os
 import pathlib
 import sys
 from importlib import resources
 from typing import Any, Optional
 
 import requests
+import yaml
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -27,6 +29,11 @@ else:
     import tomli as tomllib
 
 from nemo_evaluator_launcher.common.logging_utils import logger
+from nemo_evaluator_launcher.common.partial_pull import (
+    GitlabRegistryAuthenticator,
+    NvcrRegistryAuthenticator,
+    find_file_in_image_layers,
+)
 
 # Configuration constants
 # For below, see docs: https://docs.github.com/en/rest/repos/contents
@@ -170,6 +177,275 @@ def _process_mapping(mapping_toml: dict) -> dict:
     return mapping
 
 
+def _parse_container_image(container_image: str) -> tuple[str, str, str, str]:
+    """Parse a container image string into registry type, registry URL, repository, and tag.
+
+    Args:
+        container_image: Container image string (e.g., "nvcr.io/nvidia/eval-factory/simple-evals:25.10")
+
+    Returns:
+        Tuple of (registry_type, registry_url, repository, tag)
+    """
+    # Split tag from image
+    if ":" in container_image:
+        image_part, tag = container_image.rsplit(":", 1)
+    else:
+        image_part = container_image
+        tag = "latest"
+
+    # Parse registry and repository
+    parts = image_part.split("/")
+    if len(parts) < 2:
+        raise ValueError(f"Invalid container image format: {container_image}")
+
+    # Check if first part is a registry (contains '.' or is 'localhost')
+    if "." in parts[0] or parts[0] == "localhost":
+        registry_host = parts[0]
+        # Determine registry type
+        if "gitlab" in registry_host.lower():
+            registry_type = "gitlab"
+        elif "nvcr.io" in registry_host:
+            registry_type = "nvcr"
+        else:
+            registry_type = "nvcr"  # Default to nvcr for other registries
+
+        # Check if registry has a port
+        if ":" in registry_host:
+            registry_url = registry_host
+        else:
+            registry_url = registry_host
+        repository = "/".join(parts[1:])
+    else:
+        # Default registry (Docker Hub)
+        registry_type = "nvcr"
+        registry_url = "registry-1.docker.io"
+        repository = image_part
+
+    return registry_type, registry_url, repository, tag
+
+
+def _extract_tasks_from_framework_yml(
+    framework_yml_content: str, harness_name: str, container: str
+) -> dict[tuple[str, str], dict]:
+    """Extract tasks from framework.yml content and return as mapping entries.
+
+    Args:
+        framework_yml_content: YAML content from framework.yml file
+        harness_name: Name of the harness
+        container: Container image string
+
+    Returns:
+        Dictionary mapping (harness_name, task_name) to task configuration
+    """
+    tasks = {}
+    try:
+        framework_data = yaml.safe_load(framework_yml_content)
+        if not framework_data or "evaluations" not in framework_data:
+            logger.warning(
+                "No evaluations found in framework.yml",
+                harness=harness_name,
+                container=container,
+            )
+            return tasks
+
+        evaluations = framework_data.get("evaluations", [])
+        for eval_config in evaluations:
+            task_name = eval_config.get("name")
+            description = eval_config.get("description", "")
+
+            if not task_name:
+                continue
+
+            # Extract endpoint types from the evaluation config
+            defaults = eval_config.get("defaults", {})
+            config = defaults.get("config", {})
+            supported_endpoint_types = config.get("supported_endpoint_types", ["chat"])
+
+            # Use first endpoint type (mapping key is (harness, task), so one entry per task)
+            endpoint_type = (
+                supported_endpoint_types[0] if supported_endpoint_types else "chat"
+            )
+
+            key = (harness_name, task_name)
+            # Only add if not already in mapping (don't override existing entries)
+            if key not in tasks:
+                tasks[key] = {
+                    "task": task_name,
+                    "harness": harness_name,
+                    "container": container,
+                    "endpoint_type": endpoint_type,
+                    "description": description,
+                }
+                # Merge any additional config from defaults
+                if defaults:
+                    tasks[key].update(defaults)
+
+        logger.info(
+            "Extracted tasks from framework.yml",
+            harness=harness_name,
+            container=container,
+            num_tasks=len(tasks),
+        )
+    except yaml.YAMLError as e:
+        logger.warning(
+            "Failed to parse framework.yml",
+            harness=harness_name,
+            container=container,
+            error=str(e),
+        )
+    except Exception as e:
+        logger.warning(
+            "Error extracting tasks from framework.yml",
+            harness=harness_name,
+            container=container,
+            error=str(e),
+        )
+
+    return tasks
+
+
+def _inspect_container_for_tasks(
+    container: str, harness_name: str
+) -> dict[tuple[str, str], dict]:
+    """Inspect a container image to extract tasks from framework.yml.
+
+    Args:
+        container: Container image string (original, may be replaced by PoC stub)
+        harness_name: Name of the harness
+
+    Returns:
+        Dictionary mapping (harness_name, task_name) to task configuration
+    """
+    try:
+        # PoC stub: Replace container with GitLab format
+        # Normalize harness name: convert underscores to hyphens for GitLab path
+        # TODO: Remove this PoC stub and use original container
+        normalized_harness = harness_name.replace("_", "-")
+        gitlab_container = f"gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/{normalized_harness}:dev-2025-11-10T13-29-9db0f7ca"
+        logger.info(
+            "PoC: Replacing container with GitLab format",
+            original_container=container,
+            gitlab_container=gitlab_container,
+            harness=harness_name,
+            normalized_harness=normalized_harness,
+        )
+        container = gitlab_container
+
+        # Parse container image
+        registry_type, registry_url, repository, tag = _parse_container_image(container)
+
+        # Construct docker_id for caching
+        docker_id = f"{registry_url}/{repository}:{tag}"
+        target_file = "/opt/metadata/framework.yml"
+
+        # Get credentials from environment
+        if registry_type == "gitlab":
+            username = os.getenv("DOCKER_USERNAME")
+            password = os.getenv("GITLAB_TOKEN")
+            if not username or not password:
+                logger.debug(
+                    "Skipping container inspection (missing GitLab credentials)",
+                    container=container,
+                )
+                return {}
+            authenticator = GitlabRegistryAuthenticator(
+                registry_url=registry_url,
+                username=username,
+                password=password,
+                repository=repository,
+            )
+        elif registry_type == "nvcr":
+            username = os.getenv("NVCR_USERNAME") or os.getenv("DOCKER_USERNAME")
+            password = os.getenv("NVCR_PASSWORD") or os.getenv("NVCR_API_KEY")
+            if not username or not password:
+                logger.debug(
+                    "Skipping container inspection (missing nvcr credentials)",
+                    container=container,
+                )
+                return {}
+            authenticator = NvcrRegistryAuthenticator(
+                registry_url=registry_url,
+                username=username,
+                password=password,
+            )
+        else:
+            logger.warning(
+                "Unknown registry type, skipping",
+                container=container,
+                registry_type=registry_type,
+            )
+            return {}
+
+        # Get framework.yml from container (authentication handled inside)
+        # Try the specified tag first, then fallback to "latest" if it fails
+        framework_yml_content = None
+
+        try:
+            framework_yml_content = find_file_in_image_layers(
+                authenticator=authenticator,
+                repository=repository,
+                reference=tag,
+                target_file=target_file,
+                max_layer_size=100 * 1024,  # 100KB
+                docker_id=docker_id,
+                use_cache=True,
+                check_invalidated_digest=False,  # Use fast cache path
+            )
+        except ValueError as e:
+            # Tag might not exist, try "latest" as fallback
+            if "Failed to get manifest" in str(e) and tag != "latest":
+                logger.debug(
+                    "Tag not found, trying 'latest' as fallback",
+                    original_tag=tag,
+                    container=container,
+                )
+                docker_id_latest = f"{registry_url}/{repository}:latest"
+                try:
+                    framework_yml_content = find_file_in_image_layers(
+                        authenticator=authenticator,
+                        repository=repository,
+                        reference="latest",
+                        target_file="/opt/metadata/framework.yml",
+                        max_layer_size=100 * 1024,  # 100KB
+                        docker_id=docker_id_latest,
+                        use_cache=True,
+                        check_invalidated_digest=False,  # Use fast cache path
+                    )
+                    # Update container to use latest tag for consistency
+                    container = f"{registry_url}/{repository}:latest"
+                except Exception as e2:
+                    logger.debug(
+                        "Failed to get framework.yml with 'latest' tag",
+                        container=container,
+                        error=str(e2),
+                    )
+            else:
+                # Re-raise if it's a different error
+                raise
+
+        if not framework_yml_content:
+            logger.debug(
+                "framework.yml not found in container",
+                container=container,
+                tag=tag,
+            )
+            return {}
+
+        # Extract tasks from framework.yml
+        return _extract_tasks_from_framework_yml(
+            framework_yml_content, harness_name, container
+        )
+
+    except Exception as e:
+        logger.warning(
+            "Failed to inspect container",
+            container=container,
+            harness=harness_name,
+            error=str(e),
+        )
+        return {}
+
+
 def load_tasks_mapping(
     latest: bool = False,
     mapping_toml: pathlib.Path | str | None = None,
@@ -181,10 +457,32 @@ def load_tasks_mapping(
     2. If latest==True -> fetch MAPPING_URL, save to cache, load it.
     3. If mapping_toml is not None -> load mapping from this path.
 
+    Docker container inspection can be enabled by setting the environment variable
+    NE_USE_DOCKER_INSPECT=1. When enabled, the function will inspect Docker containers
+    to extract additional tasks from framework.yml files.
+
+    Args:
+        latest: If True, fetch latest mapping from remote URL.
+        mapping_toml: Optional path to mapping TOML file.
+
     Returns:
         dict: Mapping of (harness_name, task_name) to dict holding their configuration.
 
     """
+    # Check environment variable for Docker inspection
+    use_docker_inspect = os.getenv("NE_USE_DOCKER_INSPECT", "").strip() in (
+        "1",
+        "true",
+        "yes",
+    )
+    if use_docker_inspect:
+        logger.info(
+            "Docker inspection enabled via NE_USE_DOCKER_INSPECT environment variable"
+        )
+    else:
+        logger.debug(
+            "Docker inspection disabled (set NE_USE_DOCKER_INSPECT=1 to enable)"
+        )
     local_mapping: dict = {}
     if latest:
         mapping_bytes = _download_latest_mapping()
@@ -227,6 +525,36 @@ def load_tasks_mapping(
         logger.debug("Internal package not available, using external mapping only")
     except Exception as e:
         logger.warning("Failed to load internal mapping", error=str(e))
+
+    # Inspect Docker containers if requested
+    if use_docker_inspect:
+        logger.info("Inspecting Docker containers for additional tasks")
+        # Collect unique containers per harness
+        harness_containers: dict[str, set[str]] = {}
+        for (harness_name, task_name), task_data in local_mapping.items():
+            container = task_data.get("container")
+            if container:
+                if harness_name not in harness_containers:
+                    harness_containers[harness_name] = set()
+                harness_containers[harness_name].add(container)
+
+        # Inspect each unique container
+        inspected_tasks = {}
+        for harness_name, containers in harness_containers.items():
+            for container in containers:
+                container_tasks = _inspect_container_for_tasks(container, harness_name)
+                # Only add tasks that don't already exist in mapping
+                for key, task_data in container_tasks.items():
+                    inspected_tasks[key] = task_data
+
+        if inspected_tasks:
+            logger.info(
+                "Added tasks from Docker inspection",
+                num_new_tasks=len(inspected_tasks),
+            )
+            local_mapping = inspected_tasks
+        else:
+            logger.debug("No new tasks found from Docker inspection")
 
     return local_mapping
 
