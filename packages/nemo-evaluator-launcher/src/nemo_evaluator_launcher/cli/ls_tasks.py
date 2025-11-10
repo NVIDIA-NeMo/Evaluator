@@ -37,7 +37,7 @@ class Cmd:
 
         # TODO(dfridman): modify `get_tasks_list` to return a list of dicts in the first place
         data = get_tasks_list()
-        headers = ["task", "endpoint_type", "harness", "container"]
+        headers = ["task", "endpoint_type", "harness", "container", "description", "type"]
         supported_benchmarks = []
         for task_data in data:
             assert len(task_data) == len(headers)
@@ -71,22 +71,32 @@ class Cmd:
                     print()  # Spacing between containers
 
                 # Prepare task table first to get column widths
-                task_headers = ["task", "endpoint_type"]
+                task_header = "task"
                 rows = []
                 for task in container_tasks:
-                    rows.append([task["task"], task["endpoint_type"]])
+                    task_name = task["task"]
+                    endpoint_type = task["endpoint_type"]
+                    task_type = task.get("type", "")
+                    description = task.get("description", "")
+                    # Format: task_name (endpoint_type, task_type) - first 30 chars...
+                    description_preview = description[:30] if description else ""
+                    if len(description) > 30:
+                        description_preview += "..."
+                    
+                    # Build the display name
+                    type_part = f"{endpoint_type}"
+                    if task_type:
+                        type_part += f", {task_type}"
+                    display_name = f"{task_name} ({type_part})"
+                    if description_preview:
+                        display_name = f"{display_name} - {description_preview}"
+                    rows.append(display_name)
 
                 # Sort tasks alphabetically for better readability
-                rows.sort(key=lambda x: x[0])
+                rows.sort()
 
-                # Calculate column widths with some padding
-                widths = [
-                    max(len(task_headers[i]), max(len(str(row[i])) for row in rows)) + 2
-                    for i in range(len(task_headers))
-                ]
-
-                # Calculate minimum table width based on task columns
-                min_table_width = sum(widths) + len(widths) + 1
+                # Calculate column width
+                max_task_width = max(len(task_header), max(len(str(row)) for row in rows)) + 2
 
                 # Calculate required width for header content
                 harness_line = f"harness: {harness}"
@@ -96,36 +106,21 @@ class Cmd:
                 )  # +4 for "| " and " |"
 
                 # Use the larger of the two widths
-                table_width = max(min_table_width, header_content_width)
+                table_width = max(max_task_width, header_content_width)
 
                 # Print combined header with harness and container info
                 print("=" * table_width)
                 print(f"{harness_line}")
                 print(f"{container_line}")
 
-                # Adjust column widths to fill the full table width
-                available_width = table_width
-                # Give more space to the first column (task names can be long)
-                adjusted_widths = [
-                    max(
-                        widths[0], available_width * 2 // 3
-                    ),  # 2/3 of available width for task
-                    0,  # Will be calculated as remainder
-                ]
-                adjusted_widths[1] = (
-                    available_width - adjusted_widths[0]
-                )  # Remainder for endpoint_type
-
                 # Print task table header separator
                 print(" " * table_width)
-                header_row = f"{task_headers[0]:<{adjusted_widths[0]}}{task_headers[1]:<{adjusted_widths[1]}}"
-                print(header_row)
+                print(f"{task_header:<{table_width}}")
                 print("-" * table_width)
 
                 # Print task rows
                 for row in rows:
-                    data_row = f"{str(row[0]):<{adjusted_widths[0]}}{str(row[1]):<{adjusted_widths[1]}}"
-                    print(data_row)
+                    print(f"{str(row):<{table_width}}")
 
                 print("-" * table_width)
                 # Show task count
