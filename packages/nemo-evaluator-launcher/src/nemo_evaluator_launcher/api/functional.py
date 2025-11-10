@@ -35,6 +35,9 @@ from nemo_evaluator_launcher.exporters import create_exporter
 def get_tasks_list() -> list[list[Any]]:
     """Get a list of available tasks from the mapping.
 
+    Docker container inspection can be enabled by setting the environment variable
+    NE_USE_DOCKER_INSPECT=1.
+
     Returns:
         list[list[Any]]: Each sublist contains task name, endpoint type, harness, and container.
     """

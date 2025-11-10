@@ -731,8 +731,12 @@ def find_file_in_image_layers(
     to find the most recent version of the file. Results can be cached for faster
     subsequent lookups.
 
+    Authentication is handled internally - the authenticator will be authenticated
+    only if needed (cache miss or digest validation). Cache is checked first to
+    avoid unnecessary authentication.
+
     Args:
-        authenticator: Authenticated registry authenticator instance
+        authenticator: Registry authenticator instance (will be authenticated if needed)
         repository: The repository name (e.g., 'agronskiy/idea/poc-for-partial-pull')
         reference: The tag or digest (e.g., 'latest')
         target_file: The file path to find (e.g., '/app/metadata.json')
@@ -765,6 +769,12 @@ def find_file_in_image_layers(
                 stored_digest=stored_digest,
             )
             return cached_result
+
+    # Cache miss or digest validation needed - authenticate and fetch manifest
+    # Authenticate only if not already authenticated (check if bearer_token is set)
+    if not getattr(authenticator, "bearer_token", None):
+        if not authenticator.authenticate(repository=repository):
+            raise ValueError(f"Failed to authenticate for {repository}:{reference}")
 
     # Get manifest (required for digest validation or if cache miss)
     manifest = authenticator.get_manifest(repository, reference)
