@@ -26,6 +26,7 @@ from nemo_evaluator_launcher.common.partial_pull import (
     NvcrRegistryAuthenticator,
     RegistryAuthenticator,
     find_file_in_image_layers,
+    read_from_cache,
 )
 
 
@@ -84,7 +85,9 @@ def create_authenticator(
         username = os.getenv("DOCKER_USERNAME")
         password = os.getenv("GITLAB_TOKEN")
         if not username or not password:
-            print("❌ Please set DOCKER_USERNAME and GITLAB_TOKEN environment variables")
+            print(
+                "❌ Please set DOCKER_USERNAME and GITLAB_TOKEN environment variables"
+            )
             print("Example:")
             print("  export DOCKER_USERNAME='gitlab-ci-token'")
             print("  export GITLAB_TOKEN='your_gitlab_token'")
@@ -99,7 +102,9 @@ def create_authenticator(
         username = os.getenv("NVCR_USERNAME") or os.getenv("DOCKER_USERNAME")
         password = os.getenv("NVCR_PASSWORD") or os.getenv("NVCR_API_KEY")
         if not username or not password:
-            print("❌ Please set NVCR_USERNAME and NVCR_PASSWORD (or NVCR_API_KEY) environment variables")
+            print(
+                "❌ Please set NVCR_USERNAME and NVCR_PASSWORD (or NVCR_API_KEY) environment variables"
+            )
             print("Example:")
             print("  export NVCR_USERNAME='$oauthtoken'")
             print("  export NVCR_API_KEY='your_nvcr_api_key'")
@@ -120,17 +125,27 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # GitLab registry (default)
+  # GitLab registry (default, with caching, fast path - no network call if cached)
   %(prog)s --harness simple-evals --target-file /opt/metadata/framework.yml
 
   # nvcr.io registry
   %(prog)s --registry nvcr --container nvcr.io/nvidia/eval-factory/simple-evals:25.10 --target-file /opt/metadata/framework.yml
 
+  # Validate digest and re-search if changed (slower but ensures freshness)
+  %(prog)s --harness simple-evals --target-file /opt/metadata/framework.yml --check-invalidated-digest
+
   # Override max layer size (100MB)
   %(prog)s --harness simple-evals --target-file /opt/metadata/framework.yml --max-layer-size 104857600
 
+  # Disable caching
+  %(prog)s --harness simple-evals --target-file /opt/metadata/framework.yml --no-cache
+
   # Override tag
   %(prog)s --harness simple-evals --target-file /opt/metadata/framework.yml --tag custom-tag
+
+Note: Results are cached in ~/.nemo-evaluator/docker-meta/ by default.
+      By default, cached results are returned immediately without network calls.
+      Use --check-invalidated-digest to validate freshness.
         """,
     )
     parser.add_argument(
@@ -170,6 +185,17 @@ Examples:
         help="Image tag for GitLab registry (default: dev-2025-11-10T10-21-8021b046). "
         "Ignored if --container is provided.",
     )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Disable caching of results",
+    )
+    parser.add_argument(
+        "--check-invalidated-digest",
+        action="store_true",
+        help="Check if cached digest has changed. If True, validates digest and re-searches if changed. "
+        "If False (default), returns cached result immediately without network calls.",
+    )
 
     args = parser.parse_args()
 
@@ -195,26 +221,57 @@ Examples:
         elif args.harness:
             # Use GitLab default format
             registry_url = "gitlab-master.nvidia.com:5005"
-            repository = f"dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/{args.harness}"
+            repository = (
+                f"dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/{args.harness}"
+            )
             tag = args.tag
         else:
-            print("❌ Please provide either --harness or --container for GitLab registry")
+            print(
+                "❌ Please provide either --harness or --container for GitLab registry"
+            )
             parser.print_help()
             sys.exit(1)
 
     target_file = args.target_file
     max_layer_size = args.max_layer_size
+    use_cache = not args.no_cache
+
+    # Construct docker_id for caching (format: registry/repository:tag)
+    docker_id = f"{registry_url}/{repository}:{tag}"
 
     print("🔍 Docker Registry Partial Pull Test")
     print(f"  Registry type: {args.registry}")
     print(f"  Registry: {registry_url}")
     print(f"  Repository: {repository}")
     print(f"  Tag: {tag}")
+    print(f"  Docker ID: {docker_id}")
     print(f"  Target file: {target_file}")
+    print(f"  Cache: {'enabled' if use_cache else 'disabled'}")
+    if use_cache:
+        print(f"  Check invalidated digest: {args.check_invalidated_digest}")
     print(
         f"  Max layer size: {max_layer_size} bytes ({max_layer_size / (1024 * 1024):.2f} MB)"
     )
     print()
+
+    # Fast path: Check cache first if not validating digest
+    if docker_id and use_cache and not args.check_invalidated_digest:
+        cached_result, stored_digest = read_from_cache(docker_id, target_file)
+        if cached_result is not None:
+            print(f"✅ Found {target_file} in cache!")
+            print("📄 File content:")
+            print(cached_result)
+            print()
+
+            # Try to parse as JSON/YAML
+            try:
+                metadata = json.loads(cached_result)
+                print("📋 Parsed JSON:")
+                print(json.dumps(metadata, indent=2))
+            except json.JSONDecodeError:
+                # Not JSON, might be YAML or plain text
+                print("📋 File content (not JSON)")
+            return
 
     # Create authenticator
     auth = create_authenticator(args.registry, registry_url, repository)
@@ -236,11 +293,14 @@ Examples:
             reference=tag,
             target_file=target_file,
             max_layer_size=max_layer_size,
+            docker_id=docker_id,
+            use_cache=use_cache,
+            check_invalidated_digest=args.check_invalidated_digest,
         )
 
         if file_content:
             print(f"✅ Found {target_file}!")
-            print(f"📄 File content:")
+            print("📄 File content:")
             print(file_content)
             print()
 
