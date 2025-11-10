@@ -1,0 +1,415 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+"""Utilities for partial Docker image pulls to find specific files in layers.
+
+This module provides functionality to search for files in Docker image layers
+without pulling the entire image. It supports searching through layers filtered
+by size and extracting specific files from layer tar archives.
+"""
+
+import tarfile
+import tempfile
+from abc import ABC, abstractmethod
+from typing import Dict, Optional
+
+import requests
+
+from nemo_evaluator_launcher.common.logging_utils import logger
+
+
+class RegistryAuthenticator(ABC):
+    """Abstract base class for Docker registry authentication and operations."""
+
+    @abstractmethod
+    def authenticate(self, repository: Optional[str] = None) -> bool:
+        """Authenticate with the registry to obtain JWT token.
+
+        Args:
+            repository: Optional repository name for authentication scope.
+                Implementation-specific.
+
+        Returns:
+            True if authentication successful, False otherwise
+        """
+        pass
+
+    @abstractmethod
+    def get_manifest(self, repository: str, reference: str) -> Optional[Dict]:
+        """Get the manifest for a specific image reference.
+
+        Args:
+            repository: The repository name
+            reference: The tag or digest
+
+        Returns:
+            The manifest as a dictionary, or None if failed
+        """
+        pass
+
+    @abstractmethod
+    def get_blob(self, repository: str, digest: str) -> Optional[bytes]:
+        """Download a blob (layer) by its digest.
+
+        Args:
+            repository: The repository name
+            digest: The blob digest
+
+        Returns:
+            The blob content as bytes, or None if failed
+        """
+        pass
+
+
+class GitlabRegistryAuthenticator(RegistryAuthenticator):
+    """GitLab-specific implementation of Docker registry authentication flow."""
+
+    def __init__(self, registry_url: str, username: str, password: str, repository: Optional[str] = None):
+        """Initialize the authenticator.
+
+        Args:
+            registry_url: The registry URL (e.g., 'gitlab-master.nvidia.com:5005')
+            username: Registry username
+            password: Registry password or token
+            repository: Optional repository name for JWT scope. If not provided,
+                a default scope will be used. The repository should be in the format
+                'namespace/project' (e.g., 'agronskiy/idea/poc-for-partial-pull').
+        """
+        self.registry_url = registry_url.rstrip("/")
+        self.username = username
+        self.password = password
+        self.repository = repository
+        self.bearer_token: Optional[str] = None
+        self.session = requests.Session()
+
+    def authenticate(self, repository: Optional[str] = None) -> bool:
+        """Authenticate with GitLab registry using Bearer Token flow.
+
+        Args:
+            repository: Optional repository name for JWT scope. If provided, overrides
+                the repository set during initialization. The repository should be in
+                the format 'namespace/project' (e.g., 'agronskiy/idea/poc-for-partial-pull').
+
+        Returns:
+            True if authentication successful, False otherwise
+        """
+        try:
+            # Use provided repository or fall back to instance repository or default
+            repo_for_scope = repository or self.repository or f"{self.username}/idea/poc-for-partial-pull"
+            
+            logger.debug(
+                "Authenticating with GitLab registry",
+                registry_url=self.registry_url,
+                repository=repo_for_scope,
+            )
+
+            # GitLab-specific authentication flow
+            # Step 1: Get Bearer Token from GitLab JWT endpoint
+            # The JWT endpoint requires the repository scope
+            # Extract hostname from registry URL (remove port if present)
+            gitlab_host = self.registry_url.split(":")[0]
+            jwt_url = f"https://{gitlab_host}/jwt/auth?service=container_registry&scope=repository:{repo_for_scope}:pull"
+            logger.debug("Requesting Bearer token", jwt_url=jwt_url)
+
+            token_response = self.session.get(
+                jwt_url, auth=(self.username, self.password)
+            )
+
+            if token_response.status_code != 200:
+                logger.error(
+                    "Token request failed",
+                    status_code=token_response.status_code,
+                    response_preview=token_response.text[:200],
+                )
+                return False
+
+            token_data = token_response.json()
+            self.bearer_token = token_data.get("token")
+
+            if not self.bearer_token:
+                logger.error(
+                    "No token in response",
+                    response_keys=list(token_data.keys()),
+                )
+                return False
+
+            logger.debug(
+                "Authentication successful",
+                token_length=len(self.bearer_token) if self.bearer_token else 0,
+            )
+
+            # Set up session with bearer token
+            self.session.headers.update(
+                {
+                    "Authorization": f"Bearer {self.bearer_token}",
+                    "Accept": "application/vnd.docker.distribution.manifest.v2+json",
+                }
+            )
+
+            return True
+
+        except Exception as e:
+            logger.error("Authentication error", error=str(e), exc_info=True)
+            return False
+
+    def get_manifest(self, repository: str, reference: str) -> Optional[Dict]:
+        """Get the manifest for a specific image reference.
+
+        Args:
+            repository: The repository name
+            reference: The tag or digest
+
+        Returns:
+            The manifest as a dictionary, or None if failed
+        """
+        try:
+            url = f"https://{self.registry_url}/v2/{repository}/manifests/{reference}"
+            logger.debug("Fetching manifest", url=url)
+
+            response = self.session.get(url)
+
+            if response.status_code == 200:
+                manifest = response.json()
+                logger.debug(
+                    "Successfully retrieved manifest",
+                    schema_version=manifest.get("schemaVersion", "unknown"),
+                    media_type=manifest.get("mediaType", "unknown"),
+                    layers_count=len(manifest.get("layers", [])),
+                )
+                return manifest
+            else:
+                logger.error(
+                    "Failed to get manifest",
+                    status_code=response.status_code,
+                    response_preview=response.text[:200],
+                )
+                return None
+
+        except Exception as e:
+            logger.error("Error fetching manifest", error=str(e), exc_info=True)
+            return None
+
+    def get_blob(self, repository: str, digest: str) -> Optional[bytes]:
+        """Download a blob (layer) by its digest.
+
+        Args:
+            repository: The repository name
+            digest: The blob digest
+
+        Returns:
+            The blob content as bytes, or None if failed
+        """
+        try:
+            url = f"https://{self.registry_url}/v2/{repository}/blobs/{digest}"
+            logger.debug("Downloading blob", digest_preview=digest[:20])
+
+            response = self.session.get(url, stream=True)
+
+            if response.status_code == 200:
+                content = response.content
+                logger.debug("Downloaded blob", size_bytes=len(content))
+                return content
+            else:
+                logger.error(
+                    "Failed to download blob",
+                    status_code=response.status_code,
+                    digest_preview=digest[:20],
+                )
+                return None
+
+        except Exception as e:
+            logger.error(
+                "Error downloading blob",
+                error=str(e),
+                digest_preview=digest[:20],
+                exc_info=True,
+            )
+            return None
+
+
+class LayerInspector:
+    """Utility class for inspecting Docker layers."""
+
+    @staticmethod
+    def extract_file_from_layer(
+        layer_content: bytes, target_file: str
+    ) -> Optional[str]:
+        """Extract a specific file from a layer tar archive.
+
+        Args:
+            layer_content: The layer content as bytes (tar.gz format)
+            target_file: The file path to extract
+
+        Returns:
+            The file content as string if found, None otherwise
+        """
+        try:
+            with tempfile.NamedTemporaryFile() as temp_file:
+                temp_file.write(layer_content)
+                temp_file.flush()
+
+                with tarfile.open(temp_file.name, "r:gz") as tar:
+                    logger.debug(
+                        "Searching for file in layer",
+                        target_file=target_file,
+                        files_in_layer=len(tar.getmembers()),
+                    )
+
+                    # Look for the file in the tar archive
+                    for member in tar.getmembers():
+                        if member.name.endswith(
+                            target_file
+                        ) or member.name == target_file.lstrip("/"):
+                            logger.debug("Found file in layer", file_path=member.name)
+                            file_obj = tar.extractfile(member)
+                            if file_obj:
+                                content = file_obj.read().decode("utf-8")
+                                logger.debug(
+                                    "Extracted file content",
+                                    file_path=member.name,
+                                    content_size_chars=len(content),
+                                )
+                                return content
+
+                    logger.debug(
+                        "File not found in layer",
+                        target_file=target_file,
+                        sample_files=[m.name for m in tar.getmembers()[:10]],
+                    )
+
+        except Exception as e:
+            logger.error(
+                "Error extracting file from layer",
+                error=str(e),
+                target_file=target_file,
+                exc_info=True,
+            )
+
+        return None
+
+
+def find_file_in_image_layers(
+    authenticator: RegistryAuthenticator,
+    repository: str,
+    reference: str,
+    target_file: str,
+    max_layer_size: Optional[int] = None,
+) -> Optional[str]:
+    """Find a file in Docker image layers without pulling the entire image.
+
+    This function searches through image layers (optionally filtered by size)
+    to find a specific file. Layers are checked in reverse order (last to first)
+    to find the most recent version of the file.
+
+    Args:
+        authenticator: Authenticated registry authenticator instance
+        repository: The repository name (e.g., 'agronskiy/idea/poc-for-partial-pull')
+        reference: The tag or digest (e.g., 'latest')
+        target_file: The file path to find (e.g., '/app/metadata.json')
+        max_layer_size: Optional maximum layer size in bytes. Only layers smaller
+            than this size will be checked. If None, all layers are checked.
+
+    Returns:
+        The file content as string if found, None otherwise
+
+    Raises:
+        ValueError: If authentication fails or manifest cannot be retrieved
+    """
+    # Get manifest
+    manifest = authenticator.get_manifest(repository, reference)
+    if not manifest:
+        raise ValueError(f"Failed to get manifest for {repository}:{reference}")
+
+    # Get layers from manifest
+    layers = manifest.get("layers", [])
+    logger.info(
+        "Searching for file in image layers",
+        repository=repository,
+        reference=reference,
+        target_file=target_file,
+        total_layers=len(layers),
+        max_layer_size=max_layer_size,
+    )
+
+    # Initialize layer inspector
+    inspector = LayerInspector()
+
+    # Check each layer for the target file (in reverse order)
+    # Reverse order ensures we get the most recent version of the file
+    for i, layer in enumerate(reversed(layers)):
+        original_index = len(layers) - 1 - i
+        layer_digest = layer.get("digest")
+        layer_size = layer.get("size", 0)
+
+        if not layer_digest:
+            logger.warning(
+                "Layer has no digest, skipping",
+                layer_index=original_index,
+            )
+            continue
+
+        # Filter by size if max_layer_size is specified
+        if max_layer_size is not None and layer_size >= max_layer_size:
+            logger.debug(
+                "Skipping layer (too large)",
+                layer_index=original_index,
+                layer_size=layer_size,
+                max_layer_size=max_layer_size,
+            )
+            continue
+
+        logger.debug(
+            "Checking layer",
+            layer_index=original_index,
+            reverse_index=i,
+            digest_preview=layer_digest[:20],
+            size=layer_size,
+            media_type=layer.get("mediaType", "unknown"),
+        )
+
+        # Download the layer
+        layer_content = authenticator.get_blob(repository, layer_digest)
+        if not layer_content:
+            logger.warning(
+                "Failed to download layer",
+                layer_index=original_index,
+                digest_preview=layer_digest[:20],
+            )
+            continue
+
+        # Extract the target file from this layer
+        file_content = inspector.extract_file_from_layer(layer_content, target_file)
+        if file_content:
+            logger.info(
+                "Found file in layer",
+                target_file=target_file,
+                layer_index=original_index,
+                digest_preview=layer_digest[:20],
+            )
+            return file_content
+        else:
+            logger.debug(
+                "File not found in layer",
+                target_file=target_file,
+                layer_index=original_index,
+            )
+
+    logger.warning(
+        "File not found in any layer",
+        target_file=target_file,
+        repository=repository,
+        reference=reference,
+    )
+    return None
