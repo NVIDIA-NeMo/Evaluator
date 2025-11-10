@@ -1,0 +1,26 @@
+global
+    log stdout format raw local0
+    maxconn 4096
+
+defaults
+    log     global
+    mode    http
+    option  httplog
+    timeout connect 10s
+    timeout client  100000s
+    timeout server  100000s
+
+frontend service_frontend
+    bind *:{{ haproxy_port }}
+    default_backend service_backend
+
+backend service_backend
+    mode http
+    option httpchk GET {{ health_check_path }}
+    http-check expect status {{ health_check_status }}
+    option http-server-close
+    balance leastconn
+{% for node in nodes %}
+    server node{{ loop.index }} {{ node.ip }}:{{ node.port }} check
+{% endfor %}
+

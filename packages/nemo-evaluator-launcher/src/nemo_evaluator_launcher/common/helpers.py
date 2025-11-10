@@ -287,7 +287,15 @@ def get_endpoint_url(
     else:
         # Local executor - use localhost
         endpoint_uri = cfg.deployment.endpoints[endpoint_type]
-        endpoint_url = f"http://127.0.0.1:{cfg.deployment.port}{endpoint_uri}"
+
+        # Use HAProxy port if multiple_instances is enabled
+        if cfg.deployment.get("multiple_instances", False):
+            proxy_config = cfg.execution.get("proxy", {}).get("config", {})
+            port = proxy_config.get("haproxy_port", 5009)
+        else:
+            port = cfg.deployment.port
+
+        endpoint_url = f"http://127.0.0.1:{port}{endpoint_uri}"
         return endpoint_url
 
 
