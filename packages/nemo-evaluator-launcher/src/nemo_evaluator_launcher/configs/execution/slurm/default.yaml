@@ -25,6 +25,11 @@ ntasks_per_node: 1
 gres: gpu:8
 walltime: 01:00:00
 subproject: nemo-evaluator-launcher
+
+# Deployment-specific SLURM configuration
+deployment:
+  n_tasks: 1             # Number of tasks for deployment srun (default: 1, for multi-instance set to num_nodes)
+
 env_vars:
   deployment: {}
   evaluation: {}
@@ -32,3 +37,11 @@ mounts:
   deployment: {}
   evaluation: {}
   mount_home: true
+
+proxy:
+  type: haproxy
+  image: haproxy:latest
+  config:
+    haproxy_port: 5009
+    health_check_path: /health
+    health_check_status: 200
