@@ -260,6 +260,7 @@ def _extract_tasks_from_framework_yml(
             defaults = eval_config.get("defaults", {})
             config = defaults.get("config", {})
             supported_endpoint_types = config.get("supported_endpoint_types", ["chat"])
+            task_type = config.get("type", "")  # Extract type from defaults.config.type
 
             # Use first endpoint type (mapping key is (harness, task), so one entry per task)
             endpoint_type = (
@@ -275,6 +276,7 @@ def _extract_tasks_from_framework_yml(
                     "container": container,
                     "endpoint_type": endpoint_type,
                     "description": description,
+                    "type": task_type,  # Store type from defaults.config.type
                 }
                 # Merge any additional config from defaults
                 if defaults:
