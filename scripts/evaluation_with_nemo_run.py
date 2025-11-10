@@ -328,7 +328,7 @@ def main():
         raise ValueError(f"Invalid serving backend: {args.serving_backend}")
 
     print(deploy_script)
-
+    # [snippet-config-start]
     api_endpoint = run.Config(
         ApiEndpoint,
         url=f"http://{args.server_address}:{args.server_port}/v1/{ENDPOINT_TYPES[args.endpoint_type]}",
