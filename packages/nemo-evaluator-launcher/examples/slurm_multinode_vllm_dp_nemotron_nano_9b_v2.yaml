@@ -1,0 +1,109 @@
+#
+# Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ==============================================================================
+# Multi-Node SLURM Deployment: NVIDIA Nemotron Nano 9B v2
+# ==============================================================================
+# This configuration demonstrates how to run evaluations with NVIDIA Nemotron
+# Nano 9B v2 deployed across multiple SLURM nodes using vLLM's native data
+# parallelism for maximum throughput (no Ray dependency).
+#
+# How to use: Copy this file locally into a directory, say `examples`, and run:
+#   nemo-evaluator run --config-dir examples --config-name slurm_multinode_vllm_dp_nemotron_nano_9b_v2
+#
+# Model Details:
+# - Model: nvidia/NVIDIA-Nemotron-Nano-9B-v2 (9B parameters)
+# - Hardware: 2 nodes with 8xH100 GPUs each (16 H100 GPUs total)
+# - Strategy: Data parallelism (model fits on 1 GPU, replicate across all GPUs)
+# - tensor_parallel_size: 1 (model fits entirely on single GPU)
+# - data_parallel_size: 16 (16 independent model replicas for max throughput)
+# - data_parallel_size_local: 8 (8 replicas per node)
+#
+# vLLM Data Parallelism Configuration:
+# - Node 0 (HEAD): Serves API on port 8000, manages ranks 0-7
+# - Node 1 (WORKER): Runs headless, manages ranks 8-15
+# - All nodes communicate via data-parallel-rpc-port (13345)
+# - execution.num_nodes: Number of SLURM nodes to allocate (2 in this example)
+# - execution.deployment.n_tasks: Must match num_nodes for multi-instance deployment
+#
+# Required Setup:
+# - Update execution.hostname, execution.account, and execution.output_dir
+# - Provide HF_TOKEN for accessing the gated model
+# ==============================================================================
+
+defaults:
+  - execution: slurm/default
+  - deployment: vllm
+  - _self_
+
+# Override default execution arguments
+execution:
+  type: slurm # Executor type (required)
+  hostname: ??? # SLURM headnode (login) hostname (required)
+  username: ${oc.env:USER} # Cluster username; defaults to $USER
+  account: ??? # SLURM account allocation (required)
+  output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
+  num_nodes: 2 # Number of SLURM nodes for multi-node deployment
+  walltime: 01:00:00
+  # partition: backfill
+  
+  deployment:
+    n_tasks: ${execution.num_nodes}  # For multi-node vLLM deployment, must match num_nodes
+  
+  env_vars:
+    deployment: {}
+    evaluation: {}
+  
+  mounts:
+    deployment: {} # Mount points for deployment container (source:target format)
+    evaluation: {} # Mount points for evaluation container (source:target format)
+    mount_home: false # Whether to mount home directory (default: true)
+
+# Override default deployment arguments
+# Note: This uses vLLM's native data parallelism (no Ray required)
+deployment:
+  checkpoint_path: null
+  hf_model_handle: nvidia/NVIDIA-Nemotron-Nano-9B-v2
+  served_model_name: nvidia/NVIDIA-Nemotron-Nano-9B-v2
+  tensor_parallel_size: 1  # Model fits on single GPU, no need for TP
+  pipeline_parallel_size: 1  # No pipeline parallelism needed
+  data_parallel_size: 16  # Total: 2 nodes x 8 GPUs each = 16 replicas for max throughput
+  data_parallel_size_local: 8  # GPUs per node (each GPU serves independent requests)
+  port: 8000
+  extra_args: "--trust-remote-code"
+  command: >-
+    bash -c 'DP_RPC_PORT=13345 && if [ "$SLURM_PROCID" -eq 0 ]; then echo "=== Starting vLLM HEAD Node (Rank 0-7) ===" && vllm serve ${deployment.hf_model_handle} --data-parallel-size ${deployment.data_parallel_size} --data-parallel-size-local ${deployment.data_parallel_size_local} --data-parallel-address $MASTER_IP --data-parallel-rpc-port $DP_RPC_PORT --port ${deployment.port} --served-model-name ${deployment.served_model_name} ${deployment.extra_args}; else echo "=== Starting vLLM WORKER Node (Rank 8-15) ===" && vllm serve ${deployment.hf_model_handle} --headless --data-parallel-size ${deployment.data_parallel_size} --data-parallel-size-local ${deployment.data_parallel_size_local} --data-parallel-start-rank ${deployment.data_parallel_size_local} --data-parallel-address $MASTER_IP --data-parallel-rpc-port $DP_RPC_PORT ${deployment.extra_args}; fi'
+
+# Specify the benchmarks to evaluate
+evaluation:
+  nemo_evaluator_config: # Global config settings that apply to all tasks
+    config:
+      params:
+        parallelism: 512 # Number of parallel requests (higher for data parallel deployment)
+        temperature: 0.6 # Sampling temperature
+        top_p: 0.95 # Nucleus sampling parameter
+        max_tokens: 32768 # Maximum number of tokens to generate (32k)
+    target:
+      api_endpoint:
+        adapter_config:
+          use_response_logging: true
+          max_logged_responses: 10
+          use_request_logging: true
+          max_logged_requests: 10
+
+  tasks:
+    - name: ns_aime2024 # Use the default benchmark configuration
+
+
