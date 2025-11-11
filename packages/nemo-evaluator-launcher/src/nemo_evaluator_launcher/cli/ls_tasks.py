@@ -37,7 +37,14 @@ class Cmd:
 
         # TODO(dfridman): modify `get_tasks_list` to return a list of dicts in the first place
         data = get_tasks_list()
-        headers = ["task", "endpoint_type", "harness", "container", "description", "type"]
+        headers = [
+            "task",
+            "endpoint_type",
+            "harness",
+            "container",
+            "description",
+            "type",
+        ]
         supported_benchmarks = []
         for task_data in data:
             assert len(task_data) == len(headers)
@@ -82,7 +89,7 @@ class Cmd:
                     description_preview = description[:30] if description else ""
                     if len(description) > 30:
                         description_preview += "..."
-                    
+
                     # Build the display name
                     type_part = f"{endpoint_type}"
                     if task_type:
@@ -96,7 +103,9 @@ class Cmd:
                 rows.sort()
 
                 # Calculate column width
-                max_task_width = max(len(task_header), max(len(str(row)) for row in rows)) + 2
+                max_task_width = (
+                    max(len(task_header), max(len(str(row)) for row in rows)) + 2
+                )
 
                 # Calculate required width for header content
                 harness_line = f"harness: {harness}"
