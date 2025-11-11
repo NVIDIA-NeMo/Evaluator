@@ -352,6 +352,7 @@ Benchmark Catalog <evaluation/benchmarks>
 Tasks Not Explicitly Defined by FDF <evaluation/custom-task>
 Evaluation Techniques <evaluation/run-evals/index>
 Add Evaluation Packages to NeMo Framework <evaluation/nemo-fw-optional-package>
+Tasks Catalog <evaluation/tasks-catalog>
 :::
 
 <!-- TODO: Add these pages once ready:
