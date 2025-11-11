@@ -147,7 +147,7 @@ container = "nvcr.io/nvidia/eval-factory/mtbench:25.11"
 
 
 ###############################################################################
-# NOTE(agronskiy): checked parity
+# note(agronskiy): checked parity
 [ifbench]
 container = "nvcr.io/nvidia/eval-factory/ifbench:25.11"
 
@@ -295,7 +295,6 @@ required_env_vars = []
 
 ###############################################################################
 [vlmevalkit]
-container = "nvcr.io/nvidia/eval-factory/vlmevalkit:25.11"
 
 [vlmevalkit.tasks.vlm.ocrbench]
 required_env_vars = []
@@ -315,11 +314,10 @@ required_env_vars = ["OPENAI_CLIENT_ID", "OPENAI_CLIENT_SECRET"]
 container = "nvcr.io/nvidia/eval-factory/garak:25.11"
 
 [garak.tasks.chat.garak]
-required_env_vars = []
 
-###############################################################################
+
+[nemo_skills] ###############################################################################required_env_vars = []
 # NOTE(wprazuch): to verify if the tasks need any env var setting
-[nemo_skills]
 container = "nvcr.io/nvidia/eval-factory/nemo_skills:25.11"
 
 [nemo_skills.tasks.chat.ns_aime2024]
