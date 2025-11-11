@@ -368,6 +368,7 @@ Custom Task Configuration <evaluation/custom-tasks>
 
 About Model Evaluation <evaluation/index>
 Benchmark Catalog <evaluation/benchmarks>
+Tasks Catalog <evaluation/tasks-catalog>
 :::
 
 <!-- :::{toctree}
