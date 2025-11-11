@@ -1,6 +1,6 @@
 # NOTE(agronskiy): checked parity
 [lm-evaluation-harness]
-container = "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.10"
+container = "gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/lm-evaluation-harness:dev-2025-11-10T13-29-9db0f7ca"
 
 [lm-evaluation-harness.tasks.chat.ifeval]
 required_env_vars = []
@@ -124,7 +124,7 @@ required_env_vars = []
 ###############################################################################
 # NOTE(agronskiy): checked parity
 [mtbench]
-container = "nvcr.io/nvidia/eval-factory/mtbench:25.10"
+container = "gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/mtbench:dev-2025-11-10T13-29-9db0f7ca"
 
 [mtbench.tasks.chat.mtbench]
 
@@ -134,7 +134,7 @@ container = "nvcr.io/nvidia/eval-factory/mtbench:25.10"
 ###############################################################################
 # NOTE(agronskiy): checked parity
 [ifbench]
-container = "nvcr.io/nvidia/eval-factory/ifbench:25.10"
+container = "gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/ifbench:dev-2025-11-10T13-29-9db0f7ca"
 
 [ifbench.tasks.chat.ifbench]
 required_env_vars = []
@@ -142,7 +142,7 @@ required_env_vars = []
 
 ###############################################################################
 [simple_evals]
-container = "nvcr.io/nvidia/eval-factory/simple-evals:25.10"
+container = "gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca"
 
 [simple_evals.tasks.chat.gpqa_diamond]
 required_env_vars = ["HF_TOKEN"]
@@ -213,7 +213,7 @@ required_env_vars = []
 ###############################################################################
 # NOTE(agronskiy): checked parity
 [bigcode-evaluation-harness]
-container = "nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.10"
+container = "gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/bigcode-evaluation-harness:dev-2025-11-10T13-29-9db0f7ca"
 
 [bigcode-evaluation-harness.tasks.chat.mbpp]
 required_env_vars = []
@@ -231,7 +231,7 @@ required_env_vars = []
 
 ###############################################################################
 [livecodebench]
-container = "nvcr.io/nvidia/eval-factory/livecodebench:25.10"
+container = "gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-10T13-29-9db0f7ca"
 
 [livecodebench.tasks.chat.livecodebench_0724_0125]
 required_env_vars = []
@@ -242,7 +242,7 @@ required_env_vars = []
 
 ###############################################################################
 [scicode]
-container = "nvcr.io/nvidia/eval-factory/scicode:25.10"
+container = "gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/scicode:dev-2025-11-10T13-29-9db0f7ca"
 
 [scicode.tasks.chat.aa_scicode]
 required_env_vars = []
@@ -250,7 +250,7 @@ required_env_vars = []
 
 ###############################################################################
 [hle]
-container = "nvcr.io/nvidia/eval-factory/hle:25.10"
+container = "gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/hle:dev-2025-11-10T13-29-9db0f7ca"
 
 [hle.tasks.chat.hle]
 required_env_vars = ["HF_TOKEN", "OPENAI_CLIENT_ID", "OPENAI_CLIENT_SECRET"]
@@ -258,7 +258,7 @@ required_env_vars = ["HF_TOKEN", "OPENAI_CLIENT_ID", "OPENAI_CLIENT_SECRET"]
 
 ###############################################################################
 [bfcl]
-container = "nvcr.io/nvidia/eval-factory/bfcl:25.10"
+container = "gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/bfcl:dev-2025-11-10T13-29-9db0f7ca"
 
 [bfcl.tasks.chat.bfclv2_ast_prompting]
 required_env_vars = []
@@ -269,7 +269,7 @@ required_env_vars = []
 
 ###############################################################################
 [profbench]
-container = "nvcr.io/nvidia/eval-factory/profbench:25.10"
+container = "gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/profbench:dev-2025-11-10T13-29-9db0f7ca"
 
 [profbench.tasks.chat.llm_judge]
 required_env_vars = []
@@ -280,7 +280,7 @@ required_env_vars = []
 
 ###############################################################################
 [vlmevalkit]
-container = "nvcr.io/nvidia/eval-factory/vlmevalkit:25.10"
+container = "gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-vlm/vlmevalkit:dev-2025-11-10T13-29-9db0f7ca"
 
 [vlmevalkit.tasks.vlm.ocrbench]
 required_env_vars = []
@@ -297,40 +297,40 @@ required_env_vars = ["OPENAI_CLIENT_ID", "OPENAI_CLIENT_SECRET"]
 
 ###############################################################################
 [garak]
-container = "nvcr.io/nvidia/eval-factory/garak:25.10"
+container = "gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/garak:dev-2025-11-10T13-29-9db0f7ca"
 
 [garak.tasks.chat.garak]
 required_env_vars = []
 
 ###############################################################################
 # NOTE(wprazuch): to verify if the tasks need any env var setting
-[nemo_skills]
-container = "nvcr.io/nvidia/eval-factory/nemo_skills:25.10"
-
-[nemo_skills.tasks.chat.ns_aime2024]
-required_env_vars = ["JUDGE_API_KEY"]
-
-[nemo_skills.tasks.chat.ns_aime2025]
-required_env_vars = []
-
-[nemo_skills.tasks.chat.ns_bfcl_v3]
-required_env_vars = []
-
-[nemo_skills.tasks.chat.ns_gpqa]
-required_env_vars = ["HF_TOKEN"]
-
-[nemo_skills.tasks.chat.ns_hle]
-required_env_vars = []
-
-[nemo_skills.tasks.chat.ns_mmlu]
-required_env_vars = ["HF_TOKEN"]
-
-[nemo_skills.tasks.chat.ns_mmlu_pro]
-required_env_vars = ["HF_TOKEN"]
+# [nemo_skills]
+# container = "gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/nemo-skills:dev-2025-11-10T13-29-9db0f7ca"
+#
+# [nemo_skills.tasks.chat.ns_aime2024]
+# required_env_vars = ["JUDGE_API_KEY"]
+#
+# [nemo_skills.tasks.chat.ns_aime2025]
+# required_env_vars = []
+#
+# [nemo_skills.tasks.chat.ns_bfcl_v3]
+# required_env_vars = []
+#
+# [nemo_skills.tasks.chat.ns_gpqa]
+# required_env_vars = ["HF_TOKEN"]
+#
+# [nemo_skills.tasks.chat.ns_hle]
+# required_env_vars = []
+#
+# [nemo_skills.tasks.chat.ns_mmlu]
+# required_env_vars = ["HF_TOKEN"]
+#
+# [nemo_skills.tasks.chat.ns_mmlu_pro]
+# required_env_vars = ["HF_TOKEN"]
 
 ###############################################################################
 [safety-harness]
-container = "nvcr.io/nvidia/eval-factory/safety-harness:25.10"
+container = "gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/safety-harness:dev-2025-11-10T13-29-9db0f7ca"
 
 [safety-harness.tasks.chat.aegis_v2]
 required_env_vars = ["HF_TOKEN"]
@@ -339,7 +339,7 @@ required_env_vars = ["HF_TOKEN"]
 ###############################################################################
 # NOTE(agronskiy): checked parity
 [helm]
-container = "nvcr.io/nvidia/eval-factory/helm:25.10"
+container = "gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-10T13-29-9db0f7ca"
 
 [helm.tasks.chat.medcalc_bench]
 
@@ -375,6 +375,6 @@ container = "nvcr.io/nvidia/eval-factory/helm:25.10"
 ###############################################################################
 # NOTE(agronskiy): checked parity
 [tooltalk]
-container = "nvcr.io/nvidia/eval-factory/tooltalk:25.10"
+container = "gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/tooltalk:dev-2025-11-10T13-29-9db0f7ca"
 
 [tooltalk.tasks.chat.tooltalk]
