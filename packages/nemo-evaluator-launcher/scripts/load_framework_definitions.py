@@ -119,7 +119,9 @@ def create_authenticator(
             repository=repository,
         )
     elif registry_type == "nvcr":
-        username = os.getenv("NVCR_USERNAME") or os.getenv("DOCKER_USERNAME", "$oauthtoken")
+        username = os.getenv("NVCR_USERNAME") or os.getenv(
+            "DOCKER_USERNAME", "$oauthtoken"
+        )
         password = os.getenv("NVCR_PASSWORD") or os.getenv("NVCR_API_KEY")
         if not password:
             raise ValueError(
