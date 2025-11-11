@@ -1,0 +1,109 @@
+#
+# Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ==============================================================================
+# Multi-Node SLURM Deployment: DeepSeek-R1
+# ==============================================================================
+# This configuration demonstrates how to run evaluations with DeepSeek-R1
+# deployed across multiple SLURM nodes using Ray and vLLM with tensor
+# and pipeline parallelism.
+#
+# How to use: Copy this file locally into a directory, say `examples`, and run:
+#   nemo-evaluator run --config-dir examples --config-name slurm_multinode_vllm_ray_tp_dp_deepseek_r1
+#
+# Model Details:
+# - Model: deepseek-ai/DeepSeek-R1
+# - Hardware: 2 nodes with 8xH100 GPUs each (16 H100 GPUs total)
+# - tensor_parallel_size: 8 (within node parallelism)
+# - pipeline_parallel_size: 2 (across node parallelism)
+#
+# Multi-Instance Configuration:
+# - execution.num_nodes: Number of SLURM nodes to allocate (2 in this example)
+# - execution.deployment.n_tasks: Must match num_nodes for multi-instance deployment
+# - deployment.tensor_parallel_size: GPU parallelism within a single node
+# - deployment.pipeline_parallel_size: Model parallelism across multiple nodes
+#
+# Required Setup:
+# - Update execution.hostname, execution.account, and execution.output_dir
+# - Provide HF_TOKEN for accessing the gated model
+# - Custom deployment.command handles Ray cluster initialization automatically
+# ==============================================================================
+
+defaults:
+  - execution: slurm/default
+  - deployment: vllm
+  - _self_
+
+# Override default execution arguments
+execution:
+  type: slurm # Executor type (required)
+  hostname: ??? # SLURM headnode (login) hostname (required)
+  username: ${oc.env:USER} # Cluster username; defaults to $USER
+  account: ??? # SLURM account allocation (required)
+  output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
+  num_nodes: 2 # Number of SLURM nodes for multi-node deployment
+  walltime: 02:00:00
+  # partition: backfill
+  
+  deployment:
+    n_tasks: ${execution.num_nodes}  # For multi-node ray vLLM deployment, must match num_nodes
+  
+  env_vars:
+    deployment:
+      HF_TOKEN: "hf_your_token" # Needed to access deepseek-ai/DeepSeek-R1
+    evaluation: {} # Environment variables for evaluation container
+  
+  mounts:
+    deployment: {} # Mount points for deployment container (source:target format)
+    evaluation: {} # Mount points for evaluation container (source:target format)
+    mount_home: false # Whether to mount home directory (default: true)
+
+# Override default deployment arguments
+# Note: This uses a custom command for multi-node Ray cluster setup
+deployment:
+  checkpoint_path: null
+  hf_model_handle: deepseek-ai/DeepSeek-R1
+  served_model_name: deepseek-ai/DeepSeek-R1
+  tensor_parallel_size: 8
+  pipeline_parallel_size: 2
+  data_parallel_size: 1
+  port: 8000
+  extra_args: ""
+  command: >-
+    bash -c 'RAY_PORT=6379 && NODE_PORT=8266 && OBJ_PORT=8267 && if [ "$SLURM_PROCID" -eq 0 ]; then echo "Starting Ray HEAD on $(hostname)..." && ray start --head --port=$RAY_PORT --node-manager-port=$NODE_PORT --object-manager-port=$OBJ_PORT & echo "Waiting for Ray cluster to initialize..." && echo "=== Starting vLLM Deployment ===" && vllm serve ${deployment.hf_model_handle} --tensor-parallel-size=${deployment.tensor_parallel_size} --pipeline-parallel-size=${deployment.pipeline_parallel_size} --port ${deployment.port} --served-model-name ${deployment.served_model_name} ${deployment.extra_args}; else echo "Starting Ray WORKER on $(hostname)..." && echo "Connecting to $MASTER_IP:$RAY_PORT..." && ray start --address=$MASTER_IP:$RAY_PORT --node-manager-port=$NODE_PORT --object-manager-port=$OBJ_PORT --block; fi'
+
+# Specify the benchmarks to evaluate
+evaluation:
+  nemo_evaluator_config: # Global config settings that apply to all tasks
+    config:
+      params:
+        parallelism: 64 # Number of parallel requests
+        request_timeout: 3600 # Timeout for API requests in seconds
+        temperature: 0.6 # Sampling temperature
+        top_p: 0.95 # Nucleus sampling parameter
+        max_tokens: 32768 # Maximum number of tokens to generate (32k)
+
+    target:
+      api_endpoint:
+        adapter_config:
+          use_response_logging: true
+          max_logged_responses: 10
+          use_request_logging: true
+          max_logged_requests: 10
+
+  tasks:
+    - name: gsm8k_cot_instruct # Use the default benchmark configuration
+
+
