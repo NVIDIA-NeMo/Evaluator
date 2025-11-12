@@ -101,36 +101,19 @@ class AdapterConfig(BaseModel):
         description="Type of the endpoint to run the adapter for",
         default="chat",
     )
-    caching_dir: str | None = Field(
-        description="Directory for caching responses (legacy field)",
-        default=None,
-    )
-    generate_html_report: bool = Field(
-        description="Whether to generate HTML report (legacy field)",
-        default=True,
-    )
     log_failed_requests: bool = Field(
-        description="Whether to log failed requests (legacy field)",
+        description="Whether to log failed requests",
         default=False,
-    )
-    tracking_requests_stats: bool = Field(
-        description="Whether to enable request statistics tracking. When enabled, response statistics including token usage, status codes, finish reasons, tool calls, and latency metrics will be collected and added to eval_factory_metrics.json for comprehensive evaluation analysis.",
-        default=True,
-    )
-    html_report_size: int | None = Field(
-        description="Number of request-response pairs to track in HTML report. If this is larger than max_saved_responses or max_saved_requests, it will override those values.",
-        default=5,
     )
 
     @classmethod
     def get_legacy_defaults(cls) -> dict[str, Any]:
         """Get default values for legacy configuration parameters."""
         return {
-            "generate_html_report": cls.model_fields["generate_html_report"].default,
-            "html_report_size": cls.model_fields["html_report_size"].default,
-            "tracking_requests_stats": cls.model_fields[
-                "tracking_requests_stats"
-            ].default,
+            "generate_html_report": True,
+            "html_report_size": 5,
+            "tracking_requests_stats": True,
+            "caching_dir": None,
             "log_failed_requests": cls.model_fields["log_failed_requests"].default,
             "endpoint_type": cls.model_fields["endpoint_type"].default,
             # Boolean defaults for optional features
@@ -148,7 +131,6 @@ class AdapterConfig(BaseModel):
             "use_raise_client_errors": False,
             "include_json": True,
             "custom_system_prompt": None,
-            "caching_dir": None,
             "output_dir": None,
             "params_to_add": None,
             "params_to_remove": None,
@@ -628,11 +610,7 @@ class AdapterConfig(BaseModel):
             interceptors=interceptors,
             post_eval_hooks=post_eval_hooks,
             endpoint_type=legacy_config["endpoint_type"],
-            caching_dir=legacy_config["caching_dir"],
-            generate_html_report=legacy_config["generate_html_report"],
             log_failed_requests=legacy_config["log_failed_requests"],
-            tracking_requests_stats=legacy_config["tracking_requests_stats"],
-            html_report_size=legacy_config["html_report_size"],
         )
 
     def get_interceptor_configs(self) -> dict[str, dict[str, Any]]:

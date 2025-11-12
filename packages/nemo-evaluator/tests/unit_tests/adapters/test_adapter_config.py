@@ -32,8 +32,6 @@ def assert_default_config_with_interceptors(adapter_config):
     assert "caching" in interceptor_names
     assert "endpoint" in interceptor_names
     assert "response_stats" in interceptor_names
-    assert adapter_config.generate_html_report is True
-    assert adapter_config.html_report_size == 5
 
 
 def assert_interceptor_order(adapter_config, expected_order):
@@ -63,8 +61,6 @@ def test_get_validated_config_with_valid_config():
                         }
                     ],
                     "endpoint_type": "chat",
-                    "caching_dir": "/tmp/cache",
-                    "generate_html_report": True,
                 }
             }
         }
@@ -78,8 +74,6 @@ def test_get_validated_config_with_valid_config():
     assert adapter_config.interceptors[0].enabled is True
     assert adapter_config.interceptors[0].config == {"output_dir": "/tmp/logs"}
     assert adapter_config.endpoint_type == "chat"
-    assert adapter_config.caching_dir == "/tmp/cache"
-    assert adapter_config.generate_html_report is True
 
 
 def test_get_validated_config_with_discovery_config():
@@ -315,8 +309,6 @@ def test_from_legacy_config():
     assert "response_logging" in interceptor_names
     assert "reasoning" in interceptor_names
     assert "progress_tracking" in interceptor_names
-    assert config.caching_dir == "/tmp/cache"
-    assert config.generate_html_report is True
 
     # Verify response_stats interceptor cache_dir is set correctly using _get_default_cache_dir
     response_stats_interceptor = next(
@@ -362,7 +354,6 @@ def test_from_legacy_config_with_html_report_size():
     assert (
         caching_interceptor.config["max_saved_responses"] == 15
     )  # Overridden by html_report_size
-    assert config.html_report_size == 15
 
     # Check that html_report_size is passed to the post_eval_report hook
     hook_configs = config.get_post_eval_hook_configs()
@@ -390,7 +381,6 @@ def test_from_legacy_config_with_html_report_size_smaller():
     # html_report_size should not override larger max_saved limits
     assert caching_interceptor.config["max_saved_requests"] == 20  # Not overridden
     assert caching_interceptor.config["max_saved_responses"] == 25  # Not overridden
-    assert config.html_report_size == 15
 
 
 @pytest.mark.parametrize(
@@ -410,7 +400,6 @@ def test_from_legacy_config_with_html_report_size_smaller():
                 "max_saved_responses": 25,
                 "save_requests": True,
                 "save_responses": True,
-                "html_report_size": 25,
             },
         ),
         (
@@ -428,7 +417,6 @@ def test_from_legacy_config_with_html_report_size_smaller():
                 "max_saved_responses": 30,
                 "save_requests": True,  # Always overridden by html_report_size
                 "save_responses": True,  # Always overridden by html_report_size
-                "html_report_size": 30,
             },
         ),
         (
@@ -448,7 +436,6 @@ def test_from_legacy_config_with_html_report_size_smaller():
                 "max_saved_responses": 25,  # Not overridden (html_report_size is smaller)
                 "save_requests": True,  # Preserved
                 "save_responses": True,  # Preserved
-                "html_report_size": 15,
             },
         ),
         (
@@ -468,7 +455,6 @@ def test_from_legacy_config_with_html_report_size_smaller():
                 "max_saved_responses": 30,  # Overridden by html_report_size
                 "save_requests": True,  # Preserved
                 "save_responses": True,  # Preserved
-                "html_report_size": 30,
             },
         ),
     ],
@@ -488,30 +474,21 @@ def test_from_legacy_config_html_report_size_behavior(
     # Find the caching interceptor
     caching_interceptor = next(ic for ic in config.interceptors if ic.name == "caching")
 
-    # Verify all expected configuration values
+    # Verify all expected configuration values in caching interceptor
     for key, expected_value in expected_config.items():
-        if key == "html_report_size":
-            # html_report_size is a top-level config attribute, not in interceptor config
-            assert config.html_report_size == expected_value
-        else:
-            # All other values are in the interceptor config
-            assert caching_interceptor.config[key] == expected_value, (
-                f"Failed for {key}"
-            )
+        assert caching_interceptor.config[key] == expected_value, f"Failed for {key}"
 
-    # Additional checks for specific scenarios
+    # Verify html_report_size is passed to post_eval_report hook
     if (
         "generate_html_report" in legacy_config
         and legacy_config["generate_html_report"]
     ):
-        # Check that html_report_size is passed to the post_eval_report hook
         hook_configs = config.get_post_eval_hook_configs()
         assert "post_eval_report" in hook_configs
-        if "html_report_size" in expected_config:
-            assert (
-                hook_configs["post_eval_report"]["html_report_size"]
-                == expected_config["html_report_size"]
-            )
+        expected_html_size = legacy_config.get("html_report_size", 5)
+        assert (
+            hook_configs["post_eval_report"]["html_report_size"] == expected_html_size
+        ), f"Expected html_report_size={expected_html_size} in post_eval_report hook"
 
 
 @pytest.mark.parametrize(
@@ -1325,57 +1302,6 @@ def test_caching_interceptor_activation_and_config(
 
 
 @pytest.mark.parametrize(
-    "legacy_config,expected_adapter_config_values",
-    [
-        # Test default values in AdapterConfig
-        (
-            {},
-            {
-                "generate_html_report": True,
-                "html_report_size": 5,
-            },
-        ),
-        # Test with explicit values
-        (
-            {
-                "generate_html_report": False,
-                "html_report_size": 10,
-            },
-            {
-                "generate_html_report": False,
-                "html_report_size": 10,
-            },
-        ),
-        # Test with explicit True values (None values cause Pydantic validation errors)
-        (
-            {
-                "generate_html_report": True,
-                "html_report_size": 5,
-            },
-            {
-                "generate_html_report": True,  # Explicit
-                "html_report_size": 5,  # Explicit
-            },
-        ),
-    ],
-    ids=[
-        "default_values",
-        "explicit_values",
-        "explicit_true_values",
-    ],
-)
-def test_adapter_config_defaults(legacy_config, expected_adapter_config_values):
-    """Test that AdapterConfig uses correct default values."""
-    config = AdapterConfig.from_legacy_config(legacy_config)
-
-    for key, expected_value in expected_adapter_config_values.items():
-        actual_value = getattr(config, key)
-        assert actual_value == expected_value, (
-            f"Failed for {key}: expected {expected_value}, got {actual_value}"
-        )
-
-
-@pytest.mark.parametrize(
     "legacy_config,expected_config",
     [
         # Test default behavior (HTML report enabled, caching enabled)
@@ -1694,12 +1620,14 @@ def test_caching_interceptor_behavior_flags(legacy_config, expected_behavior_fla
 
 
 @pytest.mark.parametrize(
-    "cfg_key,cfg_val,legacy_params",
+    "cfg_key,cfg_val,should_fail,expected_fields",
     [
+        # Cases that should FAIL - legacy params with interceptors
         (
             "target.api_endpoint.adapter_config",
             {"interceptors": ["endpoint"], "use_caching": True},
-            ["use_caching"],
+            True,
+            {},
         ),
         (
             "target.api_endpoint.adapter_config",
@@ -1708,39 +1636,71 @@ def test_caching_interceptor_behavior_flags(legacy_config, expected_behavior_fla
                 "use_caching": True,
                 "use_request_logging": True,
             },
-            ["use_caching", "use_request_logging"],
+            True,
+            {},
         ),
         (
             "global_adapter_config",
             {"interceptors": ["caching"], "use_nvcf": True},
-            ["use_nvcf"],
+            True,
+            {},
+        ),
+        # Cases that should NOT FAIL - only interceptors or with valid model fields
+        (
+            "target.api_endpoint.adapter_config",
+            {"interceptors": ["endpoint"]},
+            False,
+            {},
+        ),
+        (
+            "target.api_endpoint.adapter_config",
+            {"interceptors": ["endpoint"], "log_failed_requests": True},
+            False,
+            {"log_failed_requests": True},
+        ),
+        (
+            "target.api_endpoint.adapter_config",
+            {"interceptors": ["endpoint"], "endpoint_type": "completions"},
+            False,
+            {"endpoint_type": "completions"},
+        ),
+        (
+            "target.api_endpoint.adapter_config",
+            {
+                "interceptors": ["endpoint"],
+                "log_failed_requests": True,
+                "endpoint_type": "completions",
+            },
+            False,
+            {"log_failed_requests": True, "endpoint_type": "completions"},
+        ),
+        # No interceptors - should use legacy conversion
+        (
+            "target.api_endpoint.adapter_config",
+            {"log_failed_requests": True},
+            False,
+            {"log_failed_requests": True},
         ),
     ],
 )
-def test_legacy_with_interceptors_fails(cfg_key, cfg_val, legacy_params):
-    """Test that mixing legacy parameters with interceptors raises error."""
+def test_legacy_with_interceptors_validation(
+    cfg_key, cfg_val, should_fail, expected_fields
+):
+    """Test validation of legacy parameters vs valid model fields with interceptors."""
     if cfg_key == "global_adapter_config":
         run_config = {cfg_key: cfg_val}
     else:
         run_config = {"target": {"api_endpoint": {"adapter_config": cfg_val}}}
 
-    with pytest.raises(ValueError, match="Cannot use legacy configuration parameters"):
-        AdapterConfig.get_validated_config(run_config)
-
-
-@pytest.mark.parametrize(
-    "cfg,has_interceptors",
-    [
-        (
-            {"use_caching": True, "use_request_logging": True},
-            ["caching", "request_logging"],
-        ),
-        ({"interceptors": ["endpoint"], "endpoint_type": "chat"}, ["endpoint"]),
-    ],
-)
-def test_valid_config_works(cfg, has_interceptors):
-    """Test valid configurations work without errors."""
-    config = AdapterConfig.get_validated_config(
-        {"target": {"api_endpoint": {"adapter_config": cfg}}}
-    )
-    assert all(ic in [i.name for i in config.interceptors] for ic in has_interceptors)
+    if should_fail:
+        with pytest.raises(
+            ValueError, match="Cannot use legacy configuration parameters"
+        ):
+            AdapterConfig.get_validated_config(run_config)
+    else:
+        # Should not raise error
+        config = AdapterConfig.get_validated_config(run_config)
+        assert config is not None
+        # Verify expected fields
+        for field, expected_value in expected_fields.items():
+            assert getattr(config, field) == expected_value
