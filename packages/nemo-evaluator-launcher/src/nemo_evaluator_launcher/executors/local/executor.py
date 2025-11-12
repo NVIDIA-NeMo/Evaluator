@@ -43,11 +43,12 @@ from nemo_evaluator_launcher.common.helpers import (
     get_eval_factory_dataset_size_from_run_config,
     get_timestamp_string,
 )
+from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.mapping import (
     get_task_from_mapping,
     load_tasks_mapping,
 )
-from nemo_evaluator_launcher.common.printing_utils import bold, cyan, grey
+from nemo_evaluator_launcher.common.printing_utils import bold, cyan, grey, red
 from nemo_evaluator_launcher.executors.base import (
     BaseExecutor,
     ExecutionState,
@@ -113,6 +114,8 @@ class LocalExecutor(BaseExecutor):
                 )
             )
 
+        # Will accumulate if any task contains unsafe commands.
+        is_potentially_unsafe = False
         for idx, task in enumerate(cfg.evaluation.tasks):
             task_definition = get_task_from_mapping(task.name, tasks_mapping)
 
@@ -166,6 +169,10 @@ class LocalExecutor(BaseExecutor):
             # TODO(agronskiy): cleaner way is to encode everything with base64, not
             # some parts (like ef_config.yaml) and just output as logs somewhere.
             eval_factory_command_debug_comment = eval_factory_command_struct.debug
+            is_potentially_unsafe = (
+                is_potentially_unsafe
+                or eval_factory_command_struct.is_potentially_unsafe
+            )
             evaluation_task = {
                 "name": task.name,
                 "job_id": job_id,
@@ -230,7 +237,33 @@ class LocalExecutor(BaseExecutor):
                     with open(task_output_dir / "run.sh", "r") as f:
                         print(grey(f.read()))
             print(bold("\nTo execute, run without --dry-run"))
+
+            if is_potentially_unsafe:
+                print(
+                    red(
+                        "\nFound `pre_cmd` which carries security risk. When running without --dry-run "
+                        "make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
+                    )
+                )
             return invocation_id
+
+        if is_potentially_unsafe:
+            if os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":
+                logger.warning(
+                    "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                    "is set, proceeding with caution."
+                )
+
+            else:
+                logger.error(
+                    "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                    "is not set. This might carry security risk and unstable environments. "
+                    "To continue, make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1.",
+                )
+                raise AttributeError(
+                    "Untrusted command found in config, make sure you trust and "
+                    "set NEMO_EVALUATOR_TRUST_PRE_CMD=1."
+                )
 
         # Save launched jobs metadata
         db = ExecutionDB()

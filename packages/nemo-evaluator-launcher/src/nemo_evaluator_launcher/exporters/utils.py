@@ -471,15 +471,12 @@ def _extract_metrics_from_results(results: dict) -> Dict[str, float]:
         section_data = results.get(section)
         if isinstance(section_data, dict):
             for task_name, task_data in section_data.items():
-                if isinstance(task_data, dict) and "metrics" in task_data:
-                    task_metrics = _extract_task_metrics(
-                        task_name, task_data["metrics"]
-                    )
-                    _safe_update_metrics(
-                        target=metrics,
-                        source=task_metrics,
-                        context=f" while extracting results for task '{task_name}'",
-                    )
+                task_metrics = _extract_task_metrics(task_name, task_data)
+                _safe_update_metrics(
+                    target=metrics,
+                    source=task_metrics,
+                    context=f" while extracting results for task '{task_name}'",
+                )
     return metrics
 
 
@@ -518,54 +515,43 @@ def _extract_from_json_files(artifacts_dir: Path) -> Dict[str, float]:
     return metrics
 
 
-def _extract_task_metrics(task_name: str, metrics_data: dict) -> Dict[str, float]:
+def _extract_task_metrics(task_name: str, task_data: dict) -> Dict[str, float]:
     """Extract metrics from a task's metrics data."""
     extracted = {}
-    score_patterns = [
-        "acc",
-        "accuracy",
-        "score",
-        "exact_match",
-        "f1",
-        "em",
-        "pass@1",
-        "pass@k",
-    ]
+
+    metrics_data = task_data.get("metrics", {})
+    if "groups" in task_data:
+        for group_name, group_data in task_data["groups"].items():
+            group_extracted = _extract_task_metrics(
+                f"{task_name}_{group_name}", group_data
+            )
+            _safe_update_metrics(
+                target=extracted,
+                source=group_extracted,
+                context=f" in task '{task_name}'",
+            )
 
     for metric_name, metric_data in metrics_data.items():
-        # Only extract score-like metrics
-        if not any(pattern in metric_name.lower() for pattern in score_patterns):
-            continue
-
         try:
-            if isinstance(metric_data, dict):
-                if "scores" in metric_data:
-                    # Handle nested scores (e.g., mmlu macro/micro)
-                    for score_type, score_data in metric_data["scores"].items():
-                        if isinstance(score_data, dict) and "value" in score_data:
-                            key = f"{task_name}_{metric_name}_{score_type}"
-                            _safe_set_metric(
-                                container=extracted,
-                                key=key,
-                                new_value=score_data["value"],
-                                context=f" in task '{task_name}'",
-                            )
-                elif "value" in metric_data:
+            for score_type, score_data in metric_data["scores"].items():
+                if score_type != metric_name:
+                    key = f"{task_name}_{metric_name}_{score_type}"
+                else:
                     key = f"{task_name}_{metric_name}"
-                    _safe_set_metric(
-                        container=extracted,
-                        key=key,
-                        new_value=metric_data["value"],
-                        context=f" in task '{task_name}'",
-                    )
-            elif isinstance(metric_data, (int, float)):
-                key = f"{task_name}_{metric_name}"
                 _safe_set_metric(
                     container=extracted,
                     key=key,
-                    new_value=metric_data,
+                    new_value=score_data["value"],
                     context=f" in task '{task_name}'",
                 )
+                for stat_name, stat_value in metric_data.get("stats", {}).items():
+                    stats_key = f"{key}_{stat_name}"
+                    _safe_set_metric(
+                        container=extracted,
+                        key=stats_key,
+                        new_value=stat_value,
+                        context=f" in task '{task_name}'",
+                    )
         except (ValueError, TypeError) as e:
             logger.warning(
                 f"Failed to extract metric {metric_name} for task {task_name}: {e}"
