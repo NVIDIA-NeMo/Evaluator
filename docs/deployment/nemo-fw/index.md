@@ -8,7 +8,7 @@ The NeMo Evaluator is integrated within NeMo Framework, offering streamlined dep
 ## Features
 
 - **Multi-Backend Deployment**: Supports PyTriton and multi-instance evaluations using the Ray Serve deployment backend
-- **Production-Ready**: Supports high-performance inference with CUDA graphs and flash decoding
+- **Production-Ready**: Supports high-performance inference with CUDA graphs and flash decoding for Megatron models, vLLM backend for Hugging Face models and TRTLLM engine for TRTLLM models
 - **Multi-GPU and Multi-Node Support**: Enables distributed inference across multiple GPUs and compute nodes
 - **OpenAI-Compatible API**: Provides RESTful endpoints aligned with OpenAI API specifications
 
