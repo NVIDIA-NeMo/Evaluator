@@ -21,12 +21,12 @@ python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
   --megatron_checkpoint "/workspace/mbridge_llama3_8b/iter_0000000" \
   --model_id "megatron_model" \
-  --port 8080 \                          # Ray server port
-  --num_gpus 4 \                         # Total GPUs available
-  --num_replicas 2 \                     # Number of model replicas
-  --tensor_model_parallel_size 2 \       # Tensor parallelism per replica
-  --pipeline_model_parallel_size 1 \     # Pipeline parallelism per replica
-  --context_parallel_size 1              # Context parallelism per replica
+  --port 8080 \
+  --num_gpus 4 \
+  --num_replicas 2 \
+  --tensor_model_parallel_size 2 \
+  --pipeline_model_parallel_size 1 \
+  --context_parallel_size 1
 ```
 
 :::{note}
