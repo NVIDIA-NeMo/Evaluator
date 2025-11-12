@@ -1,0 +1,81 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# How to use: copy this file locally into a directory, say `examples`, and run
+# Run this config with `nemo-evaluator-launcher run --config-dir examples --config-name slurm_no_deployment_llama_3_1_8b_instruct`.
+# For every benchmark to evaluate, it will create a Slurm job to evaluate an endpoint.
+# NOTE: in this example, we are evaluating an existing endpoint, so we don't need to deploy a model.
+
+# Commented out values show an example of how to override the config values from this file.
+
+# You can also override the values in this config from CLI using dot notation.
+# For example, `nemo-evaluator-launcher run --config-dir examples --config-name slurm_no_deployment_llama_3_1_8b_instruct execution.walltime="1:00:00"`
+# To see the full config, run `nemo-evaluator-launcher run --config-dir examples --config-name slurm_no_deployment_llama_3_1_8b_instruct --dry-run`
+
+# specify default configs for execution and deployment
+defaults:
+  - execution: slurm/default
+  - deployment: none
+  - _self_
+
+# override default execution arguments
+execution:  
+  hostname: ??? # SLURM headnode (login) hostname (required)
+  username: ${oc.env:USER} # Cluster username; defaults to $USER.
+  account: ??? # SLURM account allocation (required)
+  output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
+  walltime: 02:00:00
+  # partition: backfill
+  
+  auto_export:
+    destinations: ["mlflow"]
+  
+  # Export-related env vars (placeholders expanded at runtime)
+  env_vars:
+    export:
+      MLFLOW_TRACKING_URI: MLFLOW_TRACKING_URI # Or set tracking_uri under export.mflow
+      PATH: ??? # Absolute path to conda/venv bin directory containing nemo-evaluator-launcher (required for auto-export)
+      # Example: "/lustre/fsw/portfolios/coreai/users/USERNAME/miniconda3/envs/nemo-evaluator/bin:$PATH"
+
+target:
+  api_endpoint:
+    model_id: meta/llama-3.1-8b-instruct
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    api_key_name: NGC_API_KEY # API Key with access to build.nvidia.com
+
+# specify the benchmarks to evaluate
+evaluation:
+  tasks:
+    - name: gpqa_diamond
+      env_vars:
+        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
+
+# Exporter configurations (paired with auto-export only)
+export:
+  mlflow:
+    tracking_uri: ??? # MLflow server URL accessible from compute nodes (http://hostname:port)
+    experiment_name: "nv-eval"
+    description: "nemo-evaluator-launcher Evaluation test run with REMOTE auto-export"
+    log_metrics: ["gpqa_diamond_score_micro"]
+    log_logs: true
+    only_required: false
+    
+    # MLflow tags (key-value pairs)
+    tags:
+      framework: "none"
+    
+    # Additional metadata goes into mlflow.log_params()
+    extra_metadata:
+      experiment_phase: "baseline"
