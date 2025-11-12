@@ -1691,3 +1691,56 @@ def test_caching_interceptor_behavior_flags(legacy_config, expected_behavior_fla
         assert not has_post_eval_report_hook, (
             "Should not have post_eval_report hook when generate_html_report is False"
         )
+
+
+@pytest.mark.parametrize(
+    "cfg_key,cfg_val,legacy_params",
+    [
+        (
+            "target.api_endpoint.adapter_config",
+            {"interceptors": ["endpoint"], "use_caching": True},
+            ["use_caching"],
+        ),
+        (
+            "target.api_endpoint.adapter_config",
+            {
+                "interceptors": ["endpoint"],
+                "use_caching": True,
+                "use_request_logging": True,
+            },
+            ["use_caching", "use_request_logging"],
+        ),
+        (
+            "global_adapter_config",
+            {"interceptors": ["caching"], "use_nvcf": True},
+            ["use_nvcf"],
+        ),
+    ],
+)
+def test_legacy_with_interceptors_fails(cfg_key, cfg_val, legacy_params):
+    """Test that mixing legacy parameters with interceptors raises error."""
+    if cfg_key == "global_adapter_config":
+        run_config = {cfg_key: cfg_val}
+    else:
+        run_config = {"target": {"api_endpoint": {"adapter_config": cfg_val}}}
+
+    with pytest.raises(ValueError, match="Cannot use legacy configuration parameters"):
+        AdapterConfig.get_validated_config(run_config)
+
+
+@pytest.mark.parametrize(
+    "cfg,has_interceptors",
+    [
+        (
+            {"use_caching": True, "use_request_logging": True},
+            ["caching", "request_logging"],
+        ),
+        ({"interceptors": ["endpoint"], "endpoint_type": "chat"}, ["endpoint"]),
+    ],
+)
+def test_valid_config_works(cfg, has_interceptors):
+    """Test valid configurations work without errors."""
+    config = AdapterConfig.get_validated_config(
+        {"target": {"api_endpoint": {"adapter_config": cfg}}}
+    )
+    assert all(ic in [i.name for i in config.interceptors] for ic in has_interceptors)

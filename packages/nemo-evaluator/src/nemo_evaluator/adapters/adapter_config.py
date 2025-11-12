@@ -197,6 +197,24 @@ class AdapterConfig(BaseModel):
             run_config.get("target", {}).get("api_endpoint", {}).get("adapter_config")
         )
 
+        # Validate that legacy parameters are not mixed with interceptors
+        legacy_defaults = cls.get_legacy_defaults()
+        model_fields = set(cls.model_fields.keys())
+        legacy_only_params = set(legacy_defaults.keys()) - model_fields
+
+        for config_name, config in [
+            ("global_adapter_config", global_cfg),
+            ("target.api_endpoint.adapter_config", local_cfg),
+        ]:
+            if config and config.get("interceptors"):
+                found_legacy = [p for p in legacy_only_params if p in config]
+                if found_legacy:
+                    raise ValueError(
+                        f"Cannot use legacy configuration parameters when interceptors are explicitly defined in {config_name}. "
+                        f"Found: {', '.join(sorted(found_legacy))}. "
+                        f"Please remove these and configure using interceptors instead."
+                    )
+
         if not global_cfg and not local_cfg:
             # Create default adapter config with caching enabled by default
             return cls.from_legacy_config({}, run_config)
