@@ -26,6 +26,7 @@ from nemo_evaluator_launcher.common.printing_utils import (
     green,
     magenta,
     red,
+    yellow,
 )
 
 
@@ -33,6 +34,13 @@ from nemo_evaluator_launcher.common.printing_utils import (
 class Cmd:
     """Run command parameters"""
 
+    config: str | None = field(
+        default=None,
+        alias=["--config"],
+        metadata={
+            "help": "Full path to config file. Extracts config_dir and config_name from the path."
+        },
+    )
     config_name: str = field(
         default="default",
         alias=["-c", "--config-name"],
@@ -83,9 +91,24 @@ class Cmd:
 
         from nemo_evaluator_launcher.api.functional import RunConfig, run_eval
 
+        # Handle --config parameter: split path into config_dir and config_name
+        if self.config:
+            if self.config_name != "default":
+                raise ValueError("Cannot use --config with --config-name")
+            if self.config_dir is not None:
+                raise ValueError("Cannot use --config with --config-dir")
+            config_path = pathlib.Path(self.config)
+            config_dir = str(config_path.parent)
+            config_name = str(config_path.stem)
+        else:
+            config_dir = self.config_dir
+            config_name = self.config_name
+
         # Load configuration either from Hydra or from a run config file
         if self.run_config_file:
             # Validate that run config file is not used with other config options
+            if self.config is not None:
+                raise ValueError("Cannot use --run-config-file with --config")
             if self.config_name != "default":
                 raise ValueError("Cannot use --run-config-file with --config-name")
             if self.config_dir is not None:
@@ -102,9 +125,9 @@ class Cmd:
         else:
             # Load the complete Hydra configuration
             config = RunConfig.from_hydra(
-                config_name=self.config_name,
+                config_dir=config_dir,
+                config_name=config_name,
                 hydra_overrides=self.override,
-                config_dir=self.config_dir,
             )
 
         try:
@@ -196,5 +219,15 @@ class Cmd:
                     bold(
                         f"✓ Job submission successful | Invocation ID: {invocation_id}"
                     )
+                )
+            )
+
+        # Warn if both config_dir and config_name are provided (and config_name is not default)
+        if self.config is None and self.config_dir is not None and self.config_name != "default":
+            joint_path = pathlib.Path(self.config_dir) / f"{self.config_name}.yaml"
+            print(
+                yellow(
+                    f"Warning: Using --config-dir and --config-name together is deprecated. "
+                    f"Please use --config {joint_path} instead."
                 )
             )
