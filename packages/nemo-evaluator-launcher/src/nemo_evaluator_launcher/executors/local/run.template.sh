@@ -48,7 +48,7 @@ else
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.running"
         {% if task.deployment %}
         docker run --rm --shm-size=100g --gpus all {{ task.deployment.extra_docker_args }} \
-        --name {{ task.deployment.container_name }} \
+        --name {{ task.deployment.container_name }} --entrypoint '' \
         -p {{ task.deployment.port }}:{{ task.deployment.port }} \
         {% for env_var in task.deployment.env_vars -%}
         -e {{ env_var }} \

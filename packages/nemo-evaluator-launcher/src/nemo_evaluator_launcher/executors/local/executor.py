@@ -163,11 +163,6 @@ class LocalExecutor(BaseExecutor):
                 deployment_extra_docker_args = cfg.execution.get(
                     "extra_docker_args", ""
                 )
-                if (
-                    cfg.deployment.type == "vllm"
-                    and "--entrypoint" not in deployment_extra_docker_args
-                ):
-                    deployment_extra_docker_args += " --entrypoint ''"
 
                 deployment = {
                     "container_name": server_container_name,
