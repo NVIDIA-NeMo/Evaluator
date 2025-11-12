@@ -38,8 +38,7 @@ nemo-evaluator-launcher ls tasks | grep -E "(bfcl|function)"
 
 # Run BFCL AST prompting evaluation
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
     -o 'evaluation.tasks=["bfclv3_ast_prompting"]' \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o target.api_endpoint.api_key=${YOUR_API_KEY}
