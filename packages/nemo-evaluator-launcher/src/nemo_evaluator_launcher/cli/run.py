@@ -223,7 +223,11 @@ class Cmd:
             )
 
         # Warn if both config_dir and config_name are provided (and config_name is not default)
-        if self.config is None and self.config_dir is not None and self.config_name != "default":
+        if (
+            self.config is None
+            and self.config_dir is not None
+            and self.config_name != "default"
+        ):
             joint_path = pathlib.Path(self.config_dir) / f"{self.config_name}.yaml"
             print(
                 yellow(
