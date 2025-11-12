@@ -328,6 +328,9 @@ required_env_vars = ["HF_TOKEN"]
 [nemo_skills.tasks.chat.ns_mmlu_pro]
 required_env_vars = ["HF_TOKEN"]
 
+[nemo_skills.tasks.chat.ns_aa_lcr]
+required_env_vars = ["JUDGE_API_KEY"]
+
 ###############################################################################
 [safety-harness]
 container = "nvcr.io/nvidia/eval-factory/safety-harness:25.10"
