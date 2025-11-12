@@ -11,7 +11,7 @@ To evaluate a checkpoint saved during pretraining or fine-tuning with [Megatron-
 
 ```bash
 huggingface-cli login --token <your token>
-python -c "from megatron.bridge import AutoBridge; AutoBridge.import_ckpt('meta-llama/Llama-3-8B','/workspace/mbridge_llama3_8b/')"
+python -c "from megatron.bridge import AutoBridge; AutoBridge.import_ckpt('meta-llama/Meta-Llama-3-8B','/workspace/mbridge_llama3_8b/')"
 ```
 
 The deployment scripts are available inside the [`/opt/Export-Deploy/scripts/deploy/nlp/`](https://github.com/NVIDIA-NeMo/Export-Deploy/tree/main/scripts/deploy/nlp) directory. Below is an example command for deployment. It uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to Megatron Bridge format using the command shared above.
