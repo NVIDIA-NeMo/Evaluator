@@ -99,26 +99,6 @@ Export to Google Sheets for easy sharing and analysis with stakeholders.
 
 ::::
 
-## References
-
-::::{grid} 1 2 2 2
-:gutter: 1 1 1 2
-
-:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Python API
-:link: api
-:link-type: doc
-
-Programmatic access for notebooks, automation, and custom evaluation workflows.
-:::
-
-:::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` CLI Reference
-:link: cli
-:link-type: doc
-
-Complete command-line interface documentation with examples and usage patterns.
-:::
-
-::::
 
 ## Typical Workflow
 
@@ -142,8 +122,6 @@ Use the launcher whenever you want:
 :hidden:
 
 About NeMo Evaluator Launcher <self>
-CLI Reference (nemo-evaluator-launcher) <cli>
 Configuration <configuration/index>
 Exporters <exporters/index>
-Python API <api>
 :::
