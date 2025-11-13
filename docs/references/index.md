@@ -24,13 +24,13 @@ The NeMo Evaluator SDK supports two usage patterns:
 
 
 :::{grid-item-card} {octicon}`command-palette;1.5em;sd-mr-1` NeMo Evaluator Launcher CLI
-:link: ../libraries/nemo-evaluator-launcher/cli
+:link: api/nemo-evaluator-launcher/cli
 :link-type: doc
 Comprehensive command-line interface reference with all commands, options, and examples.
 :::
 
 :::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` NeMo Evaluator Launcher API
-:link: ../libraries/nemo-evaluator-launcher/api
+:link: api/nemo-evaluator-launcher/api
 :link-type: doc
 Complete Python API reference for programmatic evaluation workflows and job management.
 :::
