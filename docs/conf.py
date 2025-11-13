@@ -165,98 +165,9 @@ suppress_warnings = [
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#confval-linkcheck_anchors
 linkcheck_anchors = False  # Disable checking for anchors in links
 
-# -- Options for Autodoc2 ---------------------------------------------------
+# -- Options for Autodoc ---------------------------------------------------
 sys.path.insert(0, os.path.abspath(".."))
 sys.path.insert(0, os.path.abspath("../packages/nemo-evaluator/src"))
-
-# Conditional autodoc2 configuration - only enable if packages exist
-# Note: We point to the parent package rather than individual subpackages because
-# the subpackages have relative imports between them (e.g., api imports from core)
-# autodoc2_packages_list = ["../packages/nemo-evaluator/src/nemo_evaluator/"]
-# autodoc2_module_all_regexes = [
-#     r"nemo_evaluator.core.*", r"nemo_evaluator.adapters"
-# ]
-# Check if any of the packages actually exist before enabling autodoc2
-# autodoc2_packages = []
-# for pkg_path in autodoc2_packages_list:
-#     abs_pkg_path = os.path.abspath(os.path.join(os.path.dirname(__file__), pkg_path))
-#     if os.path.exists(abs_pkg_path):
-#         autodoc2_packages.append(pkg_path)
-
-# Only include autodoc2 in extensions if we have valid packages
-if False:
-    if "autodoc2" not in extensions:
-        extensions.append("autodoc2")
-
-    autodoc2_render_plugin = "myst"  # Use MyST for rendering docstrings
-    autodoc2_output_dir = "apidocs"  # Output directory for autodoc2 (relative to docs/)
-
-    # ==================== GOOD DEFAULTS FOR CLEANER DOCS ====================
-
-    # Hide implementation details - good defaults for cleaner docs
-    autodoc2_hidden_objects = [
-        "dunder",  # Hide __methods__ like __init__, __str__, etc.
-        "private",  # Hide _private methods and variables
-        "inherited",  # Hide inherited methods to reduce clutter
-    ]
-
-    # Enable module summaries for better organization
-    autodoc2_module_summary = True
-
-    # Sort by name for consistent organization
-    autodoc2_sort_names = True
-
-    # Enhanced docstring processing for better formatting
-    autodoc2_docstrings = "all"  # Include all docstrings for comprehensive docs
-
-    # Include class inheritance information - useful for users
-    autodoc2_class_inheritance = True
-
-    # Handle class docstrings properly (merge __init__ with class doc)
-    autodoc2_class_docstring = "merge"
-
-    # Better type annotation handling
-    autodoc2_type_guard_imports = True
-
-    # Replace common type annotations for better readability
-    autodoc2_replace_annotations = [
-        ("typing.Union", "Union"),
-        ("typing.Optional", "Optional"),
-        ("typing.List", "List"),
-        ("typing.Dict", "Dict"),
-        ("typing.Any", "Any"),
-        ("nemo_evaluator.api.api_dataclasses.Evaluation", "Evaluation"),
-    ]
-
-    # Don't require __all__ to be defined - document all public members
-    # autodoc2_module_all_regexes = []  # Empty list means don't require __all__
-
-    # Skip common test and internal modules - customize for your project
-    autodoc2_skip_module_regexes = [
-        r".*\.tests?.*",  # Skip test modules
-        r".*\.test_.*",  # Skip test files
-        r".*\._.*",  # Skip private modules
-        r".*\.conftest",  # Skip conftest files
-    ]
-
-    # Load index template from external file for better maintainability
-    template_path = os.path.join(
-        os.path.dirname(__file__), "_templates", "autodoc2_index.rst"
-    )
-    with open(template_path) as f:
-        autodoc2_index_template = f.read()
-
-    # This is a workaround that uses the parser located in autodoc2_docstrings_parser.py to allow autodoc2 to
-    # render google style docstrings.
-    # Related Issue: https://github.com/sphinx-extensions2/sphinx-autodoc2/issues/33
-    autodoc2_docstring_parser_regexes = [
-        (r".*", "docs.autodoc2_docstrings_parser"),
-    ]
-else:
-    # Remove autodoc2 from extensions if no valid packages
-    if "autodoc2" in extensions:
-        extensions.remove("autodoc2")
-    print("INFO: autodoc2 disabled - no valid packages found in autodoc2_packages_list")
 
 # -- Options for Napoleon (Google Style Docstrings) -------------------------
 napoleon_google_docstring = True
