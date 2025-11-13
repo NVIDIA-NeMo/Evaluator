@@ -16,7 +16,9 @@
 """Utilities for adapter testing."""
 
 import multiprocessing
-from typing import Any, Union
+import threading
+import time
+from typing import Any, List, Union
 
 import pytest
 from flask import Flask, jsonify, request
@@ -191,3 +193,46 @@ def get_request_to_response_interceptors(
                 if isinstance(interceptor, RequestToResponseInterceptor):
                     interceptors.append(interceptor)
     return interceptors
+
+
+class FakeProgressTrackingServer:
+    """Test server to receive progress tracking webhooks."""
+
+    def __init__(self, port: int = 8000, request_method="PATCH"):
+        self.port = port
+        self.app = Flask(__name__)
+        self.received_updates: List[dict] = []
+        self.lock = threading.Lock()
+
+        @self.app.route("/", methods=[request_method])
+        def progress_webhook():
+            """Receive progress updates."""
+            data = request.get_json()
+            with self.lock:
+                self.received_updates.append(data)
+            return {"status": "ok"}
+
+    def start(self):
+        """Start the server in a background thread."""
+        self.thread = threading.Thread(
+            target=self.app.run, kwargs={"host": "0.0.0.0", "port": self.port}
+        )
+        self.thread.daemon = True
+        self.thread.start()
+        # Give the server time to start
+        time.sleep(0.5)
+
+    def stop(self):
+        """Stop the server."""
+        # Flask doesn't have a clean shutdown, so we'll just let it run as daemon
+        pass
+
+    def get_updates(self) -> List[dict]:
+        """Get all received updates."""
+        with self.lock:
+            return self.received_updates.copy()
+
+    def clear_updates(self):
+        """Clear received updates."""
+        with self.lock:
+            self.received_updates.clear()

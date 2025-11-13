@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+import threading
 from typing import Any, Generator
 from unittest.mock import patch
 
@@ -32,6 +34,7 @@ from nemo_evaluator.api.api_dataclasses import (
     EvaluationTarget,
 )
 from tests.unit_tests.adapters.testing_utils import (
+    FakeProgressTrackingServer,
     create_fake_endpoint_process,
 )
 
@@ -742,3 +745,79 @@ def test_adapter_server_process_raise_on_port_taken():
         ):
             with AdapterServerProcess(evaluation):
                 pass
+
+
+@pytest.mark.asyncio
+async def test_adapter_with_progress_tracking_timer(fake_openai_endpoint, tmp_path):
+    # Setup progress tracking server to verify updates are non-blocking
+    progress_tracking_server = FakeProgressTrackingServer(port=8011)
+    progress_tracking_server.start()
+    progress_tracking_url = "http://localhost:8011"
+    progress_tracking_config = dict(
+        name="progress_tracking",
+        enabled=True,
+        config={
+            "progress_tracking_url": progress_tracking_url,
+            # number of requests for the test are lower than interval,
+            # expect all updates are from the timer thread.
+            "progress_tracking_interval": 500,
+            "progress_tracking_interval_seconds": 0.1,
+        },
+    )
+
+    # Start adapter server
+    evaluation = Evaluation(
+        command="",
+        framework_name="",
+        pkg_name="",
+        config=EvaluationConfig(output_dir=str(tmp_path)),
+        target=EvaluationTarget(
+            api_endpoint=ApiEndpoint(
+                url="http://localhost:3300/v1/chat/completions",
+                adapter_config=AdapterConfig(
+                    interceptors=[
+                        dict(
+                            name="endpoint",
+                            config={},
+                        ),
+                        progress_tracking_config,
+                    ],
+                    post_eval_hooks=[progress_tracking_config],
+                ),
+            ),
+        ),
+    )
+    with AdapterServerProcess(evaluation) as adapter_server_process:
+        # Wait for server to be ready
+        wait_for_server("localhost", adapter_server_process.port)
+        url = f"http://localhost:{adapter_server_process.port}"
+
+        data = {
+            "prompt": "This is a test prompt",
+            "max_tokens": 100,
+            "temperature": 0.5,
+        }
+
+        def concurrent_requests():
+            for _ in range(10):
+                requests.post(url, json=data)
+
+        threads = []
+        for i in range(10):
+            thread = threading.Thread(target=concurrent_requests, daemon=True)
+            threads.append(thread)
+            thread.start()
+
+        # Wait for all threads to complete
+        for thread in threads:
+            thread.join()
+
+    await asyncio.sleep(0.5)
+    updates = progress_tracking_server.get_updates()
+
+    # There can be multiple updates depending on monitoring loop wrt to number
+    # of concurrent calls and sleep, so we only test that there is at least one update.
+    assert len(updates) > 0, "expected at least one update within duration"
+    assert updates[-1] == {"samples_processed": 100}, (
+        "the last update should have all the samples processed recorded"
+    )

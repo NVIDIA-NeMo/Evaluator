@@ -13,14 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import os
 import threading
-import time
-from typing import List
 from unittest.mock import patch
 
+import pytest
 import requests
-from flask import Flask, request
+from pydantic_core import ValidationError
 
 from nemo_evaluator.adapters.interceptors.progress_tracking_interceptor import (
     ProgressTrackingInterceptor,
@@ -30,49 +30,7 @@ from nemo_evaluator.adapters.types import (
     AdapterRequestContext,
     AdapterResponse,
 )
-
-
-class FakeProgressTrackingServer:
-    """Test server to receive progress tracking webhooks."""
-
-    def __init__(self, port: int = 8000, request_method="PATCH"):
-        self.port = port
-        self.app = Flask(__name__)
-        self.received_updates: List[dict] = []
-        self.lock = threading.Lock()
-
-        @self.app.route("/", methods=[request_method])
-        def progress_webhook():
-            """Receive progress updates."""
-            data = request.get_json()
-            with self.lock:
-                self.received_updates.append(data)
-            return {"status": "ok"}
-
-    def start(self):
-        """Start the server in a background thread."""
-        self.thread = threading.Thread(
-            target=self.app.run, kwargs={"host": "0.0.0.0", "port": self.port}
-        )
-        self.thread.daemon = True
-        self.thread.start()
-        # Give the server time to start
-        time.sleep(0.5)
-
-    def stop(self):
-        """Stop the server."""
-        # Flask doesn't have a clean shutdown, so we'll just let it run as daemon
-        pass
-
-    def get_updates(self) -> List[dict]:
-        """Get all received updates."""
-        with self.lock:
-            return self.received_updates.copy()
-
-    def clear_updates(self):
-        """Clear received updates."""
-        with self.lock:
-            self.received_updates.clear()
+from tests.unit_tests.adapters.testing_utils import FakeProgressTrackingServer
 
 
 class TestProgressTrackingInterceptor:
@@ -255,6 +213,19 @@ class TestProgressTrackingInterceptor:
         # Verify that the request was attempted
         mock_request.assert_called_once()
 
+    def test_interval_configuration_validation(self):
+        with pytest.raises(ValidationError):
+            ProgressTrackingInterceptor.Params(
+                progress_tracking_url="http://test",
+                progress_tracking_interval=0,
+            )
+
+        with pytest.raises(ValidationError):
+            ProgressTrackingInterceptor.Params(
+                progress_tracking_url="http://test",
+                progress_tracking_interval=-2,
+            )
+
     def test_interval_configuration(self):
         """Test different interval configurations."""
         # Start test server
@@ -362,6 +333,68 @@ class TestProgressTrackingInterceptor:
             interceptor.intercept_response(mock_response, context)
             assert updates == server.get_updates(), (
                 "server should not update with misconfigured method"
+            )
+
+        finally:
+            server.stop()
+
+    def test_interval_timer_validation(self):
+        with pytest.raises(ValidationError):
+            ProgressTrackingInterceptor.Params(
+                progress_tracking_interval_seconds=-1,
+            )
+
+    @pytest.mark.asyncio
+    async def test_interval_timer(self):
+        # Start test server
+        server = FakeProgressTrackingServer(port=8007)
+        server.start()
+
+        try:
+            params = ProgressTrackingInterceptor.Params(
+                progress_tracking_url="http://localhost:8007",
+                progress_tracking_interval=50,
+                progress_tracking_interval_seconds=0.2,
+            )
+            interceptor = ProgressTrackingInterceptor(params)
+            assert interceptor.progress_tracking_url == "http://localhost:8007"
+            assert interceptor.progress_tracking_interval == 50
+            assert interceptor.progress_tracking_interval_seconds == 0.2
+
+            # Create mock response and context
+            mock_response = AdapterResponse(
+                r=requests.Response(),
+                rctx=AdapterRequestContext(),
+            )
+            context = AdapterGlobalContext(output_dir="/tmp", url="http://test")
+
+            # Verify no update until timer interval
+            interceptor.intercept_response(mock_response, context)
+            interceptor.intercept_response(mock_response, context)
+            updates = server.get_updates()
+            assert len(updates) == 0, "no updates until timer interval"
+
+            # Verify first timer interval calls update
+            await asyncio.sleep(0.5)
+            updates = server.get_updates()
+            assert len(updates) == 1, "only expected one update"
+            assert updates[0]["samples_processed"] == 2
+
+            # Verify subsequent timer interval calls update
+            interceptor.intercept_response(mock_response, context)
+            await asyncio.sleep(0.5)
+            updates = server.get_updates()
+            assert len(updates) == 2, "expected second update"
+            assert updates[1]["samples_processed"] == 3
+
+            # No calls to update after timer is stopped
+            interceptor.post_eval_hook(context)
+            interceptor.intercept_response(mock_response, context)
+            assert interceptor._samples_processed == 4
+            await asyncio.sleep(0.5)
+            updates = server.get_updates()
+            assert len(updates) == 2, (
+                "expected post_eval_hook to skip posting update on no change and no updates after post_eval_hook cancels timed updates"
             )
 
         finally:

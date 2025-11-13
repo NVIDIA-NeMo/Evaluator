@@ -65,7 +65,7 @@ repository = "https://github.com/NVIDIA-NeMo/Evaluator/packages/nemo-evaluator"
 # END(if-changed)
 
 [dependency-groups]
-test = ["pytest", "pytest-cov", "pytest-subtests", "pytest-httpserver", "nvidia-simple-evals"]
+test = ["pytest", "pytest-asyncio", "pytest-cov", "pytest-subtests", "pytest-httpserver", "nvidia-simple-evals"]
 
 docs = [
     "sphinx",
