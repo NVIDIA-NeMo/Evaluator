@@ -28,22 +28,16 @@ The example command below uses a Hugging Face LLaMA 3 8B checkpoint that has bee
 ```
 
 When working with a larger model, you can use model parallelism to distribute the model across available devices.
-In the example below we deploy the Qwen3-235B-A22B model in the NeMo format with 4 nodes (each with 8 devices):
+In the example below we deploy the [Llama-3_3-Nemotron-Super-49B-v1](https://huggingface.co/nvidia/Llama-3_3-Nemotron-Super-49B-v1) (converted to the NeMo format) with 8 devices and tensor parallelism:
 
 ```bash
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_inframework_triton.py \
-  --nemo_checkpoint "/workspace/qwen3-235b-a22b_nemo2" \
+  --nemo_checkpoint "/workspace/Llama-3_3-Nemotron-Super-49B-v1" \
   --triton_model_name "megatron_model" \
   --server_port 8080 \
-  --num_nodes 4 \
   --num_gpus 8 \
-  --tensor_model_parallel_size 4  \
-  --pipeline_model_parallel_size 8 \
-  --context_parallel_size 1 \
-  --expert_model_parallel_size 4 \
-  --account_for_embedding_in_pipeline_split \
-  --account_for_loss_in_pipeline_split \
+  --tensor_model_parallel_size 8 \
   --max_batch_size 4 \
   --inference_max_seq_length 4096
 ```
