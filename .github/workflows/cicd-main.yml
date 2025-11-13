@@ -13,6 +13,12 @@
 # limitations under the License.
 name: CICD NeMo
 on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to run tests on'
+        required: false
+        default: 'main'
   schedule:
     - cron: 0 0 * * *
   push:
