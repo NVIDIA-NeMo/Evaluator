@@ -27,11 +27,6 @@ from nemo_evaluator.api.api_dataclasses import (
     EvaluationTarget,
 )
 
-# FIXME(martas): EF packages pre 25.09 use old imports from nvidia_eval_commons
-from nvidia_eval_commons.api.api_dataclasses import (
-    EvaluationResult as LegacyEvaluationResult,
-)
-
 logger = logging.getLogger(__name__)
 
 
@@ -133,8 +128,5 @@ def test_evaluation(eval_type, endpoint_type, eval_params, tmp_path):
         type=eval_type, params=ConfigParams(**eval_params), output_dir=str(tmp_path)
     )
     results = evaluate(target_cfg=eval_target, eval_cfg=eval_config)
-    # FIXME(martas): EF packages pre 25.09 use old imports from nvidia_eval_commons
-    assert isinstance(results, EvaluationResult) or isinstance(
-        results, LegacyEvaluationResult
-    )
+    assert isinstance(results, EvaluationResult)
     logger.info("Evaluation completed.")
