@@ -82,6 +82,112 @@ class PostEvalHookConfig(BaseModel):
         use_enum_values = True
 
 
+class LegacyAdapterConfig(BaseModel):
+    """Legacy adapter configuration parameters (pre-interceptor format).
+
+    This model validates legacy configuration dictionaries to catch typos
+    and invalid parameters early, before conversion to the new interceptor format.
+    """
+
+    class Config:
+        extra = "forbid"  # Reject any extra fields not defined here
+
+    # Boolean flags for optional features
+    use_caching: bool = Field(default=True, description="Enable caching interceptor")
+    save_responses: bool = Field(default=False, description="Save responses to disk")
+    save_requests: bool = Field(default=False, description="Save requests to disk")
+    use_system_prompt: bool = Field(
+        default=False, description="Enable system prompt modification"
+    )
+    use_omni_info: bool = Field(
+        default=False, description="Enable omni info processing"
+    )
+    use_request_logging: bool = Field(
+        default=False, description="Enable request logging"
+    )
+    use_nvcf: bool = Field(default=False, description="Enable NVCF integration")
+    use_response_logging: bool = Field(
+        default=False, description="Enable response logging"
+    )
+    use_reasoning: bool = Field(
+        default=False, description="Enable reasoning token processing"
+    )
+    process_reasoning_traces: bool = Field(
+        default=False, description="Process reasoning traces"
+    )
+    use_progress_tracking: bool = Field(
+        default=False, description="Enable progress tracking"
+    )
+    use_raise_client_errors: bool = Field(
+        default=False, description="Raise client errors"
+    )
+    include_json: bool = Field(default=True, description="Include JSON in responses")
+
+    # Model fields that are also part of AdapterConfig
+    generate_html_report: bool = Field(default=True, description="Generate HTML report")
+    html_report_size: int = Field(default=5, description="HTML report size")
+    tracking_requests_stats: bool = Field(
+        default=True, description="Track request statistics"
+    )
+    log_failed_requests: bool = Field(default=False, description="Log failed requests")
+    endpoint_type: str = Field(default="chat", description="Endpoint type")
+    caching_dir: str | None = Field(default=None, description="Caching directory")
+
+    # Optional string/dict configuration parameters
+    custom_system_prompt: str | None = Field(
+        default=None, description="Custom system prompt"
+    )
+    output_dir: str | None = Field(default=None, description="Output directory")
+    params_to_add: dict[str, Any] | None = Field(
+        default=None, description="Parameters to add"
+    )
+    params_to_remove: list[str] | None = Field(
+        default=None, description="Parameters to remove"
+    )
+    params_to_rename: dict[str, str] | None = Field(
+        default=None, description="Parameters to rename"
+    )
+
+    # Optional integer limits
+    max_logged_requests: int | None = Field(
+        default=None, description="Max logged requests"
+    )
+    max_logged_responses: int | None = Field(
+        default=None, description="Max logged responses"
+    )
+    max_saved_requests: int | None = Field(
+        default=None, description="Max saved requests"
+    )
+    max_saved_responses: int | None = Field(
+        default=None, description="Max saved responses"
+    )
+
+    # Reasoning-specific parameters
+    start_reasoning_token: str | None = Field(
+        default=None, description="Start reasoning token"
+    )
+    include_if_reasoning_not_finished: bool | None = Field(
+        default=None, description="Include unfinished reasoning"
+    )
+    track_reasoning: bool | None = Field(default=None, description="Track reasoning")
+    end_reasoning_token: str = Field(
+        default="</think>", description="End reasoning token"
+    )
+
+    # Progress tracking parameters
+    progress_tracking_url: str | None = Field(
+        default=None, description="Progress tracking URL"
+    )
+    progress_tracking_interval: int = Field(
+        default=1, description="Progress tracking interval"
+    )
+
+    # Logging parameters
+    logging_aggregated_stats_interval: int = Field(
+        default=100, description="Logging aggregated stats interval"
+    )
+
+
 class AdapterConfig(BaseModel):
     """Adapter configuration with registry-based interceptor support"""
 
@@ -227,6 +333,8 @@ class AdapterConfig(BaseModel):
                 {"name": s} if isinstance(s, str) else s
                 for s in merged["post_eval_hooks"]
             ]
+        from pydantic import ValidationError
+
         try:
             config = cls(**merged)
 
@@ -235,6 +343,9 @@ class AdapterConfig(BaseModel):
                 config = cls.from_legacy_config(merged, run_config)
 
             return config
+        except ValidationError:
+            # Re-raise ValidationError directly for clear error messages
+            raise
         except Exception as e:
             raise ValueError(f"Invalid adapter configuration: {e}") from e
 
@@ -298,10 +409,14 @@ class AdapterConfig(BaseModel):
 
         Returns:
             AdapterConfig instance with interceptors based on legacy config
+
+        Raises:
+            ValidationError: If legacy_config contains typos or invalid field names
         """
-        # Merge legacy config with defaults to avoid repeated .get() calls
-        defaults = cls.get_legacy_defaults()
-        legacy_config = {**defaults, **legacy_config}
+        # Validate legacy config using Pydantic model (catches typos early)
+        # The model includes all defaults, so no need to merge separately
+        validated = LegacyAdapterConfig(**legacy_config)
+        legacy_config = validated.model_dump()
 
         interceptors = []
         post_eval_hooks = []
