@@ -125,7 +125,7 @@ class LegacyAdapterConfig(BaseModel):
 
     # Model fields that are also part of AdapterConfig
     generate_html_report: bool = Field(default=True, description="Generate HTML report")
-    html_report_size: int = Field(default=5, description="HTML report size")
+    html_report_size: int | None = Field(default=5, description="HTML report size")
     tracking_requests_stats: bool = Field(
         default=True, description="Track request statistics"
     )
@@ -413,10 +413,31 @@ class AdapterConfig(BaseModel):
         Raises:
             ValidationError: If legacy_config contains typos or invalid field names
         """
+        from pydantic import ValidationError
+
+        from nemo_evaluator.logging import get_logger
+
+        logger = get_logger(__name__)
+
         # Validate legacy config using Pydantic model (catches typos early)
         # The model includes all defaults, so no need to merge separately
-        validated = LegacyAdapterConfig(**legacy_config)
-        legacy_config = validated.model_dump()
+        try:
+            validated = LegacyAdapterConfig(**legacy_config)
+            legacy_config = validated.model_dump()
+        except ValidationError:
+            # Log helpful message with list of valid fields
+            valid_fields = sorted(LegacyAdapterConfig.model_fields.keys())
+            logger.error(
+                f"Invalid legacy adapter configuration. "
+                f"Supported parameters: {', '.join(valid_fields[:15])}"
+                + (
+                    f", ... and {len(valid_fields) - 15} more"
+                    if len(valid_fields) > 15
+                    else ""
+                )
+            )
+            # Re-raise the original ValidationError
+            raise
 
         interceptors = []
         post_eval_hooks = []
