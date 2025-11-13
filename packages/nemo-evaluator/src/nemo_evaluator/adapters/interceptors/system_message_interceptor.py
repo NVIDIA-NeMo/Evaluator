@@ -36,7 +36,7 @@ from nemo_evaluator.logging import BaseLoggingParams, get_logger
 )
 @final
 class SystemMessageInterceptor(RequestInterceptor):
-    """Adds or modifies system message in requests."""
+    """Adds or replaces system message in requests."""
 
     class Params(BaseLoggingParams):
         """Configuration parameters for system message interceptor."""
