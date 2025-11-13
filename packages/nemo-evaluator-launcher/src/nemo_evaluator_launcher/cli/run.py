@@ -16,6 +16,7 @@
 import pathlib
 import time
 from dataclasses import dataclass
+from typing import Literal
 
 from simple_parsing import field
 
@@ -38,7 +39,7 @@ class Cmd:
         default=None,
         alias=["--config"],
         metadata={
-            "help": "Full path to config file. Extracts config_dir and config_name from the path."
+            "help": "Full path to config file. Uses Hydra by default (--config-mode=hydra). Use --config-mode=raw to load directly (bypasses Hydra)."
         },
     )
     config_name: str = field(
@@ -55,11 +56,11 @@ class Cmd:
             "help": "Path to user config directory. If provided, searches here first, then falls back to internal configs."
         },
     )
-    run_config_file: str | None = field(
-        default=None,
-        alias=["-f", "--run-config-file"],
+    config_mode: Literal["hydra", "raw"] = field(
+        default="hydra",
+        alias=["--config-mode"],
         metadata={
-            "help": "Path to a run config file to load directly (bypasses Hydra config loading)."
+            "help": "Config loading mode: 'hydra' (default) uses Hydra config system, 'raw' loads config file directly bypassing Hydra."
         },
     )
     override: list[str] = field(
@@ -91,38 +92,54 @@ class Cmd:
 
         from nemo_evaluator_launcher.api.functional import RunConfig, run_eval
 
-        # Handle --config parameter: split path into config_dir and config_name
-        if self.config:
-            if self.config_name != "default":
-                raise ValueError("Cannot use --config with --config-name")
-            if self.config_dir is not None:
-                raise ValueError("Cannot use --config with --config-dir")
-            config_path = pathlib.Path(self.config)
-            config_dir = str(config_path.parent)
-            config_name = str(config_path.stem)
-        else:
-            config_dir = self.config_dir
-            config_name = self.config_name
+        # Validate config_mode value
+        if self.config_mode not in ["hydra", "raw"]:
+            raise ValueError(
+                f"Invalid --config-mode value: {self.config_mode}. Must be 'hydra' or 'raw'."
+            )
 
-        # Load configuration either from Hydra or from a run config file
-        if self.run_config_file:
-            # Validate that run config file is not used with other config options
-            if self.config is not None:
-                raise ValueError("Cannot use --run-config-file with --config")
+        # Validate that raw mode requires --config
+        if self.config_mode == "raw" and self.config is None:
+            raise ValueError(
+                "--config-mode=raw requires --config to be specified. Raw mode loads config files directly."
+            )
+
+        # Load configuration either from Hydra or directly from a config file
+        if self.config_mode == "raw" and self.config:
+            # Validate that raw config loading is not used with other config options
             if self.config_name != "default":
-                raise ValueError("Cannot use --run-config-file with --config-name")
+                raise ValueError(
+                    "Cannot use --config-mode=raw with --config-name. Raw mode only works with --config."
+                )
             if self.config_dir is not None:
-                raise ValueError("Cannot use --run-config-file with --config-dir")
+                raise ValueError(
+                    "Cannot use --config-mode=raw with --config-dir. Raw mode only works with --config."
+                )
             if self.override:
-                raise ValueError("Cannot use --run-config-file with --override")
+                raise ValueError(
+                    "Cannot use --config-mode=raw with --override. Raw mode only works with --config."
+                )
 
-            # Load from run config file
-            with open(self.run_config_file, "r") as f:
+            # Load from config file directly (bypass Hydra)
+            with open(self.config, "r") as f:
                 config_dict = yaml.safe_load(f)
 
             # Create RunConfig from the loaded data
             config = OmegaConf.create(config_dict)
         else:
+            # Handle --config parameter: split path into config_dir and config_name for Hydra
+            if self.config:
+                if self.config_name != "default":
+                    raise ValueError("Cannot use --config with --config-name")
+                if self.config_dir is not None:
+                    raise ValueError("Cannot use --config with --config-dir")
+                config_path = pathlib.Path(self.config)
+                config_dir = str(config_path.parent)
+                config_name = str(config_path.stem)
+            else:
+                config_dir = self.config_dir
+                config_name = self.config_name
+
             # Load the complete Hydra configuration
             config = RunConfig.from_hydra(
                 config_dir=config_dir,
@@ -173,7 +190,7 @@ class Cmd:
                 f.write("#\n")
                 f.write("# To rerun this exact configuration:\n")
                 f.write(
-                    f"# nemo-evaluator-launcher run --run-config-file {config_path}\n"
+                    f"# nemo-evaluator-launcher run --config {config_path} --config-mode=raw\n"
                 )
                 f.write("#\n")
                 f.write(config_yaml)
