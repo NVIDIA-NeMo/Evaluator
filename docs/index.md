@@ -413,8 +413,6 @@ Runtime & Execution <troubleshooting/runtime-issues/index>
 
 About References <references/index>
 FAQ <references/faq>
-Eval Parameters <evaluation/parameters>
-Eval Utils <references/evaluation-utils>
 NeMo Evaluator Core Python API  <references/api/nemo-evaluator/api/index>
 nemo-evaluator CLI Reference <references/api/nemo-evaluator/cli>
 :::

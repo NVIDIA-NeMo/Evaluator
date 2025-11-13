@@ -5,26 +5,12 @@
 Comprehensive reference documentation for NeMo Evaluator APIs, functions, and configuration options.
 
 
-## Prerequisites
-
-- **Container way**: Use evaluation containers mentioned in {ref}`nemo-evaluator-containers`
-- **Package way**:
-
-  ```bash
-  pip install nemo-evaluator
-  ```
-
-  To run evaluations, you also need to install an evaluation framework package (for example, `nvidia-simple-evals`):
-  ```bash
-  pip install nvidia-simple-evals
-  ```
-
 ## CLI vs. Programmatic Usage
 
-The NeMo Evaluator API supports two usage patterns:
+The NeMo Evaluator SDK supports two usage patterns:
 
-1. **CLI Usage** (Recommended): Use `nemo-evaluator run_eval` function which parses command line arguments
-2. **Programmatic Usage**: Use `evaluate()` function with configuration objects
+1. **CLI Usage** (Recommended): Use `nemo-evaluator` and/or `nemo-evaluator-launcher` binaries which parses command line arguments
+2. **Programmatic Usage**: Use Python API with configuration objects
 
 **When to Use Which:**
 
