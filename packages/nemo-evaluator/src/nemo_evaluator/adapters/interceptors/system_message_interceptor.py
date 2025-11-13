@@ -32,7 +32,7 @@ from nemo_evaluator.logging import BaseLoggingParams, get_logger
 
 @register_for_adapter(
     name="system_message",
-    description="Adds or modifies system message in requests.",
+    description="Adds or replaces system message in requests.",
 )
 @final
 class SystemMessageInterceptor(RequestInterceptor):
