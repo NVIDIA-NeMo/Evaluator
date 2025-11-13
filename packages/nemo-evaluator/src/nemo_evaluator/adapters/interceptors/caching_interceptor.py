@@ -181,7 +181,7 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
         else:
             cached_headers = headers
         self.headers_cache[cache_key] = cached_headers
-
+        self.logger.debug("Content", content)
         self.logger.debug(
             "Saved response to cache",
             cache_key=cache_key[:8] + "...",
@@ -201,7 +201,7 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
 
         # Check cache. Create cache key that will be used everywhere (also if no cache hit)
         req.rctx.cache_key = self._generate_cache_key(request_data)
-
+        self.logger.debug("Request", request_data=request_data)
         self.logger.debug(
             "Processing request for caching",
             cache_key=req.rctx.cache_key[:8] + "...",
