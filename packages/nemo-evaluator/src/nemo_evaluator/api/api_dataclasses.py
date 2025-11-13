@@ -179,18 +179,11 @@ class ScoreStats(BaseModel):
     )
     variance: Optional[float] = Field(
         default=None,
-        description="""This is the population variance, not the sample variance.
-
-        See https://towardsdatascience.com/variance-sample-vs-population-3ddbd29e498a
-        for details.""",
+        description="""This is the population variance, not the sample variance.""",
     )
     stddev: Optional[float] = Field(
         default=None,
-        description="""This is the population standard deviation, not the sample standard deviation.
-
-        See https://towardsdatascience.com/variance-sample-vs-population-3ddbd29e498a
-        for details.
-    """,
+        description="""This is the population standard deviation, not the sample standard deviation.""",
     )
     stderr: Optional[float] = Field(default=None, description="The standard error.")
 
