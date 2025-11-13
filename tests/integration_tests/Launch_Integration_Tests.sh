@@ -45,6 +45,6 @@ coverage run \
     -o log_cli_level=INFO \
     -m "not pleasefixme" \
     -v -s \
-   tests/integration_tests/nemo_fw/test_deployment.py
+    tests/integration_tests/nemo_fw/
 
 kill $deploy_pid
