@@ -116,7 +116,7 @@ def test_get_token_usage_from_cache_db_single_request(
     )
 
     # Wait for server to be ready
-    wait_for_server("localhost", 3825)
+    wait_for_server("localhost", adapter_server_with_cache.port)
 
     # Test data
     test_data = {
@@ -156,7 +156,7 @@ def test_get_token_usage_from_cache_db_multiple_requests(
     )
 
     # Wait for server to be ready
-    wait_for_server("localhost", 3825)
+    wait_for_server("localhost", adapter_server_with_cache.port)
 
     # Different test prompts with different token usage
     test_cases = [

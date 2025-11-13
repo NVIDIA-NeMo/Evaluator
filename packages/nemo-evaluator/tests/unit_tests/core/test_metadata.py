@@ -33,6 +33,12 @@ def n():
 
 
 @pytest.fixture(autouse=True)
+def unset_adapter_port(monkeypatch):
+    """Ensure ADAPTER_PORT is unset so each test gets a free port automatically."""
+    monkeypatch.delenv("ADAPTER_PORT", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def installed_modules(n: int, monkeypatch):
     if not n:
         monkeypatch.setitem(sys.modules, "core_evals", None)

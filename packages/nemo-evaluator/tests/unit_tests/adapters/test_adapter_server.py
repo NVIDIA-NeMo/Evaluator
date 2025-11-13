@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+import threading
 from typing import Any, Generator
 from unittest.mock import patch
 
@@ -32,6 +34,7 @@ from nemo_evaluator.api.api_dataclasses import (
     EvaluationTarget,
 )
 from tests.unit_tests.adapters.testing_utils import (
+    FakeProgressTrackingServer,
     create_fake_endpoint_process,
 )
 
@@ -311,6 +314,9 @@ def test_adapter_server_validation_with_enabled_interceptor():
 
 def test_adapter_server_validation_with_enabled_post_eval_hook():
     """Test that AdapterServer starts successfully when at least one post-eval hook is enabled."""
+    # Import the reports module to ensure post_eval_report is registered
+    import nemo_evaluator.adapters.reports  # noqa: F401
+
     adapter_config = AdapterConfig(
         interceptors=[],
         post_eval_hooks=[
@@ -640,64 +646,49 @@ def test_evaluate_function_url_replacement():
         assert result == mock_result
 
 
-def test_adapter_port_environment_variable(tmp_path):
+def test_adapter_port_environment_variable(tmp_path, monkeypatch):
     """Test that ADAPTER_PORT environment variable is respected."""
-    import os
+    test_port = 9999
+    adapter_config = AdapterConfig(
+        interceptors=[
+            dict(
+                name="endpoint",
+                config={},
+            ),
+        ]
+    )
+    api_url = "http://localhost:3300/v1/chat/completions"
+    evaluation = Evaluation(
+        config=EvaluationConfig(output_dir=str(tmp_path)),
+        target=EvaluationTarget(
+            api_endpoint=ApiEndpoint(url=api_url, adapter_config=adapter_config)
+        ),
+        pkg_name="test_package",
+        command="test_command",
+        framework_name="test_framework",
+    )
 
-    # Save original environment variable
-    original_port = os.environ.get("ADAPTER_PORT")
+    # Set environment variable using monkeypatch
+    monkeypatch.setenv("ADAPTER_PORT", str(test_port))
+
+    # Start fake endpoint
+    fake_endpoint = create_fake_endpoint_process()
 
     try:
-        # Set a custom port
-        test_port = 9999
-        os.environ["ADAPTER_PORT"] = str(test_port)
+        with AdapterServerProcess(evaluation) as adapter_server_process:
+            # Wait for server to be ready on the custom port
+            wait_for_server("localhost", test_port)
 
-        adapter_config = AdapterConfig(
-            interceptors=[
-                dict(
-                    name="endpoint",
-                    config={},
-                ),
-            ]
-        )
-        api_url = "http://localhost:3300/v1/chat/completions"
-        evaluation = Evaluation(
-            config=EvaluationConfig(output_dir=str(tmp_path)),
-            target=EvaluationTarget(
-                api_endpoint=ApiEndpoint(url=api_url, adapter_config=adapter_config)
-            ),
-            pkg_name="test_package",
-            command="test_command",
-            framework_name="test_framework",
-        )
+            # Make a test request to verify it's working on the custom port
+            test_data = {"prompt": "Test prompt", "max_tokens": 100}
+            response = requests.post(f"http://localhost:{test_port}", json=test_data)
+            assert response.status_code == 200
 
-        # Start fake endpoint
-        fake_endpoint = create_fake_endpoint_process()
-
-        try:
-            with AdapterServerProcess(evaluation) as adapter_server_process:
-                # Wait for server to be ready on the custom port
-                wait_for_server("localhost", test_port)
-
-                # Make a test request to verify it's working on the custom port
-                test_data = {"prompt": "Test prompt", "max_tokens": 100}
-                response = requests.post(
-                    f"http://localhost:{test_port}", json=test_data
-                )
-                assert response.status_code == 200
-
-                assert adapter_server_process.port == test_port
-        finally:
-            # Clean up fake endpoint
-            fake_endpoint.terminate()
-            fake_endpoint.join(timeout=5)
-
+            assert adapter_server_process.port == test_port
     finally:
-        # Restore original environment variable
-        if original_port is not None:
-            os.environ["ADAPTER_PORT"] = original_port
-        else:
-            os.environ.pop("ADAPTER_PORT", None)
+        # Clean up fake endpoint
+        fake_endpoint.terminate()
+        fake_endpoint.join(timeout=5)
 
 
 def test_multiple_adapter_servers():
@@ -719,7 +710,8 @@ def test_multiple_adapter_servers():
         assert p1.port != p2.port
 
 
-def test_adapter_server_process_raise_on_port_taken():
+def test_adapter_server_process_raise_on_port_taken(monkeypatch):
+    """Test that AdapterServerProcess raises OSError when port is taken."""
     evaluation = Evaluation(
         config=EvaluationConfig(),
         target=EvaluationTarget(
@@ -732,13 +724,90 @@ def test_adapter_server_process_raise_on_port_taken():
     evaluation.target.api_endpoint.adapter_config = AdapterConfig.get_validated_config(
         evaluation.model_dump()
     )
-    import os
 
     with AdapterServerProcess(evaluation) as p1:
         # P1 must have reserved some port. Let's try to run another AdapterServerProcess on the same one
-        os.environ["ADAPTER_PORT"] = str(p1.port)
+        # Set environment variable to the port that p1 is using
+        monkeypatch.setenv("ADAPTER_PORT", str(p1.port))
+
         with pytest.raises(
             OSError, match="Adapter server was requested to start explicitly"
         ):
             with AdapterServerProcess(evaluation):
                 pass
+
+
+@pytest.mark.asyncio
+async def test_adapter_with_progress_tracking_timer(fake_openai_endpoint, tmp_path):
+    # Setup progress tracking server to verify updates are non-blocking
+    progress_tracking_server = FakeProgressTrackingServer(port=8011)
+    progress_tracking_server.start()
+    progress_tracking_url = "http://localhost:8011"
+    progress_tracking_config = dict(
+        name="progress_tracking",
+        enabled=True,
+        config={
+            "progress_tracking_url": progress_tracking_url,
+            # number of requests for the test are lower than interval,
+            # expect all updates are from the timer thread.
+            "progress_tracking_interval": 500,
+            "progress_tracking_interval_seconds": 0.1,
+        },
+    )
+
+    # Start adapter server
+    evaluation = Evaluation(
+        command="",
+        framework_name="",
+        pkg_name="",
+        config=EvaluationConfig(output_dir=str(tmp_path)),
+        target=EvaluationTarget(
+            api_endpoint=ApiEndpoint(
+                url="http://localhost:3300/v1/chat/completions",
+                adapter_config=AdapterConfig(
+                    interceptors=[
+                        dict(
+                            name="endpoint",
+                            config={},
+                        ),
+                        progress_tracking_config,
+                    ],
+                    post_eval_hooks=[progress_tracking_config],
+                ),
+            ),
+        ),
+    )
+    with AdapterServerProcess(evaluation) as adapter_server_process:
+        # Wait for server to be ready
+        wait_for_server("localhost", adapter_server_process.port)
+        url = f"http://localhost:{adapter_server_process.port}"
+
+        data = {
+            "prompt": "This is a test prompt",
+            "max_tokens": 100,
+            "temperature": 0.5,
+        }
+
+        def concurrent_requests():
+            for _ in range(10):
+                requests.post(url, json=data)
+
+        threads = []
+        for i in range(10):
+            thread = threading.Thread(target=concurrent_requests, daemon=True)
+            threads.append(thread)
+            thread.start()
+
+        # Wait for all threads to complete
+        for thread in threads:
+            thread.join()
+
+    await asyncio.sleep(0.5)
+    updates = progress_tracking_server.get_updates()
+
+    # There can be multiple updates depending on monitoring loop wrt to number
+    # of concurrent calls and sleep, so we only test that there is at least one update.
+    assert len(updates) > 0, "expected at least one update within duration"
+    assert updates[-1] == {"samples_processed": 100}, (
+        "the last update should have all the samples processed recorded"
+    )
