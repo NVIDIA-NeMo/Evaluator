@@ -240,24 +240,6 @@ Export results to MLflow, Weights & Biases, Google Sheets, or local files with o
 {bdg-secondary}`Export`
 :::
 
-:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Python API
-:link: libraries/nemo-evaluator-launcher/api
-:link-type: doc
-
-Programmatic access for notebooks, automation, and custom evaluation workflows.
-+++
-{bdg-secondary}`API`
-:::
-
-:::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` CLI Reference
-:link: libraries/nemo-evaluator-launcher/cli
-:link-type: doc
-
-Complete command-line interface documentation with examples and usage patterns.
-+++
-{bdg-secondary}`CLI`
-:::
-
 ::::
 
 ### Core
@@ -415,6 +397,8 @@ Runtime & Execution <troubleshooting/runtime-issues/index>
 About References <references/index>
 FAQ <references/faq>
 NeMo Evaluator Core Python API  <references/api/nemo-evaluator/api/index>
+NeMo Evaluator Launcher Python API  <references/api/nemo-evaluator-launcher/api>
 nemo-evaluator CLI Reference <references/api/nemo-evaluator/cli>
+nemo-evaluator-launcher CLI Reference <references/api/nemo-evaluator-launcher/cli>
 :::
 
