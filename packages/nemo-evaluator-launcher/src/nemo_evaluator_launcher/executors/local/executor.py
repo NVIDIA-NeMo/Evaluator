@@ -118,7 +118,7 @@ class LocalExecutor(BaseExecutor):
 
         # Will accumulate if any task contains unsafe commands.
         is_potentially_unsafe = False
-        
+
         deployment = None
 
         for idx, task in enumerate(cfg.evaluation.tasks):

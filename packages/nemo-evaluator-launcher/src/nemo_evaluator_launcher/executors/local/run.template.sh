@@ -76,8 +76,7 @@ else
 
         {% endif %}
         docker run --rm --shm-size=100g {{ extra_docker_args }} \
-        {% if task.deployment %}--network container:$SERVER_CONTAINER_NAME \{% endif %}
-      --name {{ task.client_container_name }} \
+        {% if task.deployment %}--network container:$SERVER_CONTAINER_NAME \{% endif %}--name {{ task.client_container_name }} \
       --volume "$artifacts_dir":/results \
       {% for env_var in task.env_vars -%}
       -e {{ env_var }} \
