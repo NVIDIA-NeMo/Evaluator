@@ -420,9 +420,12 @@ class AdapterConfig(BaseModel):
         logger = get_logger(__name__)
 
         # Validate legacy config using Pydantic model (catches typos early)
-        # The model includes all defaults, so no need to merge separately
+        # Filter out modern fields (discovery, interceptors, post_eval_hooks) before validation
+        modern_fields = {"discovery", "interceptors", "post_eval_hooks"}
+        legacy_only = {k: v for k, v in legacy_config.items() if k not in modern_fields}
+
         try:
-            validated = LegacyAdapterConfig(**legacy_config)
+            validated = LegacyAdapterConfig(**legacy_only)
             legacy_config = validated.model_dump()
         except ValidationError:
             # Log helpful message with list of valid fields
