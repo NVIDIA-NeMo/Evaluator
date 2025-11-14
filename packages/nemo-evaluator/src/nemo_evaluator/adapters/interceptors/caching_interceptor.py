@@ -181,7 +181,7 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
         else:
             cached_headers = headers
         self.headers_cache[cache_key] = cached_headers
-        self.logger.debug("Content", content)
+
         self.logger.debug(
             "Saved response to cache",
             cache_key=cache_key[:8] + "...",
