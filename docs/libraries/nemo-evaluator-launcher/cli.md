@@ -41,10 +41,10 @@ Execute evaluations using Hydra configuration management.
 
 ```bash
 # Using example configurations
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml
 
 # With output directory override
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
   -o execution.output_dir=/path/to/results
 ```
 
@@ -52,14 +52,34 @@ nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/exampl
 
 ```bash
 # Using custom config directory
-nemo-evaluator-launcher run --config-dir my_configs --config-name my_evaluation
+nemo-evaluator-launcher run --config my_configs/my_evaluation.yaml
 
 # Multiple overrides (Hydra syntax)
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
   -o execution.output_dir=results \
   -o target.api_endpoint.model_id=my-model \
   -o +config.params.limit_samples=10
 ```
+
+### Config Loading Modes
+
+The `--config-mode` parameter controls how configuration files are loaded:
+
+- **`hydra`** (default): Uses Hydra configuration system. The config file path is parsed to extract `config_dir` and `config_name`, and Hydra handles configuration composition, overrides, and validation.
+- **`raw`**: Loads the config file directly without Hydra processing. Useful for loading pre-generated complete configuration files.
+
+```bash
+# Default: Hydra mode (config file is processed by Hydra)
+nemo-evaluator-launcher run --config my_config.yaml
+
+# Explicit Hydra mode
+nemo-evaluator-launcher run --config my_config.yaml --config-mode=hydra
+
+# Raw mode: load config file directly (bypasses Hydra)
+nemo-evaluator-launcher run --config complete_config.yaml --config-mode=raw
+```
+
+**Note:** When using `--config-mode=raw`, the `--config` parameter is required, and other config-related options (`--config-name`, `--config-dir`, `--override`) cannot be used.
 
 (launcher-cli-dry-run)=
 ### Dry Run
@@ -67,7 +87,7 @@ nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/exampl
 Preview the full resolved configuration without executing:
 
 ```bash
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct --dry-run
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml --dry-run
 ```
 
 ### Test Runs
@@ -75,7 +95,7 @@ nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/exampl
 Run with limited samples for testing:
 
 ```bash
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
   -o +config.params.limit_samples=10
 ```
 
@@ -84,14 +104,14 @@ nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/exampl
 **Local Execution:**
 
 ```bash
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
   -o execution.output_dir=./local_results
 ```
 
 **Slurm Execution:**
 
 ```bash
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name slurm_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml \
   -o execution.output_dir=/shared/results
 ```
 
@@ -99,10 +119,10 @@ nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/exampl
 
 ```bash
 # With model deployment
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name lepton_nim_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml
 
 # Using existing endpoint
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name lepton_none_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_none_llama_3_1_8b_instruct.yaml
 ```
 
 ## status - Check Job Status
@@ -389,7 +409,7 @@ export HF_TOKEN="hf_..."              # For Hugging Face datasets
 export NGC_API_KEY="nvapi-..."            # For NVIDIA API endpoints
 
 # Run evaluation
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml
 ```
 
 The specific environment variables required depend on the tasks and endpoints you're using. Refer to the example configuration files for details on which variables are needed.
@@ -419,7 +439,7 @@ cp examples/local_llama_3_1_8b_instruct.yaml my_config.yaml
 
 # Edit the configuration as needed
 # Then run with your config
-nemo-evaluator-launcher run --config-dir . --config-name my_config
+nemo-evaluator-launcher run --config ./my_config.yaml
 ```
 
 Refer to the {ref}`configuration documentation <configuration-overview>` for detailed information on all available configuration options.
@@ -432,7 +452,7 @@ Refer to the {ref}`configuration documentation <configuration-overview>` for det
 
 ```bash
 # Validate configuration without running
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name my_config --dry-run
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/my_config.yaml --dry-run
 ```
 
 **Permission Errors:**
@@ -442,7 +462,7 @@ nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/exampl
 ls -la examples/my_config.yaml
 
 # Use absolute paths
-nemo-evaluator-launcher run --config-dir /absolute/path/to/configs --config-name my_config
+nemo-evaluator-launcher run --config /absolute/path/to/configs/my_config.yaml
 ```
 
 **Network Issues:**
@@ -459,11 +479,11 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 ```bash
 # Set log level to DEBUG for detailed output
 export LOG_LEVEL=DEBUG
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml
 
 # Or use single-letter shorthand
 export LOG_LEVEL=D
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml
 
 # Logs are written to ~/.nemo-evaluator/logs/
 ```

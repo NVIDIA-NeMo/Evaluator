@@ -23,7 +23,7 @@ Before you run evaluations, ensure you have:
 **For researchers and data scientists**: Evaluate your model on standard academic benchmarks in 3 steps.
 
 **Step 1: Choose Your Approach**
-- **Launcher CLI** (Recommended): `nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct`
+- **Launcher CLI** (Recommended): `nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml`
 - **Python API**: Direct programmatic control with `evaluate()` function
 
 **Step 2: Select Benchmarks**
@@ -62,8 +62,7 @@ Launch the job:
 export NGC_API_KEY=nvapi-...
 
 nemo-evaluator-launcher run \
-    --config-dir . \
-    --config-name config.yml \
+    --config ./config.yml \
     -o execution.output_dir=results \
     -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \

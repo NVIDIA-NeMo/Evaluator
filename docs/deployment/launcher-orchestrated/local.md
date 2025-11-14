@@ -22,8 +22,7 @@ Local execution:
 ```bash
 # Run evaluation against existing endpoint
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct
+    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml
 ```
 
 ## Configuration
@@ -176,19 +175,16 @@ execution:
 ```bash
 # Run evaluation
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct
+    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml
 
 # Dry run to preview configuration
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
     --dry-run
 
 # Override endpoint URL
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
     -o target.api_endpoint.url=http://localhost:8080/v1/chat/completions
 ```
 
@@ -292,8 +288,7 @@ nemo-evaluator-launcher kill <job_id>
 ```bash
 # Validate configuration before running
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
     --dry-run
 ```
 

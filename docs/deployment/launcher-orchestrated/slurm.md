@@ -18,8 +18,7 @@ Slurm launcher-orchestrated deployment:
 ```bash
 # Deploy and evaluate on Slurm cluster
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name slurm_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml \
     -o deployment.checkpoint_path=/shared/models/llama-3.1-8b-instruct \
     -o execution.partition=gpu
 ```
@@ -146,13 +145,11 @@ evaluation:
 ```bash
 # Submit job with configuration
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name slurm_llama_3_1_8b_instruct
+    --config packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml
 
 # Submit with configuration overrides
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name slurm_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml \
     -o execution.walltime="04:00:00" \
     -o execution.partition=gpu-long
 ```
