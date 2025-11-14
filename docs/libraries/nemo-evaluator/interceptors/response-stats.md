@@ -90,15 +90,7 @@ target:
 
 ## Configuration Options
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `collect_token_stats` | `bool` | `true` | Whether to collect token statistics (prompt, completion, total tokens) |
-| `collect_finish_reasons` | `bool` | `true` | Whether to collect and track finish reasons from API responses |
-| `collect_tool_calls` | `bool` | `true` | Whether to collect tool call and function call statistics |
-| `stats_file_saving_interval` | `int` | `None` | How often (every N responses) to save stats to file. If None, only saves via post_eval_hook |
-| `save_individuals` | `bool` | `true` | Whether to save individual request statistics. If false, only saves aggregated stats |
-| `cache_dir` | `str` | `"/tmp/response_stats_interceptor"` | Custom cache directory for storing response statistics |
-| `logging_aggregated_stats_interval` | `int` | `100` | How often (every N responses) to log aggregated statistics to console |
+For detailed configuration options, please refer to the {ref}`interceptor_reference` Python API reference.
 
 ## Behavior
 

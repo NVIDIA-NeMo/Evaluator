@@ -55,15 +55,15 @@ Comprehensive logging setup for evaluation runs, debugging, and audit trails.
 Add custom benchmarks and frameworks by defining configuration and interfaces.
 :::
 
-:::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` API Reference
-:link: ../../../apidocs/index
+:::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Python API Reference
+:link: ../../references/api/nemo-evaluator/api/index
 :link-type: doc
 
 Python API documentation for programmatic evaluation control and integration.
 :::
 
 :::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` CLI Reference
-:link: cli
+:link: ../../references/api/nemo-evaluator/cli
 :link-type: doc
 
 Command-line interface for direct container and evaluation execution.
@@ -80,6 +80,4 @@ Benchmark Containers <containers/index>
 Interceptors <interceptors/index>
 Logging <logging>
 Extending <extending/index>
-API Reference <api>
-CLI Reference (nemo-evaluator) <cli>
 :::

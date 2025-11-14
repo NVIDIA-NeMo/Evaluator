@@ -35,9 +35,7 @@ target:
 
 ## Configuration Options
 
-| Parameter | Description | Type | Required |
-|-----------|-------------|------|----------|
-| `system_message` | System message to add to requests | str | Yes |
+For detailed configuration options, please refer to the {ref}`interceptor_reference` Python API reference.
 
 ## Behavior
 

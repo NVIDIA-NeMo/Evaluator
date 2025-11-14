@@ -31,4 +31,4 @@ target:
 
 ## Configuration Options
 
-The Endpoint Interceptor is configured automatically.
+The Endpoint Interceptor is configured automatically. No configuration is required. 

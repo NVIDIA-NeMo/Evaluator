@@ -18,12 +18,14 @@ import os
 import subprocess
 import tempfile
 import time
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar
 
 import requests
 import yaml
 
 from nemo_evaluator.logging import get_logger
+
+__all__ = []
 
 logger = get_logger(__name__)
 
@@ -194,13 +196,25 @@ def check_health(
 
 def check_endpoint(
     endpoint_url: str,
-    endpoint_type: str,
+    endpoint_type: Literal["completions", "chat"],
     model_name: str,
     max_retries: int = 600,
     retry_interval: int = 2,
 ) -> bool:
-    """
-    Check if the endpoint is responsive and ready to accept requests.
+    """Checks if the OpenAI-compatible endpoint is alive by sending a simple prompt.
+
+    Args:
+        endpoint_url (str): Full endpoint URL. For most servers that means either ``/v1/chat/completions`` or ``/completions`` must be provided
+        endpoint_type (Literal[completions, chat]): indicates if the model is instruction-tuned (chat) or a base model (completions). Used to constuct a proper payload structure.
+        model_name (str): model name that is linked to payload. Might be required by some endpoint.
+        max_retries (int, optional): How many attempt before returning false. Defaults to 600.
+        retry_interval (int, optional): How many seconds to wait between attempts. Defaults to 2.
+
+    Raises:
+        ValueError: if endpoint_type was not one of "completions", "chat"
+
+    Returns:
+        bool: whether the endpoint is alive
     """
     payload = {"model": model_name, "max_tokens": 1}
     if endpoint_type == "completions":
