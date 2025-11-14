@@ -398,7 +398,7 @@ About References <references/index>
 FAQ <references/faq>
 NeMo Evaluator Core Python API  <references/api/nemo-evaluator/api/index>
 NeMo Evaluator Launcher Python API  <references/api/nemo-evaluator-launcher/api>
-nemo-evaluator CLI Reference <references/api/nemo-evaluator/cli>
-nemo-evaluator-launcher CLI Reference <references/api/nemo-evaluator-launcher/cli>
+nemo-evaluator CLI <references/api/nemo-evaluator/cli>
+nemo-evaluator-launcher CLI <references/api/nemo-evaluator-launcher/cli>
 :::
 
