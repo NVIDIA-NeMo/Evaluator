@@ -21,7 +21,7 @@ Defines the abstract interface for all executor implementations and common statu
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 from omegaconf import DictConfig
 
@@ -81,15 +81,15 @@ class BaseExecutor(ABC):
 
     @staticmethod
     @abstractmethod
-    def kill_job(job_id: str) -> None:
-        """Kill a job by its ID.
+    def kill_jobs(job_ids: List[str]) -> None:
+        """Kill one or more jobs by their IDs.
 
         Args:
-            job_id: The job ID to kill.
+            job_ids: List of job IDs to kill.
 
         Raises:
-            ValueError: If job is not found or invalid.
-            RuntimeError: If job cannot be killed.
+            ValueError: If any job is not found or invalid.
+            RuntimeError: If any job cannot be killed.
 
         Raises:
             NotImplementedError: If not implemented by a subclass.
