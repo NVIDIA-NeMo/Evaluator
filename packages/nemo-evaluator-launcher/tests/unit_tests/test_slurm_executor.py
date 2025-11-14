@@ -611,7 +611,7 @@ class TestSlurmExecutorHelperFunctions:
         mounts_list = ["/host/path:/container/path"] if has_mounts else []
 
         # Generate command
-        command = _generate_deployment_srun_command(
+        command, _, _ = _generate_deployment_srun_command(
             cfg=cfg,
             deployment_mounts_list=mounts_list,
             remote_task_subdir=Path("/test/remote"),

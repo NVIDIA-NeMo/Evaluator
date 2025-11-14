@@ -102,6 +102,11 @@ class LeptonExecutor(BaseExecutor):
                 is_potentially_unsafe = True
                 break
 
+        # Check for deployment pre_cmd
+        deployment_pre_cmd: str = cfg.deployment.get("pre_cmd") or ""
+        if deployment_pre_cmd:
+            is_potentially_unsafe = True
+
         # DRY-RUN mode
         if dry_run:
             output_dir = Path(cfg.execution.output_dir).absolute() / invocation_id
@@ -119,7 +124,7 @@ class LeptonExecutor(BaseExecutor):
             if is_potentially_unsafe:
                 print(
                     red(
-                        "\nFound `pre_cmd` which carries security risk. When running without --dry-run "
+                        "\nFound `pre_cmd` (evaluation or deployment) which carries security risk. When running without --dry-run "
                         "make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
                     )
                 )
@@ -129,13 +134,13 @@ class LeptonExecutor(BaseExecutor):
         if is_potentially_unsafe:
             if os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":
                 logger.warning(
-                    "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                    "Found non-empty commands (e.g. `pre_cmd` in evaluation or deployment) and NEMO_EVALUATOR_TRUST_PRE_CMD "
                     "is set, proceeding with caution."
                 )
 
             else:
                 logger.error(
-                    "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                    "Found non-empty commands (e.g. `pre_cmd` in evaluation or deployment) and NEMO_EVALUATOR_TRUST_PRE_CMD "
                     "is not set. This might carry security risk and unstable environments. "
                     "To continue, make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1.",
                 )
