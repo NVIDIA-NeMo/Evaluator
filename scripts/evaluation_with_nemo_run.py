@@ -315,7 +315,9 @@ def main():
     elif args.serving_backend == "ray":
         # Ray deployment with nem-run requires python executable path to be set, else it cannot find the libraries
         # like mcore, mbridge, etc.
-        additional_args += " --runtime_env '{\"py_executable\": \"/opt/venv/bin/python\"}'"
+        additional_args += (
+            ' --runtime_env \'{"py_executable": "/opt/venv/bin/python"}\''
+        )
         if args.num_cpus_per_replica:
             additional_args += f" --num_cpus_per_replica {args.num_cpus_per_replica}"
         deploy_script = RAY_DEPLOY_SCRIPT.format(
