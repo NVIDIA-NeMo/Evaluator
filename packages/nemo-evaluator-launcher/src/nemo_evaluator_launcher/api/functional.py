@@ -339,45 +339,6 @@ def kill_job_or_invocation(id: str) -> list[dict[str, Any]]:
     db = ExecutionDB()
     results = []
 
-    def kill_single_job(job_id: str, job_data: JobData) -> dict[str, Any]:
-        """Helper function to kill a single job."""
-        try:
-            executor_cls = get_executor(job_data.executor)
-            if hasattr(executor_cls, "kill_job"):
-                executor_cls.kill_job(job_id)
-                # Success - job was killed
-                return {
-                    "invocation": job_data.invocation_id,
-                    "job_id": job_id,
-                    "status": "killed",
-                    "data": {"result": "Successfully killed job"},
-                }
-            else:
-                return {
-                    "invocation": job_data.invocation_id,
-                    "job_id": job_id,
-                    "status": "error",
-                    "data": {
-                        "error": f"Executor {job_data.executor} does not support killing jobs"
-                    },
-                }
-        except (ValueError, RuntimeError) as e:
-            # Expected errors from kill_job
-            return {
-                "invocation": job_data.invocation_id,
-                "job_id": job_id,
-                "status": "error",
-                "data": {"error": str(e)},
-            }
-        except Exception as e:
-            # Unexpected errors
-            return {
-                "invocation": job_data.invocation_id,
-                "job_id": job_id,
-                "status": "error",
-                "data": {"error": f"Unexpected error: {str(e)}"},
-            }
-
     # Determine if this is a job ID or invocation ID
     if "." in id:
         # This is a job ID - kill single job
@@ -391,11 +352,11 @@ def kill_job_or_invocation(id: str) -> list[dict[str, Any]]:
                     "data": {},
                 }
             ]
-        results.append(kill_single_job(id, job_data))
+        jobs_to_kill = {id: job_data}
     else:
         # This is an invocation ID - kill all jobs in the invocation
-        jobs = db.get_jobs(id)
-        if not jobs:
+        jobs_to_kill = db.get_jobs(id)
+        if not jobs_to_kill:
             return [
                 {
                     "invocation": id,
@@ -405,9 +366,84 @@ def kill_job_or_invocation(id: str) -> list[dict[str, Any]]:
                 }
             ]
 
-        # Kill each job in the invocation
-        for job_id, job_data in jobs.items():
-            results.append(kill_single_job(job_id, job_data))
+    # Group jobs by executor to optimize kill operations
+    jobs_by_executor: dict[str, list[tuple[str, JobData]]] = {}
+    for job_id, job_data in jobs_to_kill.items():
+        executor = job_data.executor
+        if executor not in jobs_by_executor:
+            jobs_by_executor[executor] = []
+        jobs_by_executor[executor].append((job_id, job_data))
+
+    # Kill jobs grouped by executor (optimization: one call per executor)
+    for executor, job_list in jobs_by_executor.items():
+        try:
+            executor_cls = get_executor(executor)
+            if not hasattr(executor_cls, "kill_jobs"):
+                # Executor doesn't support killing jobs
+                for job_id, job_data in job_list:
+                    results.append(
+                        {
+                            "invocation": job_data.invocation_id,
+                            "job_id": job_id,
+                            "status": "error",
+                            "data": {
+                                "error": f"Executor {executor} does not support killing jobs"
+                            },
+                        }
+                    )
+                continue
+
+            # Extract job IDs for batch kill
+            job_ids = [job_id for job_id, _ in job_list]
+
+            try:
+                # OPTIMIZATION: Kill all jobs for this executor in one call
+                executor_cls.kill_jobs(job_ids)
+
+                # Success - all jobs were killed
+                for job_id, job_data in job_list:
+                    results.append(
+                        {
+                            "invocation": job_data.invocation_id,
+                            "job_id": job_id,
+                            "status": "killed",
+                            "data": {"result": "Successfully killed job"},
+                        }
+                    )
+            except (ValueError, RuntimeError) as e:
+                # Expected errors from kill_job - mark all jobs as error
+                # Note: kill_job may have killed some jobs before failing
+                for job_id, job_data in job_list:
+                    results.append(
+                        {
+                            "invocation": job_data.invocation_id,
+                            "job_id": job_id,
+                            "status": "error",
+                            "data": {"error": str(e)},
+                        }
+                    )
+            except Exception as e:
+                # Unexpected errors
+                for job_id, job_data in job_list:
+                    results.append(
+                        {
+                            "invocation": job_data.invocation_id,
+                            "job_id": job_id,
+                            "status": "error",
+                            "data": {"error": f"Unexpected error: {str(e)}"},
+                        }
+                    )
+        except ValueError as e:
+            # Error getting executor class
+            for job_id, job_data in job_list:
+                results.append(
+                    {
+                        "invocation": job_data.invocation_id,
+                        "job_id": job_id,
+                        "status": "error",
+                        "data": {"error": str(e)},
+                    }
+                )
 
     return results
 

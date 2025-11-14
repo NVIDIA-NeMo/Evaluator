@@ -26,6 +26,7 @@ import shlex
 import shutil
 import subprocess
 import time
+import warnings
 from typing import List, Optional
 
 import jinja2
@@ -462,8 +463,102 @@ class LocalExecutor(BaseExecutor):
         ]
 
     @staticmethod
+    def kill_jobs(job_ids: List[str]) -> None:
+        """Kill one or more local jobs.
+
+        Args:
+            job_ids: List of job IDs (e.g., ['abc123.0', 'abc123.1']) to kill.
+
+        Raises:
+            ValueError: If any job is not found or invalid.
+            RuntimeError: If any job cannot be killed.
+        """
+        if not job_ids:
+            return
+
+        db = ExecutionDB()
+        job_data_list = []
+        container_names = []
+
+        # Validate all jobs first
+        for job_id in job_ids:
+            job_data = db.get_job(job_id)
+
+            if job_data is None:
+                raise ValueError(f"Job {job_id} not found")
+
+            if job_data.executor != "local":
+                raise ValueError(
+                    f"Job {job_id} is not a local job (executor: {job_data.executor})"
+                )
+
+            container_name = job_data.data.get("container")
+            if not container_name:
+                raise ValueError(f"No container name found for job {job_id}")
+
+            job_data_list.append((job_id, job_data))
+            container_names.append(container_name)
+
+        killed_something = False
+
+        # OPTIMIZATION: Stop all containers in one command
+        if container_names:
+            containers_str = " ".join(container_names)
+            result = subprocess.run(
+                shlex.split(f"docker stop {containers_str}"),
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode == 0:
+                killed_something = True
+            # Don't raise error if containers don't exist (might be still pulling)
+
+            # Find and kill Docker processes for all containers
+            # Use a pattern that matches any of the container names
+            pattern = "|".join(container_names)
+            result = subprocess.run(
+                shlex.split(f"pkill -f 'docker run.*({pattern})'"),
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                killed_something = True
+
+        # Mark jobs as killed in database
+        errors = []
+        for job_id, job_data in job_data_list:
+            if killed_something:
+                job_data.data["killed"] = True
+                db.write_job(job_data)
+                LocalExecutor._add_to_killed_jobs(job_data.invocation_id, job_id)
+            else:
+                # If nothing was killed, check if this is a pending job
+                status_list = LocalExecutor.get_status(job_id)
+                if status_list and status_list[0].state == ExecutionState.PENDING:
+                    # For pending jobs, mark as killed even though there's nothing to kill yet
+                    job_data.data["killed"] = True
+                    db.write_job(job_data)
+                    LocalExecutor._add_to_killed_jobs(job_data.invocation_id, job_id)
+                else:
+                    # Use common helper to get informative error message based on job status
+                    current_status = status_list[0].state if status_list else None
+                    container_name = job_data.data.get("container", "")
+                    error_msg = LocalExecutor.get_kill_failure_message(
+                        job_id, f"container: {container_name}", current_status
+                    )
+                    errors.append(error_msg)
+
+        if errors:
+            raise RuntimeError("; ".join(errors))
+
+    @staticmethod
     def kill_job(job_id: str) -> None:
-        """Kill a local job.
+        """Kill a single local job.
+
+        .. deprecated::
+            This method is deprecated. Use :meth:`kill_jobs` instead.
 
         Args:
             job_id: The job ID (e.g., abc123.0) to kill.
@@ -472,67 +567,12 @@ class LocalExecutor(BaseExecutor):
             ValueError: If job is not found or invalid.
             RuntimeError: If Docker container cannot be stopped.
         """
-        db = ExecutionDB()
-        job_data = db.get_job(job_id)
-
-        if job_data is None:
-            raise ValueError(f"Job {job_id} not found")
-
-        if job_data.executor != "local":
-            raise ValueError(
-                f"Job {job_id} is not a local job (executor: {job_data.executor})"
-            )
-
-        # Get container name from database
-        container_name = job_data.data.get("container")
-        if not container_name:
-            raise ValueError(f"No container name found for job {job_id}")
-
-        killed_something = False
-
-        # First, try to stop the Docker container if it's running
-        result = subprocess.run(
-            shlex.split(f"docker stop {container_name}"),
-            capture_output=True,
-            text=True,
-            timeout=30,
+        warnings.warn(
+            "kill_job is deprecated. Use kill_jobs instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
-        if result.returncode == 0:
-            killed_something = True
-        # Don't raise error if container doesn't exist (might be still pulling)
-
-        # Find and kill Docker processes for this container
-        result = subprocess.run(
-            shlex.split(f"pkill -f 'docker run.*{container_name}'"),
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if result.returncode == 0:
-            killed_something = True
-
-        # If we successfully killed something, mark as killed
-        if killed_something:
-            job_data.data["killed"] = True
-            db.write_job(job_data)
-            LocalExecutor._add_to_killed_jobs(job_data.invocation_id, job_id)
-            return
-
-        # If nothing was killed, check if this is a pending job
-        status_list = LocalExecutor.get_status(job_id)
-        if status_list and status_list[0].state == ExecutionState.PENDING:
-            # For pending jobs, mark as killed even though there's nothing to kill yet
-            job_data.data["killed"] = True
-            db.write_job(job_data)
-            LocalExecutor._add_to_killed_jobs(job_data.invocation_id, job_id)
-            return
-
-        # Use common helper to get informative error message based on job status
-        current_status = status_list[0].state if status_list else None
-        error_msg = LocalExecutor.get_kill_failure_message(
-            job_id, f"container: {container_name}", current_status
-        )
-        raise RuntimeError(error_msg)
+        LocalExecutor.kill_jobs([job_id])
 
     @staticmethod
     def _add_to_killed_jobs(invocation_id: str, job_id: str) -> None:

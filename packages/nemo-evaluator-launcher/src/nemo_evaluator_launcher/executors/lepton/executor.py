@@ -20,6 +20,7 @@ Handles deployment and evaluation using Lepton endpoints with NIM containers.
 
 import os
 import time
+import warnings
 from pathlib import Path
 from typing import List
 
@@ -699,30 +700,46 @@ class LeptonExecutor(BaseExecutor):
         return [ExecutionStatus(id=id, state=state, progress=progress_info)]
 
     @staticmethod
-    def kill_job(job_id: str) -> None:
-        """Kill Lepton evaluation jobs and clean up endpoints.
+    def kill_jobs(job_ids: List[str]) -> None:
+        """Kill one or more Lepton evaluation jobs and clean up endpoints.
 
         Args:
-            job_id: The job ID to kill.
+            job_ids: List of job IDs to kill.
 
         Raises:
-            ValueError: If job is not found or invalid.
-            RuntimeError: If job cannot be killed.
+            ValueError: If any job is not found or invalid.
+            RuntimeError: If any job cannot be killed.
         """
+        if not job_ids:
+            return
+
         db = ExecutionDB()
-        job_data = db.get_job(job_id)
-        if job_data is None:
-            raise ValueError(f"Job {job_id} not found")
+        job_data_list = []
+        lepton_job_names = []
 
-        if job_data.executor != "lepton":
-            raise ValueError(
-                f"Job {job_id} is not a Lepton job (executor: {job_data.executor})"
-            )
+        # Validate all jobs first
+        for job_id in job_ids:
+            job_data = db.get_job(job_id)
+            if job_data is None:
+                raise ValueError(f"Job {job_id} not found")
 
-        # Cancel the specific Lepton job
-        lepton_job_name = job_data.data.get("lepton_job_name")
+            if job_data.executor != "lepton":
+                raise ValueError(
+                    f"Job {job_id} is not a Lepton job (executor: {job_data.executor})"
+                )
 
-        if lepton_job_name:
+            lepton_job_name = job_data.data.get("lepton_job_name")
+            if not lepton_job_name:
+                raise ValueError(f"No Lepton job name found for job {job_id}")
+
+            job_data_list.append((job_id, job_data))
+            lepton_job_names.append(lepton_job_name)
+
+        # OPTIMIZATION: Cancel all Lepton jobs
+        errors = []
+        killed_jobs = []
+        for job_id, job_data in job_data_list:
+            lepton_job_name = job_data.data.get("lepton_job_name", "")
             cancel_success = delete_lepton_job(lepton_job_name)
             if cancel_success:
                 print(f"✅ Cancelled Lepton job: {lepton_job_name}")
@@ -730,6 +747,7 @@ class LeptonExecutor(BaseExecutor):
                 job_data.data["status"] = "killed"
                 job_data.data["killed_time"] = time.time()
                 db.write_job(job_data)
+                killed_jobs.append((job_id, job_data))
             else:
                 # Use common helper to get informative error message based on job status
                 status_list = LeptonExecutor.get_status(job_id)
@@ -737,26 +755,43 @@ class LeptonExecutor(BaseExecutor):
                 error_msg = LeptonExecutor.get_kill_failure_message(
                     job_id, f"lepton_job: {lepton_job_name}", current_status
                 )
-                raise RuntimeError(error_msg)
-        else:
-            raise ValueError(f"No Lepton job name found for job {job_id}")
+                errors.append(error_msg)
 
-        print(f"🛑 Killed Lepton job {job_id}")
+        if errors:
+            raise RuntimeError("; ".join(errors))
 
-        # For individual jobs, also clean up the dedicated endpoint for this task
-        # Check if this was the last job using this specific endpoint
-        endpoint_name = job_data.data.get("endpoint_name")
-        if endpoint_name:
+        print(f"🛑 Killed {len(killed_jobs)} Lepton job(s)")
+
+        # For killed jobs, clean up endpoints if they're no longer in use
+        # Group by endpoint to avoid redundant checks
+        endpoints_to_check = {}
+        for job_id, job_data in killed_jobs:
+            endpoint_name = job_data.data.get("endpoint_name")
+            if endpoint_name:
+                if endpoint_name not in endpoints_to_check:
+                    endpoints_to_check[endpoint_name] = []
+                endpoints_to_check[endpoint_name].append((job_id, job_data))
+
+        # Check each endpoint and clean up if no other jobs are using it
+        for endpoint_name, jobs_using_endpoint in endpoints_to_check.items():
+            # Get all jobs from the invocation(s) that might use this endpoint
+            invocation_ids = {
+                job_data.invocation_id for _, job_data in jobs_using_endpoint
+            }
+            all_jobs_in_invocations = {}
+            for inv_id in invocation_ids:
+                all_jobs_in_invocations.update(db.get_jobs(inv_id))
+
             # Check if any other jobs are still using this endpoint
-            jobs = db.get_jobs(job_data.invocation_id)
+            killed_job_ids = {job_id for job_id, _ in jobs_using_endpoint}
             other_jobs_using_endpoint = [
                 j
-                for j in jobs.values()
+                for j in all_jobs_in_invocations.values()
                 if (
                     j.data.get("endpoint_name") == endpoint_name
                     and j.data.get("status")
                     not in ["killed", "failed", "succeeded", "cancelled"]
-                    and j.job_id != job_id
+                    and j.job_id not in killed_job_ids
                 )
             ]
 
@@ -773,8 +808,27 @@ class LeptonExecutor(BaseExecutor):
                 print(
                     f"📌 Keeping endpoint {endpoint_name} (still used by {len(other_jobs_using_endpoint)} other jobs)"
                 )
-        else:
-            print("📌 No dedicated endpoint to clean up for this job")
+
+    @staticmethod
+    def kill_job(job_id: str) -> None:
+        """Kill a single Lepton evaluation job and clean up endpoints.
+
+        .. deprecated::
+            This method is deprecated. Use :meth:`kill_jobs` instead.
+
+        Args:
+            job_id: The job ID to kill.
+
+        Raises:
+            ValueError: If job is not found or invalid.
+            RuntimeError: If job cannot be killed.
+        """
+        warnings.warn(
+            "kill_job is deprecated. Use kill_jobs instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        LeptonExecutor.kill_jobs([job_id])
 
 
 def _create_evaluation_launch_script(
