@@ -75,6 +75,7 @@ where = ["src"]
   "resources/**/*",
   "configs/**/*",
   "executors/**/*.sh",
+  "executors/**/*.template",
 ]
 
 [tool.setuptools.dynamic]
