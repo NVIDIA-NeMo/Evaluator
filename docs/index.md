@@ -352,16 +352,6 @@ About Model Evaluation <evaluation/index>
 Benchmark Catalog <evaluation/benchmarks>
 :::
 
-:::{toctree}
-:caption: NeMo Framework
-:hidden:
-
-About NeMo Framework <nemo-fw/index>
-Log-Probability Evaluation <nemo-fw/logprobs>
-Custom Task Configuration <nemo-fw/custom-task>
-On-Demand Evaluation Packages <nemo-fw/optional-eval-package>
-:::
-
 <!-- TODO: Add these pages once ready:
 Evaluation Adapters <deployment/adapters/index>
 Launcher-Orchestrated <deployment/launcher-orchestrated/index> -->
