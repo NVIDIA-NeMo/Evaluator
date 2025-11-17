@@ -61,10 +61,3 @@ Install and use additional NVIDIA Eval Factory packages (BFCL, garak, BigCode, s
 :::
 
 ::::
-
-## Related Resources
-
-- {ref}`deployment-nemo-fw-overview` - Deploy NeMo Framework checkpoints for evaluation
-- {ref}`nemo-evaluator-containers` - Container specifications for evaluation environments
-- {ref}`eval-benchmarks` - Browse available benchmarks and tasks
-
