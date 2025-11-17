@@ -31,15 +31,17 @@ from nemo_evaluator.api.api_dataclasses import (
 from nemo_evaluator.core.evaluate import evaluate
 from nemo_evaluator.core.input import (
     _get_framework_evaluations,
+    _parse_cli_args,
     load_run_config,
-    parse_cli_args,
     validate_configuration,
 )
+
+__all__ = []
 
 from .utils import deep_update
 
 
-def get_args() -> argparse.Namespace:
+def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--debug", action="store_true", help="Debug the core_evals script"
@@ -86,6 +88,11 @@ def get_args() -> argparse.Namespace:
         default=False,
     )
     parser_run.set_defaults(command="run_eval")
+    return parser
+
+
+def get_args() -> argparse.Namespace:
+    parser = get_parser()
 
     args = parser.parse_args()
 
@@ -107,6 +114,19 @@ def get_args() -> argparse.Namespace:
 
 
 def show_available_tasks() -> None:
+    """
+    Prints all available evaluations in the format of::
+
+        {harness1}:
+            * benchmark A
+            * benchmark B
+        {harness2}:
+            * benchmark A
+            * benchmark B
+        ...
+
+    .. important:: Only evaluations from installed wheels are being displayed.
+    """
     try:
         import core_evals
 
@@ -130,7 +150,7 @@ def show_available_tasks() -> None:
 def run(args) -> None:
     run_config = load_run_config(args.run_config) if args.run_config else {}
     # CLI args take precedence over YAML run config
-    run_config = deep_update(run_config, parse_cli_args(args), skip_nones=True)
+    run_config = deep_update(run_config, _parse_cli_args(args), skip_nones=True)
     if args.dry_run:
         evaluation = validate_configuration(run_config)
         print("Rendered config:\n")

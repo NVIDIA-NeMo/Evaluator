@@ -32,8 +32,4 @@ target:
 
 ## Configuration Options
 
-| Parameter          | Description                                                            | Default   | Type    |
-|--------------------|------------------------------------------------------------------------|-----------|---------|
-| log_request_body   | Whether to log the request body                                        | `True`    | bool    |
-| log_request_headers| Whether to log the request headers                                     | `True`    | bool    |
-| max_requests       | Maximum number of requests to log (None for unlimited)                 | `2`       | int/None|
+For detailed configuration options, please refer to the {ref}`interceptor_reference` Python API reference.
