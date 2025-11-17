@@ -60,7 +60,7 @@ python \
 
 ### Evaluate LLMs Using Log-Probabilities
 
-```{literalinclude} ../_snippets/arc_challenge.py
+```{literalinclude} ../../deployment/nemo-fw/_snippets/arc_challenge.py
 :language: python
 :start-after: "## Run the evaluation"
 ```

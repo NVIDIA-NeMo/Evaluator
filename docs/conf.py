@@ -53,6 +53,7 @@ extensions = [
     "sphinxcontrib.autodoc_pydantic",
     "enum_tools.autoenum",
     "sphinxcontrib.autoprogram",
+    # "autodoc2.sphinx",  # Not used - apidocs/ directory not linked in navigation
 ]
 
 templates_path = ["_templates"]
@@ -64,6 +65,7 @@ exclude_patterns = [
     "_extensions/README.md",  # Exclude main extensions README
     "_extensions/*/__pycache__",  # Exclude Python cache directories
     "_extensions/*/*/__pycache__",  # Exclude nested Python cache directories
+    "apidocs/**",  # Exclude autodoc2-generated docs (not used in navigation)
 ]
 
 # -- Options for Intersphinx -------------------------------------------------
@@ -156,8 +158,7 @@ numfig_secnum_depth = 1  # Gives you "Figure 1.1, 1.2, 2.1, etc."
 suppress_warnings = [
     "toc.not_included",  # Expected when video docs are excluded from GA builds
     "toc.no_title",  # Expected for helm docs that include external README files
-    "docutils",  # Expected for autodoc2-generated content with regex patterns and complex syntax
-    "ref.python",  # Expected for ambiguous autodoc2 cross-references (e.g., multiple 'Params' classes)
+    "ref.python",  # Expected for ambiguous cross-references (e.g., multiple 'Params' classes)
     "myst.xref_missing",  # Expected for Pydantic BaseModel docstrings that reference Pydantic's own documentation
 ]
 
