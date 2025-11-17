@@ -10,7 +10,7 @@ Before using these guides, ensure you have:
 
 1. **NeMo Framework environment**: Docker image or local installation
 2. **Deployed model**: NeMo checkpoint deployed and accessible
-3. **NeMo Eval installed**: Core evaluation packages (`nvidia-lm-eval` is pre-installed in NeMo Framework Docker)
+3. **NeMo Evaluator installed**: NeMo Evaluator and core evaluation packages (like `nvidia-lm-eval`) are pre-installed in NeMo Framework Docker)
 
 ---
 
