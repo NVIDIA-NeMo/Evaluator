@@ -64,19 +64,18 @@ pip install nvidia-lm-eval
 
 1. Deploy your model:
 
-   ```{literalinclude} ../scripts/snippets/deploy.py
-   :language: python
+   ```{literalinclude} ../get-started/_snippets/deploy.sh
+   :language: shell
    :start-after: "## Deploy"
-   :linenos:
    ```
 
    ```bash
-   python deploy.py
+   bash deploy.sh
    ```
 
 2. Configure and run the evaluation:
 
-   ```{literalinclude} ../scripts/snippets/lambada.py
+   ```{literalinclude} ../get-started/_snippets/lambada.py
    :language: python
    :start-after: "## Run the evaluation"
    :linenos:

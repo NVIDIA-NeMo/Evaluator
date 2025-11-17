@@ -40,7 +40,7 @@ For each package, follow these steps:
 
 2. Deploy your model:
 
-```{literalinclude} ../../scripts/snippets/deploy.sh
+```{literalinclude} ../get-started/_snippets/deploy.sh
 :language: shell
 :start-after: "## Deploy"
 ```
@@ -75,7 +75,7 @@ pip install nvidia-bfcl
 
 2. Run the evaluation:
 
-```{literalinclude} ../../scripts/snippets/bfcl.py
+```{literalinclude} ../get-started/_snippets/bfcl.py
 :language: python
 :start-after: "## Run the evaluation"
 :linenos:
@@ -91,7 +91,7 @@ pip install nvidia-eval-factory-garak
 
 2. Run the evaluation:
 
-```{literalinclude} ../../scripts/snippets/garak.py
+```{literalinclude} ../get-started/_snippets/garak.py
 :language: python
 :start-after: "## Run the evaluation"
 :linenos:
@@ -107,7 +107,7 @@ pip install nvidia-bigcode-eval
 
 2. Run the evaluation:
 
-```{literalinclude} ../../scripts/snippets/bigcode.py
+```{literalinclude} ../get-started/_snippets/bigcode.py
 :language: python
 :start-after: "## Run the evaluation"
 :linenos:
@@ -134,7 +134,7 @@ To customize the judge setting, see the instructions for [NVIDIA Eval Factory pa
 
 3. Run the evaluation:
 
-```{literalinclude} ../../scripts/snippets/simple_evals.py
+```{literalinclude} ../get-started/_snippets/simple_evals.py
 :language: python
 :start-after: "## Run the evaluation"
 :linenos:
@@ -164,7 +164,7 @@ export JUDGE_API_KEY=...
 
 4. Run the evaluation:
 
-```{literalinclude} ../../scripts/snippets/safety.py
+```{literalinclude} ../get-started/_snippets/safety.py
 :language: python
 :start-after: "## Run the evaluation"
 :linenos:
