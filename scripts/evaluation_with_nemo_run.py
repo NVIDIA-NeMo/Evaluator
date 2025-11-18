@@ -352,7 +352,10 @@ def main():
     )
 
     eval_fn = run.Partial(
-        wait_and_evaluate, target_cfg=eval_target, eval_cfg=eval_config, serving_backend=args.serving_backend
+        wait_and_evaluate,
+        target_cfg=eval_target,
+        eval_cfg=eval_config,
+        serving_backend=args.serving_backend,
     )
     # [snippet-config-end]
 

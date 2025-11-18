@@ -45,4 +45,5 @@ def wait_and_evaluate(target_cfg, eval_cfg, serving_backend="pytriton"):
 
     return result
 
+
 # [snippet-end]
