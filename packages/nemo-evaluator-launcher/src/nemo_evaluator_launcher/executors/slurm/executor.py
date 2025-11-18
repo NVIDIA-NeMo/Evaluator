@@ -522,6 +522,8 @@ def _create_slurm_sbatch_script(
         s += "#SBATCH --gpus-per-node {}\n".format(cfg.execution.gpus_per_node)
     if hasattr(cfg.execution, "gres"):
         s += "#SBATCH --gres {}\n".format(cfg.execution.gres)
+    if cfg.execution.get("sbatch_comment"):
+        s += "#SBATCH --comment='{}'\n".format(cfg.execution.sbatch_comment)
     job_name = "{account}-{subproject}.{details}".format(
         account=cfg.execution.account,
         subproject=cfg.execution.subproject,
