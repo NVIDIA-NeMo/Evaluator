@@ -12,7 +12,7 @@ Troubleshooting guide for NeMo Evaluator Launcher-specific problems including co
 
 ```bash
 # Validate configuration without running
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct --dry-run
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml --dry-run
 ```
 
 **Common Issues**:
@@ -25,7 +25,7 @@ Error: Missing required field 'execution.output_dir'
 ```
 **Fix**: Add output directory to config or override:
 ```bash
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
   -o execution.output_dir=./results
 ```
 
@@ -84,7 +84,7 @@ defaults:
 
 3. **Use Absolute Paths**:
 ```bash
-nemo-evaluator-launcher run --config-dir /absolute/path/to/configs --config-name my_config
+nemo-evaluator-launcher run --config /absolute/path/to/configs/my_config.yaml
 ```
 
 ## Job Management Issues
@@ -158,7 +158,7 @@ Error: Cannot connect to Docker daemon
 **Fix**: Start Docker daemon:
 ```bash
 # macOS/Windows: Start Docker Desktop
-# Linux: 
+# Linux:
 sudo systemctl start docker
 ```
 
@@ -280,6 +280,34 @@ Error: Invalid W&B credentials
 wandb login
 ```
 
+## Advanced Debugging Techniques
+
+### Injecting Custom Command Into Evaluation Container
+
+:::{note}
+Do not use this functionality for running at scale, because it a) 
+reduces the reproducility of evaluations; b) introduces security issues (remote command execution).
+:::
+
+For various debugging or testing purposes, one can supply a field `pre_cmd` under
+the following configuration positions:
+
+```yaml
+...
+evaluation:
+  pre_cmd: |
+    any script that will be executed inside of
+    the container before running evaluation
+    it can be multiline
+  tasks:
+    - name: <task>
+      pre_cmd: one can override this command
+```
+
+For security reasons (running configs from untrusted sources), if `pre_cmd` is
+non-empty, the `nemo-evaluator-launcher` will fail unless `NEMO_EVALUATOR_TRUST_PRE_CMD=1` environment
+variable is supplied.
+
 ## Getting Help
 
 ### Debug Information Collection
@@ -289,7 +317,7 @@ When reporting launcher issues, include:
 1. **Configuration Details**:
 ```bash
 # Show resolved configuration
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name <config> --dry-run
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/<config>.yaml --dry-run
 ```
 
 2. **System Information**:

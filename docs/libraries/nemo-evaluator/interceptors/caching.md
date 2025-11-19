@@ -37,17 +37,7 @@ target:
 
 ## Configuration Options
 
-| Parameter | Description | Default | Type |
-|-----------|-------------|---------|------|
-| `cache_dir` | Directory to store local cache files (3 separate directories) | `"/tmp"` | str |
-| `prefill_from_export` | Path to exported .cache file to prefill cache from | `None` | str |
-| `export_cache` | Export cache to single .cache file (pickle format) | `False` | bool |
-| `reuse_cached_responses` | Use cached responses when available | `False` | bool |
-| `save_requests` | Save requests to cache storage | `False` | bool |
-| `save_responses` | Save responses to cache storage | `True` | bool |
-| `max_saved_requests` | Maximum number of requests to save | `None` | int \| None |
-| `max_saved_responses` | Maximum number of responses to cache | `None` | int \| None |
-| `test_mode` | Fail on cache miss with diff to most similar request | `False` | bool |
+For detailed configuration options, please refer to the {ref}`interceptor_reference` Python API reference.
 
 ## Cache Key Generation
 

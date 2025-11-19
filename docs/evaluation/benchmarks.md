@@ -56,11 +56,11 @@ See benchmark categories below and {ref}`benchmarks-full-list` for more details.
 * - **simple-evals**
   - Common evaluation tasks
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/simple-evals)
-  - GPQA-D, MATH-500, AIME 24 & 25, HumanEval, MGSM, MMMLU, MMMLU-Pro, MMMLU-lite (AR, BN, DE, EN, ES, FR, HI, ID, IT, JA, KO, MY, PT, SW, YO, ZH), SimpleQA 
+  - GPQA-D, MATH-500, AIME 24 & 25, HumanEval, HumanEval+, MGSM, MMLU (also multilingual), MMLU-Pro, MMLU-lite (AR, BN, DE, EN, ES, FR, HI, ID, IT, JA, KO, MY, PT, SW, YO, ZH), SimpleQA, BrowseComp, HealthBench 
 * - **lm-evaluation-harness**
   - Language model benchmarks
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/lm-evaluation-harness)
-  - ARC Challenge (also multilingual), GSM8K, HumanEval, HumanEval+, MBPP, MINERVA MMMLU-Pro, RACE, TruthfulQA, AGIEval, BBH, BBQ, CSQA, Frames, Global MMMLU, GPQA-D, HellaSwag (also multilingual), IFEval, MGSM, MMMLU, MMMLU-Pro, MMMLU-ProX (de, es, fr, it, ja), MMLU-Redux, MUSR, OpenbookQA, Piqa, Social IQa, TruthfulQA, WikiLingua, WinoGrande
+  - ARC Challenge (also multilingual), GSM8K, HumanEval, HumanEval+, MBPP, MBPP+, MINERVA Math, RACE, AGIEval, BBH, BBQ, CSQA, Frames, Global MMLU, GPQA-D, HellaSwag (also multilingual), IFEval, MGSM, MMLU, MMLU-Pro, MMLU-ProX (de, es, fr, it, ja), MMLU-Redux, MUSR, OpenbookQA, Piqa, Social IQa, TruthfulQA, WikiLingua, WinoGrande
 * - **hle**
   - Academic knowledge and problem solving
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/hle)
@@ -111,8 +111,7 @@ export NGC_API_KEY=nvapi-...
 export HF_TOKEN=hf_...
 
 nemo-evaluator-launcher run \
-    --config-dir . \
-    --config-name config.yml \
+    --config ./config.yml \
     -o execution.output_dir=results \
     -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -165,8 +164,7 @@ Run evaluation:
 export NGC_API_KEY=nvapi-...
 
 nemo-evaluator-launcher run \
-    --config-dir . \
-    --config-name config.yml \
+    --config ./config.yml \
     -o execution.output_dir=results \
     -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -190,7 +188,7 @@ nemo-evaluator-launcher run \
 * - **safety-harness**
   - Safety and bias evaluation
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/safety-harness)
-  - Aegis v2, BBQ, WildGuard
+  - Aegis v2, WildGuard
 ```
 
 **Example Usage:**
@@ -216,8 +214,7 @@ export NGC_API_KEY=nvapi-...
 export HF_TOKEN=hf_...
 
 nemo-evaluator-launcher run \
-    --config-dir . \
-    --config-name config.yml \
+    --config ./config.yml \
     -o execution.output_dir=results \
     -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -270,8 +267,7 @@ Run evaluation:
 export NGC_API_KEY=nvapi-...
 
 nemo-evaluator-launcher run \
-    --config-dir . \
-    --config-name config.yml \
+    --config ./config.yml \
     -o execution.output_dir=results \
     -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -292,7 +288,7 @@ nemo-evaluator-launcher run \
 * - **vlmevalkit**
   - Vision-language model evaluation
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit)
-  - AI2D, ChartQA, OCRBench, SlideVQA
+  - AI2D, ChartQA, MMMU, MathVista-MINI, OCRBench, SlideVQA
 ```
 
 :::{note}
@@ -321,8 +317,7 @@ Run evaluation:
 export NGC_API_KEY=nvapi-...
 
 nemo-evaluator-launcher run \
-    --config-dir . \
-    --config-name config.yml \
+    --config ./config.yml \
     -o execution.output_dir=results \
     -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -367,8 +362,7 @@ Run evaluation:
 export NGC_API_KEY=nvapi-...
 
 nemo-evaluator-launcher run \
-    --config-dir . \
-    --config-name config.yml \
+    --config ./config.yml \
     -o execution.output_dir=results \
     -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -416,7 +410,7 @@ NeMo Evaluator provides multiple integration options to fit your workflow:
 ```bash
 # Launcher CLI (recommended for most users)
 nemo-evaluator-launcher ls tasks
-nemo-evaluator-launcher run --config-dir . --config-name local_mmlu_evaluation.yaml
+nemo-evaluator-launcher run --config ./local_mmlu_evaluation.yaml
 
 # Container direct execution
 docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} nemo-evaluator ls

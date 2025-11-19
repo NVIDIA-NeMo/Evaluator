@@ -15,6 +15,12 @@
 
 from ..core.entrypoint import show_available_tasks
 from ..core.evaluate import evaluate
+from ..core.input import get_available_evaluations
 from ..core.utils import check_endpoint
 
-__all__ = ["evaluate", "show_available_tasks", "check_endpoint"]
+__all__ = [
+    "evaluate",
+    "show_available_tasks",
+    "get_available_evaluations",
+    "check_endpoint",
+]

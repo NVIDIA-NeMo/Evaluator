@@ -28,7 +28,6 @@ from nemo_evaluator.api.api_dataclasses import (
     ScoreStats,
     TaskResult,
 )
-from nemo_evaluator.api.run import run_eval
 from nemo_evaluator.package_info import (
     __contact_emails__,
     __contact_names__,

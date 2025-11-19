@@ -55,8 +55,7 @@ nemo-evaluator-launcher ls tasks | grep -E "(arc|hellaswag|winogrande|truthfulqa
 # Run ARC Challenge evaluation with existing endpoint
 # Note: Configure tokenizer parameters in your YAML config file
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
     -o target.api_endpoint.url=http://0.0.0.0:8080/v1/completions \
     -o target.api_endpoint.type=completions \
     -o target.api_endpoint.model_id=megatron_model

@@ -79,6 +79,8 @@ required_env_vars = []
 
 [lm-evaluation-harness.tasks.chat.mmlu_redux_instruct]
 
+[lm-evaluation-harness.tasks.chat.mmlu_cot_0_shot_chat]
+
 [lm-evaluation-harness.tasks.completions.gsm8k]
 required_env_vars = []
 
@@ -327,6 +329,9 @@ required_env_vars = ["HF_TOKEN"]
 
 [nemo_skills.tasks.chat.ns_mmlu_pro]
 required_env_vars = ["HF_TOKEN"]
+
+[nemo_skills.tasks.chat.ns_aa_lcr]
+required_env_vars = ["JUDGE_API_KEY"]
 
 ###############################################################################
 [safety-harness]
