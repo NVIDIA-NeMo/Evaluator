@@ -6,9 +6,6 @@ This guide helps you test your hosted endpoint to verify OpenAI-compatible API c
 To test your endpoint run the provided command and check the model's response. Make sure to populate
 `FULL_ENDPOINT_URL` and  `API_KEY` and replace `<YOUR_MODEL_NAME>` with your own values.
 
-# Chat endpoint testing
-
-
 :::{tip}
 If you model is not gated, skip the line with authorization header:
 
@@ -170,7 +167,7 @@ curl -X POST ${FULL_ENDPOINT_URL} \
 
 ```
 
-# Audio endpoint testing
+## Audio endpoint testing
 
 We support audio input with the following content types:
 
