@@ -208,6 +208,27 @@ curl -X POST ${FULL_ENDPOINT_URL} \
 }'
 ```
 
+(compatibility-log-probs)=
+## Log-probabilities testing
+
+For evaluation with log-probabilities your `completions` endpoint must support `logprobs` and `echo` parameters:
+
+```bash
+export FULL_ENDPOINT_URL="https://your-server.com/v1/completions"
+export API_KEY="your-api-key-here"
+
+curl -X POST ${FULL_ENDPOINT_URL} \
+-H "Content-Type: application/json" \
+-H "Authorization: Bearer ${API_KEY}" \
+-d '{
+  "prompt": "3 + 3 = 6",
+  "model": "<YOUR_MODEL_NAME>",
+  "max_tokens": 1,
+  "logprobs": 1,
+  "echo": true
+}'
+```
+
 ## Next Steps
 - **Run your first evaluation**: Choose your path with {ref}`gs-quickstart`
 - **Select benchmarks**: Explore available evaluation tasks
