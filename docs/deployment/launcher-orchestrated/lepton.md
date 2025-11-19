@@ -148,6 +148,36 @@ To evaluate against an already-deployed Lepton endpoint without creating a new d
 
 Refer to `examples/lepton_none_llama_3_1_8b_instruct.yaml` for a complete example.
 
+### Tasks Requiring Dataset Mounting
+
+Some tasks require access to local datasets that must be mounted into the evaluation container:
+
+```yaml
+evaluation:
+  tasks:
+    - name: mteb.techqa
+      dataset_dir: /path/to/shared/storage/techqa
+```
+
+The system will automatically:
+- Mount the dataset directory into the evaluation container
+- Set the `NEMO_EVALUATOR_DATASET_DIR` environment variable
+- Validate that all required environment variables are configured
+
+**Custom mount path example:**
+
+```yaml
+evaluation:
+  tasks:
+    - name: mteb.techqa
+      dataset_dir: /lepton/shared/datasets/techqa
+      dataset_mount_path: /data/techqa  # Optional: customize container mount point
+```
+
+:::{note}
+Ensure the dataset directory is accessible from the Lepton platform's shared storage configured in your workspace.
+:::
+
 ## Advanced Configuration
 
 ### Environment Variables

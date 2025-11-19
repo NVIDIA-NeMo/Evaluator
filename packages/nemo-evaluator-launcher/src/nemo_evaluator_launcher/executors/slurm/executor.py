@@ -599,6 +599,23 @@ def _create_slurm_sbatch_script(
     ):
         evaluation_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
+    # Handle dataset directory mounting if NEMO_EVALUATOR_DATASET_DIR is required
+    if "NEMO_EVALUATOR_DATASET_DIR" in task_definition.get("required_env_vars", []):
+        # Get dataset directory from task config
+        if "dataset_dir" in task:
+            dataset_mount_host = task["dataset_dir"]
+        else:
+            raise ValueError(
+                f"{task.name} task requires a dataset_dir to be specified. "
+                f"Add 'dataset_dir: /path/to/your/dataset' under the task configuration."
+            )
+        # Get container mount path (default to /datasets if not specified)
+        dataset_mount_container = task.get("dataset_mount_path", "/datasets")
+        # Add dataset mount to evaluation mounts list
+        evaluation_mounts_list.append(f"{dataset_mount_host}:{dataset_mount_container}")
+        # Export NEMO_EVALUATOR_DATASET_DIR environment variable
+        s += f"export NEMO_EVALUATOR_DATASET_DIR={dataset_mount_container}\n\n"
+
     eval_factory_command_struct = get_eval_factory_command(cfg, task, task_definition)
     eval_factory_command = eval_factory_command_struct.cmd
     # The debug comment for placing into the script and easy debug. Reason

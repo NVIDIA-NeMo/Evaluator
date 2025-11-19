@@ -49,6 +49,9 @@ else
         docker run --rm --shm-size=100g {{ extra_docker_args }} \
       --name {{ task.container_name }} \
       --volume "$artifacts_dir":/results \
+      {% if task.dataset_mount_host and task.dataset_mount_container -%}
+      --volume "{{ task.dataset_mount_host }}:{{ task.dataset_mount_container }}" \
+      {% endif -%}
       {% for env_var in task.env_vars -%}
       -e {{ env_var }} \
       {% endfor -%}

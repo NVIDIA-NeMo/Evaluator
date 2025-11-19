@@ -378,3 +378,11 @@ container = "nvcr.io/nvidia/eval-factory/helm:25.10"
 container = "nvcr.io/nvidia/eval-factory/tooltalk:25.10"
 
 [tooltalk.tasks.chat.tooltalk]
+
+
+###############################################################################
+[mteb]
+container = "nvcr.io/nvidia/eval-factory/mteb:25.10"
+
+[mteb.tasks.embedding.techqa]
+required_env_vars = ["NEMO_EVALUATOR_DATASET_DIR"]

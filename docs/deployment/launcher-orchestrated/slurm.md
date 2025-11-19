@@ -139,6 +139,36 @@ evaluation:
     - name: hellaswag
 ```
 
+### Tasks Requiring Dataset Mounting
+
+Some tasks require access to local datasets stored on the cluster's shared filesystem:
+
+```yaml
+evaluation:
+  tasks:
+    - name: mteb.techqa
+      dataset_dir: /shared/datasets/techqa  # Path on shared filesystem
+```
+
+The system will automatically:
+- Mount the dataset directory into the evaluation container
+- Set the `NEMO_EVALUATOR_DATASET_DIR` environment variable
+- Validate that all required environment variables are configured
+
+**Custom mount path example:**
+
+```yaml
+evaluation:
+  tasks:
+    - name: mteb.techqa
+      dataset_dir: /shared/datasets/techqa
+      dataset_mount_path: /data/techqa  # Optional: customize container mount point
+```
+
+:::{note}
+Ensure the dataset directory is accessible from all cluster nodes via shared storage (e.g., NFS, Lustre).
+:::
+
 ## Job Management
 
 ### Submitting Jobs

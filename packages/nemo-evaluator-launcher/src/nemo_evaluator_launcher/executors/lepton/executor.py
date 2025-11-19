@@ -491,6 +491,27 @@ class LeptonExecutor(BaseExecutor):
 
                     job_mounts.append(mount_dict)
 
+                # Handle dataset directory mounting if NEMO_EVALUATOR_DATASET_DIR is required
+                if "NEMO_EVALUATOR_DATASET_DIR" in task_definition.get("required_env_vars", []):
+                    # Get dataset directory from task config
+                    if "dataset_dir" in task:
+                        dataset_mount_host = task["dataset_dir"]
+                    else:
+                        raise ValueError(
+                            f"{task.name} task requires a dataset_dir to be specified. "
+                            f"Add 'dataset_dir: /path/to/your/dataset' under the task configuration."
+                        )
+                    # Get container mount path (default to /datasets if not specified)
+                    dataset_mount_container = task.get("dataset_mount_path", "/datasets")
+                    # Add dataset mount to job mounts
+                    # Lepton mount format: {"path": "/path/in/container", "mount_from": {"path": "/host/path"}}
+                    job_mounts.append({
+                        "path": dataset_mount_container,
+                        "mount_from": {"path": dataset_mount_host}
+                    })
+                    # Add NEMO_EVALUATOR_DATASET_DIR environment variable
+                    job_env_vars["NEMO_EVALUATOR_DATASET_DIR"] = dataset_mount_container
+
                 print(
                     f"   - Storage: {len(job_mounts)} mount(s) with evaluation ID isolation"
                 )
