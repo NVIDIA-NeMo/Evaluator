@@ -102,7 +102,7 @@ class LocalExecutor(BaseExecutor):
 
         execution_mode = cfg.execution.get("mode", "parallel")
         if execution_mode == "parallel":
-            if cfg.deployment.type is not None:
+            if cfg.deployment.type != "none":
                 raise ValueError(
                     f"Execution mode 'parallel' is not supported with deployment type: {cfg.deployment.type}. Use 'sequential' instead."
                 )
