@@ -159,11 +159,16 @@ jobs:
 
   cicd-integration-tests:
     needs:
+      - pre-flight
       - cicd-unit-tests-nemo-evaluator
     environment: main
     runs-on: self-hosted-nemo
     if: |
-      needs.pre-flight.outputs.is_ci_workload == 'true'
+      (
+        success()
+        || needs.pre-flight.outputs.is_ci_workload == 'true'
+        || needs.pre-flight.outputs.force_run_all == 'true'
+      )
       && !cancelled()
     name: integration-tests
     steps:
