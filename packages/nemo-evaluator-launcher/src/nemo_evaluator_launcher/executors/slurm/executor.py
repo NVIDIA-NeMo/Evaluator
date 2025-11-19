@@ -41,6 +41,7 @@ from nemo_evaluator_launcher.common.execdb import (
 )
 from nemo_evaluator_launcher.common.helpers import (
     CmdAndReadableComment,
+    _str_to_echo_command,
     get_api_key_name,
     get_eval_factory_command,
     get_eval_factory_dataset_size_from_run_config,
@@ -169,7 +170,7 @@ class SlurmExecutor(BaseExecutor):
                 if is_potentially_unsafe:
                     print(
                         red(
-                            "\nFound `pre_cmd` which carries security risk. When running without --dry-run "
+                            "\nFound `pre_cmd` (evaluation or deployment) which carries security risk. When running without --dry-run "
                             "make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
                         )
                     )
@@ -179,13 +180,13 @@ class SlurmExecutor(BaseExecutor):
             if is_potentially_unsafe:
                 if os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":
                     logger.warning(
-                        "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                        "Found non-empty commands (e.g. `pre_cmd` in evaluation or deployment) and NEMO_EVALUATOR_TRUST_PRE_CMD "
                         "is set, proceeding with caution."
                     )
 
                 else:
                     logger.error(
-                        "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                        "Found non-empty commands (e.g. `pre_cmd` in evaluation or deployment) and NEMO_EVALUATOR_TRUST_PRE_CMD "
                         "is not set. This might carry security risk and unstable environments. "
                         "To continue, make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1.",
                     )
@@ -521,6 +522,8 @@ def _create_slurm_sbatch_script(
         s += "#SBATCH --gpus-per-node {}\n".format(cfg.execution.gpus_per_node)
     if hasattr(cfg.execution, "gres"):
         s += "#SBATCH --gres {}\n".format(cfg.execution.gres)
+    if cfg.execution.get("sbatch_comment"):
+        s += "#SBATCH --comment='{}'\n".format(cfg.execution.sbatch_comment)
     job_name = "{account}-{subproject}.{details}".format(
         account=cfg.execution.account,
         subproject=cfg.execution.subproject,
@@ -593,6 +596,7 @@ def _create_slurm_sbatch_script(
 
     # prepare deployment mounts
     deployment_mounts_list = []
+    deployment_is_unsafe = False
     if cfg.deployment.type != "none":
         if checkpoint_path := cfg.deployment.get("checkpoint_path"):
             deployment_mounts_list.append(f"{checkpoint_path}:/checkpoint:ro")
@@ -604,9 +608,12 @@ def _create_slurm_sbatch_script(
             deployment_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
         # add deployment srun command
-        s += _generate_deployment_srun_command(
-            cfg, deployment_mounts_list, remote_task_subdir
+        deployment_srun_cmd, deployment_is_unsafe, deployment_debug = (
+            _generate_deployment_srun_command(
+                cfg, deployment_mounts_list, remote_task_subdir
+            )
         )
+        s += deployment_srun_cmd
 
         # wait for the server to initialize
         health_path = cfg.deployment.get("health_check_path", "/health")
@@ -693,10 +700,16 @@ def _create_slurm_sbatch_script(
         s += _generate_auto_export_section(cfg, job_id, destinations, export_env)
 
     debug_str = "\n".join(["# " + line for line in s.splitlines()])
+
+    # Combine unsafe flags from both deployment and evaluation
+    is_potentially_unsafe = (
+        eval_factory_command_struct.is_potentially_unsafe or deployment_is_unsafe
+    )
+
     return CmdAndReadableComment(
         cmd=s,
         debug=debug_str,
-        is_potentially_unsafe=eval_factory_command_struct.is_potentially_unsafe,
+        is_potentially_unsafe=is_potentially_unsafe,
     )
 
 
@@ -1218,9 +1231,26 @@ def _generate_haproxy_config(cfg, nodes_ips):
 def _generate_deployment_srun_command(
     cfg, deployment_mounts_list, remote_task_subdir, instance_id: int = 0
 ):
-    """Generate the deployment srun command with proper node/ntask configuration."""
+    """Generate the deployment srun command with proper node/ntask configuration.
+
+    Returns:
+        tuple: (script_string, is_potentially_unsafe, debug_comment)
+    """
     s = ""
+    debug_comment = ""
+    is_potentially_unsafe = False
+
     s += "# deployment server\n"
+
+    # Extract pre_cmd for later use inside container
+    pre_cmd: str = cfg.deployment.get("pre_cmd") or ""
+    if pre_cmd:
+        is_potentially_unsafe = True
+        create_pre_script_cmd = _str_to_echo_command(
+            pre_cmd, filename="deployment_pre_cmd.sh"
+        )
+        debug_comment += create_pre_script_cmd.debug + "\n\n"
+
     s += "# Get node IPs\n"
     s += "nodes=( $(scontrol show hostnames $SLURM_JOB_NODELIST) )\n"
     s += 'nodes_array=("${nodes[@]}")  # Ensure nodes are stored properly\n'
@@ -1229,6 +1259,13 @@ def _generate_deployment_srun_command(
     s += "# Export MASTER_IP as the first node IP\n"
     s += "export MASTER_IP=${NODES_IPS_ARRAY[0]}\n"
     s += 'echo "MASTER_IP: $MASTER_IP"\n'
+
+    # Add debug comment for deployment pre_cmd before srun command
+    if debug_comment:
+        s += "# Debug contents of deployment pre_cmd\n"
+        s += debug_comment
+        s += "\n"
+
     s += "srun --mpi pmix --overlap "
     s += f"--nodes {cfg.execution.num_nodes} --ntasks {cfg.execution.get('deployment', {}).get('n_tasks', 1)} "
     s += "--container-image {} ".format(cfg.deployment.image)
@@ -1256,10 +1293,30 @@ def _generate_deployment_srun_command(
 
     if deployment_env_var_names:
         s += f"--container-env {','.join(deployment_env_var_names)} "
-    s += "{} &\n\n".format(cfg.deployment.command)  # run asynchronously
+
+    # Wrap deployment command to execute pre_cmd inside container if needed
+    if pre_cmd:
+        # Create a wrapper command that runs inside the container:
+        # 1. Create deployment_pre_cmd.sh file
+        # 2. Source it
+        # 3. Execute the original deployment command
+        create_pre_script_cmd = _str_to_echo_command(
+            pre_cmd, filename="deployment_pre_cmd.sh"
+        )
+        # Escape single quotes in the deployment command for bash -c
+        escaped_deployment_cmd = cfg.deployment.command.replace("'", "'\"'\"'")
+        wrapped_command = (
+            f"bash -c '{create_pre_script_cmd.cmd} && "
+            f"source deployment_pre_cmd.sh && "
+            f"{escaped_deployment_cmd}'"
+        )
+        s += "{} &\n\n".format(wrapped_command)
+    else:
+        s += "{} &\n\n".format(cfg.deployment.command)  # run asynchronously
+
     s += "SERVER_PID=$!  # capture the PID of the server background srun process\n\n"
 
-    return s
+    return s, is_potentially_unsafe, debug_comment
 
 
 def _get_wait_for_server_handler(

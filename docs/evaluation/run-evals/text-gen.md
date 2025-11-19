@@ -57,16 +57,14 @@ nemo-evaluator-launcher ls tasks
 
 # Run MMLU Pro evaluation
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
     -o 'evaluation.tasks=["mmlu_pro"]' \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o target.api_endpoint.api_key=${YOUR_API_KEY}
 
 # Run multiple text generation benchmarks
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_text_generation_suite \
+    --config packages/nemo-evaluator-launcher/examples/local_text_generation_suite.yaml \
     -o 'evaluation.tasks=["mmlu_pro", "arc_challenge", "hellaswag", "truthfulqa"]'
 ```
 

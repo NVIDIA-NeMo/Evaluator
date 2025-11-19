@@ -93,7 +93,7 @@ evaluation:
 Run the evaluation with auto-export enabled:
 
 ```bash
-nemo-evaluator-launcher run --config-dir . --config-name my_config
+nemo-evaluator-launcher run --config ./my_config.yaml
 ```
 
 :::

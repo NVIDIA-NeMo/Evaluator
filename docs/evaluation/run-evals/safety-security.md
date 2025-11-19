@@ -39,16 +39,14 @@ nemo-evaluator-launcher ls tasks | grep -E "(safety|aegis|garak)"
 
 # Run Aegis safety evaluation
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
     -o 'evaluation.tasks=["aegis_v2"]' \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o target.api_endpoint.api_key=${YOUR_API_KEY}
 
 # Run safety and security evaluation
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
     -o 'evaluation.tasks=["aegis_v2", "garak"]'
 ```
 :::
