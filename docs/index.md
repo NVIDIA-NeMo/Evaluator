@@ -350,7 +350,7 @@ Evaluation Configuration Parameters <evaluation/parameters>
 About Model Evaluation <evaluation/index>
 Benchmark Catalog <evaluation/benchmarks>
 Tasks Not Explicitly Defined by FDF <evaluation/custom-task>
-Use Log-Probabilities <evaluation/logprobs>
+Evaluation Techniques <evaluation/run-evals/index>
 Add Evaluation Packages to NeMo Framework <evaluation/nemo-fw-optional-package>
 :::
 

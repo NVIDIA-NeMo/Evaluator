@@ -24,6 +24,7 @@
 #     Always run full evaluations (without limit_samples) for actual benchmark results.
 
 # specify default configs for execution and deployment
+# [docs-start-snippet]
 defaults:
   - execution: local
   - deployment: none

@@ -236,9 +236,9 @@ nemo-evaluator-launcher run \
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl)
   - BFCL v2 and v3 
 * - **tooltalk**
- - Tool usage evaluation
- - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk)
- - ToolTalk 
+  - Tool usage evaluation
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk)
+  - ToolTalk 
 ```
 
 :::{note}

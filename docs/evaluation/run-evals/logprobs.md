@@ -1,3 +1,4 @@
+(logprobs)=
 # Evaluate LLMs Using Log-Probabilities
 
 ## Introduction
@@ -36,19 +37,21 @@ In the example below we use the `piqa` benchmark, but the instructions provided 
 - winogrande
 :::
 
-## Prerequisites
+## Before You Start
 
-Before using a benchmark that utilizes log-probabilities, ensure:
+Ensure you have:
 
-- Your model endpoint is of type "completions" and supports `logprobs` and `echo` parameters (see {ref}`compatibility-log-probs`)
-- You have access to the model's tokenizer and it is of one of the supported types: `huggingface` or `tiktoken`.
+- **Completions Endpoint**: Log-probability tasks require completions endpoints (not chat) that supports `logprobs` and `echo` parameters (see {ref}`compatibility-log-probs`)
+- **Model Tokenizer**: Access to tokenizer files for client-side tokenization (supported types: `huggingface` or `tiktoken`)
+- **API Access**: Valid API key for your model endpoint if it is gated
+- **Authentication**: Hugging Face token for gated datasets and tokenizers
 
 
 ## Use NeMo Evaluator Launcher
 
 Use an example config for deploying and evaluating the [Meta Llama 3.1 8B](https://huggingface.co/meta-llama/Llama-3.1-8B) model:
 
-```{literalinclude} ../../packages/nemo-evaluator-launcher/examples/local_vllm_llama_3_1_8b_logprobs.yaml
+```{literalinclude} ../../../packages/nemo-evaluator-launcher/examples/local_vllm_llama_3_1_8b_logprobs.yaml
 :language: yaml
 :start-after: "[docs-start-snippet]"
 ```
@@ -59,6 +62,40 @@ To launch the evaluation, run:
 nemo-evaluator-launcher run \
   --config packages/nemo-evaluator-launcher/examples/local_vllm_llama_3_1_8b_logprobs.yaml
 ```
+
+:::{tip}
+Set `deployment: none` and provide `target` specification if you want to evaluate an existing endpoint instead:
+
+```yaml
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: llama_local
+  env_vars:
+    HF_TOKEN: ${oc.env:HF_TOKEN}  # needed to access meta-llama/Llama-3.1-8B gated model
+ 
+target:
+  api_endpoint:
+    model_id: meta-llama/Llama-3.1-8B
+    url: https://your-endpoint.com/v1/completions
+    api_key_name: API_KEY # API Key with access to provided url
+
+# specify the benchmarks to evaluate
+evaluation:
+  nemo_evaluator_config:  # global config settings that apply to all tasks
+    config:
+      params:
+        extra:  # for log-probability tasks like piqa, you need to specify the tokenizer
+          tokenizer: meta-llama/Llama-3.1-8B  # or use a path to locally stored checkpoint
+          tokenizer_backend: huggingface      # or "tiktoken"
+  tasks:
+    - name: piqa
+
+```
+:::
 
 ## Use NeMo Evaluator
 
@@ -77,14 +114,13 @@ pip install nemo-evaluator nvidia-lm-eval
 
 To launch the evaluation, run the following Python code:
 
-```{literalinclude} _snippets/piqa_hf.py
+```{literalinclude} ../_snippets/piqa_hf.py
 :language: python
 :start-after: "# [snippet-start]"
 :end-before: "# [snippet-end]"
 ```
 
 Make sure to provide the source for the tokenizer and a backend for loading it.
-
 
 For models trained with NeMo Framework, the tokenizer is stored inside the checkpoint directory.
 For the NeMo format it is available inside `context/nemo_tokenizer` subdirectory:
