@@ -30,6 +30,8 @@ uv sync --inexact --link-mode symlink --locked --extra vllm $(cat /opt/uv_args.t
 
 To install `vLLM` outside of the NeMo Framework container, follow the steps mentioned [here](https://github.com/nvidia-nemo/export-deploy?tab=readme-ov-file#install-tensorrt-llm-vllm-or-trt-onnx-backend:~:text=install%20transformerengine%20%2b%20vllm).
 
+**Note:** 25.11 release of NeMo Framework container comes with `vLLM` pre-installed and its not necessary to explicitly install it. However for all previous releases, please refer to the instructions above to install `vLLM` inside the NeMo Framework container.
+
 If you prefer to evaluate the Automodel checkpoint without using the `vLLM` backend, remove the `--use_vllm_backend` flag from the command above.
 
 > **Note:** To speed up evaluation using multiple instances, increase the `num_replicas` parameter.

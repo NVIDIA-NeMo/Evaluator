@@ -31,7 +31,7 @@ from nemo_evaluator.api.api_dataclasses import (
 )
 
 ENDPOINT_TYPES = {"chat": "chat/completions/", "completions": "completions/"}
-
+# [snippet-deploy-start]
 TRITON_DEPLOY_SCRIPT = """
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_inframework_triton.py \
@@ -41,8 +41,8 @@ python \
   --server_port {server_port} \
   --num_gpus {devices} \
   --num_nodes {nodes} \
-  --tensor_parallelism_size {tensor_model_parallel_size} \
-  --pipeline_parallelism_size {pipeline_model_parallel_size} \
+  --tensor_model_parallel_size {tensor_model_parallel_size} \
+  --pipeline_model_parallel_size {pipeline_model_parallel_size} \
   --max_batch_size {max_batch_size} \
   {additional_args}
 """
@@ -55,13 +55,13 @@ python \
   --port {server_port} \
   --host {server_address} \
   --num_gpus {devices} \
-  --num_nodes {nodes} \
   --tensor_model_parallel_size {tensor_model_parallel_size} \
   --pipeline_model_parallel_size {pipeline_model_parallel_size} \
   --max_batch_size {max_batch_size} \
   --num_replicas {num_replicas} \
   {additional_args}
 """
+# [snippet-deploy-end]
 
 
 def get_parser():
@@ -229,14 +229,17 @@ def slurm_executor(
     if custom_mounts:
         mounts.extend(custom_mounts)
 
+    # [snippet-slurm-executor-start]
     env_vars = {
         # required for some eval benchmarks from lm-eval-harness
         "HF_DATASETS_TRUST_REMOTE_CODE": "1",
-        "HF_TOKEN": "xxxxxx",
+        "HF_TOKEN": "xxxxxx",  # [hf-token-slurm]
     }
     if custom_env_vars:
         env_vars |= custom_env_vars
 
+    # Recommended to use this over run.Packager() as it can lead to fiddle serialization errors importing
+    # 'wait_and_evaluate' method from 'helpers'
     packager = run.Config(run.GitArchivePackager, subpath="scripts")
 
     executor = run.SlurmExecutor(
@@ -259,19 +262,21 @@ def slurm_executor(
     executor.env_vars = env_vars
     executor.retries = retries
     executor.time = time
+    # [snippet-slurm-executor-end]
 
     return executor
 
 
 def local_executor_torchrun() -> run.LocalExecutor:
+    # [snippet-local-executor-start]
     env_vars = {
         # required for some eval benchmarks from lm-eval-harness
         "HF_DATASETS_TRUST_REMOTE_CODE": "1",
-        "HF_TOKEN": "xxxxxx",
+        "HF_TOKEN": "xxxxxx",  # [hf-token-local]
     }
 
     executor = run.LocalExecutor(env_vars=env_vars)
-
+    # [snippet-local-executor-end]
     return executor
 
 
@@ -289,7 +294,9 @@ def main():
         "tensor_model_parallel_size": args.tensor_parallelism_size,
         "pipeline_model_parallel_size": args.pipeline_parallelism_size,
         "max_batch_size": args.batch_size,
-        "devices": args.devices,
+        "devices": args.devices
+        if args.serving_backend == "pytriton"
+        else args.devices * args.nodes,
         "nodes": args.nodes,
         "num_replicas": args.num_replicas,
     }
@@ -304,18 +311,26 @@ def main():
         deploy_script = TRITON_DEPLOY_SCRIPT.format(
             **commons_args, additional_args=additional_args
         )
+        deploy_run_script = run.Script(inline=deploy_script)
     elif args.serving_backend == "ray":
+        # Ray deployment with nem-run requires python executable path to be set, else it cannot find the libraries
+        # like mcore, mbridge, etc.
+        additional_args += (
+            ' --runtime_env \'{"py_executable": "/opt/venv/bin/python"}\''
+        )
         if args.num_cpus_per_replica:
             additional_args += f" --num_cpus_per_replica {args.num_cpus_per_replica}"
         deploy_script = RAY_DEPLOY_SCRIPT.format(
             **commons_args, additional_args=additional_args
         )
+        deploy_run_script = run.Script(
+            inline=deploy_script, metadata={"use_with_ray_cluster": True}
+        )
     else:
         raise ValueError(f"Invalid serving backend: {args.serving_backend}")
+
     print(deploy_script)
-
-    deploy_run_script = run.Script(inline=deploy_script)
-
+    # [snippet-config-start]
     api_endpoint = run.Config(
         ApiEndpoint,
         url=f"http://{args.server_address}:{args.server_port}/v1/{ENDPOINT_TYPES[args.endpoint_type]}",
@@ -337,8 +352,12 @@ def main():
     )
 
     eval_fn = run.Partial(
-        wait_and_evaluate, target_cfg=eval_target, eval_cfg=eval_config
+        wait_and_evaluate,
+        target_cfg=eval_target,
+        eval_cfg=eval_config,
+        serving_backend=args.serving_backend,
     )
+    # [snippet-config-end]
 
     executor: run.Executor
     executor_eval: run.Executor
@@ -365,7 +384,7 @@ def main():
     else:
         executor = local_executor_torchrun()
         executor_eval = None
-
+    # [snippet-experiment-start]
     with run.Experiment(f"{exp_name}{args.tag}") as exp:
         if args.slurm:
             exp.add(
@@ -389,6 +408,7 @@ def main():
             exp.dryrun()
         else:
             exp.run()
+    # [snippet-experiment-end]
 
 
 if __name__ == "__main__":
