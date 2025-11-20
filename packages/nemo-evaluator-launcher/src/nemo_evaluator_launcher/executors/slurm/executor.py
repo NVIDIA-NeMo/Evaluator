@@ -804,11 +804,12 @@ def _open_master_connection(
     socket: str,
 ) -> str | None:
     ssh_command = f"ssh -MNf -S {socket} {username}@{hostname}"
-    completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
-    )
+    logger.info("Opening master connection", cmd=ssh_command)
+    completed_process = subprocess.run(args=shlex.split(ssh_command))
     if completed_process.returncode == 0:
+        logger.info("Opened master connection successfully", cmd=ssh_command)
         return socket
+    logger.error("Failed to open master connection", code=completed_process.returncode)
     return None
 
 
@@ -820,9 +821,7 @@ def _close_master_connection(
     if socket is None:
         return
     ssh_command = f"ssh -O exit -S {socket} {username}@{hostname}"
-    completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
-    )
+    completed_process = subprocess.run(args=shlex.split(ssh_command))
     if completed_process.returncode != 0:
         raise RuntimeError(
             "failed to close the master connection\n{}".format(
@@ -844,14 +843,20 @@ def _make_remote_execution_output_dir(
     ssh_command.append(f"{username}@{hostname}")
     ssh_command.append(mkdir_command)
     ssh_command = " ".join(ssh_command)
+    logger.info("Creating remote dir", cmd=ssh_command)
     completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
+        args=shlex.split(ssh_command), stderr=subprocess.PIPE
     )
     if completed_process.returncode != 0:
         error_msg = (
             completed_process.stderr.decode("utf-8")
             if completed_process.stderr
             else "Unknown error"
+        )
+        logger.error(
+            "Erorr creating remote dir",
+            code=completed_process.returncode,
+            msg=error_msg,
         )
         raise RuntimeError(
             "failed to make a remote execution output dir\n{}".format(error_msg)
@@ -880,14 +885,22 @@ def _rsync_upload_rundirs(
     remote_destination_str = f"{username}@{hostname}:{remote_target}"
     local_sources_str = " ".join(map(str, local_sources))
     rsync_upload_command = f"rsync -qcaz {local_sources_str} {remote_destination_str}"
+    logger.info("Rsyncing to remote dir", cmd=rsync_upload_command)
     completed_process = subprocess.run(
-        args=shlex.split(rsync_upload_command), capture_output=True
+        args=shlex.split(rsync_upload_command),
+        stderr=subprocess.PIPE,
     )
     if completed_process.returncode != 0:
         error_msg = (
             completed_process.stderr.decode("utf-8")
             if completed_process.stderr
             else "Unknown error"
+        )
+
+        logger.error(
+            "Erorr rsyncing to remote dir",
+            code=completed_process.returncode,
+            msg=error_msg,
         )
         raise RuntimeError("failed to upload local sources\n{}".format(error_msg))
 
@@ -910,9 +923,12 @@ def _sbatch_remote_runsubs(
     ssh_command.append(f"{username}@{hostname}")
     ssh_command.append(sbatch_commands)
     ssh_command = " ".join(ssh_command)
-
+    logger.info("Running sbatch", cmd=ssh_command)
     completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
+        args=shlex.split(ssh_command),
+        # NOTE(agronskiy): look out for hangs and deadlocks
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     if completed_process.returncode != 0:
         error_msg = completed_process.stderr.decode("utf-8")
@@ -922,6 +938,7 @@ def _sbatch_remote_runsubs(
 
     sbatch_output = completed_process.stdout.decode("utf-8")
     slurm_job_ids = re.findall(r"(?<=Submitted batch job )\d+", sbatch_output)
+    logger.info("Started sbatch successfully", slurm_job_ids=slurm_job_ids)
     return slurm_job_ids
 
 
@@ -954,7 +971,10 @@ def _query_slurm_jobs_status(
     ssh_command.append(sacct_command)
     ssh_command = " ".join(ssh_command)
     completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
+        args=shlex.split(ssh_command),
+        # NOTE(agronskiy): look out for hangs and deadlocks
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     if completed_process.returncode != 0:
         raise RuntimeError(
@@ -1003,7 +1023,10 @@ def _kill_slurm_job(
     ssh_command = " ".join(ssh_command)
 
     completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
+        args=shlex.split(ssh_command),
+        # NOTE(agronskiy): look out for hangs and deadlocks
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
 
     # Parse the sacct output (before scancel runs)
@@ -1081,7 +1104,10 @@ def _read_files_from_remote(
     ssh_command.append(cat_commands)
     ssh_command = " ".join(ssh_command)
     completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
+        args=shlex.split(ssh_command),
+        # NOTE(agronskiy): look out for hangs and deadlocks
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     if completed_process.returncode != 0:
         raise RuntimeError(
