@@ -96,5 +96,5 @@ For Megatron Bridge checkpoints, the tokenizer is stored under `tokenizer` subdi
 When the server receives a `logprob=<int>` parameter in the request, it will return the log-probabilities of tokens.
 When combined with `echo=true`, the model will include the input in its response, along with the corresponding log-probabilities.
 
-Then the recieved response in processed on the client (benchmark) side to isolate the log-probabilities corresponding specifically to the answer portion of the input.
-For this purpose the input is tokenized, which allow to trace which log-probabilities originated from the question, and which from the answer.
+Then the recieved response is processed on the client (benchmark) side to isolate the log-probabilities corresponding specifically to the answer portion of the input.
+For this purpose the input is tokenized, which allows to trace which log-probabilities originated from the question, and which from the answer.

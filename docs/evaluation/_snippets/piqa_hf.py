@@ -32,7 +32,7 @@ api_endpoint = ApiEndpoint(
 eval_target = EvaluationTarget(api_endpoint=api_endpoint)
 eval_params = ConfigParams(
     extra={
-        "tokenizer": "meta-llama/Llama-3.1-8B",  # or path to locally stored checkpoint
+        "tokenizer": "meta-llama/Llama-3.1-8B",  # or path to locally stored checkpoint with tokenizer
         "tokenizer_backend": "huggingface",  # or "tiktoken"
     },
 )
