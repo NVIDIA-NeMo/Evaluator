@@ -1,4 +1,3 @@
-
 # Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -353,7 +352,10 @@ def main():
     )
 
     eval_fn = run.Partial(
-        wait_and_evaluate, target_cfg=eval_target, eval_cfg=eval_config
+        wait_and_evaluate,
+        target_cfg=eval_target,
+        eval_cfg=eval_config,
+        serving_backend=args.serving_backend,
     )
     # [snippet-config-end]
 
