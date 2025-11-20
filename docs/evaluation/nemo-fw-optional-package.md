@@ -37,7 +37,10 @@ All examples below use only a subset of samples.
 To run the evaluation on the whole dataset, remove the `limit_samples` parameter.
 :::
 
-## Enable BFCL
+## Enable On-Demand Evaluation Packages
+::::{tab-set}
+
+:::{tab-item} BFCL
 
 1. Install the [nvidia-bfcl](https://pypi.org/project/nvidia-bfcl/) package:
 
@@ -51,8 +54,9 @@ pip install nvidia-bfcl
 :language: python
 :start-after: "## Run the evaluation"
 ```
+:::
 
-## Enable garak
+:::{tab-item} garak
 
 1. Install the [nvidia-eval-factory-garak](https://pypi.org/project/nvidia-eval-factory-garak/) package:
 
@@ -67,7 +71,9 @@ pip install nvidia-eval-factory-garak
 :start-after: "## Run the evaluation"
 ```
 
-## Enable BigCode
+:::
+
+:::{tab-item} BigCode
 
 1. Install the [nvidia-bigcode-eval](https://pypi.org/project/nvidia-bigcode-eval/) package:
 
@@ -82,7 +88,9 @@ pip install nvidia-bigcode-eval
 :start-after: "## Run the evaluation"
 ```
 
-## Enable simple-evals
+:::
+
+:::{tab-item} simple-evals
 
 1. Install the [nvidia-simple-evals](https://pypi.org/project/nvidia-simple-evals/) package:
 
@@ -108,7 +116,9 @@ To customize the judge setting, see the instructions for [NVIDIA Eval Factory pa
 :start-after: "## Run the evaluation"
 ```
 
-## Enable safety-harness
+:::
+
+:::{tab-item} safety-harness
 
 1. Install the [nvidia-safety-harness](https://pypi.org/project/nvidia-safety-harness/) package:
 
@@ -138,3 +148,6 @@ export JUDGE_API_KEY=...
 ```
 
 Make sure to modify the judge configuration in the provided snippet to match your Llama 3.1 NemoGuard 8B ContentSafety endoint.
+
+:::
+::::

@@ -20,6 +20,21 @@ Additionally, log-probabilities can be analyzed to assess whether a response wou
 
 Using log-probabilities is especially useful for evaluating base (pre-trained) models, as it eliminates the need for complex instruction-following and does not require the model to adhere to a specific output format.
 
+:::{tip}
+In the example below we use the `piqa` benchmark, but the instructions provided apply to all `lm-evaluation-harness` tasks utilizing log-probabilities, such as:
+
+- arc_challenge
+- arc_multilingual
+- bbh
+- commonsense_qa
+- hellaswag
+- hellaswag_multilingual
+- musr
+- openbookqa
+- social_iqa
+- truthfulqa
+- winogrande
+:::
 
 ## Prerequisites
 
