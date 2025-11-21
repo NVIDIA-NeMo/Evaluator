@@ -159,7 +159,6 @@ jobs:
 
   cicd-integration-tests:
     needs:
-      - pre-flight
       - cicd-unit-tests-nemo-evaluator
     runs-on: self-hosted-nemo
     if: |
