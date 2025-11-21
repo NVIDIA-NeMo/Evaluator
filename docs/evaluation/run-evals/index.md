@@ -2,7 +2,7 @@
 
 # Evaluation Techniques
 
-Follow step-by-step guides for different evaluation scenarios and methodologies in NeMo Evaluation.
+Follow step-by-step guides for different evaluation scenarios and methodologies in NeMo Evaluator.
 
 ## Before You Start
 
