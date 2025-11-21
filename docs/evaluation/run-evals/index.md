@@ -9,7 +9,7 @@ Follow step-by-step guides for different evaluation scenarios and methodologies 
 Ensure you have:
 
 1. Completed the initial getting started guides for {ref}`gs-install` and {ref}`gs-quickstart`.
-2. Have your endpoint and API key ready or prepared the checkpoint you wish to deploy.
+2. Have your endpoint and API key ready or prepared for the checkpoint you wish to deploy.
 3. Prepared your [Hugging Face token](https://huggingface.co/docs/hub/en/security-tokens) for accessing gated datasets.
 
 
