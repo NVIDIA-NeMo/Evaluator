@@ -422,16 +422,11 @@ class LocalExecutor(BaseExecutor):
 
         print(bold(cyan("\nCommands for real-time monitoring:")))
         for job_id, evaluation_task in zip(job_ids, evaluation_tasks):
-            logs_dir = evaluation_task["output_dir"] / "logs"
             print(f"\n  Job {job_id} ({evaluation_task['name']}):")
-            if evaluation_task["deployment"]:
-                print(f"    Server:   tail -f {logs_dir / 'server_stdout.log'}")
-            print(f"    Client:   tail -f {logs_dir / 'client_stdout.log'}")
+            print(f"    nemo-evaluator-launcher logs {job_id}")
 
         print(bold(cyan("\nFollow all logs for this invocation:")))
-        if evaluation_tasks[0]["deployment"]:
-            print(f"  Server:  tail -f {output_dir}/*/logs/server_stdout.log")
-        print(f"  Client:  tail -f {output_dir}/*/logs/client_stdout.log")
+        print(f"  nemo-evaluator-launcher logs {invocation_id}")
 
         return invocation_id
 
