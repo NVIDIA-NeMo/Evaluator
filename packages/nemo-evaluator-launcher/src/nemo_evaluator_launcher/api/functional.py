@@ -19,7 +19,7 @@ This module provides the main functional entry points for running evaluations, q
 """
 
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any, Iterator, List, Optional, Tuple, Union
 
 import yaml
 from omegaconf import DictConfig, OmegaConf
@@ -257,6 +257,70 @@ def get_status(ids_or_prefixes: list[str]) -> list[dict[str, Any]]:
                 )
 
     return results
+
+
+def stream_logs(id_or_prefix: str) -> Iterator[Tuple[str, str, str]]:
+    """Stream logs from a job or invocation by ID.
+
+    Args:
+        id_or_prefix: Job ID or invocation ID to stream logs from. Short prefixes are allowed.
+
+    Yields:
+        Tuple[str, str, str]: Tuples of (job_id, task_name, log_line) for each log line.
+            Empty lines are yielded as empty strings.
+
+    Raises:
+        ValueError: If the executor doesn't support log streaming.
+    """
+    db = ExecutionDB()
+
+    # Determine if this is a job ID or invocation ID
+    if "." in id_or_prefix:
+        # This is a job ID
+        job_data = db.get_job(id_or_prefix)
+        if job_data is None:
+            return
+
+        try:
+            executor_cls = get_executor(job_data.executor)
+        except ValueError:
+            return
+
+        # Stream logs from the executor
+        # If executor doesn't support streaming, BaseExecutor.stream_logs will log a warning
+        try:
+            yield from executor_cls.stream_logs(
+                id_or_prefix, executor_name=job_data.executor
+            )
+        except NotImplementedError:
+            # Warning already logged by BaseExecutor.stream_logs
+            raise ValueError(
+                f"Log streaming is not yet implemented for executor '{job_data.executor}'"
+            )
+    else:
+        # This is an invocation ID
+        jobs = db.get_jobs(id_or_prefix)
+        if not jobs:
+            return
+
+        # Get the executor class from the first job
+        first_job_data = next(iter(jobs.values()))
+        try:
+            executor_cls = get_executor(first_job_data.executor)
+        except ValueError:
+            return
+
+        # Stream logs from the executor for all jobs in the invocation
+        # If executor doesn't support streaming, BaseExecutor.stream_logs will log a warning
+        try:
+            yield from executor_cls.stream_logs(
+                id_or_prefix, executor_name=first_job_data.executor
+            )
+        except NotImplementedError:
+            # Warning already logged by BaseExecutor.stream_logs
+            raise ValueError(
+                f"Log streaming is not yet implemented for executor '{first_job_data.executor}'"
+            )
 
 
 def list_all_invocations_summary() -> list[dict[str, Any]]:

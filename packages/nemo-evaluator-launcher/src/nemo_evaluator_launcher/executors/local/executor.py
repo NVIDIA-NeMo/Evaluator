@@ -27,7 +27,7 @@ import shutil
 import subprocess
 import time
 import warnings
-from typing import List, Optional
+from typing import Iterator, List, Optional, Tuple
 
 import jinja2
 import yaml
@@ -626,6 +626,190 @@ class LocalExecutor(BaseExecutor):
             job_id, f"container: {container_name}", current_status
         )
         raise RuntimeError(error_msg)
+
+    @staticmethod
+    def stream_logs(
+        id: str, executor_name: Optional[str] = None
+    ) -> Iterator[Tuple[str, str, str]]:
+        """Stream logs from a job or invocation group.
+
+        Args:
+            id: Unique job identifier or invocation identifier.
+
+        Yields:
+            Tuple[str, str, str]: Tuples of (job_id, task_name, log_line) for each log line.
+                Empty lines are yielded as empty strings.
+        """
+        db = ExecutionDB()
+
+        # If id looks like an invocation_id (no dot), get all jobs for it
+        if "." not in id:
+            jobs = db.get_jobs(id)
+            if not jobs:
+                return
+        else:
+            # Otherwise, treat as job_id
+            job_data = db.get_job(id)
+            if job_data is None or job_data.executor != "local":
+                return
+            jobs = {id: job_data}
+
+        # Collect log file paths and metadata
+        log_files = []
+
+        for job_id, job_data in jobs.items():
+            output_dir = pathlib.Path(job_data.data.get("output_dir", ""))
+            if not output_dir:
+                continue
+
+            # Get task name from config
+            task_name = LocalExecutor._extract_task_name(job_data, job_id)
+
+            log_file_path = output_dir / "logs" / "client_stdout.log"
+
+            log_files.append(
+                {
+                    "job_id": job_id,
+                    "task_name": task_name,
+                    "path": log_file_path,
+                    "file_handle": None,
+                    "position": 0,
+                }
+            )
+
+        if not log_files:
+            return
+
+        # Track which files we've seen before (for tail behavior)
+        file_seen_before = {}
+
+        # Open files that exist, keep track of which ones we're waiting for
+        for log_info in log_files:
+            if log_info["path"].exists():
+                file_seen_before[log_info["path"]] = True
+                try:
+                    log_info["file_handle"] = open(
+                        log_info["path"], "r", encoding="utf-8", errors="replace"
+                    )
+                    # Seek to end if file already exists (tail behavior)
+                    log_info["file_handle"].seek(0, 2)
+                    log_info["position"] = log_info["file_handle"].tell()
+                except Exception as e:
+                    logger.error(f"Could not open {log_info['path']}: {e}")
+            else:
+                file_seen_before[log_info["path"]] = False
+
+        try:
+            while True:
+                any_activity = False
+
+                for log_info in log_files:
+                    # Try to open file if it doesn't exist yet
+                    if log_info["file_handle"] is None:
+                        if log_info["path"].exists():
+                            try:
+                                log_info["file_handle"] = open(
+                                    log_info["path"],
+                                    "r",
+                                    encoding="utf-8",
+                                    errors="replace",
+                                )
+                                # If file was just created, read from beginning
+                                # Otherwise, seek to end for tail behavior
+                                if not file_seen_before.get(log_info["path"], False):
+                                    log_info["position"] = 0
+                                    file_seen_before[log_info["path"]] = True
+                                else:
+                                    log_info["file_handle"].seek(0, 2)
+                                    log_info["position"] = log_info[
+                                        "file_handle"
+                                    ].tell()
+                            except Exception as e:
+                                logger.error(f"Could not open {log_info['path']}: {e}")
+                                continue
+
+                    # Read new lines from file
+                    if log_info["file_handle"] is not None:
+                        try:
+                            # Check if file has grown
+                            current_size = log_info["path"].stat().st_size
+                            if current_size > log_info["position"]:
+                                log_info["file_handle"].seek(log_info["position"])
+                                new_lines = log_info["file_handle"].readlines()
+                                log_info["position"] = log_info["file_handle"].tell()
+
+                                # Yield new lines
+                                for line in new_lines:
+                                    line_stripped = line.rstrip("\n\r")
+                                    yield (
+                                        log_info["job_id"],
+                                        log_info["task_name"],
+                                        line_stripped,
+                                    )
+                                    any_activity = True
+                        except (OSError, IOError) as e:
+                            # File might have been deleted or moved
+                            # Don't log error for every check, only on first error
+                            if log_info.get("error_printed", False) is False:
+                                logger.error(f"Error reading {log_info['path']}: {e}")
+                                log_info["error_printed"] = True
+                            log_info["file_handle"] = None
+                        except Exception:
+                            # Reset error flag if we successfully read again
+                            log_info["error_printed"] = False
+
+                # If no activity, sleep briefly to avoid busy waiting
+                if not any_activity:
+                    time.sleep(0.1)
+
+        except KeyboardInterrupt:
+            # Clean exit on Ctrl+C
+            pass
+        finally:
+            # Close all file handles
+            for log_info in log_files:
+                if log_info["file_handle"] is not None:
+                    try:
+                        log_info["file_handle"].close()
+                    except Exception:
+                        pass
+
+    @staticmethod
+    def _extract_task_name(job_data: JobData, job_id: str) -> str:
+        """Extract task name from job data config.
+
+        Args:
+            job_data: JobData object containing config.
+            job_id: Job ID for error reporting.
+
+        Returns:
+            Task name string.
+        """
+        config = job_data.config or {}
+        evaluation = config.get("evaluation", {}) or {}
+        tasks = evaluation.get("tasks", []) or []
+
+        # Find the task that matches this job
+        # For job_id like "15b9f667.0", index is 0
+        try:
+            if "." in job_id:
+                index = int(job_id.split(".")[1])
+                if 0 <= index < len(tasks):
+                    task = tasks[index]
+                    if isinstance(task, dict):
+                        return task.get("name", "unknown")
+        except (ValueError, IndexError):
+            pass
+
+        # Fallback: try to get task name from output_dir
+        # output_dir typically ends with task name
+        output_dir = job_data.data.get("output_dir", "")
+        if output_dir:
+            parts = pathlib.Path(output_dir).parts
+            if parts:
+                return parts[-1]
+
+        return "unknown"
 
     @staticmethod
     def _add_to_killed_jobs(invocation_id: str, job_id: str) -> None:
