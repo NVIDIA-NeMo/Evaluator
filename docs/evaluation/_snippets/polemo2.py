@@ -12,36 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pip install nvidia-eval-factory-garak
+# pip install nvidia-lm-eval
 
-## Export the required variables
-# No environment variables are required
 ## Run the evaluation
 from nemo_evaluator.api import evaluate
 from nemo_evaluator.api.api_dataclasses import (
     ApiEndpoint,
-    ConfigParams,
     EndpointType,
     EvaluationConfig,
     EvaluationTarget,
 )
 
-model_name = "megatron_model"
-chat_url = "http://0.0.0.0:8080/v1/chat/completions/"
+model_name = "meta-llama/Llama-3.1-8B"
+completions_url = "http://0.0.0.0:8000/v1/completions/"
+
 
 target_config = EvaluationTarget(
-    api_endpoint=ApiEndpoint(url=chat_url, type=EndpointType.CHAT, model_id=model_name)
+    api_endpoint=ApiEndpoint(
+        url=completions_url,
+        type=EndpointType.COMPLETIONS,
+        model_id=model_name,
+    )
 )
+
 eval_config = EvaluationConfig(
-    type="garak",
+    type="lm-evaluation-harness.polemo2",
     output_dir="/results/",
-    params=ConfigParams(
-        limit_samples=10,
-        temperature=0,
-        top_p=0,
-        parallelism=1,
-        extra={"probes": "ansiescape.AnsiEscaped"},
-    ),
+    # params={  # pass params to adjust how the benchmark is run
+    #     "temperature": 0,
+    #     "top_p": 0,
+    #     "max_new_tokens": 50,
+    # },
 )
 
 

@@ -131,16 +131,16 @@ Direct access to specialized evaluation containers through [NGC Catalog](https:/
 
 ```bash
 # Academic benchmarks
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
+docker run --rm -it nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}
 
 # Code generation evaluation
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_compose_latest }}
+docker run --rm -it nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:{{ docker_compose_latest }}
 
 # Safety and security testing
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/safety-harness:{{ docker_compose_latest }}
+docker run --rm -it nvcr.io/nvidia/eval-factory/safety-harness:{{ docker_compose_latest }}
 
 # Vision-language model evaluation
-docker run --rm -it --gpus all nvcr.io/nvidia/eval-factory/vlmevalkit:{{ docker_compose_latest }}
+docker run --rm -it nvcr.io/nvidia/eval-factory/vlmevalkit:{{ docker_compose_latest }}
 ```
 
 ### Reproducible Evaluation Environments

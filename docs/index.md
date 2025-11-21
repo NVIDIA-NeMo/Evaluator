@@ -342,7 +342,6 @@ Evaluate an Existing Endpoint <tutorials/local-evaluation-of-existing-endpoint>
 <!--
 TODO: Add below once ready
 Evaluation Configuration Parameters <evaluation/parameters>
-Custom Task Configuration <evaluation/custom-tasks> 
 -->
 :::{toctree}
 :caption: Evaluation
@@ -350,6 +349,9 @@ Custom Task Configuration <evaluation/custom-tasks>
 
 About Model Evaluation <evaluation/index>
 Benchmark Catalog <evaluation/benchmarks>
+Tasks Not Explicitly Defined by FDF <evaluation/custom-task>
+Evaluation Techniques <evaluation/run-evals/index>
+Add Evaluation Packages to NeMo Framework <evaluation/nemo-fw-optional-package>
 :::
 
 <!-- TODO: Add these pages once ready:

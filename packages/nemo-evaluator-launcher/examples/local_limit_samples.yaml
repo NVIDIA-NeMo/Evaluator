@@ -24,6 +24,7 @@
 #     Always run full evaluations (without limit_samples) for actual benchmark results.
 
 # specify default configs for execution and deployment
+# [docs-start-snippet]
 defaults:
   - execution: local
   - deployment: none
@@ -46,13 +47,6 @@ evaluation:
         request_timeout: 3600 # timeout for API requests in seconds
         parallelism: 1 # number of parallel requests
         limit_samples: 5 # TEST ONLY: Limits all benchmarks to 10 samples total for quick testing
-    target:
-      api_endpoint:
-        adapter_config:
-          use_reasoning: false # if true, strips reasoning tokens anc collects reasoning stats
-          use_system_prompt: true # enables custom system prompt
-          custom_system_prompt: >-
-            "Think step by step."
   tasks:
     - name: gpqa_diamond
       env_vars:
