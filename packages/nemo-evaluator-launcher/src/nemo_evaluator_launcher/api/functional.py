@@ -116,6 +116,7 @@ def get_status(ids_or_prefixes: list[str]) -> list[dict[str, Any]]:
     db = ExecutionDB()
     results: List[dict[str, Any]] = []
 
+    # TODO(agronskiy): refactor the `.`-checking job in all the functions.
     for id_or_prefix in ids_or_prefixes:
         # If id looks like an invocation_id (no dot), get all jobs for it
         if "." not in id_or_prefix:
@@ -274,6 +275,7 @@ def stream_logs(id_or_prefix: str) -> Iterator[Tuple[str, str, str]]:
     """
     db = ExecutionDB()
 
+    # TODO(agronskiy): refactor the `.`-checking job in all the functions.
     # Determine if this is a job ID or invocation ID
     if "." in id_or_prefix:
         # This is a job ID
@@ -442,6 +444,7 @@ def kill_job_or_invocation(id: str) -> list[dict[str, Any]]:
                 "data": {"error": f"Unexpected error: {str(e)}"},
             }
 
+    # TODO(agronskiy): refactor the `.`-checking job in all the functions.
     # Determine if this is a job ID or invocation ID
     if "." in id:
         # This is a job ID - kill single job
