@@ -56,6 +56,7 @@ curl -X POST ${FULL_ENDPOINT_URL} \
 ```bash
 export FULL_ENDPOINT_URL="https://your-server.com/v1/completions"
 export API_KEY="your-api-key-here"
+export MODEL_NAME="your-model-name-here"
 
 curl -X POST ${FULL_ENDPOINT_URL} \
 -H "Content-Type: application/json" \
@@ -80,6 +81,7 @@ NeMo Evaluator supports the **OpenAI Images API** ([docs](https://platform.opena
 ```bash
 export FULL_ENDPOINT_URL="https://your-server.com/v1/chat/completions"
 export API_KEY="your-api-key-here"
+export MODEL_NAME="your-model-name-here"
 
 curl -X POST ${FULL_ENDPOINT_URL} \
   -H "Content-Type: application/json" \
@@ -120,6 +122,7 @@ Function calling request:
 ```bash
 export FULL_ENDPOINT_URL="https://your-server.com/v1/chat/completions"
 export API_KEY="your-api-key-here"
+export MODEL_NAME="your-model-name-here"
 
 curl -X POST ${FULL_ENDPOINT_URL} \
   -H "Content-Type: application/json" \
@@ -182,6 +185,7 @@ Example:
 ``` bash
 export FULL_ENDPOINT_URL="https://your-server.com/v1/chat/completions"
 export API_KEY="your-api-key-here"
+export MODEL_NAME="your-model-name-here"
 
 curl -X POST ${FULL_ENDPOINT_URL} \
 -H "Content-Type: application/json" \
