@@ -255,14 +255,6 @@ class TestLocalExecutorDryRun:
                 if env_var in os.environ:
                     del os.environ[env_var]
 
-    def test_execute_eval_deployment_type_validation(self, sample_config):
-        """Test that non-'none' deployment types raise NotImplementedError."""
-        # Change deployment type to something other than 'none'
-        sample_config.deployment.type = "slurm"
-
-        with pytest.raises(NotImplementedError, match="type slurm is not implemented"):
-            LocalExecutor.execute_eval(sample_config, dry_run=True)
-
 
 class TestLocalExecutorGetStatus:
     """Test LocalExecutor get_status functionality."""

@@ -22,8 +22,7 @@ Let NeMo Evaluator Launcher handle both model deployment and evaluation orchestr
 ```bash
 # Launcher deploys model AND runs evaluation
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name slurm_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml \
     -o deployment.checkpoint_path=/shared/models/llama-3.1-8b
 ```
 
@@ -46,8 +45,7 @@ You handle model deployment, NeMo Evaluator handles evaluation:
 ```bash
 # Point launcher to your deployed model
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
     -o target.api_endpoint.url=http://localhost:8080/v1/chat/completions
 ```
 
@@ -133,7 +131,7 @@ Choose from these approaches when managing your own deployment:
 <!-- 
 ### Manual Deployment
 - **vLLM**: High-performance serving with PagedAttention optimization
-- **Custom serving**: Any OpenAI-compatible endpoint (verify compatibility with our [Testing Endpoint Compatibility](bring-your-own-endpoint/testing-endpoint-oai-compatibility.md) guide) -->
+- **Custom serving**: Any OpenAI-compatible endpoint (verify compatibility with our {ref}`deployment-testing-compatibility` guide) -->
 
 ### Hosted Services  
 - **NVIDIA Build**: Ready-to-use hosted models with OpenAI-compatible APIs

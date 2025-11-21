@@ -45,6 +45,10 @@ class TestSlurmExecutorFeatures:
                 "image": "test-image:latest",
                 "command": "test-command",
                 "served_model_name": "test-model",
+                "port": 8000,
+                "endpoints": {
+                    "health": "/health",
+                },
             },
             "execution": {
                 "type": "slurm",
@@ -84,12 +88,6 @@ class TestSlurmExecutorFeatures:
                 "nemo_evaluator_launcher.executors.slurm.executor.get_task_from_mapping"
             ) as mock_get_task,
             patch(
-                "nemo_evaluator_launcher.executors.slurm.executor.get_health_url"
-            ) as mock_get_health,
-            patch(
-                "nemo_evaluator_launcher.executors.slurm.executor.get_endpoint_url"
-            ) as mock_get_endpoint,
-            patch(
                 "nemo_evaluator_launcher.common.helpers.get_eval_factory_command"
             ) as mock_get_eval_command,
             patch(
@@ -103,8 +101,6 @@ class TestSlurmExecutorFeatures:
                 "endpoint_type": "openai",
                 "task": "test_task",
             }
-            mock_get_health.return_value = "http://localhost:8000/health"
-            mock_get_endpoint.return_value = "http://localhost:8000/v1"
             from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
 
             mock_get_eval_command.return_value = CmdAndReadableComment(
@@ -115,8 +111,6 @@ class TestSlurmExecutorFeatures:
             yield {
                 "load_tasks_mapping": mock_load_tasks,
                 "get_task_from_mapping": mock_get_task,
-                "get_health_url": mock_get_health,
-                "get_endpoint_url": mock_get_endpoint,
                 "get_eval_factory_command": mock_get_eval_command,
                 "get_served_model_name": mock_get_model_name,
             }
@@ -143,7 +137,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        )
+        ).cmd
 
         # Check that deployment environment variables are exported
         assert "export DEPLOY_VAR1=deploy_value1" in script
@@ -174,7 +168,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        )
+        ).cmd
 
         # Check that evaluation environment variables are exported
         assert "export EVAL_VAR1=eval_value1" in script
@@ -204,7 +198,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        )
+        ).cmd
 
         # Check that deployment mounts are added to deployment container
         assert "/host/path1:/container/path1" in script
@@ -235,7 +229,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        )
+        ).cmd
 
         # Check that evaluation mounts are added to evaluation container
         assert "/host/eval1:/container/eval1" in script
@@ -258,7 +252,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        )
+        ).cmd
 
         # Should NOT contain --no-container-mount-home when mount_home is True
         assert "--no-container-mount-home" not in script
@@ -280,7 +274,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        )
+        ).cmd
 
         # Should contain --no-container-mount-home when mount_home is False
         assert "--no-container-mount-home" in script
@@ -299,7 +293,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        )
+        ).cmd
 
         # Should NOT contain --no-container-mount-home by default (mount_home defaults to True)
         assert "--no-container-mount-home" not in script
@@ -326,7 +320,7 @@ class TestSlurmExecutorFeatures:
                 remote_task_subdir=Path("/test/remote"),
                 invocation_id="test123",
                 job_id="test123.0",
-            )
+            ).cmd
 
             # Check that deprecation warnings were issued
             deprecation_warnings = [
@@ -373,7 +367,7 @@ class TestSlurmExecutorFeatures:
                 remote_task_subdir=Path("/test/remote"),
                 invocation_id="test123",
                 job_id="test123.0",
-            )
+            ).cmd
 
         # Both old and new env vars should be present
         assert "export OLD_VAR=old_value" in script
@@ -407,7 +401,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        )
+        ).cmd
 
         # Script should be generated successfully without errors
         assert "srun" in script
@@ -430,7 +424,7 @@ class TestSlurmExecutorFeatures:
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        )
+        ).cmd
 
         # Environment variables should still be exported
         assert "export DEPLOY_VAR=deploy_value" in script
@@ -482,7 +476,7 @@ class TestSlurmExecutorFeatures:
                 remote_task_subdir=Path("/test/remote"),
                 invocation_id="test123",
                 job_id="test123.0",
-            )
+            ).cmd
 
         # All environment variables should be exported
         assert "export DEPLOY_VAR1=deploy_value1" in script
@@ -499,6 +493,223 @@ class TestSlurmExecutorFeatures:
 
         # mount_home=False should add --no-container-mount-home
         assert "--no-container-mount-home" in script
+
+    @pytest.mark.parametrize(
+        "num_nodes,n_tasks,expected_ntasks,should_have_proxy",
+        [
+            (1, 1, 1, False),  # Single instance, no proxy
+            (4, 4, 4, True),  # Multi-instance with matching n_tasks, needs proxy
+            (2, 1, 1, False),  # Multiple nodes but single task, no proxy
+            (3, 3, 3, True),  # Multi-instance with 3 nodes, needs proxy
+        ],
+    )
+    def test_deployment_n_tasks_and_proxy_setup(
+        self,
+        base_config,
+        mock_task,
+        mock_dependencies,
+        num_nodes,
+        n_tasks,
+        expected_ntasks,
+        should_have_proxy,
+    ):
+        """Test deployment.n_tasks with various configurations and proxy setup."""
+        base_config["execution"]["deployment"] = {"n_tasks": n_tasks}
+        base_config["execution"]["num_nodes"] = num_nodes
+        # Set multiple_instances to trigger proxy setup when needed
+        base_config["deployment"]["multiple_instances"] = should_have_proxy
+
+        cfg = OmegaConf.create(base_config)
+
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        # Check that deployment srun uses correct --ntasks value
+        assert f"--nodes {num_nodes} --ntasks {expected_ntasks}" in script
+
+        # Check proxy setup based on multi-instance or not
+        if should_have_proxy:
+            assert "proxy" in script.lower()
+        else:
+            assert "proxy" not in script.lower()
+
+    def test_deployment_n_tasks_default_value(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """Test deployment.n_tasks defaults to 1 when not specified."""
+        # Don't set deployment.n_tasks - should default to 1
+        base_config["execution"]["num_nodes"] = 2
+
+        cfg = OmegaConf.create(base_config)
+
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        # Check that deployment srun defaults to --ntasks 1
+        assert "--nodes 2 --ntasks 1" in script
+
+        # Check that no proxy is set up (since n_tasks=1, even though num_nodes=2)
+        assert "proxy" not in script.lower()
+
+
+class TestSlurmExecutorHelperFunctions:
+    """Test individual helper functions used by SLURM executor."""
+
+    @pytest.mark.parametrize(
+        "num_nodes,n_tasks,has_mounts,mount_home,expected_nodes,expected_ntasks,expected_mount_home_flag",
+        [
+            (1, 1, False, True, 1, 1, False),  # Single node, no mounts, mount home
+            (4, 4, False, True, 4, 4, False),  # Multi-node, no mounts, mount home
+            (2, 1, True, True, 2, 1, False),  # Multi-node single task with mounts
+            (1, 1, False, False, 1, 1, True),  # Single node, no mount home
+            (3, 3, True, False, 3, 3, True),  # Multi-node with mounts, no mount home
+        ],
+    )
+    def test_generate_deployment_srun_command(
+        self,
+        num_nodes,
+        n_tasks,
+        has_mounts,
+        mount_home,
+        expected_nodes,
+        expected_ntasks,
+        expected_mount_home_flag,
+    ):
+        """Test _generate_deployment_srun_command with various configurations."""
+        from nemo_evaluator_launcher.executors.slurm.executor import (
+            _generate_deployment_srun_command,
+        )
+
+        # Create config
+        config = {
+            "deployment": {
+                "type": "vllm",
+                "image": "test-image:latest",
+                "command": "python -m vllm.entrypoints.openai.api_server --model /model",
+            },
+            "execution": {
+                "num_nodes": num_nodes,
+                "deployment": {"n_tasks": n_tasks},
+                "mounts": {"mount_home": mount_home},
+            },
+        }
+        cfg = OmegaConf.create(config)
+
+        # Create mounts list
+        mounts_list = ["/host/path:/container/path"] if has_mounts else []
+
+        # Generate command
+        command, _, _ = _generate_deployment_srun_command(
+            cfg=cfg,
+            deployment_mounts_list=mounts_list,
+            remote_task_subdir=Path("/test/remote"),
+        )
+
+        # Verify nodes and ntasks
+        assert f"--nodes {expected_nodes} --ntasks {expected_ntasks}" in command
+
+        # Verify image
+        assert "test-image:latest" in command
+
+        # Verify mounts
+        if has_mounts:
+            assert "/host/path:/container/path" in command
+
+        # Verify mount_home flag
+        if expected_mount_home_flag:
+            assert "--no-container-mount-home" in command
+        else:
+            assert "--no-container-mount-home" not in command
+
+        # Verify node IP collection
+        assert "NODES_IPS_ARRAY" in command
+        assert "MASTER_IP" in command
+
+    @pytest.mark.parametrize(
+        "ip_list,port,health_path,service_name,check_pid,expected_in_output",
+        [
+            (
+                '"127.0.0.1"',
+                8000,
+                "/health",
+                "server",
+                True,
+                ["127.0.0.1", "8000", "/health", "server", "SERVER_PID"],
+            ),
+            (
+                '"${NODES_IPS_ARRAY[@]}"',
+                5009,
+                "/status",
+                "Proxy",
+                False,
+                ["NODES_IPS_ARRAY", "5009", "/status", "Proxy"],
+            ),
+            (
+                '"10.0.0.1"',
+                8080,
+                "/ready",
+                "service",
+                True,
+                ["10.0.0.1", "8080", "/ready", "service", "SERVER_PID"],
+            ),
+            (
+                '"${NODES_IPS_ARRAY[@]}"',
+                8000,
+                "/health",
+                "server",
+                True,
+                ["NODES_IPS_ARRAY", "8000", "/health", "SERVER_PID"],
+            ),
+        ],
+    )
+    def test_get_wait_for_server_handler(
+        self, ip_list, port, health_path, service_name, check_pid, expected_in_output
+    ):
+        """Test _get_wait_for_server_handler with various configurations."""
+        from nemo_evaluator_launcher.executors.slurm.executor import (
+            _get_wait_for_server_handler,
+        )
+
+        # Generate handler
+        handler = _get_wait_for_server_handler(
+            ip_list=ip_list,
+            port=port,
+            health_check_path=health_path,
+            service_name=service_name,
+            check_pid=check_pid,
+        )
+
+        # Verify all expected strings are in output
+        for expected in expected_in_output:
+            assert expected in handler
+
+        # Verify PID check logic
+        if check_pid:
+            assert "SERVER_PID" in handler
+            assert "kill -0" in handler
+        else:
+            assert "kill -0" not in handler
+
+        # Verify curl command structure
+        assert "curl -s -o /dev/null" in handler
+        assert f"http://$ip:{port}{health_path}" in handler
+
+        # Verify loop structure
+        assert "for ip in" in handler
+        assert "while" in handler
+        assert "done" in handler
 
 
 class TestSlurmExecutorDryRun:
@@ -594,12 +805,6 @@ class TestSlurmExecutorDryRun:
                 patch(
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_health_url"
-                ) as mock_get_health,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_endpoint_url"
-                ) as mock_get_endpoint,
                 patch("builtins.print") as mock_print,
             ):
                 # Configure mocks
@@ -619,8 +824,6 @@ class TestSlurmExecutorDryRun:
                     cmd="nemo-evaluator-launcher --model llama-3.1-8b-instruct --task {task_name}",
                     debug="# Test command for dry run",
                 )
-                mock_get_health.return_value = "http://localhost:8000/health"
-                mock_get_endpoint.return_value = "http://localhost:8000/v1"
 
                 # Execute dry run
                 invocation_id = SlurmExecutor.execute_eval(sample_config, dry_run=True)
@@ -738,12 +941,6 @@ class TestSlurmExecutorDryRun:
                 patch(
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_health_url"
-                ) as mock_get_health,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_endpoint_url"
-                ) as mock_get_endpoint,
                 patch("builtins.print"),
             ):
                 mock_load_mapping.return_value = mock_tasks_mapping
@@ -761,8 +958,6 @@ class TestSlurmExecutorDryRun:
                     cmd="nemo-evaluator-launcher --task test_command",
                     debug="# Test command for custom container",
                 )
-                mock_get_health.return_value = "http://localhost:8000/health"
-                mock_get_endpoint.return_value = "http://localhost:8000/v1"
 
                 # Execute dry run
                 invocation_id = SlurmExecutor.execute_eval(sample_config, dry_run=True)
@@ -800,12 +995,6 @@ class TestSlurmExecutorDryRun:
                 patch(
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_health_url"
-                ) as mock_get_health,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_endpoint_url"
-                ) as mock_get_endpoint,
                 patch("builtins.print"),
             ):
                 mock_load_mapping.return_value = mock_tasks_mapping
@@ -823,8 +1012,6 @@ class TestSlurmExecutorDryRun:
                     cmd="nemo-evaluator-launcher --task test_command",
                     debug="# Test command for no auto-export",
                 )
-                mock_get_health.return_value = "http://localhost:8000/health"
-                mock_get_endpoint.return_value = "http://localhost:8000/v1"
 
                 # Should execute successfully without auto-export
                 invocation_id = SlurmExecutor.execute_eval(sample_config, dry_run=True)
@@ -1296,12 +1483,6 @@ class TestSlurmExecutorSystemCalls:
                 patch(
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_health_url"
-                ) as mock_get_health,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_endpoint_url"
-                ) as mock_get_endpoint,
                 patch("subprocess.run", side_effect=mock_subprocess_run),
             ):
                 # Configure mocks
@@ -1320,8 +1501,6 @@ class TestSlurmExecutorSystemCalls:
                     cmd="nemo-evaluator-launcher --task mmlu_pro",
                     debug="# Test command for mmlu_pro",
                 )
-                mock_get_health.return_value = "http://127.0.0.1:8000/health"
-                mock_get_endpoint.return_value = "http://127.0.0.1:8000/v1"
 
                 # Execute non-dry-run
                 invocation_id = SlurmExecutor.execute_eval(sample_config, dry_run=False)
@@ -1392,12 +1571,6 @@ class TestSlurmExecutorSystemCalls:
                 patch(
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_health_url"
-                ) as mock_get_health,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_endpoint_url"
-                ) as mock_get_endpoint,
                 patch("subprocess.run", side_effect=mock_subprocess_run),
             ):
                 # Configure mocks
@@ -1416,8 +1589,6 @@ class TestSlurmExecutorSystemCalls:
                     cmd="nemo-evaluator-launcher --task mmlu_pro",
                     debug="# Test command for mmlu_pro SSH failure",
                 )
-                mock_get_health.return_value = "http://127.0.0.1:8000/health"
-                mock_get_endpoint.return_value = "http://127.0.0.1:8000/v1"
 
                 # Should still succeed (SSH connection can be None)
                 invocation_id = SlurmExecutor.execute_eval(sample_config, dry_run=False)
@@ -1485,12 +1656,6 @@ class TestSlurmExecutorSystemCalls:
                 patch(
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_health_url"
-                ) as mock_get_health,
-                patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_endpoint_url"
-                ) as mock_get_endpoint,
                 patch("subprocess.run", side_effect=mock_subprocess_run),
             ):
                 # Configure mocks
@@ -1509,8 +1674,6 @@ class TestSlurmExecutorSystemCalls:
                     cmd="nemo-evaluator-launcher --task mmlu_pro",
                     debug="# Test command for mmlu_pro sbatch failure",
                 )
-                mock_get_health.return_value = "http://127.0.0.1:8000/health"
-                mock_get_endpoint.return_value = "http://127.0.0.1:8000/v1"
 
                 # Should raise RuntimeError for sbatch failure
                 with pytest.raises(

@@ -26,6 +26,7 @@ import shlex
 import shutil
 import subprocess
 import time
+import warnings
 from typing import List, Optional
 
 import jinja2
@@ -39,15 +40,19 @@ from nemo_evaluator_launcher.common.execdb import (
     generate_job_id,
 )
 from nemo_evaluator_launcher.common.helpers import (
+    get_api_key_name,
+    get_endpoint_url,
     get_eval_factory_command,
     get_eval_factory_dataset_size_from_run_config,
+    get_health_url,
     get_timestamp_string,
 )
+from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.mapping import (
     get_task_from_mapping,
     load_tasks_mapping,
 )
-from nemo_evaluator_launcher.common.printing_utils import bold, cyan, grey
+from nemo_evaluator_launcher.common.printing_utils import bold, cyan, grey, red
 from nemo_evaluator_launcher.executors.base import (
     BaseExecutor,
     ExecutionState,
@@ -70,14 +75,8 @@ class LocalExecutor(BaseExecutor):
             str: The invocation ID for the evaluation run.
 
         Raises:
-            NotImplementedError: If deployment is not 'none'.
             RuntimeError: If the run script fails.
         """
-        if cfg.deployment.type != "none":
-            raise NotImplementedError(
-                f"type {cfg.deployment.type} is not implemented -- add deployment support"
-            )
-
         # Check if docker is available (skip in dry_run mode)
         if not dry_run and shutil.which("docker") is None:
             raise RuntimeError(
@@ -97,12 +96,16 @@ class LocalExecutor(BaseExecutor):
         evaluation_tasks = []
         job_ids = []
 
-        eval_template = jinja2.Template(
+        run_template = jinja2.Template(
             open(pathlib.Path(__file__).parent / "run.template.sh", "r").read()
         )
 
         execution_mode = cfg.execution.get("mode", "parallel")
         if execution_mode == "parallel":
+            if cfg.deployment.type != "none":
+                raise ValueError(
+                    f"Execution mode 'parallel' is not supported with deployment type: {cfg.deployment.type}. Use 'sequential' instead."
+                )
             is_execution_mode_sequential = False
         elif execution_mode == "sequential":
             is_execution_mode_sequential = True
@@ -113,20 +116,76 @@ class LocalExecutor(BaseExecutor):
                 )
             )
 
+        # Will accumulate if any task contains unsafe commands.
+        is_potentially_unsafe = False
+
+        deployment = None
+
         for idx, task in enumerate(cfg.evaluation.tasks):
+            timestamp = get_timestamp_string()
             task_definition = get_task_from_mapping(task.name, tasks_mapping)
+
+            if cfg.deployment.type != "none":
+                # container name
+                server_container_name = f"server-{task.name}-{timestamp}"
+
+                # health_url
+                health_url = get_health_url(
+                    cfg, get_endpoint_url(cfg, task, task_definition["endpoint_type"])
+                )
+
+                # mounts
+                deployment_mounts_list = []
+                if checkpoint_path := cfg.deployment.get("checkpoint_path"):
+                    deployment_mounts_list.append(f"{checkpoint_path}:/checkpoint:ro")
+                if cache_path := cfg.deployment.get("cache_path"):
+                    deployment_mounts_list.append(f"{cache_path}:/cache")
+                for source_mnt, target_mnt in (
+                    cfg.execution.get("mounts", {}).get("deployment", {}).items()
+                ):
+                    deployment_mounts_list.append(f"{source_mnt}:{target_mnt}")
+
+                # env vars
+                deployment_env_vars = cfg.execution.get("env_vars", {}).get(
+                    "deployment", {}
+                )
+
+                if cfg.deployment.get("env_vars"):
+                    warnings.warn(
+                        "cfg.deployment.env_vars will be deprecated in future versions. "
+                        "Use cfg.execution.env_vars.deployment instead.",
+                        category=DeprecationWarning,
+                        stacklevel=2,
+                    )
+                    deployment_env_vars.update(cfg.deployment["env_vars"])
+
+                command = cfg.deployment.command
+                deployment_extra_docker_args = cfg.execution.get(
+                    "extra_docker_args", ""
+                )
+
+                deployment = {
+                    "container_name": server_container_name,
+                    "image": cfg.deployment.image,
+                    "command": command,
+                    "mounts": deployment_mounts_list,
+                    "env_vars": [f"{k}={v}" for k, v in deployment_env_vars.items()],
+                    "health_url": health_url,
+                    "port": cfg.deployment.port,
+                    "extra_docker_args": deployment_extra_docker_args,
+                }
 
             # Create job ID as <invocation_id>.<n>
             job_id = generate_job_id(invocation_id, idx)
             job_ids.append(job_id)
-            container_name = f"{task.name}-{get_timestamp_string()}"
+            client_container_name = f"client-{task.name}-{timestamp}"
 
             # collect all env vars
             env_vars = copy.deepcopy(dict(cfg.evaluation.get("env_vars", {})))
             env_vars.update(task.get("env_vars", {}))
-            if cfg.target.api_endpoint.api_key_name:
+            if api_key_name := get_api_key_name(cfg):
                 assert "API_KEY" not in env_vars
-                env_vars["API_KEY"] = cfg.target.api_endpoint.api_key_name
+                env_vars["API_KEY"] = api_key_name
 
             # check if the environment variables are set
             for env_var in env_vars.values():
@@ -135,8 +194,11 @@ class LocalExecutor(BaseExecutor):
                         f"Trying to pass an unset environment variable {env_var}."
                     )
 
-            # check if required env vars are defined:
+            # check if required env vars are defined (excluding NEMO_EVALUATOR_DATASET_DIR which is handled separately):
             for required_env_var in task_definition.get("required_env_vars", []):
+                # Skip NEMO_EVALUATOR_DATASET_DIR as it's handled by dataset mounting logic below
+                if required_env_var == "NEMO_EVALUATOR_DATASET_DIR":
+                    continue
                 if required_env_var not in env_vars.keys():
                     raise ValueError(
                         f"{task.name} task requires environment variable {required_env_var}."
@@ -144,11 +206,37 @@ class LocalExecutor(BaseExecutor):
                         f" pair {required_env_var}: YOUR_ENV_VAR_NAME"
                     )
 
+            # Handle dataset directory mounting if NEMO_EVALUATOR_DATASET_DIR is required
+            dataset_mount_host = None
+            dataset_mount_container = None
+            dataset_env_var_value = None
+            if "NEMO_EVALUATOR_DATASET_DIR" in task_definition.get(
+                "required_env_vars", []
+            ):
+                # Get dataset directory from task config
+                if "dataset_dir" in task:
+                    dataset_mount_host = task["dataset_dir"]
+                else:
+                    raise ValueError(
+                        f"{task.name} task requires a dataset_dir to be specified. "
+                        f"Add 'dataset_dir: /path/to/your/dataset' under the task configuration."
+                    )
+                # Get container mount path (default to /datasets if not specified)
+                dataset_mount_container = task.get("dataset_mount_path", "/datasets")
+                # Set NEMO_EVALUATOR_DATASET_DIR to the container mount path
+                dataset_env_var_value = dataset_mount_container
+
             # format env_vars for a template
-            env_vars = [
+            env_vars_list = [
                 f"{env_var_dst}=${env_var_src}"
                 for env_var_dst, env_var_src in env_vars.items()
             ]
+
+            # Add dataset env var if needed (directly with value, not from host env)
+            if dataset_env_var_value:
+                env_vars_list.append(
+                    f"NEMO_EVALUATOR_DATASET_DIR={dataset_env_var_value}"
+                )
 
             eval_image = task_definition["container"]
             if "container" in task:
@@ -166,15 +254,22 @@ class LocalExecutor(BaseExecutor):
             # TODO(agronskiy): cleaner way is to encode everything with base64, not
             # some parts (like ef_config.yaml) and just output as logs somewhere.
             eval_factory_command_debug_comment = eval_factory_command_struct.debug
+            is_potentially_unsafe = (
+                is_potentially_unsafe
+                or eval_factory_command_struct.is_potentially_unsafe
+            )
             evaluation_task = {
+                "deployment": deployment,
                 "name": task.name,
                 "job_id": job_id,
                 "eval_image": eval_image,
-                "container_name": container_name,
-                "env_vars": env_vars,
+                "client_container_name": client_container_name,
+                "env_vars": env_vars_list,
                 "output_dir": task_output_dir,
                 "eval_factory_command": eval_factory_command,
                 "eval_factory_command_debug_comment": eval_factory_command_debug_comment,
+                "dataset_mount_host": dataset_mount_host,
+                "dataset_mount_container": dataset_mount_container,
             }
             evaluation_tasks.append(evaluation_task)
 
@@ -185,7 +280,7 @@ class LocalExecutor(BaseExecutor):
             extra_docker_args = cfg.execution.get("extra_docker_args", "")
 
             run_sh_content = (
-                eval_template.render(
+                run_template.render(
                     evaluation_tasks=[evaluation_task],
                     auto_export_destinations=auto_export_destinations,
                     extra_docker_args=extra_docker_args,
@@ -196,7 +291,7 @@ class LocalExecutor(BaseExecutor):
             (task_output_dir / "run.sh").write_text(run_sh_content)
 
         run_all_sequentially_sh_content = (
-            eval_template.render(
+            run_template.render(
                 evaluation_tasks=evaluation_tasks,
                 auto_export_destinations=auto_export_destinations,
                 extra_docker_args=extra_docker_args,
@@ -230,7 +325,33 @@ class LocalExecutor(BaseExecutor):
                     with open(task_output_dir / "run.sh", "r") as f:
                         print(grey(f.read()))
             print(bold("\nTo execute, run without --dry-run"))
+
+            if is_potentially_unsafe:
+                print(
+                    red(
+                        "\nFound `pre_cmd` which carries security risk. When running without --dry-run "
+                        "make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
+                    )
+                )
             return invocation_id
+
+        if is_potentially_unsafe:
+            if os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":
+                logger.warning(
+                    "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                    "is set, proceeding with caution."
+                )
+
+            else:
+                logger.error(
+                    "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                    "is not set. This might carry security risk and unstable environments. "
+                    "To continue, make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1.",
+                )
+                raise AttributeError(
+                    "Untrusted command found in config, make sure you trust and "
+                    "set NEMO_EVALUATOR_TRUST_PRE_CMD=1."
+                )
 
         # Save launched jobs metadata
         db = ExecutionDB()
@@ -245,7 +366,7 @@ class LocalExecutor(BaseExecutor):
                     executor="local",
                     data={
                         "output_dir": str(evaluation_task["output_dir"]),
-                        "container": evaluation_task["container_name"],
+                        "container": evaluation_task["client_container_name"],
                         "eval_image": evaluation_task["eval_image"],
                     },
                     config=OmegaConf.to_object(cfg),
@@ -301,11 +422,16 @@ class LocalExecutor(BaseExecutor):
 
         print(bold(cyan("\nCommands for real-time monitoring:")))
         for job_id, evaluation_task in zip(job_ids, evaluation_tasks):
-            log_file = evaluation_task["output_dir"] / "logs" / "stdout.log"
-            print(f"  tail -f {log_file}")
+            logs_dir = evaluation_task["output_dir"] / "logs"
+            print(f"\n  Job {job_id} ({evaluation_task['name']}):")
+            if evaluation_task["deployment"]:
+                print(f"    Server:   tail -f {logs_dir / 'server_stdout.log'}")
+            print(f"    Client:   tail -f {logs_dir / 'client_stdout.log'}")
 
         print(bold(cyan("\nFollow all logs for this invocation:")))
-        print(f"  tail -f {output_dir}/*/logs/stdout.log\n")
+        if evaluation_tasks[0]["deployment"]:
+            print(f"  Server:  tail -f {output_dir}/*/logs/server_stdout.log")
+        print(f"  Client:  tail -f {output_dir}/*/logs/client_stdout.log")
 
         return invocation_id
 

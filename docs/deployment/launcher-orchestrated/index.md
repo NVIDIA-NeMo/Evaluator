@@ -1,3 +1,6 @@
+---
+orphan: true
+---
 (launcher-orchestrated-deployment)=
 
 # Launcher-Orchestrated Deployment
@@ -19,8 +22,7 @@ The launcher supports multiple deployment backends and execution environments.
 ```bash
 # Deploy model and run evaluation in one command (Slurm example)
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name slurm_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml \
     -o deployment.checkpoint_path=/path/to/your/model
 ```
 

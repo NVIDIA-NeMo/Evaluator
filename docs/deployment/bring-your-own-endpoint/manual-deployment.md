@@ -27,7 +27,7 @@ This guide focuses on NeMo Evaluator configuration. For specific serving framewo
 
 ## Using Manual Deployments with NeMo Evaluator
 
-Before connecting to your manual deployment, verify it's properly configured using our [Testing Endpoint Compatibility](testing-endpoint-oai-compatibility.md) guide.
+Before connecting to your manual deployment, verify it's properly configured using our {ref}`deployment-testing-compatibility` guide.
 
 ### With Launcher
 
@@ -36,8 +36,7 @@ Once your manual deployment is running, use the launcher to evaluate:
 ```bash
 # Basic evaluation against manual deployment
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
     -o target.api_endpoint.url=http://localhost:8080/v1/completions \
     -o target.api_endpoint.model_id=your-model-name
 ```

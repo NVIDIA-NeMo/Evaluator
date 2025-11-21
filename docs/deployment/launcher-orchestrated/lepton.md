@@ -18,8 +18,7 @@ Lepton launcher-orchestrated deployment:
 ```bash
 # Deploy and evaluate on Lepton AI
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name lepton_vllm_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/lepton_vllm_llama_3_1_8b_instruct.yaml \
     -o deployment.checkpoint_path=meta-llama/Llama-3.1-8B-Instruct \
     -o deployment.lepton_config.resource_shape=gpu.1xh200
 ```
@@ -147,6 +146,36 @@ deployment:
 To evaluate against an already-deployed Lepton endpoint without creating a new deployment, use `deployment.type: none` and provide the endpoint URL in the `target.api_endpoint` section.
 
 Refer to `examples/lepton_none_llama_3_1_8b_instruct.yaml` for a complete example.
+
+### Tasks Requiring Dataset Mounting
+
+Some tasks require access to local datasets that must be mounted into the evaluation container:
+
+```yaml
+evaluation:
+  tasks:
+    - name: mteb.techqa
+      dataset_dir: /path/to/shared/storage/techqa
+```
+
+The system will automatically:
+- Mount the dataset directory into the evaluation container
+- Set the `NEMO_EVALUATOR_DATASET_DIR` environment variable
+- Validate that all required environment variables are configured
+
+**Custom mount path example:**
+
+```yaml
+evaluation:
+  tasks:
+    - name: mteb.techqa
+      dataset_dir: /lepton/shared/datasets/techqa
+      dataset_mount_path: /data/techqa  # Optional: customize container mount point
+```
+
+:::{note}
+Ensure the dataset directory is accessible from the Lepton platform's shared storage configured in your workspace.
+:::
 
 ## Advanced Configuration
 

@@ -240,24 +240,6 @@ Export results to MLflow, Weights & Biases, Google Sheets, or local files with o
 {bdg-secondary}`Export`
 :::
 
-:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Python API
-:link: libraries/nemo-evaluator-launcher/api
-:link-type: doc
-
-Programmatic access for notebooks, automation, and custom evaluation workflows.
-+++
-{bdg-secondary}`API`
-:::
-
-:::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` CLI Reference
-:link: libraries/nemo-evaluator-launcher/cli
-:link-type: doc
-
-Complete command-line interface documentation with examples and usage patterns.
-+++
-{bdg-secondary}`CLI`
-:::
-
 ::::
 
 ### Core
@@ -353,17 +335,22 @@ Quickstart <get-started/quickstart/index>
 
 About Tutorials <tutorials/index>
 Tutorials for NeMo Framework <tutorials/nemo-fw/index>
+Evaluate an Existing Endpoint <tutorials/local-evaluation-of-existing-endpoint>
 :::
 
-<!-- :::{toctree}
+
+<!--
+TODO: Add below once ready
+Evaluation Configuration Parameters <evaluation/parameters>
+Custom Task Configuration <evaluation/custom-tasks> 
+-->
+:::{toctree}
 :caption: Evaluation
 :hidden:
 
 About Model Evaluation <evaluation/index>
-Run Evals <evaluation/run-evals/index>
-Custom Task Configuration <evaluation/custom-tasks>
 Benchmark Catalog <evaluation/benchmarks>
-::: -->
+:::
 
 <!-- :::{toctree}
 :caption: NeMo Framework
@@ -382,6 +369,7 @@ Launcher-Orchestrated <deployment/launcher-orchestrated/index> -->
 
 About Model Deployment <deployment/index>
 Bring-Your-Own-Endpoint <deployment/bring-your-own-endpoint/index>
+Use NeMo Framework <deployment/nemo-fw/index>
 :::
 
 :::{toctree}
@@ -408,4 +396,9 @@ Runtime & Execution <troubleshooting/runtime-issues/index>
 
 About References <references/index>
 FAQ <references/faq>
+NeMo Evaluator Core Python API  <references/api/nemo-evaluator/api/index>
+NeMo Evaluator Launcher Python API  <references/api/nemo-evaluator-launcher/api>
+nemo-evaluator CLI <references/api/nemo-evaluator/cli>
+nemo-evaluator-launcher CLI <references/api/nemo-evaluator-launcher/cli>
 :::
+

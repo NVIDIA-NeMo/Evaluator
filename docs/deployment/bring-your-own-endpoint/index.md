@@ -50,8 +50,7 @@ Use NVIDIA Build, OpenAI API, or other cloud providers for instant availability.
 ```bash
 # Point launcher to your deployed model
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
     -o target.api_endpoint.url=http://your-endpoint:8080/v1/completions \
     -o target.api_endpoint.model_id=your-model-name \
     -o deployment.type=none  # No launcher deployment
@@ -86,7 +85,7 @@ Your endpoint must provide OpenAI-compatible APIs:
 - **Health Check**: `/v1/health` (GET) - For monitoring (recommended)
 
 ### Request/Response Format
-Must follow OpenAI API specifications for compatibility with evaluation frameworks. See the [Testing Endpoint Compatibility](testing-endpoint-oai-compatibility.md) guide to verify your endpoint's OpenAI compatibility.
+Must follow OpenAI API specifications for compatibility with evaluation frameworks. See the {ref}`deployment-testing-compatibility` guide to verify your endpoint's OpenAI compatibility.
 
 
 ## Configuration Management

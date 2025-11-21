@@ -89,7 +89,7 @@ evaluation:
 
 ### Environment Variables
 
-Task-specifi environment variables. These parameters are set for a single job and don't affect other tasks:
+Task-specific environment variables. These parameters are set for a single job and don't affect other tasks:
 
 ```yaml
 evaluation:
@@ -100,6 +100,37 @@ evaluation:
         HF_TOKEN: MY_HF_TOKEN
         CUSTOM_VAR: CUSTOM_VALUE
     - name: task_name2    # HF_TOKEN and CUSTOM_VAR are not set for task_name2
+```
+
+### Dataset Directory Mounting
+
+Some evaluation tasks require access to local datasets that must be mounted into the evaluation container. Tasks that require dataset mounting will have `NEMO_EVALUATOR_DATASET_DIR` in their `required_env_vars`.
+
+When using such tasks, you must specify:
+- **`dataset_dir`**: Path to the dataset on the host machine
+- **`dataset_mount_path`** (optional): Path where the dataset should be mounted inside the container (defaults to `/datasets`)
+
+```yaml
+evaluation:
+  tasks:
+    - name: mteb.techqa
+      dataset_dir: /path/to/your/techqa/dataset
+      # dataset_mount_path: /datasets  # Optional, defaults to /datasets
+```
+
+The system will:
+1. Mount the host path (`dataset_dir`) to the container path (`dataset_mount_path`)
+2. Automatically set the `NEMO_EVALUATOR_DATASET_DIR` environment variable to point to the mounted path inside the container
+3. Validate that the required environment variable is properly configured
+
+**Example with custom mount path:**
+
+```yaml
+evaluation:
+  tasks:
+    - name: mteb.techqa
+      dataset_dir: /mnt/data/techqa
+      dataset_mount_path: /data/techqa  # Custom container path
 ```
 
 ## When to Use
