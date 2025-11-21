@@ -23,8 +23,8 @@ from nemo_evaluator.api.api_dataclasses import (
     EvaluationTarget,
 )
 
-model_name = "meta-llama/Llama-3.2-1B-Instruct"
-completions_url = "https://8d02791a-18f8-41eb-9a42-c21d748e0356.invocation.api.nvcf.nvidia.com/v1/completions"
+model_name = "meta-llama/Llama-3.1-8B"
+completions_url = "http://0.0.0.0:8000/v1/completions/"
 
 
 target_config = EvaluationTarget(
@@ -32,7 +32,6 @@ target_config = EvaluationTarget(
         url=completions_url,
         type=EndpointType.COMPLETIONS,
         model_id=model_name,
-        api_key="API_KEY",
     )
 )
 
