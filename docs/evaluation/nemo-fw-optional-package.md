@@ -32,12 +32,22 @@ Make sure to open two separate terminals within the same container for executing
 
 Below you can find examples for enabling and launching evaluations for different packages.
 
-:::{note}
+:::{tip}
 All examples below use only a subset of samples.
 To run the evaluation on the whole dataset, remove the `limit_samples` parameter.
 :::
 
 ## Enable On-Demand Evaluation Packages
+
+:::{note}
+If multiple harnesses are installed in your environment and they define a task with the same name, you must use the `<harness>.<task>` format to avoid ambiguity. For example:
+
+```python
+eval_config = EvaluationConfig(type="lm-evaluation-harness.mmlu")
+eval_config = EvaluationConfig(type="simple-evals.mmlu")
+```
+:::
+
 ::::{tab-set}
 
 :::{tab-item} BFCL
