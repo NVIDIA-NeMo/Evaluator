@@ -32,28 +32,28 @@ class TestLogsCommandBasic:
 
     def test_logs_cmd_with_job_id_not_found(self, capsys):
         """Test logs command when job ID is not found."""
-        cmd = LogsCmd(id="nonexistent.0")
+        cmd = LogsCmd(ids=["nonexistent.0"])
         with pytest.raises(SystemExit) as exc_info:
             cmd.execute()
         assert exc_info.value.code == 1
 
     def test_logs_cmd_with_invocation_id_not_found(self, capsys):
         """Test logs command when invocation ID is not found."""
-        cmd = LogsCmd(id="nonexistent")
+        cmd = LogsCmd(ids=["nonexistent"])
         with pytest.raises(SystemExit) as exc_info:
             cmd.execute()
         assert exc_info.value.code == 1
 
     def test_logs_cmd_with_empty_id(self, capsys):
         """Test logs command when ID is empty."""
-        cmd = LogsCmd(id="")
+        cmd = LogsCmd(ids=[])
         with pytest.raises(SystemExit) as exc_info:
             cmd.execute()
         assert exc_info.value.code == 1
 
     def test_logs_command_with_job_id(self, job_local, capsys):
         """Test logs command with a valid job ID."""
-        cmd = LogsCmd(id=job_local.job_id)
+        cmd = LogsCmd(ids=[job_local.job_id])
         # Mock the streaming to avoid infinite loop
         with patch("nemo_evaluator_launcher.cli.logs.stream_logs") as mock_stream:
             mock_stream.return_value = iter(
@@ -65,7 +65,7 @@ class TestLogsCommandBasic:
             with patch("builtins.print") as mock_print:
                 cmd.execute()
                 # Verify that stream_logs was called
-                mock_stream.assert_called_once_with(job_local.job_id)
+                mock_stream.assert_called_once_with([job_local.job_id])
                 # Verify that print was called for log lines
                 assert mock_print.call_count >= 2
 
@@ -86,7 +86,7 @@ class TestLogsCommandBasic:
         jd2, base2 = prepare_local_job(jd2, with_required=True, with_optional=True)
         ExecutionDB().write_job(jd2)
 
-        cmd = LogsCmd(id=inv)
+        cmd = LogsCmd(ids=[inv])
         # Mock the streaming to avoid infinite loop
         with patch("nemo_evaluator_launcher.cli.logs.stream_logs") as mock_stream:
             mock_stream.return_value = iter(
@@ -98,7 +98,7 @@ class TestLogsCommandBasic:
             with patch("builtins.print") as mock_print:
                 cmd.execute()
                 # Verify that stream_logs was called
-                mock_stream.assert_called_once_with(inv)
+                mock_stream.assert_called_once_with([inv])
                 # Verify that print was called
                 assert mock_print.call_count >= 2
 
@@ -131,7 +131,7 @@ class TestLogsCommandBasic:
         )
         ExecutionDB().write_job(jd)
 
-        cmd = LogsCmd(id=f"{inv}.0")
+        cmd = LogsCmd(ids=[f"{inv}.0"])
         # Mock stream_logs to raise ValueError (simulating non-local executor)
         with patch("nemo_evaluator_launcher.cli.logs.stream_logs") as mock_stream:
             mock_stream.side_effect = ValueError("Log streaming is not yet implemented")
@@ -225,6 +225,50 @@ class TestLocalExecutorStreamLogs:
                         assert len(logs) >= 0  # May be 0 if file was already at end
                     except KeyboardInterrupt:
                         pass
+
+    def test_local_executor_stream_logs_last_15_lines(self, prepare_local_job):
+        """Test LocalExecutor.stream_logs prints last 15 lines when starting."""
+        inv = "stream789"
+        jd = JobData(
+            invocation_id=inv,
+            job_id=f"{inv}.0",
+            timestamp=1_000_000_000.0,
+            executor="local",
+            data={},
+            config={
+                "execution": {"type": "local"},
+                "evaluation": {"tasks": [{"name": "test_task"}]},
+            },
+        )
+        jd, base = prepare_local_job(jd, with_required=True, with_optional=True)
+        ExecutionDB().write_job(jd)
+
+        # Create log file with 20 lines
+        log_file = base / "logs" / "client_stdout.log"
+        lines = [f"Line {i}\n" for i in range(1, 21)]
+        log_file.write_text("".join(lines), encoding="utf-8")
+
+        # Mock time.sleep to avoid infinite loop
+        with patch("time.sleep", return_value=None):
+            # Mock KeyboardInterrupt to exit immediately
+            call_count = 0
+
+            def mock_sleep(*args):
+                nonlocal call_count
+                call_count += 1
+                if call_count > 1:
+                    raise KeyboardInterrupt()
+
+            with patch("time.sleep", side_effect=mock_sleep):
+                try:
+                    logs = list(LocalExecutor.stream_logs(f"{inv}.0"))
+                    # Should have read the last 15 lines (lines 6-20)
+                    assert len(logs) == 15
+                    # Verify we got the last 15 lines
+                    assert logs[0][2] == "Line 6"
+                    assert logs[-1][2] == "Line 20"
+                except KeyboardInterrupt:
+                    pass
 
     def test_local_executor_stream_logs_file_not_exists(self, prepare_local_job):
         """Test LocalExecutor.stream_logs when log file doesn't exist yet."""
@@ -324,6 +368,58 @@ class TestFunctionalAPIStreamLogs:
         logs = list(stream_logs("nonexistent"))
         assert len(logs) == 0
 
+    def test_stream_logs_with_multiple_ids(self, job_local, prepare_local_job):
+        """Test stream_logs functional API with multiple IDs."""
+        inv = job_local.invocation_id
+        # Add a second job
+        jd2 = JobData(
+            invocation_id=inv,
+            job_id=f"{inv}.1",
+            timestamp=job_local.timestamp,
+            executor="local",
+            data={},
+            config={
+                "execution": {"type": "local"},
+                "evaluation": {"tasks": [{"name": "test_task"}, {"name": "test_task2"}]},
+            },
+        )
+        jd2, base2 = prepare_local_job(jd2, with_required=True, with_optional=True)
+        ExecutionDB().write_job(jd2)
+
+        # Create another invocation
+        inv2 = "test9999"
+        jd3 = JobData(
+            invocation_id=inv2,
+            job_id=f"{inv2}.0",
+            timestamp=job_local.timestamp,
+            executor="local",
+            data={},
+            config=job_local.config,
+        )
+        jd3, base3 = prepare_local_job(jd3, with_required=True, with_optional=True)
+        ExecutionDB().write_job(jd3)
+
+        # Mock LocalExecutor.stream_logs to return different logs for different IDs
+        def mock_stream_side_effect(id_or_prefix, executor_name=None):
+            if id_or_prefix == job_local.job_id:
+                return iter([(job_local.job_id, "mbpp", "Log from job 0")])
+            elif id_or_prefix == inv2:
+                return iter([(jd3.job_id, "mbpp", "Log from job 2")])
+            else:
+                return iter([])
+
+        with patch(
+            "nemo_evaluator_launcher.executors.local.executor.LocalExecutor.stream_logs",
+            side_effect=mock_stream_side_effect,
+        ):
+            # Test with list of IDs
+            logs = list(stream_logs([job_local.job_id, inv2]))
+            assert len(logs) == 2  # Should have logs from both IDs
+            # Verify we got logs from both sources
+            job_ids_in_logs = {log[0] for log in logs}
+            assert job_local.job_id in job_ids_in_logs
+            assert jd3.job_id in job_ids_in_logs
+
 
 @pytest.mark.usefixtures("mock_execdb")
 class TestBaseExecutorStreamLogs:
@@ -361,11 +457,11 @@ class TestLogsCommandIntegration:
         assert args.command == "logs"
         assert hasattr(args, "logs")
         assert isinstance(args.logs, LogsCmd)
-        assert args.logs.id == "test123"
+        assert args.logs.ids == ["test123"]
 
     def test_logs_command_handles_keyboard_interrupt(self, job_local):
         """Test that logs command handles KeyboardInterrupt gracefully."""
-        cmd = LogsCmd(id=job_local.job_id)
+        cmd = LogsCmd(ids=[job_local.job_id])
         # Mock stream_logs to raise KeyboardInterrupt when iterated
         with patch("nemo_evaluator_launcher.cli.logs.stream_logs") as mock_stream:
 
@@ -379,7 +475,7 @@ class TestLogsCommandIntegration:
 
     def test_logs_command_handles_empty_log_lines(self, job_local):
         """Test that logs command handles empty log lines correctly."""
-        cmd = LogsCmd(id=job_local.job_id)
+        cmd = LogsCmd(ids=[job_local.job_id])
         with patch("nemo_evaluator_launcher.cli.logs.stream_logs") as mock_stream:
             mock_stream.return_value = iter(
                 [
@@ -392,3 +488,35 @@ class TestLogsCommandIntegration:
                 cmd.execute()
                 # Should print all lines, including empty ones
                 assert mock_print.call_count >= 3
+
+    def test_logs_command_with_multiple_ids(self, job_local, prepare_local_job):
+        """Test logs command with multiple IDs."""
+        inv = job_local.invocation_id
+        # Create a second job in a different invocation
+        inv2 = "test9999"
+        jd2 = JobData(
+            invocation_id=inv2,
+            job_id=f"{inv2}.0",
+            timestamp=job_local.timestamp,
+            executor="local",
+            data={},
+            config=job_local.config,
+        )
+        jd2, base2 = prepare_local_job(jd2, with_required=True, with_optional=True)
+        ExecutionDB().write_job(jd2)
+
+        cmd = LogsCmd(ids=[job_local.job_id, jd2.job_id])
+        # Mock the streaming to avoid infinite loop
+        with patch("nemo_evaluator_launcher.cli.logs.stream_logs") as mock_stream:
+            mock_stream.return_value = iter(
+                [
+                    (job_local.job_id, "mbpp", "Log from job 1"),
+                    (jd2.job_id, "mbpp", "Log from job 2"),
+                ]
+            )
+            with patch("builtins.print") as mock_print:
+                cmd.execute()
+                # Verify that stream_logs was called with list of IDs
+                mock_stream.assert_called_once_with([job_local.job_id, jd2.job_id])
+                # Verify that print was called
+                assert mock_print.call_count >= 2

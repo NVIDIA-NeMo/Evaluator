@@ -31,54 +31,58 @@ from nemo_evaluator_launcher.common.logging_utils import logger
 class Cmd:
     """Logs command configuration."""
 
-    id: str = field(
-        default="",
+    ids: list[str] = field(
+        default_factory=list,
         positional=True,
-        help="Invocation ID or job ID (e.g., '15b9f667' or '15b9f667.0')",
+        help="Invocation IDs or job IDs (e.g., '15b9f667' or '15b9f667.0'). Multiple IDs can be provided.",
     )
 
     def execute(self) -> None:
         """Execute the logs command to stream logs from jobs."""
-        if not self.id:
-            logger.error("ID is required")
+        if not self.ids:
+            logger.error("At least one ID is required")
             sys.exit(1)
 
         db = ExecutionDB()
 
-        # Determine if this is an invocation ID or job ID and validate it exists
-        if "." in self.id:
-            # This is a job ID - get single job
-            job_data = db.get_job(self.id)
-            if job_data is None:
-                logger.error(f"Job {self.id} not found")
-                sys.exit(1)
-        else:
-            # This is an invocation ID - get all jobs
-            jobs = db.get_jobs(self.id)
-            if not jobs:
-                logger.error(f"Invocation {self.id} not found")
-                sys.exit(1)
+        # Validate all IDs exist
+        all_job_ids = []
+        for id_or_prefix in self.ids:
+            if "." in id_or_prefix:
+                # This is a job ID - get single job
+                job_data = db.get_job(id_or_prefix)
+                if job_data is None:
+                    logger.error(f"Job {id_or_prefix} not found")
+                    sys.exit(1)
+                all_job_ids.append(id_or_prefix)
+            else:
+                # This is an invocation ID - get all jobs
+                jobs = db.get_jobs(id_or_prefix)
+                if not jobs:
+                    logger.error(f"Invocation {id_or_prefix} not found")
+                    sys.exit(1)
+                all_job_ids.extend(jobs.keys())
 
         # Build color mapping for job IDs
         colors = [pu.red, pu.green, pu.yellow, pu.magenta, pu.cyan]
         job_colors: Dict[str, Callable[[str], str]] = {}
         color_index = 0
 
-        # Collect all job IDs that will be streamed
-        if "." in self.id:
-            job_ids = [self.id]
-        else:
-            job_ids = list(jobs.keys())
-
-        for job_id in job_ids:
+        for job_id in all_job_ids:
             job_colors[job_id] = colors[color_index % len(colors)]
             color_index += 1
 
         # Stream logs from executor
         try:
-            log_stream = stream_logs(self.id)
+            log_stream = stream_logs(self.ids)
             for job_id, task_name, log_line in log_stream:
-                prefix = f"{task_name}:"
+                # Extract short prefix: first 6 chars of invocation ID + job number
+                if "." in job_id:
+                    inv_id, job_num = job_id.split(".", 1)
+                    short_prefix = f"{inv_id[:6]}.{job_num}"
+                else:
+                    short_prefix = job_id[:6]
+                prefix = f"{short_prefix}:"
                 color_func = job_colors.get(job_id, pu.grey)
                 if log_line:
                     print(f"{color_func(prefix)} {log_line}")

@@ -27,7 +27,7 @@ import shutil
 import subprocess
 import time
 import warnings
-from typing import Iterator, List, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple, Union
 
 import jinja2
 import yaml
@@ -624,12 +624,12 @@ class LocalExecutor(BaseExecutor):
 
     @staticmethod
     def stream_logs(
-        id: str, executor_name: Optional[str] = None
+        id: Union[str, List[str]], executor_name: Optional[str] = None
     ) -> Iterator[Tuple[str, str, str]]:
         """Stream logs from a job or invocation group.
 
         Args:
-            id: Unique job identifier or invocation identifier.
+            id: Unique job identifier, invocation identifier, or list of job IDs to stream simultaneously.
 
         Yields:
             Tuple[str, str, str]: Tuples of (job_id, task_name, log_line) for each log line.
@@ -637,8 +637,19 @@ class LocalExecutor(BaseExecutor):
         """
         db = ExecutionDB()
 
+        # Handle list of job IDs for simultaneous streaming
+        if isinstance(id, list):
+            # Collect all jobs from the list of job IDs
+            jobs = {}
+            for job_id in id:
+                job_data = db.get_job(job_id)
+                if job_data is None or job_data.executor != "local":
+                    continue
+                jobs[job_id] = job_data
+            if not jobs:
+                return
         # If id looks like an invocation_id (no dot), get all jobs for it
-        if "." not in id:
+        elif "." not in id:
             jobs = db.get_jobs(id)
             if not jobs:
                 return
@@ -679,9 +690,18 @@ class LocalExecutor(BaseExecutor):
         file_seen_before = {}
 
         # Open files that exist, keep track of which ones we're waiting for
+        # First, yield the last 15 lines from existing files
         for log_info in log_files:
             if log_info["path"].exists():
                 file_seen_before[log_info["path"]] = True
+                # Read and yield last 15 lines
+                last_lines = LocalExecutor._read_last_n_lines(log_info["path"], 15)
+                for line in last_lines:
+                    yield (
+                        log_info["job_id"],
+                        log_info["task_name"],
+                        line,
+                    )
                 try:
                     log_info["file_handle"] = open(
                         log_info["path"], "r", encoding="utf-8", errors="replace"
@@ -703,22 +723,28 @@ class LocalExecutor(BaseExecutor):
                     if log_info["file_handle"] is None:
                         if log_info["path"].exists():
                             try:
+                                # If file was just created, read last 15 lines first
+                                if not file_seen_before.get(log_info["path"], False):
+                                    last_lines = LocalExecutor._read_last_n_lines(
+                                        log_info["path"], 15
+                                    )
+                                    for line in last_lines:
+                                        yield (
+                                            log_info["job_id"],
+                                            log_info["task_name"],
+                                            line,
+                                        )
+                                    file_seen_before[log_info["path"]] = True
+
                                 log_info["file_handle"] = open(
                                     log_info["path"],
                                     "r",
                                     encoding="utf-8",
                                     errors="replace",
                                 )
-                                # If file was just created, read from beginning
-                                # Otherwise, seek to end for tail behavior
-                                if not file_seen_before.get(log_info["path"], False):
-                                    log_info["position"] = 0
-                                    file_seen_before[log_info["path"]] = True
-                                else:
-                                    log_info["file_handle"].seek(0, 2)
-                                    log_info["position"] = log_info[
-                                        "file_handle"
-                                    ].tell()
+                                # Seek to end for tail behavior
+                                log_info["file_handle"].seek(0, 2)
+                                log_info["position"] = log_info["file_handle"].tell()
                             except Exception as e:
                                 logger.error(f"Could not open {log_info['path']}: {e}")
                                 continue
@@ -768,6 +794,27 @@ class LocalExecutor(BaseExecutor):
                         log_info["file_handle"].close()
                     except Exception:
                         pass
+
+    @staticmethod
+    def _read_last_n_lines(file_path: pathlib.Path, n: int) -> List[str]:
+        """Read the last N lines from a file efficiently.
+
+        Args:
+            file_path: Path to the file to read from.
+            n: Number of lines to read from the end.
+
+        Returns:
+            List of the last N lines (or fewer if file has fewer lines).
+        """
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                # Read all lines
+                all_lines = f.readlines()
+                # Return last n lines, stripping newlines
+                return [line.rstrip("\n\r") for line in all_lines[-n:]]
+        except Exception as e:
+            logger.warning(f"Could not read last {n} lines from {file_path}: {e}")
+            return []
 
     @staticmethod
     def _extract_task_name(job_data: JobData, job_id: str) -> str:
