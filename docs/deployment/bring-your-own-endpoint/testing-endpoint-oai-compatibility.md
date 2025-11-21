@@ -6,9 +6,6 @@ This guide helps you test your hosted endpoint to verify OpenAI-compatible API c
 To test your endpoint run the provided command and check the model's response. Make sure to populate
 `FULL_ENDPOINT_URL` and  `API_KEY` and replace `<YOUR_MODEL_NAME>` with your own values.
 
-# Chat endpoint testing
-
-
 :::{tip}
 If you model is not gated, skip the line with authorization header:
 
@@ -170,7 +167,7 @@ curl -X POST ${FULL_ENDPOINT_URL} \
 
 ```
 
-# Audio endpoint testing
+## Audio endpoint testing
 
 We support audio input with the following content types:
 
@@ -208,6 +205,28 @@ curl -X POST ${FULL_ENDPOINT_URL} \
     ],
     "temperature": 0.0,
     "top_p": 1.0
+}'
+```
+
+(compatibility-log-probs)=
+## Log-probabilities testing
+
+For evaluation with log-probabilities your `completions` endpoint must support `logprobs` and `echo` parameters:
+
+```bash
+export FULL_ENDPOINT_URL="https://your-server.com/v1/completions"
+export API_KEY="your-api-key-here"
+export MODEL_NAME="your-model-name-here"
+
+curl -X POST ${FULL_ENDPOINT_URL} \
+-H "Content-Type: application/json" \
+-H "Authorization: Bearer ${API_KEY}" \
+-d '{
+  "prompt": "3 + 3 = 6",
+  "model": "'$MODEL_NAME'",
+  "max_tokens": 1,
+  "logprobs": 1,
+  "echo": true
 }'
 ```
 

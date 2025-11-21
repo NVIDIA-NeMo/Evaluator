@@ -1,3 +1,6 @@
+---
+orphan: true
+---
 (function-calling)=
 
 # Function Calling Evaluation
