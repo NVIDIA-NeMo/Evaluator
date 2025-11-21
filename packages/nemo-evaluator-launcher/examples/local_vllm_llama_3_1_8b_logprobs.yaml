@@ -22,8 +22,8 @@ defaults:
 execution:
   output_dir: llama_local
   env_vars:
-    HF_TOKEN: "hf_your_token"  # needed to access meta-llama/Llama-3.1-8B gated model
-    
+    deployment:
+      HF_TOKEN: ${oc.env:HF_TOKEN}  # needed to access meta-llama/Llama-3.1-8B gated model
 
 # specify deployment arguments
 deployment:
@@ -42,5 +42,7 @@ evaluation:
         extra:  # for log-probability tasks like piqa, you need to specify the tokenizer
           tokenizer: meta-llama/Llama-3.1-8B  # or use a path to locally stored checkpoint
           tokenizer_backend: huggingface      # or "tiktoken"
+  env_vars:
+      HF_TOKEN: HF_TOKEN  # needed to access the tokenizer on the client side
   tasks:
     - name: piqa
