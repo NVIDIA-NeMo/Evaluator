@@ -781,18 +781,18 @@ class LocalExecutor(BaseExecutor):
             Task name string.
         """
         config = job_data.config or {}
-        evaluation = config.get("evaluation", {}) or {}
-        tasks = evaluation.get("tasks", []) or []
+        evaluation = config.get("evaluation", {})
+        tasks = evaluation.get("tasks", [])
 
         # Find the task that matches this job
         # For job_id like "15b9f667.0", index is 0
         try:
             if "." in job_id:
                 index = int(job_id.split(".")[1])
-                if 0 <= index < len(tasks):
-                    task = tasks[index]
-                    if isinstance(task, dict):
-                        return task.get("name", "unknown")
+                if index >= len(tasks):
+                    raise AttributeError(
+                        f"Job task index {job_id} is larger than number of tasks {len(tasks)} in invocation"
+                    )
         except (ValueError, IndexError):
             pass
 
