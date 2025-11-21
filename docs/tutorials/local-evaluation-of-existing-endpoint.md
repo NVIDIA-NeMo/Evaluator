@@ -112,7 +112,7 @@ This configuration will create evaluations for 2 tasks: `ifeval` and `humaneval_
 You can display the whole configuration and scripts which will be executed using `--dry-run`:
 
 ```
-nemo-evaluator-launcher run --config-dir configs --config-name local_endpoint --dry-run
+nemo-evaluator-launcher run --config configs/local_endpoint.yaml --dry-run
 ```
 
 ### 4. Run the Evaluation
@@ -120,7 +120,7 @@ nemo-evaluator-launcher run --config-dir configs --config-name local_endpoint --
 Once your configuration file is complete, you can run the evaluations:
 
 ```bash
-nemo-evaluator-launcher run --config-dir configs --config-name local_endpoint
+nemo-evaluator-launcher run --config configs/local_endpoint.yaml
 ```
 
 ### 5. Run the Same Evaluation for a Different Model (Using CLI Overrides)
@@ -131,7 +131,7 @@ export API_KEY=<YOUR MODEL API KEY>
 MODEL_NAME=<YOUR_MODEL_NAME>
 URL=<YOUR_ENDPOINT_URL>  # Note: endpoint URL needs to be FULL (e.g., https://api.example.com/v1/chat/completions)
 
-nemo-evaluator-launcher run --config-dir configs --config-name local_endpoint \
+nemo-evaluator-launcher run --config configs/local_endpoint.yaml \
   -o target.api_endpoint.model_id=$MODEL_NAME \
   -o target.api_endpoint.url=$URL \
   -o target.api_endpoint.api_key_name=API_KEY

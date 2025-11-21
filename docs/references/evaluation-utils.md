@@ -216,7 +216,7 @@ When a task name is provided by more than one framework (for example, both `lm-e
 
 ```bash
 # Use explicit framework.task format in your configuration overrides
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_llama_3_1_8b_instruct \
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
     -o 'evaluation.tasks=["lm-evaluation-harness.mmlu"]'
 ```
 

@@ -61,6 +61,14 @@ class TestExampleConfigs:
                         "++deployment.checkpoint_path=null",
                     ]
                 )
+                # Auto-export specific overrides
+                if "auto_export" in config_name:
+                    overrides.extend(
+                        [
+                            "++execution.env_vars.export.PATH=/tmp/test/bin:$PATH",
+                            "++export.mlflow.tracking_uri=http://test-mlflow:5000",
+                        ]
+                    )
             # Load configuration using RunConfig.from_hydra (same as CLI)
             cfg = RunConfig.from_hydra(
                 config_name=config_name,

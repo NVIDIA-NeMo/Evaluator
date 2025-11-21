@@ -36,7 +36,8 @@ from nemo_evaluator.logging import BaseLoggingParams, get_logger
 )
 @final
 class EndpointInterceptor(RequestToResponseInterceptor):
-    """Makes the actual request to the upstream API."""
+    """Required interceptor that handles the actual API communication. This interceptor must be present in every configuration as it performs the final request to the target API endpoint.
+    Important: This interceptor should always be placed after the last request interceptor and before the first response interceptor."""
 
     class Params(BaseLoggingParams):
         """Configuration parameters for endpoint interceptor."""

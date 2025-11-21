@@ -16,7 +16,7 @@ The input configuration comes from the command described in the [Launcher Quicks
 After running it, you can copy the artifacts folder using
 
 ```bash
-nemo-evaluator-launcher debug <invocation_id> --copy-artifacts <DIR>
+nemo-evaluator-launcher info <invocation_id> --copy-artifacts <DIR>
 ```
 and find this file under the the `./artifacts` subfolder.
 
