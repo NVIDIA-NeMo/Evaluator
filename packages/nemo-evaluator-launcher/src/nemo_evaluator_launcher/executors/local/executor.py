@@ -194,8 +194,11 @@ class LocalExecutor(BaseExecutor):
                         f"Trying to pass an unset environment variable {env_var}."
                     )
 
-            # check if required env vars are defined:
+            # check if required env vars are defined (excluding NEMO_EVALUATOR_DATASET_DIR which is handled separately):
             for required_env_var in task_definition.get("required_env_vars", []):
+                # Skip NEMO_EVALUATOR_DATASET_DIR as it's handled by dataset mounting logic below
+                if required_env_var == "NEMO_EVALUATOR_DATASET_DIR":
+                    continue
                 if required_env_var not in env_vars.keys():
                     raise ValueError(
                         f"{task.name} task requires environment variable {required_env_var}."
@@ -203,11 +206,37 @@ class LocalExecutor(BaseExecutor):
                         f" pair {required_env_var}: YOUR_ENV_VAR_NAME"
                     )
 
+            # Handle dataset directory mounting if NEMO_EVALUATOR_DATASET_DIR is required
+            dataset_mount_host = None
+            dataset_mount_container = None
+            dataset_env_var_value = None
+            if "NEMO_EVALUATOR_DATASET_DIR" in task_definition.get(
+                "required_env_vars", []
+            ):
+                # Get dataset directory from task config
+                if "dataset_dir" in task:
+                    dataset_mount_host = task["dataset_dir"]
+                else:
+                    raise ValueError(
+                        f"{task.name} task requires a dataset_dir to be specified. "
+                        f"Add 'dataset_dir: /path/to/your/dataset' under the task configuration."
+                    )
+                # Get container mount path (default to /datasets if not specified)
+                dataset_mount_container = task.get("dataset_mount_path", "/datasets")
+                # Set NEMO_EVALUATOR_DATASET_DIR to the container mount path
+                dataset_env_var_value = dataset_mount_container
+
             # format env_vars for a template
-            env_vars = [
+            env_vars_list = [
                 f"{env_var_dst}=${env_var_src}"
                 for env_var_dst, env_var_src in env_vars.items()
             ]
+
+            # Add dataset env var if needed (directly with value, not from host env)
+            if dataset_env_var_value:
+                env_vars_list.append(
+                    f"NEMO_EVALUATOR_DATASET_DIR={dataset_env_var_value}"
+                )
 
             eval_image = task_definition["container"]
             if "container" in task:
@@ -235,10 +264,12 @@ class LocalExecutor(BaseExecutor):
                 "job_id": job_id,
                 "eval_image": eval_image,
                 "client_container_name": client_container_name,
-                "env_vars": env_vars,
+                "env_vars": env_vars_list,
                 "output_dir": task_output_dir,
                 "eval_factory_command": eval_factory_command,
                 "eval_factory_command_debug_comment": eval_factory_command_debug_comment,
+                "dataset_mount_host": dataset_mount_host,
+                "dataset_mount_container": dataset_mount_container,
             }
             evaluation_tasks.append(evaluation_task)
 
