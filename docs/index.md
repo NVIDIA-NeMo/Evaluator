@@ -352,13 +352,6 @@ About Model Evaluation <evaluation/index>
 Benchmark Catalog <evaluation/benchmarks>
 :::
 
-<!-- :::{toctree}
-:caption: NeMo Framework
-:hidden:
-
-About NeMo Framework <nemo-fw/index>
-::: -->
-
 <!-- TODO: Add these pages once ready:
 Evaluation Adapters <deployment/adapters/index>
 Launcher-Orchestrated <deployment/launcher-orchestrated/index> -->

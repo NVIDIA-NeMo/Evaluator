@@ -1,5 +1,5 @@
 ``nemo_evaluator.adapters``
-=======================
+===========================
 
 Interceptors and PostEvalHooks are important part of NeMo Evaluator SDK. They expand functionality of each harness, providing a standardized way of enabling features in your evaluation runs.  
 Behind each interceptor and post-eval-hook stands a specific class that implements its logic. 
@@ -26,6 +26,7 @@ Interceptors are defined in a chain. They go under ``target.api_endpoint.adapter
             InterceptorConfig(name="endpoint")
         ]
     )
+
 .. _configuration:
 
 Configuration

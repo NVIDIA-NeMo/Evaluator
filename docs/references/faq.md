@@ -318,5 +318,3 @@ nemo-evaluator-launcher run --config-name your_config --dry-run
 ```
 
 Reference: {ref}`configuration-overview`.
-
----

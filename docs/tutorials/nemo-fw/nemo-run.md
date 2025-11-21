@@ -36,8 +36,8 @@ User-provided arguments are mapped onto flags exptected by the scripts:
 
 ```{literalinclude} ../../../scripts/evaluation_with_nemo_run.py
 :language: python
-:start-after: "# # [snippet-deploy-start]"
-:end-before: "# # [snippet-deploy-end]"
+:start-after: "# [snippet-deploy-start]"
+:end-before: "# [snippet-deploy-end]"
 ```
 
 The script supports two modes of running the experiment:
