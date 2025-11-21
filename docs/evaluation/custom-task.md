@@ -14,7 +14,13 @@ Additionally, you need to determine which [endpoint type](../deployment/bring-yo
 
 In this example, we will use the [PolEmo 2.0](https://github.com/EleutherAI/lm-evaluation-harness/tree/main/lm_eval/tasks/polemo2) task from LM Evaluation Harness.
 This task consists of consumer reviews in Polish and assesses sentiment analysis abilities.
-It requires a "completions" endpoint and has the sampling parameters defined as a part of task configuration.
+It requires a "completions" endpoint and has the sampling parameters defined as a part of [task configuration](https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/tasks/polemo2/polemo2_in.yaml) of the underlying harness.
+
+:::{note}
+Make sure to review the task configuration in the underlying harness and ensure the sampling parameters are defined and match your preffered way of running the benchmark.
+
+You can configure the evaluation using the `params` field in the `EvaluationConfig`.
+:::
 
 ### 1. Prepare the Environment
 

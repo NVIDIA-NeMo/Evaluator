@@ -38,6 +38,11 @@ target_config = EvaluationTarget(
 eval_config = EvaluationConfig(
     type="lm-evaluation-harness.polemo2",
     output_dir="/results/",
+    # params={  # pass params to adjust how the benchmark is run
+    #     "temperature": 0,
+    #     "top_p": 0,
+    #     "max_new_tokens": 50,
+    # },
 )
 
 
