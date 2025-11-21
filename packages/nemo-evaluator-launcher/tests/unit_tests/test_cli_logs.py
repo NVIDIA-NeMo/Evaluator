@@ -380,7 +380,9 @@ class TestFunctionalAPIStreamLogs:
             data={},
             config={
                 "execution": {"type": "local"},
-                "evaluation": {"tasks": [{"name": "test_task"}, {"name": "test_task2"}]},
+                "evaluation": {
+                    "tasks": [{"name": "test_task"}, {"name": "test_task2"}]
+                },
             },
         )
         jd2, base2 = prepare_local_job(jd2, with_required=True, with_optional=True)
@@ -491,7 +493,6 @@ class TestLogsCommandIntegration:
 
     def test_logs_command_with_multiple_ids(self, job_local, prepare_local_job):
         """Test logs command with multiple IDs."""
-        inv = job_local.invocation_id
         # Create a second job in a different invocation
         inv2 = "test9999"
         jd2 = JobData(

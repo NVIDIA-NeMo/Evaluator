@@ -260,7 +260,9 @@ def get_status(ids_or_prefixes: list[str]) -> list[dict[str, Any]]:
     return results
 
 
-def stream_logs(ids_or_prefixes: Union[str, list[str]]) -> Iterator[Tuple[str, str, str]]:
+def stream_logs(
+    ids_or_prefixes: Union[str, list[str]],
+) -> Iterator[Tuple[str, str, str]]:
     """Stream logs from jobs or invocations by their IDs or invocation IDs.
 
     Args:
@@ -335,9 +337,7 @@ def stream_logs(ids_or_prefixes: Union[str, list[str]]) -> Iterator[Tuple[str, s
             # Single job or non-local executor
             for job_id in jobs_dict.keys():
                 try:
-                    yield from executor_cls.stream_logs(
-                        job_id, executor_name=executor
-                    )
+                    yield from executor_cls.stream_logs(job_id, executor_name=executor)
                 except NotImplementedError:
                     raise ValueError(
                         f"Log streaming is not yet implemented for executor '{executor}'"
