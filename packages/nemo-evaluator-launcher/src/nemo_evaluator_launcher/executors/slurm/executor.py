@@ -549,8 +549,11 @@ def _create_slurm_sbatch_script(
         if os.getenv(env_var) is None:
             raise ValueError(f"Trying to pass an unset environment variable {env_var}.")
 
-    # check if required env vars are defined:
+    # check if required env vars are defined (excluding NEMO_EVALUATOR_DATASET_DIR which is handled separately):
     for required_env_var in task_definition.get("required_env_vars", []):
+        # Skip NEMO_EVALUATOR_DATASET_DIR as it's handled by dataset mounting logic below
+        if required_env_var == "NEMO_EVALUATOR_DATASET_DIR":
+            continue
         if required_env_var not in env_vars.keys():
             raise ValueError(
                 f"{task.name} task requires environment variable {required_env_var}."
