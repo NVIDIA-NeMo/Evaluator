@@ -37,6 +37,5 @@ command: vllm serve ${oc.select:deployment.hf_model_handle,/checkpoint}
   --port ${deployment.port}
   --trust-remote-code
   --served-model-name ${deployment.served_model_name}
-  --enforce-eager
   --gpu-memory-utilization ${deployment.gpu_memory_utilization}
   ${deployment.extra_args}

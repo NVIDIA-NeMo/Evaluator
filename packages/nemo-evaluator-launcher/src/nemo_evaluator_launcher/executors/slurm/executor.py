@@ -549,8 +549,11 @@ def _create_slurm_sbatch_script(
         if os.getenv(env_var) is None:
             raise ValueError(f"Trying to pass an unset environment variable {env_var}.")
 
-    # check if required env vars are defined:
+    # check if required env vars are defined (excluding NEMO_EVALUATOR_DATASET_DIR which is handled separately):
     for required_env_var in task_definition.get("required_env_vars", []):
+        # Skip NEMO_EVALUATOR_DATASET_DIR as it's handled by dataset mounting logic below
+        if required_env_var == "NEMO_EVALUATOR_DATASET_DIR":
+            continue
         if required_env_var not in env_vars.keys():
             raise ValueError(
                 f"{task.name} task requires environment variable {required_env_var}."
@@ -644,11 +647,29 @@ def _create_slurm_sbatch_script(
     ):
         evaluation_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
+    # Handle dataset directory mounting if NEMO_EVALUATOR_DATASET_DIR is required
+    if "NEMO_EVALUATOR_DATASET_DIR" in task_definition.get("required_env_vars", []):
+        # Get dataset directory from task config
+        if "dataset_dir" in task:
+            dataset_mount_host = task["dataset_dir"]
+        else:
+            raise ValueError(
+                f"{task.name} task requires a dataset_dir to be specified. "
+                f"Add 'dataset_dir: /path/to/your/dataset' under the task configuration."
+            )
+        # Get container mount path (default to /datasets if not specified)
+        dataset_mount_container = task.get("dataset_mount_path", "/datasets")
+        # Add dataset mount to evaluation mounts list
+        evaluation_mounts_list.append(f"{dataset_mount_host}:{dataset_mount_container}")
+        # Export NEMO_EVALUATOR_DATASET_DIR environment variable
+        s += f"export NEMO_EVALUATOR_DATASET_DIR={dataset_mount_container}\n\n"
+
     eval_factory_command_struct = get_eval_factory_command(
         cfg,
         task,
         task_definition,
     )
+
     eval_factory_command = eval_factory_command_struct.cmd
     # The debug comment for placing into the script and easy debug. Reason
     # (see `CmdAndReadableComment`) is the current way of passing the command

@@ -117,6 +117,32 @@ evaluation:
 
 For detailed adapter configuration options, refer to {ref}`adapters`.
 
+### Tasks Requiring Dataset Mounting
+
+Some tasks require access to local datasets. For these tasks, specify the dataset location:
+
+```yaml
+evaluation:
+  tasks:
+    - name: mteb.techqa
+      dataset_dir: /path/to/your/techqa/dataset
+```
+
+The system will automatically:
+- Mount the dataset directory into the evaluation container at `/datasets` (or a custom path if specified)
+- Set the `NEMO_EVALUATOR_DATASET_DIR` environment variable
+- Validate that all required environment variables are configured
+
+**Custom mount path example:**
+
+```yaml
+evaluation:
+  tasks:
+    - name: mteb.techqa
+      dataset_dir: /mnt/data/techqa
+      dataset_mount_path: /custom/path  # Optional: customize container mount point
+```
+
 
 ### Advanced settings
 

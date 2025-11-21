@@ -19,7 +19,7 @@ This module provides the main functional entry points for running evaluations, q
 """
 
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import yaml
 from omegaconf import DictConfig, OmegaConf
@@ -116,6 +116,7 @@ def get_status(ids_or_prefixes: list[str]) -> list[dict[str, Any]]:
     db = ExecutionDB()
     results: List[dict[str, Any]] = []
 
+    # TODO(agronskiy): refactor the `.`-checking job in all the functions.
     for id_or_prefix in ids_or_prefixes:
         # If id looks like an invocation_id (no dot), get all jobs for it
         if "." not in id_or_prefix:
@@ -259,6 +260,108 @@ def get_status(ids_or_prefixes: list[str]) -> list[dict[str, Any]]:
     return results
 
 
+def stream_logs(
+    ids_or_prefixes: Union[str, list[str]],
+) -> Iterator[Tuple[str, str, str]]:
+    """Stream logs from jobs or invocations by their IDs or invocation IDs.
+
+    Args:
+        ids_or_prefixes: Single ID/prefix or list of job IDs or invocation IDs to stream logs from.
+                         Short prefixes are allowed, we would try to match the full ones from
+                         prefixes if no collisions are present.
+
+    Yields:
+        Tuple[str, str, str]: Tuples of (job_id, task_name, log_line) for each log line.
+            Empty lines are yielded as empty strings.
+
+    Raises:
+        ValueError: If the executor doesn't support log streaming.
+    """
+    db = ExecutionDB()
+
+    # Normalize to list for consistent processing
+    if isinstance(ids_or_prefixes, str):
+        ids_or_prefixes = [ids_or_prefixes]
+
+    # Collect all jobs from all IDs, grouped by executor
+    executor_to_jobs: Dict[str, Dict[str, JobData]] = {}
+    executor_to_invocations: Dict[str, List[str]] = {}
+
+    # TODO(agronskiy): refactor the `.`-checking job in all the functions.
+    for id_or_prefix in ids_or_prefixes:
+        # Determine if this is a job ID or invocation ID
+        if "." in id_or_prefix:
+            # This is a job ID
+            job_data = db.get_job(id_or_prefix)
+            if job_data is None:
+                continue
+
+            executor = job_data.executor
+            if executor not in executor_to_jobs:
+                executor_to_jobs[executor] = {}
+            executor_to_jobs[executor][id_or_prefix] = job_data
+        else:
+            # This is an invocation ID
+            jobs = db.get_jobs(id_or_prefix)
+            if not jobs:
+                continue
+
+            # Get the executor class from the first job
+            first_job_data = next(iter(jobs.values()))
+            executor = first_job_data.executor
+            if executor not in executor_to_invocations:
+                executor_to_invocations[executor] = []
+            executor_to_invocations[executor].append(id_or_prefix)
+
+    # Stream logs from each executor simultaneously
+    # For each executor, collect all job IDs and stream them together
+    for executor, jobs_dict in executor_to_jobs.items():
+        try:
+            executor_cls = get_executor(executor)
+        except ValueError:
+            continue
+
+        # For local executor with multiple jobs, pass list to stream simultaneously
+        # For other executors or single jobs, pass individual job IDs
+        if executor == "local" and len(jobs_dict) > 1:
+            # Pass all job IDs as a list to stream simultaneously
+            try:
+                yield from executor_cls.stream_logs(
+                    list(jobs_dict.keys()), executor_name=executor
+                )
+            except NotImplementedError:
+                raise ValueError(
+                    f"Log streaming is not yet implemented for executor '{executor}'"
+                )
+        else:
+            # Single job or non-local executor
+            for job_id in jobs_dict.keys():
+                try:
+                    yield from executor_cls.stream_logs(job_id, executor_name=executor)
+                except NotImplementedError:
+                    raise ValueError(
+                        f"Log streaming is not yet implemented for executor '{executor}'"
+                    )
+
+    # Stream logs from invocation IDs
+    for executor, invocation_ids in executor_to_invocations.items():
+        try:
+            executor_cls = get_executor(executor)
+        except ValueError:
+            continue
+
+        # Stream each invocation (each invocation already handles multiple jobs internally)
+        for invocation_id in invocation_ids:
+            try:
+                yield from executor_cls.stream_logs(
+                    invocation_id, executor_name=executor
+                )
+            except NotImplementedError:
+                raise ValueError(
+                    f"Log streaming is not yet implemented for executor '{executor}'"
+                )
+
+
 def list_all_invocations_summary() -> list[dict[str, Any]]:
     """Return a concise per-invocation summary from the exec DB.
 
@@ -378,6 +481,7 @@ def kill_job_or_invocation(id: str) -> list[dict[str, Any]]:
                 "data": {"error": f"Unexpected error: {str(e)}"},
             }
 
+    # TODO(agronskiy): refactor the `.`-checking job in all the functions.
     # Determine if this is a job ID or invocation ID
     if "." in id:
         # This is a job ID - kill single job
