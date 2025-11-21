@@ -789,10 +789,13 @@ class LocalExecutor(BaseExecutor):
         try:
             if "." in job_id:
                 index = int(job_id.split(".")[1])
-                if index >= len(tasks):
+                if len(tasks) > 0 and index >= len(tasks):
                     raise AttributeError(
                         f"Job task index {job_id} is larger than number of tasks {len(tasks)} in invocation"
                     )
+                # If index is valid and tasks exist, return the task name
+                if len(tasks) > 0 and index < len(tasks):
+                    return tasks[index].get("name", "unknown")
         except (ValueError, IndexError):
             pass
 

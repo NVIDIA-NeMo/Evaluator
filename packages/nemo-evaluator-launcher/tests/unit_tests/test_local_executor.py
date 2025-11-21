@@ -688,14 +688,22 @@ class TestLocalExecutorStreamLogs:
         job_data, output_dir, logs_dir = sample_job_for_logs
         inv = job_data.invocation_id
 
-        # Add a second job
+        # Update first job config to have 2 tasks (for consistency with second job)
+        config_with_two_tasks = {
+            "execution": {"type": "local"},
+            "evaluation": {"tasks": [{"name": "test_task"}, {"name": "test_task2"}]},
+        }
+        job_data.config = config_with_two_tasks
+        ExecutionDB().write_job(job_data)
+
+        # Add a second job with matching config
         jd2 = JobData(
             invocation_id=inv,
             job_id=f"{inv}.1",
             timestamp=job_data.timestamp,
             executor="local",
             data={},
-            config=job_data.config,
+            config=config_with_two_tasks,
         )
         jd2, base2 = prepare_local_job(jd2, with_required=True, with_optional=True)
         ExecutionDB().write_job(jd2)
