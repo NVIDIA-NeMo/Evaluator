@@ -216,13 +216,14 @@ For evaluation with log-probabilities your `completions` endpoint must support `
 ```bash
 export FULL_ENDPOINT_URL="https://your-server.com/v1/completions"
 export API_KEY="your-api-key-here"
+export MODEL_NAME="your-model-name-here"
 
 curl -X POST ${FULL_ENDPOINT_URL} \
 -H "Content-Type: application/json" \
 -H "Authorization: Bearer ${API_KEY}" \
 -d '{
   "prompt": "3 + 3 = 6",
-  "model": "<YOUR_MODEL_NAME>",
+  "model": "'$MODEL_NAME'",
   "max_tokens": 1,
   "logprobs": 1,
   "echo": true
