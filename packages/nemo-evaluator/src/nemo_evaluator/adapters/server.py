@@ -194,6 +194,16 @@ class AdapterServer:
             ],
         )
 
+    @property
+    def interceptor_chain(self):
+        """Expose the interceptor chain from the pipeline for backward compatibility."""
+        return self.pipeline.interceptor_chain
+
+    @property
+    def post_eval_hooks(self):
+        """Expose the post-eval hooks from the pipeline for backward compatibility."""
+        return self.pipeline.post_eval_hooks
+
     def run(self) -> None:
         """Start the Flask server."""
         # give way to the server
