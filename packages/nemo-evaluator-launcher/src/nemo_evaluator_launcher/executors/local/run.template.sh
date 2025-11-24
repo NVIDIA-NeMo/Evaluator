@@ -22,6 +22,20 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 killed_jobs_file="$script_dir/killed_jobs.txt"
 rm -f "$killed_jobs_file"
 
+# Create all directories and stdout.log files upfront before any container starts
+{% for task in evaluation_tasks %}
+task_dir="{{ task.output_dir }}"
+artifacts_dir="$task_dir/artifacts"
+logs_dir="$task_dir/logs"
+
+mkdir -m 777 -p "$task_dir"
+mkdir -m 777 -p "$artifacts_dir"
+mkdir -m 777 -p "$logs_dir"
+# Create stdout.log file upfront
+touch "$logs_dir/client_stdout.log"
+chmod 666 "$logs_dir/client_stdout.log"
+{% endfor %}
+
 {% for task in evaluation_tasks %}
 # {{ task.job_id }} {{ task.name }}
 
@@ -66,7 +80,7 @@ else
         # wait for the server to initialize
         TIMEOUT=600
         ELAPSED=0
-        while [[ "$(curl -s -o /dev/null -w "%{http_code}" {{ task.deployment.health_url }})" != "200" ]]; do 
+        while [[ "$(curl -s -o /dev/null -w "%{http_code}" {{ task.deployment.health_url }})" != "200" ]]; do
             kill -0 $SERVER_PID 2>/dev/null || { echo "Server process $SERVER_PID died"; echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) 1" > "$logs_dir/stage.exit"; exit 1; }
             [ $ELAPSED -ge $TIMEOUT ] && { echo "Health check timeout after ${TIMEOUT}s"; echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) 1" > "$logs_dir/stage.exit"; exit 1; }
             sleep 5

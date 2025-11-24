@@ -1,3 +1,6 @@
+---
+orphan: true
+---
 (code-generation)=
 
 # Code Generation Evaluation

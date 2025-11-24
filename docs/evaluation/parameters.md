@@ -12,9 +12,9 @@ Comprehensive reference for configuring evaluation tasks in {{ product_name_shor
 
 **Looking for task-specific guides?**
 - {ref}`text-gen` - Text generation evaluation
-- {ref}`log-probability` - Log-probability evaluation
+- {ref}`logprobs` - Log-probability evaluation
 - {ref}`code-generation` - Code generation evaluation
-- {ref}`safety-security` - Safety and security evaluation
+<!-- - {ref}`safety-security` - Safety and security evaluation -->
 
 **Looking for available benchmarks?**
 - {ref}`eval-benchmarks` - Browse available benchmarks by category

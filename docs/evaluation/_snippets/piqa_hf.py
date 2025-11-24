@@ -14,43 +14,29 @@
 
 # pip install nvidia-lm-eval
 
-## Run the evaluation
+# [snippet-start]
 from nemo_evaluator.api import evaluate
 from nemo_evaluator.api.api_dataclasses import (
     ApiEndpoint,
     ConfigParams,
-    EndpointType,
     EvaluationConfig,
     EvaluationTarget,
 )
 
-model_name = "megatron_model"
-completions_url = "http://0.0.0.0:8080/v1/completions/"
-
-
-target_config = EvaluationTarget(
-    api_endpoint=ApiEndpoint(
-        url=completions_url, type=EndpointType.COMPLETIONS, model_id=model_name
-    )
+# Configure the evaluation target
+api_endpoint = ApiEndpoint(
+    url="http://0.0.0.0:8000/v1/completions/",
+    type="completions",
+    model_id="meta-llama/Llama-3.1-8B",
 )
-
-eval_config = EvaluationConfig(
-    type="lm-evaluation-harness.lambada_openai",
-    output_dir="/results/",
-    params=ConfigParams(
-        limit_samples=10,
-        temperature=0,
-        top_p=0,
-        parallelism=1,
-        extra={
-            "tokenizer": "/checkpoints/llama-3_2-1b-instruct_v2.0/context/nemo_tokenizer",
-            "tokenizer_backend": "huggingface",
-        },
-    ),
+eval_target = EvaluationTarget(api_endpoint=api_endpoint)
+eval_params = ConfigParams(
+    extra={
+        "tokenizer": "meta-llama/Llama-3.1-8B",  # or path to locally stored checkpoint with tokenizer
+        "tokenizer_backend": "huggingface",  # or "tiktoken"
+    },
 )
+eval_config = EvaluationConfig(type="piqa", params=eval_params, output_dir="results")
 
-
-results = evaluate(target_cfg=target_config, eval_cfg=eval_config)
-
-
-print(results)
+evaluate(target_cfg=eval_target, eval_cfg=eval_config)
+# [snippet-end]
