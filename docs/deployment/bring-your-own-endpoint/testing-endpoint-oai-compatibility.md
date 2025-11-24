@@ -28,6 +28,7 @@ Your endpoint should support the following parameters:
 ```bash
 export FULL_ENDPOINT_URL="https://your-server.com/v1/chat/completions"
 export API_KEY="your-api-key-here"
+export MODEL_NAME="your-model-name-here"
 
 curl -X POST ${FULL_ENDPOINT_URL} \
 -H "Content-Type: application/json" \
@@ -39,7 +40,7 @@ curl -X POST ${FULL_ENDPOINT_URL} \
       "content": "Write Python code that can add a list of numbers together."
     }
   ],
-  "model": "<YOUR_MODEL_NAME>",
+  "model": "'"$MODEL_NAME"'",
   "temperature": 0.6,
   "top_p": 0.95,
   "max_tokens": 256,
@@ -52,13 +53,14 @@ curl -X POST ${FULL_ENDPOINT_URL} \
 ```bash
 export FULL_ENDPOINT_URL="https://your-server.com/v1/completions"
 export API_KEY="your-api-key-here"
+export MODEL_NAME="your-model-name-here"
 
 curl -X POST ${FULL_ENDPOINT_URL} \
 -H "Content-Type: application/json" \
 -H "Authorization: Bearer ${API_KEY}" \
 -d '{
   "prompt": "Write Python code that can add a list of numbers together.",
-  "model": "<YOUR_MODEL_NAME>",
+  "model": "'"$MODEL_NAME"'",
   "temperature": 0.6,
   "top_p": 0.95,
   "max_tokens": 256,
@@ -76,6 +78,7 @@ NeMo Evaluator supports the **OpenAI Images API** ([docs](https://platform.opena
 ```bash
 export FULL_ENDPOINT_URL="https://your-server.com/v1/chat/completions"
 export API_KEY="your-api-key-here"
+export MODEL_NAME="your-model-name-here"
 
 curl -X POST ${FULL_ENDPOINT_URL} \
   -H "Content-Type: application/json" \
@@ -99,7 +102,7 @@ curl -X POST ${FULL_ENDPOINT_URL} \
         ]
       }
     ],
-    "model": "<YOUR_MODEL_NAME>",
+    "model": "'"$MODEL_NAME"'",
     "stream": false,
     "max_tokens": 16,
         "temperature": 0.0,
@@ -116,13 +119,14 @@ Function calling request:
 ```bash
 export FULL_ENDPOINT_URL="https://your-server.com/v1/chat/completions"
 export API_KEY="your-api-key-here"
+export MODEL_NAME="your-model-name-here"
 
 curl -X POST ${FULL_ENDPOINT_URL} \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer ${API_KEY}" \
   -H "Accept: application/json" \
   -d '{
-    "model": "<YOUR_MODEL_NAME>",
+    "model": "'"$MODEL_NAME"'",
     "stream": false,
     "max_tokens": 16,
     "temperature": 0.0,
@@ -178,6 +182,7 @@ Example:
 ``` bash
 export FULL_ENDPOINT_URL="https://your-server.com/v1/chat/completions"
 export API_KEY="your-api-key-here"
+export MODEL_NAME="your-model-name-here"
 
 curl -X POST ${FULL_ENDPOINT_URL} \
 -H "Content-Type: application/json" \
@@ -185,7 +190,7 @@ curl -X POST ${FULL_ENDPOINT_URL} \
   -H "Accept: application/json" \
   -d '{
     "max_tokens": 256,
-    "model": "<YOUR_MODEL_NAME>",
+    "model": "'"$MODEL_NAME"'",
     "messages": [
         {
             "content": [
