@@ -549,8 +549,11 @@ def _create_slurm_sbatch_script(
         if os.getenv(env_var) is None:
             raise ValueError(f"Trying to pass an unset environment variable {env_var}.")
 
-    # check if required env vars are defined:
+    # check if required env vars are defined (excluding NEMO_EVALUATOR_DATASET_DIR which is handled separately):
     for required_env_var in task_definition.get("required_env_vars", []):
+        # Skip NEMO_EVALUATOR_DATASET_DIR as it's handled by dataset mounting logic below
+        if required_env_var == "NEMO_EVALUATOR_DATASET_DIR":
+            continue
         if required_env_var not in env_vars.keys():
             raise ValueError(
                 f"{task.name} task requires environment variable {required_env_var}."
@@ -644,11 +647,29 @@ def _create_slurm_sbatch_script(
     ):
         evaluation_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
+    # Handle dataset directory mounting if NEMO_EVALUATOR_DATASET_DIR is required
+    if "NEMO_EVALUATOR_DATASET_DIR" in task_definition.get("required_env_vars", []):
+        # Get dataset directory from task config
+        if "dataset_dir" in task:
+            dataset_mount_host = task["dataset_dir"]
+        else:
+            raise ValueError(
+                f"{task.name} task requires a dataset_dir to be specified. "
+                f"Add 'dataset_dir: /path/to/your/dataset' under the task configuration."
+            )
+        # Get container mount path (default to /datasets if not specified)
+        dataset_mount_container = task.get("dataset_mount_path", "/datasets")
+        # Add dataset mount to evaluation mounts list
+        evaluation_mounts_list.append(f"{dataset_mount_host}:{dataset_mount_container}")
+        # Export NEMO_EVALUATOR_DATASET_DIR environment variable
+        s += f"export NEMO_EVALUATOR_DATASET_DIR={dataset_mount_container}\n\n"
+
     eval_factory_command_struct = get_eval_factory_command(
         cfg,
         task,
         task_definition,
     )
+
     eval_factory_command = eval_factory_command_struct.cmd
     # The debug comment for placing into the script and easy debug. Reason
     # (see `CmdAndReadableComment`) is the current way of passing the command
@@ -804,11 +825,12 @@ def _open_master_connection(
     socket: str,
 ) -> str | None:
     ssh_command = f"ssh -MNf -S {socket} {username}@{hostname}"
-    completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
-    )
+    logger.info("Opening master connection", cmd=ssh_command)
+    completed_process = subprocess.run(args=shlex.split(ssh_command))
     if completed_process.returncode == 0:
+        logger.info("Opened master connection successfully", cmd=ssh_command)
         return socket
+    logger.error("Failed to open master connection", code=completed_process.returncode)
     return None
 
 
@@ -820,9 +842,7 @@ def _close_master_connection(
     if socket is None:
         return
     ssh_command = f"ssh -O exit -S {socket} {username}@{hostname}"
-    completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
-    )
+    completed_process = subprocess.run(args=shlex.split(ssh_command))
     if completed_process.returncode != 0:
         raise RuntimeError(
             "failed to close the master connection\n{}".format(
@@ -844,14 +864,20 @@ def _make_remote_execution_output_dir(
     ssh_command.append(f"{username}@{hostname}")
     ssh_command.append(mkdir_command)
     ssh_command = " ".join(ssh_command)
+    logger.info("Creating remote dir", cmd=ssh_command)
     completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
+        args=shlex.split(ssh_command), stderr=subprocess.PIPE
     )
     if completed_process.returncode != 0:
         error_msg = (
             completed_process.stderr.decode("utf-8")
             if completed_process.stderr
             else "Unknown error"
+        )
+        logger.error(
+            "Erorr creating remote dir",
+            code=completed_process.returncode,
+            msg=error_msg,
         )
         raise RuntimeError(
             "failed to make a remote execution output dir\n{}".format(error_msg)
@@ -880,14 +906,22 @@ def _rsync_upload_rundirs(
     remote_destination_str = f"{username}@{hostname}:{remote_target}"
     local_sources_str = " ".join(map(str, local_sources))
     rsync_upload_command = f"rsync -qcaz {local_sources_str} {remote_destination_str}"
+    logger.info("Rsyncing to remote dir", cmd=rsync_upload_command)
     completed_process = subprocess.run(
-        args=shlex.split(rsync_upload_command), capture_output=True
+        args=shlex.split(rsync_upload_command),
+        stderr=subprocess.PIPE,
     )
     if completed_process.returncode != 0:
         error_msg = (
             completed_process.stderr.decode("utf-8")
             if completed_process.stderr
             else "Unknown error"
+        )
+
+        logger.error(
+            "Erorr rsyncing to remote dir",
+            code=completed_process.returncode,
+            msg=error_msg,
         )
         raise RuntimeError("failed to upload local sources\n{}".format(error_msg))
 
@@ -910,9 +944,12 @@ def _sbatch_remote_runsubs(
     ssh_command.append(f"{username}@{hostname}")
     ssh_command.append(sbatch_commands)
     ssh_command = " ".join(ssh_command)
-
+    logger.info("Running sbatch", cmd=ssh_command)
     completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
+        args=shlex.split(ssh_command),
+        # NOTE(agronskiy): look out for hangs and deadlocks
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     if completed_process.returncode != 0:
         error_msg = completed_process.stderr.decode("utf-8")
@@ -922,6 +959,7 @@ def _sbatch_remote_runsubs(
 
     sbatch_output = completed_process.stdout.decode("utf-8")
     slurm_job_ids = re.findall(r"(?<=Submitted batch job )\d+", sbatch_output)
+    logger.info("Started sbatch successfully", slurm_job_ids=slurm_job_ids)
     return slurm_job_ids
 
 
@@ -954,7 +992,10 @@ def _query_slurm_jobs_status(
     ssh_command.append(sacct_command)
     ssh_command = " ".join(ssh_command)
     completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
+        args=shlex.split(ssh_command),
+        # NOTE(agronskiy): look out for hangs and deadlocks
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     if completed_process.returncode != 0:
         raise RuntimeError(
@@ -1003,7 +1044,10 @@ def _kill_slurm_job(
     ssh_command = " ".join(ssh_command)
 
     completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
+        args=shlex.split(ssh_command),
+        # NOTE(agronskiy): look out for hangs and deadlocks
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
 
     # Parse the sacct output (before scancel runs)
@@ -1081,7 +1125,10 @@ def _read_files_from_remote(
     ssh_command.append(cat_commands)
     ssh_command = " ".join(ssh_command)
     completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
+        args=shlex.split(ssh_command),
+        # NOTE(agronskiy): look out for hangs and deadlocks
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     if completed_process.returncode != 0:
         raise RuntimeError(

@@ -160,10 +160,13 @@ jobs:
   cicd-integration-tests:
     needs:
       - cicd-unit-tests-nemo-evaluator
-    environment: main
     runs-on: self-hosted-nemo
     if: |
-      needs.pre-flight.outputs.is_ci_workload == 'true'
+      (
+        github.event_name == 'schedule'
+        || github.event_name == 'workflow_dispatch'
+        || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      )
       && !cancelled()
     name: integration-tests
     steps:

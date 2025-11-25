@@ -205,6 +205,10 @@ class Cmd:
                 + f"nemo-evaluator-launcher status {invocation_id}"
             )
             print(
+                bold(cyan("To view job info: "))
+                + f"nemo-evaluator-launcher info {invocation_id}"
+            )
+            print(
                 bold(cyan("To kill all jobs: "))
                 + f"nemo-evaluator-launcher kill {invocation_id}"
             )

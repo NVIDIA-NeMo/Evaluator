@@ -26,7 +26,8 @@ import shlex
 import shutil
 import subprocess
 import time
-from typing import List, Optional
+import warnings
+from typing import Iterator, List, Optional, Tuple, Union
 
 import jinja2
 import yaml
@@ -39,8 +40,11 @@ from nemo_evaluator_launcher.common.execdb import (
     generate_job_id,
 )
 from nemo_evaluator_launcher.common.helpers import (
+    get_api_key_name,
+    get_endpoint_url,
     get_eval_factory_command,
     get_eval_factory_dataset_size_from_run_config,
+    get_health_url,
     get_timestamp_string,
 )
 from nemo_evaluator_launcher.common.logging_utils import logger
@@ -71,14 +75,8 @@ class LocalExecutor(BaseExecutor):
             str: The invocation ID for the evaluation run.
 
         Raises:
-            NotImplementedError: If deployment is not 'none'.
             RuntimeError: If the run script fails.
         """
-        if cfg.deployment.type != "none":
-            raise NotImplementedError(
-                f"type {cfg.deployment.type} is not implemented -- add deployment support"
-            )
-
         # Check if docker is available (skip in dry_run mode)
         if not dry_run and shutil.which("docker") is None:
             raise RuntimeError(
@@ -98,12 +96,16 @@ class LocalExecutor(BaseExecutor):
         evaluation_tasks = []
         job_ids = []
 
-        eval_template = jinja2.Template(
+        run_template = jinja2.Template(
             open(pathlib.Path(__file__).parent / "run.template.sh", "r").read()
         )
 
         execution_mode = cfg.execution.get("mode", "parallel")
         if execution_mode == "parallel":
+            if cfg.deployment.type != "none":
+                raise ValueError(
+                    f"Execution mode 'parallel' is not supported with deployment type: {cfg.deployment.type}. Use 'sequential' instead."
+                )
             is_execution_mode_sequential = False
         elif execution_mode == "sequential":
             is_execution_mode_sequential = True
@@ -116,20 +118,74 @@ class LocalExecutor(BaseExecutor):
 
         # Will accumulate if any task contains unsafe commands.
         is_potentially_unsafe = False
+
+        deployment = None
+
         for idx, task in enumerate(cfg.evaluation.tasks):
+            timestamp = get_timestamp_string()
             task_definition = get_task_from_mapping(task.name, tasks_mapping)
+
+            if cfg.deployment.type != "none":
+                # container name
+                server_container_name = f"server-{task.name}-{timestamp}"
+
+                # health_url
+                health_url = get_health_url(
+                    cfg, get_endpoint_url(cfg, task, task_definition["endpoint_type"])
+                )
+
+                # mounts
+                deployment_mounts_list = []
+                if checkpoint_path := cfg.deployment.get("checkpoint_path"):
+                    deployment_mounts_list.append(f"{checkpoint_path}:/checkpoint:ro")
+                if cache_path := cfg.deployment.get("cache_path"):
+                    deployment_mounts_list.append(f"{cache_path}:/cache")
+                for source_mnt, target_mnt in (
+                    cfg.execution.get("mounts", {}).get("deployment", {}).items()
+                ):
+                    deployment_mounts_list.append(f"{source_mnt}:{target_mnt}")
+
+                # env vars
+                deployment_env_vars = cfg.execution.get("env_vars", {}).get(
+                    "deployment", {}
+                )
+
+                if cfg.deployment.get("env_vars"):
+                    warnings.warn(
+                        "cfg.deployment.env_vars will be deprecated in future versions. "
+                        "Use cfg.execution.env_vars.deployment instead.",
+                        category=DeprecationWarning,
+                        stacklevel=2,
+                    )
+                    deployment_env_vars.update(cfg.deployment["env_vars"])
+
+                command = cfg.deployment.command
+                deployment_extra_docker_args = cfg.execution.get(
+                    "extra_docker_args", ""
+                )
+
+                deployment = {
+                    "container_name": server_container_name,
+                    "image": cfg.deployment.image,
+                    "command": command,
+                    "mounts": deployment_mounts_list,
+                    "env_vars": [f"{k}={v}" for k, v in deployment_env_vars.items()],
+                    "health_url": health_url,
+                    "port": cfg.deployment.port,
+                    "extra_docker_args": deployment_extra_docker_args,
+                }
 
             # Create job ID as <invocation_id>.<n>
             job_id = generate_job_id(invocation_id, idx)
             job_ids.append(job_id)
-            container_name = f"{task.name}-{get_timestamp_string()}"
+            client_container_name = f"client-{task.name}-{timestamp}"
 
             # collect all env vars
             env_vars = copy.deepcopy(dict(cfg.evaluation.get("env_vars", {})))
             env_vars.update(task.get("env_vars", {}))
-            if cfg.target.api_endpoint.api_key_name:
+            if api_key_name := get_api_key_name(cfg):
                 assert "API_KEY" not in env_vars
-                env_vars["API_KEY"] = cfg.target.api_endpoint.api_key_name
+                env_vars["API_KEY"] = api_key_name
 
             # check if the environment variables are set
             for env_var in env_vars.values():
@@ -138,8 +194,11 @@ class LocalExecutor(BaseExecutor):
                         f"Trying to pass an unset environment variable {env_var}."
                     )
 
-            # check if required env vars are defined:
+            # check if required env vars are defined (excluding NEMO_EVALUATOR_DATASET_DIR which is handled separately):
             for required_env_var in task_definition.get("required_env_vars", []):
+                # Skip NEMO_EVALUATOR_DATASET_DIR as it's handled by dataset mounting logic below
+                if required_env_var == "NEMO_EVALUATOR_DATASET_DIR":
+                    continue
                 if required_env_var not in env_vars.keys():
                     raise ValueError(
                         f"{task.name} task requires environment variable {required_env_var}."
@@ -147,11 +206,37 @@ class LocalExecutor(BaseExecutor):
                         f" pair {required_env_var}: YOUR_ENV_VAR_NAME"
                     )
 
+            # Handle dataset directory mounting if NEMO_EVALUATOR_DATASET_DIR is required
+            dataset_mount_host = None
+            dataset_mount_container = None
+            dataset_env_var_value = None
+            if "NEMO_EVALUATOR_DATASET_DIR" in task_definition.get(
+                "required_env_vars", []
+            ):
+                # Get dataset directory from task config
+                if "dataset_dir" in task:
+                    dataset_mount_host = task["dataset_dir"]
+                else:
+                    raise ValueError(
+                        f"{task.name} task requires a dataset_dir to be specified. "
+                        f"Add 'dataset_dir: /path/to/your/dataset' under the task configuration."
+                    )
+                # Get container mount path (default to /datasets if not specified)
+                dataset_mount_container = task.get("dataset_mount_path", "/datasets")
+                # Set NEMO_EVALUATOR_DATASET_DIR to the container mount path
+                dataset_env_var_value = dataset_mount_container
+
             # format env_vars for a template
-            env_vars = [
+            env_vars_list = [
                 f"{env_var_dst}=${env_var_src}"
                 for env_var_dst, env_var_src in env_vars.items()
             ]
+
+            # Add dataset env var if needed (directly with value, not from host env)
+            if dataset_env_var_value:
+                env_vars_list.append(
+                    f"NEMO_EVALUATOR_DATASET_DIR={dataset_env_var_value}"
+                )
 
             eval_image = task_definition["container"]
             if "container" in task:
@@ -174,14 +259,17 @@ class LocalExecutor(BaseExecutor):
                 or eval_factory_command_struct.is_potentially_unsafe
             )
             evaluation_task = {
+                "deployment": deployment,
                 "name": task.name,
                 "job_id": job_id,
                 "eval_image": eval_image,
-                "container_name": container_name,
-                "env_vars": env_vars,
+                "client_container_name": client_container_name,
+                "env_vars": env_vars_list,
                 "output_dir": task_output_dir,
                 "eval_factory_command": eval_factory_command,
                 "eval_factory_command_debug_comment": eval_factory_command_debug_comment,
+                "dataset_mount_host": dataset_mount_host,
+                "dataset_mount_container": dataset_mount_container,
             }
             evaluation_tasks.append(evaluation_task)
 
@@ -192,7 +280,7 @@ class LocalExecutor(BaseExecutor):
             extra_docker_args = cfg.execution.get("extra_docker_args", "")
 
             run_sh_content = (
-                eval_template.render(
+                run_template.render(
                     evaluation_tasks=[evaluation_task],
                     auto_export_destinations=auto_export_destinations,
                     extra_docker_args=extra_docker_args,
@@ -203,7 +291,7 @@ class LocalExecutor(BaseExecutor):
             (task_output_dir / "run.sh").write_text(run_sh_content)
 
         run_all_sequentially_sh_content = (
-            eval_template.render(
+            run_template.render(
                 evaluation_tasks=evaluation_tasks,
                 auto_export_destinations=auto_export_destinations,
                 extra_docker_args=extra_docker_args,
@@ -278,7 +366,7 @@ class LocalExecutor(BaseExecutor):
                     executor="local",
                     data={
                         "output_dir": str(evaluation_task["output_dir"]),
-                        "container": evaluation_task["container_name"],
+                        "container": evaluation_task["client_container_name"],
                         "eval_image": evaluation_task["eval_image"],
                     },
                     config=OmegaConf.to_object(cfg),
@@ -334,11 +422,11 @@ class LocalExecutor(BaseExecutor):
 
         print(bold(cyan("\nCommands for real-time monitoring:")))
         for job_id, evaluation_task in zip(job_ids, evaluation_tasks):
-            log_file = evaluation_task["output_dir"] / "logs" / "stdout.log"
-            print(f"  tail -f {log_file}")
+            print(f"\n  Job {job_id} ({evaluation_task['name']}):")
+            print(f"    nemo-evaluator-launcher logs {job_id}")
 
         print(bold(cyan("\nFollow all logs for this invocation:")))
-        print(f"  tail -f {output_dir}/*/logs/stdout.log\n")
+        print(f"  nemo-evaluator-launcher logs {invocation_id}")
 
         return invocation_id
 
@@ -533,6 +621,240 @@ class LocalExecutor(BaseExecutor):
             job_id, f"container: {container_name}", current_status
         )
         raise RuntimeError(error_msg)
+
+    @staticmethod
+    def stream_logs(
+        id: Union[str, List[str]], executor_name: Optional[str] = None
+    ) -> Iterator[Tuple[str, str, str]]:
+        """Stream logs from a job or invocation group.
+
+        Args:
+            id: Unique job identifier, invocation identifier, or list of job IDs to stream simultaneously.
+
+        Yields:
+            Tuple[str, str, str]: Tuples of (job_id, task_name, log_line) for each log line.
+                Empty lines are yielded as empty strings.
+        """
+        db = ExecutionDB()
+
+        # Handle list of job IDs for simultaneous streaming
+        if isinstance(id, list):
+            # Collect all jobs from the list of job IDs
+            jobs = {}
+            for job_id in id:
+                job_data = db.get_job(job_id)
+                if job_data is None or job_data.executor != "local":
+                    continue
+                jobs[job_id] = job_data
+            if not jobs:
+                return
+        # If id looks like an invocation_id (no dot), get all jobs for it
+        elif "." not in id:
+            jobs = db.get_jobs(id)
+            if not jobs:
+                return
+        else:
+            # Otherwise, treat as job_id
+            job_data = db.get_job(id)
+            if job_data is None or job_data.executor != "local":
+                return
+            jobs = {id: job_data}
+
+        # Collect log file paths and metadata
+        log_files = []
+
+        for job_id, job_data in jobs.items():
+            output_dir = pathlib.Path(job_data.data.get("output_dir", ""))
+            if not output_dir:
+                continue
+
+            # Get task name from config
+            task_name = LocalExecutor._extract_task_name(job_data, job_id)
+
+            log_file_path = output_dir / "logs" / "client_stdout.log"
+
+            log_files.append(
+                {
+                    "job_id": job_id,
+                    "task_name": task_name,
+                    "path": log_file_path,
+                    "file_handle": None,
+                    "position": 0,
+                }
+            )
+
+        if not log_files:
+            return
+
+        # Track which files we've seen before (for tail behavior)
+        file_seen_before = {}
+
+        # Open files that exist, keep track of which ones we're waiting for
+        # First, yield the last 15 lines from existing files
+        for log_info in log_files:
+            if log_info["path"].exists():
+                file_seen_before[log_info["path"]] = True
+                # Read and yield last 15 lines
+                last_lines = LocalExecutor._read_last_n_lines(log_info["path"], 15)
+                for line in last_lines:
+                    yield (
+                        log_info["job_id"],
+                        log_info["task_name"],
+                        line,
+                    )
+                try:
+                    log_info["file_handle"] = open(
+                        log_info["path"], "r", encoding="utf-8", errors="replace"
+                    )
+                    # Seek to end if file already exists (tail behavior)
+                    log_info["file_handle"].seek(0, 2)
+                    log_info["position"] = log_info["file_handle"].tell()
+                except Exception as e:
+                    logger.error(f"Could not open {log_info['path']}: {e}")
+            else:
+                file_seen_before[log_info["path"]] = False
+
+        try:
+            while True:
+                any_activity = False
+
+                for log_info in log_files:
+                    # Try to open file if it doesn't exist yet
+                    if log_info["file_handle"] is None:
+                        if log_info["path"].exists():
+                            try:
+                                # If file was just created, read last 15 lines first
+                                if not file_seen_before.get(log_info["path"], False):
+                                    last_lines = LocalExecutor._read_last_n_lines(
+                                        log_info["path"], 15
+                                    )
+                                    for line in last_lines:
+                                        yield (
+                                            log_info["job_id"],
+                                            log_info["task_name"],
+                                            line,
+                                        )
+                                    file_seen_before[log_info["path"]] = True
+
+                                log_info["file_handle"] = open(
+                                    log_info["path"],
+                                    "r",
+                                    encoding="utf-8",
+                                    errors="replace",
+                                )
+                                # Seek to end for tail behavior
+                                log_info["file_handle"].seek(0, 2)
+                                log_info["position"] = log_info["file_handle"].tell()
+                            except Exception as e:
+                                logger.error(f"Could not open {log_info['path']}: {e}")
+                                continue
+
+                    # Read new lines from file
+                    if log_info["file_handle"] is not None:
+                        try:
+                            # Check if file has grown
+                            current_size = log_info["path"].stat().st_size
+                            if current_size > log_info["position"]:
+                                log_info["file_handle"].seek(log_info["position"])
+                                new_lines = log_info["file_handle"].readlines()
+                                log_info["position"] = log_info["file_handle"].tell()
+
+                                # Yield new lines
+                                for line in new_lines:
+                                    line_stripped = line.rstrip("\n\r")
+                                    yield (
+                                        log_info["job_id"],
+                                        log_info["task_name"],
+                                        line_stripped,
+                                    )
+                                    any_activity = True
+                        except (OSError, IOError) as e:
+                            # File might have been deleted or moved
+                            # Don't log error for every check, only on first error
+                            if log_info.get("error_printed", False) is False:
+                                logger.error(f"Error reading {log_info['path']}: {e}")
+                                log_info["error_printed"] = True
+                            log_info["file_handle"] = None
+                        except Exception:
+                            # Reset error flag if we successfully read again
+                            log_info["error_printed"] = False
+
+                # If no activity, sleep briefly to avoid busy waiting
+                if not any_activity:
+                    time.sleep(0.1)
+
+        except KeyboardInterrupt:
+            # Clean exit on Ctrl+C
+            pass
+        finally:
+            # Close all file handles
+            for log_info in log_files:
+                if log_info["file_handle"] is not None:
+                    try:
+                        log_info["file_handle"].close()
+                    except Exception:
+                        pass
+
+    @staticmethod
+    def _read_last_n_lines(file_path: pathlib.Path, n: int) -> List[str]:
+        """Read the last N lines from a file efficiently.
+
+        Args:
+            file_path: Path to the file to read from.
+            n: Number of lines to read from the end.
+
+        Returns:
+            List of the last N lines (or fewer if file has fewer lines).
+        """
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                # Read all lines
+                all_lines = f.readlines()
+                # Return last n lines, stripping newlines
+                return [line.rstrip("\n\r") for line in all_lines[-n:]]
+        except Exception as e:
+            logger.warning(f"Could not read last {n} lines from {file_path}: {e}")
+            return []
+
+    @staticmethod
+    def _extract_task_name(job_data: JobData, job_id: str) -> str:
+        """Extract task name from job data config.
+
+        Args:
+            job_data: JobData object containing config.
+            job_id: Job ID for error reporting.
+
+        Returns:
+            Task name string.
+        """
+        config = job_data.config or {}
+        evaluation = config.get("evaluation", {})
+        tasks = evaluation.get("tasks", [])
+
+        # Find the task that matches this job
+        # For job_id like "15b9f667.0", index is 0
+        try:
+            if "." in job_id:
+                index = int(job_id.split(".")[1])
+                if len(tasks) > 0 and index >= len(tasks):
+                    raise AttributeError(
+                        f"Job task index {job_id} is larger than number of tasks {len(tasks)} in invocation"
+                    )
+                # If index is valid and tasks exist, return the task name
+                if len(tasks) > 0 and index < len(tasks):
+                    return tasks[index].get("name", "unknown")
+        except (ValueError, IndexError):
+            pass
+
+        # Fallback: try to get task name from output_dir
+        # output_dir typically ends with task name
+        output_dir = job_data.data.get("output_dir", "")
+        if output_dir:
+            parts = pathlib.Path(output_dir).parts
+            if parts:
+                return parts[-1]
+
+        return "unknown"
 
     @staticmethod
     def _add_to_killed_jobs(invocation_id: str, job_id: str) -> None:

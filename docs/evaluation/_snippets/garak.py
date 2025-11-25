@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pip install nvidia-safety-harness
+# pip install nvidia-eval-factory-garak
 
 ## Export the required variables
-# export HF_TOKEN=...
+# No environment variables are required
 ## Run the evaluation
 from nemo_evaluator.api import evaluate
 from nemo_evaluator.api.api_dataclasses import (
@@ -29,24 +29,18 @@ from nemo_evaluator.api.api_dataclasses import (
 model_name = "megatron_model"
 chat_url = "http://0.0.0.0:8080/v1/chat/completions/"
 
-
 target_config = EvaluationTarget(
     api_endpoint=ApiEndpoint(url=chat_url, type=EndpointType.CHAT, model_id=model_name)
 )
 eval_config = EvaluationConfig(
-    type="aegis_v2",
+    type="garak",
     output_dir="/results/",
     params=ConfigParams(
         limit_samples=10,
         temperature=0,
         top_p=0,
         parallelism=1,
-        extra={
-            "judge": {
-                "model_id": "llama-nemotron-safety-guard-v2",
-                "url": "http://0.0.0.0:9000/v1/completions",
-            }
-        },
+        extra={"probes": "ansiescape.AnsiEscaped"},  # remove to run with all probes
     ),
 )
 
