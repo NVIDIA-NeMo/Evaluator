@@ -160,6 +160,20 @@ def _get_framework_evaluations(
 
     return framework_eval_mapping, framework_defaults, eval_name_mapping
 
+def _move_fdfs(target_dir: str):
+    try:
+        import core_evals
+
+        core_evals_pkg = list(pkgutil.iter_modules(core_evals.__path__))
+    except ImportError:
+        core_evals_pkg = []
+    os.makedirs(target_dir, exist_ok=True, )
+    for pkg in core_evals_pkg:
+        installed_fdf_filepath = os.path.join(pkg.module_finder.path, pkg.name, "framework.yml")
+        os.makedirs(os.path.join(target_dir, pkg.name), exist_ok=True)
+        target_filepath = os.path.join(target_dir, pkg.name, "framework.yml")
+        os.system(f"cp {installed_fdf_filepath} {target_filepath}")
+
 
 def merge_dicts(dict1, dict2):
     merged = {}
