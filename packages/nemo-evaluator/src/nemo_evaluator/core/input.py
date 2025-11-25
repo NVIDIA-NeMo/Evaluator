@@ -161,7 +161,15 @@ def _get_framework_evaluations(
     return framework_eval_mapping, framework_defaults, eval_name_mapping
 
 
-def _move_fdfs(target_dir: str):
+def _copy_fdfs(target_dir: str):
+    """This function takes Framework Definition Files (FDFs) from installed core_evals packages
+    and moves them to a defined location.
+
+    Note: This function is used during docker builds!
+
+    Args:
+        target_dir: where FDFs should be copied to
+    """
     try:
         import core_evals
 
