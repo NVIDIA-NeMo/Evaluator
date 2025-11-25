@@ -238,7 +238,7 @@ lepton deployment logs <deployment-name>
 lepton resource list --available
 ```
 
-Refer to the [Lepton AI CLI documentation](https://docs.nvidia.com/dgx-cloud/lepton/reference/cli/index.html) for the complete command reference.
+Refer to the [Lepton AI CLI documentation](https://docs.nvidia.com/dgx-cloud/lepton/reference/cli/get-started/) for the complete command reference.
 
 ## Exporting Results
 
