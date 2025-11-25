@@ -25,19 +25,7 @@ Ensure you have:
 
 ### Pre-Flight Check
 
-Verify your setup before running code evaluation:
-
-```{literalinclude} ../_snippets/prerequisites/endpoint_check.py
-:language: python
-:start-after: "# [snippet-start]"
-:end-before: "# [snippet-end]"
-```
-
-:::{tip}
-**Run this script directly**: `python docs/evaluation/_snippets/prerequisites/endpoint_check.py`
-:::
-
----
+Verify your setup before running code evaluation: {ref}`deployment-testing-compatibility`.
 
 ## Choose Your Approach
 
