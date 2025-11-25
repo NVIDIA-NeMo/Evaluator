@@ -96,7 +96,6 @@ execution:
   env_vars:
     export:
       WANDB_API_KEY: WANDB_API_KEY
-      PATH: "/path/to/conda/env/bin:$PATH"
 
 export:
   wandb:

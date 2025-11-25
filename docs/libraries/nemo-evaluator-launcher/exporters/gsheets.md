@@ -67,11 +67,6 @@ Configure Google Sheets export in your evaluation YAML file for automatic export
 execution:
   auto_export:
     destinations: ["gsheets"]
-  
-  # Export-related env vars (optional for GSheets)
-  env_vars:
-    export:
-      PATH: "/path/to/conda/env/bin:$PATH"
 
 export:
   gsheets:
