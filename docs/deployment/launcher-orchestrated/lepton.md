@@ -43,7 +43,7 @@ pip install leptonai
 lep login
 ```
 
-Refer to the [Lepton AI documentation](https://docs.nvidia.com/dgx-cloud/lepton/) for authentication and workspace configuration.
+Refer to the [Lepton AI documentation](https://docs.nvidia.com/dgx-cloud/lepton/get-started/) for authentication and workspace configuration.
 
 ## Deployment Types
 
