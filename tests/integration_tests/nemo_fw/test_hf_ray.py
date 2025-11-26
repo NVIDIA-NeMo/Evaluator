@@ -54,7 +54,7 @@ def deployment_process():
         endpoint_url=f"http://0.0.0.0:{port}/v1/completions/",
         endpoint_type="completions",
         model_name=model_name,
-        max_retries=600,
+        max_retries=100,
     )
     assert completions_ready, (
         "Completions endpoint is not ready. Please look at the deploy process log for the error"
@@ -64,7 +64,7 @@ def deployment_process():
         endpoint_url=f"http://0.0.0.0:{port}/v1/chat/completions",
         endpoint_type="chat",
         model_name=model_name,
-        max_retries=600,
+        max_retries=1,  # if completions endpoint is ready, chat should be ready too
     )
     assert chat_ready, (
         "Chat endpoint is not ready. Please look at the deploy process log for the error"
