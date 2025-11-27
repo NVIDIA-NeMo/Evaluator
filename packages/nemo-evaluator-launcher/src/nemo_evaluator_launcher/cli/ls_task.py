@@ -22,9 +22,10 @@ import yaml
 from simple_parsing import field
 
 from nemo_evaluator_launcher.common.logging_utils import logger
+from nemo_evaluator_launcher.common.mapping import load_tasks_mapping
 from nemo_evaluator_launcher.common.task_ir import (
     TaskIntermediateRepresentation,
-    _load_tasks_from_frameworks,
+    _load_tasks_from_tasks_file,
 )
 
 
@@ -42,26 +43,26 @@ class Cmd:
         action="store_true",
         help="Print output as JSON instead of formatted text",
     )
-    frameworks_file: str = field(
+    tasks_file: str = field(
         default="",
-        help="Path to all_frameworks.yaml file (default: auto-detect)",
+        help="Path to all_tasks_irs.yaml file (default: auto-detect)",
     )
 
     def execute(self) -> None:
         """Execute the ls task command."""
         import pathlib
 
-        # Load frameworks file path
-        frameworks_path = None
-        if self.frameworks_file:
-            frameworks_path = pathlib.Path(self.frameworks_file)
-            if not frameworks_path.exists():
-                logger.error("Frameworks file not found", path=str(frameworks_path))
+        # Load tasks file path
+        tasks_path = None
+        if self.tasks_file:
+            tasks_path = pathlib.Path(self.tasks_file)
+            if not tasks_path.exists():
+                logger.error("Tasks file not found", path=str(tasks_path))
                 return
 
         # Load tasks
         try:
-            tasks = _load_tasks_from_frameworks(frameworks_path)
+            tasks = _load_tasks_from_tasks_file(tasks_path)
         except Exception as e:
             print(f"Error loading tasks: {e}")
             import traceback
@@ -70,13 +71,43 @@ class Cmd:
             logger.error("Failed to load tasks", error=str(e), exc_info=True)
             return
 
+        # Override containers from mapping.toml (which has the latest containers)
+        # This ensures ls task shows the same containers as ls tasks
+        try:
+            mapping = load_tasks_mapping()
+            # Create a lookup: (normalized_harness, normalized_task_name) -> container
+            # Use case-insensitive keys for matching
+            container_lookup = {}
+            for (harness, task_name), task_data in mapping.items():
+                container = task_data.get("container")
+                if container:
+                    # Normalize harness name for lookup (frameworks.yaml uses hyphens)
+                    normalized_harness = harness.replace("_", "-").lower()
+                    normalized_task = task_name.lower()
+                    container_lookup[(normalized_harness, normalized_task)] = container
+
+            # Update task containers from mapping.toml
+            for task in tasks:
+                # Normalize both harness and task name for case-insensitive lookup
+                normalized_harness = task.harness.lower()
+                normalized_task = task.name.lower()
+                lookup_key = (normalized_harness, normalized_task)
+                if lookup_key in container_lookup:
+                    task.container = container_lookup[lookup_key]
+        except Exception as e:
+            logger.debug(
+                "Failed to override containers from mapping.toml",
+                error=str(e),
+            )
+            # Continue with containers from all_tasks_irs.yaml if mapping load fails
+
         if not tasks:
             print("No tasks found.")
-            if frameworks_path:
-                print(f"  Frameworks file: {frameworks_path}")
+            if tasks_path:
+                print(f"  Tasks file: {tasks_path}")
             else:
                 print(
-                    "  Note: Make sure all_frameworks.yaml exists and contains valid framework definitions."
+                    "  Note: Make sure all_tasks_irs.yaml exists and contains valid task definitions."
                 )
             return
 

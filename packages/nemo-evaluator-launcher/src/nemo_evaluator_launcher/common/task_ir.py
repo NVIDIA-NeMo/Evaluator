@@ -16,6 +16,7 @@
 """Task Intermediate Representation for consolidating task information from frameworks."""
 
 import copy
+import hashlib
 import pathlib
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -476,6 +477,222 @@ def _load_tasks_from_frameworks(
             "Error loading tasks from frameworks",
             error=str(e),
             path=str(frameworks_file),
+            exc_info=True,
+        )
+
+    return tasks
+
+
+def _calculate_mapping_checksum(mapping_file: pathlib.Path) -> Optional[str]:
+    """Calculate SHA256 checksum of mapping.toml file.
+
+    Args:
+        mapping_file: Path to mapping.toml file
+
+    Returns:
+        SHA256 checksum as string (format: "sha256:...") or None if file doesn't exist
+    """
+    if not mapping_file.exists():
+        return None
+
+    try:
+        with open(mapping_file, "rb") as f:
+            file_content = f.read()
+
+        checksum = hashlib.sha256(file_content).hexdigest()
+        return f"sha256:{checksum}"
+    except Exception as e:
+        logger.debug(
+            "Failed to calculate mapping.toml checksum",
+            path=str(mapping_file),
+            error=str(e),
+        )
+        return None
+
+
+def _validate_mapping_checksum(
+    stored_checksum: Optional[str], mapping_file: Optional[pathlib.Path] = None
+) -> None:
+    """Validate checksum consistency between stored value and current mapping.toml.
+
+    Logs INFO if checksums match, WARNING if they don't match.
+
+    Args:
+        stored_checksum: Checksum stored in all_tasks_irs.yaml metadata
+        mapping_file: Path to mapping.toml file. If None, uses default path.
+    """
+    if not stored_checksum:
+        logger.debug("No stored checksum found in all_tasks_irs.yaml metadata")
+        return
+
+    # Determine mapping.toml path
+    if mapping_file is None:
+        # Default path relative to package resources
+        try:
+            # Try to get the path to the packaged mapping.toml
+            mapping_file = (
+                pathlib.Path(__file__).parent.parent / "resources" / "mapping.toml"
+            )
+        except Exception:
+            logger.debug(
+                "Could not determine mapping.toml path for checksum validation"
+            )
+            return
+
+    if not mapping_file.exists():
+        logger.debug(
+            "mapping.toml not found, skipping checksum validation",
+            path=str(mapping_file),
+        )
+        return
+
+    current_checksum = _calculate_mapping_checksum(mapping_file)
+    if not current_checksum:
+        logger.debug("Could not calculate current mapping.toml checksum")
+        return
+
+    if stored_checksum == current_checksum:
+        logger.info(
+            "mapping.toml checksum matches all_tasks_irs.yaml",
+            checksum=stored_checksum,
+        )
+    else:
+        logger.warning(
+            "mapping.toml checksum mismatch detected",
+            stored_checksum=stored_checksum,
+            current_checksum=current_checksum,
+            message=(
+                "all_tasks_irs.yaml may be outdated. "
+                "Consider regenerating it with: "
+                "python packages/nemo-evaluator-launcher/scripts/load_framework_definitions.py"
+            ),
+        )
+
+
+def _load_tasks_from_tasks_file(
+    tasks_file: Optional[pathlib.Path] = None,
+) -> list[TaskIntermediateRepresentation]:
+    """Load tasks from all_tasks_irs.yaml file.
+
+    Validates checksum consistency with current mapping.toml:
+    - Logs INFO if checksums match
+    - Logs WARNING if checksums don't match
+
+    Args:
+        tasks_file: Path to all_tasks_irs.yaml file. If None, uses default path.
+
+    Returns:
+        List of TaskIntermediateRepresentation objects
+    """
+    if tasks_file is None:
+        # Default path relative to package resources
+        import importlib.resources
+
+        try:
+            content = importlib.resources.read_text(
+                "nemo_evaluator_launcher.resources",
+                "all_tasks_irs.yaml",
+                encoding="utf-8",
+            )
+            # Parse content directly
+            yaml_data = yaml.safe_load(content)
+
+            logger.info(
+                "Loaded task IRs from package resources",
+                num_tasks=yaml_data.get("metadata", {}).get("num_tasks", 0),
+            )
+
+            # Extract metadata and validate checksum
+            metadata = yaml_data.get("metadata", {})
+            stored_checksum = metadata.get("mapping_toml_checksum")
+            _validate_mapping_checksum(stored_checksum)
+
+            # Parse tasks from tasks section
+            tasks_data = yaml_data.get("tasks", [])
+            tasks: list[TaskIntermediateRepresentation] = []
+            for task_dict in tasks_data:
+                task_ir = TaskIntermediateRepresentation(
+                    name=task_dict["name"],
+                    description=task_dict.get("description", ""),
+                    harness=task_dict["harness"],
+                    container=task_dict["container"],
+                    container_digest=task_dict.get("container_digest"),
+                    defaults=task_dict.get("defaults", {}),
+                )
+                tasks.append(task_ir)
+
+            logger.info(
+                "Loaded tasks from tasks file",
+                total_tasks=len(tasks),
+            )
+            return tasks
+
+        except (ImportError, FileNotFoundError, Exception) as e:
+            logger.debug(
+                "Failed to load from package resources, trying file path",
+                error=str(e),
+            )
+            # Fallback: construct path relative to this file
+            tasks_file = (
+                pathlib.Path(__file__).parent.parent
+                / "resources"
+                / "all_tasks_irs.yaml"
+            )
+
+    if not tasks_file.exists():
+        logger.warning(
+            "Tasks file not found",
+            path=str(tasks_file),
+        )
+        return []
+
+    logger.info("Loading tasks from tasks file", path=str(tasks_file))
+
+    tasks: list[TaskIntermediateRepresentation] = []
+
+    try:
+        with open(tasks_file, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Parse single YAML document
+        yaml_data = yaml.safe_load(content)
+
+        # Extract metadata and validate checksum
+        metadata = yaml_data.get("metadata", {})
+        stored_checksum = metadata.get("mapping_toml_checksum")
+        _validate_mapping_checksum(stored_checksum)
+
+        # Parse tasks from tasks section
+        tasks_data = yaml_data.get("tasks", [])
+        for task_dict in tasks_data:
+            task_ir = TaskIntermediateRepresentation(
+                name=task_dict["name"],
+                description=task_dict.get("description", ""),
+                harness=task_dict["harness"],
+                container=task_dict["container"],
+                container_digest=task_dict.get("container_digest"),
+                defaults=task_dict.get("defaults", {}),
+            )
+            tasks.append(task_ir)
+
+        logger.info(
+            "Loaded tasks from tasks file",
+            total_tasks=len(tasks),
+            path=str(tasks_file),
+        )
+
+    except yaml.YAMLError as e:
+        logger.error(
+            "Failed to parse tasks YAML",
+            error=str(e),
+            path=str(tasks_file),
+            exc_info=True,
+        )
+    except Exception as e:
+        logger.error(
+            "Error loading tasks from tasks file",
+            error=str(e),
+            path=str(tasks_file),
             exc_info=True,
         )
 
