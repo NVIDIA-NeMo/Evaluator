@@ -22,7 +22,7 @@ from typing import Any, TypeVar
 
 import requests
 import yaml
-from jinja2 import Environment, StrictUndefined, meta
+from jinja2 import Environment, StrictUndefined, nodes
 
 from nemo_evaluator.logging import get_logger
 
@@ -87,27 +87,51 @@ def extract_params_from_command(command: str) -> tuple[set[str], set[str]]:
         - standard_params: Set of param names like {'temperature', 'max_new_tokens'}
         - extra_params: Set of params.extra names like {'dummy_score', 'another_param'}
     """
-    # Use Jinja2's meta module to find all undeclared variables in the template
+    # Use Jinja2's AST parser to extract variable attribute access patterns
     # Uses the same environment configuration as template rendering
     env = get_jinja2_environment()
     ast = env.parse(command)
-    variables = meta.find_undeclared_variables(ast)
 
     standard_params = set()
     extra_params = set()
 
-    for var in variables:
-        # Check for config.params.extra.PARAM_NAME pattern
-        if var.startswith("config.params.extra."):
-            param_name = var.replace("config.params.extra.", "")
-            # Extract only the first-level key after "extra."
-            param_name = param_name.split(".")[0]
-            extra_params.add(param_name)
-        # Check for config.params.PARAM_NAME pattern (not extra)
-        elif var.startswith("config.params."):
-            param_name = var.replace("config.params.", "")
-            standard_params.add(param_name)
+    def extract_getattr_path(node):
+        """Recursively extract the full dotted path from a Getattr node."""
+        if isinstance(node, nodes.Name):
+            return node.name
+        elif isinstance(node, nodes.Getattr):
+            base = extract_getattr_path(node.node)
+            if base:
+                return f"{base}.{node.attr}"
+            return node.attr
+        return None
 
+    def visit_node(node):
+        """Visit all nodes in the AST to find variable references."""
+        if isinstance(node, nodes.Getattr):
+            full_path = extract_getattr_path(node)
+            if full_path:
+                # Check for config.params.extra.PARAM_NAME pattern
+                if full_path.startswith("config.params.extra."):
+                    param_name = full_path.replace("config.params.extra.", "")
+                    if param_name:  # Only add if there's something after "extra."
+                        # Extract only the first-level key after "extra."
+                        param_name = param_name.split(".")[0]
+                        extra_params.add(param_name)
+                # Check for config.params.PARAM_NAME pattern (but not just config.params.extra)
+                elif (
+                    full_path.startswith("config.params.")
+                    and full_path != "config.params.extra"
+                ):
+                    param_name = full_path.replace("config.params.", "")
+                    if param_name != "extra":  # Don't add "extra" itself
+                        standard_params.add(param_name)
+
+        # Recursively visit child nodes
+        for child in node.iter_child_nodes():
+            visit_node(child)
+
+    visit_node(ast)
     return standard_params, extra_params
 
 
