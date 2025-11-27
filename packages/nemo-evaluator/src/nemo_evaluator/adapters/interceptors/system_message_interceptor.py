@@ -46,7 +46,6 @@ class SystemMessageInterceptor(RequestInterceptor):
         )
 
         strategy: str = Field(
-            ...,
             description="Strategy to use for system message addition. "
             "Options: 'replace' (default) - replaces existing system message, "
             "'append' - appends a system message to existing message"
