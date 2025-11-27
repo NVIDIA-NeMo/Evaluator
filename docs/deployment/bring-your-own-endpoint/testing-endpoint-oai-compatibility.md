@@ -6,9 +6,6 @@ This guide helps you test your hosted endpoint to verify OpenAI-compatible API c
 To test your endpoint run the provided command and check the model's response. Make sure to populate
 `FULL_ENDPOINT_URL` and  `API_KEY` and replace `<YOUR_MODEL_NAME>` with your own values.
 
-# Chat endpoint testing
-
-
 :::{tip}
 If you model is not gated, skip the line with authorization header:
 
@@ -31,6 +28,7 @@ Your endpoint should support the following parameters:
 ```bash
 export FULL_ENDPOINT_URL="https://your-server.com/v1/chat/completions"
 export API_KEY="your-api-key-here"
+export MODEL_NAME="your-model-name-here"
 
 curl -X POST ${FULL_ENDPOINT_URL} \
 -H "Content-Type: application/json" \
@@ -42,7 +40,7 @@ curl -X POST ${FULL_ENDPOINT_URL} \
       "content": "Write Python code that can add a list of numbers together."
     }
   ],
-  "model": "<YOUR_MODEL_NAME>",
+  "model": "'"$MODEL_NAME"'",
   "temperature": 0.6,
   "top_p": 0.95,
   "max_tokens": 256,
@@ -55,13 +53,14 @@ curl -X POST ${FULL_ENDPOINT_URL} \
 ```bash
 export FULL_ENDPOINT_URL="https://your-server.com/v1/completions"
 export API_KEY="your-api-key-here"
+export MODEL_NAME="your-model-name-here"
 
 curl -X POST ${FULL_ENDPOINT_URL} \
 -H "Content-Type: application/json" \
 -H "Authorization: Bearer ${API_KEY}" \
 -d '{
   "prompt": "Write Python code that can add a list of numbers together.",
-  "model": "<YOUR_MODEL_NAME>",
+  "model": "'"$MODEL_NAME"'",
   "temperature": 0.6,
   "top_p": 0.95,
   "max_tokens": 256,
@@ -79,6 +78,7 @@ NeMo Evaluator supports the **OpenAI Images API** ([docs](https://platform.opena
 ```bash
 export FULL_ENDPOINT_URL="https://your-server.com/v1/chat/completions"
 export API_KEY="your-api-key-here"
+export MODEL_NAME="your-model-name-here"
 
 curl -X POST ${FULL_ENDPOINT_URL} \
   -H "Content-Type: application/json" \
@@ -102,7 +102,7 @@ curl -X POST ${FULL_ENDPOINT_URL} \
         ]
       }
     ],
-    "model": "<YOUR_MODEL_NAME>",
+    "model": "'"$MODEL_NAME"'",
     "stream": false,
     "max_tokens": 16,
         "temperature": 0.0,
@@ -119,13 +119,14 @@ Function calling request:
 ```bash
 export FULL_ENDPOINT_URL="https://your-server.com/v1/chat/completions"
 export API_KEY="your-api-key-here"
+export MODEL_NAME="your-model-name-here"
 
 curl -X POST ${FULL_ENDPOINT_URL} \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer ${API_KEY}" \
   -H "Accept: application/json" \
   -d '{
-    "model": "<YOUR_MODEL_NAME>",
+    "model": "'"$MODEL_NAME"'",
     "stream": false,
     "max_tokens": 16,
     "temperature": 0.0,
@@ -170,7 +171,7 @@ curl -X POST ${FULL_ENDPOINT_URL} \
 
 ```
 
-# Audio endpoint testing
+## Audio endpoint testing
 
 We support audio input with the following content types:
 
@@ -181,6 +182,7 @@ Example:
 ``` bash
 export FULL_ENDPOINT_URL="https://your-server.com/v1/chat/completions"
 export API_KEY="your-api-key-here"
+export MODEL_NAME="your-model-name-here"
 
 curl -X POST ${FULL_ENDPOINT_URL} \
 -H "Content-Type: application/json" \
@@ -188,7 +190,7 @@ curl -X POST ${FULL_ENDPOINT_URL} \
   -H "Accept: application/json" \
   -d '{
     "max_tokens": 256,
-    "model": "<YOUR_MODEL_NAME>",
+    "model": "'"$MODEL_NAME"'",
     "messages": [
         {
             "content": [
@@ -208,6 +210,28 @@ curl -X POST ${FULL_ENDPOINT_URL} \
     ],
     "temperature": 0.0,
     "top_p": 1.0
+}'
+```
+
+(compatibility-log-probs)=
+## Log-probabilities testing
+
+For evaluation with log-probabilities your `completions` endpoint must support `logprobs` and `echo` parameters:
+
+```bash
+export FULL_ENDPOINT_URL="https://your-server.com/v1/completions"
+export API_KEY="your-api-key-here"
+export MODEL_NAME="your-model-name-here"
+
+curl -X POST ${FULL_ENDPOINT_URL} \
+-H "Content-Type: application/json" \
+-H "Authorization: Bearer ${API_KEY}" \
+-d '{
+  "prompt": "3 + 3 = 6",
+  "model": "'$MODEL_NAME'",
+  "max_tokens": 1,
+  "logprobs": 1,
+  "echo": true
 }'
 ```
 

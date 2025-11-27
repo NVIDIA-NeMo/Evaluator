@@ -41,6 +41,7 @@ from nemo_evaluator_launcher.common.execdb import (
 )
 from nemo_evaluator_launcher.common.helpers import (
     CmdAndReadableComment,
+    _str_to_echo_command,
     get_api_key_name,
     get_eval_factory_command,
     get_eval_factory_dataset_size_from_run_config,
@@ -169,7 +170,7 @@ class SlurmExecutor(BaseExecutor):
                 if is_potentially_unsafe:
                     print(
                         red(
-                            "\nFound `pre_cmd` which carries security risk. When running without --dry-run "
+                            "\nFound `pre_cmd` (evaluation or deployment) which carries security risk. When running without --dry-run "
                             "make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
                         )
                     )
@@ -179,13 +180,13 @@ class SlurmExecutor(BaseExecutor):
             if is_potentially_unsafe:
                 if os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":
                     logger.warning(
-                        "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                        "Found non-empty commands (e.g. `pre_cmd` in evaluation or deployment) and NEMO_EVALUATOR_TRUST_PRE_CMD "
                         "is set, proceeding with caution."
                     )
 
                 else:
                     logger.error(
-                        "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                        "Found non-empty commands (e.g. `pre_cmd` in evaluation or deployment) and NEMO_EVALUATOR_TRUST_PRE_CMD "
                         "is not set. This might carry security risk and unstable environments. "
                         "To continue, make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1.",
                     )
@@ -521,6 +522,8 @@ def _create_slurm_sbatch_script(
         s += "#SBATCH --gpus-per-node {}\n".format(cfg.execution.gpus_per_node)
     if hasattr(cfg.execution, "gres"):
         s += "#SBATCH --gres {}\n".format(cfg.execution.gres)
+    if cfg.execution.get("sbatch_comment"):
+        s += "#SBATCH --comment='{}'\n".format(cfg.execution.sbatch_comment)
     job_name = "{account}-{subproject}.{details}".format(
         account=cfg.execution.account,
         subproject=cfg.execution.subproject,
@@ -546,8 +549,11 @@ def _create_slurm_sbatch_script(
         if os.getenv(env_var) is None:
             raise ValueError(f"Trying to pass an unset environment variable {env_var}.")
 
-    # check if required env vars are defined:
+    # check if required env vars are defined (excluding NEMO_EVALUATOR_DATASET_DIR which is handled separately):
     for required_env_var in task_definition.get("required_env_vars", []):
+        # Skip NEMO_EVALUATOR_DATASET_DIR as it's handled by dataset mounting logic below
+        if required_env_var == "NEMO_EVALUATOR_DATASET_DIR":
+            continue
         if required_env_var not in env_vars.keys():
             raise ValueError(
                 f"{task.name} task requires environment variable {required_env_var}."
@@ -593,6 +599,7 @@ def _create_slurm_sbatch_script(
 
     # prepare deployment mounts
     deployment_mounts_list = []
+    deployment_is_unsafe = False
     if cfg.deployment.type != "none":
         if checkpoint_path := cfg.deployment.get("checkpoint_path"):
             deployment_mounts_list.append(f"{checkpoint_path}:/checkpoint:ro")
@@ -604,9 +611,12 @@ def _create_slurm_sbatch_script(
             deployment_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
         # add deployment srun command
-        s += _generate_deployment_srun_command(
-            cfg, deployment_mounts_list, remote_task_subdir
+        deployment_srun_cmd, deployment_is_unsafe, deployment_debug = (
+            _generate_deployment_srun_command(
+                cfg, deployment_mounts_list, remote_task_subdir
+            )
         )
+        s += deployment_srun_cmd
 
         # wait for the server to initialize
         health_path = cfg.deployment.get("health_check_path", "/health")
@@ -637,11 +647,29 @@ def _create_slurm_sbatch_script(
     ):
         evaluation_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
+    # Handle dataset directory mounting if NEMO_EVALUATOR_DATASET_DIR is required
+    if "NEMO_EVALUATOR_DATASET_DIR" in task_definition.get("required_env_vars", []):
+        # Get dataset directory from task config
+        if "dataset_dir" in task:
+            dataset_mount_host = task["dataset_dir"]
+        else:
+            raise ValueError(
+                f"{task.name} task requires a dataset_dir to be specified. "
+                f"Add 'dataset_dir: /path/to/your/dataset' under the task configuration."
+            )
+        # Get container mount path (default to /datasets if not specified)
+        dataset_mount_container = task.get("dataset_mount_path", "/datasets")
+        # Add dataset mount to evaluation mounts list
+        evaluation_mounts_list.append(f"{dataset_mount_host}:{dataset_mount_container}")
+        # Export NEMO_EVALUATOR_DATASET_DIR environment variable
+        s += f"export NEMO_EVALUATOR_DATASET_DIR={dataset_mount_container}\n\n"
+
     eval_factory_command_struct = get_eval_factory_command(
         cfg,
         task,
         task_definition,
     )
+
     eval_factory_command = eval_factory_command_struct.cmd
     # The debug comment for placing into the script and easy debug. Reason
     # (see `CmdAndReadableComment`) is the current way of passing the command
@@ -690,13 +718,21 @@ def _create_slurm_sbatch_script(
 
     if destinations:
         export_env = dict(cfg.execution.get("env_vars", {}).get("export", {}) or {})
-        s += _generate_auto_export_section(cfg, job_id, destinations, export_env)
+        s += _generate_auto_export_section(
+            cfg, job_id, destinations, export_env, remote_task_subdir
+        )
 
     debug_str = "\n".join(["# " + line for line in s.splitlines()])
+
+    # Combine unsafe flags from both deployment and evaluation
+    is_potentially_unsafe = (
+        eval_factory_command_struct.is_potentially_unsafe or deployment_is_unsafe
+    )
+
     return CmdAndReadableComment(
         cmd=s,
         debug=debug_str,
-        is_potentially_unsafe=eval_factory_command_struct.is_potentially_unsafe,
+        is_potentially_unsafe=is_potentially_unsafe,
     )
 
 
@@ -705,6 +741,8 @@ def _generate_auto_export_section(
     job_id: str,
     destinations: list,
     export_env: dict,
+    remote_task_subdir: Path,
+    export_image: str = "python:3.12.7-slim",
 ) -> str:
     """Generate simple auto-export section for sbatch script."""
     if not destinations:
@@ -714,10 +752,7 @@ def _generate_auto_export_section(
     s += "EVAL_EXIT_CODE=$?\n"
     s += "if [ $EVAL_EXIT_CODE -eq 0 ]; then\n"
     s += "    echo 'Evaluation completed successfully. Starting auto-export...'\n"
-    s += "    set +e\n"
-    s += "    set +x\n"
-    s += "    set +u\n"
-    s += '    cd "$TASK_DIR/artifacts"\n'
+    s += f'    cd "{remote_task_subdir}/artifacts"\n'
 
     # Work with DictConfig; convert only for YAML at the end
     exec_type = (
@@ -773,10 +808,25 @@ def _generate_auto_export_section(
             esc = str(v).replace('"', '\\"')
             s += f'    export {k}="{esc}"\n'
 
-    for dest in destinations:
-        s += f"    echo 'Exporting to {dest}...'\n"
-        s += f"    nemo-evaluator-launcher export {job_id} --dest {dest} || echo 'Export to {dest} failed'\n"
+    s += "    # export\n"
+    s += "    srun --mpi pmix --overlap "
+    s += "--nodes 1 --ntasks 1 "  # Client always runs on single node
+    s += "--container-image {} ".format(export_image)
+    if export_env:
+        s += "--container-env {} ".format(",".join(export_env))
+    if not cfg.execution.get("mounts", {}).get("mount_home", True):
+        s += "--no-container-mount-home "
 
+    s += f"--container-mounts {remote_task_subdir}/artifacts:{remote_task_subdir}/artifacts "
+    s += "--output {} ".format(remote_task_subdir / "logs" / "export-%A.out")
+    s += "    bash -c '\n"
+    # FIXME(martas): would be good to install specific version
+    s += "        pip install nemo-evaluator-launcher[all]\n"
+    s += f"        cd {remote_task_subdir}/artifacts\n"
+    for dest in destinations:
+        s += f'        echo "Exporting to {dest}..."\n'
+        s += f'        nemo-evaluator-launcher export {job_id} --dest {dest} || echo "Export to {dest} failed"\n'
+    s += "'\n"
     s += "    echo 'Auto-export completed.'\n"
     s += "else\n"
     s += "    echo 'Evaluation failed with exit code $EVAL_EXIT_CODE. Skipping auto-export.'\n"
@@ -791,11 +841,12 @@ def _open_master_connection(
     socket: str,
 ) -> str | None:
     ssh_command = f"ssh -MNf -S {socket} {username}@{hostname}"
-    completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
-    )
+    logger.info("Opening master connection", cmd=ssh_command)
+    completed_process = subprocess.run(args=shlex.split(ssh_command))
     if completed_process.returncode == 0:
+        logger.info("Opened master connection successfully", cmd=ssh_command)
         return socket
+    logger.error("Failed to open master connection", code=completed_process.returncode)
     return None
 
 
@@ -807,9 +858,7 @@ def _close_master_connection(
     if socket is None:
         return
     ssh_command = f"ssh -O exit -S {socket} {username}@{hostname}"
-    completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
-    )
+    completed_process = subprocess.run(args=shlex.split(ssh_command))
     if completed_process.returncode != 0:
         raise RuntimeError(
             "failed to close the master connection\n{}".format(
@@ -831,14 +880,20 @@ def _make_remote_execution_output_dir(
     ssh_command.append(f"{username}@{hostname}")
     ssh_command.append(mkdir_command)
     ssh_command = " ".join(ssh_command)
+    logger.info("Creating remote dir", cmd=ssh_command)
     completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
+        args=shlex.split(ssh_command), stderr=subprocess.PIPE
     )
     if completed_process.returncode != 0:
         error_msg = (
             completed_process.stderr.decode("utf-8")
             if completed_process.stderr
             else "Unknown error"
+        )
+        logger.error(
+            "Erorr creating remote dir",
+            code=completed_process.returncode,
+            msg=error_msg,
         )
         raise RuntimeError(
             "failed to make a remote execution output dir\n{}".format(error_msg)
@@ -867,14 +922,22 @@ def _rsync_upload_rundirs(
     remote_destination_str = f"{username}@{hostname}:{remote_target}"
     local_sources_str = " ".join(map(str, local_sources))
     rsync_upload_command = f"rsync -qcaz {local_sources_str} {remote_destination_str}"
+    logger.info("Rsyncing to remote dir", cmd=rsync_upload_command)
     completed_process = subprocess.run(
-        args=shlex.split(rsync_upload_command), capture_output=True
+        args=shlex.split(rsync_upload_command),
+        stderr=subprocess.PIPE,
     )
     if completed_process.returncode != 0:
         error_msg = (
             completed_process.stderr.decode("utf-8")
             if completed_process.stderr
             else "Unknown error"
+        )
+
+        logger.error(
+            "Erorr rsyncing to remote dir",
+            code=completed_process.returncode,
+            msg=error_msg,
         )
         raise RuntimeError("failed to upload local sources\n{}".format(error_msg))
 
@@ -897,9 +960,12 @@ def _sbatch_remote_runsubs(
     ssh_command.append(f"{username}@{hostname}")
     ssh_command.append(sbatch_commands)
     ssh_command = " ".join(ssh_command)
-
+    logger.info("Running sbatch", cmd=ssh_command)
     completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
+        args=shlex.split(ssh_command),
+        # NOTE(agronskiy): look out for hangs and deadlocks
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     if completed_process.returncode != 0:
         error_msg = completed_process.stderr.decode("utf-8")
@@ -909,6 +975,7 @@ def _sbatch_remote_runsubs(
 
     sbatch_output = completed_process.stdout.decode("utf-8")
     slurm_job_ids = re.findall(r"(?<=Submitted batch job )\d+", sbatch_output)
+    logger.info("Started sbatch successfully", slurm_job_ids=slurm_job_ids)
     return slurm_job_ids
 
 
@@ -941,7 +1008,10 @@ def _query_slurm_jobs_status(
     ssh_command.append(sacct_command)
     ssh_command = " ".join(ssh_command)
     completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
+        args=shlex.split(ssh_command),
+        # NOTE(agronskiy): look out for hangs and deadlocks
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     if completed_process.returncode != 0:
         raise RuntimeError(
@@ -990,7 +1060,10 @@ def _kill_slurm_job(
     ssh_command = " ".join(ssh_command)
 
     completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
+        args=shlex.split(ssh_command),
+        # NOTE(agronskiy): look out for hangs and deadlocks
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
 
     # Parse the sacct output (before scancel runs)
@@ -1068,7 +1141,10 @@ def _read_files_from_remote(
     ssh_command.append(cat_commands)
     ssh_command = " ".join(ssh_command)
     completed_process = subprocess.run(
-        args=shlex.split(ssh_command), capture_output=True
+        args=shlex.split(ssh_command),
+        # NOTE(agronskiy): look out for hangs and deadlocks
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     if completed_process.returncode != 0:
         raise RuntimeError(
@@ -1218,9 +1294,26 @@ def _generate_haproxy_config(cfg, nodes_ips):
 def _generate_deployment_srun_command(
     cfg, deployment_mounts_list, remote_task_subdir, instance_id: int = 0
 ):
-    """Generate the deployment srun command with proper node/ntask configuration."""
+    """Generate the deployment srun command with proper node/ntask configuration.
+
+    Returns:
+        tuple: (script_string, is_potentially_unsafe, debug_comment)
+    """
     s = ""
+    debug_comment = ""
+    is_potentially_unsafe = False
+
     s += "# deployment server\n"
+
+    # Extract pre_cmd for later use inside container
+    pre_cmd: str = cfg.deployment.get("pre_cmd") or ""
+    if pre_cmd:
+        is_potentially_unsafe = True
+        create_pre_script_cmd = _str_to_echo_command(
+            pre_cmd, filename="deployment_pre_cmd.sh"
+        )
+        debug_comment += create_pre_script_cmd.debug + "\n\n"
+
     s += "# Get node IPs\n"
     s += "nodes=( $(scontrol show hostnames $SLURM_JOB_NODELIST) )\n"
     s += 'nodes_array=("${nodes[@]}")  # Ensure nodes are stored properly\n'
@@ -1229,6 +1322,13 @@ def _generate_deployment_srun_command(
     s += "# Export MASTER_IP as the first node IP\n"
     s += "export MASTER_IP=${NODES_IPS_ARRAY[0]}\n"
     s += 'echo "MASTER_IP: $MASTER_IP"\n'
+
+    # Add debug comment for deployment pre_cmd before srun command
+    if debug_comment:
+        s += "# Debug contents of deployment pre_cmd\n"
+        s += debug_comment
+        s += "\n"
+
     s += "srun --mpi pmix --overlap "
     s += f"--nodes {cfg.execution.num_nodes} --ntasks {cfg.execution.get('deployment', {}).get('n_tasks', 1)} "
     s += "--container-image {} ".format(cfg.deployment.image)
@@ -1256,10 +1356,30 @@ def _generate_deployment_srun_command(
 
     if deployment_env_var_names:
         s += f"--container-env {','.join(deployment_env_var_names)} "
-    s += "{} &\n\n".format(cfg.deployment.command)  # run asynchronously
+
+    # Wrap deployment command to execute pre_cmd inside container if needed
+    if pre_cmd:
+        # Create a wrapper command that runs inside the container:
+        # 1. Create deployment_pre_cmd.sh file
+        # 2. Source it
+        # 3. Execute the original deployment command
+        create_pre_script_cmd = _str_to_echo_command(
+            pre_cmd, filename="deployment_pre_cmd.sh"
+        )
+        # Escape single quotes in the deployment command for bash -c
+        escaped_deployment_cmd = cfg.deployment.command.replace("'", "'\"'\"'")
+        wrapped_command = (
+            f"bash -c '{create_pre_script_cmd.cmd} && "
+            f"source deployment_pre_cmd.sh && "
+            f"{escaped_deployment_cmd}'"
+        )
+        s += "{} &\n\n".format(wrapped_command)
+    else:
+        s += "{} &\n\n".format(cfg.deployment.command)  # run asynchronously
+
     s += "SERVER_PID=$!  # capture the PID of the server background srun process\n\n"
 
-    return s
+    return s, is_potentially_unsafe, debug_comment
 
 
 def _get_wait_for_server_handler(

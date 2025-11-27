@@ -240,24 +240,6 @@ Export results to MLflow, Weights & Biases, Google Sheets, or local files with o
 {bdg-secondary}`Export`
 :::
 
-:::{grid-item-card} {octicon}`code;1.5em;sd-mr-1` Python API
-:link: libraries/nemo-evaluator-launcher/api
-:link-type: doc
-
-Programmatic access for notebooks, automation, and custom evaluation workflows.
-+++
-{bdg-secondary}`API`
-:::
-
-:::{grid-item-card} {octicon}`terminal;1.5em;sd-mr-1` CLI Reference
-:link: libraries/nemo-evaluator-launcher/cli
-:link-type: doc
-
-Complete command-line interface documentation with examples and usage patterns.
-+++
-{bdg-secondary}`CLI`
-:::
-
 ::::
 
 ### Core
@@ -360,7 +342,6 @@ Evaluate an Existing Endpoint <tutorials/local-evaluation-of-existing-endpoint>
 <!--
 TODO: Add below once ready
 Evaluation Configuration Parameters <evaluation/parameters>
-Custom Task Configuration <evaluation/custom-tasks> 
 -->
 :::{toctree}
 :caption: Evaluation
@@ -368,14 +349,10 @@ Custom Task Configuration <evaluation/custom-tasks>
 
 About Model Evaluation <evaluation/index>
 Benchmark Catalog <evaluation/benchmarks>
+Tasks Not Explicitly Defined by FDF <evaluation/custom-task>
+Evaluation Techniques <evaluation/run-evals/index>
+Add Evaluation Packages to NeMo Framework <evaluation/nemo-fw-optional-package>
 :::
-
-<!-- :::{toctree}
-:caption: NeMo Framework
-:hidden:
-
-About NeMo Framework <nemo-fw/index>
-::: -->
 
 <!-- TODO: Add these pages once ready:
 Evaluation Adapters <deployment/adapters/index>
@@ -387,6 +364,7 @@ Launcher-Orchestrated <deployment/launcher-orchestrated/index> -->
 
 About Model Deployment <deployment/index>
 Bring-Your-Own-Endpoint <deployment/bring-your-own-endpoint/index>
+Use NeMo Framework <deployment/nemo-fw/index>
 :::
 
 :::{toctree}
@@ -413,4 +391,9 @@ Runtime & Execution <troubleshooting/runtime-issues/index>
 
 About References <references/index>
 FAQ <references/faq>
+NeMo Evaluator Core Python API  <references/api/nemo-evaluator/api/index>
+NeMo Evaluator Launcher Python API  <references/api/nemo-evaluator-launcher/api>
+nemo-evaluator CLI <references/api/nemo-evaluator/cli>
+nemo-evaluator-launcher CLI <references/api/nemo-evaluator-launcher/cli>
 :::
+

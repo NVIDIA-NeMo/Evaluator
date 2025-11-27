@@ -18,8 +18,7 @@ Lepton launcher-orchestrated deployment:
 ```bash
 # Deploy and evaluate on Lepton AI
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name lepton_vllm_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/lepton_vllm_llama_3_1_8b_instruct.yaml \
     -o deployment.checkpoint_path=meta-llama/Llama-3.1-8B-Instruct \
     -o deployment.lepton_config.resource_shape=gpu.1xh200
 ```
@@ -44,7 +43,7 @@ pip install leptonai
 lep login
 ```
 
-Refer to the [Lepton AI documentation](https://www.lepton.ai/docs) for authentication and workspace configuration.
+Refer to the [Lepton AI documentation](https://docs.nvidia.com/dgx-cloud/lepton/get-started) for authentication and workspace configuration.
 
 ## Deployment Types
 
@@ -60,7 +59,7 @@ deployment:
   checkpoint_path: meta-llama/Llama-3.1-8B-Instruct
   served_model_name: llama-3.1-8b-instruct
   tensor_parallel_size: 1
-  
+
   lepton_config:
     resource_shape: gpu.1xh200
     min_replicas: 1
@@ -90,7 +89,7 @@ deployment:
   type: nim
   image: nvcr.io/nim/meta/llama-3.1-8b-instruct:1.8.6
   served_model_name: meta/llama-3.1-8b-instruct
-  
+
   lepton_config:
     resource_shape: gpu.1xh200
     min_replicas: 1
@@ -123,7 +122,7 @@ deployment:
     resource_shape: gpu.1xh200  # Example: Check your Lepton workspace for available shapes
 ```
 
-Refer to the [Lepton AI documentation](https://www.lepton.ai/docs) or check your workspace settings for available resource shapes in your environment.
+Refer to the [Lepton AI documentation](https://docs.nvidia.com/dgx-cloud/lepton/get-started) or check your workspace settings for available resource shapes in your environment.
 
 ## Configuration Examples
 
@@ -147,6 +146,36 @@ deployment:
 To evaluate against an already-deployed Lepton endpoint without creating a new deployment, use `deployment.type: none` and provide the endpoint URL in the `target.api_endpoint` section.
 
 Refer to `examples/lepton_none_llama_3_1_8b_instruct.yaml` for a complete example.
+
+### Tasks Requiring Dataset Mounting
+
+Some tasks require access to local datasets that must be mounted into the evaluation container:
+
+```yaml
+evaluation:
+  tasks:
+    - name: mteb.techqa
+      dataset_dir: /path/to/shared/storage/techqa
+```
+
+The system will automatically:
+- Mount the dataset directory into the evaluation container
+- Set the `NEMO_EVALUATOR_DATASET_DIR` environment variable
+- Validate that all required environment variables are configured
+
+**Custom mount path example:**
+
+```yaml
+evaluation:
+  tasks:
+    - name: mteb.techqa
+      dataset_dir: /lepton/shared/datasets/techqa
+      dataset_mount_path: /data/techqa  # Optional: customize container mount point
+```
+
+:::{note}
+Ensure the dataset directory is accessible from the Lepton platform's shared storage configured in your workspace.
+:::
 
 ## Advanced Configuration
 
@@ -209,7 +238,7 @@ lepton deployment logs <deployment-name>
 lepton resource list --available
 ```
 
-Refer to the [Lepton AI CLI documentation](https://www.lepton.ai/docs) for the complete command reference.
+Refer to the [Lepton AI CLI documentation](https://docs.nvidia.com/dgx-cloud/lepton/reference/cli/get-started/) for the complete command reference.
 
 ## Exporting Results
 

@@ -32,11 +32,11 @@ endif
 
 docs-html:
 	@echo "Building HTML documentation..."
-	cd $(PKG_DIR) && uv run --group docs sphinx-build -b html $(if $(DOCS_ENV),-t $(DOCS_ENV)) $(DOCS_DIR) $(BUILD_DIR)
+	cd $(PKG_DIR) && uv run --group docs python -m sphinx -b html $(if $(DOCS_ENV),-t $(DOCS_ENV)) $(DOCS_DIR) $(BUILD_DIR)
 
 docs-publish:
 	@echo "Building HTML documentation for publication (fail on warnings)..."
-	cd $(PKG_DIR) && uv run --group docs sphinx-build --fail-on-warning --builder html $(if $(DOCS_ENV),-t $(DOCS_ENV)) $(DOCS_DIR) $(BUILD_DIR)
+	cd $(PKG_DIR) && uv run --group docs python -m sphinx --fail-on-warning --builder html $(if $(DOCS_ENV),-t $(DOCS_ENV)) $(DOCS_DIR) $(BUILD_DIR)
 
 docs-clean:
 	@echo "Cleaning built documentation..."
@@ -44,7 +44,7 @@ docs-clean:
 
 docs-live:
 	@echo "Starting live-reload server (sphinx-autobuild)..."
-	cd $(PKG_DIR) && uv run --group docs sphinx-autobuild $(if $(DOCS_ENV),-t $(DOCS_ENV)) $(DOCS_DIR) $(BUILD_DIR)
+	cd $(PKG_DIR) && uv run --group docs python -m sphinx_autobuild $(if $(DOCS_ENV),-t $(DOCS_ENV)) $(DOCS_DIR) $(BUILD_DIR)
 
 docs-env:
 	@echo "Syncing documentation dependencies..."

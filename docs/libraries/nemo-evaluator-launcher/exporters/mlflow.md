@@ -59,12 +59,41 @@ Configure MLflow export to run automatically after evaluation completes. Add MLf
 execution:
   auto_export:
     destinations: ["mlflow"]
+
+export:
+  mlflow:
+    tracking_uri: "http://mlflow.example.com:5000"
+
+target:
+  api_endpoint:
+    model_id: meta/llama-3.1-8b-instruct
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+
+evaluation:
+  tasks:
+    - name: simple_evals.mmlu
+```
+
+Alternatively you can use `MLFLOW_TRACKING_URI` environment variable:
+
+```yaml
+execution:
+  auto_export:
+    destinations: ["mlflow"]
   
   # Export-related env vars (placeholders expanded at runtime)
   env_vars:
     export:
-      MLFLOW_TRACKING_URI: MLFLOW_TRACKING_URI # or set tracking_uri under export.mflow
-      PATH: "/path/to/conda/env/bin:$PATH" # set for slurm executor jobs
+      # you can skip export.mlflow.tracking_uri if you set this var
+      MLFLOW_TRACKING_URI: MLFLOW_TRACKING_URI
+```
+
+Set optional fields to customize your export:
+
+```yaml
+execution:
+  auto_export:
+    destinations: ["mlflow"]
 
 export:
   mlflow:
@@ -80,20 +109,12 @@ export:
       batch_size: 32
     log_artifacts: true
 
-target:
-  api_endpoint:
-    model_id: meta/llama-3.1-8b-instruct
-    url: https://integrate.api.nvidia.com/v1/chat/completions
-
-evaluation:
-  tasks:
-    - name: simple_evals.mmlu
 ```
 
 Run the evaluation with auto-export enabled:
 
 ```bash
-nemo-evaluator-launcher run --config-dir . --config-name my_config
+nemo-evaluator-launcher run --config ./my_config.yaml
 ```
 
 :::

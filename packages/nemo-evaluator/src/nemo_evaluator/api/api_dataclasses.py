@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 from enum import Enum
 from typing import Any, Dict, Optional
 
@@ -29,6 +30,8 @@ from nemo_evaluator.core.utils import get_jinja2_environment
 
 
 class EndpointType(str, Enum):
+    """EndpointType is used to determine appropriate URL, payload structure or native harness inference class"""
+
     UNDEFINED = "undefined"
     CHAT = "chat"
     COMPLETIONS = "completions"
@@ -37,7 +40,7 @@ class EndpointType(str, Enum):
 
 
 class ApiEndpoint(BaseModel):
-    """API endpoint configuration."""
+    """API endpoint configuration containing information on endpoint placement, targeted model name and adapter used before prompting endpoint."""
 
     model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
@@ -184,34 +187,33 @@ class ScoreStats(BaseModel):
     )
     variance: Optional[float] = Field(
         default=None,
-        description="""This is the population variance, not the sample variance.
-
-        See https://towardsdatascience.com/variance-sample-vs-population-3ddbd29e498a
-        for details.""",
+        description="""This is the population variance, not the sample variance.""",
     )
     stddev: Optional[float] = Field(
         default=None,
-        description="""This is the population standard deviation, not the sample standard deviation.
-
-        See https://towardsdatascience.com/variance-sample-vs-population-3ddbd29e498a
-        for details.
-    """,
+        description="""This is the population standard deviation, not the sample standard deviation.""",
     )
     stderr: Optional[float] = Field(default=None, description="The standard error.")
 
 
 class Score(BaseModel):
+    """Atomic class that contains the value of particular metric and corresponding stats"""
+
     value: float = Field(description="The value/score produced on this metric")
     stats: ScoreStats = Field(description="Statistics associated with this metric")
 
 
 class MetricResult(BaseModel):
+    """Defines mapping from metric name to its scores."""
+
     scores: Dict[str, Score] = Field(
         default_factory=dict, description="Mapping from metric name to scores."
     )
 
 
 class TaskResult(BaseModel):
+    """Defines set of metrics that were calculated for particular task."""
+
     metrics: Dict[str, MetricResult] = Field(
         default_factory=dict,
         description="The value for all the metrics computed for the task",
@@ -219,7 +221,7 @@ class TaskResult(BaseModel):
 
 
 class GroupResult(BaseModel):
-    """The evaluation results for a group."""
+    """Some tasks can be grouped or logically split. This class defines result on grouping level."""
 
     groups: Optional[Dict[str, "GroupResult"]] = Field(
         default=None, description="The results for the subgroups."
@@ -231,6 +233,8 @@ class GroupResult(BaseModel):
 
 
 class EvaluationResult(BaseModel):
+    """EvaluationResults bundles per-tasks and per-group results."""
+
     tasks: Optional[Dict[str, TaskResult]] = Field(
         default_factory=dict, description="The results at the task-level"
     )

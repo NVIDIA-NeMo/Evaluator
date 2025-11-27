@@ -30,10 +30,7 @@ target:
 
 ## Configuration Options
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `report_types` | Types of reports to generate (`html`, `json`) | `["html"]` |
-| `html_report_size` | Max number of request-response pairs to include in reports | `None` (includes all) |
+For detailed configuration options, please refer to the {ref}`interceptor_reference` Python API reference.
 
 ## Report Output
 

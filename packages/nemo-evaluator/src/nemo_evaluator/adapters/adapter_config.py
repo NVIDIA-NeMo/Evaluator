@@ -13,30 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Submodule responsible for the configuration related specifically to adapters.
-
-For the visibility reasons, we don't expose adapter configuration via CLI. All the
-adaptor config comes from the framework configuration yaml under
-```yaml
-target:
-  api_endpoint:
-    adapter_config:
-      discovery:
-        modules: ["mod.a.b.c", ...]
-        dirs: ["/some/path"]
-      interceptors: []
-      post_eval_hooks: []
-      endpoint_type: "chat"  # default: "chat"
-      caching_dir: "/some/dir"  # default: null
-      generate_html_report: true  # default: true
-      log_failed_requests: false  # default: false
-      tracking_requests_stats: true  # default: true
-      html_report_size: 5  # default: 5
-```
-
-This module merely takes such a dict and translates it into a typed dataclass.
-"""
-
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError

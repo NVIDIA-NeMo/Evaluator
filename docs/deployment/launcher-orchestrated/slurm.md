@@ -18,8 +18,7 @@ Slurm launcher-orchestrated deployment:
 ```bash
 # Deploy and evaluate on Slurm cluster
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name slurm_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml \
     -o deployment.checkpoint_path=/shared/models/llama-3.1-8b-instruct \
     -o execution.partition=gpu
 ```
@@ -139,6 +138,36 @@ evaluation:
     - name: hellaswag
 ```
 
+### Tasks Requiring Dataset Mounting
+
+Some tasks require access to local datasets stored on the cluster's shared filesystem:
+
+```yaml
+evaluation:
+  tasks:
+    - name: mteb.techqa
+      dataset_dir: /shared/datasets/techqa  # Path on shared filesystem
+```
+
+The system will automatically:
+- Mount the dataset directory into the evaluation container
+- Set the `NEMO_EVALUATOR_DATASET_DIR` environment variable
+- Validate that all required environment variables are configured
+
+**Custom mount path example:**
+
+```yaml
+evaluation:
+  tasks:
+    - name: mteb.techqa
+      dataset_dir: /shared/datasets/techqa
+      dataset_mount_path: /data/techqa  # Optional: customize container mount point
+```
+
+:::{note}
+Ensure the dataset directory is accessible from all cluster nodes via shared storage (e.g., NFS, Lustre).
+:::
+
 ## Job Management
 
 ### Submitting Jobs
@@ -146,13 +175,11 @@ evaluation:
 ```bash
 # Submit job with configuration
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name slurm_llama_3_1_8b_instruct
+    --config packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml
 
 # Submit with configuration overrides
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name slurm_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml \
     -o execution.walltime="04:00:00" \
     -o execution.partition=gpu-long
 ```

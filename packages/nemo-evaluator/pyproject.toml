@@ -60,7 +60,7 @@ keywords = [
 
 [project.urls]
 # BEGIN(if-changed): check package_info.py
-homepage = "https://github.com/NVIDIA-NeMo/Eval"
+homepage = "https://github.com/NVIDIA-NeMo/Evaluator"
 repository = "https://github.com/NVIDIA-NeMo/Evaluator/packages/nemo-evaluator"
 # END(if-changed)
 
@@ -69,13 +69,16 @@ test = ["pytest", "pytest-asyncio", "pytest-cov", "pytest-subtests", "pytest-htt
 
 docs = [
     "sphinx",
-    "sphinx-autobuild",    # For live doc serving while editing docs
-    "sphinx-autodoc2",     # For documenting Python API
-    "sphinx-copybutton",   # Adds a copy button for code blocks
-    "myst-parser",         # For our markdown docs
+    "sphinx-autobuild", # For live doc serving while editing docs
+    "sphinx-autodoc2", # For documenting Python API
+    "autodoc_pydantic", # For rendering pydantic dataclasses
+    "enum-tools[sphinx]", # for rendering enum classes
+    "sphinxcontrib-autoprogram",
+    "sphinx-copybutton", # Adds a copy button for code blocks
+    "myst-parser", # For our markdown docs
     "nvidia-sphinx-theme", # Our NVIDIA theme
     "sphinxcontrib-mermaid", # For mermaid diagrams
-    "sphinx-design",       # For our design elements
+    "sphinx-design", # For our design elements
     "swagger-plugin-for-sphinx", # For Swagger API documentation
 ]
 

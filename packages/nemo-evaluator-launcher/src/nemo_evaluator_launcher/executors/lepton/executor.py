@@ -102,6 +102,11 @@ class LeptonExecutor(BaseExecutor):
                 is_potentially_unsafe = True
                 break
 
+        # Check for deployment pre_cmd
+        deployment_pre_cmd: str = cfg.deployment.get("pre_cmd") or ""
+        if deployment_pre_cmd:
+            is_potentially_unsafe = True
+
         # DRY-RUN mode
         if dry_run:
             output_dir = Path(cfg.execution.output_dir).absolute() / invocation_id
@@ -119,7 +124,7 @@ class LeptonExecutor(BaseExecutor):
             if is_potentially_unsafe:
                 print(
                     red(
-                        "\nFound `pre_cmd` which carries security risk. When running without --dry-run "
+                        "\nFound `pre_cmd` (evaluation or deployment) which carries security risk. When running without --dry-run "
                         "make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
                     )
                 )
@@ -129,13 +134,13 @@ class LeptonExecutor(BaseExecutor):
         if is_potentially_unsafe:
             if os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":
                 logger.warning(
-                    "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                    "Found non-empty commands (e.g. `pre_cmd` in evaluation or deployment) and NEMO_EVALUATOR_TRUST_PRE_CMD "
                     "is set, proceeding with caution."
                 )
 
             else:
                 logger.error(
-                    "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                    "Found non-empty commands (e.g. `pre_cmd` in evaluation or deployment) and NEMO_EVALUATOR_TRUST_PRE_CMD "
                     "is not set. This might carry security risk and unstable environments. "
                     "To continue, make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1.",
                 )
@@ -531,6 +536,33 @@ class LeptonExecutor(BaseExecutor):
 
                     job_mounts.append(mount_dict)
 
+                # Handle dataset directory mounting if NEMO_EVALUATOR_DATASET_DIR is required
+                if "NEMO_EVALUATOR_DATASET_DIR" in task_definition.get(
+                    "required_env_vars", []
+                ):
+                    # Get dataset directory from task config
+                    if "dataset_dir" in task:
+                        dataset_mount_host = task["dataset_dir"]
+                    else:
+                        raise ValueError(
+                            f"{task.name} task requires a dataset_dir to be specified. "
+                            f"Add 'dataset_dir: /path/to/your/dataset' under the task configuration."
+                        )
+                    # Get container mount path (default to /datasets if not specified)
+                    dataset_mount_container = task.get(
+                        "dataset_mount_path", "/datasets"
+                    )
+                    # Add dataset mount to job mounts
+                    # Lepton mount format: {"path": "/path/in/container", "mount_from": {"path": "/host/path"}}
+                    job_mounts.append(
+                        {
+                            "path": dataset_mount_container,
+                            "mount_from": {"path": dataset_mount_host},
+                        }
+                    )
+                    # Add NEMO_EVALUATOR_DATASET_DIR environment variable
+                    job_env_vars["NEMO_EVALUATOR_DATASET_DIR"] = dataset_mount_container
+
                 print(
                     f"   - Storage: {len(job_mounts)} mount(s) with evaluation ID isolation"
                 )
@@ -899,6 +931,14 @@ def _dry_run_lepton(
             td = get_task_from_mapping(task.name, tasks_mapping)
             required = td.get("required_env_vars", []) or []
             for var in required:
+                # Skip NEMO_EVALUATOR_DATASET_DIR as it's handled by dataset mounting logic
+                if var == "NEMO_EVALUATOR_DATASET_DIR":
+                    if "dataset_dir" not in task:
+                        raise ValueError(
+                            f"Task '{task.name}' requires dataset_dir to be specified. "
+                            f"Add 'dataset_dir: /path/to/your/dataset' under the task configuration."
+                        )
+                    continue
                 if var == "API_KEY":
                     if not (("API_KEY" in lepton_env_vars) or bool(api_key_name)):
                         raise ValueError(

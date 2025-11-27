@@ -21,9 +21,11 @@ Defines the abstract interface for all executor implementations and common statu
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Iterator, Optional, Tuple
 
 from omegaconf import DictConfig
+
+from nemo_evaluator_launcher.common.logging_utils import logger
 
 
 class ExecutionState(Enum):
@@ -118,3 +120,31 @@ class BaseExecutor(ABC):
             return f"Could not find or kill job {job_id} ({container_or_id}) - job was already killed"
         # Generic error message
         return f"Could not find or kill job {job_id} ({container_or_id})"
+
+    @staticmethod
+    def stream_logs(
+        id: str, executor_name: Optional[str] = None
+    ) -> Iterator[Tuple[str, str, str]]:
+        """Stream logs from a job or invocation group.
+
+        This is an optional method that executors can implement to provide log streaming.
+        If not implemented, it will log a warning and raise NotImplementedError.
+
+        Args:
+            id: Unique job identifier or invocation identifier.
+            executor_name: Optional executor name for warning messages. If not provided,
+                will attempt to infer from the calling context.
+
+        Yields:
+            Tuple[str, str, str]: Tuples of (job_id, task_name, log_line) for each log line.
+                Empty lines are yielded as empty strings.
+
+        Raises:
+            NotImplementedError: If the executor does not support log streaming.
+        """
+        executor_display_name = executor_name or "this executor"
+        logger.warning(
+            f"Log streaming is not yet implemented for executor '{executor_display_name}'. "
+            "Only 'local' executor currently supports log streaming."
+        )
+        raise NotImplementedError("This executor does not support log streaming")
