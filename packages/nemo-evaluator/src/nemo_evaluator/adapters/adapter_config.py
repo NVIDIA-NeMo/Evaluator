@@ -39,7 +39,7 @@ This module merely takes such a dict and translates it into a typed dataclass.
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 
 class DiscoveryConfig(BaseModel):
@@ -333,7 +333,6 @@ class AdapterConfig(BaseModel):
                 {"name": s} if isinstance(s, str) else s
                 for s in merged["post_eval_hooks"]
             ]
-        from pydantic import ValidationError
 
         try:
             config = cls(**merged)
@@ -413,8 +412,6 @@ class AdapterConfig(BaseModel):
         Raises:
             ValidationError: If legacy_config contains typos or invalid field names
         """
-        from pydantic import ValidationError
-
         from nemo_evaluator.logging import get_logger
 
         logger = get_logger(__name__)
