@@ -141,6 +141,9 @@ def run(args) -> None:
         print(cmd)
         exit(0)
 
+    # Validate configuration first (catches config errors early, before evaluate())
+    validate_configuration(run_config)
+
     metadata_cfg: EvaluationMetadata | None = run_config.get("metadata")
     adapter_config = AdapterConfig.get_validated_config(run_config)
     eval_cfg = EvaluationConfig(**run_config["config"])

@@ -20,6 +20,7 @@ import jinja2
 from pydantic import BaseModel, ConfigDict, Field
 
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
+from nemo_evaluator.core.utils import get_jinja2_environment
 
 # NOTE: For ApiEndpoint, EvaluationTarget, ConfigParams, and EvaluationConfig all fields
 #       are Optional and default=None, because depending on the command run (run_eval or
@@ -137,14 +138,13 @@ class Evaluation(BaseModel):
 
     def render_command(self):
         values = self.model_dump()
+        env = get_jinja2_environment()
 
         def recursive_render(tpl):
             prev = tpl
             while True:
                 try:
-                    curr = jinja2.Template(
-                        prev, undefined=jinja2.StrictUndefined
-                    ).render(values)
+                    curr = env.from_string(prev).render(values)
                     if curr != prev:
                         prev = curr
                     else:

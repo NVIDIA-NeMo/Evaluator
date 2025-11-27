@@ -28,6 +28,7 @@ import yaml
 from pydantic import ValidationError
 
 from nemo_evaluator.core.entrypoint import run_eval
+from nemo_evaluator.core.utils import MisconfigurationError
 
 
 @pytest.fixture
@@ -82,7 +83,11 @@ def installed_modules(n: int, monkeypatch):
                     "params": {"max_new_tokens": 100, "temperature": 0.7},
                 },
                 "target": {
-                    "api_endpoint": {"url": "http://localhost", "model_id": "test"}
+                    "api_endpoint": {
+                        "url": "http://localhost",
+                        "model_id": "test",
+                        "type": "chat",
+                    }
                 },
             },
             [],
@@ -121,7 +126,11 @@ def installed_modules(n: int, monkeypatch):
             {
                 "config": {"type": "dummy_task"},
                 "target": {
-                    "api_endpoint": {"url": "http://localhost", "model_id": "test"}
+                    "api_endpoint": {
+                        "url": "http://localhost",
+                        "model_id": "test",
+                        "type": "chat",
+                    }
                 },
             },
             ["--overrides", "config.params.max_new_tokens=200"],
@@ -133,7 +142,11 @@ def installed_modules(n: int, monkeypatch):
             {
                 "config": {"type": "dummy_task"},
                 "target": {
-                    "api_endpoint": {"url": "http://localhost", "model_id": "test"}
+                    "api_endpoint": {
+                        "url": "http://localhost",
+                        "model_id": "test",
+                        "type": "chat",
+                    }
                 },
             },
             [
@@ -151,6 +164,7 @@ def installed_modules(n: int, monkeypatch):
                     "api_endpoint": {
                         "url": "http://localhost",
                         "model_id": "test",
+                        "type": "completions",
                         "adapter_config": {
                             "interceptors": [{"name": "endpoint"}],
                             "log_failed_requests": True,
@@ -292,6 +306,91 @@ def installed_modules(n: int, monkeypatch):
             True,
             "temperature",
         ),
+        # Invalid: params.extra key not used in command
+        (
+            {
+                "config": {
+                    "type": "dummy_task",
+                    "params": {
+                        "extra": {"non_existing": 789}  # Not in command template!
+                    },
+                },
+                "target": {
+                    "api_endpoint": {"url": "http://localhost", "model_id": "test"}
+                },
+            },
+            [],
+            True,
+            "non_existing",
+        ),
+        # Invalid: CLI override with params.extra key not in command
+        (
+            {
+                "config": {"type": "dummy_task"},
+                "target": {
+                    "api_endpoint": {"url": "http://localhost", "model_id": "test"}
+                },
+            },
+            ["--overrides", "config.params.extra.invalid_param=value"],
+            True,
+            "invalid_param",
+        ),
+        # Valid: Override params.extra.dummy_score that exists in command
+        (
+            {
+                "config": {
+                    "type": "dummy_task",
+                    "params": {"extra": {"dummy_score": 999}},  # Valid - in command
+                },
+                "target": {
+                    "api_endpoint": {
+                        "url": "http://localhost",
+                        "model_id": "test",
+                        "type": "chat",
+                    }
+                },
+            },
+            [],
+            False,
+            None,
+        ),
+        # Valid: Standard param temperature IS in command
+        (
+            {
+                "config": {
+                    "type": "dummy_task",
+                    "params": {
+                        "temperature": 0.9,  # In command template
+                    },
+                },
+                "target": {
+                    "api_endpoint": {
+                        "url": "http://localhost",
+                        "model_id": "test",
+                        "type": "chat",
+                    }
+                },
+            },
+            [],
+            False,
+            None,
+        ),
+        # Invalid: CLI override with standard param NOT in command
+        (
+            {
+                "config": {"type": "dummy_task"},
+                "target": {
+                    "api_endpoint": {
+                        "url": "http://localhost",
+                        "model_id": "test",
+                        "type": "chat",
+                    }
+                },
+            },
+            ["--overrides", "config.params.limit_samples=100"],  # NOT in command!
+            True,
+            "limit_samples",
+        ),
     ],
 )
 @patch("nemo_evaluator.core.entrypoint.evaluate")
@@ -317,7 +416,7 @@ def test_run_configuration_validation_yaml_and_cli(
 
     if should_fail:
         # WHEN running evaluation with invalid config (typos/extra fields)
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises((ValidationError, MisconfigurationError)) as exc_info:
             run_eval()
 
         # THEN validation error should mention the problematic field

@@ -22,6 +22,7 @@ from typing import Any, TypeVar
 
 import requests
 import yaml
+from jinja2 import Environment, StrictUndefined, meta
 
 from nemo_evaluator.logging import get_logger
 
@@ -33,6 +34,18 @@ class MisconfigurationError(Exception):
 
 
 KeyType = TypeVar("KeyType")
+
+
+def get_jinja2_environment() -> Environment:
+    """Get a configured Jinja2 environment for template operations.
+
+    This ensures consistency between template parsing and rendering.
+    Uses StrictUndefined to match the behavior in api_dataclasses.py.
+
+    Returns:
+        Environment: Configured Jinja2 environment
+    """
+    return Environment(undefined=StrictUndefined)
 
 
 def deep_update(
@@ -61,6 +74,89 @@ def deep_update(
                     continue
                 updated_mapping[k] = v
     return updated_mapping
+
+
+def extract_params_from_command(command: str) -> tuple[set[str], set[str]]:
+    """Extract all config.params.* parameter names used in a command template.
+
+    Args:
+        command: Jinja2 command template string
+
+    Returns:
+        Tuple of (standard_params, extra_params) where:
+        - standard_params: Set of param names like {'temperature', 'max_new_tokens'}
+        - extra_params: Set of params.extra names like {'dummy_score', 'another_param'}
+    """
+    # Use Jinja2's meta module to find all undeclared variables in the template
+    # Uses the same environment configuration as template rendering
+    env = get_jinja2_environment()
+    ast = env.parse(command)
+    variables = meta.find_undeclared_variables(ast)
+
+    standard_params = set()
+    extra_params = set()
+
+    for var in variables:
+        # Check for config.params.extra.PARAM_NAME pattern
+        if var.startswith("config.params.extra."):
+            param_name = var.replace("config.params.extra.", "")
+            # Extract only the first-level key after "extra."
+            param_name = param_name.split(".")[0]
+            extra_params.add(param_name)
+        # Check for config.params.PARAM_NAME pattern (not extra)
+        elif var.startswith("config.params."):
+            param_name = var.replace("config.params.", "")
+            standard_params.add(param_name)
+
+    return standard_params, extra_params
+
+
+def validate_params_in_command(
+    command: str,
+    merged_config: dict[KeyType, Any],
+) -> None:
+    """Validate that all params keys in merged config are used in the command.
+
+    Args:
+        command: The command template from framework.yml
+        merged_config: The final merged configuration
+
+    Raises:
+        MisconfigurationError: If merged_config contains params keys not used in command
+    """
+    # Extract params keys used in command
+    command_standard_params, command_extra_params = extract_params_from_command(command)
+
+    # Get params from merged config
+    config_params = merged_config.get("config", {}).get("params", {})
+
+    if not config_params:
+        return  # No params to validate
+
+    # Check standard params
+    unused_standard = []
+    for key, value in config_params.items():
+        if key == "extra":
+            continue  # Handle extra separately
+        # Only validate non-None values (None means not set/using default)
+        if value is not None and key not in command_standard_params:
+            unused_standard.append(f"config.params.{key}")
+
+    # Check params.extra
+    config_extra = config_params.get("extra", {})
+    unused_extra = []
+    for key in config_extra.keys():
+        if key not in command_extra_params:
+            unused_extra.append(f"config.params.extra.{key}")
+
+    # Raise error if any unused params found
+    all_unused = unused_standard + unused_extra
+    if all_unused:
+        raise MisconfigurationError(
+            f"Configuration contains parameter(s) that are not used in the command template: "
+            f"{', '.join(all_unused)}. "
+            f"Remove the unused parameters or update the command template to use them."
+        )
 
 
 def dotlist_to_dict(dotlist: list[str]) -> dict:
