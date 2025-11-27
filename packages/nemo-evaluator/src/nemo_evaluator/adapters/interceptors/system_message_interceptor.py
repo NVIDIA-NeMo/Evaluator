@@ -51,7 +51,7 @@ class SystemMessageInterceptor(RequestInterceptor):
             "Options: 'replace' (default) - replaces existing system message, "
             "'append' - appends a system message to existing message"
             "'prepend' - prepends system message to existing message",
-            default="prepend"
+            default="prepend",
         )
 
     def __init__(self, params: Params):
@@ -92,8 +92,14 @@ class SystemMessageInterceptor(RequestInterceptor):
 
         # find the existing system message and save it to the instance variable
         # join the multiple system messages into a single string if there are multiple
-        existing_system_message = [msg for msg in original_data["messages"] if msg["role"] == "system"]
-        existing_system_message = "\n".join([msg.get("content") for msg in existing_system_message]) if len(existing_system_message) > 0 else None
+        existing_system_message = [
+            msg for msg in original_data["messages"] if msg["role"] == "system"
+        ]
+        existing_system_message = (
+            "\n".join([msg.get("content") for msg in existing_system_message])
+            if len(existing_system_message) > 0
+            else None
+        )
 
         new_system_message = None
 
@@ -101,12 +107,16 @@ class SystemMessageInterceptor(RequestInterceptor):
             new_system_message = self.system_message
         elif self.strategy == "append":
             if existing_system_message:
-                new_system_message = existing_system_message + "\n" + self.system_message
+                new_system_message = (
+                    existing_system_message + "\n" + self.system_message
+                )
             else:
                 new_system_message = self.system_message
         elif self.strategy == "prepend":
             if existing_system_message:
-                new_system_message = self.system_message + "\n" + existing_system_message
+                new_system_message = (
+                    self.system_message + "\n" + existing_system_message
+                )
             else:
                 new_system_message = self.system_message
 
