@@ -383,3 +383,14 @@ container = "nvcr.io/nvidia/eval-factory/helm:25.10"
 container = "nvcr.io/nvidia/eval-factory/tooltalk:25.10"
 
 [tooltalk.tasks.chat.tooltalk]
+
+
+###############################################################################
+[tau2_bench]
+container = "gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/tau2-bench:dev-2025-11-25T11-39-d6f96f2a"
+
+[tau2_bench.tasks.chat.tau2_bench_telecom]
+
+[tau2_bench.tasks.chat.tau2_bench_airline]
+
+[tau2_bench.tasks.chat.tau2_bench_retail]
