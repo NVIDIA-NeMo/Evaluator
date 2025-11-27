@@ -37,6 +37,26 @@ def n():
     return 1
 
 
+# Common target configuration used across test cases
+DEFAULT_TARGET = {
+    "api_endpoint": {
+        "url": "http://localhost",
+        "model_id": "test",
+        "type": "chat",
+    }
+}
+
+
+def make_config(config_dict, target_dict=None):
+    """Helper to create test configuration with default target."""
+    if target_dict is None:
+        target_dict = DEFAULT_TARGET
+    return {
+        "config": config_dict,
+        "target": target_dict,
+    }
+
+
 @pytest.fixture(autouse=True)
 def installed_modules(n: int, monkeypatch):
     if not n:
@@ -77,34 +97,24 @@ def installed_modules(n: int, monkeypatch):
     [
         # Valid configs - should succeed
         (
-            {
-                "config": {
+            make_config(
+                {
                     "type": "dummy_task",
                     "params": {"max_new_tokens": 100, "temperature": 0.7},
-                },
-                "target": {
-                    "api_endpoint": {
-                        "url": "http://localhost",
-                        "model_id": "test",
-                        "type": "chat",
-                    }
-                },
-            },
+                }
+            ),
             [],
             False,
             None,
         ),
         # Typo in YAML config params: max_tokens instead of max_new_tokens
         (
-            {
-                "config": {
+            make_config(
+                {
                     "type": "dummy_task",
                     "params": {"max_tokens": 100},  # Typo!
-                },
-                "target": {
-                    "api_endpoint": {"url": "http://localhost", "model_id": "test"}
-                },
-            },
+                }
+            ),
             [],
             True,
             "max_tokens",
@@ -123,32 +133,14 @@ def installed_modules(n: int, monkeypatch):
         ),
         # Valid YAML config with CLI override using --overrides
         (
-            {
-                "config": {"type": "dummy_task"},
-                "target": {
-                    "api_endpoint": {
-                        "url": "http://localhost",
-                        "model_id": "test",
-                        "type": "chat",
-                    }
-                },
-            },
+            make_config({"type": "dummy_task"}),
             ["--overrides", "config.params.max_new_tokens=200"],
             False,
             None,
         ),
         # Valid YAML with multiple CLI overrides using --overrides
         (
-            {
-                "config": {"type": "dummy_task"},
-                "target": {
-                    "api_endpoint": {
-                        "url": "http://localhost",
-                        "model_id": "test",
-                        "type": "chat",
-                    }
-                },
-            },
+            make_config({"type": "dummy_task"}),
             [
                 "--overrides",
                 "config.params.max_new_tokens=200,config.params.temperature=0.5",
@@ -211,24 +203,14 @@ def installed_modules(n: int, monkeypatch):
         ),
         # Typo in CLI override: max_tokens instead of max_new_tokens
         (
-            {
-                "config": {"type": "dummy_task"},
-                "target": {
-                    "api_endpoint": {"url": "http://localhost", "model_id": "test"}
-                },
-            },
+            make_config({"type": "dummy_task"}),
             ["--overrides", "config.params.max_tokens=100"],  # Typo in override!
             True,
             "max_tokens",
         ),
         # Typo in second CLI override: temprature instead of temperature
         (
-            {
-                "config": {"type": "dummy_task"},
-                "target": {
-                    "api_endpoint": {"url": "http://localhost", "model_id": "test"}
-                },
-            },
+            make_config({"type": "dummy_task"}),
             [
                 "--overrides",
                 "config.params.max_new_tokens=100,config.params.temprature=0.5",
@@ -238,12 +220,7 @@ def installed_modules(n: int, monkeypatch):
         ),
         # Typo in CLI override for adapter_config: use_cacing instead of use_caching
         (
-            {
-                "config": {"type": "dummy_task"},
-                "target": {
-                    "api_endpoint": {"url": "http://localhost", "model_id": "test"}
-                },
-            },
+            make_config({"type": "dummy_task"}),
             [
                 "--overrides",
                 "target.api_endpoint.adapter_config.use_cacing=true",
@@ -266,130 +243,174 @@ def installed_modules(n: int, monkeypatch):
         ),
         # Extra field in config: unknown_config_param
         (
-            {
-                "config": {
-                    "type": "dummy_task",
-                    "unknown_config_param": "value",
-                },  # Extra field!
-                "target": {
-                    "api_endpoint": {"url": "http://localhost", "model_id": "test"}
-                },
-            },
+            make_config({"type": "dummy_task", "unknown_config_param": "value"}),
             [],
             True,
             "extra",
         ),
         # Extra field in CLI override: config.unknown_field
         (
-            {
-                "config": {"type": "dummy_task"},
-                "target": {
-                    "api_endpoint": {"url": "http://localhost", "model_id": "test"}
-                },
-            },
-            ["--overrides", "config.unknown_field=value"],  # Extra field in override!
+            make_config({"type": "dummy_task"}),
+            ["--overrides", "config.unknown_field=value"],
             True,
             "extra",
         ),
         # Invalid type: temperature passed as string instead of float
         (
-            {
-                "config": {
-                    "type": "dummy_task",
-                    "params": {"temperature": "not_a_number"},  # Invalid type!
-                },
-                "target": {
-                    "api_endpoint": {"url": "http://localhost", "model_id": "test"}
-                },
-            },
+            make_config(
+                {"type": "dummy_task", "params": {"temperature": "not_a_number"}}
+            ),
             [],
             True,
             "temperature",
         ),
         # Invalid: params.extra key not used in command
         (
-            {
-                "config": {
-                    "type": "dummy_task",
-                    "params": {
-                        "extra": {"non_existing": 789}  # Not in command template!
-                    },
-                },
-                "target": {
-                    "api_endpoint": {"url": "http://localhost", "model_id": "test"}
-                },
-            },
+            make_config(
+                {"type": "dummy_task", "params": {"extra": {"non_existing": 789}}}
+            ),
             [],
             True,
             "non_existing",
         ),
         # Invalid: CLI override with params.extra key not in command
         (
-            {
-                "config": {"type": "dummy_task"},
-                "target": {
-                    "api_endpoint": {"url": "http://localhost", "model_id": "test"}
-                },
-            },
+            make_config({"type": "dummy_task"}),
             ["--overrides", "config.params.extra.invalid_param=value"],
             True,
             "invalid_param",
         ),
         # Valid: Override params.extra.dummy_score that exists in command
         (
-            {
-                "config": {
-                    "type": "dummy_task",
-                    "params": {"extra": {"dummy_score": 999}},  # Valid - in command
-                },
-                "target": {
-                    "api_endpoint": {
-                        "url": "http://localhost",
-                        "model_id": "test",
-                        "type": "chat",
-                    }
-                },
-            },
+            make_config(
+                {"type": "dummy_task", "params": {"extra": {"dummy_score": 999}}}
+            ),
             [],
             False,
             None,
         ),
         # Valid: Standard param temperature IS in command
         (
-            {
-                "config": {
-                    "type": "dummy_task",
-                    "params": {
-                        "temperature": 0.9,  # In command template
-                    },
-                },
-                "target": {
-                    "api_endpoint": {
-                        "url": "http://localhost",
-                        "model_id": "test",
-                        "type": "chat",
-                    }
-                },
-            },
+            make_config({"type": "dummy_task", "params": {"temperature": 0.9}}),
             [],
             False,
             None,
         ),
         # Invalid: CLI override with standard param NOT in command
         (
-            {
-                "config": {"type": "dummy_task"},
-                "target": {
-                    "api_endpoint": {
-                        "url": "http://localhost",
-                        "model_id": "test",
-                        "type": "chat",
-                    }
-                },
-            },
-            ["--overrides", "config.params.limit_samples=100"],  # NOT in command!
+            make_config({"type": "dummy_task"}),
+            ["--overrides", "config.params.limit_samples=100"],
             True,
             "limit_samples",
+        ),
+        # Valid: Existing standard param in YAML - max_new_tokens IS in command
+        (
+            make_config({"type": "dummy_task", "params": {"max_new_tokens": 500}}),
+            [],
+            False,
+            None,
+        ),
+        # Invalid: Non-existing standard param in YAML - unknown_param NOT in command
+        (
+            make_config({"type": "dummy_task", "params": {"unknown_param": 123}}),
+            [],
+            True,
+            "unknown_param",
+        ),
+        # Valid: Existing standard param in CLI override - top_p IS in command
+        (
+            make_config({"type": "dummy_task"}),
+            ["--overrides", "config.params.top_p=0.95"],
+            False,
+            None,
+        ),
+        # Invalid: Non-existing standard param in CLI override - bad_param NOT in command
+        (
+            make_config({"type": "dummy_task"}),
+            ["--overrides", "config.params.bad_param=999"],
+            True,
+            "bad_param",
+        ),
+        # Valid: Existing extra param in YAML - dummy_score IS in command
+        (
+            make_config(
+                {"type": "dummy_task", "params": {"extra": {"dummy_score": 888}}}
+            ),
+            [],
+            False,
+            None,
+        ),
+        # Invalid: Non-existing extra param in YAML - not_in_command NOT in command
+        (
+            make_config(
+                {"type": "dummy_task", "params": {"extra": {"not_in_command": 777}}}
+            ),
+            [],
+            True,
+            "not_in_command",
+        ),
+        # Valid: Existing extra param in CLI override - dummy_score IS in command
+        (
+            make_config({"type": "dummy_task"}),
+            ["--overrides", "config.params.extra.dummy_score=555"],
+            False,
+            None,
+        ),
+        # Invalid: Non-existing extra param in CLI override - missing_extra NOT in command
+        (
+            make_config({"type": "dummy_task"}),
+            ["--overrides", "config.params.extra.missing_extra=444"],
+            True,
+            "missing_extra",
+        ),
+        # Valid: Multiple existing params in YAML (standard + extra)
+        (
+            make_config(
+                {
+                    "type": "dummy_task",
+                    "params": {
+                        "max_new_tokens": 200,
+                        "temperature": 0.8,
+                        "top_p": 0.9,
+                        "extra": {"dummy_score": 333},
+                    },
+                }
+            ),
+            [],
+            False,
+            None,
+        ),
+        # Invalid: Mix of existing and non-existing params in YAML
+        (
+            make_config(
+                {
+                    "type": "dummy_task",
+                    "params": {"max_new_tokens": 200, "non_existent": 100},
+                }
+            ),
+            [],
+            True,
+            "non_existent",
+        ),
+        # Valid: Multiple existing params in CLI override
+        (
+            make_config({"type": "dummy_task"}),
+            [
+                "--overrides",
+                "config.params.max_new_tokens=300,config.params.temperature=0.6,config.params.extra.dummy_score=111",
+            ],
+            False,
+            None,
+        ),
+        # Invalid: Mix of existing and non-existing in CLI override
+        (
+            make_config({"type": "dummy_task"}),
+            [
+                "--overrides",
+                "config.params.max_new_tokens=300,config.params.invalid_cli=50",
+            ],
+            True,
+            "invalid_cli",
         ),
     ],
 )
