@@ -33,6 +33,7 @@ from nemo_evaluator_launcher.common.partial_pull import (
     GitlabRegistryAuthenticator,
     NvcrRegistryAuthenticator,
     find_file_in_image_layers,
+    find_file_matching_pattern_in_image_layers,
 )
 
 # Configuration constants
@@ -152,11 +153,59 @@ def _process_mapping(mapping_toml: dict) -> dict:
     """
     mapping = {}
     for harness_name, harness_data in mapping_toml.items():
-        assert isinstance(harness_data["tasks"], dict)
+        # Skip entries that don't have the expected structure
+        if not isinstance(harness_data, dict):
+            logger.warning(
+                "Skipping invalid harness entry",
+                harness_name=harness_name,
+                reason="harness_data is not a dict",
+            )
+            continue
+
+        # Check if tasks field exists
+        if "tasks" not in harness_data:
+            logger.warning(
+                "Skipping harness entry without tasks",
+                harness_name=harness_name,
+            )
+            continue
+
+        if not isinstance(harness_data["tasks"], dict):
+            logger.warning(
+                "Skipping invalid harness entry",
+                harness_name=harness_name,
+                reason="tasks is not a dict",
+            )
+            continue
+
+        # Get container, which may be optional
+        container = harness_data.get("container")
+        if not container:
+            logger.debug(
+                "Harness entry without container",
+                harness_name=harness_name,
+            )
+
         for endpoint_type, harness_tasks in harness_data["tasks"].items():
-            assert isinstance(harness_tasks, dict)
+            if not isinstance(harness_tasks, dict):
+                logger.warning(
+                    "Skipping invalid endpoint type",
+                    harness_name=harness_name,
+                    endpoint_type=endpoint_type,
+                    reason="harness_tasks is not a dict",
+                )
+                continue
+
             for task_name, task_data in harness_tasks.items():
-                assert isinstance(task_data, dict)
+                if not isinstance(task_data, dict):
+                    logger.warning(
+                        "Skipping invalid task entry",
+                        harness_name=harness_name,
+                        task_name=task_name,
+                        reason="task_data is not a dict",
+                    )
+                    continue
+
                 key = (harness_name, task_name)
                 if key in mapping:
                     raise KeyError(
@@ -165,9 +214,12 @@ def _process_mapping(mapping_toml: dict) -> dict:
                 mapping[key] = {
                     "task": task_name,
                     "harness": harness_name,
-                    "container": harness_data["container"],
                     "endpoint_type": endpoint_type,
                 }
+                # Only add container if it exists
+                if container:
+                    mapping[key]["container"] = container
+
                 for task_data_key in task_data.keys():
                     if task_data_key in mapping[key]:
                         raise KeyError(
@@ -319,21 +371,7 @@ def _inspect_container_for_tasks(
         Dictionary mapping (harness_name, task_name) to task configuration
     """
     try:
-        # PoC stub: Replace container with GitLab format
-        # Normalize harness name: convert underscores to hyphens for GitLab path
-        # TODO: Remove this PoC stub and use original container
-        normalized_harness = harness_name.replace("_", "-")
-        gitlab_container = f"gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/{normalized_harness}:dev-2025-11-10T13-29-9db0f7ca"
-        logger.info(
-            "PoC: Replacing container with GitLab format",
-            original_container=container,
-            gitlab_container=gitlab_container,
-            harness=harness_name,
-            normalized_harness=normalized_harness,
-        )
-        container = gitlab_container
-
-        # Parse container image
+        # Parse container image (use the container from mapping.toml as-is)
         registry_type, registry_url, repository, tag = _parse_container_image(container)
 
         # Construct docker_id for caching
@@ -382,17 +420,52 @@ def _inspect_container_for_tasks(
         # Try the specified tag first, then fallback to "latest" if it fails
         framework_yml_content = None
 
-        try:
-            framework_yml_content = find_file_in_image_layers(
+        def _try_extract_framework_yml(
+            ref_tag: str, ref_docker_id: str
+        ) -> Optional[str]:
+            """Helper function to try extracting framework.yml with fallback to subdirectories."""
+            # First, try the standard location: /opt/metadata/framework.yml
+            content = find_file_in_image_layers(
                 authenticator=authenticator,
                 repository=repository,
-                reference=tag,
+                reference=ref_tag,
                 target_file=target_file,
                 max_layer_size=100 * 1024,  # 100KB
-                docker_id=docker_id,
+                docker_id=ref_docker_id,
                 use_cache=True,
                 check_invalidated_digest=False,  # Use fast cache path
             )
+
+            # If not found, try to find framework.yml in any subdirectory under /opt/metadata/
+            if not content:
+                logger.debug(
+                    "framework.yml not found at standard location, searching subdirectories",
+                    container=container,
+                    tag=ref_tag,
+                )
+                result = find_file_matching_pattern_in_image_layers(
+                    authenticator=authenticator,
+                    repository=repository,
+                    reference=ref_tag,
+                    prefix="/opt/metadata",
+                    filename="framework.yml",
+                    max_layer_size=100 * 1024,  # 100KB
+                    docker_id=ref_docker_id,
+                    use_cache=True,
+                )
+                if result:
+                    file_path, content = result
+                    logger.info(
+                        "Found framework.yml in subdirectory",
+                        container=container,
+                        tag=ref_tag,
+                        file_path=file_path,
+                    )
+
+            return content
+
+        try:
+            framework_yml_content = _try_extract_framework_yml(tag, docker_id)
         except ValueError as e:
             # Tag might not exist, try "latest" as fallback
             if "Failed to get manifest" in str(e) and tag != "latest":
@@ -403,15 +476,8 @@ def _inspect_container_for_tasks(
                 )
                 docker_id_latest = f"{registry_url}/{repository}:latest"
                 try:
-                    framework_yml_content = find_file_in_image_layers(
-                        authenticator=authenticator,
-                        repository=repository,
-                        reference="latest",
-                        target_file="/opt/metadata/framework.yml",
-                        max_layer_size=100 * 1024,  # 100KB
-                        docker_id=docker_id_latest,
-                        use_cache=True,
-                        check_invalidated_digest=False,  # Use fast cache path
+                    framework_yml_content = _try_extract_framework_yml(
+                        "latest", docker_id_latest
                     )
                     # Update container to use latest tag for consistency
                     container = f"{registry_url}/{repository}:latest"
@@ -554,7 +620,8 @@ def load_tasks_mapping(
                 "Added tasks from Docker inspection",
                 num_new_tasks=len(inspected_tasks),
             )
-            local_mapping = inspected_tasks
+            # Merge inspected tasks into local_mapping (don't replace - inspected tasks override existing ones)
+            local_mapping.update(inspected_tasks)
         else:
             logger.debug("No new tasks found from Docker inspection")
 

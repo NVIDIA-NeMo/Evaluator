@@ -713,6 +713,108 @@ class LayerInspector:
 
         return None
 
+    @staticmethod
+    def extract_file_matching_pattern(
+        layer_content: bytes, prefix: str, filename: str
+    ) -> Optional[tuple[str, str]]:
+        """Extract a file matching a pattern from a layer tar archive.
+
+        Searches for files that start with the given prefix and end with the given filename.
+        For example, prefix="/opt/metadata/" and filename="framework.yml" will match
+        "/opt/metadata/framework.yml" or "/opt/metadata/some_folder/framework.yml".
+
+        Args:
+            layer_content: The layer content as bytes (tar.gz format)
+            prefix: The path prefix to match (e.g., "/opt/metadata/")
+            filename: The filename to match (e.g., "framework.yml")
+
+        Returns:
+            Tuple of (file_path, file_content) if found, None otherwise
+        """
+        try:
+            with tempfile.NamedTemporaryFile() as temp_file:
+                temp_file.write(layer_content)
+                temp_file.flush()
+
+                with tarfile.open(temp_file.name, "r:gz") as tar:
+                    logger.debug(
+                        "Searching for file matching pattern in layer",
+                        prefix=prefix,
+                        filename=filename,
+                        files_in_layer=len(tar.getmembers()),
+                    )
+
+                    # Normalize prefix to ensure it ends with /
+                    normalized_prefix = prefix.rstrip("/") + "/"
+                    # Also check without leading /
+                    normalized_prefix_no_leading = normalized_prefix.lstrip("/")
+
+                    # Look for files matching the pattern
+                    for member in tar.getmembers():
+                        # Check if file matches the pattern
+                        # Match files that start with prefix and end with filename
+                        member_name = member.name
+                        member_name_no_leading = member_name.lstrip("/")
+
+                        # Check if file starts with the prefix (with or without leading slash)
+                        matches_prefix = member_name.startswith(
+                            normalized_prefix
+                        ) or member_name_no_leading.startswith(
+                            normalized_prefix_no_leading
+                        )
+
+                        if not matches_prefix:
+                            continue
+
+                        # Check if file ends with the filename (exact match or with path separator)
+                        # This ensures we match:
+                        # - /opt/metadata/framework.yml
+                        # - /opt/metadata/some_folder/framework.yml
+                        # But not:
+                        # - /opt/metadata/framework.yml.backup
+                        # - /opt/metadata/framework_yml
+                        matches_filename = (
+                            member_name == normalized_prefix + filename
+                            or member_name == normalized_prefix_no_leading + filename
+                            or member_name.endswith(f"/{filename}")
+                            or member_name_no_leading.endswith(f"/{filename}")
+                        )
+
+                        if matches_filename:
+                            logger.debug(
+                                "Found file matching pattern in layer",
+                                file_path=member_name,
+                                prefix=prefix,
+                                filename=filename,
+                            )
+                            file_obj = tar.extractfile(member)
+                            if file_obj:
+                                content = file_obj.read().decode("utf-8")
+                                logger.debug(
+                                    "Extracted file content",
+                                    file_path=member_name,
+                                    content_size_chars=len(content),
+                                )
+                                return member_name, content
+
+                    logger.debug(
+                        "File matching pattern not found in layer",
+                        prefix=prefix,
+                        filename=filename,
+                        sample_files=[m.name for m in tar.getmembers()[:10]],
+                    )
+
+        except Exception as e:
+            logger.error(
+                "Error extracting file matching pattern from layer",
+                error=str(e),
+                prefix=prefix,
+                filename=filename,
+                exc_info=True,
+            )
+
+        return None
+
 
 def find_file_in_image_layers(
     authenticator: RegistryAuthenticator,
@@ -898,6 +1000,143 @@ def find_file_in_image_layers(
     logger.warning(
         "File not found in any layer",
         target_file=target_file,
+        repository=repository,
+        reference=reference,
+    )
+    return None
+
+
+def find_file_matching_pattern_in_image_layers(
+    authenticator: RegistryAuthenticator,
+    repository: str,
+    reference: str,
+    prefix: str,
+    filename: str,
+    max_layer_size: Optional[int] = None,
+    docker_id: Optional[str] = None,
+    use_cache: bool = True,
+) -> Optional[tuple[str, str]]:
+    """Find a file matching a pattern in Docker image layers without pulling the entire image.
+
+    This function searches through image layers (optionally filtered by size)
+    to find a file matching the pattern (prefix + filename). Layers are checked
+    in reverse order (last to first) to find the most recent version of the file.
+
+    Args:
+        authenticator: Registry authenticator instance (will be authenticated if needed)
+        repository: The repository name (e.g., 'agronskiy/idea/poc-for-partial-pull')
+        reference: The tag or digest (e.g., 'latest')
+        prefix: The path prefix to match (e.g., '/opt/metadata/')
+        filename: The filename to match (e.g., 'framework.yml')
+        max_layer_size: Optional maximum layer size in bytes. Only layers smaller
+            than this size will be checked. If None, all layers are checked.
+        docker_id: Optional Docker image identifier for caching. If provided and
+            use_cache is True, will check cache before searching and write to cache
+            after finding the file.
+        use_cache: Whether to use caching. Defaults to True.
+
+    Returns:
+        Tuple of (file_path, file_content) if found, None otherwise
+
+    Raises:
+        ValueError: If authentication fails or manifest cannot be retrieved
+    """
+    # Authenticate if needed
+    if not getattr(authenticator, "bearer_token", None):
+        if not authenticator.authenticate(repository=repository):
+            raise ValueError(f"Failed to authenticate for {repository}:{reference}")
+
+    # Get manifest
+    manifest = authenticator.get_manifest(repository, reference)
+    if not manifest:
+        raise ValueError(f"Failed to get manifest for {repository}:{reference}")
+
+    # Get layers from manifest
+    layers = manifest.get("layers", [])
+    logger.info(
+        "Searching for file matching pattern in image layers",
+        repository=repository,
+        reference=reference,
+        prefix=prefix,
+        filename=filename,
+        total_layers=len(layers),
+        max_layer_size=max_layer_size,
+    )
+
+    # Initialize layer inspector
+    inspector = LayerInspector()
+
+    # Check each layer for files matching the pattern (in reverse order)
+    # Reverse order ensures we get the most recent version of the file
+    for i, layer in enumerate(reversed(layers)):
+        original_index = len(layers) - 1 - i
+        layer_digest = layer.get("digest")
+        layer_size = layer.get("size", 0)
+
+        if not layer_digest:
+            logger.warning(
+                "Layer has no digest, skipping",
+                layer_index=original_index,
+            )
+            continue
+
+        # Filter by size if max_layer_size is specified
+        if max_layer_size is not None and layer_size >= max_layer_size:
+            logger.debug(
+                "Skipping layer (too large)",
+                layer_index=original_index,
+                layer_size=layer_size,
+                max_layer_size=max_layer_size,
+            )
+            continue
+
+        logger.debug(
+            "Checking layer for pattern match",
+            layer_index=original_index,
+            reverse_index=i,
+            digest_preview=layer_digest[:20],
+            size=layer_size,
+            media_type=layer.get("mediaType", "unknown"),
+        )
+
+        # Download the layer
+        layer_content = authenticator.get_blob(repository, layer_digest)
+        if not layer_content:
+            logger.warning(
+                "Failed to download layer",
+                layer_index=original_index,
+                digest_preview=layer_digest[:20],
+            )
+            continue
+
+        # Extract files matching the pattern from this layer
+        result = inspector.extract_file_matching_pattern(
+            layer_content, prefix, filename
+        )
+        if result:
+            file_path, file_content = result
+            logger.info(
+                "Found file matching pattern in layer",
+                file_path=file_path,
+                layer_index=original_index,
+                digest_preview=layer_digest[:20],
+            )
+            # Cache the result if docker_id is provided and caching is enabled
+            if docker_id and use_cache:
+                write_to_cache(docker_id, file_path, file_content, digest=None)
+            return result
+        else:
+            logger.debug(
+                "File matching pattern not found in layer",
+                prefix=prefix,
+                filename=filename,
+                layer_index=original_index,
+            )
+
+    logger.warning(
+        "File matching pattern not found in any layer",
+        prefix=prefix,
+        filename=filename,
         repository=repository,
         reference=reference,
     )
