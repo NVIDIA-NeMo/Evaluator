@@ -155,8 +155,7 @@ cd Evaluator/
 
 export NGC_API_KEY=nvapi-...  # API Key with access to build.nvidia.com
 nemo-evaluator-launcher run \
-  --config-dir packages/nemo-evaluator-launcher/examples \
-  --config-name local_nvidia_nemotron_nano_9b_v2 \
+  --config packages/nemo-evaluator-launcher/examples/local_nvidia_nemotron_nano_9b_v2.yaml \
   --override execution.output_dir=nemotron-eval
 ```
 

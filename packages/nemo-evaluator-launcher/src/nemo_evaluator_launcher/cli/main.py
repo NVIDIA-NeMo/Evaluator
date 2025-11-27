@@ -22,6 +22,7 @@ from simple_parsing import ArgumentParser
 import nemo_evaluator_launcher.cli.export as export
 import nemo_evaluator_launcher.cli.info as info
 import nemo_evaluator_launcher.cli.kill as kill
+import nemo_evaluator_launcher.cli.logs as logs
 import nemo_evaluator_launcher.cli.ls_runs as ls_runs
 import nemo_evaluator_launcher.cli.ls_tasks as ls_tasks
 import nemo_evaluator_launcher.cli.run as run
@@ -42,6 +43,7 @@ def is_verbose_enabled(args) -> bool:
     subcommands = [
         "run",
         "status",
+        "logs",
         "info",
         "kill",
         "tasks_alias",
@@ -105,6 +107,14 @@ def create_parser() -> ArgumentParser:
         help="Enable verbose logging (sets LOG_LEVEL=DEBUG)",
     )
     status_parser.add_arguments(status.Cmd, dest="status")
+
+    # Logs subcommand
+    logs_parser = subparsers.add_parser(
+        "logs",
+        help="Stream logs from evaluation jobs",
+        description="Stream logs from evaluation jobs by invocation ID or job ID",
+    )
+    logs_parser.add_arguments(logs.Cmd, dest="logs")
 
     # Kill subcommand
     kill_parser = subparsers.add_parser(
@@ -204,6 +214,8 @@ def main() -> None:
         args.run.execute()
     elif args.command == "status":
         args.status.execute()
+    elif args.command == "logs":
+        args.logs.execute()
     elif args.command == "kill":
         args.kill.execute()
     elif args.command == "ls":

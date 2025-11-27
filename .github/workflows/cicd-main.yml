@@ -13,6 +13,12 @@
 # limitations under the License.
 name: CICD NeMo
 on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to run tests on"
+        required: false
+        default: "main"
   schedule:
     - cron: 0 0 * * *
   push:
@@ -31,17 +37,17 @@ permissions:
 
 jobs:
   pre-flight:
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@v0.64.2
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@v0.66.4
 
   linting:
     runs-on: ubuntu-latest
     needs: [pre-flight]
     if: |
       (
-        needs.pre-flight.outputs.is_deployment_workflow == 'false' 
+        needs.pre-flight.outputs.is_deployment_workflow == 'false'
           && needs.pre-flight.outputs.is_ci_workload == 'true'
       ) || (
-        needs.pre-flight.outputs.is_deployment_workflow == 'false' 
+        needs.pre-flight.outputs.is_deployment_workflow == 'false'
           && needs.pre-flight.outputs.is_ci_workload == 'false'
           && needs.pre-flight.outputs.docs_only == 'false'
       )
@@ -154,10 +160,13 @@ jobs:
   cicd-integration-tests:
     needs:
       - cicd-unit-tests-nemo-evaluator
-    environment: main
     runs-on: self-hosted-nemo
     if: |
-      needs.pre-flight.outputs.is_ci_workload == 'true'
+      (
+        github.event_name == 'schedule'
+        || github.event_name == 'workflow_dispatch'
+        || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      )
       && !cancelled()
     name: integration-tests
     steps:

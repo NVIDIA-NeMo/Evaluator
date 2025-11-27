@@ -22,8 +22,7 @@ Local execution:
 ```bash
 # Run evaluation against existing endpoint
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct
+    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml
 ```
 
 ## Configuration
@@ -118,6 +117,32 @@ evaluation:
 
 For detailed adapter configuration options, refer to {ref}`adapters`.
 
+### Tasks Requiring Dataset Mounting
+
+Some tasks require access to local datasets. For these tasks, specify the dataset location:
+
+```yaml
+evaluation:
+  tasks:
+    - name: mteb.techqa
+      dataset_dir: /path/to/your/techqa/dataset
+```
+
+The system will automatically:
+- Mount the dataset directory into the evaluation container at `/datasets` (or a custom path if specified)
+- Set the `NEMO_EVALUATOR_DATASET_DIR` environment variable
+- Validate that all required environment variables are configured
+
+**Custom mount path example:**
+
+```yaml
+evaluation:
+  tasks:
+    - name: mteb.techqa
+      dataset_dir: /mnt/data/techqa
+      dataset_mount_path: /custom/path  # Optional: customize container mount point
+```
+
 
 ### Advanced settings
 
@@ -176,19 +201,16 @@ execution:
 ```bash
 # Run evaluation
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct
+    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml
 
 # Dry run to preview configuration
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
     --dry-run
 
 # Override endpoint URL
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
     -o target.api_endpoint.url=http://localhost:8080/v1/chat/completions
 ```
 
@@ -292,8 +314,7 @@ nemo-evaluator-launcher kill <job_id>
 ```bash
 # Validate configuration before running
 nemo-evaluator-launcher run \
-    --config-dir packages/nemo-evaluator-launcher/examples \
-    --config-name local_llama_3_1_8b_instruct \
+    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
     --dry-run
 ```
 

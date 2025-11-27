@@ -11,4 +11,3 @@ nemo-evaluator-launcher ls --json
 # Filter for specific task types (example: mmlu, gsm8k, and arc_challenge)
 nemo-evaluator-launcher ls | grep -E "(mmlu|gsm8k|arc)"
 # [snippet-end]
-

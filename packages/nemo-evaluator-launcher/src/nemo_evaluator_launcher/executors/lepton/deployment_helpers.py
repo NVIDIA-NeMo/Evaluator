@@ -19,6 +19,7 @@ Handles Lepton endpoint creation, management, and health checks.
 """
 
 import json
+import shlex
 import subprocess
 import time
 from pathlib import Path
@@ -27,6 +28,7 @@ from typing import Any, Dict, Optional
 # Import lepton dependencies
 from omegaconf import DictConfig
 
+from nemo_evaluator_launcher.common.helpers import _str_to_echo_command
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 
@@ -235,6 +237,8 @@ def _create_inference_container_spec(deployment_cfg: DictConfig) -> Dict[str, An
     Returns:
         Container specification for Lepton.
     """
+    # Extract pre_cmd from deployment_cfg
+    pre_cmd: str = deployment_cfg.get("pre_cmd") or ""
     container_spec = {
         "image": deployment_cfg.image,
         "ports": [{"container_port": deployment_cfg.port}],
@@ -258,6 +262,18 @@ def _create_inference_container_spec(deployment_cfg: DictConfig) -> Dict[str, An
         if hasattr(deployment_cfg, "extra_args") and deployment_cfg.extra_args:
             command_parts.extend(deployment_cfg.extra_args.split())
 
+        # Wrap with pre_cmd if provided
+        if pre_cmd:
+            create_pre_script_cmd = _str_to_echo_command(
+                pre_cmd, filename="deployment_pre_cmd.sh"
+            )
+            original_cmd = " ".join(shlex.quote(str(c)) for c in command_parts)
+            command_parts = [
+                "/bin/bash",
+                "-c",
+                f"{create_pre_script_cmd.cmd} && source deployment_pre_cmd.sh && exec {original_cmd}",
+            ]
+
         container_spec["command"] = command_parts
 
     elif deployment_cfg.type == "sglang":
@@ -278,12 +294,31 @@ def _create_inference_container_spec(deployment_cfg: DictConfig) -> Dict[str, An
         if hasattr(deployment_cfg, "extra_args") and deployment_cfg.extra_args:
             command_parts.extend(deployment_cfg.extra_args.split())
 
+        # Wrap with pre_cmd if provided
+        if pre_cmd:
+            create_pre_script_cmd = _str_to_echo_command(
+                pre_cmd, filename="deployment_pre_cmd.sh"
+            )
+            original_cmd = " ".join(shlex.quote(str(c)) for c in command_parts)
+            command_parts = [
+                "/bin/bash",
+                "-c",
+                f"{create_pre_script_cmd.cmd} && source deployment_pre_cmd.sh && exec {original_cmd}",
+            ]
+
         container_spec["command"] = command_parts
 
     elif deployment_cfg.type == "nim":
         # NIM containers use their default entrypoint - no custom command needed
         # Configuration is handled via environment variables
-        pass
+        # pre_cmd is not supported for NIM deployments
+        if pre_cmd:
+            logger.error(
+                "pre_cmd is not supported for NIM deployments",
+                deployment_type="nim",
+                pre_cmd=pre_cmd,
+            )
+            raise ValueError("pre_cmd is not supported for NIM deployments")
 
     return container_spec
 

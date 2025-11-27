@@ -22,6 +22,20 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 killed_jobs_file="$script_dir/killed_jobs.txt"
 rm -f "$killed_jobs_file"
 
+# Create all directories and stdout.log files upfront before any container starts
+{% for task in evaluation_tasks %}
+task_dir="{{ task.output_dir }}"
+artifacts_dir="$task_dir/artifacts"
+logs_dir="$task_dir/logs"
+
+mkdir -m 777 -p "$task_dir"
+mkdir -m 777 -p "$artifacts_dir"
+mkdir -m 777 -p "$logs_dir"
+# Create stdout.log file upfront
+touch "$logs_dir/client_stdout.log"
+chmod 666 "$logs_dir/client_stdout.log"
+{% endfor %}
+
 {% for task in evaluation_tasks %}
 # {{ task.job_id }} {{ task.name }}
 
@@ -46,9 +60,41 @@ else
     # Docker run with eval factory command
     (
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.running"
+        {% if task.deployment %}
+        docker run --rm --shm-size=100g --gpus all {{ task.deployment.extra_docker_args }} \
+        --name {{ task.deployment.container_name }} --entrypoint '' \
+        -p {{ task.deployment.port }}:{{ task.deployment.port }} \
+        {% for env_var in task.deployment.env_vars -%}
+        -e {{ env_var }} \
+        {% endfor -%}
+        {% for mount in task.deployment.mounts -%}
+        -v {{ mount }} \
+        {% endfor -%}
+        {{ task.deployment.image }} \
+        {{ task.deployment.command }} > "$logs_dir/server_stdout.log" 2>&1 &
+
+        SERVER_PID=$!
+        SERVER_CONTAINER_NAME="{{ task.deployment.container_name }}"
+
+        date
+        # wait for the server to initialize
+        TIMEOUT=600
+        ELAPSED=0
+        while [[ "$(curl -s -o /dev/null -w "%{http_code}" {{ task.deployment.health_url }})" != "200" ]]; do
+            kill -0 $SERVER_PID 2>/dev/null || { echo "Server process $SERVER_PID died"; echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) 1" > "$logs_dir/stage.exit"; exit 1; }
+            [ $ELAPSED -ge $TIMEOUT ] && { echo "Health check timeout after ${TIMEOUT}s"; echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) 1" > "$logs_dir/stage.exit"; exit 1; }
+            sleep 5
+            ELAPSED=$((ELAPSED + 5))
+        done
+        date
+
+        {% endif %}
         docker run --rm --shm-size=100g {{ extra_docker_args }} \
-      --name {{ task.container_name }} \
+        {% if task.deployment %}--network container:$SERVER_CONTAINER_NAME \{% endif %}--name {{ task.client_container_name }} \
       --volume "$artifacts_dir":/results \
+      {% if task.dataset_mount_host and task.dataset_mount_container -%}
+      --volume "{{ task.dataset_mount_host }}:{{ task.dataset_mount_container }}" \
+      {% endif -%}
       {% for env_var in task.env_vars -%}
       -e {{ env_var }} \
       {% endfor -%}
@@ -63,8 +109,14 @@ else
         fi;
         echo "Container completed successfully" >&2;
         exit 0;
-      ' > "$logs_dir/stdout.log" 2>&1
+      ' > "$logs_dir/client_stdout.log" 2>&1
     exit_code=$?
+
+    {% if task.deployment %}
+    # Stop the server
+    docker stop $SERVER_CONTAINER_NAME 2>/dev/null || true
+    {% endif %}
+
     echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $exit_code" > "$logs_dir/stage.exit"
 ) >> "$logs_dir/stdout.log" 2>&1
 

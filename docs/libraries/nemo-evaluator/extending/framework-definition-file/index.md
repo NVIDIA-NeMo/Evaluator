@@ -118,7 +118,7 @@ Debug common issues with template errors, parameters, and validation.
 
 ## Related Documentation
 
-- {ref}`custom-tasks` - Learn how to create custom evaluation tasks
+- {ref}`eval-custom-tasks` - Learn how to create custom evaluation tasks
 - {ref}`extending-evaluator` - Overview of extending the NeMo Evaluator
 - {ref}`parameter-overrides` - Using parameter overrides in evaluations
 

@@ -111,8 +111,7 @@ export NGC_API_KEY=nvapi-...
 export HF_TOKEN=hf_...
 
 nemo-evaluator-launcher run \
-    --config-dir . \
-    --config-name config.yml \
+    --config ./config.yml \
     -o execution.output_dir=results \
     -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -165,8 +164,7 @@ Run evaluation:
 export NGC_API_KEY=nvapi-...
 
 nemo-evaluator-launcher run \
-    --config-dir . \
-    --config-name config.yml \
+    --config ./config.yml \
     -o execution.output_dir=results \
     -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -216,8 +214,7 @@ export NGC_API_KEY=nvapi-...
 export HF_TOKEN=hf_...
 
 nemo-evaluator-launcher run \
-    --config-dir . \
-    --config-name config.yml \
+    --config ./config.yml \
     -o execution.output_dir=results \
     -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -239,9 +236,9 @@ nemo-evaluator-launcher run \
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl)
   - BFCL v2 and v3 
 * - **tooltalk**
- - Tool usage evaluation
- - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk)
- - ToolTalk 
+  - Tool usage evaluation
+  - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk)
+  - ToolTalk 
 ```
 
 :::{note}
@@ -270,8 +267,7 @@ Run evaluation:
 export NGC_API_KEY=nvapi-...
 
 nemo-evaluator-launcher run \
-    --config-dir . \
-    --config-name config.yml \
+    --config ./config.yml \
     -o execution.output_dir=results \
     -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -321,8 +317,7 @@ Run evaluation:
 export NGC_API_KEY=nvapi-...
 
 nemo-evaluator-launcher run \
-    --config-dir . \
-    --config-name config.yml \
+    --config ./config.yml \
     -o execution.output_dir=results \
     -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -367,8 +362,7 @@ Run evaluation:
 export NGC_API_KEY=nvapi-...
 
 nemo-evaluator-launcher run \
-    --config-dir . \
-    --config-name config.yml \
+    --config ./config.yml \
     -o execution.output_dir=results \
     -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
@@ -416,7 +410,7 @@ NeMo Evaluator provides multiple integration options to fit your workflow:
 ```bash
 # Launcher CLI (recommended for most users)
 nemo-evaluator-launcher ls tasks
-nemo-evaluator-launcher run --config-dir . --config-name local_mmlu_evaluation.yaml
+nemo-evaluator-launcher run --config ./local_mmlu_evaluation.yaml
 
 # Container direct execution
 docker run --rm nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} nemo-evaluator ls
