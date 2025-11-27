@@ -43,7 +43,7 @@ pip install leptonai
 lep login
 ```
 
-Refer to the [Lepton AI documentation](https://www.lepton.ai/docs) for authentication and workspace configuration.
+Refer to the [Lepton AI documentation](https://docs.nvidia.com/dgx-cloud/lepton/) for authentication and workspace configuration.
 
 ## Deployment Types
 
@@ -122,7 +122,7 @@ deployment:
     resource_shape: gpu.1xh200  # Example: Check your Lepton workspace for available shapes
 ```
 
-Refer to the [Lepton AI documentation](https://www.lepton.ai/docs) or check your workspace settings for available resource shapes in your environment.
+Refer to the [Lepton AI documentation](https://docs.nvidia.com/dgx-cloud/lepton/) or check your workspace settings for available resource shapes in your environment.
 
 ## Configuration Examples
 
@@ -208,7 +208,7 @@ lepton deployment logs <deployment-name>
 lepton resource list --available
 ```
 
-Refer to the [Lepton AI CLI documentation](https://www.lepton.ai/docs) for the complete command reference.
+Refer to the [Lepton AI CLI documentation](https://docs.nvidia.com/dgx-cloud/lepton/) for the complete command reference.
 
 ## Exporting Results
 
