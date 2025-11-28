@@ -28,6 +28,7 @@ USAGE:
 """
 
 import os
+import sys
 
 # If this env var is set, it will override a more standard "LOG_LEVEL". If
 # both are unset, default would be used.
@@ -35,9 +36,15 @@ _DISABLE_COLOR_ENV_VAR = "NEMO_EVALUATOR_DISABLE_COLOR"
 
 
 def _is_color_disabled():
+    # Check environment variable first
     env_var = os.environ.get(_DISABLE_COLOR_ENV_VAR, "0").lower()
 
     if "1" in env_var or "yes" in env_var or "y" in env_var or "true" in env_var:
+        return True
+
+    # If not explicitly disabled, check if stdout is a TTY
+    # Colors are disabled if output is not a TTY
+    if not sys.stdout.isatty():
         return True
 
     return False

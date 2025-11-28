@@ -250,3 +250,39 @@ class TestRedactProcessor:
 
         # Normal sensitive keys should still be redacted
         assert self._is_masked(red["api_token"], original["api_token"])
+
+
+class TestMainConsoleRenderer:
+    """Test cases for MainConsoleRenderer color functionality."""
+
+    def test_colors_disabled(self):
+        """Test that colors are disabled when colors=False."""
+        from nemo_evaluator_launcher.common.logging_utils import MainConsoleRenderer
+
+        renderer = MainConsoleRenderer(colors=False)
+
+        event_dict = {
+            "timestamp": "2025-01-01T12:00:00.000",
+            "event": "test message",
+            "level": "info",
+        }
+        output = renderer(None, "info", event_dict)
+
+        # Should not contain ANSI color codes
+        assert "\033[" not in output
+
+    def test_colors_enabled(self):
+        """Test that colors are enabled when colors=True."""
+        from nemo_evaluator_launcher.common.logging_utils import MainConsoleRenderer
+
+        renderer = MainConsoleRenderer(colors=True)
+
+        event_dict = {
+            "timestamp": "2025-01-01T12:00:00.000",
+            "event": "test message",
+            "level": "info",
+        }
+        output = renderer(None, "info", event_dict)
+
+        # Should contain ANSI color codes
+        assert "\033[" in output
