@@ -569,20 +569,22 @@ def _validate_mapping_checksum(
         )
 
 
-def _load_tasks_from_tasks_file(
+def load_tasks_from_tasks_file(
     tasks_file: Optional[pathlib.Path] = None,
-) -> list[TaskIntermediateRepresentation]:
+) -> tuple[list[TaskIntermediateRepresentation], bool]:
     """Load tasks from all_tasks_irs.yaml file.
 
+    Public API function for loading task Intermediate Representations (IRs).
+
     Validates checksum consistency with current mapping.toml:
-    - Logs INFO if checksums match
-    - Logs WARNING if checksums don't match
+    - If checksums match: Logs INFO and returns mapping_verified=True
+    - If checksums don't match: Logs WARNING and returns mapping_verified=False
 
     Args:
         tasks_file: Path to all_tasks_irs.yaml file. If None, uses default path.
 
     Returns:
-        List of TaskIntermediateRepresentation objects
+        Tuple of (list of TaskIntermediateRepresentation objects, mapping_verified: bool)
     """
     if tasks_file is None:
         # Default path relative to package resources
@@ -605,7 +607,38 @@ def _load_tasks_from_tasks_file(
             # Extract metadata and validate checksum
             metadata = yaml_data.get("metadata", {})
             stored_checksum = metadata.get("mapping_toml_checksum")
-            _validate_mapping_checksum(stored_checksum)
+
+            # Determine mapping.toml path (derive from tasks_file location or use default)
+            mapping_file = (
+                pathlib.Path(__file__).parent.parent / "resources" / "mapping.toml"
+            )
+
+            # Calculate current checksum
+            current_checksum = _calculate_mapping_checksum(mapping_file)
+
+            # Determine if mapping is verified
+            mapping_verified = (
+                (stored_checksum == current_checksum)
+                if stored_checksum and current_checksum
+                else False
+            )
+
+            if not mapping_verified:
+                logger.warning(
+                    "mapping.toml checksum mismatch detected",
+                    stored_checksum=stored_checksum,
+                    current_checksum=current_checksum,
+                    message=(
+                        "all_tasks_irs.yaml may be outdated. "
+                        "Consider regenerating it with: "
+                        "python packages/nemo-evaluator-launcher/scripts/load_framework_definitions.py"
+                    ),
+                )
+            else:
+                logger.info(
+                    "mapping.toml checksum matches all_tasks_irs.yaml",
+                    checksum=stored_checksum,
+                )
 
             # Parse tasks from tasks section
             tasks_data = yaml_data.get("tasks", [])
@@ -625,7 +658,7 @@ def _load_tasks_from_tasks_file(
                 "Loaded tasks from tasks file",
                 total_tasks=len(tasks),
             )
-            return tasks
+            return tasks, mapping_verified
 
         except (ImportError, FileNotFoundError, Exception) as e:
             logger.debug(
@@ -644,7 +677,7 @@ def _load_tasks_from_tasks_file(
             "Tasks file not found",
             path=str(tasks_file),
         )
-        return []
+        return [], False
 
     logger.info("Loading tasks from tasks file", path=str(tasks_file))
 
@@ -660,7 +693,36 @@ def _load_tasks_from_tasks_file(
         # Extract metadata and validate checksum
         metadata = yaml_data.get("metadata", {})
         stored_checksum = metadata.get("mapping_toml_checksum")
-        _validate_mapping_checksum(stored_checksum)
+
+        # Derive mapping.toml path from tasks_file location
+        mapping_file = tasks_file.parent / "mapping.toml"
+
+        # Calculate current checksum
+        current_checksum = _calculate_mapping_checksum(mapping_file)
+
+        # Determine if mapping is verified
+        mapping_verified = (
+            (stored_checksum == current_checksum)
+            if stored_checksum and current_checksum
+            else False
+        )
+
+        if not mapping_verified:
+            logger.warning(
+                "mapping.toml checksum mismatch detected",
+                stored_checksum=stored_checksum,
+                current_checksum=current_checksum,
+                message=(
+                    "all_tasks_irs.yaml may be outdated. "
+                    "Consider regenerating it with: "
+                    "python packages/nemo-evaluator-launcher/scripts/load_framework_definitions.py"
+                ),
+            )
+        else:
+            logger.info(
+                "mapping.toml checksum matches all_tasks_irs.yaml",
+                checksum=stored_checksum,
+            )
 
         # Parse tasks from tasks section
         tasks_data = yaml_data.get("tasks", [])
@@ -688,6 +750,7 @@ def _load_tasks_from_tasks_file(
             path=str(tasks_file),
             exc_info=True,
         )
+        return [], False
     except Exception as e:
         logger.error(
             "Error loading tasks from tasks file",
@@ -695,5 +758,6 @@ def _load_tasks_from_tasks_file(
             path=str(tasks_file),
             exc_info=True,
         )
+        return [], False
 
-    return tasks
+    return tasks, mapping_verified

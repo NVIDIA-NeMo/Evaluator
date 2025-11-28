@@ -28,8 +28,9 @@ import yaml
 
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.task_ir import (
-    _load_harnesses_from_frameworks,
-    _load_tasks_from_frameworks,
+    HarnessIntermediateRepresentation,
+    TaskIntermediateRepresentation,
+    load_tasks_from_tasks_file,
 )
 
 
@@ -363,9 +364,6 @@ Examples:
   # Generate all task YAMLs
   python scripts/autogen_task_yamls.py
 
-  # Custom frameworks file and output directory
-  python scripts/autogen_task_yamls.py --frameworks-file custom.yaml --output-dir docs/tasks/
-
   # Dry run to preview
   python scripts/autogen_task_yamls.py --dry-run
 
@@ -375,12 +373,6 @@ Examples:
   # Filter by task name
   python scripts/autogen_task_yamls.py --task mmlu
         """,
-    )
-    parser.add_argument(
-        "--frameworks-file",
-        type=pathlib.Path,
-        default=None,
-        help="Path to all_frameworks.yaml file (default: auto-detect)",
     )
     parser.add_argument(
         "--catalog-file",
@@ -426,24 +418,44 @@ Examples:
     logger.info(
         "Starting documentation autogeneration",
         repo_root=str(repo_root),
-        frameworks_file=str(args.frameworks_file)
-        if args.frameworks_file
-        else "auto-detect",
         catalog_file=str(args.catalog_file),
         dry_run=args.dry_run,
         harness_filter=args.harness,
         task_filter=args.task,
     )
 
-    # Load tasks
-    tasks = _load_tasks_from_frameworks(args.frameworks_file)
+    # Load tasks (checksum validation happens automatically)
+    tasks, mapping_verified = load_tasks_from_tasks_file()  # Uses default path
+
+    # Check if mapping is verified (checksum mismatch)
+    if not mapping_verified:
+        logger.error(
+            "mapping.toml checksum mismatch - all_tasks_irs.yaml is out of sync",
+            message=(
+                "all_tasks_irs.yaml is out of sync with mapping.toml. "
+                "Please regenerate all_tasks_irs.yaml by running: "
+                "python packages/nemo-evaluator-launcher/scripts/load_framework_definitions.py"
+            ),
+        )
+        sys.exit(1)
 
     if not tasks:
         logger.warning("No tasks found")
         sys.exit(1)
 
-    # Load harness IRs (use same frameworks_file path as tasks)
-    harness_irs = _load_harnesses_from_frameworks(args.frameworks_file)
+    # Derive harnesses from tasks
+    harness_irs: dict[str, HarnessIntermediateRepresentation] = {}
+    for task in tasks:
+        if task.harness not in harness_irs:
+            harness_irs[task.harness] = HarnessIntermediateRepresentation(
+                name=task.harness,
+                description="",  # Description not available from tasks alone
+                full_name=None,
+                url=None,
+                source=None,
+                container=task.container,
+                container_digest=task.container_digest,
+            )
 
     logger.info(
         "Loaded harness IRs",
@@ -506,11 +518,8 @@ Examples:
         for harness_name, tasks in sorted(tasks_by_harness.items()):
             harness_ir = harness_irs.get(harness_name)
             if not harness_ir:
-                # Create a minimal harness IR if not found
-                from nemo_evaluator_launcher.common.task_ir import (
-                    HarnessIntermediateRepresentation,
-                )
-
+                # This shouldn't happen since we derive harnesses from tasks
+                # But create a minimal harness IR as fallback
                 container = tasks[0].container if tasks else ""
                 container_digest = tasks[0].container_digest if tasks else None
                 harness_ir = HarnessIntermediateRepresentation(
