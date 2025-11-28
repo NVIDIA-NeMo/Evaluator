@@ -47,6 +47,7 @@ all = ["mlflow", "wandb", "gsheets"]
 [project.scripts]
 nemo-evaluator-launcher = "nemo_evaluator_launcher.cli.main:main"
 nv-eval = "nemo_evaluator_launcher.cli.main:main"
+nel = "nemo_evaluator_launcher.cli.main:main"
 
 [dependency-groups]
 dev = [
