@@ -287,7 +287,9 @@ def extract_framework_yml(
             )
 
         # Extract framework.yml
-        docker_id = f"{registry_url}/{repository}:{tag}"
+        # Use original container string as docker_id for cache consistency
+        # This ensures cache hits work regardless of how the container string is formatted
+        docker_id = container
 
         # First, try the standard location: /opt/metadata/framework.yml
         framework_yml_content = find_file_in_image_layers(
