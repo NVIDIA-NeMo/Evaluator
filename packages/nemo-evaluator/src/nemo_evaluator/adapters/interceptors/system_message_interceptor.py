@@ -82,7 +82,7 @@ class SystemMessageInterceptor(RequestInterceptor):
                 self.system_message[:100] + "..."
                 if len(self.system_message) > 100
                 else self.system_message
-            )
+            ),
         )
 
     @final
