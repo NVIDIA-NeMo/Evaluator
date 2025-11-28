@@ -66,13 +66,23 @@ class SystemMessageInterceptor(RequestInterceptor):
         # Get logger for this interceptor with interceptor context
         self.logger = get_logger(self.__class__.__name__)
 
+        # API change warning for version 25.11
+        if self.strategy == "prepend":
+            self.logger.warning(
+                "API Change Notice: As of nemo-evaluator version 25.11, the default behavior "
+                "of the system_message interceptor has changed from 'replace' to 'prepend'. "
+                "The interceptor now prepends the configured system message to any existing "
+                "system message instead of replacing it. To restore the previous behavior, "
+                "explicitly set 'strategy: replace' in your interceptor configuration."
+            )
+
         self.logger.info(
             "System message interceptor initialized",
             system_message_preview=(
                 self.system_message[:100] + "..."
                 if len(self.system_message) > 100
                 else self.system_message
-            ),
+            )
         )
 
     @final
