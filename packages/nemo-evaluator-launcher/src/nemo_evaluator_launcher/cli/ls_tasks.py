@@ -28,15 +28,67 @@ class Cmd:
         action="store_true",
         help="Print output as JSON instead of table format",
     )
+    from_container: str = field(
+        default="",
+        help="Load tasks from container image (e.g., nvcr.io/nvidia/eval-factory/simple-evals:25.10). "
+        "If provided, extracts framework.yml from container and lists tasks on-the-fly instead of using mapping.toml",
+    )
 
     def execute(self) -> None:
         # Import heavy dependencies only when needed
         import json
 
-        from nemo_evaluator_launcher.api.functional import get_tasks_list
+        if self.from_container:
+            # Load tasks from container
+            from nemo_evaluator_launcher.cli.ls_task import Cmd as LsTaskCmd
 
-        # TODO(dfridman): modify `get_tasks_list` to return a list of dicts in the first place
-        data = get_tasks_list()
+            # Reuse logic from ls_task.py
+            ls_task_cmd = LsTaskCmd()
+            tasks = ls_task_cmd._load_tasks_from_container(self.from_container)
+
+            if not tasks:
+                from nemo_evaluator_launcher.common.logging_utils import logger
+
+                logger.error(
+                    "Failed to load tasks from container",
+                    container=self.from_container,
+                )
+                return
+
+            # Convert TaskIntermediateRepresentation to format expected by get_tasks_list()
+            # Build data structure matching get_tasks_list() output format
+            data = []
+            for task in tasks:
+                # Extract endpoint types from defaults
+                endpoint_types = (
+                    task.defaults.get("target", {})
+                    .get("api_endpoint", {})
+                    .get("type", "chat")
+                )
+                if isinstance(endpoint_types, str):
+                    endpoint_types = [endpoint_types]
+
+                task_type = task.defaults.get("config", {}).get("type", "")
+
+                data.append(
+                    [
+                        task.name,  # task
+                        ",".join(endpoint_types)
+                        if isinstance(endpoint_types, list)
+                        else endpoint_types,  # endpoint_type
+                        task.harness,  # harness
+                        task.container,  # container
+                        task.description,  # description
+                        task_type,  # type
+                    ]
+                )
+        else:
+            # Default behavior: load from mapping.toml via get_tasks_list()
+            from nemo_evaluator_launcher.api.functional import get_tasks_list
+
+            # TODO(dfridman): modify `get_tasks_list` to return a list of dicts in the first place
+            data = get_tasks_list()
+
         headers = [
             "task",
             "endpoint_type",
