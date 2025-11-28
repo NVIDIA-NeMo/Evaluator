@@ -985,7 +985,10 @@ def _query_slurm_jobs_status(
     hostname: str,
     socket: str | None,
 ) -> Dict[str, str]:
-    """Query SLURM for job statuses using sacct command.
+    """Query SLURM for job statuses using squeue (for active jobs) and sacct (fallback).
+
+    This function first tries squeue which is more accurate for currently running jobs,
+    then falls back to sacct for completed/historical jobs that squeue doesn't show.
 
     Args:
         slurm_job_ids: List of SLURM job IDs to query.
@@ -998,6 +1001,99 @@ def _query_slurm_jobs_status(
     """
     if len(slurm_job_ids) == 0:
         return {}
+
+    # First, try squeue for active jobs (more accurate for running jobs)
+    squeue_statuses = _query_squeue_for_jobs(slurm_job_ids, username, hostname, socket)
+
+    # For jobs not found in squeue, fall back to sacct
+    missing_jobs = [job_id for job_id in slurm_job_ids if job_id not in squeue_statuses]
+    sacct_statuses = {}
+
+    if missing_jobs:
+        sacct_statuses = _query_sacct_for_jobs(missing_jobs, username, hostname, socket)
+
+    # Combine results, preferring squeue data
+    combined_statuses = {**sacct_statuses, **squeue_statuses}
+
+    return combined_statuses
+
+
+def _query_squeue_for_jobs(
+    slurm_job_ids: List[str],
+    username: str,
+    hostname: str,
+    socket: str | None,
+) -> Dict[str, str]:
+    """Query SLURM for active job statuses using squeue command.
+
+    Args:
+        slurm_job_ids: List of SLURM job IDs to query.
+        username: SSH username.
+        hostname: SSH hostname.
+        socket: control socket location or None
+
+    Returns:
+        Dict mapping from slurm_job_id to returned slurm status for active jobs only.
+    """
+    if len(slurm_job_ids) == 0:
+        return {}
+
+    # Use squeue to get active jobs - more accurate than sacct for running jobs
+    squeue_command = "squeue -u {} -h -o '%i %T'".format(username)
+
+    ssh_command = ["ssh"]
+    if socket is not None:
+        ssh_command.append(f"-S {socket}")
+    ssh_command.append(f"{username}@{hostname}")
+    ssh_command.append(squeue_command)
+    ssh_command = " ".join(ssh_command)
+
+    completed_process = subprocess.run(
+        args=shlex.split(ssh_command),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    squeue_statuses = {}
+    if completed_process.returncode == 0:
+        squeue_output = completed_process.stdout.decode("utf-8")
+        squeue_output_lines = squeue_output.strip().split("\n")
+
+        for line in squeue_output_lines:
+            if not line.strip():
+                continue
+            parts = line.split()
+            if len(parts) >= 2:
+                job_id = parts[0]
+                status = parts[1]
+                # Extract base job ID (handle array jobs like 123456_0 -> 123456)
+                base_job_id = job_id.split("_")[0].split("[")[0]
+                if base_job_id in slurm_job_ids:
+                    squeue_statuses[base_job_id] = status
+
+    return squeue_statuses
+
+
+def _query_sacct_for_jobs(
+    slurm_job_ids: List[str],
+    username: str,
+    hostname: str,
+    socket: str | None,
+) -> Dict[str, str]:
+    """Query SLURM for job statuses using sacct command (for completed/historical jobs).
+
+    Args:
+        slurm_job_ids: List of SLURM job IDs to query.
+        username: SSH username.
+        hostname: SSH hostname.
+        socket: control socket location or None
+
+    Returns:
+        Dict mapping from slurm_job_id to returned slurm status.
+    """
+    if len(slurm_job_ids) == 0:
+        return {}
+
     sacct_command = "sacct -j {} --format='JobID,State%32' --noheader -P".format(
         ",".join(slurm_job_ids)
     )

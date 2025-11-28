@@ -1733,6 +1733,103 @@ class TestSlurmExecutorSystemCalls:
                     socket="/tmp/socket",
                 )
 
+    def test_query_squeue_for_jobs_success(self):
+        """Test _query_squeue_for_jobs function with successful subprocess call."""
+        from nemo_evaluator_launcher.executors.slurm.executor import (
+            _query_squeue_for_jobs,
+        )
+
+        def mock_subprocess_run(*args, **kwargs):
+            """Mock subprocess.run for squeue command."""
+            # Mock squeue output with various job formats
+            return Mock(
+                returncode=0,
+                stdout=b"123456789 RUNNING\n123456790_0 PENDING\n123456791[1-10] PENDING\n",
+                stderr=b"",
+            )
+
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
+            result = _query_squeue_for_jobs(
+                slurm_job_ids=["123456789", "123456790", "123456791"],
+                username="testuser",
+                hostname="slurm.example.com",
+                socket="/tmp/socket",
+            )
+
+            assert result == {
+                "123456789": "RUNNING",
+                "123456790": "PENDING",
+                "123456791": "PENDING",
+            }
+
+    def test_query_slurm_jobs_status_combined_approach(self):
+        """Test _query_slurm_jobs_status using combined squeue + sacct approach."""
+        from nemo_evaluator_launcher.executors.slurm.executor import (
+            _query_slurm_jobs_status,
+        )
+
+        def mock_subprocess_run(*args, **kwargs):
+            """Mock subprocess.run for both squeue and sacct commands."""
+            # Get the command from kwargs['args'] since that's how subprocess.run is called
+            cmd_args = kwargs.get("args", [])
+            if not cmd_args:
+                return Mock(returncode=1, stdout=b"", stderr=b"")
+
+            cmd_str = (
+                " ".join(cmd_args) if isinstance(cmd_args, list) else str(cmd_args)
+            )
+
+            if "squeue" in cmd_str:
+                # Mock squeue showing only running jobs
+                return Mock(
+                    returncode=0,
+                    stdout=b"123456789 RUNNING\n",
+                    stderr=b"",
+                )
+            elif "sacct" in cmd_str:
+                # Mock sacct showing completed job that's not in squeue
+                return Mock(
+                    returncode=0,
+                    stdout=b"123456790|COMPLETED\n",
+                    stderr=b"",
+                )
+            return Mock(returncode=1, stdout=b"", stderr=b"")
+
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
+            result = _query_slurm_jobs_status(
+                slurm_job_ids=["123456789", "123456790"],
+                username="testuser",
+                hostname="slurm.example.com",
+                socket="/tmp/socket",
+            )
+
+            # Should get running job from squeue and completed job from sacct
+            assert result == {"123456789": "RUNNING", "123456790": "COMPLETED"}
+
+    def test_query_sacct_for_jobs_success(self):
+        """Test _query_sacct_for_jobs function with successful subprocess call."""
+        from nemo_evaluator_launcher.executors.slurm.executor import (
+            _query_sacct_for_jobs,
+        )
+
+        def mock_subprocess_run(*args, **kwargs):
+            """Mock subprocess.run for sacct command."""
+            return Mock(
+                returncode=0,
+                stdout=b"123456789|COMPLETED\n123456790|FAILED\n",
+                stderr=b"",
+            )
+
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
+            result = _query_sacct_for_jobs(
+                slurm_job_ids=["123456789", "123456790"],
+                username="testuser",
+                hostname="slurm.example.com",
+                socket="/tmp/socket",
+            )
+
+            assert result == {"123456789": "COMPLETED", "123456790": "FAILED"}
+
     def test_sbatch_remote_runsubs_success(self):
         """Test _sbatch_remote_runsubs function with successful subprocess call."""
         from pathlib import Path
