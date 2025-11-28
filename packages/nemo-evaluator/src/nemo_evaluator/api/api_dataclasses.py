@@ -21,6 +21,7 @@ import jinja2
 from pydantic import BaseModel, ConfigDict, Field
 
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
+from nemo_evaluator.core.utils import get_jinja2_environment
 
 # NOTE: For ApiEndpoint, EvaluationTarget, ConfigParams, and EvaluationConfig all fields
 #       are Optional and default=None, because depending on the command run (run_eval or
@@ -41,7 +42,7 @@ class EndpointType(str, Enum):
 class ApiEndpoint(BaseModel):
     """API endpoint configuration containing information on endpoint placement, targeted model name and adapter used before prompting endpoint."""
 
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     api_key: Optional[str] = Field(
         description="Name of the env variable that stores API key for the model",
@@ -64,6 +65,8 @@ class ApiEndpoint(BaseModel):
 class EvaluationTarget(BaseModel):
     """Target configuration for API endpoints."""
 
+    model_config = ConfigDict(extra="forbid")
+
     api_endpoint: Optional[ApiEndpoint] = Field(
         description="API endpoint to be used for evaluation", default=None
     )
@@ -71,6 +74,8 @@ class EvaluationTarget(BaseModel):
 
 class ConfigParams(BaseModel):
     """Parameters for evaluation execution."""
+
+    model_config = ConfigDict(extra="forbid")
 
     limit_samples: Optional[int | float] = Field(
         description="Limit number of evaluation samples", default=None
@@ -105,6 +110,8 @@ class ConfigParams(BaseModel):
 class EvaluationConfig(BaseModel):
     """Configuration for evaluation runs."""
 
+    model_config = ConfigDict(extra="forbid")
+
     output_dir: Optional[str] = Field(
         description="Directory to output the results", default=None
     )
@@ -124,6 +131,8 @@ class EvaluationMetadata(dict):
 
 
 class Evaluation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     command: str = Field(description="jinja template of the command to be executed")
     framework_name: str = Field(description="Name of the framework")
     pkg_name: str = Field(description="Name of the package")
@@ -132,14 +141,13 @@ class Evaluation(BaseModel):
 
     def render_command(self):
         values = self.model_dump()
+        env = get_jinja2_environment()
 
         def recursive_render(tpl):
             prev = tpl
             while True:
                 try:
-                    curr = jinja2.Template(
-                        prev, undefined=jinja2.StrictUndefined
-                    ).render(values)
+                    curr = env.from_string(prev).render(values)
                     if curr != prev:
                         prev = curr
                     else:
