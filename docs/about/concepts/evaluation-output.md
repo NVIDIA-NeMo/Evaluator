@@ -35,7 +35,73 @@ For the reference purposes, we cite here the launcher config that is used in the
 
 ## Output Structure
 
-The evaluation output is stored in a `results.yaml`. Below we give the output for the
+After running an evaluation, NeMo Evaluator creates a structured output directory containing various artifacts. All artifacts are stored in the directory specified by the `output_dir` parameter:
+
+```
+<output_dir>/
+│   ├── run_config.yml               # Task-specific configuration used during execution
+│   ├── eval_factory_metrics.json    # Evaluation metrics and performance statistics
+│   ├── results.yml                  # Detailed results in YAML format
+│   ├── report.html                  # Human-readable HTML report
+│   ├── report.json                  # JSON format report
+│   └── <Task specific arifacts>/    # Task-specific artifacts
+```
+
+These files are standardized and always follow the same structure regardless of the underlying evaluation harness:
+
+```{list-table}
+:header-rows: 1
+:widths: 20 30 30 50
+
+* - File Name
+  - Description
+  - Content
+  - Usage
+
+* - `results.yml`
+  - Evaluation results in YAML format
+  - * Final evaluation scores and metrics  
+    * Evaluation configuration used  
+  - The main results file for programmatic analysis and integration with downstream tools.
+
+* - `run_config.yml`
+  - Complete evaluation configuration (all parameters, overrides, and settings) used for the run.
+  - * Task and model settings  
+    * Endpoint configuration  
+    * Interceptor config  
+    * Evaluation-specific overrides
+  - Enables full reproducibility of evaluations and configuration auditing.
+
+* - `eval_factory_metrics.json`
+  - Detailed metrics and performance statistics for the evaluation execution.
+  - * Request/response timings  
+    * Token usage  
+    * Error rates  
+    * Resource utilization
+  - Performance analysis and failure pattern identification.
+
+* - `report.html` and `report.json`
+  - Example request-response pairs collected during benchmark execution.
+  - * Human-readable HTML report
+    * Machine-readable JSON version with the same content
+  - For sharing, quick review, analysis, and debugging.
+
+* - Task-specific artifacts
+  - Artifacts procuded by the underlying benchmark (e.g., caches, raw outputs, error logs).
+  - * Cached queries & responses  
+    * Source/context data  
+    * Special task outputs or logs
+  - Advanced troubleshooting, debugging, or domain-specific analysis.
+
+```
+
+### Results file
+
+The primary evaluation output is stored in a `results.yaml`.
+It is standardized accross all evaluation benchmarks and follows the [API dataclasses](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator/src/nemo_evaluator/api/api_dataclasses.py) specification.
+
+
+Below we give the output for the
 command from the [Launcher Quickstart Section](../../get-started/quickstart/launcher.md#quick-start) for the `GPQA-Diamond` task.
 
 ```{literalinclude} ./_snippets/results.yaml
@@ -57,24 +123,23 @@ The evaluation output contains the following general sections:
 | `git_hash` | Git commit hash (if available) |
 
 
-## Key Metrics
+The evaluation metrics are available under the `results` key and are stored in a following structure:
 
-| Metric | Description |
-|--------|-------------|
-| Score Value | Primary performance metric |
-| Standard Deviation | Measure of score variability |
-| Standard Error | Statistical error measure |
-In the example output above, the metric used is the micro-average across the samples (thus `micro` key in the structure).
+```yaml
+      metrics:
+        metric_name:
+          scores:
+            score_name:
+              stats:            # optional set of statistics, e.g.:
+                count: 10       # number of values used for computing the score
+                min: 0          # minimum of all values used for computing the score
+                max: 1          # maximum of all values used for computing the score
+                stderr: 0.13    # standard error
+              value: 0.42   # score value
+```
+
+In the example output above, the metric used is the micro-average across the samples (thus `micro` key in the structure) and the standard deviation (`stddev`) and standard error (`stderr`) statistics are reported.
 The types of metrics available in the results differ for different evaluation harness and task, but they are always presented using the same structure as shown above.
-
-## Additional Output Files
-
-| File Type | Description |
-|-----------|-------------|
-| HTML Report | Human-readable evaluation report |
-| JSON Report | Machine-readable evaluation data |
-| Cache Files | Cached requests and responses |
-| Log Files | Detailed execution logs |
 
 
 ## Exporting the Results
