@@ -108,16 +108,16 @@ def _evict_lru_cache_entries() -> None:
 
 
 def read_from_cache(
-    docker_id: str, target_file: str, check_digest: Optional[str] = None
+    docker_id: str, target_file: str, check_digest: str
 ) -> tuple[Optional[str], Optional[str]]:
-    """Read metadata from cache.
+    """Read metadata from cache, validating digest.
 
     Args:
         docker_id: Docker image identifier
         target_file: Target file path
-        check_digest: Optional manifest digest to validate against stored digest.
-            If provided and doesn't match stored digest, returns (None, stored_digest)
-            to indicate cache is invalid.
+        check_digest: Manifest digest to validate against stored digest.
+            Must match stored digest for cache hit. If doesn't match, returns
+            (None, stored_digest) to indicate cache is invalid.
 
     Returns:
         Tuple of (cached metadata string if found and valid, stored_digest).
@@ -139,26 +139,35 @@ def read_from_cache(
             stored_digest = cache_data.get("digest")
             metadata_str = cache_data.get("metadata")
 
-            # Check if digest matches (if check_digest is provided)
-            if check_digest is not None and stored_digest is not None:
-                if stored_digest != check_digest:
-                    logger.debug(
-                        "Cache invalidated (digest mismatch)",
-                        docker_id=docker_id,
-                        target_file=target_file,
-                        stored_digest=stored_digest,
-                        current_digest=check_digest,
-                    )
-                    return None, stored_digest
+            # Always check digest - required for cache validity
+            if stored_digest is None:
+                logger.info(
+                    "Cache invalidated (no stored digest - old cache entry)",
+                    docker_id=docker_id,
+                    target_file=target_file,
+                    cache_path=str(cache_path),
+                )
+                return None, None
 
+            if stored_digest != check_digest:
+                logger.info(
+                    "Cache invalidated (digest mismatch)",
+                    docker_id=docker_id,
+                    target_file=target_file,
+                    stored_digest=stored_digest,
+                    current_digest=check_digest,
+                )
+                return None, stored_digest
+
+            # Digest matches - cache hit!
             # Update file modification time for LRU tracking
             try:
                 cache_path.touch()
             except OSError:
                 pass  # Ignore errors updating mtime
 
-            logger.debug(
-                "Cache hit",
+            logger.info(
+                "Cache hit (digest validated)",
                 docker_id=docker_id,
                 target_file=target_file,
                 digest=stored_digest,
@@ -177,15 +186,15 @@ def read_from_cache(
 
 
 def write_to_cache(
-    docker_id: str, target_file: str, metadata_str: str, digest: Optional[str] = None
+    docker_id: str, target_file: str, metadata_str: str, digest: str
 ) -> None:
-    """Write metadata to cache.
+    """Write metadata to cache with digest.
 
     Args:
         docker_id: Docker image identifier
-        target_file: Target file path
+        target_file: Target file path (or pattern for pattern-based searches)
         metadata_str: Metadata content to cache
-        digest: Manifest digest of the container image. If provided, stored in
+        digest: Manifest digest of the container image. Required and stored in
             the cache entry for validation on subsequent reads.
     """
     # Evict old entries if cache is full
@@ -197,9 +206,8 @@ def write_to_cache(
             "docker_id": docker_id,
             "target_file": target_file,
             "metadata": metadata_str,
+            "digest": digest,  # Always store digest - required for validation
         }
-        if digest is not None:
-            cache_data["digest"] = digest
 
         with open(cache_path, "w", encoding="utf-8") as f:
             json.dump(cache_data, f, indent=2)
@@ -210,7 +218,7 @@ def write_to_cache(
         except OSError:
             pass  # Ignore errors updating mtime
 
-        logger.debug(
+        logger.info(
             "Cached metadata",
             docker_id=docker_id,
             target_file=target_file,
@@ -824,18 +832,18 @@ def find_file_in_image_layers(
     max_layer_size: Optional[int] = None,
     docker_id: Optional[str] = None,
     use_cache: bool = True,
-    check_invalidated_digest: bool = False,
+    check_invalidated_digest: bool = False,  # Deprecated - always checks digest now
 ) -> Optional[str]:
     """Find a file in Docker image layers without pulling the entire image.
 
     This function searches through image layers (optionally filtered by size)
     to find a specific file. Layers are checked in reverse order (last to first)
-    to find the most recent version of the file. Results can be cached for faster
-    subsequent lookups.
+    to find the most recent version of the file. Results are cached with digest
+    validation to ensure cache hits only occur when the image digest matches.
 
-    Authentication is handled internally - the authenticator will be authenticated
-    only if needed (cache miss or digest validation). Cache is checked first to
-    avoid unnecessary authentication.
+    Cache always validates digest to prevent stale cache hits (e.g., for 'latest' tags).
+    This requires fetching the manifest to get the current digest, but ensures
+    cache correctness.
 
     Args:
         authenticator: Registry authenticator instance (will be authenticated if needed)
@@ -849,10 +857,8 @@ def find_file_in_image_layers(
             use_cache is True, will check cache before searching and write to cache
             after finding the file.
         use_cache: Whether to use caching. Defaults to True.
-        check_invalidated_digest: If True, validates cached digest against current
-            manifest digest. If digest changed, invalidates cache and re-searches.
-            If False, returns cached result immediately without network calls.
-            Defaults to False for fast cache returns.
+        check_invalidated_digest: Deprecated - digest is always checked now.
+            Kept for backward compatibility but ignored.
 
     Returns:
         The file content as string if found, None otherwise
@@ -860,25 +866,13 @@ def find_file_in_image_layers(
     Raises:
         ValueError: If authentication fails or manifest cannot be retrieved
     """
-    # Fast path: Check cache first without network calls (if not checking digest)
-    if docker_id and use_cache and not check_invalidated_digest:
-        cached_result, stored_digest = read_from_cache(docker_id, target_file)
-        if cached_result is not None:
-            logger.info(
-                "Using cached metadata (fast path)",
-                docker_id=docker_id,
-                target_file=target_file,
-                stored_digest=stored_digest,
-            )
-            return cached_result
-
-    # Cache miss or digest validation needed - authenticate and fetch manifest
-    # Authenticate only if not already authenticated (check if bearer_token is set)
+    # Always authenticate and fetch manifest first to get current digest
+    # This is required for digest validation in cache
     if not getattr(authenticator, "bearer_token", None):
         if not authenticator.authenticate(repository=repository):
             raise ValueError(f"Failed to authenticate for {repository}:{reference}")
 
-    # Get manifest (required for digest validation or if cache miss)
+    # Get manifest (required for digest validation)
     manifest = authenticator.get_manifest(repository, reference)
     if not manifest:
         raise ValueError(f"Failed to get manifest for {repository}:{reference}")
@@ -890,33 +884,40 @@ def find_file_in_image_layers(
         f"sha256:{hashlib.sha256(manifest_json.encode('utf-8')).hexdigest()}"
     )
 
-    # Check cache with digest validation if requested
+    # Check cache with digest validation (always validates digest)
     if docker_id and use_cache:
-        if check_invalidated_digest:
-            # Validate digest - if changed, cache is invalid
-            cached_result, stored_digest = read_from_cache(
-                docker_id, target_file, check_digest=manifest_digest
+        logger.debug(
+            "Checking cache",
+            docker_id=docker_id,
+            target_file=target_file,
+            current_digest=manifest_digest,
+        )
+        cached_result, stored_digest = read_from_cache(
+            docker_id, target_file, check_digest=manifest_digest
+        )
+        if cached_result is not None:
+            logger.info(
+                "Using cached metadata (digest validated)",
+                docker_id=docker_id,
+                target_file=target_file,
+                digest=manifest_digest,
             )
-            if cached_result is not None:
-                logger.info(
-                    "Using cached metadata (digest validated)",
-                    docker_id=docker_id,
-                    target_file=target_file,
-                    digest=manifest_digest,
-                )
-                return cached_result
-            elif stored_digest is not None:
-                # Digest mismatch - cache invalidated, need to re-search
-                logger.info(
-                    "Cache invalidated (digest changed), re-searching",
-                    docker_id=docker_id,
-                    target_file=target_file,
-                    stored_digest=stored_digest,
-                    current_digest=manifest_digest,
-                )
+            return cached_result
+        elif stored_digest is not None:
+            # Digest mismatch - cache invalidated, need to re-search
+            logger.info(
+                "Cache invalidated (digest changed), re-searching",
+                docker_id=docker_id,
+                target_file=target_file,
+                stored_digest=stored_digest,
+                current_digest=manifest_digest,
+            )
         else:
-            # Already checked cache in fast path above, skip here
-            pass
+            logger.debug(
+                "Cache miss - no cached entry found",
+                docker_id=docker_id,
+                target_file=target_file,
+            )
 
     # Get layers from manifest
     layers = manifest.get("layers", [])
@@ -985,6 +986,7 @@ def find_file_in_image_layers(
                 digest_preview=layer_digest[:20],
             )
             # Cache the result if docker_id is provided and caching is enabled
+            # Always store digest for validation on subsequent reads
             if docker_id and use_cache:
                 write_to_cache(
                     docker_id, target_file, file_content, digest=manifest_digest
@@ -1046,10 +1048,82 @@ def find_file_matching_pattern_in_image_layers(
         if not authenticator.authenticate(repository=repository):
             raise ValueError(f"Failed to authenticate for {repository}:{reference}")
 
-    # Get manifest
+    # Get manifest (required for digest validation)
     manifest = authenticator.get_manifest(repository, reference)
     if not manifest:
         raise ValueError(f"Failed to get manifest for {repository}:{reference}")
+
+    # Compute manifest digest for cache validation
+    manifest_json = json.dumps(manifest, sort_keys=True, separators=(",", ":"))
+    manifest_digest = (
+        f"sha256:{hashlib.sha256(manifest_json.encode('utf-8')).hexdigest()}"
+    )
+
+    # Check cache with digest validation (always validates digest)
+    # For pattern searches, use pattern-based cache key (not resolved path)
+    # This allows cache hits regardless of where the file is found
+    if docker_id and use_cache:
+        # Create pattern-based cache key: prefix + filename
+        # This ensures same cache key regardless of subdirectory location
+        pattern_key = f"{prefix.rstrip('/')}/{filename}"
+        logger.debug(
+            "Checking cache for pattern",
+            docker_id=docker_id,
+            pattern=pattern_key,
+            current_digest=manifest_digest,
+        )
+        cached_result, stored_digest = read_from_cache(
+            docker_id, pattern_key, check_digest=manifest_digest
+        )
+        if cached_result is not None:
+            # Parse the cached result to extract file path and content
+            # The cached metadata should be the file content
+            # We need to return (file_path, file_content) but we don't know the path
+            # So we'll need to search for it or store the path in cache
+            # For now, let's store the path in the cache entry
+            logger.info(
+                "Using cached metadata (pattern-based, digest validated)",
+                docker_id=docker_id,
+                pattern=pattern_key,
+                digest=manifest_digest,
+            )
+            # Try to get the file path from cache entry
+            cache_path = _get_cache_path(docker_id, pattern_key)
+            if cache_path.exists():
+                try:
+                    with open(cache_path, "r", encoding="utf-8") as f:
+                        cache_data = json.load(f)
+                        cached_file_path = cache_data.get("cached_file_path")
+                        if cached_file_path:
+                            return (cached_file_path, cached_result)
+                        # Fallback: try to infer path from pattern
+                        # Most common case: file is at prefix/filename
+                        inferred_path = f"{prefix.rstrip('/')}/{filename}"
+                        return (inferred_path, cached_result)
+                except Exception:
+                    pass
+            # If we can't get the path, return None to trigger search
+            # But this shouldn't happen if cache is properly structured
+            logger.warning(
+                "Cache hit but couldn't determine file path, re-searching",
+                docker_id=docker_id,
+                pattern=pattern_key,
+            )
+        elif stored_digest is not None:
+            # Digest mismatch - cache invalidated
+            logger.info(
+                "Cache invalidated (digest changed), re-searching",
+                docker_id=docker_id,
+                pattern=pattern_key,
+                stored_digest=stored_digest,
+                current_digest=manifest_digest,
+            )
+        else:
+            logger.debug(
+                "Cache miss - no cached entry found for pattern",
+                docker_id=docker_id,
+                pattern=pattern_key,
+            )
 
     # Get layers from manifest
     layers = manifest.get("layers", [])
@@ -1122,8 +1196,39 @@ def find_file_matching_pattern_in_image_layers(
                 digest_preview=layer_digest[:20],
             )
             # Cache the result if docker_id is provided and caching is enabled
+            # Always store digest for validation on subsequent reads
+            # Use pattern-based cache key (not resolved file path) for consistency
             if docker_id and use_cache:
-                write_to_cache(docker_id, file_path, file_content, digest=None)
+                pattern_key = f"{prefix.rstrip('/')}/{filename}"
+                # Store both the content and the resolved file path in cache
+                cache_path = _get_cache_path(docker_id, pattern_key)
+                _evict_lru_cache_entries()
+                try:
+                    cache_data = {
+                        "docker_id": docker_id,
+                        "pattern": pattern_key,
+                        "cached_file_path": file_path,  # Store resolved path
+                        "metadata": file_content,
+                        "digest": manifest_digest,
+                    }
+                    with open(cache_path, "w", encoding="utf-8") as f:
+                        json.dump(cache_data, f, indent=2)
+                    cache_path.touch()
+                    logger.info(
+                        "Cached metadata (pattern-based)",
+                        docker_id=docker_id,
+                        pattern=pattern_key,
+                        resolved_path=file_path,
+                        digest=manifest_digest,
+                        cache_path=str(cache_path),
+                    )
+                except OSError as e:
+                    logger.warning(
+                        "Failed to write to cache",
+                        docker_id=docker_id,
+                        pattern=pattern_key,
+                        error=str(e),
+                    )
             return result
         else:
             logger.debug(
