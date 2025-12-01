@@ -425,6 +425,7 @@ def _inspect_container_for_tasks(
         ) -> Optional[str]:
             """Helper function to try extracting framework.yml with fallback to subdirectories."""
             # First, try the standard location: /opt/metadata/framework.yml
+            # Note: Digest is always validated for cache hits (prevents stale cache for 'latest' tags)
             content = find_file_in_image_layers(
                 authenticator=authenticator,
                 repository=repository,
@@ -433,7 +434,7 @@ def _inspect_container_for_tasks(
                 max_layer_size=100 * 1024,  # 100KB
                 docker_id=ref_docker_id,
                 use_cache=True,
-                check_invalidated_digest=False,  # Use fast cache path
+                check_invalidated_digest=False,  # Deprecated parameter - digest always checked now
             )
 
             # If not found, try to find framework.yml in any subdirectory under /opt/metadata/
