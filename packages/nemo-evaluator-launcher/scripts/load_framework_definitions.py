@@ -292,6 +292,7 @@ def extract_framework_yml(
         docker_id = container
 
         # First, try the standard location: /opt/metadata/framework.yml
+        # Note: Digest is always validated for cache hits (prevents stale cache for 'latest' tags)
         framework_yml_content = find_file_in_image_layers(
             authenticator=authenticator,
             repository=repository,
@@ -300,10 +301,12 @@ def extract_framework_yml(
             max_layer_size=max_layer_size,
             docker_id=docker_id,
             use_cache=use_cache,
-            check_invalidated_digest=False,  # Use fast cache path
+            check_invalidated_digest=False,  # Deprecated parameter - digest always checked now
         )
 
         # If not found, try to find framework.yml in any subdirectory under /opt/metadata/
+        # Note: find_file_matching_pattern_in_image_layers uses pattern-based caching
+        # (cache key: /opt/metadata/framework.yml) so cache hits work regardless of subdirectory location
         if not framework_yml_content:
             logger.debug(
                 "framework.yml not found at standard location, searching subdirectories",
