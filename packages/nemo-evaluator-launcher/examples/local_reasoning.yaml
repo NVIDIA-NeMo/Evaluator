@@ -24,6 +24,7 @@
 #     Always run full evaluations (without limit_samples) for actual benchmark results.
 
 # specify default configs for execution and deployment
+# [docs-start-snippet]
 defaults:
   - execution: local
   - deployment: none
@@ -38,21 +39,40 @@ target:
     url: https://integrate.api.nvidia.com/v1/chat/completions
     api_key_name: NGC_API_KEY # API Key with access to build.nvidia.com
 
-# specify the benchmarks to evaluate
 evaluation:
   nemo_evaluator_config: # global config settings that apply to all tasks
     config:
       params:
-        request_timeout: 3600 # timeout for API requests in seconds
-    target:
-      api_endpoint:
-        adapter_config:
-          use_reasoning: false # if true, strips reasoning tokens and collects reasoning stats
-          use_system_prompt: false # disables custom system prompt
+        request_timeout: 3600
+        limit_samples: 10 # TEST ONLY: limit number of samples for quick testing
+        parallelism: 1 # one parallel request to the server
+
   tasks:
+    # run complex tasks with reasoning on
     - name: simple_evals.mmlu_pro
-      nemo_evaluator_config: # task-specific configuration for mmlu_pro
+      nemo_evaluator_config:
         config:
           params:
-            limit_samples: 10 # TEST ONLY: Limits all benchmarks to 10 samples total for quick testing
-            parallelism: 1 # number of parallel requests
+            temperature: 0.6
+            top_p: 0.95
+            max_new_tokens: 32768  # for reasoning + final answer
+        target:
+          api_endpoint:
+            adapter_config:
+              process_reasoning_traces: true # strips reasoning tokens and collects reasoning stats
+              use_system_prompt: true # turn reasoning on with special system prompt
+              custom_system_prompt: >-
+                "/think"
+
+    # run simpler tasks with reasoning off
+    - name: ifeval
+      nemo_evaluator_config:
+        config:
+          params:
+            max_new_tokens: 1024 # we can use less tokens with reasoning off
+        target:
+          api_endpoint:
+            adapter_config:
+              use_system_prompt: true # turn reasoning off with special system prompt
+              custom_system_prompt: >-
+                "/no_think"
