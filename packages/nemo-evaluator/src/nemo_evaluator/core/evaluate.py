@@ -212,7 +212,8 @@ def evaluate(
     evaluation_result_dict = {
         "git_hash": os.getenv("CORE_EVALS_GIT_HASH"),
         "command": evaluation.render_command(),
-        **run_config,
+        "config": evaluation.config.model_dump(exclude_none=True),
+        "target": evaluation.target.model_dump(exclude_none=True),
         "results": evaluation_result.model_dump(exclude_none=True),
         **metadata_block,
     }
