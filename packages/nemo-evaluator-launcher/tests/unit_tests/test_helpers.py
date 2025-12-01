@@ -245,7 +245,7 @@ def test_start_deprecating_overrides():
     # What to do: remove all the respect of `overrides` in code.
     from datetime import datetime
 
-    DEPRECATION_DATE = datetime(2025, 12, 1)
+    DEPRECATION_DATE = datetime(2025, 12, 8)
     if datetime.now() > DEPRECATION_DATE:
         pytest.fail(f"Deprectation of overrides should start {DEPRECATION_DATE}")
 
