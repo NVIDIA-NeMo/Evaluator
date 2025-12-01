@@ -1255,7 +1255,7 @@ class TestSlurmExecutorGetStatus:
             ) as mock_progress,
         ):
             mock_open.return_value = "/tmp/socket"
-            mock_query_status.return_value = {"123456789": "COMPLETED"}
+            mock_query_status.return_value = {"123456789": ("COMPLETED", "123456789")}
             mock_autoresume.return_value = {"123456789": ["123456789"]}
             mock_progress.return_value = [0.8]
 
@@ -1300,8 +1300,10 @@ class TestSlurmExecutorGetStatus:
             mock_open.return_value = "/tmp/socket"
             # Initial job was preempted, latest job is running
             mock_query_status.side_effect = [
-                {"123456789": "PREEMPTED"},  # Original job status
-                {"123456790": "RUNNING"},  # Latest autoresumed job status
+                {"123456789": ("PREEMPTED", "123456789")},  # Original job status
+                {
+                    "123456790": ("RUNNING", "123456790")
+                },  # Latest autoresumed job status
             ]
             # Autoresume shows there's a newer job ID
             mock_autoresume.return_value = {"123456789": ["123456789", "123456790"]}
@@ -1346,7 +1348,7 @@ class TestSlurmExecutorGetStatus:
             ) as mock_progress,
         ):
             mock_open.return_value = "/tmp/socket"
-            mock_query_status.return_value = {"123456789": "RUNNING"}
+            mock_query_status.return_value = {"123456789": ("RUNNING", "123456789")}
             mock_autoresume.return_value = {"123456789": ["123456789"]}
             mock_progress.return_value = [None]  # Unknown progress
 
@@ -1694,13 +1696,26 @@ class TestSlurmExecutorSystemCalls:
         )
 
         def mock_subprocess_run(*args, **kwargs):
-            """Mock subprocess.run for sacct command."""
-            # Mock sacct output
-            return Mock(
-                returncode=0,
-                stdout=b"123456789|COMPLETED\n123456790|RUNNING\n",
-                stderr=b"",
+            """Mock subprocess.run for squeue and sacct commands."""
+            cmd_args = kwargs.get("args", [])
+            if not cmd_args:
+                return Mock(returncode=1, stdout=b"", stderr=b"")
+
+            cmd_str = (
+                " ".join(cmd_args) if isinstance(cmd_args, list) else str(cmd_args)
             )
+
+            if "squeue" in cmd_str:
+                # Mock squeue with no active jobs (empty output)
+                return Mock(returncode=0, stdout=b"", stderr=b"")
+            elif "sacct" in cmd_str:
+                # Mock sacct output
+                return Mock(
+                    returncode=0,
+                    stdout=b"123456789|COMPLETED\n123456790|RUNNING\n",
+                    stderr=b"",
+                )
+            return Mock(returncode=1, stdout=b"", stderr=b"")
 
         with patch("subprocess.run", side_effect=mock_subprocess_run):
             result = _query_slurm_jobs_status(
@@ -1710,7 +1725,8 @@ class TestSlurmExecutorSystemCalls:
                 socket="/tmp/socket",
             )
 
-            assert result == {"123456789": "COMPLETED", "123456790": "RUNNING"}
+            assert result["123456789"] == ("COMPLETED", "123456789")
+            assert result["123456790"] == ("RUNNING", "123456790")
 
     def test_query_slurm_jobs_status_failure(self):
         """Test _query_slurm_jobs_status function with failed subprocess call."""
@@ -1744,7 +1760,7 @@ class TestSlurmExecutorSystemCalls:
             # Mock squeue output with various job formats
             return Mock(
                 returncode=0,
-                stdout=b"123456789 RUNNING\n123456790_0 PENDING\n123456791[1-10] PENDING\n",
+                stdout=b"123456789|RUNNING|\n123456790_0|PENDING|(null)\n123456791[1-10]|PENDING|\n",
                 stderr=b"",
             )
 
@@ -1756,11 +1772,41 @@ class TestSlurmExecutorSystemCalls:
                 socket="/tmp/socket",
             )
 
-            assert result == {
-                "123456789": "RUNNING",
-                "123456790": "PENDING",
-                "123456791": "PENDING",
-            }
+            assert result["123456789"] == ("RUNNING", "123456789")
+            assert result["123456790"] == ("PENDING", "123456790")
+            assert result["123456791"] == ("PENDING", "123456791")
+
+    def test_query_squeue_for_jobs_finds_dependent_jobs(self):
+        """Test that _query_squeue_for_jobs finds follow-up jobs that depend on known jobs."""
+        from nemo_evaluator_launcher.executors.slurm.executor import (
+            _query_squeue_for_jobs,
+        )
+
+        def mock_subprocess_run(*args, **kwargs):
+            """Mock subprocess.run for squeue command with dependent jobs."""
+            # Simulate: job 123456789 has finished (not in squeue),
+            # but job 123456790 is PENDING with dependency on 123456789
+            return Mock(
+                returncode=0,
+                stdout=b"123456790|PENDING|afternotok:123456789\n123456791|RUNNING|(null)\n",
+                stderr=b"",
+            )
+
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
+            result = _query_squeue_for_jobs(
+                slurm_job_ids=["123456789", "123456791"],
+                username="testuser",
+                hostname="slurm.example.com",
+                socket="/tmp/socket",
+            )
+            assert result["123456789"] == (
+                "PENDING",
+                "123456790",
+            )  # Should find 123456789's status via its dependent job 123456790
+            assert result["123456791"] == (
+                "RUNNING",
+                "123456791",
+            )  # Direct match for 123456791
 
     def test_query_slurm_jobs_status_combined_approach(self):
         """Test _query_slurm_jobs_status using combined squeue + sacct approach."""
@@ -1783,7 +1829,7 @@ class TestSlurmExecutorSystemCalls:
                 # Mock squeue showing only running jobs
                 return Mock(
                     returncode=0,
-                    stdout=b"123456789 RUNNING\n",
+                    stdout=b"123456789|RUNNING|(null)\n",
                     stderr=b"",
                 )
             elif "sacct" in cmd_str:
@@ -1804,7 +1850,8 @@ class TestSlurmExecutorSystemCalls:
             )
 
             # Should get running job from squeue and completed job from sacct
-            assert result == {"123456789": "RUNNING", "123456790": "COMPLETED"}
+            assert result["123456789"] == ("RUNNING", "123456789")
+            assert result["123456790"] == ("COMPLETED", "123456790")
 
     def test_query_sacct_for_jobs_success(self):
         """Test _query_sacct_for_jobs function with successful subprocess call."""
@@ -1828,7 +1875,10 @@ class TestSlurmExecutorSystemCalls:
                 socket="/tmp/socket",
             )
 
-            assert result == {"123456789": "COMPLETED", "123456790": "FAILED"}
+            assert result == {
+                "123456789": ("COMPLETED", "123456789"),
+                "123456790": ("FAILED", "123456790"),
+            }
 
     def test_sbatch_remote_runsubs_success(self):
         """Test _sbatch_remote_runsubs function with successful subprocess call."""
