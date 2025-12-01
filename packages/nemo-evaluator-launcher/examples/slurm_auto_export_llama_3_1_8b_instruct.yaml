@@ -42,13 +42,6 @@ execution:
   auto_export:
     destinations: ["mlflow"]
   
-  # Export-related env vars (placeholders expanded at runtime)
-  env_vars:
-    export:
-      MLFLOW_TRACKING_URI: MLFLOW_TRACKING_URI # Or set tracking_uri under export.mflow
-      PATH: ??? # Absolute path to conda/venv bin directory containing nemo-evaluator-launcher (required for auto-export)
-      # Example: "/lustre/fsw/portfolios/coreai/users/USERNAME/miniconda3/envs/nemo-evaluator/bin:$PATH"
-
 target:
   api_endpoint:
     model_id: meta/llama-3.1-8b-instruct
@@ -65,10 +58,13 @@ evaluation:
 # Exporter configurations (paired with auto-export only)
 export:
   mlflow:
+    # required parameter:
     tracking_uri: ??? # MLflow server URL accessible from compute nodes (http://hostname:port)
+
+    # optional parameters:
     experiment_name: "nv-eval"
     description: "nemo-evaluator-launcher Evaluation test run with REMOTE auto-export"
-    log_metrics: ["gpqa_diamond_score_micro"]
+    log_metrics: ["gpqa_diamond_score_micro"]  # subset of metrics to log (others will be skipped)
     log_logs: true
     only_required: false
     

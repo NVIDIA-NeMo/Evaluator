@@ -718,7 +718,9 @@ def _create_slurm_sbatch_script(
 
     if destinations:
         export_env = dict(cfg.execution.get("env_vars", {}).get("export", {}) or {})
-        s += _generate_auto_export_section(cfg, job_id, destinations, export_env)
+        s += _generate_auto_export_section(
+            cfg, job_id, destinations, export_env, remote_task_subdir
+        )
 
     debug_str = "\n".join(["# " + line for line in s.splitlines()])
 
@@ -739,6 +741,8 @@ def _generate_auto_export_section(
     job_id: str,
     destinations: list,
     export_env: dict,
+    remote_task_subdir: Path,
+    export_image: str = "python:3.12.7-slim",
 ) -> str:
     """Generate simple auto-export section for sbatch script."""
     if not destinations:
@@ -748,10 +752,7 @@ def _generate_auto_export_section(
     s += "EVAL_EXIT_CODE=$?\n"
     s += "if [ $EVAL_EXIT_CODE -eq 0 ]; then\n"
     s += "    echo 'Evaluation completed successfully. Starting auto-export...'\n"
-    s += "    set +e\n"
-    s += "    set +x\n"
-    s += "    set +u\n"
-    s += '    cd "$TASK_DIR/artifacts"\n'
+    s += f'    cd "{remote_task_subdir}/artifacts"\n'
 
     # Work with DictConfig; convert only for YAML at the end
     exec_type = (
@@ -807,10 +808,25 @@ def _generate_auto_export_section(
             esc = str(v).replace('"', '\\"')
             s += f'    export {k}="{esc}"\n'
 
-    for dest in destinations:
-        s += f"    echo 'Exporting to {dest}...'\n"
-        s += f"    nemo-evaluator-launcher export {job_id} --dest {dest} || echo 'Export to {dest} failed'\n"
+    s += "    # export\n"
+    s += "    srun --mpi pmix --overlap "
+    s += "--nodes 1 --ntasks 1 "  # Client always runs on single node
+    s += "--container-image {} ".format(export_image)
+    if export_env:
+        s += "--container-env {} ".format(",".join(export_env))
+    if not cfg.execution.get("mounts", {}).get("mount_home", True):
+        s += "--no-container-mount-home "
 
+    s += f"--container-mounts {remote_task_subdir}/artifacts:{remote_task_subdir}/artifacts "
+    s += "--output {} ".format(remote_task_subdir / "logs" / "export-%A.out")
+    s += "    bash -c '\n"
+    # FIXME(martas): would be good to install specific version
+    s += "        pip install nemo-evaluator-launcher[all]\n"
+    s += f"        cd {remote_task_subdir}/artifacts\n"
+    for dest in destinations:
+        s += f'        echo "Exporting to {dest}..."\n'
+        s += f'        nemo-evaluator-launcher export {job_id} --dest {dest} || echo "Export to {dest} failed"\n'
+    s += "'\n"
     s += "    echo 'Auto-export completed.'\n"
     s += "else\n"
     s += "    echo 'Evaluation failed with exit code $EVAL_EXIT_CODE. Skipping auto-export.'\n"

@@ -310,6 +310,3 @@ docker pull nvcr.io/nvidia/eval-factory/nemo-skills:{{ docker_compose_latest }}
 | `temperature` | `None` |
 | `top_p` | `None` |
 | `parallelism` | `16` |
-
-
----
