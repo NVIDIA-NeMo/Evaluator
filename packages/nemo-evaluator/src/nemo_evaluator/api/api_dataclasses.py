@@ -18,7 +18,7 @@ from enum import Enum
 from typing import Any, Dict, Optional
 
 import jinja2
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 
@@ -116,6 +116,18 @@ class EvaluationConfig(BaseModel):
     )
     type: Optional[str] = Field(description="Type of the task", default=None)
 
+    @computed_field
+    @property
+    def task_output_dir(self) -> Optional[str]:
+        """Output directory with task name appended.
+
+        Returns the output_dir with the task name (type) appended.
+        This is used by both command rendering and output parsing.
+        """
+        if self.output_dir and self.type:
+            return f"{self.output_dir}/{self.type}"
+        return self.output_dir
+
 
 class EvaluationMetadata(dict):
     """We put here various evaluation metadata that does not influence the evaluation."""
@@ -133,13 +145,11 @@ class Evaluation(BaseModel):
     def render_command(self):
         values = self.model_dump()
 
-        # Append task name to output_dir if both are present
+        # Add task-specific output directory for use in templates
         if values.get("config", {}).get("output_dir") and values.get("config", {}).get(
             "type"
         ):
-            task_name = values["config"]["type"]
-            output_dir = values["config"]["output_dir"]
-            values["config"]["output_dir"] = f"{output_dir}/{task_name}"
+            values["config"]["output_dir"] = self.config.task_output_dir
 
         def recursive_render(tpl):
             prev = tpl
