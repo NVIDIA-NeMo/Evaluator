@@ -139,9 +139,7 @@ class Evaluation(BaseModel):
         ):
             task_name = values["config"]["type"]
             output_dir = values["config"]["output_dir"]
-            # Ensure output_dir ends with task name
-            if not output_dir.endswith(f"/{task_name}"):
-                values["config"]["output_dir"] = f"{output_dir}/{task_name}"
+            values["config"]["output_dir"] = f"{output_dir}/{task_name}"
 
         def recursive_render(tpl):
             prev = tpl
