@@ -1,6 +1,15 @@
+(run-eval-reasoning)=
 # Evaluation of Reasoning Models
 
 Reasoning models require a distinct approach compared to standard language models. Their outputs are typically longer, may contain dedicated reasoning tokens, and are more susceptible to generating loops or repetitive sequences. Evaluating these models effectively requires custom parameter settings and careful handling of generation constraints.
+
+## Before You Start
+
+Ensure you have:
+
+- **Model Endpoint**: An OpenAI-compatible API endpoint for your model (completions or chat). See {ref}`deployment-testing-compatibility` for snippets you can use to test your endpoint.
+- **API Access**: Valid API key if your endpoint requires authentication
+- **Installed Packages**: NeMo Evaluator or access to evaluation containers
 
 
 ## Recommended Settings
@@ -27,7 +36,7 @@ Below are recommended generation settings for some popular reasoning-optimized m
 You can verify successful reasoning completion in the logs via the {ref}`interceptor-reasoning` Interceptor, for example:
 
 ```
-Reasoning tracking information non_reasoning_words=4 reasoning_finished=True reasoning_words=12
+[I 2025-12-02T16:14:28.257] Reasoning tracking information reasoning_words=1905 original_content_words=85 updated_content_words=85 reasoning_finished=True reasoning_started=True reasoning_tokens=unknown updated_content_tokens=unknown logger=ResponseReasoningInterceptor request_id=ccff76b2-2b85-4eed-a9d0-2363b533ae58
 ```
 :::
 
