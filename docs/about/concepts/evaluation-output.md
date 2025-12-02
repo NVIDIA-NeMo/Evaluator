@@ -13,17 +13,13 @@ The input configuration comes from the command described in the [Launcher Quicks
 :end-before: "# [snippet-end]"
 ```
 
-After running it, you can copy the artifacts folder using
+:::{note}
+For local execution all artifacts are already present on your machine.
+When working with remote executors such as `slurm` you can download the artifacts with the following command:
 
 ```bash
 nemo-evaluator-launcher info <invocation_id> --copy-artifacts <DIR>
 ```
-and find this file under the the `./artifacts` subfolder.
-
-
-:::{note}
-There are several ways to retrieve the artifacts. Above is the way that works across
-executors, including e.g. `slurm`, by downloading them.
 :::
 
 For the reference purposes, we cite here the launcher config that is used in the command:
@@ -35,10 +31,36 @@ For the reference purposes, we cite here the launcher config that is used in the
 
 ## Output Structure
 
-After running an evaluation, NeMo Evaluator creates a structured output directory containing various artifacts. All artifacts are stored in the directory specified by the `output_dir` parameter:
+After running an evaluation, NeMo Evaluator creates a structured output directory containing various artifacts.
+If you run the command provided above, it will create a following directory structure inside `execution.output_dir` (`./results` in our case):
+
+```bash
+./results/
+├── <timestamp>-<invocation id>
+│   ├── gpqa_diamond
+│   │   ├── artifacts
+│   │   ├── logs
+│   │   └── run.sh
+│   ├── ifeval
+│   │   ├── artifacts
+│   │   ├── logs
+│   │   └── run.sh
+│   ├── mbpp
+│   │   ├── artifacts
+│   │   ├── logs
+│   │   └── run.sh
+│   └── run_all.sequential.sh
 
 ```
-<output_dir>/
+
+Each `artifacts` direcory contains output produced by the evaluation job.
+Such directory will be also create if you use `nemo-evaluator` or direct container access (see {ref}`gs-quickstart` to compare different ways of using NeMo Evaluator SDK)
+
+
+Regardless of the chosen path, the generated artifacts directory will have the following content:
+
+```
+<artifacts_dir>/
 │   ├── run_config.yml               # Task-specific configuration used during execution
 │   ├── eval_factory_metrics.json    # Evaluation metrics and performance statistics
 │   ├── results.yml                  # Detailed results in YAML format
