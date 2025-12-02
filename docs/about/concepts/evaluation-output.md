@@ -28,7 +28,7 @@ executors, including e.g. `slurm`, by downloading them.
 
 For the reference purposes, we cite here the launcher config that is used in the command:
 
-```{literalinclude} ../../../packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct_limit_samples.yaml
+```{literalinclude} ../../../packages/nemo-evaluator-launcher/examples/local_basic.yaml
 :language: yaml
 :start-after: "[docs-start-snippet]"
 ```

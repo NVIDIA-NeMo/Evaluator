@@ -36,7 +36,7 @@ Once your manual deployment is running, use the launcher to evaluate:
 ```bash
 # Basic evaluation against manual deployment
 nemo-evaluator-launcher run \
-    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
+    --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
     -o target.api_endpoint.url=http://localhost:8080/v1/completions \
     -o target.api_endpoint.model_id=your-model-name
 ```

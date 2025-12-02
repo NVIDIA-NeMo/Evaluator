@@ -17,9 +17,9 @@ Run evaluations anywhere with unified configuration and monitoring:
 
 ```bash
 # Single command, multiple backends
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_vllm_llama_3_1_8b_instruct.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/slurm_basic.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_basic.yaml
 ```
 
 ### Evaluation Benchmarks & Tasks
@@ -30,12 +30,10 @@ Access comprehensive benchmark suite with single CLI:
 nemo-evaluator-launcher ls tasks
 
 # Run academic benchmarks
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
-  -o 'evaluation.tasks=["mmlu_pro", "gsm8k", "arc_challenge"]'
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml
 
 # Run safety evaluation
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
-  -o 'evaluation.tasks=["aegis_v2", "garak"]'
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_safety.yaml
 ```
 
 ### Built-in Result Export
@@ -311,14 +309,12 @@ Built-in safety assessment through specialized containers:
 ```bash
 # Run safety evaluation suite
 nemo-evaluator-launcher run \
-    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
-    -o 'evaluation.tasks=["aegis_v2", "garak"]'
+    --config packages/nemo-evaluator-launcher/examples/local_safety.yaml \
 ```
 
 **Safety Containers Available:**
 - **safety-harness**: Content safety evaluation using NemoGuard judge models
 - **garak**: Security vulnerability scanning and prompt injection detection
-- **agentic_eval**: Tool usage and planning evaluation for agentic AI systems
 
 ##  **Monitoring and Observability**
 

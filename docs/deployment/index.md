@@ -45,7 +45,7 @@ You handle model deployment, NeMo Evaluator handles evaluation:
 ```bash
 # Point launcher to your deployed model
 nemo-evaluator-launcher run \
-    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
+    --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
     -o target.api_endpoint.url=http://localhost:8080/v1/chat/completions
 ```
 

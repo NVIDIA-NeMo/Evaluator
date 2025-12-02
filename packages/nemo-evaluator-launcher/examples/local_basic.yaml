@@ -12,10 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# How to use: copy this file locally into a directory, say `examples`, and run
-# Run this config with `nemo-evaluator-launcher run --config-dir examples --config-name local_limit_samples`.
 
+# How to use:
+#
+# 1. copy this file locally or clone the repository, and run
+# 2. run `nemo-evaluator-launcher run --config path/to/local_basic.yaml`
+#
 # This is a TEST CONFIGURATION that limits all benchmarks to use only 10 samples total.
 # This allows you to test your setup end-to-end quickly without running full evaluations.
 #
@@ -23,7 +25,6 @@
 #     report benchmark performance. This is solely for testing configuration and setup.
 #     Always run full evaluations (without limit_samples) for actual benchmark results.
 
-# specify default configs for execution and deployment
 # [docs-start-snippet]
 defaults:
   - execution: local
@@ -31,10 +32,11 @@ defaults:
   - _self_
 
 execution:
-  output_dir: llama_3_1_8b_instruct_results
+  output_dir: nel-results
 
 target:
   api_endpoint:
+    # see https://build.nvidia.com/meta/llama-3_1-8b-instruct for endpoint details
     model_id: meta/llama-3.1-8b-instruct
     url: https://integrate.api.nvidia.com/v1/chat/completions
     api_key_name: NGC_API_KEY # API Key with access to build.nvidia.com
@@ -46,8 +48,10 @@ evaluation:
       params:
         request_timeout: 3600 # timeout for API requests in seconds
         parallelism: 1 # number of parallel requests
-        limit_samples: 5 # TEST ONLY: Limits all benchmarks to 10 samples total for quick testing
+        limit_samples: 10 # TEST ONLY: Limits all benchmarks to 10 samples for quick testing
   tasks:
+    - name: ifeval
     - name: gpqa_diamond
       env_vars:
         HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
+    - name: mbpp

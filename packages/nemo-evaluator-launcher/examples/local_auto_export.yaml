@@ -25,7 +25,7 @@ defaults:
   - _self_
 
 execution:
-  output_dir: llama_3_1_8b_instruct_auto_export_results
+  output_dir: nel-results
   
   # Auto-export destinations
   auto_export:
@@ -33,6 +33,7 @@ execution:
 
 target:
   api_endpoint:
+    # see https://build.nvidia.com/meta/llama-3.1-8b-instruct for endpoint details
     model_id: meta/llama-3.1-8b-instruct
     url: https://integrate.api.nvidia.com/v1/chat/completions
     api_key_name: NGC_API_KEY
@@ -46,10 +47,13 @@ evaluation:
 # Exporter configurations (paired with auto-export only)
 export:
   mlflow:
-    tracking_uri: "http://mlflow.nvidia.com:5003"
+    # required parameter:
+    tracking_uri: ??? # MLflow server URL accessible from compute nodes (http://hostname:port)
+
+    # optional parameters:
     experiment_name: "nv-eval"
-    description: "nemo-evaluator-launcher Evaluation test run with auto-export"
-    log_metrics: ["gpqa_diamond_score_micro"]
+    description: "nemo-evaluator-launcher Evaluation test run with REMOTE auto-export"
+    log_metrics: ["gpqa_diamond_score_micro"]  # subset of metrics to log (others will be skipped)
     log_logs: true
     only_required: false
     

@@ -12,27 +12,31 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# How to use:
 #
-# How to use: copy this file locally into a directory, say `examples`, and run
-# Run this config with `nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct`.
+# 1. copy this file locally or clone the repository, and run
+# 2. run `nemo-evaluator-launcher run --config path/to/local_basic.yaml`
+#
+# This is a TEST CONFIGURATION that limits all benchmarks to use only 10 samples total.
+# This allows you to test your setup end-to-end quickly without running full evaluations.
+#
+# ⚠️  WARNING: Results from this test run should NEVER be used to compare models or
+#     report benchmark performance. This is solely for testing configuration and setup.
+#     Always run full evaluations (without limit_samples) for actual benchmark results.
 
-# Commented out values show an example of how to override the config values from this file.
-
-# To see the full config, run `nemo-evaluator-launcher run --config-dir examples --config-name local_llama_3_1_8b_instruct --dry-run`
-
-# specify default configs for execution and deployment
 defaults:
   - execution: local
   - deployment: none
   - _self_
 
 execution:
-  output_dir: llama_3_1_8b_instruct_results
-  # mode: sequential  # enables sequential execution
+  output_dir: nel-results
 
 target:
   api_endpoint:
-    model_id: meta/llama-3.1-8b-instruct
+    # see https://build.nvidia.com/microsoft/phi-4-mini-instruct for endpoint details
+    model_id: microsoft/phi-4-mini-instruct
     url: https://integrate.api.nvidia.com/v1/chat/completions
     api_key_name: NGC_API_KEY # API Key with access to build.nvidia.com
 
@@ -43,24 +47,24 @@ evaluation:
       params:
         request_timeout: 3600 # timeout for API requests in seconds
         parallelism: 1 # number of parallel requests
-    target:
-      api_endpoint:
-        adapter_config:
-          use_reasoning: false # if true, strips reasoning tokens and collects reasoning stats
-          use_system_prompt: true # enables custom system prompt
-          custom_system_prompt: >-
-            "Think step by step."
   tasks:
-    - name: ifeval # use the default benchmark configuration
-    - name: gpqa_diamond
-      nemo_evaluator_config: # task-specific configuration for gpqa_diamond
+    - name: AA_math_test_500 # use the default benchmark configuration
+      nemo_evaluator_config: # task-specific configuration for mbpp
         config:
-          params:
-            temperature: 0.6 # sampling temperature
-            top_p: 0.95 # nucleus sampling parameter
-            max_new_tokens: 8192 # maximum tokens to generate
+          extra:
+            n_samples: 3
+            judge:
+              api_key: JUDGE_API_KEY
+              model: meta/llama-3.3-70b-instruct
+              url: https://integrate.api.nvidia.com/v1/chat/completions
+              backend: generic
+              timeout: 600
+              max_retries: 25
+              temperature: 0.0
+              top_p: 0.0001
+              max_tokens: 512
       env_vars:
-        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
+        JUDGE_API_KEY: NGC_API_KEY
     - name: mbpp
       nemo_evaluator_config: # task-specific configuration for mbpp
         config:
@@ -70,8 +74,3 @@ evaluation:
             max_new_tokens: 2048 # maximum tokens to generate
             extra:
               n_samples: 5 # sample 5 predictions per prompt
-        target:
-          api_endpoint:
-            adapter_config:
-              custom_system_prompt: >-
-                "You must only provide the code implementation"

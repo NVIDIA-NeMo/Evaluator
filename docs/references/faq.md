@@ -62,7 +62,7 @@ Yes. Preview the full resolved configuration without executing using `--dry-run`
 
 ```bash
 nemo-evaluator-launcher run \
-  --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml --dry-run
+  --config packages/nemo-evaluator-launcher/examples/local_basic.yaml --dry-run
 ```
 
 Reference: {ref}`launcher-cli-dry-run`.
