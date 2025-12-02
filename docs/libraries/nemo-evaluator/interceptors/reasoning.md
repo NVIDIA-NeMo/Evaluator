@@ -13,7 +13,7 @@ The `ResponseReasoningInterceptor` handles models that generate explicit reasoni
 ### CLI Configuration
 
 ```bash
---overrides 'target.api_endpoint.adapter_config.use_reasoning=True,target.api_endpoint.adapter_config.end_reasoning_token="</think>",target.api_endpoint.adapter_config.start_reasoning_token="<think>"'
+--overrides 'target.api_endpoint.adapter_config.process_reasoning_traces=True,target.api_endpoint.adapter_config.end_reasoning_token="</think>",target.api_endpoint.adapter_config.start_reasoning_token="<think>"'
 ```
 
 ### YAML Configuration

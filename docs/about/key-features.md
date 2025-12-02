@@ -93,7 +93,7 @@ target:
         # Communication with http://localhost:8080/v1/completions/
         -name: endpoint
 
-        # Reasoning interceptor
+        # Processing of reasoning traces
         - name: reasoning
           config:
             start_reasoning_token: "<think>"
