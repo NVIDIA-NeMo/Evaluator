@@ -29,6 +29,7 @@ from nemo_evaluator.core.utils import (
     MisconfigurationError,
     deep_update,
     dotlist_to_dict,
+    validate_params_in_command,
 )
 from nemo_evaluator.logging import get_logger
 
@@ -387,6 +388,11 @@ For example: {framework_handlers[0]}.{evaluation_name}. "
     merged_configuration = deep_update(
         default_configuration, user_configuration, skip_nones=True
     )
+
+    # Validate that merged config doesn't have params keys not used in command
+    command = merged_configuration.get("command", "")
+    validate_params_in_command(command, merged_configuration)
+
     return Evaluation(**merged_configuration)
 
 
