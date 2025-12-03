@@ -23,7 +23,7 @@ Before you run evaluations, ensure you have:
 **For researchers and data scientists**: Evaluate your model on standard academic benchmarks in 3 steps.
 
 **Step 1: Choose Your Approach**
-- **Launcher CLI** (Recommended): `nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml`
+- **Launcher CLI** (Recommended): `nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml`
 - **Python API**: Direct programmatic control with `evaluate()` function
 
 **Step 2: Select Benchmarks**

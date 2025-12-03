@@ -12,7 +12,7 @@ Troubleshooting guide for NeMo Evaluator Launcher-specific problems including co
 
 ```bash
 # Validate configuration without running
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml --dry-run
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml --dry-run
 ```
 
 **Common Issues**:
@@ -25,7 +25,7 @@ Error: Missing required field 'execution.output_dir'
 ```
 **Fix**: Add output directory to config or override:
 ```bash
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
   -o execution.output_dir=./results
 ```
 
@@ -70,7 +70,7 @@ MissingConfigException: Cannot find primary config 'missing_config'
 # List available configs
 ls examples/
 # Ensure config file exists
-ls examples/local_llama_3_1_8b_instruct.yaml
+ls examples/local_basic.yaml
 ```
 
 2. **Check Config Composition**:

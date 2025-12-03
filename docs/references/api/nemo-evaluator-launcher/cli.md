@@ -41,10 +41,10 @@ Execute evaluations using Hydra configuration management.
 
 ```bash
 # Using example configurations
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml
 
 # With output directory override
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
   -o execution.output_dir=/path/to/results
 ```
 
@@ -55,7 +55,7 @@ nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/l
 nemo-evaluator-launcher run --config my_configs/my_evaluation.yaml
 
 # Multiple overrides (Hydra syntax)
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
   -o execution.output_dir=results \
   -o target.api_endpoint.model_id=my-model \
   -o +config.params.limit_samples=10
@@ -87,7 +87,7 @@ nemo-evaluator-launcher run --config complete_config.yaml --config-mode=raw
 Preview the full resolved configuration without executing:
 
 ```bash
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml --dry-run
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml --dry-run
 ```
 
 ### Test Runs
@@ -95,7 +95,7 @@ nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/l
 Run with limited samples for testing:
 
 ```bash
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
   -o +config.params.limit_samples=10
 ```
 
@@ -104,7 +104,7 @@ nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/l
 **Local Execution:**
 
 ```bash
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
   -o execution.output_dir=./local_results
 ```
 
@@ -409,7 +409,7 @@ export HF_TOKEN="hf_..."              # For Hugging Face datasets
 export NGC_API_KEY="nvapi-..."            # For NVIDIA API endpoints
 
 # Run evaluation
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml
 ```
 
 The specific environment variables required depend on the tasks and endpoints you're using. Refer to the example configuration files for details on which variables are needed.
@@ -418,24 +418,15 @@ The specific environment variables required depend on the tasks and endpoints yo
 
 The NeMo Evaluator Launcher includes several example configuration files that demonstrate different use cases. These files are located in the `examples/` directory of the package:
 
-- `local_llama_3_1_8b_instruct.yaml` - Local execution with an existing endpoint
-- `local_limit_samples.yaml` - Local execution with limited samples for testing
-- `local_nvidia_nemotron_nano_9b_v2.yaml` - Local execution with Nvidia Nemotron Nano 9B v2
-- `local_auto_export_llama_3_1_8b_instruct.yaml` - Local execution with auto-export for Llama 3.1 8B
-- `local_custom_config_seed_oss_36b_instruct.yaml` - Local execution with advanced interceptors
-- `slurm_llama_3_1_8b_instruct.yaml` - Slurm execution with model deployment
-- `slurm_llama_3_1_8b_instruct_hf.yaml` - Slurm execution with deployment using Hugging Face model handle
-- `slurm_no_deployment_llama_3_1_8b_instruct.yaml` - Slurm execution with existing endpoint
-- `slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks.yaml` - Slurm execution with Llama-3.3-Nemotron-Super
-- `lepton_nim_llama_3_1_8b_instruct.yaml` - Lepton AI execution with NIM deployment
-- `lepton_vllm_llama_3_1_8b_instruct.yaml` - Lepton AI execution with vLLM deployment
-- `lepton_none_llama_3_1_8b_instruct.yaml` - Lepton AI execution with existing endpoint
+<!-- TODO
+- `local_basic.yaml` - Local execution with an existing endpoint -->
+
 
 To use these examples:
 
 ```bash
 # Copy an example to your local directory
-cp examples/local_llama_3_1_8b_instruct.yaml my_config.yaml
+cp examples/local_basic.yaml my_config.yaml
 
 # Edit the configuration as needed
 # Then run with your config
@@ -479,11 +470,11 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 ```bash
 # Set log level to DEBUG for detailed output
 export LOG_LEVEL=DEBUG
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml
 
 # Or use single-letter shorthand
 export LOG_LEVEL=D
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml
 
 # Logs are written to ~/.nemo-evaluator/logs/
 ```

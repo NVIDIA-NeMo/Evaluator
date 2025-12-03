@@ -1,28 +1,27 @@
 # This is an exemplar result generated from the command described in the quickstart tutorial,
 # with limited samples for faster execution.
 
-command:
-  "export API_KEY=$API_KEY &&   simple_evals --model meta/llama-3.1-8b-instruct
+command: 'export API_KEY=$API_KEY &&   simple_evals --model meta/llama-3.1-8b-instruct
   --eval_name gpqa_diamond --url https://integrate.api.nvidia.com/v1/chat/completions
-  --temperature 0.6 --top_p 0.95 --max_tokens 8192 --out_dir /results/gpqa_diamond
+  --temperature 0.0 --top_p 1e-05 --max_tokens 4096 --out_dir /results/gpqa_diamond
   --cache_dir /results/gpqa_diamond/cache --num_threads 1 --max_retries 5 --timeout
-  3600   --first_n 5        --judge_backend openai  --judge_request_timeout 600  --judge_max_retries
-  16  --judge_temperature 0.0  --judge_top_p 0.0001  --judge_max_tokens 1024  "
+  3600   --first_n 10        --judge_backend openai  --judge_request_timeout 600  --judge_max_retries
+  16  --judge_temperature 0.0  --judge_top_p 0.0001  --judge_max_tokens 1024  '
 config:
   output_dir: /results
   params:
     extra: {}
-    limit_samples: 5
-    max_new_tokens: 8192
+    limit_samples: 10
+    max_new_tokens: null
     max_retries: null
     parallelism: 1
     request_timeout: 3600
     task: null
-    temperature: 0.6
-    top_p: 0.95
+    temperature: null
+    top_p: null
   supported_endpoint_types: null
   type: gpqa_diamond
-git_hash: ""
+git_hash: ''
 results:
   groups:
     gpqa_diamond:
@@ -31,9 +30,9 @@ results:
           scores:
             micro:
               stats:
-                stddev: 0.4000000000000001
-                stderr: 0.2
-              value: 0.2
+                stddev: 0.4898979485566356
+                stderr: 0.16329931618554522
+              value: 0.4
   tasks:
     gpqa_diamond:
       metrics:
@@ -41,9 +40,9 @@ results:
           scores:
             micro:
               stats:
-                stddev: 0.4000000000000001
-                stderr: 0.2
-              value: 0.2
+                stddev: 0.4898979485566356
+                stderr: 0.16329931618554522
+              value: 0.4
 target:
   api_endpoint:
     adapter_config:
@@ -55,40 +54,35 @@ target:
       generate_html_report: true
       html_report_size: 5
       interceptors:
-        - config:
-            system_message: Think step by step.
-          enabled: true
-          name: system_message
-        - config:
-            cache_dir: /results/cache
-            max_saved_requests: 5
-            max_saved_responses: 5
-            reuse_cached_responses: true
-            save_requests: true
-            save_responses: true
-          enabled: true
-          name: caching
-        - config: {}
-          enabled: true
-          name: endpoint
-        - config:
-            cache_dir: /results/response_stats_cache
-            logging_aggregated_stats_interval: 100
-          enabled: true
-          name: response_stats
+      - config:
+          cache_dir: /results/cache
+          max_saved_requests: 5
+          max_saved_responses: 5
+          reuse_cached_responses: true
+          save_requests: true
+          save_responses: true
+        enabled: true
+        name: caching
+      - config: {}
+        enabled: true
+        name: endpoint
+      - config:
+          cache_dir: /results/response_stats_cache
+          logging_aggregated_stats_interval: 100
+        enabled: true
+        name: response_stats
       log_failed_requests: false
       post_eval_hooks:
-        - config:
-            html_report_size: 5
-            report_types:
-              - html
-              - json
-          enabled: true
-          name: post_eval_report
+      - config:
+          html_report_size: 5
+          report_types:
+          - html
+          - json
+        enabled: true
+        name: post_eval_report
       tracking_requests_stats: true
     api_key: API_KEY
     model_id: meta/llama-3.1-8b-instruct
     stream: null
     type: chat
     url: https://integrate.api.nvidia.com/v1/chat/completions
-

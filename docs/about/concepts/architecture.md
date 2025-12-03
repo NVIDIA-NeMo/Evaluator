@@ -101,9 +101,10 @@ Use the launcher to handle both model deployment and evaluation:
 
 ```bash
 nemo-evaluator-launcher run \
-  --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
-  -o deployment.checkpoint_path=/path/to/model \
-  -o 'evaluation.tasks=["mmlu_pro", "gsm8k"]'
+  --config packages/nemo-evaluator-launcher/examples/local_vllm_logprobs.yaml \
+  -o deployment=vllm \
+  -o ++deployment.hf_handle=meta-llama/Llama-3.1-8B \
+  -o ++deployment.served_model_name=meta-llama/Llama-3.1-8B
 ```
 
 ### **Pattern 2: Launcher with Existing Endpoint**
@@ -111,10 +112,12 @@ nemo-evaluator-launcher run \
 Point the launcher to an existing API endpoint:
 
 ```bash
+export HF_TOKEN_FOR_GPQA_DIAMOND=hf_your-token
 nemo-evaluator-launcher run \
-  --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
+  --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
   -o target.api_endpoint.url=http://localhost:8080/v1/completions \
-  -o deployment.type=none
+  -o target.api_endpoint.api_key_name=null \
+  -o deployment=none
 ```
 
 ### **Pattern 3: Python API**

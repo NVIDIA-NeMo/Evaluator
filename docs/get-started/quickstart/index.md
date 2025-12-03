@@ -151,12 +151,12 @@ curl -X POST "https://integrate.api.nvidia.com/v1/chat/completions" \
 
 # 2. Run a dry-run to validate configuration
 nemo-evaluator-launcher run \
-    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
+    --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
     --dry-run
 
 # 3. Run a minimal test with very few samples
 nemo-evaluator-launcher run \
-    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
+    --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
     -o +config.params.limit_samples=1 \
     -o execution.output_dir=./test_results
 ```
