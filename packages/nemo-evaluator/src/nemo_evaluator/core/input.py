@@ -425,6 +425,9 @@ def check_type_compatibility(evaluation: Evaluation):
 def prepare_output_directory(evaluation: Evaluation):
     try:
         os.makedirs(evaluation.config.output_dir, exist_ok=True)
+        # Also create task-specific output directory
+        if evaluation.config.task_output_dir != evaluation.config.output_dir:
+            os.makedirs(evaluation.config.task_output_dir, exist_ok=True)
     except OSError as error:
         print(f"An error occurred while creating output directory: {error}")
 

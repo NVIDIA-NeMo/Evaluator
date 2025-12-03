@@ -48,7 +48,8 @@ __all__ = ["evaluate"]
 def parse_output(evaluation: Evaluation) -> EvaluationResult:
     # create a module name that is importable
     output_module = importlib.import_module(f"core_evals.{evaluation.pkg_name}.output")
-    return output_module.parse_output(evaluation.config.output_dir)
+    # Use task-specific output directory (matches the rendered command path)
+    return output_module.parse_output(evaluation.config.task_output_dir)
 
 
 def evaluate(
