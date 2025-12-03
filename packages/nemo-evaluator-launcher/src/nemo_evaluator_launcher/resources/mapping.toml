@@ -310,10 +310,10 @@ required_env_vars = []
 container = "nvcr.io/nvidia/eval-factory/nemo_skills:25.11"
 
 [nemo_skills.tasks.chat.ns_aime2024]
-required_env_vars = ["JUDGE_API_KEY"]
+
 
 [nemo_skills.tasks.chat.ns_aime2025]
-required_env_vars = []
+
 
 [nemo_skills.tasks.chat.ns_bfcl_v3]
 required_env_vars = []
