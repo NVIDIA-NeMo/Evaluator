@@ -18,6 +18,13 @@ from dataclasses import dataclass
 
 from simple_parsing import field
 
+from nemo_evaluator_launcher.common.printing_utils import (
+    bold,
+    cyan,
+    grey,
+    magenta,
+)
+
 
 @dataclass
 class Cmd:
@@ -108,7 +115,7 @@ class Cmd:
             self._print_table(supported_benchmarks)
 
     def _print_table(self, tasks: list[dict]) -> None:
-        """Print tasks grouped by harness and container in table format."""
+        """Print tasks grouped by harness and container in table format with colorized output."""
         if not tasks:
             print("No tasks found.")
             return
@@ -168,25 +175,37 @@ class Cmd:
 
                 # Use the larger of the two widths
                 table_width = max(max_task_width, header_content_width)
+                
+                # Limit separator width to prevent overflow on small terminals
+                # Use terminal width if available, otherwise cap at 120 characters
+                import shutil
+                try:
+                    terminal_width = shutil.get_terminal_size().columns
+                    separator_width = min(table_width, terminal_width - 2)  # -2 for safety margin
+                except Exception:
+                    # Fallback if terminal size can't be determined
+                    separator_width = min(table_width, 120)
 
-                # Print combined header with harness and container info
-                print("=" * table_width)
-                print(f"{harness_line}")
-                print(f"{container_line}")
+                # Print combined header with harness and container info - colorized
+                # Keys: magenta, Values: cyan (matching logging utils)
+                print(bold("=" * separator_width))
+                print(f"{magenta('harness:')} {cyan(str(harness))}")
+                print(f"{magenta('container:')} {cyan(str(container))}")
 
                 # Print task table header separator
                 print(" " * table_width)
-                print(f"{task_header:<{table_width}}")
-                print("-" * table_width)
+                print(bold(f"{task_header:<{table_width}}"))
+                print(bold("-" * separator_width))
 
-                # Print task rows
+                # Print task rows - use grey for task descriptions
                 for row in rows:
-                    print(f"{str(row):<{table_width}}")
+                    print(f"{grey(str(row)):<{table_width}}")
 
-                print("-" * table_width)
-                # Show task count
+                print(bold("-" * separator_width))
+                # Show task count - grey for count text
                 task_count = len(rows)
-                print(f"  {task_count} task{'s' if task_count != 1 else ''} available")
-                print("=" * table_width)
+                task_word = "task" if task_count == 1 else "tasks"
+                print(f"  {grey(f'{task_count} {task_word} available')}")
+                print(bold("=" * separator_width))
 
                 print()
