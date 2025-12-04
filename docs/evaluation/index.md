@@ -118,7 +118,7 @@ Explore 100+ available benchmarks across 18 evaluation harnesses and their speci
 :::
 
 :::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Tasks Catalog
-:link: tasks-catalog
+:link: ../task_catalog/task_catalog
 :link-type: doc
 Browse all available evaluation tasks organized by harness with detailed information and configuration.
 :::
