@@ -246,7 +246,7 @@ required_env_vars = []
 [scicode]
 container = "nvcr.io/nvidia/eval-factory/scicode:25.11"
 
-[scicode.tasks.chat.aa_scicode]
+[scicode.tasks.chat.scicode_aa_v2]
 required_env_vars = []
 
 
