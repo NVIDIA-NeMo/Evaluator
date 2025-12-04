@@ -35,9 +35,6 @@ from nemo_evaluator_launcher.exporters import create_exporter
 def get_tasks_list(latest: bool = False) -> list[list[Any]]:
     """Get a list of available tasks from the mapping.
 
-    Docker container inspection can be enabled by setting the environment variable
-    NE_USE_DOCKER_INSPECT=1.
-
     Args:
         latest: If True, fetch the latest mapping from remote URL instead of using packaged/cached version.
 

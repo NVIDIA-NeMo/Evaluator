@@ -85,21 +85,23 @@ def create_authenticator(
         # Credentials are optional - try anonymous access first
         username = os.getenv("DOCKER_USERNAME")
         password = os.getenv("GITLAB_TOKEN")
-        
+
         # If no password from environment, try Docker credentials file
         if not password:
             from nemo_evaluator_launcher.common.partial_pull import (
                 _read_docker_credentials,
             )
-            
+
             docker_creds = _read_docker_credentials(registry_url)
             if docker_creds:
                 docker_username, docker_password = docker_creds
                 if not username:
                     username = docker_username
                 password = docker_password
-                print(f"✓ Using credentials from Docker config file (~/.docker/config.json)")
-        
+                print(
+                    "✓ Using credentials from Docker config file (~/.docker/config.json)"
+                )
+
         if not username or not password:
             print(
                 "ℹ No DOCKER_USERNAME/GITLAB_TOKEN or Docker credentials found, attempting anonymous access"
@@ -114,21 +116,23 @@ def create_authenticator(
     elif registry_type == "nvcr":
         username = os.getenv("NVCR_USERNAME") or os.getenv("DOCKER_USERNAME")
         password = os.getenv("NVCR_PASSWORD") or os.getenv("NVCR_API_KEY")
-        
+
         # If no password from environment, try Docker credentials file
         if not password:
             from nemo_evaluator_launcher.common.partial_pull import (
                 _read_docker_credentials,
             )
-            
+
             docker_creds = _read_docker_credentials(registry_url)
             if docker_creds:
                 docker_username, docker_password = docker_creds
                 if not username or username == "$oauthtoken":
                     username = docker_username
                 password = docker_password
-                print(f"✓ Using credentials from Docker config file (~/.docker/config.json)")
-        
+                print(
+                    "✓ Using credentials from Docker config file (~/.docker/config.json)"
+                )
+
         if not username or not password:
             print(
                 "❌ Please set NVCR_USERNAME and NVCR_PASSWORD (or NVCR_API_KEY) environment variables"
@@ -268,13 +272,14 @@ Note: Results are cached in ~/.nemo-evaluator/docker-meta/ by default.
     # Parse target file path to extract prefix and filename for pattern-based search
     # e.g., /opt/metadata/framework.yml -> prefix=/opt/metadata, filename=framework.yml
     import os
+
     target_path = os.path.normpath(target_file).lstrip("/")
     path_parts = target_path.split("/")
     if len(path_parts) < 2:
         print(f"❌ Invalid target file path: {target_file}")
         print("  Expected format: /path/to/directory/filename.ext")
         sys.exit(1)
-    
+
     filename = path_parts[-1]
     prefix = "/" + "/".join(path_parts[:-1])
     pattern_key = f"{prefix.rstrip('/')}/{filename}"  # For cache key
@@ -358,7 +363,9 @@ Note: Results are cached in ~/.nemo-evaluator/docker-meta/ by default.
                 # Not JSON, might be YAML or plain text
                 print("📋 File content (not JSON)")
         else:
-            print(f"❌ File matching pattern {prefix}/*/{filename} not found in any layer")
+            print(
+                f"❌ File matching pattern {prefix}/*/{filename} not found in any layer"
+            )
             sys.exit(1)
 
     except ValueError as e:

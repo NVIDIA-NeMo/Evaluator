@@ -230,8 +230,11 @@ def main() -> None:
         args.kill.execute()
     elif args.command == "ls":
         # Dispatch nested ls subcommands
-        if args.ls_command is None or args.ls_command == "tasks":
-            # Default to tasks when no subcommand specified
+        if args.ls_command == "tasks":
+            # When explicitly "ls tasks", use args.tasks (has correct from_container)
+            args.tasks.execute()
+        elif args.ls_command is None:
+            # When just "ls" (no subcommand), use args.tasks_alias
             if hasattr(args, "tasks_alias"):
                 args.tasks_alias.execute()
             else:

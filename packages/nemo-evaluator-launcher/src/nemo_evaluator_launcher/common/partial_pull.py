@@ -1011,13 +1011,13 @@ def find_file_in_image_layers(
     check_invalidated_digest: bool = False,  # Deprecated - always checks digest now
 ) -> Optional[str]:
     """DEPRECATED: Use find_file_matching_pattern_in_image_layers() instead.
-    
+
     This function is deprecated and will be removed in a future version.
     Use find_file_matching_pattern_in_image_layers() for pattern-based search
     which handles both exact paths and subdirectories.
-    
+
     Find a file in Docker image layers without pulling the entire image.
-    
+
     .. deprecated:: 4.2.0
         Use :func:`find_file_matching_pattern_in_image_layers` instead.
 
@@ -1052,16 +1052,16 @@ def find_file_in_image_layers(
         ValueError: If authentication fails or manifest cannot be retrieved
     """
     import warnings
+
     warnings.warn(
         "find_file_in_image_layers() is deprecated. "
         "Use find_file_matching_pattern_in_image_layers() instead.",
         DeprecationWarning,
         stacklevel=2,
     )
-    
+
     # Convert exact file path to pattern-based search
     # Extract directory prefix and filename
-    import os
     target_path = os.path.normpath(target_file).lstrip("/")
     path_parts = target_path.split("/")
     if len(path_parts) < 2:
@@ -1071,7 +1071,7 @@ def find_file_in_image_layers(
     else:
         filename = path_parts[-1]
         prefix = "/" + "/".join(path_parts[:-1])
-    
+
     # Use pattern-based search instead
     result = find_file_matching_pattern_in_image_layers(
         authenticator=authenticator,
@@ -1083,7 +1083,7 @@ def find_file_in_image_layers(
         docker_id=docker_id,
         use_cache=use_cache,
     )
-    
+
     if result:
         file_path, file_content = result
         return file_content
