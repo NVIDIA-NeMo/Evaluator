@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# How to use: copy this file locally into a directory, say `examples`, and run
+# Run this config with `nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct`.
+# For every benchmark to evaluate, it will create a Slurm job with a dedicated
+# deployed model (vLLM, in this case) and the evaluation script.
+
+# Commented out values show an example of how to override the config values from this file.
+
+# You can also override the values in this config from CLI using dot notation.
+# For example, `nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct execution.walltime="1:00:00"`
+# To see the full config, run `nemo-evaluator-launcher run --config-dir examples --config-name slurm_llama_3_1_8b_instruct --dry-run`
+
+defaults:
+  - execution: slurm/default
+  - deployment: vllm
+  - _self_
+
+# set required execution arguments
+execution:
+  hostname: ??? # SLURM headnode (login) hostname (required)
+  username: ${oc.env:USER} # Cluster username; defaults to $USER.
+  account: ??? # SLURM account allocation (required)
+  output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
+
+deployment:
+  checkpoint_path: ??? # Must be an absolute path and accessible by slurm nodes (required)
+  served_model_name: meta-llama/Llama-3.1-8B-Instruct
+  tensor_parallel_size: 1
+  data_parallel_size: 8
+  # extra_args: "--max-model-len 32768"
+
+
+evaluation:
+  tasks:
+    - name: ifeval  # chat benchmark will automatically use v1/chat/completions endpoint
+    - name: gsm8k   # completions benchmark will automatically use v1/completions endpoint

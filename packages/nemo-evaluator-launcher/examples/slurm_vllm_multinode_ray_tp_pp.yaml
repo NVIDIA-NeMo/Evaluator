@@ -55,7 +55,6 @@ execution:
   output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
   num_nodes: 2 # Number of SLURM nodes for multi-node deployment
   walltime: 02:00:00
-  # partition: backfill
   
   deployment:
     n_tasks: ${execution.num_nodes}  # For multi-node ray vLLM deployment, must match num_nodes
@@ -63,11 +62,8 @@ execution:
   env_vars:
     deployment:
       HF_TOKEN: "hf_your_token" # Needed to access deepseek-ai/DeepSeek-R1
-    evaluation: {} # Environment variables for evaluation container
   
   mounts:
-    deployment: {} # Mount points for deployment container (source:target format)
-    evaluation: {} # Mount points for evaluation container (source:target format)
     mount_home: false # Whether to mount home directory (default: true)
 
 # Override default deployment arguments
@@ -105,5 +101,3 @@ evaluation:
 
   tasks:
     - name: gsm8k_cot_instruct # Use the default benchmark configuration
-
-

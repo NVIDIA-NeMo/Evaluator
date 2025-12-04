@@ -57,18 +57,11 @@ execution:
   output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
   num_nodes: 2 # Number of SLURM nodes for multi-node deployment
   walltime: 01:00:00
-  # partition: backfill
   
   deployment:
     n_tasks: ${execution.num_nodes}  # For multi-node vLLM deployment, must match num_nodes
-  
-  env_vars:
-    deployment: {}
-    evaluation: {}
-  
+
   mounts:
-    deployment: {} # Mount points for deployment container (source:target format)
-    evaluation: {} # Mount points for evaluation container (source:target format)
     mount_home: false # Whether to mount home directory (default: true)
 
 # Override default deployment arguments
@@ -86,7 +79,6 @@ deployment:
   command: >-
     bash -c 'DP_RPC_PORT=13345 && if [ "$SLURM_PROCID" -eq 0 ]; then echo "=== Starting vLLM HEAD Node (Rank 0-7) ===" && vllm serve ${deployment.hf_model_handle} --data-parallel-size ${deployment.data_parallel_size} --data-parallel-size-local ${deployment.data_parallel_size_local} --data-parallel-address $MASTER_IP --data-parallel-rpc-port $DP_RPC_PORT --port ${deployment.port} --served-model-name ${deployment.served_model_name} ${deployment.extra_args}; else echo "=== Starting vLLM WORKER Node (Rank 8-15) ===" && vllm serve ${deployment.hf_model_handle} --headless --data-parallel-size ${deployment.data_parallel_size} --data-parallel-size-local ${deployment.data_parallel_size_local} --data-parallel-start-rank ${deployment.data_parallel_size_local} --data-parallel-address $MASTER_IP --data-parallel-rpc-port $DP_RPC_PORT ${deployment.extra_args}; fi'
 
-# Specify the benchmarks to evaluate
 evaluation:
   nemo_evaluator_config: # Global config settings that apply to all tasks
     config:
@@ -105,6 +97,4 @@ evaluation:
           max_logged_requests: 10
 
   tasks:
-    - name: gsm8k_cot_instruct # Use the default benchmark configuration
-
-
+    - name: gsm8k_cot_instruct
