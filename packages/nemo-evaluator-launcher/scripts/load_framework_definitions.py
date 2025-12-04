@@ -117,13 +117,13 @@ def create_authenticator(
         # Credentials are optional - try anonymous access first
         username = os.getenv("DOCKER_USERNAME")
         password = os.getenv("GITLAB_TOKEN")
-        
+
         # If no password from environment, try Docker credentials file
         if not password:
             from nemo_evaluator_launcher.common.partial_pull import (
                 _read_docker_credentials,
             )
-            
+
             docker_creds = _read_docker_credentials(registry_url)
             if docker_creds:
                 docker_username, docker_password = docker_creds
@@ -136,7 +136,7 @@ def create_authenticator(
                     registry_url=registry_url,
                     username=username,
                 )
-        
+
         # If still no credentials provided, try anonymous access (for public registries)
         if not password:
             logger.debug(
@@ -155,13 +155,13 @@ def create_authenticator(
             "DOCKER_USERNAME", "$oauthtoken"
         )
         password = os.getenv("NVCR_PASSWORD") or os.getenv("NVCR_API_KEY")
-        
+
         # If no password from environment, try Docker credentials file
         if not password:
             from nemo_evaluator_launcher.common.partial_pull import (
                 _read_docker_credentials,
             )
-            
+
             docker_creds = _read_docker_credentials(registry_url)
             if docker_creds:
                 docker_username, docker_password = docker_creds
@@ -174,11 +174,11 @@ def create_authenticator(
                     registry_url=registry_url,
                     username=username,
                 )
-        
+
         if not password:
             raise ValueError(
                 "NVCR_PASSWORD, NVCR_API_KEY environment variable, or Docker credentials "
-                f"are required for nvcr.io registry. Check ~/.docker/config.json for credentials."
+                "are required for nvcr.io registry. Check ~/.docker/config.json for credentials."
             )
         return NvcrRegistryAuthenticator(
             registry_url=registry_url,
@@ -654,7 +654,9 @@ Environment Variables:
         os.environ["NEMO_EVALUATOR_LOG_LEVEL"] = "INFO"
         # Reconfigure logging with new level by re-importing and calling configure
         import importlib
+
         from nemo_evaluator_launcher.common import logging_utils
+
         importlib.reload(logging_utils)
         logging_utils._configure_structlog()
 
