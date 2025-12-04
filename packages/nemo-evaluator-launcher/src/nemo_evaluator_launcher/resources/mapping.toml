@@ -387,7 +387,8 @@ container = "nvcr.io/nvidia/eval-factory/tooltalk:25.10"
 
 ###############################################################################
 [tau2_bench]
-container = "gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/tau2-bench:dev-2025-11-25T11-39-d6f96f2a"
+# container = "gitlab-master.nvidia.com/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/tau2-bench:dev-2025-12-01T15-24-89d45b7a"
+container = "/lustre/fs1/portfolios/coreai/projects/coreai_dlalgo_dle/users/agronskiy/images/tau2-bench-dev-2025-12-01T15-24-89d45b7a.sqsh"
 
 [tau2_bench.tasks.chat.tau2_bench_telecom]
 
