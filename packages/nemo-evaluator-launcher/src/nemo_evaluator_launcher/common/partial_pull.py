@@ -20,13 +20,15 @@ without pulling the entire image. It supports searching through layers filtered
 by size and extracting specific files from layer tar archives.
 """
 
+import base64
 import hashlib
 import json
+import os
 import pathlib
 import tarfile
 import tempfile
 from abc import ABC, abstractmethod
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import requests
 
@@ -35,6 +37,111 @@ from nemo_evaluator_launcher.common.logging_utils import logger
 # Cache directory for Docker metadata
 CACHE_DIR = pathlib.Path.home() / ".nemo-evaluator" / "docker-meta"
 MAX_CACHED_DATA = 200  # Maximum number of cache entries
+
+# Docker credentials file location
+DOCKER_CONFIG_PATH = pathlib.Path.home() / ".docker" / "config.json"
+
+
+def _read_docker_credentials(registry_url: str) -> Optional[Tuple[str, str]]:
+    """Read Docker credentials from Docker config file.
+
+    Docker stores credentials in ~/.docker/config.json with format:
+    {
+      "auths": {
+        "registry-url": {
+          "auth": "base64(username:password)"
+        }
+      }
+    }
+
+    Args:
+        registry_url: Registry URL to look up credentials for (e.g., 'nvcr.io', 'gitlab-master.nvidia.com:5005')
+
+    Returns:
+        Tuple of (username, password) if found, None otherwise
+    """
+    if not DOCKER_CONFIG_PATH.exists():
+        logger.debug(
+            "Docker config file not found",
+            config_path=str(DOCKER_CONFIG_PATH),
+        )
+        return None
+
+    try:
+        with open(DOCKER_CONFIG_PATH, "r", encoding="utf-8") as f:
+            config = json.load(f)
+
+        auths = config.get("auths", {})
+        if not auths:
+            logger.debug("No auths section in Docker config file")
+            return None
+
+        # Try exact match first
+        registry_auth = auths.get(registry_url)
+        if not registry_auth:
+            # Try matching by hostname (without port)
+            registry_host = registry_url.split(":")[0]
+            registry_auth = auths.get(registry_host)
+            # Also try with https:// prefix
+            if not registry_auth:
+                registry_auth = auths.get(f"https://{registry_url}")
+            if not registry_auth:
+                registry_auth = auths.get(f"https://{registry_host}")
+
+        if not registry_auth:
+            logger.debug(
+                "No credentials found for registry in Docker config",
+                registry_url=registry_url,
+                available_registries=list(auths.keys()),
+            )
+            return None
+
+        # Decode base64 auth string
+        auth_string = registry_auth.get("auth")
+        if not auth_string:
+            logger.debug(
+                "No auth field in Docker config for registry",
+                registry_url=registry_url,
+            )
+            return None
+
+        try:
+            decoded = base64.b64decode(auth_string).decode("utf-8")
+            if ":" not in decoded:
+                logger.warning(
+                    "Invalid auth format in Docker config (expected username:password)",
+                    registry_url=registry_url,
+                )
+                return None
+            username, password = decoded.split(":", 1)
+            logger.debug(
+                "Found credentials in Docker config",
+                registry_url=registry_url,
+                username=username,
+            )
+            return username, password
+        except Exception as e:
+            logger.warning(
+                "Failed to decode auth from Docker config",
+                registry_url=registry_url,
+                error=str(e),
+            )
+            return None
+
+    except json.JSONDecodeError as e:
+        logger.warning(
+            "Failed to parse Docker config file",
+            config_path=str(DOCKER_CONFIG_PATH),
+            error=str(e),
+        )
+        return None
+    except Exception as e:
+        logger.warning(
+            "Error reading Docker config file",
+            config_path=str(DOCKER_CONFIG_PATH),
+            error=str(e),
+        )
+        return None
 
 
 def _ensure_cache_dir() -> pathlib.Path:
@@ -285,16 +392,16 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
     def __init__(
         self,
         registry_url: str,
-        username: str,
-        password: str,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
         repository: Optional[str] = None,
     ):
         """Initialize the authenticator.
 
         Args:
             registry_url: The registry URL (e.g., 'gitlab-master.nvidia.com:5005')
-            username: Registry username
-            password: Registry password or token
+            username: Registry username (optional, for authenticated access)
+            password: Registry password or token (optional, for authenticated access)
             repository: Optional repository name for JWT scope. If not provided,
                 a default scope will be used. The repository should be in the format
                 'namespace/project' (e.g., 'agronskiy/idea/poc-for-partial-pull').
@@ -309,15 +416,80 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
     def authenticate(self, repository: Optional[str] = None) -> bool:
         """Authenticate with GitLab registry using Bearer Token flow.
 
+        First attempts anonymous access (for public registries), then falls back to
+        JWT authentication if credentials are available and anonymous access fails.
+
         Args:
             repository: Optional repository name for JWT scope. If provided, overrides
                 the repository set during initialization. The repository should be in
                 the format 'namespace/project' (e.g., 'agronskiy/idea/poc-for-partial-pull').
 
         Returns:
-            True if authentication successful, False otherwise
+            True if authentication successful (anonymous or authenticated), False otherwise
         """
         try:
+            logger.debug(
+                "Authenticating with GitLab registry",
+                registry_url=self.registry_url,
+                repository=repository or self.repository,
+                has_credentials=bool(self.username and self.password),
+            )
+
+            # Step 1: Try anonymous access first (for public registries)
+            # Docker Registry API v2: check if /v2/ endpoint is accessible without auth
+            v2_url = f"https://{self.registry_url}/v2/"
+            logger.debug("Checking for public registry access", url=v2_url)
+
+            response = self.session.get(v2_url)
+
+            # If we get 200, registry is public - no authentication needed
+            if response.status_code == 200:
+                logger.debug("Registry is public, no authentication needed")
+                # Set Accept header for Docker Registry API v2
+                self.session.headers.update(
+                    {
+                        "Accept": "application/vnd.docker.distribution.manifest.v2+json",
+                    }
+                )
+                return True
+
+            # If we get 401, registry requires authentication
+            if response.status_code != 401:
+                logger.error(
+                    "Unexpected response from registry",
+                    status_code=response.status_code,
+                    response_preview=response.text[:200],
+                )
+                # If we don't have credentials, try to proceed anyway
+                # (some registries allow anonymous access to manifests even if /v2/ requires auth)
+                if not (self.username and self.password):
+                    logger.debug(
+                        "No credentials available, attempting to proceed without authentication"
+                    )
+                    self.session.headers.update(
+                        {
+                            "Accept": "application/vnd.docker.distribution.manifest.v2+json",
+                        }
+                    )
+                    return True
+                return False
+
+            # Step 2: Registry requires authentication - check if credentials are available
+            if not (self.username and self.password):
+                logger.debug(
+                    "Registry requires authentication but no credentials provided, "
+                    "attempting to proceed without authentication (may work for public repos)"
+                )
+                # Try to proceed anyway - some GitLab registries allow anonymous access
+                # to manifests/blobs even if /v2/ endpoint requires auth
+                self.session.headers.update(
+                    {
+                        "Accept": "application/vnd.docker.distribution.manifest.v2+json",
+                    }
+                )
+                return True
+
+            # Step 3: Use credentials for JWT authentication
             # Use provided repository or fall back to instance repository or default
             repo_for_scope = (
                 repository
@@ -325,15 +497,8 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
                 or f"{self.username}/idea/poc-for-partial-pull"
             )
 
-            logger.debug(
-                "Authenticating with GitLab registry",
-                registry_url=self.registry_url,
-                repository=repo_for_scope,
-            )
-
             # GitLab-specific authentication flow
-            # Step 1: Get Bearer Token from GitLab JWT endpoint
-            # The JWT endpoint requires the repository scope
+            # Get Bearer Token from GitLab JWT endpoint
             # Extract hostname from registry URL (remove port if present)
             gitlab_host = self.registry_url.split(":")[0]
             jwt_url = f"https://{gitlab_host}/jwt/auth?service=container_registry&scope=repository:{repo_for_scope}:pull"
@@ -378,6 +543,17 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
 
         except Exception as e:
             logger.error("Authentication error", error=str(e), exc_info=True)
+            # On error, try to proceed without authentication (may work for public repos)
+            if not (self.username and self.password):
+                logger.debug(
+                    "Authentication error but no credentials, attempting to proceed without authentication"
+                )
+                self.session.headers.update(
+                    {
+                        "Accept": "application/vnd.docker.distribution.manifest.v2+json",
+                    }
+                )
+                return True
             return False
 
     def get_manifest(self, repository: str, reference: str) -> Optional[Dict]:
@@ -834,7 +1010,16 @@ def find_file_in_image_layers(
     use_cache: bool = True,
     check_invalidated_digest: bool = False,  # Deprecated - always checks digest now
 ) -> Optional[str]:
-    """Find a file in Docker image layers without pulling the entire image.
+    """DEPRECATED: Use find_file_matching_pattern_in_image_layers() instead.
+    
+    This function is deprecated and will be removed in a future version.
+    Use find_file_matching_pattern_in_image_layers() for pattern-based search
+    which handles both exact paths and subdirectories.
+    
+    Find a file in Docker image layers without pulling the entire image.
+    
+    .. deprecated:: 4.2.0
+        Use :func:`find_file_matching_pattern_in_image_layers` instead.
 
     This function searches through image layers (optionally filtered by size)
     to find a specific file. Layers are checked in reverse order (last to first)
@@ -866,145 +1051,42 @@ def find_file_in_image_layers(
     Raises:
         ValueError: If authentication fails or manifest cannot be retrieved
     """
-    # Always authenticate and fetch manifest first to get current digest
-    # This is required for digest validation in cache
-    if not getattr(authenticator, "bearer_token", None):
-        if not authenticator.authenticate(repository=repository):
-            raise ValueError(f"Failed to authenticate for {repository}:{reference}")
-
-    # Get manifest (required for digest validation)
-    manifest = authenticator.get_manifest(repository, reference)
-    if not manifest:
-        raise ValueError(f"Failed to get manifest for {repository}:{reference}")
-
-    # Compute manifest digest for cache validation
-    # Docker Registry API v2 uses SHA256 of canonical JSON
-    manifest_json = json.dumps(manifest, sort_keys=True, separators=(",", ":"))
-    manifest_digest = (
-        f"sha256:{hashlib.sha256(manifest_json.encode('utf-8')).hexdigest()}"
+    import warnings
+    warnings.warn(
+        "find_file_in_image_layers() is deprecated. "
+        "Use find_file_matching_pattern_in_image_layers() instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
-
-    # Check cache with digest validation (always validates digest)
-    if docker_id and use_cache:
-        logger.debug(
-            "Checking cache",
-            docker_id=docker_id,
-            target_file=target_file,
-            current_digest=manifest_digest,
-        )
-        cached_result, stored_digest = read_from_cache(
-            docker_id, target_file, check_digest=manifest_digest
-        )
-        if cached_result is not None:
-            logger.info(
-                "Using cached metadata (digest validated)",
-                docker_id=docker_id,
-                target_file=target_file,
-                digest=manifest_digest,
-            )
-            return cached_result
-        elif stored_digest is not None:
-            # Digest mismatch - cache invalidated, need to re-search
-            logger.info(
-                "Cache invalidated (digest changed), re-searching",
-                docker_id=docker_id,
-                target_file=target_file,
-                stored_digest=stored_digest,
-                current_digest=manifest_digest,
-            )
-        else:
-            logger.debug(
-                "Cache miss - no cached entry found",
-                docker_id=docker_id,
-                target_file=target_file,
-            )
-
-    # Get layers from manifest
-    layers = manifest.get("layers", [])
-    logger.info(
-        "Searching for file in image layers",
+    
+    # Convert exact file path to pattern-based search
+    # Extract directory prefix and filename
+    import os
+    target_path = os.path.normpath(target_file).lstrip("/")
+    path_parts = target_path.split("/")
+    if len(path_parts) < 2:
+        # Single filename, use root as prefix
+        prefix = "/"
+        filename = path_parts[0] if path_parts else target_file.lstrip("/")
+    else:
+        filename = path_parts[-1]
+        prefix = "/" + "/".join(path_parts[:-1])
+    
+    # Use pattern-based search instead
+    result = find_file_matching_pattern_in_image_layers(
+        authenticator=authenticator,
         repository=repository,
         reference=reference,
-        target_file=target_file,
-        total_layers=len(layers),
+        prefix=prefix,
+        filename=filename,
         max_layer_size=max_layer_size,
+        docker_id=docker_id,
+        use_cache=use_cache,
     )
-
-    # Initialize layer inspector
-    inspector = LayerInspector()
-
-    # Check each layer for the target file (in reverse order)
-    # Reverse order ensures we get the most recent version of the file
-    for i, layer in enumerate(reversed(layers)):
-        original_index = len(layers) - 1 - i
-        layer_digest = layer.get("digest")
-        layer_size = layer.get("size", 0)
-
-        if not layer_digest:
-            logger.warning(
-                "Layer has no digest, skipping",
-                layer_index=original_index,
-            )
-            continue
-
-        # Filter by size if max_layer_size is specified
-        if max_layer_size is not None and layer_size >= max_layer_size:
-            logger.debug(
-                "Skipping layer (too large)",
-                layer_index=original_index,
-                layer_size=layer_size,
-                max_layer_size=max_layer_size,
-            )
-            continue
-
-        logger.debug(
-            "Checking layer",
-            layer_index=original_index,
-            reverse_index=i,
-            digest_preview=layer_digest[:20],
-            size=layer_size,
-            media_type=layer.get("mediaType", "unknown"),
-        )
-
-        # Download the layer
-        layer_content = authenticator.get_blob(repository, layer_digest)
-        if not layer_content:
-            logger.warning(
-                "Failed to download layer",
-                layer_index=original_index,
-                digest_preview=layer_digest[:20],
-            )
-            continue
-
-        # Extract the target file from this layer
-        file_content = inspector.extract_file_from_layer(layer_content, target_file)
-        if file_content:
-            logger.info(
-                "Found file in layer",
-                target_file=target_file,
-                layer_index=original_index,
-                digest_preview=layer_digest[:20],
-            )
-            # Cache the result if docker_id is provided and caching is enabled
-            # Always store digest for validation on subsequent reads
-            if docker_id and use_cache:
-                write_to_cache(
-                    docker_id, target_file, file_content, digest=manifest_digest
-                )
-            return file_content
-        else:
-            logger.debug(
-                "File not found in layer",
-                target_file=target_file,
-                layer_index=original_index,
-            )
-
-    logger.warning(
-        "File not found in any layer",
-        target_file=target_file,
-        repository=repository,
-        reference=reference,
-    )
+    
+    if result:
+        file_path, file_content = result
+        return file_content
     return None
 
 

@@ -25,7 +25,7 @@ from nemo_evaluator_launcher.common.partial_pull import (
     GitlabRegistryAuthenticator,
     NvcrRegistryAuthenticator,
     RegistryAuthenticator,
-    find_file_in_image_layers,
+    find_file_matching_pattern_in_image_layers,
     read_from_cache,
 )
 
@@ -82,16 +82,29 @@ def create_authenticator(
         Authenticated registry authenticator instance
     """
     if registry_type == "gitlab":
+        # Credentials are optional - try anonymous access first
         username = os.getenv("DOCKER_USERNAME")
         password = os.getenv("GITLAB_TOKEN")
+        
+        # If no password from environment, try Docker credentials file
+        if not password:
+            from nemo_evaluator_launcher.common.partial_pull import (
+                _read_docker_credentials,
+            )
+            
+            docker_creds = _read_docker_credentials(registry_url)
+            if docker_creds:
+                docker_username, docker_password = docker_creds
+                if not username:
+                    username = docker_username
+                password = docker_password
+                print(f"✓ Using credentials from Docker config file (~/.docker/config.json)")
+        
         if not username or not password:
             print(
-                "❌ Please set DOCKER_USERNAME and GITLAB_TOKEN environment variables"
+                "ℹ No DOCKER_USERNAME/GITLAB_TOKEN or Docker credentials found, attempting anonymous access"
             )
-            print("Example:")
-            print("  export DOCKER_USERNAME='gitlab-ci-token'")
-            print("  export GITLAB_TOKEN='your_gitlab_token'")
-            sys.exit(1)
+            print("  (This works for public GitLab registries)")
         return GitlabRegistryAuthenticator(
             registry_url=registry_url,
             username=username,
@@ -101,10 +114,26 @@ def create_authenticator(
     elif registry_type == "nvcr":
         username = os.getenv("NVCR_USERNAME") or os.getenv("DOCKER_USERNAME")
         password = os.getenv("NVCR_PASSWORD") or os.getenv("NVCR_API_KEY")
+        
+        # If no password from environment, try Docker credentials file
+        if not password:
+            from nemo_evaluator_launcher.common.partial_pull import (
+                _read_docker_credentials,
+            )
+            
+            docker_creds = _read_docker_credentials(registry_url)
+            if docker_creds:
+                docker_username, docker_password = docker_creds
+                if not username or username == "$oauthtoken":
+                    username = docker_username
+                password = docker_password
+                print(f"✓ Using credentials from Docker config file (~/.docker/config.json)")
+        
         if not username or not password:
             print(
                 "❌ Please set NVCR_USERNAME and NVCR_PASSWORD (or NVCR_API_KEY) environment variables"
             )
+            print("  or configure credentials in ~/.docker/config.json")
             print("Example:")
             print("  export NVCR_USERNAME='$oauthtoken'")
             print("  export NVCR_API_KEY='your_nvcr_api_key'")
@@ -236,6 +265,20 @@ Note: Results are cached in ~/.nemo-evaluator/docker-meta/ by default.
     max_layer_size = args.max_layer_size
     use_cache = not args.no_cache
 
+    # Parse target file path to extract prefix and filename for pattern-based search
+    # e.g., /opt/metadata/framework.yml -> prefix=/opt/metadata, filename=framework.yml
+    import os
+    target_path = os.path.normpath(target_file).lstrip("/")
+    path_parts = target_path.split("/")
+    if len(path_parts) < 2:
+        print(f"❌ Invalid target file path: {target_file}")
+        print("  Expected format: /path/to/directory/filename.ext")
+        sys.exit(1)
+    
+    filename = path_parts[-1]
+    prefix = "/" + "/".join(path_parts[:-1])
+    pattern_key = f"{prefix.rstrip('/')}/{filename}"  # For cache key
+
     # Construct docker_id for caching (format: registry/repository:tag)
     docker_id = f"{registry_url}/{repository}:{tag}"
 
@@ -246,9 +289,8 @@ Note: Results are cached in ~/.nemo-evaluator/docker-meta/ by default.
     print(f"  Tag: {tag}")
     print(f"  Docker ID: {docker_id}")
     print(f"  Target file: {target_file}")
+    print(f"  Search pattern: prefix={prefix}, filename={filename}")
     print(f"  Cache: {'enabled' if use_cache else 'disabled'}")
-    if use_cache:
-        print(f"  Check invalidated digest: {args.check_invalidated_digest}")
     print(
         f"  Max layer size: {max_layer_size} bytes ({max_layer_size / (1024 * 1024):.2f} MB)"
     )
@@ -256,7 +298,7 @@ Note: Results are cached in ~/.nemo-evaluator/docker-meta/ by default.
 
     # Fast path: Check cache first if not validating digest
     if docker_id and use_cache and not args.check_invalidated_digest:
-        cached_result, stored_digest = read_from_cache(docker_id, target_file)
+        cached_result, stored_digest = read_from_cache(docker_id, pattern_key)
         if cached_result is not None:
             print(f"✅ Found {target_file} in cache!")
             print("📄 File content:")
@@ -284,22 +326,25 @@ Note: Results are cached in ~/.nemo-evaluator/docker-meta/ by default.
     print("✅ Authentication successful")
     print()
 
-    # Find the file in image layers
-    print(f"🔍 Searching for {target_file} in image layers...")
+    # Find the file in image layers using pattern-based search
+    print(f"🔍 Searching for {target_file} using pattern-based search...")
     try:
-        file_content = find_file_in_image_layers(
+        result = find_file_matching_pattern_in_image_layers(
             authenticator=auth,
             repository=repository,
             reference=tag,
-            target_file=target_file,
+            prefix=prefix,
+            filename=filename,
             max_layer_size=max_layer_size,
             docker_id=docker_id,
             use_cache=use_cache,
-            check_invalidated_digest=args.check_invalidated_digest,
         )
 
-        if file_content:
+        if result:
+            file_path, file_content = result
             print(f"✅ Found {target_file}!")
+            if file_path != target_file:
+                print(f"  (Found at: {file_path})")
             print("📄 File content:")
             print(file_content)
             print()
@@ -313,7 +358,7 @@ Note: Results are cached in ~/.nemo-evaluator/docker-meta/ by default.
                 # Not JSON, might be YAML or plain text
                 print("📋 File content (not JSON)")
         else:
-            print(f"❌ File {target_file} not found in any layer")
+            print(f"❌ File matching pattern {prefix}/*/{filename} not found in any layer")
             sys.exit(1)
 
     except ValueError as e:
