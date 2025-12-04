@@ -175,13 +175,16 @@ class Cmd:
 
                 # Use the larger of the two widths
                 table_width = max(max_task_width, header_content_width)
-                
+
                 # Limit separator width to prevent overflow on small terminals
                 # Use terminal width if available, otherwise cap at 120 characters
                 import shutil
+
                 try:
                     terminal_width = shutil.get_terminal_size().columns
-                    separator_width = min(table_width, terminal_width - 2)  # -2 for safety margin
+                    separator_width = min(
+                        table_width, terminal_width - 2
+                    )  # -2 for safety margin
                 except Exception:
                     # Fallback if terminal size can't be determined
                     separator_width = min(table_width, 120)

@@ -26,7 +26,6 @@ from nemo_evaluator_launcher.common.mapping import load_tasks_mapping
 from nemo_evaluator_launcher.common.printing_utils import (
     bold,
     cyan,
-    grey,
     magenta,
     yellow,
 )
@@ -88,11 +87,7 @@ class Cmd:
             # Verify all tasks are from the specified container (safeguard)
             expected_container = self.from_container
             original_count = len(tasks)
-            tasks = [
-                task
-                for task in tasks
-                if task.container == expected_container
-            ]
+            tasks = [task for task in tasks if task.container == expected_container]
             if len(tasks) != original_count:
                 logger.warning(
                     "Filtered out tasks from different containers",
@@ -128,8 +123,16 @@ class Cmd:
 
             # Display warning if mapping is not verified
             if not mapping_verified:
-                print(yellow("⚠ Warning: Tasks are from unverified mapping (mapping.toml checksum mismatch)"))
-                print(yellow("  Consider regenerating all_tasks_irs.yaml if mapping.toml has changed"))
+                print(
+                    yellow(
+                        "⚠ Warning: Tasks are from unverified mapping (mapping.toml checksum mismatch)"
+                    )
+                )
+                print(
+                    yellow(
+                        "  Consider regenerating all_tasks_irs.yaml if mapping.toml has changed"
+                    )
+                )
                 print()
 
             # Override containers from mapping.toml (which has the latest containers)
@@ -146,7 +149,9 @@ class Cmd:
                         # Normalize harness name for lookup (frameworks.yaml uses hyphens)
                         normalized_harness = harness.replace("_", "-").lower()
                         normalized_task = task_name.lower()
-                        container_lookup[(normalized_harness, normalized_task)] = container
+                        container_lookup[(normalized_harness, normalized_task)] = (
+                            container
+                        )
 
                 # Update task containers from mapping.toml
                 for task in tasks:
@@ -226,20 +231,22 @@ class Cmd:
 
             # Task name - bold and magenta key, cyan value (matching logging utils)
             print(f"{bold(magenta('Task:'))} {bold(cyan(str(task.name)))}")
-            
+
             # Description - magenta key, cyan value
             if task.description:
                 print(f"{magenta('Description:')} {cyan(str(task.description))}")
-            
+
             # Harness - magenta key, cyan value
             print(f"{magenta('Harness:')} {cyan(str(task.harness))}")
-            
+
             # Container - magenta key, cyan value
             print(f"{magenta('Container:')} {cyan(str(task.container))}")
-            
+
             # Container Digest - magenta key, cyan value
             if task.container_digest:
-                print(f"{magenta('Container Digest:')} {cyan(str(task.container_digest))}")
+                print(
+                    f"{magenta('Container Digest:')} {cyan(str(task.container_digest))}"
+                )
 
             # Print defaults as YAML
             if task.defaults:
@@ -273,16 +280,13 @@ class Cmd:
         """
         # Import framework extraction functions from load_framework_definitions.py script
         # Note: These functions are in a script, so we need to import them directly
-        import sys
         import pathlib
+        import sys
 
         # Add scripts directory to path temporarily
         # Path: cli -> nemo_evaluator_launcher -> src -> nemo-evaluator-launcher -> packages
         # Then go to nemo-evaluator-launcher/scripts
-        scripts_dir = (
-            pathlib.Path(__file__).parent.parent.parent.parent
-            / "scripts"
-        )
+        scripts_dir = pathlib.Path(__file__).parent.parent.parent.parent / "scripts"
         if str(scripts_dir) not in sys.path:
             sys.path.insert(0, str(scripts_dir))
 
@@ -291,6 +295,7 @@ class Cmd:
                 extract_framework_yml,
                 parse_framework_to_irs,
             )
+
             from nemo_evaluator_launcher.common.task_ir import (
                 _extract_harness_from_container,
             )
