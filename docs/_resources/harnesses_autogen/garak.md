@@ -24,13 +24,15 @@ garak
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/garak:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/garak:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bf0eae3c50328f85a67f921bdf7f935aa3e8d045eaaa2c7c190c851b1d80252e
+sha256:eaf083b45b1114b22577b2f9606c5717d05bd2e31d50bb5fdea6b350ddb6e2c7
 ```
+
+**Task Type:** `garak`
 
 **Command:**
 ```bash
@@ -64,23 +66,24 @@ garak --config garak_config.yaml --report_prefix=results
 
 **Defaults:**
 ```yaml
+framework_name: garak
+pkg_name: garak
 config:
-  supported_endpoint_types:
-  - chat
-  - completions
   params:
     max_new_tokens: 150
+    parallelism: 32
+    task: garak
     temperature: 0.1
     top_p: 0.7
-    parallelism: 32
     extra:
       probes: null
       seed: null
-    task: garak
+  supported_endpoint_types:
+  - chat
+  - completions
   type: garak
 target:
   api_endpoint: {}
-
 ```
 
 </details>

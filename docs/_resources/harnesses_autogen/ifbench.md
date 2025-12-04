@@ -24,13 +24,15 @@ ifbench
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/ifbench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/ifbench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:38bb1ab96c495591b3cebbcf9bb87251a1a1a46abe36b2e067a8217d973fe6c5
+sha256:802dd90d4380a8a1e8d8723d04f3c299fbce3a0fbdf6c58f4b558db2d937e187
 ```
+
+**Task Type:** `ifbench`
 
 **Command:**
 ```bash
@@ -39,22 +41,23 @@ sha256:38bb1ab96c495591b3cebbcf9bb87251a1a1a46abe36b2e067a8217d973fe6c5
 
 **Defaults:**
 ```yaml
+framework_name: ifbench
+pkg_name: ifbench
 config:
-  supported_endpoint_types:
-  - chat
   params:
-    limit_samples: null
     max_new_tokens: 4096
+    max_retries: 5
+    parallelism: 8
+    task: ifbench
     temperature: 0.01
     top_p: 0.95
-    parallelism: 8
-    max_retries: 5
-    task: ifbench
+    extra: {}
+  supported_endpoint_types:
+  - chat
   type: ifbench
 target:
   api_endpoint:
     stream: false
-
 ```
 
 </details>

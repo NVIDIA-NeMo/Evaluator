@@ -8,7 +8,7 @@ This page contains all evaluation tasks for the **livecodebench** harness.
 
 * - Task
   - Description
-* - [AA_code_generation](#livecodebench-aa-code-generation)
+* - [AA_codegeneration](#livecodebench-aa-codegeneration)
   - AA code generation evaluating code comprehension ability. The model is given a program and an input, and the output should be the result.
 * - [codeexecution_v2](#livecodebench-codeexecution-v2)
   - “Execute” a program on an input, evaluating code comprehension ability. The model is given a program and an input, and the output should be the result.
@@ -38,8 +38,8 @@ This page contains all evaluation tasks for the **livecodebench** harness.
   - Solve the natural language task on a specified input, evaluating the ability to generate testing outputs. The model is given the natural language problem description and an input, and the output should be the output for the problem.
 ```
 
-(livecodebench-aa-code-generation)=
-## AA_code_generation
+(livecodebench-aa-codegeneration)=
+## AA_codegeneration
 
 AA code generation evaluating code comprehension ability. The model is given a program and an input, and the output should be the result.
 
@@ -50,13 +50,15 @@ AA code generation evaluating code comprehension ability. The model is given a p
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
+sha256:28e45572e61737e7b167cc9dc78d6110dd9364f8cae2ed2daecf559dec10b307
 ```
+
+**Task Type:** `AA_codegeneration`
 
 **Command:**
 ```bash
@@ -84,15 +86,17 @@ sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
 
 **Defaults:**
 ```yaml
+framework_name: livecodebench
+pkg_name: livecodebench
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0.0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: codegeneration
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       n_samples: 3
       num_process_evaluate: 5
@@ -102,13 +106,11 @@ config:
       end_date: 2025-01-01
       cot_code_execution: false
       release_version: release_v5
-    task: codegeneration
-  type: AA_codegeneration
   supported_endpoint_types:
   - chat
+  type: AA_codegeneration
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -126,13 +128,15 @@ target:
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
+sha256:28e45572e61737e7b167cc9dc78d6110dd9364f8cae2ed2daecf559dec10b307
 ```
+
+**Task Type:** `codeexecution_v2`
 
 **Command:**
 ```bash
@@ -160,15 +164,17 @@ sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
 
 **Defaults:**
 ```yaml
+framework_name: livecodebench
+pkg_name: livecodebench
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0.0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: codeexecution
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       n_samples: 10
       num_process_evaluate: 5
@@ -178,13 +184,11 @@ config:
       end_date: null
       cot_code_execution: false
       release_version: release_v2
-    task: codeexecution
-  type: codeexecution_v2
   supported_endpoint_types:
   - chat
+  type: codeexecution_v2
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -202,13 +206,15 @@ target:
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
+sha256:28e45572e61737e7b167cc9dc78d6110dd9364f8cae2ed2daecf559dec10b307
 ```
+
+**Task Type:** `codeexecution_v2_cot`
 
 **Command:**
 ```bash
@@ -236,15 +242,17 @@ sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
 
 **Defaults:**
 ```yaml
+framework_name: livecodebench
+pkg_name: livecodebench
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0.0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: codeexecution
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       n_samples: 10
       num_process_evaluate: 5
@@ -254,13 +262,11 @@ config:
       end_date: null
       cot_code_execution: true
       release_version: release_v2
-    task: codeexecution
-  type: codeexecution_v2_cot
   supported_endpoint_types:
   - chat
+  type: codeexecution_v2_cot
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -278,13 +284,15 @@ Not fast version of code generation (v2).
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
+sha256:28e45572e61737e7b167cc9dc78d6110dd9364f8cae2ed2daecf559dec10b307
 ```
+
+**Task Type:** `codegeneration_notfast`
 
 **Command:**
 ```bash
@@ -312,15 +320,17 @@ sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
 
 **Defaults:**
 ```yaml
+framework_name: livecodebench
+pkg_name: livecodebench
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0.0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: codegeneration
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       n_samples: 10
       num_process_evaluate: 5
@@ -330,13 +340,11 @@ config:
       end_date: null
       cot_code_execution: false
       args: --not_fast
-    task: codegeneration
-  type: codegeneration_notfast
   supported_endpoint_types:
   - chat
+  type: codegeneration_notfast
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -354,13 +362,15 @@ Code generation latest version
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
+sha256:28e45572e61737e7b167cc9dc78d6110dd9364f8cae2ed2daecf559dec10b307
 ```
+
+**Task Type:** `codegeneration_release_latest`
 
 **Command:**
 ```bash
@@ -388,15 +398,17 @@ sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
 
 **Defaults:**
 ```yaml
+framework_name: livecodebench
+pkg_name: livecodebench
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0.0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: codegeneration
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       n_samples: 10
       num_process_evaluate: 5
@@ -406,13 +418,11 @@ config:
       end_date: null
       cot_code_execution: false
       release_version: release_latest
-    task: codegeneration
-  type: codegeneration_release_latest
   supported_endpoint_types:
   - chat
+  type: codegeneration_release_latest
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -430,13 +440,15 @@ The initial release of the dataset with problems released between May 2023 and M
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
+sha256:28e45572e61737e7b167cc9dc78d6110dd9364f8cae2ed2daecf559dec10b307
 ```
+
+**Task Type:** `codegeneration_release_v1`
 
 **Command:**
 ```bash
@@ -464,15 +476,17 @@ sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
 
 **Defaults:**
 ```yaml
+framework_name: livecodebench
+pkg_name: livecodebench
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0.0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: codegeneration
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       n_samples: 10
       num_process_evaluate: 5
@@ -482,13 +496,11 @@ config:
       end_date: null
       cot_code_execution: false
       release_version: release_v1
-    task: codegeneration
-  type: codegeneration_release_v1
   supported_endpoint_types:
   - chat
+  type: codegeneration_release_v1
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -506,13 +518,15 @@ The updated release of the dataset with problems released between May 2023 and M
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
+sha256:28e45572e61737e7b167cc9dc78d6110dd9364f8cae2ed2daecf559dec10b307
 ```
+
+**Task Type:** `codegeneration_release_v2`
 
 **Command:**
 ```bash
@@ -540,15 +554,17 @@ sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
 
 **Defaults:**
 ```yaml
+framework_name: livecodebench
+pkg_name: livecodebench
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0.0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: codegeneration
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       n_samples: 10
       num_process_evaluate: 5
@@ -558,13 +574,11 @@ config:
       end_date: null
       cot_code_execution: false
       release_version: release_v2
-    task: codegeneration
-  type: codegeneration_release_v2
   supported_endpoint_types:
   - chat
+  type: codegeneration_release_v2
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -582,13 +596,15 @@ The updated release of the dataset with problems released between May 2023 and J
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
+sha256:28e45572e61737e7b167cc9dc78d6110dd9364f8cae2ed2daecf559dec10b307
 ```
+
+**Task Type:** `codegeneration_release_v3`
 
 **Command:**
 ```bash
@@ -616,15 +632,17 @@ sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
 
 **Defaults:**
 ```yaml
+framework_name: livecodebench
+pkg_name: livecodebench
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0.0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: codegeneration
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       n_samples: 10
       num_process_evaluate: 5
@@ -634,13 +652,11 @@ config:
       end_date: null
       cot_code_execution: false
       release_version: release_v3
-    task: codegeneration
-  type: codegeneration_release_v3
   supported_endpoint_types:
   - chat
+  type: codegeneration_release_v3
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -658,13 +674,15 @@ The updated release of the dataset with problems released between May 2023 and S
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
+sha256:28e45572e61737e7b167cc9dc78d6110dd9364f8cae2ed2daecf559dec10b307
 ```
+
+**Task Type:** `codegeneration_release_v4`
 
 **Command:**
 ```bash
@@ -692,15 +710,17 @@ sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
 
 **Defaults:**
 ```yaml
+framework_name: livecodebench
+pkg_name: livecodebench
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0.0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: codegeneration
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       n_samples: 10
       num_process_evaluate: 5
@@ -710,13 +730,11 @@ config:
       end_date: null
       cot_code_execution: false
       release_version: release_v4
-    task: codegeneration
-  type: codegeneration_release_v4
   supported_endpoint_types:
   - chat
+  type: codegeneration_release_v4
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -734,13 +752,15 @@ The updated release of the dataset with problems released between May 2023 and J
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
+sha256:28e45572e61737e7b167cc9dc78d6110dd9364f8cae2ed2daecf559dec10b307
 ```
+
+**Task Type:** `codegeneration_release_v5`
 
 **Command:**
 ```bash
@@ -768,15 +788,17 @@ sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
 
 **Defaults:**
 ```yaml
+framework_name: livecodebench
+pkg_name: livecodebench
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0.0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: codegeneration
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       n_samples: 10
       num_process_evaluate: 5
@@ -786,13 +808,11 @@ config:
       end_date: null
       cot_code_execution: false
       release_version: release_v5
-    task: codegeneration
-  type: codegeneration_release_v5
   supported_endpoint_types:
   - chat
+  type: codegeneration_release_v5
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -810,13 +830,15 @@ The updated release of the dataset with problems released between May 2023 and A
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
+sha256:28e45572e61737e7b167cc9dc78d6110dd9364f8cae2ed2daecf559dec10b307
 ```
+
+**Task Type:** `codegeneration_release_v6`
 
 **Command:**
 ```bash
@@ -844,15 +866,17 @@ sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
 
 **Defaults:**
 ```yaml
+framework_name: livecodebench
+pkg_name: livecodebench
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0.0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: codegeneration
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       n_samples: 10
       num_process_evaluate: 5
@@ -862,13 +886,11 @@ config:
       end_date: null
       cot_code_execution: false
       release_version: release_v6
-    task: codegeneration
-  type: codegeneration_release_v6
   supported_endpoint_types:
   - chat
+  type: codegeneration_release_v6
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -886,13 +908,15 @@ target:
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
+sha256:28e45572e61737e7b167cc9dc78d6110dd9364f8cae2ed2daecf559dec10b307
 ```
+
+**Task Type:** `livecodebench_0724_0125`
 
 **Command:**
 ```bash
@@ -920,15 +944,17 @@ sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
 
 **Defaults:**
 ```yaml
+framework_name: livecodebench
+pkg_name: livecodebench
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0.0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: codegeneration
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       n_samples: 3
       num_process_evaluate: 5
@@ -938,13 +964,11 @@ config:
       end_date: 2025-01-01
       cot_code_execution: false
       release_version: release_v5
-    task: codegeneration
-  type: livecodebench_0724_0125
   supported_endpoint_types:
   - chat
+  type: livecodebench_0724_0125
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -962,13 +986,15 @@ target:
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
+sha256:28e45572e61737e7b167cc9dc78d6110dd9364f8cae2ed2daecf559dec10b307
 ```
+
+**Task Type:** `livecodebench_0824_0225`
 
 **Command:**
 ```bash
@@ -996,15 +1022,17 @@ sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
 
 **Defaults:**
 ```yaml
+framework_name: livecodebench
+pkg_name: livecodebench
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0.0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: codegeneration
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       n_samples: 3
       num_process_evaluate: 5
@@ -1014,13 +1042,11 @@ config:
       end_date: 2025-02-01
       cot_code_execution: false
       release_version: release_v5
-    task: codegeneration
-  type: livecodebench_0824_0225
   supported_endpoint_types:
   - chat
+  type: livecodebench_0824_0225
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -1038,13 +1064,15 @@ Solve the natural language task on a specified input, evaluating the ability to 
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/livecodebench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
+sha256:28e45572e61737e7b167cc9dc78d6110dd9364f8cae2ed2daecf559dec10b307
 ```
+
+**Task Type:** `testoutputprediction`
 
 **Command:**
 ```bash
@@ -1072,15 +1100,17 @@ sha256:98a3aa0b4b09052e54f9ba4c689b75aab501230e4b3c9700ae244a457e960817
 
 **Defaults:**
 ```yaml
+framework_name: livecodebench
+pkg_name: livecodebench
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0.0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: testoutputprediction
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       n_samples: 10
       num_process_evaluate: 5
@@ -1090,13 +1120,11 @@ config:
       end_date: null
       cot_code_execution: false
       release_version: release_latest
-    task: testoutputprediction
-  type: testoutputprediction
   supported_endpoint_types:
   - chat
+  type: testoutputprediction
 target:
   api_endpoint: {}
-
 ```
 
 </details>

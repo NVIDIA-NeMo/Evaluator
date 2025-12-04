@@ -16,6 +16,8 @@ This page contains all evaluation tasks for the **simple-evals** harness.
   - AIME 2024 questions, math
 * - [AIME_2025](#simple-evals-aime-2025)
   - AIME 2025 questions, math
+* - [AIME_2025_aa_v2](#simple-evals-aime-2025-aa-v2)
+  - AIME 2025 questions, math - params aligned with Artificial Analysis Index v2
 * - [aime_2024_nemo](#simple-evals-aime-2024-nemo)
   - AIME 2024 questions, math, using NeMo's alignment template
 * - [aime_2025_nemo](#simple-evals-aime-2025-nemo)
@@ -50,6 +52,8 @@ This page contains all evaluation tasks for the **simple-evals** harness.
   - math_test_500 questions, math, using NeMo's alignment template
 * - [mgsm](#simple-evals-mgsm)
   - MGSM is a benchmark of grade-school math problems. The same 250 problems from GSM8K are each translated via human annotators in 10 languages.
+* - [mgsm_aa_v2](#simple-evals-mgsm-aa-v2)
+  - MGSM is a benchmark of grade-school math problems - params aligned with Artificial Analysis Index v2
 * - [mmlu](#simple-evals-mmlu)
   - MMLU 0-shot CoT
 * - [mmlu_am](#simple-evals-mmlu-am)
@@ -134,6 +138,8 @@ This page contains all evaluation tasks for the **simple-evals** harness.
   - MMLU 0-shot CoT in Polish (pl)
 * - [mmlu_pro](#simple-evals-mmlu-pro)
   - MMLU-Pro dataset is a more robust and challenging massive multi-task understanding dataset tailored to more rigorously benchmark large language models' capabilities. This dataset contains 12K complex questions across various disciplines.
+* - [mmlu_pro_aa_v2](#simple-evals-mmlu-pro-aa-v2)
+  - MMLU-Pro - params aligned with Artificial Analysis Index v2
 * - [mmlu_pro_llama_4](#simple-evals-mmlu-pro-llama-4)
   - MMLU-Pro questions with custom regex extraction patterns for Llama 4
 * - [mmlu_pt](#simple-evals-mmlu-pt)
@@ -188,13 +194,15 @@ AA AIME 2024 questions, math
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `AA_AIME_2024`
 
 **Command:**
 ```bash
@@ -203,15 +211,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: AA_AIME_2024
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -228,13 +238,11 @@ config:
         max_tokens: 1024
         max_concurrent_requests: null
       n_samples: 10
-    task: AA_AIME_2024
-  type: AA_AIME_2024
   supported_endpoint_types:
   - chat
+  type: AA_AIME_2024
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -252,13 +260,15 @@ AA Open Ai math test 500
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `AA_math_test_500`
 
 **Command:**
 ```bash
@@ -267,15 +277,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: AA_math_test_500
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -292,13 +304,11 @@ config:
         max_tokens: 1024
         max_concurrent_requests: null
       n_samples: 3
-    task: AA_math_test_500
-  type: AA_math_test_500
   supported_endpoint_types:
   - chat
+  type: AA_math_test_500
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -316,13 +326,15 @@ AIME 2024 questions, math
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `AIME_2024`
 
 **Command:**
 ```bash
@@ -331,15 +343,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: AIME_2024
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -355,13 +369,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: AIME_2024
-  type: AIME_2024
   supported_endpoint_types:
   - chat
+  type: AIME_2024
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -379,13 +391,15 @@ AIME 2025 questions, math
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `AIME_2025`
 
 **Command:**
 ```bash
@@ -394,15 +408,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: AIME_2025
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -419,13 +435,77 @@ config:
         max_tokens: 1024
         max_concurrent_requests: null
       n_samples: 10
-    task: AIME_2025
-  type: AIME_2025
   supported_endpoint_types:
   - chat
+  type: AIME_2025
 target:
   api_endpoint: {}
+```
 
+</details>
+
+
+(simple-evals-aime-2025-aa-v2)=
+## AIME_2025_aa_v2
+
+AIME 2025 questions, math - params aligned with Artificial Analysis Index v2
+
+<details>
+<summary><strong>View task details</strong></summary>
+
+**Harness:** `simple-evals`
+
+**Container:**
+```
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
+```
+
+**Container Digest:**
+```
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
+```
+
+**Task Type:** `AIME_2025_aa_v2`
+
+**Command:**
+```bash
+{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}} && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config is not none %} python3 -c 'import yaml, json, sys; config_data = {{config.params.extra.custom_config | tojson}}; json.dump(config_data, open("{{config.output_dir}}/temp_config.json", "w")); yaml.dump(config_data, open("{{config.output_dir}}/custom_config.yml", "w"), default_flow_style=False)' && {% endif %} simple_evals --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --max_tokens {{config.params.max_new_tokens}} --out_dir {{config.output_dir}}/{{config.type}} --cache_dir {{config.output_dir}}/{{config.type}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} {% if config.params.extra.n_samples is defined %} --num_repeats {{config.params.extra.n_samples}}{% endif %} {% if config.params.limit_samples is not none %} --first_n {{config.params.limit_samples}}{% endif %} {% if config.params.extra.add_system_prompt  %} --add_system_prompt {% endif %} {% if config.params.extra.downsampling_ratio is not none %} --downsampling_ratio {{config.params.extra.downsampling_ratio}}{% endif %} {% if config.params.extra.args is defined %} {{ config.params.extra.args }} {% endif %} {% if config.params.extra.judge.url is not none %} --judge_url {{config.params.extra.judge.url}}{% endif %} {% if config.params.extra.judge.model_id is not none %} --judge_model_id {{config.params.extra.judge.model_id}}{% endif %} {% if config.params.extra.judge.api_key is not none %} --judge_api_key_name {{config.params.extra.judge.api_key}}{% endif %} {% if config.params.extra.judge.backend is not none %} --judge_backend {{config.params.extra.judge.backend}}{% endif %} {% if config.params.extra.judge.request_timeout is not none %} --judge_request_timeout {{config.params.extra.judge.request_timeout}}{% endif %} {% if config.params.extra.judge.max_retries is not none %} --judge_max_retries {{config.params.extra.judge.max_retries}}{% endif %} {% if config.params.extra.judge.temperature is not none %} --judge_temperature {{config.params.extra.judge.temperature}}{% endif %} {% if config.params.extra.judge.top_p is not none %} --judge_top_p {{config.params.extra.judge.top_p}}{% endif %} {% if config.params.extra.judge.max_tokens is not none %} --judge_max_tokens {{config.params.extra.judge.max_tokens}}{% endif %} {% if config.params.extra.judge.max_concurrent_requests is not none %} --judge_max_concurrent_requests {{config.params.extra.judge.max_concurrent_requests}}{% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config is not none %} --custom_eval_cfg_file {{config.output_dir}}/custom_config.yml{% endif %}
+```
+
+**Defaults:**
+```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
+config:
+  params:
+    max_new_tokens: 16384
+    max_retries: 30
+    parallelism: 10
+    task: AIME_2025
+    temperature: 0.0
+    request_timeout: 60
+    top_p: 1.0e-05
+    extra:
+      downsampling_ratio: null
+      add_system_prompt: false
+      custom_config: null
+      judge:
+        url: null
+        model_id: null
+        api_key: JUDGE_API_KEY
+        backend: openai
+        request_timeout: 600
+        max_retries: 16
+        temperature: 0.0
+        top_p: 0.0001
+        max_tokens: 1024
+        max_concurrent_requests: null
+      n_samples: 10
+  supported_endpoint_types:
+  - chat
+  type: AIME_2025_aa_v2
+target:
+  api_endpoint: {}
 ```
 
 </details>
@@ -443,13 +523,15 @@ AIME 2024 questions, math, using NeMo's alignment template
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `aime_2024_nemo`
 
 **Command:**
 ```bash
@@ -458,15 +540,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: aime_2024_nemo
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -483,13 +567,11 @@ config:
         max_tokens: 1024
         max_concurrent_requests: null
       n_samples: 10
-    task: aime_2024_nemo
-  type: aime_2024_nemo
   supported_endpoint_types:
   - chat
+  type: aime_2024_nemo
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -507,13 +589,15 @@ AIME 2025 questions, math, using NeMo's alignment template
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `aime_2025_nemo`
 
 **Command:**
 ```bash
@@ -522,15 +606,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: aime_2025_nemo
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -547,13 +633,11 @@ config:
         max_tokens: 1024
         max_concurrent_requests: null
       n_samples: 10
-    task: aime_2025_nemo
-  type: aime_2025_nemo
   supported_endpoint_types:
   - chat
+  type: aime_2025_nemo
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -571,13 +655,15 @@ BrowseComp is a benchmark for measuring the ability for agents to browse the web
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `browsecomp`
 
 **Command:**
 ```bash
@@ -586,15 +672,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: browsecomp
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -610,13 +698,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: browsecomp
-  type: browsecomp
   supported_endpoint_types:
   - chat
+  type: browsecomp
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -634,13 +720,15 @@ gpqa_diamond 0-shot CoT
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `gpqa_diamond`
 
 **Command:**
 ```bash
@@ -649,15 +737,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: gpqa_diamond
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -673,13 +763,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: gpqa_diamond
-  type: gpqa_diamond
   supported_endpoint_types:
   - chat
+  type: gpqa_diamond
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -697,13 +785,15 @@ gpqa_diamond questions with custom regex extraction patterns for AA v2
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `gpqa_diamond_aa_v2`
 
 **Command:**
 ```bash
@@ -712,15 +802,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
-    max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
+    max_new_tokens: 16384
+    max_retries: 30
     parallelism: 10
-    max_retries: 5
+    task: gpqa_diamond
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -741,13 +833,11 @@ config:
         max_tokens: 1024
         max_concurrent_requests: null
       n_samples: 5
-    task: gpqa_diamond
-  type: gpqa_diamond_aa_v2
   supported_endpoint_types:
   - chat
+  type: gpqa_diamond_aa_v2
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -765,13 +855,15 @@ gpqa_diamond questions with custom regex extraction patterns for Llama 4
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `gpqa_diamond_aa_v2_llama_4`
 
 **Command:**
 ```bash
@@ -780,15 +872,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: gpqa_diamond
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -812,13 +906,11 @@ config:
         max_tokens: 1024
         max_concurrent_requests: null
       n_samples: 5
-    task: gpqa_diamond
-  type: gpqa_diamond_aa_v2_llama_4
   supported_endpoint_types:
   - chat
+  type: gpqa_diamond_aa_v2_llama_4
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -836,13 +928,15 @@ gpqa_diamond questions, reasoning, using NeMo's alignment template
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `gpqa_diamond_nemo`
 
 **Command:**
 ```bash
@@ -851,15 +945,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: gpqa_diamond_nemo
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -876,13 +972,11 @@ config:
         max_tokens: 1024
         max_concurrent_requests: null
       n_samples: 5
-    task: gpqa_diamond_nemo
-  type: gpqa_diamond_nemo
   supported_endpoint_types:
   - chat
+  type: gpqa_diamond_nemo
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -900,13 +994,15 @@ gpqa_extended 0-shot CoT
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `gpqa_extended`
 
 **Command:**
 ```bash
@@ -915,15 +1011,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: gpqa_extended
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -939,13 +1037,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: gpqa_extended
-  type: gpqa_extended
   supported_endpoint_types:
   - chat
+  type: gpqa_extended
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -963,13 +1059,15 @@ gpqa_main 0-shot CoT
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `gpqa_main`
 
 **Command:**
 ```bash
@@ -978,15 +1076,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: gpqa_main
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -1002,13 +1102,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: gpqa_main
-  type: gpqa_main
   supported_endpoint_types:
   - chat
+  type: gpqa_main
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -1026,13 +1124,15 @@ HealthBench is an open-source benchmark measuring the performance and safety of 
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `healthbench`
 
 **Command:**
 ```bash
@@ -1041,15 +1141,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: healthbench
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -1065,13 +1167,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: healthbench
-  type: healthbench
   supported_endpoint_types:
   - chat
+  type: healthbench
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -1089,13 +1189,15 @@ HealthBench is an open-source benchmark measuring the performance and safety of 
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `healthbench_consensus`
 
 **Command:**
 ```bash
@@ -1104,15 +1206,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: healthbench_consensus
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -1128,13 +1232,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: healthbench_consensus
-  type: healthbench_consensus
   supported_endpoint_types:
   - chat
+  type: healthbench_consensus
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -1152,13 +1254,15 @@ HealthBench is an open-source benchmark measuring the performance and safety of 
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `healthbench_hard`
 
 **Command:**
 ```bash
@@ -1167,15 +1271,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: healthbench_hard
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -1191,13 +1297,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: healthbench_hard
-  type: healthbench_hard
   supported_endpoint_types:
   - chat
+  type: healthbench_hard
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -1215,13 +1319,15 @@ HumanEval evaluates the performance in Python code generation tasks. It used to 
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `humaneval`
 
 **Command:**
 ```bash
@@ -1230,15 +1336,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: humaneval
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -1254,14 +1362,12 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: humaneval
-    n_repeats: 1
-  type: humaneval
+      n_samples: 1
   supported_endpoint_types:
   - chat
+  type: humaneval
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -1279,13 +1385,15 @@ HumanEvalPlus is a dataset of 164 programming problems, assessing language compr
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `humanevalplus`
 
 **Command:**
 ```bash
@@ -1294,15 +1402,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: humanevalplus
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -1318,14 +1428,12 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: humanevalplus
-    n_repeats: 1
-  type: humanevalplus
+      n_samples: 1
   supported_endpoint_types:
   - chat
+  type: humanevalplus
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -1343,13 +1451,15 @@ Open Ai math test 500
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `math_test_500`
 
 **Command:**
 ```bash
@@ -1358,15 +1468,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: math_test_500
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -1382,13 +1494,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: math_test_500
-  type: math_test_500
   supported_endpoint_types:
   - chat
+  type: math_test_500
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -1406,13 +1516,15 @@ math_test_500 questions, math, using NeMo's alignment template
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `math_test_500_nemo`
 
 **Command:**
 ```bash
@@ -1421,15 +1533,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: math_test_500_nemo
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -1446,13 +1560,11 @@ config:
         max_tokens: 1024
         max_concurrent_requests: null
       n_samples: 3
-    task: math_test_500_nemo
-  type: math_test_500_nemo
   supported_endpoint_types:
   - chat
+  type: math_test_500_nemo
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -1470,13 +1582,15 @@ MGSM is a benchmark of grade-school math problems. The same 250 problems from GS
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mgsm`
 
 **Command:**
 ```bash
@@ -1485,15 +1599,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mgsm
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -1509,13 +1625,76 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mgsm
-  type: mgsm
   supported_endpoint_types:
   - chat
+  type: mgsm
 target:
   api_endpoint: {}
+```
 
+</details>
+
+
+(simple-evals-mgsm-aa-v2)=
+## mgsm_aa_v2
+
+MGSM is a benchmark of grade-school math problems - params aligned with Artificial Analysis Index v2
+
+<details>
+<summary><strong>View task details</strong></summary>
+
+**Harness:** `simple-evals`
+
+**Container:**
+```
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
+```
+
+**Container Digest:**
+```
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
+```
+
+**Task Type:** `mgsm_aa_v2`
+
+**Command:**
+```bash
+{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}} && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config is not none %} python3 -c 'import yaml, json, sys; config_data = {{config.params.extra.custom_config | tojson}}; json.dump(config_data, open("{{config.output_dir}}/temp_config.json", "w")); yaml.dump(config_data, open("{{config.output_dir}}/custom_config.yml", "w"), default_flow_style=False)' && {% endif %} simple_evals --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --max_tokens {{config.params.max_new_tokens}} --out_dir {{config.output_dir}}/{{config.type}} --cache_dir {{config.output_dir}}/{{config.type}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} {% if config.params.extra.n_samples is defined %} --num_repeats {{config.params.extra.n_samples}}{% endif %} {% if config.params.limit_samples is not none %} --first_n {{config.params.limit_samples}}{% endif %} {% if config.params.extra.add_system_prompt  %} --add_system_prompt {% endif %} {% if config.params.extra.downsampling_ratio is not none %} --downsampling_ratio {{config.params.extra.downsampling_ratio}}{% endif %} {% if config.params.extra.args is defined %} {{ config.params.extra.args }} {% endif %} {% if config.params.extra.judge.url is not none %} --judge_url {{config.params.extra.judge.url}}{% endif %} {% if config.params.extra.judge.model_id is not none %} --judge_model_id {{config.params.extra.judge.model_id}}{% endif %} {% if config.params.extra.judge.api_key is not none %} --judge_api_key_name {{config.params.extra.judge.api_key}}{% endif %} {% if config.params.extra.judge.backend is not none %} --judge_backend {{config.params.extra.judge.backend}}{% endif %} {% if config.params.extra.judge.request_timeout is not none %} --judge_request_timeout {{config.params.extra.judge.request_timeout}}{% endif %} {% if config.params.extra.judge.max_retries is not none %} --judge_max_retries {{config.params.extra.judge.max_retries}}{% endif %} {% if config.params.extra.judge.temperature is not none %} --judge_temperature {{config.params.extra.judge.temperature}}{% endif %} {% if config.params.extra.judge.top_p is not none %} --judge_top_p {{config.params.extra.judge.top_p}}{% endif %} {% if config.params.extra.judge.max_tokens is not none %} --judge_max_tokens {{config.params.extra.judge.max_tokens}}{% endif %} {% if config.params.extra.judge.max_concurrent_requests is not none %} --judge_max_concurrent_requests {{config.params.extra.judge.max_concurrent_requests}}{% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config is not none %} --custom_eval_cfg_file {{config.output_dir}}/custom_config.yml{% endif %}
+```
+
+**Defaults:**
+```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
+config:
+  params:
+    max_new_tokens: 16384
+    max_retries: 30
+    parallelism: 10
+    task: mgsm
+    temperature: 0.0
+    request_timeout: 60
+    top_p: 1.0e-05
+    extra:
+      downsampling_ratio: null
+      add_system_prompt: false
+      custom_config: null
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        backend: openai
+        request_timeout: 600
+        max_retries: 16
+        temperature: 0.0
+        top_p: 0.0001
+        max_tokens: 1024
+        max_concurrent_requests: null
+  supported_endpoint_types:
+  - chat
+  type: mgsm_aa_v2
+target:
+  api_endpoint: {}
 ```
 
 </details>
@@ -1533,13 +1712,15 @@ MMLU 0-shot CoT
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu`
 
 **Command:**
 ```bash
@@ -1548,15 +1729,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -1572,13 +1755,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu
-  type: mmlu
   supported_endpoint_types:
   - chat
+  type: mmlu
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -1596,13 +1777,15 @@ MMLU 0-shot CoT in Amharic (am)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_am`
 
 **Command:**
 ```bash
@@ -1611,15 +1794,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_am
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -1635,13 +1820,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_am
-  type: mmlu_am
   supported_endpoint_types:
   - chat
+  type: mmlu_am
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -1659,13 +1842,15 @@ MMLU 0-shot CoT in Arabic (ar)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_ar`
 
 **Command:**
 ```bash
@@ -1674,15 +1859,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_ar
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -1698,13 +1885,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_ar
-  type: mmlu_ar
   supported_endpoint_types:
   - chat
+  type: mmlu_ar
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -1722,13 +1907,15 @@ Lite version of the MMLU 0-shot CoT in Arabic (ar)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_ar-lite`
 
 **Command:**
 ```bash
@@ -1737,15 +1924,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_ar-lite
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -1761,13 +1950,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_ar-lite
-  type: mmlu_ar-lite
   supported_endpoint_types:
   - chat
+  type: mmlu_ar-lite
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -1785,13 +1972,15 @@ MMLU 0-shot CoT in Bengali (bn)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_bn`
 
 **Command:**
 ```bash
@@ -1800,15 +1989,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_bn
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -1824,13 +2015,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_bn
-  type: mmlu_bn
   supported_endpoint_types:
   - chat
+  type: mmlu_bn
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -1848,13 +2037,15 @@ Lite version of the MMLU 0-shot CoT in Bengali (bn)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_bn-lite`
 
 **Command:**
 ```bash
@@ -1863,15 +2054,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_bn-lite
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -1887,13 +2080,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_bn-lite
-  type: mmlu_bn-lite
   supported_endpoint_types:
   - chat
+  type: mmlu_bn-lite
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -1911,13 +2102,15 @@ MMLU 0-shot CoT in Czech (cs)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_cs`
 
 **Command:**
 ```bash
@@ -1926,15 +2119,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_cs
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -1950,13 +2145,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_cs
-  type: mmlu_cs
   supported_endpoint_types:
   - chat
+  type: mmlu_cs
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -1974,13 +2167,15 @@ MMLU 0-shot CoT in German (de)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_de`
 
 **Command:**
 ```bash
@@ -1989,15 +2184,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_de
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -2013,13 +2210,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_de
-  type: mmlu_de
   supported_endpoint_types:
   - chat
+  type: mmlu_de
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -2037,13 +2232,15 @@ Lite version of the MMLU 0-shot CoT in German (de)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_de-lite`
 
 **Command:**
 ```bash
@@ -2052,15 +2249,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_de-lite
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -2076,13 +2275,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_de-lite
-  type: mmlu_de-lite
   supported_endpoint_types:
   - chat
+  type: mmlu_de-lite
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -2100,13 +2297,15 @@ MMLU 0-shot CoT in Greek (el)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_el`
 
 **Command:**
 ```bash
@@ -2115,15 +2314,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_el
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -2139,13 +2340,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_el
-  type: mmlu_el
   supported_endpoint_types:
   - chat
+  type: mmlu_el
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -2163,13 +2362,15 @@ MMLU 0-shot CoT in English (en)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_en`
 
 **Command:**
 ```bash
@@ -2178,15 +2379,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_en
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -2202,13 +2405,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_en
-  type: mmlu_en
   supported_endpoint_types:
   - chat
+  type: mmlu_en
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -2226,13 +2427,15 @@ Lite version of the MMLU 0-shot CoT in English (en)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_en-lite`
 
 **Command:**
 ```bash
@@ -2241,15 +2444,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_en-lite
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -2265,13 +2470,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_en-lite
-  type: mmlu_en-lite
   supported_endpoint_types:
   - chat
+  type: mmlu_en-lite
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -2289,13 +2492,15 @@ MMLU 0-shot CoT in Spanish (es)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_es`
 
 **Command:**
 ```bash
@@ -2304,15 +2509,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_es
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -2328,13 +2535,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_es
-  type: mmlu_es
   supported_endpoint_types:
   - chat
+  type: mmlu_es
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -2352,13 +2557,15 @@ Lite version of the MMLU 0-shot CoT in Spanish (es)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_es-lite`
 
 **Command:**
 ```bash
@@ -2367,15 +2574,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_es-lite
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -2391,13 +2600,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_es-lite
-  type: mmlu_es-lite
   supported_endpoint_types:
   - chat
+  type: mmlu_es-lite
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -2415,13 +2622,15 @@ MMLU 0-shot CoT in Persian (fa)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_fa`
 
 **Command:**
 ```bash
@@ -2430,15 +2639,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_fa
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -2454,13 +2665,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_fa
-  type: mmlu_fa
   supported_endpoint_types:
   - chat
+  type: mmlu_fa
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -2478,13 +2687,15 @@ MMLU 0-shot CoT in Filipino (fil)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_fil`
 
 **Command:**
 ```bash
@@ -2493,15 +2704,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_fil
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -2517,13 +2730,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_fil
-  type: mmlu_fil
   supported_endpoint_types:
   - chat
+  type: mmlu_fil
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -2541,13 +2752,15 @@ MMLU 0-shot CoT in French (fr)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_fr`
 
 **Command:**
 ```bash
@@ -2556,15 +2769,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_fr
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -2580,13 +2795,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_fr
-  type: mmlu_fr
   supported_endpoint_types:
   - chat
+  type: mmlu_fr
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -2604,13 +2817,15 @@ Lite version of the MMLU 0-shot CoT in French (fr)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_fr-lite`
 
 **Command:**
 ```bash
@@ -2619,15 +2834,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_fr-lite
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -2643,13 +2860,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_fr-lite
-  type: mmlu_fr-lite
   supported_endpoint_types:
   - chat
+  type: mmlu_fr-lite
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -2667,13 +2882,15 @@ MMLU 0-shot CoT in Hausa (ha)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_ha`
 
 **Command:**
 ```bash
@@ -2682,15 +2899,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_ha
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -2706,13 +2925,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_ha
-  type: mmlu_ha
   supported_endpoint_types:
   - chat
+  type: mmlu_ha
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -2730,13 +2947,15 @@ MMLU 0-shot CoT in Hebrew (he)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_he`
 
 **Command:**
 ```bash
@@ -2745,15 +2964,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_he
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -2769,13 +2990,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_he
-  type: mmlu_he
   supported_endpoint_types:
   - chat
+  type: mmlu_he
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -2793,13 +3012,15 @@ MMLU 0-shot CoT in Hindi (hi)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_hi`
 
 **Command:**
 ```bash
@@ -2808,15 +3029,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_hi
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -2832,13 +3055,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_hi
-  type: mmlu_hi
   supported_endpoint_types:
   - chat
+  type: mmlu_hi
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -2856,13 +3077,15 @@ Lite version of the MMLU 0-shot CoT in Hindi (hi)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_hi-lite`
 
 **Command:**
 ```bash
@@ -2871,15 +3094,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_hi-lite
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -2895,13 +3120,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_hi-lite
-  type: mmlu_hi-lite
   supported_endpoint_types:
   - chat
+  type: mmlu_hi-lite
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -2919,13 +3142,15 @@ MMLU 0-shot CoT in Indonesian (id)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_id`
 
 **Command:**
 ```bash
@@ -2934,15 +3159,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_id
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -2958,13 +3185,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_id
-  type: mmlu_id
   supported_endpoint_types:
   - chat
+  type: mmlu_id
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -2982,13 +3207,15 @@ Lite version of the MMLU 0-shot CoT in Indonesian (id)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_id-lite`
 
 **Command:**
 ```bash
@@ -2997,15 +3224,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_id-lite
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -3021,13 +3250,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_id-lite
-  type: mmlu_id-lite
   supported_endpoint_types:
   - chat
+  type: mmlu_id-lite
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -3045,13 +3272,15 @@ MMLU 0-shot CoT in Igbo (ig)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_ig`
 
 **Command:**
 ```bash
@@ -3060,15 +3289,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_ig
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -3084,13 +3315,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_ig
-  type: mmlu_ig
   supported_endpoint_types:
   - chat
+  type: mmlu_ig
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -3108,13 +3337,15 @@ MMLU 0-shot CoT in Italian (it)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_it`
 
 **Command:**
 ```bash
@@ -3123,15 +3354,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_it
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -3147,13 +3380,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_it
-  type: mmlu_it
   supported_endpoint_types:
   - chat
+  type: mmlu_it
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -3171,13 +3402,15 @@ Lite version of the MMLU 0-shot CoT in Italian (it)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_it-lite`
 
 **Command:**
 ```bash
@@ -3186,15 +3419,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_it-lite
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -3210,13 +3445,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_it-lite
-  type: mmlu_it-lite
   supported_endpoint_types:
   - chat
+  type: mmlu_it-lite
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -3234,13 +3467,15 @@ MMLU 0-shot CoT in Japanese (ja)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_ja`
 
 **Command:**
 ```bash
@@ -3249,15 +3484,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_ja
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -3273,13 +3510,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_ja
-  type: mmlu_ja
   supported_endpoint_types:
   - chat
+  type: mmlu_ja
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -3297,13 +3532,15 @@ Lite version of the MMLU 0-shot CoT in Japanese (ja)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_ja-lite`
 
 **Command:**
 ```bash
@@ -3312,15 +3549,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_ja-lite
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -3336,13 +3575,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_ja-lite
-  type: mmlu_ja-lite
   supported_endpoint_types:
   - chat
+  type: mmlu_ja-lite
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -3360,13 +3597,15 @@ MMLU 0-shot CoT in Korean (ko)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_ko`
 
 **Command:**
 ```bash
@@ -3375,15 +3614,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_ko
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -3399,13 +3640,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_ko
-  type: mmlu_ko
   supported_endpoint_types:
   - chat
+  type: mmlu_ko
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -3423,13 +3662,15 @@ Lite version of the MMLU 0-shot CoT in Korean (ko)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_ko-lite`
 
 **Command:**
 ```bash
@@ -3438,15 +3679,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_ko-lite
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -3462,13 +3705,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_ko-lite
-  type: mmlu_ko-lite
   supported_endpoint_types:
   - chat
+  type: mmlu_ko-lite
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -3486,13 +3727,15 @@ MMLU 0-shot CoT in Kyrgyz (ky)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_ky`
 
 **Command:**
 ```bash
@@ -3501,15 +3744,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_ky
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -3525,13 +3770,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_ky
-  type: mmlu_ky
   supported_endpoint_types:
   - chat
+  type: mmlu_ky
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -3549,13 +3792,15 @@ MMLU questions with custom regex extraction patterns for Llama 4
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_llama_4`
 
 **Command:**
 ```bash
@@ -3564,15 +3809,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -3595,13 +3842,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu
-  type: mmlu_llama_4
   supported_endpoint_types:
   - chat
+  type: mmlu_llama_4
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -3619,13 +3864,15 @@ MMLU 0-shot CoT in Lithuanian (lt)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_lt`
 
 **Command:**
 ```bash
@@ -3634,15 +3881,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_lt
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -3658,13 +3907,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_lt
-  type: mmlu_lt
   supported_endpoint_types:
   - chat
+  type: mmlu_lt
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -3682,13 +3929,15 @@ MMLU 0-shot CoT in Malagasy (mg)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_mg`
 
 **Command:**
 ```bash
@@ -3697,15 +3946,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_mg
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -3721,13 +3972,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_mg
-  type: mmlu_mg
   supported_endpoint_types:
   - chat
+  type: mmlu_mg
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -3745,13 +3994,15 @@ MMLU 0-shot CoT in Malay (ms)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_ms`
 
 **Command:**
 ```bash
@@ -3760,15 +4011,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_ms
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -3784,13 +4037,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_ms
-  type: mmlu_ms
   supported_endpoint_types:
   - chat
+  type: mmlu_ms
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -3808,13 +4059,15 @@ Lite version of the MMLU 0-shot CoT in Malay (my)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_my-lite`
 
 **Command:**
 ```bash
@@ -3823,15 +4076,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_my-lite
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -3847,13 +4102,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_my-lite
-  type: mmlu_my-lite
   supported_endpoint_types:
   - chat
+  type: mmlu_my-lite
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -3871,13 +4124,15 @@ MMLU 0-shot CoT in Nepali (ne)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_ne`
 
 **Command:**
 ```bash
@@ -3886,15 +4141,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_ne
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -3910,13 +4167,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_ne
-  type: mmlu_ne
   supported_endpoint_types:
   - chat
+  type: mmlu_ne
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -3934,13 +4189,15 @@ MMLU 0-shot CoT in Dutch (nl)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_nl`
 
 **Command:**
 ```bash
@@ -3949,15 +4206,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_nl
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -3973,13 +4232,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_nl
-  type: mmlu_nl
   supported_endpoint_types:
   - chat
+  type: mmlu_nl
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -3997,13 +4254,15 @@ MMLU 0-shot CoT in Nyanja (ny)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_ny`
 
 **Command:**
 ```bash
@@ -4012,15 +4271,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_ny
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -4036,13 +4297,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_ny
-  type: mmlu_ny
   supported_endpoint_types:
   - chat
+  type: mmlu_ny
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -4060,13 +4319,15 @@ MMLU 0-shot CoT in Polish (pl)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_pl`
 
 **Command:**
 ```bash
@@ -4075,15 +4336,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_pl
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -4099,13 +4362,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_pl
-  type: mmlu_pl
   supported_endpoint_types:
   - chat
+  type: mmlu_pl
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -4123,13 +4384,15 @@ MMLU-Pro dataset is a more robust and challenging massive multi-task understandi
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_pro`
 
 **Command:**
 ```bash
@@ -4138,15 +4401,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_pro
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -4162,13 +4427,76 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_pro
-  type: mmlu_pro
   supported_endpoint_types:
   - chat
+  type: mmlu_pro
 target:
   api_endpoint: {}
+```
 
+</details>
+
+
+(simple-evals-mmlu-pro-aa-v2)=
+## mmlu_pro_aa_v2
+
+MMLU-Pro - params aligned with Artificial Analysis Index v2
+
+<details>
+<summary><strong>View task details</strong></summary>
+
+**Harness:** `simple-evals`
+
+**Container:**
+```
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
+```
+
+**Container Digest:**
+```
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
+```
+
+**Task Type:** `mmlu_pro_aa_v2`
+
+**Command:**
+```bash
+{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}} && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config is not none %} python3 -c 'import yaml, json, sys; config_data = {{config.params.extra.custom_config | tojson}}; json.dump(config_data, open("{{config.output_dir}}/temp_config.json", "w")); yaml.dump(config_data, open("{{config.output_dir}}/custom_config.yml", "w"), default_flow_style=False)' && {% endif %} simple_evals --model {{target.api_endpoint.model_id}} --eval_name {{config.params.task}} --url {{target.api_endpoint.url}} --temperature {{config.params.temperature}} --top_p {{config.params.top_p}} --max_tokens {{config.params.max_new_tokens}} --out_dir {{config.output_dir}}/{{config.type}} --cache_dir {{config.output_dir}}/{{config.type}}/cache --num_threads {{config.params.parallelism}} --max_retries {{config.params.max_retries}} --timeout {{config.params.request_timeout}} {% if config.params.extra.n_samples is defined %} --num_repeats {{config.params.extra.n_samples}}{% endif %} {% if config.params.limit_samples is not none %} --first_n {{config.params.limit_samples}}{% endif %} {% if config.params.extra.add_system_prompt  %} --add_system_prompt {% endif %} {% if config.params.extra.downsampling_ratio is not none %} --downsampling_ratio {{config.params.extra.downsampling_ratio}}{% endif %} {% if config.params.extra.args is defined %} {{ config.params.extra.args }} {% endif %} {% if config.params.extra.judge.url is not none %} --judge_url {{config.params.extra.judge.url}}{% endif %} {% if config.params.extra.judge.model_id is not none %} --judge_model_id {{config.params.extra.judge.model_id}}{% endif %} {% if config.params.extra.judge.api_key is not none %} --judge_api_key_name {{config.params.extra.judge.api_key}}{% endif %} {% if config.params.extra.judge.backend is not none %} --judge_backend {{config.params.extra.judge.backend}}{% endif %} {% if config.params.extra.judge.request_timeout is not none %} --judge_request_timeout {{config.params.extra.judge.request_timeout}}{% endif %} {% if config.params.extra.judge.max_retries is not none %} --judge_max_retries {{config.params.extra.judge.max_retries}}{% endif %} {% if config.params.extra.judge.temperature is not none %} --judge_temperature {{config.params.extra.judge.temperature}}{% endif %} {% if config.params.extra.judge.top_p is not none %} --judge_top_p {{config.params.extra.judge.top_p}}{% endif %} {% if config.params.extra.judge.max_tokens is not none %} --judge_max_tokens {{config.params.extra.judge.max_tokens}}{% endif %} {% if config.params.extra.judge.max_concurrent_requests is not none %} --judge_max_concurrent_requests {{config.params.extra.judge.max_concurrent_requests}}{% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config is not none %} --custom_eval_cfg_file {{config.output_dir}}/custom_config.yml{% endif %}
+```
+
+**Defaults:**
+```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
+config:
+  params:
+    max_new_tokens: 16384
+    max_retries: 30
+    parallelism: 10
+    task: mmlu_pro
+    temperature: 0.0
+    request_timeout: 60
+    top_p: 1.0e-05
+    extra:
+      downsampling_ratio: null
+      add_system_prompt: false
+      custom_config: null
+      judge:
+        url: null
+        model_id: null
+        api_key: null
+        backend: openai
+        request_timeout: 600
+        max_retries: 16
+        temperature: 0.0
+        top_p: 0.0001
+        max_tokens: 1024
+        max_concurrent_requests: null
+  supported_endpoint_types:
+  - chat
+  type: mmlu_pro_aa_v2
+target:
+  api_endpoint: {}
 ```
 
 </details>
@@ -4186,13 +4514,15 @@ MMLU-Pro questions with custom regex extraction patterns for Llama 4
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_pro_llama_4`
 
 **Command:**
 ```bash
@@ -4201,15 +4531,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_pro
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -4232,13 +4564,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_pro
-  type: mmlu_pro_llama_4
   supported_endpoint_types:
   - chat
+  type: mmlu_pro_llama_4
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -4256,13 +4586,15 @@ MMLU 0-shot CoT in Portuguese (pt)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_pt`
 
 **Command:**
 ```bash
@@ -4271,15 +4603,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_pt
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -4295,13 +4629,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_pt
-  type: mmlu_pt
   supported_endpoint_types:
   - chat
+  type: mmlu_pt
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -4319,13 +4651,15 @@ Lite version of the MMLU 0-shot CoT in Portuguese (pt)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_pt-lite`
 
 **Command:**
 ```bash
@@ -4334,15 +4668,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_pt-lite
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -4358,13 +4694,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_pt-lite
-  type: mmlu_pt-lite
   supported_endpoint_types:
   - chat
+  type: mmlu_pt-lite
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -4382,13 +4716,15 @@ MMLU 0-shot CoT in Romanian (ro)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_ro`
 
 **Command:**
 ```bash
@@ -4397,15 +4733,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_ro
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -4421,13 +4759,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_ro
-  type: mmlu_ro
   supported_endpoint_types:
   - chat
+  type: mmlu_ro
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -4445,13 +4781,15 @@ MMLU 0-shot CoT in Russian (ru)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_ru`
 
 **Command:**
 ```bash
@@ -4460,15 +4798,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_ru
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -4484,13 +4824,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_ru
-  type: mmlu_ru
   supported_endpoint_types:
   - chat
+  type: mmlu_ru
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -4508,13 +4846,15 @@ MMLU 0-shot CoT in Sinhala (si)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_si`
 
 **Command:**
 ```bash
@@ -4523,15 +4863,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_si
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -4547,13 +4889,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_si
-  type: mmlu_si
   supported_endpoint_types:
   - chat
+  type: mmlu_si
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -4571,13 +4911,15 @@ MMLU 0-shot CoT in Shona (sn)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_sn`
 
 **Command:**
 ```bash
@@ -4586,15 +4928,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_sn
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -4610,13 +4954,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_sn
-  type: mmlu_sn
   supported_endpoint_types:
   - chat
+  type: mmlu_sn
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -4634,13 +4976,15 @@ MMLU 0-shot CoT in Somali (so)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_so`
 
 **Command:**
 ```bash
@@ -4649,15 +4993,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_so
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -4673,13 +5019,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_so
-  type: mmlu_so
   supported_endpoint_types:
   - chat
+  type: mmlu_so
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -4697,13 +5041,15 @@ MMLU 0-shot CoT in Serbian (sr)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_sr`
 
 **Command:**
 ```bash
@@ -4712,15 +5058,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_sr
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -4736,13 +5084,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_sr
-  type: mmlu_sr
   supported_endpoint_types:
   - chat
+  type: mmlu_sr
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -4760,13 +5106,15 @@ MMLU 0-shot CoT in Swedish (sv)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_sv`
 
 **Command:**
 ```bash
@@ -4775,15 +5123,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_sv
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -4799,13 +5149,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_sv
-  type: mmlu_sv
   supported_endpoint_types:
   - chat
+  type: mmlu_sv
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -4823,13 +5171,15 @@ MMLU 0-shot CoT in Swahili (sw)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_sw`
 
 **Command:**
 ```bash
@@ -4838,15 +5188,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_sw
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -4862,13 +5214,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_sw
-  type: mmlu_sw
   supported_endpoint_types:
   - chat
+  type: mmlu_sw
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -4886,13 +5236,15 @@ Lite version of the MMLU 0-shot CoT in Swahili (sw)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_sw-lite`
 
 **Command:**
 ```bash
@@ -4901,15 +5253,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_sw-lite
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -4925,13 +5279,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_sw-lite
-  type: mmlu_sw-lite
   supported_endpoint_types:
   - chat
+  type: mmlu_sw-lite
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -4949,13 +5301,15 @@ MMLU 0-shot CoT in Telugu (te)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_te`
 
 **Command:**
 ```bash
@@ -4964,15 +5318,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_te
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -4988,13 +5344,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_te
-  type: mmlu_te
   supported_endpoint_types:
   - chat
+  type: mmlu_te
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -5012,13 +5366,15 @@ MMLU 0-shot CoT in Turkish (tr)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_tr`
 
 **Command:**
 ```bash
@@ -5027,15 +5383,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_tr
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -5051,13 +5409,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_tr
-  type: mmlu_tr
   supported_endpoint_types:
   - chat
+  type: mmlu_tr
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -5075,13 +5431,15 @@ MMLU 0-shot CoT in Ukrainian (uk)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_uk`
 
 **Command:**
 ```bash
@@ -5090,15 +5448,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_uk
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -5114,13 +5474,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_uk
-  type: mmlu_uk
   supported_endpoint_types:
   - chat
+  type: mmlu_uk
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -5138,13 +5496,15 @@ MMLU 0-shot CoT in Vietnamese (vi)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_vi`
 
 **Command:**
 ```bash
@@ -5153,15 +5513,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_vi
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -5177,13 +5539,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_vi
-  type: mmlu_vi
   supported_endpoint_types:
   - chat
+  type: mmlu_vi
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -5201,13 +5561,15 @@ MMLU 0-shot CoT in Yoruba (yo)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_yo`
 
 **Command:**
 ```bash
@@ -5216,15 +5578,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_yo
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -5240,13 +5604,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_yo
-  type: mmlu_yo
   supported_endpoint_types:
   - chat
+  type: mmlu_yo
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -5264,13 +5626,15 @@ Lite version of the MMLU 0-shot CoT in Yoruba (yo)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_yo-lite`
 
 **Command:**
 ```bash
@@ -5279,15 +5643,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_yo-lite
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -5303,13 +5669,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_yo-lite
-  type: mmlu_yo-lite
   supported_endpoint_types:
   - chat
+  type: mmlu_yo-lite
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -5327,13 +5691,15 @@ Lite version of the MMLU 0-shot CoT in Chinese (Simplified) (zh)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `mmlu_zh-lite`
 
 **Command:**
 ```bash
@@ -5342,15 +5708,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mmlu_zh-lite
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -5366,13 +5734,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: mmlu_zh-lite
-  type: mmlu_zh-lite
   supported_endpoint_types:
   - chat
+  type: mmlu_zh-lite
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -5390,13 +5756,15 @@ A factuality benchmark called SimpleQA that measures the ability for language mo
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/simple-evals:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
+sha256:45a3d86af3dee4e2ab5aef3823f6e338c6817f9f927605341ad51423a3757ae8
 ```
+
+**Task Type:** `simpleqa`
 
 **Command:**
 ```bash
@@ -5405,15 +5773,17 @@ sha256:bb86e9fe35452679cacd362cfcc2b9485661108569a5d57565e3275e784f7b46
 
 **Defaults:**
 ```yaml
+framework_name: simple_evals
+pkg_name: simple_evals
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: simpleqa
+    temperature: 0.0
     request_timeout: 60
+    top_p: 1.0e-05
     extra:
       downsampling_ratio: null
       add_system_prompt: false
@@ -5429,13 +5799,11 @@ config:
         top_p: 0.0001
         max_tokens: 1024
         max_concurrent_requests: null
-    task: simpleqa
-  type: simpleqa
   supported_endpoint_types:
   - chat
+  type: simpleqa
 target:
   api_endpoint: {}
-
 ```
 
 </details>
