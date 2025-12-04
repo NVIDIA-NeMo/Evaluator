@@ -23,7 +23,6 @@ import re
 import shutil
 import sys
 from collections import defaultdict
-from typing import Optional
 
 import yaml
 
@@ -182,7 +181,7 @@ class _TaskAutogen:
             lines.append(str(self.task_ir.container_digest))
             lines.append("```")
             lines.append("")
-        
+
         # Extract and display task type and endpoint type from defaults if available
         task_type = None
         endpoint_type = None
@@ -191,7 +190,7 @@ class _TaskAutogen:
             config = self.task_ir.defaults.get("config", {})
             if isinstance(config, dict):
                 task_type = config.get("type")
-            
+
             # Extract endpoint type from target.api_endpoint.type
             target = self.task_ir.defaults.get("target", {})
             if isinstance(target, dict):
@@ -200,14 +199,14 @@ class _TaskAutogen:
                     endpoint_type = api_endpoint.get("type")
                     if isinstance(endpoint_type, list):
                         endpoint_type = ", ".join(endpoint_type)
-        
+
         # Add task type and endpoint type if available
         metadata_lines = []
         if task_type:
             metadata_lines.append(f"**Task Type:** `{task_type}`")
         if endpoint_type:
             metadata_lines.append(f"**Endpoint Type:** `{endpoint_type}`")
-        
+
         if metadata_lines:
             lines.extend(metadata_lines)
             lines.append("")
@@ -314,7 +313,7 @@ class _HarnessAutogen:
         """Generate card markdown for this harness in the catalog.
 
         Args:
-            harnesses_dir: Relative path to harnesses directory (from docs/, e.g., ../_resources/harnesses_autogen)
+            harnesses_dir: Relative path to harnesses directory (from task_catalog.md, e.g., harnesses)
 
         Returns:
             Card markdown content
@@ -333,12 +332,14 @@ class _HarnessAutogen:
                     # Use first sentence or first 100 chars of first task description
                     desc = task.description.strip()
                     # Extract first sentence if it ends with period
-                    first_sentence = desc.split(".", 1)[0] + "." if "." in desc[:100] else desc[:100]
+                    first_sentence = (
+                        desc.split(".", 1)[0] + "." if "." in desc[:100] else desc[:100]
+                    )
                     if len(desc) > 100:
                         first_sentence += "..."
                     description = first_sentence
                     break
-        
+
         # Use task count as fallback if still no description
         if not description:
             description = task_text
@@ -364,7 +365,7 @@ def generate_tasks_catalog_markdown(
 
     Args:
         harnesses: List of _HarnessAutogen objects
-        harnesses_dir: Relative path to harnesses directory (from docs/)
+        harnesses_dir: Relative path to harnesses directory (from task_catalog.md, e.g., harnesses)
 
     Returns:
         Markdown content as string
@@ -385,7 +386,7 @@ def generate_tasks_catalog_markdown(
     else:
         # Sort harnesses alphabetically for consistent ordering
         sorted_harnesses = sorted(harnesses, key=lambda h: h.harness_name.lower())
-        
+
         lines.append("::::{grid} 1 2 2 2")
         lines.append(":gutter: 1 1 1 2")
         lines.append("")
@@ -407,8 +408,8 @@ def generate_tasks_catalog_markdown(
         # Sort harnesses alphabetically for consistent ordering
         sorted_harnesses = sorted(harnesses, key=lambda h: h.harness_name.lower())
         for harness in sorted_harnesses:
-            # Use relative path from tasks-catalog.md to harness pages
-            harness_path = f"../_resources/harnesses_autogen/{harness.harness_filename}"
+            # Use relative path from task_catalog.md to harness pages
+            harness_path = f"{harnesses_dir}/{harness.harness_filename}"
             lines.append(f"{harness.harness_name} <{harness_path}>")
         lines.append(":::")
         lines.append("")
@@ -440,13 +441,13 @@ Examples:
         "--catalog-file",
         type=pathlib.Path,
         default=None,
-        help="Path to tasks catalog markdown file (default: repo_root/docs/evaluation/tasks-catalog.md)",
+        help="Path to tasks catalog markdown file (default: repo_root/docs/task_catalog/task_catalog.md)",
     )
     parser.add_argument(
         "--harnesses-dir",
         type=pathlib.Path,
         default=None,
-        help="Output directory for generated harness markdown files (default: repo_root/docs/_resources/harnesses_autogen)",
+        help="Output directory for generated harness markdown files (default: repo_root/docs/task_catalog/harnesses)",
     )
     parser.add_argument(
         "--dry-run",
@@ -473,9 +474,9 @@ Examples:
 
     # Set default paths relative to repo root if not provided
     if args.catalog_file is None:
-        args.catalog_file = repo_root / "docs" / "evaluation" / "tasks-catalog.md"
+        args.catalog_file = repo_root / "docs" / "task_catalog" / "task_catalog.md"
     if args.harnesses_dir is None:
-        args.harnesses_dir = repo_root / "docs" / "_resources" / "harnesses_autogen"
+        args.harnesses_dir = repo_root / "docs" / "task_catalog" / "harnesses"
 
     logger.info(
         "Starting documentation autogeneration",
@@ -514,14 +515,14 @@ Examples:
                 task_name=task.name,
             )
             continue
-        
+
         if task.harness not in harness_irs:
             # Use first task's container info for harness
             container = str(task.container) if task.container else ""
             container_digest = (
                 str(task.container_digest) if task.container_digest else None
             )
-            
+
             harness_irs[task.harness] = HarnessIntermediateRepresentation(
                 name=task.harness,
                 description="",  # Description not available from tasks alone
@@ -597,7 +598,7 @@ Examples:
                     harness=harness_name,
                 )
                 continue
-            
+
             harness_ir = harness_irs.get(harness_name)
             if not harness_ir:
                 # This shouldn't happen since we derive harnesses from tasks
@@ -622,7 +623,8 @@ Examples:
         # Generate harness markdown pages
         harnesses_successful = 0
         harnesses_failed = 0
-        harnesses_dir_rel = "../_resources/harnesses_autogen"
+        # Relative path from task_catalog.md to harnesses/ directory
+        harnesses_dir_rel = "harnesses"
 
         for harness in harnesses:
             harness_file = args.harnesses_dir / f"{harness.harness_filename}.md"

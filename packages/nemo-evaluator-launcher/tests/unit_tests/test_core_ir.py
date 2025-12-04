@@ -21,14 +21,11 @@ that bridge between raw framework.yml files and the launcher's internal data str
 
 import hashlib
 import importlib.resources
-import pathlib
-import tempfile
 
 import pytest
 import yaml
 
 from nemo_evaluator_launcher.common.task_ir import (
-    TaskIntermediateRepresentation,
     _calculate_mapping_checksum,
     load_tasks_from_tasks_file,
 )
@@ -191,7 +188,9 @@ def test_packaged_mapping_toml_checksum_match():
     # Get stored checksum from metadata
     stored_checksum = tasks_data.get("metadata", {}).get("mapping_toml_checksum")
     if not stored_checksum:
-        pytest.fail("packaged all_tasks_irs.yaml missing mapping_toml_checksum in metadata")
+        pytest.fail(
+            "packaged all_tasks_irs.yaml missing mapping_toml_checksum in metadata"
+        )
 
     # Load packaged mapping.toml
     try:
