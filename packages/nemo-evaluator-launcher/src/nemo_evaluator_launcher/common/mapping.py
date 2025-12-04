@@ -375,19 +375,18 @@ def _inspect_container_for_tasks(
 
         # Construct docker_id for caching
         docker_id = f"{registry_url}/{repository}:{tag}"
-        target_file = "/opt/metadata/framework.yml"
 
         # Get credentials from environment (optional for public registries)
         if registry_type == "gitlab":
             username = os.getenv("DOCKER_USERNAME")
             password = os.getenv("GITLAB_TOKEN")
-            
+
             # If no password from environment, try Docker credentials file
             if not password:
                 from nemo_evaluator_launcher.common.partial_pull import (
                     _read_docker_credentials,
                 )
-                
+
                 docker_creds = _read_docker_credentials(registry_url)
                 if docker_creds:
                     docker_username, docker_password = docker_creds
@@ -400,7 +399,7 @@ def _inspect_container_for_tasks(
                         registry_url=registry_url,
                         username=username,
                     )
-            
+
             # Credentials are optional - try anonymous access first
             if not password:
                 logger.debug(
@@ -417,13 +416,13 @@ def _inspect_container_for_tasks(
         elif registry_type == "nvcr":
             username = os.getenv("NVCR_USERNAME") or os.getenv("DOCKER_USERNAME")
             password = os.getenv("NVCR_PASSWORD") or os.getenv("NVCR_API_KEY")
-            
+
             # If no password from environment, try Docker credentials file
             if not password:
                 from nemo_evaluator_launcher.common.partial_pull import (
                     _read_docker_credentials,
                 )
-                
+
                 docker_creds = _read_docker_credentials(registry_url)
                 if docker_creds:
                     docker_username, docker_password = docker_creds
@@ -436,7 +435,7 @@ def _inspect_container_for_tasks(
                         registry_url=registry_url,
                         username=username,
                     )
-            
+
             if not username or not password:
                 logger.debug(
                     "Skipping container inspection (missing nvcr credentials)",
@@ -555,10 +554,6 @@ def load_tasks_mapping(
     2. If latest==True -> fetch MAPPING_URL, save to cache, load it.
     3. If mapping_toml is not None -> load mapping from this path.
 
-    Docker container inspection can be enabled by setting the environment variable
-    NE_USE_DOCKER_INSPECT=1. When enabled, the function will inspect Docker containers
-    to extract additional tasks from framework.yml files.
-
     Args:
         latest: If True, fetch latest mapping from remote URL.
         mapping_toml: Optional path to mapping TOML file.
@@ -567,20 +562,6 @@ def load_tasks_mapping(
         dict: Mapping of (harness_name, task_name) to dict holding their configuration.
 
     """
-    # Check environment variable for Docker inspection
-    use_docker_inspect = os.getenv("NE_USE_DOCKER_INSPECT", "").strip() in (
-        "1",
-        "true",
-        "yes",
-    )
-    if use_docker_inspect:
-        logger.info(
-            "Docker inspection enabled via NE_USE_DOCKER_INSPECT environment variable"
-        )
-    else:
-        logger.debug(
-            "Docker inspection disabled (set NE_USE_DOCKER_INSPECT=1 to enable)"
-        )
     local_mapping: dict = {}
     if latest:
         mapping_bytes = _download_latest_mapping()
@@ -623,37 +604,6 @@ def load_tasks_mapping(
         logger.debug("Internal package not available, using external mapping only")
     except Exception as e:
         logger.warning("Failed to load internal mapping", error=str(e))
-
-    # Inspect Docker containers if requested
-    if use_docker_inspect:
-        logger.info("Inspecting Docker containers for additional tasks")
-        # Collect unique containers per harness
-        harness_containers: dict[str, set[str]] = {}
-        for (harness_name, task_name), task_data in local_mapping.items():
-            container = task_data.get("container")
-            if container:
-                if harness_name not in harness_containers:
-                    harness_containers[harness_name] = set()
-                harness_containers[harness_name].add(container)
-
-        # Inspect each unique container
-        inspected_tasks = {}
-        for harness_name, containers in harness_containers.items():
-            for container in containers:
-                container_tasks = _inspect_container_for_tasks(container, harness_name)
-                # Only add tasks that don't already exist in mapping
-                for key, task_data in container_tasks.items():
-                    inspected_tasks[key] = task_data
-
-        if inspected_tasks:
-            logger.info(
-                "Added tasks from Docker inspection",
-                num_new_tasks=len(inspected_tasks),
-            )
-            # Merge inspected tasks into local_mapping (don't replace - inspected tasks override existing ones)
-            local_mapping.update(inspected_tasks)
-        else:
-            logger.debug("No new tasks found from Docker inspection")
 
     return local_mapping
 
