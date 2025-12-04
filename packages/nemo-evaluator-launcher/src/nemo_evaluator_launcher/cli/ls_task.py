@@ -23,6 +23,13 @@ from simple_parsing import field
 
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.mapping import load_tasks_mapping
+from nemo_evaluator_launcher.common.printing_utils import (
+    bold,
+    cyan,
+    grey,
+    magenta,
+    yellow,
+)
 from nemo_evaluator_launcher.common.task_ir import (
     TaskIntermediateRepresentation,
     load_tasks_from_tasks_file,
@@ -121,8 +128,6 @@ class Cmd:
 
             # Display warning if mapping is not verified
             if not mapping_verified:
-                from nemo_evaluator_launcher.common.printing_utils import yellow
-
                 print(yellow("⚠ Warning: Tasks are from unverified mapping (mapping.toml checksum mismatch)"))
                 print(yellow("  Consider regenerating all_tasks_irs.yaml if mapping.toml has changed"))
                 print()
@@ -213,36 +218,47 @@ class Cmd:
     def _print_formatted(
         self, tasks: list[TaskIntermediateRepresentation], mapping_verified: bool = True
     ) -> None:
-        """Print tasks in formatted text."""
+        """Print tasks in formatted text with colorized output."""
         for i, task in enumerate(tasks):
             if i > 0:
                 print()  # Spacing between tasks
-                print("=" * 80)
+                print(bold("=" * 80))
 
-            print(f"Task: {task.name}")
+            # Task name - bold and magenta key, cyan value (matching logging utils)
+            print(f"{bold(magenta('Task:'))} {bold(cyan(str(task.name)))}")
+            
+            # Description - magenta key, cyan value
             if task.description:
-                print(f"Description: {task.description}")
-            print(f"Harness: {task.harness}")
-            print(f"Container: {task.container}")
+                print(f"{magenta('Description:')} {cyan(str(task.description))}")
+            
+            # Harness - magenta key, cyan value
+            print(f"{magenta('Harness:')} {cyan(str(task.harness))}")
+            
+            # Container - magenta key, cyan value
+            print(f"{magenta('Container:')} {cyan(str(task.container))}")
+            
+            # Container Digest - magenta key, cyan value
             if task.container_digest:
-                print(f"Container Digest: {task.container_digest}")
+                print(f"{magenta('Container Digest:')} {cyan(str(task.container_digest))}")
 
             # Print defaults as YAML
             if task.defaults:
-                print("\nDefaults:")
+                print(f"\n{bold(magenta('Defaults:'))}")
                 defaults_yaml = yaml.dump(
                     task.defaults, default_flow_style=False, sort_keys=False
                 )
-                # Indent defaults
+                # Indent defaults - use cyan for YAML content (FDF values)
                 for line in defaults_yaml.split("\n"):
                     if line.strip():
-                        print(f"  {line}")
+                        print(f"  {cyan(line)}")
                     else:
                         print()
 
-            print("-" * 80)
+            print(bold("-" * 80))
 
-        print(f"\nTotal: {len(tasks)} task{'s' if len(tasks) != 1 else ''}")
+        # Total count - bold
+        task_word = "task" if len(tasks) == 1 else "tasks"
+        print(f"\n{bold(f'Total: {len(tasks)} {task_word}')}")
 
     def _load_tasks_from_container(
         self, container: str
