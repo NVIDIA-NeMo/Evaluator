@@ -28,13 +28,15 @@ Aegis V2 without evaluating reasoning traces. This version is used by the NeMo S
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/safety-harness:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/safety-harness:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:c53b77274383e1b784a704b31db04e40618e55d40b57c5d2a3faf6bbdfacf509
+sha256:e3ea0ffd347f77cea9b2aea0b199c8449af77c359db7d88e73421223c9fabe65
 ```
+
+**Task Type:** `aegis_v2`
 
 **Command:**
 ```bash
@@ -43,18 +45,17 @@ sha256:c53b77274383e1b784a704b31db04e40618e55d40b57c5d2a3faf6bbdfacf509
 
 **Defaults:**
 ```yaml
+framework_name: safety_eval
+pkg_name: safety_eval
 config:
-  supported_endpoint_types:
-  - chat
-  - completions
   params:
-    limit_samples: null
     max_new_tokens: 6144
-    temperature: 0.6
-    top_p: 0.95
-    parallelism: 8
     max_retries: 5
+    parallelism: 8
+    task: aegis_v2
+    temperature: 0.6
     request_timeout: 30
+    top_p: 0.95
     extra:
       judge:
         url: null
@@ -64,12 +65,13 @@ config:
         request_timeout: 60
         max_retries: 16
       evaluate_reasoning_traces: false
-    task: aegis_v2
+  supported_endpoint_types:
+  - chat
+  - completions
   type: aegis_v2
 target:
   api_endpoint:
     stream: false
-
 ```
 
 </details>
@@ -87,13 +89,15 @@ Aegis V2 with evaluating reasoning traces.
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/safety-harness:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/safety-harness:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:c53b77274383e1b784a704b31db04e40618e55d40b57c5d2a3faf6bbdfacf509
+sha256:e3ea0ffd347f77cea9b2aea0b199c8449af77c359db7d88e73421223c9fabe65
 ```
+
+**Task Type:** `aegis_v2_reasoning`
 
 **Command:**
 ```bash
@@ -102,18 +106,17 @@ sha256:c53b77274383e1b784a704b31db04e40618e55d40b57c5d2a3faf6bbdfacf509
 
 **Defaults:**
 ```yaml
+framework_name: safety_eval
+pkg_name: safety_eval
 config:
-  supported_endpoint_types:
-  - chat
-  - completions
   params:
-    limit_samples: null
     max_new_tokens: 6144
-    temperature: 0.6
-    top_p: 0.95
-    parallelism: 8
     max_retries: 5
+    parallelism: 8
+    task: aegis_v2
+    temperature: 0.6
     request_timeout: 30
+    top_p: 0.95
     extra:
       judge:
         url: null
@@ -123,12 +126,13 @@ config:
         request_timeout: 60
         max_retries: 16
       evaluate_reasoning_traces: true
-    task: aegis_v2
+  supported_endpoint_types:
+  - chat
+  - completions
   type: aegis_v2_reasoning
 target:
   api_endpoint:
     stream: false
-
 ```
 
 </details>
@@ -146,13 +150,15 @@ Wildguard
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/safety-harness:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/safety-harness:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:c53b77274383e1b784a704b31db04e40618e55d40b57c5d2a3faf6bbdfacf509
+sha256:e3ea0ffd347f77cea9b2aea0b199c8449af77c359db7d88e73421223c9fabe65
 ```
+
+**Task Type:** `wildguard`
 
 **Command:**
 ```bash
@@ -161,18 +167,17 @@ sha256:c53b77274383e1b784a704b31db04e40618e55d40b57c5d2a3faf6bbdfacf509
 
 **Defaults:**
 ```yaml
+framework_name: safety_eval
+pkg_name: safety_eval
 config:
-  supported_endpoint_types:
-  - chat
-  - completions
   params:
-    limit_samples: null
     max_new_tokens: 6144
-    temperature: 0.6
-    top_p: 0.95
-    parallelism: 8
     max_retries: 5
+    parallelism: 8
+    task: wildguard
+    temperature: 0.6
     request_timeout: 30
+    top_p: 0.95
     extra:
       judge:
         url: null
@@ -181,12 +186,13 @@ config:
         parallelism: 32
         request_timeout: 60
         max_retries: 16
-    task: wildguard
+  supported_endpoint_types:
+  - chat
+  - completions
   type: wildguard
 target:
   api_endpoint:
     stream: false
-
 ```
 
 </details>

@@ -24,13 +24,15 @@ hle
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/hle:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/hle:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:b1d4456951b751baeb7b8354e8d58f32be4e0f88f5dbeaabac34cb5c1832c78c
+sha256:991af6d4348d61b2d707250a3da6c8aa61f93fc54726a30ad8905cf99f455d21
 ```
+
+**Task Type:** `hle`
 
 **Command:**
 ```bash
@@ -39,22 +41,23 @@ hle_eval --dataset=cais/hle --model_name={{target.api_endpoint.model_id}} --mode
 
 **Defaults:**
 ```yaml
+framework_name: hle
+pkg_name: hle
 config:
   params:
-    limit_samples: null
-    temperature: 0.0
-    top_p: 1.0
-    request_timeout: 600.0
     max_new_tokens: 4096
     max_retries: 30
     parallelism: 100
     task: hle
-  type: hle
+    temperature: 0.0
+    request_timeout: 600
+    top_p: 1.0
+    extra: {}
   supported_endpoint_types:
   - chat
+  type: hle
 target:
   api_endpoint: {}
-
 ```
 
 </details>

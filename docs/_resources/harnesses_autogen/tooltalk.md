@@ -24,13 +24,15 @@ tooltalk
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/tooltalk:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/tooltalk:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:d87254b0784060facdbe107f9a8b9768fe5f857e0e6575b6f536b6e5ccf5e48a
+sha256:acce0c3f13d6f7dd149a08a24d60228a1ef329b7db6f28ed520f4966b9482e0a
 ```
+
+**Task Type:** `tooltalk`
 
 **Command:**
 ```bash
@@ -39,16 +41,17 @@ sha256:d87254b0784060facdbe107f9a8b9768fe5f857e0e6575b6f536b6e5ccf5e48a
 
 **Defaults:**
 ```yaml
+framework_name: tooltalk
+pkg_name: tooltalk
 config:
   params:
-    limit_samples: null
     task: tooltalk
-  type: tooltalk
+    extra: {}
   supported_endpoint_types:
   - chat
+  type: tooltalk
 target:
   api_endpoint: {}
-
 ```
 
 </details>
