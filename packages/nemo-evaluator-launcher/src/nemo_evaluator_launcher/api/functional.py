@@ -546,7 +546,7 @@ def export_results(
             if "." in single_id:  # job_id
                 # Try reading config from artifacts working dir (auto-export on remote node)
                 cfg_file = None
-                for name in ("run_config.yml", "config.yml"):
+                for name in ("config.yml", "run_config.yml"):
                     p = Path(name)
                     if p.exists():
                         cfg_file = p
