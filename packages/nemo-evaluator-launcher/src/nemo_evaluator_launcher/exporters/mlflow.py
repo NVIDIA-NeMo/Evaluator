@@ -395,10 +395,8 @@ class MLflowExporter(BaseExporter):
                 for p in logs_dir.iterdir():
                     if p.is_file():
                         rel = p.name
-                        # add .txt to filename for preview in MLflow UI
                         mlflow.log_artifact(
-                            str(p),
-                            artifact_path=f"{artifact_path}/logs/{rel}.txt",
+                            str(p), artifact_path=f"{artifact_path}/logs"
                         )
                         logged_names.append(f"logs/{rel}")
                         logger.debug(f"mlflow upload log: {rel}")
