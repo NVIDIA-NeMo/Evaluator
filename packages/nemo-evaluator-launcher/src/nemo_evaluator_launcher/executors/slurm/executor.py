@@ -817,7 +817,7 @@ def _generate_auto_export_section(
     if not cfg.execution.get("mounts", {}).get("mount_home", True):
         s += "--no-container-mount-home "
 
-    s += f"--container-mounts {remote_task_subdir}/artifacts:{remote_task_subdir}/artifacts "
+    s += f"--container-mounts {remote_task_subdir}/artifacts:{remote_task_subdir}/artifacts,{remote_task_subdir}/logs:{remote_task_subdir}/logs "
     s += "--output {} ".format(remote_task_subdir / "logs" / "export-%A.out")
     s += "    bash -c '\n"
     # FIXME(martas): would be good to install specific version
