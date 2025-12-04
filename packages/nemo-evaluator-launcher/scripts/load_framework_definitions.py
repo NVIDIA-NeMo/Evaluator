@@ -45,7 +45,6 @@ from nemo_evaluator_launcher.common.partial_pull import (
     GitlabRegistryAuthenticator,
     NvcrRegistryAuthenticator,
     RegistryAuthenticator,
-    find_file_in_image_layers,
     find_file_matching_pattern_in_image_layers,
 )
 from nemo_evaluator_launcher.common.task_ir import (
@@ -115,11 +114,35 @@ def create_authenticator(
         Registry authenticator instance
     """
     if registry_type == "gitlab":
-        username = os.getenv("DOCKER_USERNAME", "gitlab-ci-token")
+        # Credentials are optional - try anonymous access first
+        username = os.getenv("DOCKER_USERNAME")
         password = os.getenv("GITLAB_TOKEN")
+        
+        # If no password from environment, try Docker credentials file
         if not password:
-            raise ValueError(
-                "GITLAB_TOKEN environment variable is required for GitLab registry"
+            from nemo_evaluator_launcher.common.partial_pull import (
+                _read_docker_credentials,
+            )
+            
+            docker_creds = _read_docker_credentials(registry_url)
+            if docker_creds:
+                docker_username, docker_password = docker_creds
+                # Use Docker credentials if username not set, or use Docker username if both available
+                if not username:
+                    username = docker_username
+                password = docker_password
+                logger.debug(
+                    "Using credentials from Docker config file",
+                    registry_url=registry_url,
+                    username=username,
+                )
+        
+        # If still no credentials provided, try anonymous access (for public registries)
+        if not password:
+            logger.debug(
+                "No GITLAB_TOKEN or Docker credentials found, attempting anonymous access to GitLab registry",
+                registry_url=registry_url,
+                repository=repository,
             )
         return GitlabRegistryAuthenticator(
             registry_url=registry_url,
@@ -132,9 +155,30 @@ def create_authenticator(
             "DOCKER_USERNAME", "$oauthtoken"
         )
         password = os.getenv("NVCR_PASSWORD") or os.getenv("NVCR_API_KEY")
+        
+        # If no password from environment, try Docker credentials file
+        if not password:
+            from nemo_evaluator_launcher.common.partial_pull import (
+                _read_docker_credentials,
+            )
+            
+            docker_creds = _read_docker_credentials(registry_url)
+            if docker_creds:
+                docker_username, docker_password = docker_creds
+                # Use Docker credentials if username not set or is default, otherwise keep env username
+                if not username or username == "$oauthtoken":
+                    username = docker_username
+                password = docker_password
+                logger.debug(
+                    "Using credentials from Docker config file",
+                    registry_url=registry_url,
+                    username=username,
+                )
+        
         if not password:
             raise ValueError(
-                "NVCR_PASSWORD or NVCR_API_KEY environment variable is required for nvcr.io registry"
+                "NVCR_PASSWORD, NVCR_API_KEY environment variable, or Docker credentials "
+                f"are required for nvcr.io registry. Check ~/.docker/config.json for credentials."
             )
         return NvcrRegistryAuthenticator(
             registry_url=registry_url,
@@ -286,51 +330,40 @@ def extract_framework_yml(
                 harness=harness_name,
             )
 
-        # Extract framework.yml
+        # Extract framework.yml using pattern-based search
         # Use original container string as docker_id for cache consistency
         # This ensures cache hits work regardless of how the container string is formatted
         docker_id = container
 
-        # First, try the standard location: /opt/metadata/framework.yml
-        # Note: Digest is always validated for cache hits (prevents stale cache for 'latest' tags)
-        framework_yml_content = find_file_in_image_layers(
+        # Use pattern-based search to find framework.yml in any subdirectory under /opt/metadata/
+        # This handles both standard location (/opt/metadata/framework.yml) and subdirectories
+        # Note: find_file_matching_pattern_in_image_layers uses pattern-based caching
+        # (cache key: /opt/metadata/framework.yml) so cache hits work regardless of subdirectory location
+        logger.debug(
+            "Searching for framework.yml using pattern-based search",
+            container=container,
+            harness=harness_name,
+        )
+        result = find_file_matching_pattern_in_image_layers(
             authenticator=authenticator,
             repository=repository,
             reference=tag,
-            target_file="/opt/metadata/framework.yml",
+            prefix="/opt/metadata",
+            filename="framework.yml",
             max_layer_size=max_layer_size,
             docker_id=docker_id,
             use_cache=use_cache,
-            check_invalidated_digest=False,  # Deprecated parameter - digest always checked now
         )
-
-        # If not found, try to find framework.yml in any subdirectory under /opt/metadata/
-        # Note: find_file_matching_pattern_in_image_layers uses pattern-based caching
-        # (cache key: /opt/metadata/framework.yml) so cache hits work regardless of subdirectory location
-        if not framework_yml_content:
-            logger.debug(
-                "framework.yml not found at standard location, searching subdirectories",
+        if result:
+            file_path, framework_yml_content = result
+            logger.info(
+                "Found framework.yml",
                 container=container,
                 harness=harness_name,
+                file_path=file_path,
             )
-            result = find_file_matching_pattern_in_image_layers(
-                authenticator=authenticator,
-                repository=repository,
-                reference=tag,
-                prefix="/opt/metadata",
-                filename="framework.yml",
-                max_layer_size=max_layer_size,
-                docker_id=docker_id,
-                use_cache=use_cache,
-            )
-            if result:
-                file_path, framework_yml_content = result
-                logger.info(
-                    "Found framework.yml in subdirectory",
-                    container=container,
-                    harness=harness_name,
-                    file_path=file_path,
-                )
+        else:
+            framework_yml_content = None
 
         if not framework_yml_content:
             logger.warning(
@@ -613,6 +646,17 @@ Environment Variables:
     )
 
     args = parser.parse_args()
+
+    # Set log level to INFO so extraction progress messages are visible
+    # (default is WARNING which suppresses INFO messages)
+    # This matches the behavior of CLI commands like 'ls task --from'
+    if not os.getenv("NEMO_EVALUATOR_LOG_LEVEL") and not os.getenv("LOG_LEVEL"):
+        os.environ["NEMO_EVALUATOR_LOG_LEVEL"] = "INFO"
+        # Reconfigure logging with new level by re-importing and calling configure
+        import importlib
+        from nemo_evaluator_launcher.common import logging_utils
+        importlib.reload(logging_utils)
+        logging_utils._configure_structlog()
 
     # Validate inputs
     if not args.mapping_file.exists():

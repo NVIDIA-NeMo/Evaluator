@@ -32,7 +32,6 @@ from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.partial_pull import (
     GitlabRegistryAuthenticator,
     NvcrRegistryAuthenticator,
-    find_file_in_image_layers,
     find_file_matching_pattern_in_image_layers,
 )
 
@@ -378,16 +377,37 @@ def _inspect_container_for_tasks(
         docker_id = f"{registry_url}/{repository}:{tag}"
         target_file = "/opt/metadata/framework.yml"
 
-        # Get credentials from environment
+        # Get credentials from environment (optional for public registries)
         if registry_type == "gitlab":
             username = os.getenv("DOCKER_USERNAME")
             password = os.getenv("GITLAB_TOKEN")
-            if not username or not password:
-                logger.debug(
-                    "Skipping container inspection (missing GitLab credentials)",
-                    container=container,
+            
+            # If no password from environment, try Docker credentials file
+            if not password:
+                from nemo_evaluator_launcher.common.partial_pull import (
+                    _read_docker_credentials,
                 )
-                return {}
+                
+                docker_creds = _read_docker_credentials(registry_url)
+                if docker_creds:
+                    docker_username, docker_password = docker_creds
+                    if not username:
+                        username = docker_username
+                    password = docker_password
+                    logger.debug(
+                        "Using credentials from Docker config file",
+                        container=container,
+                        registry_url=registry_url,
+                        username=username,
+                    )
+            
+            # Credentials are optional - try anonymous access first
+            if not password:
+                logger.debug(
+                    "No GITLAB_TOKEN or Docker credentials found, attempting anonymous access to GitLab registry",
+                    container=container,
+                    registry_url=registry_url,
+                )
             authenticator = GitlabRegistryAuthenticator(
                 registry_url=registry_url,
                 username=username,
@@ -397,6 +417,26 @@ def _inspect_container_for_tasks(
         elif registry_type == "nvcr":
             username = os.getenv("NVCR_USERNAME") or os.getenv("DOCKER_USERNAME")
             password = os.getenv("NVCR_PASSWORD") or os.getenv("NVCR_API_KEY")
+            
+            # If no password from environment, try Docker credentials file
+            if not password:
+                from nemo_evaluator_launcher.common.partial_pull import (
+                    _read_docker_credentials,
+                )
+                
+                docker_creds = _read_docker_credentials(registry_url)
+                if docker_creds:
+                    docker_username, docker_password = docker_creds
+                    if not username:
+                        username = docker_username
+                    password = docker_password
+                    logger.debug(
+                        "Using credentials from Docker config file",
+                        container=container,
+                        registry_url=registry_url,
+                        username=username,
+                    )
+            
             if not username or not password:
                 logger.debug(
                     "Skipping container inspection (missing nvcr credentials)",
@@ -423,47 +463,36 @@ def _inspect_container_for_tasks(
         def _try_extract_framework_yml(
             ref_tag: str, ref_docker_id: str
         ) -> Optional[str]:
-            """Helper function to try extracting framework.yml with fallback to subdirectories."""
-            # First, try the standard location: /opt/metadata/framework.yml
-            # Note: Digest is always validated for cache hits (prevents stale cache for 'latest' tags)
-            content = find_file_in_image_layers(
+            """Helper function to extract framework.yml using pattern-based search."""
+            # Use pattern-based search to find framework.yml in any subdirectory under /opt/metadata/
+            # This handles both standard location (/opt/metadata/framework.yml) and subdirectories
+            # Note: find_file_matching_pattern_in_image_layers uses pattern-based caching
+            # (cache key: /opt/metadata/framework.yml) so cache hits work regardless of subdirectory location
+            logger.debug(
+                "Searching for framework.yml using pattern-based search",
+                container=container,
+                tag=ref_tag,
+            )
+            result = find_file_matching_pattern_in_image_layers(
                 authenticator=authenticator,
                 repository=repository,
                 reference=ref_tag,
-                target_file=target_file,
+                prefix="/opt/metadata",
+                filename="framework.yml",
                 max_layer_size=100 * 1024,  # 100KB
                 docker_id=ref_docker_id,
                 use_cache=True,
-                check_invalidated_digest=False,  # Deprecated parameter - digest always checked now
             )
-
-            # If not found, try to find framework.yml in any subdirectory under /opt/metadata/
-            if not content:
-                logger.debug(
-                    "framework.yml not found at standard location, searching subdirectories",
+            if result:
+                file_path, content = result
+                logger.info(
+                    "Found framework.yml",
                     container=container,
                     tag=ref_tag,
+                    file_path=file_path,
                 )
-                result = find_file_matching_pattern_in_image_layers(
-                    authenticator=authenticator,
-                    repository=repository,
-                    reference=ref_tag,
-                    prefix="/opt/metadata",
-                    filename="framework.yml",
-                    max_layer_size=100 * 1024,  # 100KB
-                    docker_id=ref_docker_id,
-                    use_cache=True,
-                )
-                if result:
-                    file_path, content = result
-                    logger.info(
-                        "Found framework.yml in subdirectory",
-                        container=container,
-                        tag=ref_tag,
-                        file_path=file_path,
-                    )
-
-            return content
+                return content
+            return None
 
         try:
             framework_yml_content = _try_extract_framework_yml(tag, docker_id)
