@@ -12,13 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# How to use: copy this file locally into a directory, say `examples`, and run
-# Run this config with `nemo-evaluator-launcher run --config-dir examples --config-name local_auto_export_llama_3_1_8b_instruct`.
-# After successful evaluation, results will be automatically exported to W&B, MLFlow, and GSheets, depending on
-# which exporters you have enabled.
 
-# specify default configs for execution, deployment, and export
+# How to use:
+#
+# 1. copy this file locally or clone the repository, and run
+# 2. run `nemo-evaluator-launcher run --config path/to/local_auto_export.yaml`
+
 defaults:
   - execution: local
   - deployment: none
@@ -48,7 +47,7 @@ evaluation:
 export:
   mlflow:
     # required parameter:
-    tracking_uri: ??? # MLflow server URL accessible from compute nodes (http://hostname:port)
+    tracking_uri: ??? # MLflow server URL (http://hostname:port)
 
     # optional parameters:
     experiment_name: "nv-eval"
