@@ -34,13 +34,15 @@ Single-turn, Live and Non-Live, AST and Exec evaluation
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/bfcl:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/bfcl:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:afd09c97a14d7a97e63cb3e765b8738a8c5d53ecc1771c953b6283f75f066dfa
+sha256:b25ff910708c61de2588440306ff2fe331521ad84e18525b39f3184baa32512b
 ```
+
+**Task Type:** `bfclv2`
 
 **Command:**
 ```bash
@@ -59,24 +61,24 @@ echo "Using custom dataset at ${BFCL_DATA_DIR}" && \
 
 **Defaults:**
 ```yaml
+framework_name: bfcl
+pkg_name: bfcl
 config:
   params:
-    limit_samples: null
     parallelism: 10
+    task: single_turn
     extra:
       native_calling: false
       custom_dataset:
         path: null
         format: null
         data_template_path: null
-    task: single_turn
-  type: bfclv2
   supported_endpoint_types:
   - chat
   - vlm
+  type: bfclv2
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -94,13 +96,15 @@ Single-turn, Live and Non-Live,  AST evaluation only. Uses native function calli
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/bfcl:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/bfcl:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:afd09c97a14d7a97e63cb3e765b8738a8c5d53ecc1771c953b6283f75f066dfa
+sha256:b25ff910708c61de2588440306ff2fe331521ad84e18525b39f3184baa32512b
 ```
+
+**Task Type:** `bfclv2_ast`
 
 **Command:**
 ```bash
@@ -119,24 +123,24 @@ echo "Using custom dataset at ${BFCL_DATA_DIR}" && \
 
 **Defaults:**
 ```yaml
+framework_name: bfcl
+pkg_name: bfcl
 config:
   params:
-    limit_samples: null
     parallelism: 10
+    task: ast
     extra:
       native_calling: true
       custom_dataset:
         path: null
         format: null
         data_template_path: null
-    task: ast
-  type: bfclv2_ast
   supported_endpoint_types:
   - chat
   - vlm
+  type: bfclv2_ast
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -154,13 +158,15 @@ Single-turn, Live and Non-Live,  AST evaluation only. Not using native function 
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/bfcl:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/bfcl:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:afd09c97a14d7a97e63cb3e765b8738a8c5d53ecc1771c953b6283f75f066dfa
+sha256:b25ff910708c61de2588440306ff2fe331521ad84e18525b39f3184baa32512b
 ```
+
+**Task Type:** `bfclv2_ast_prompting`
 
 **Command:**
 ```bash
@@ -179,24 +185,24 @@ echo "Using custom dataset at ${BFCL_DATA_DIR}" && \
 
 **Defaults:**
 ```yaml
+framework_name: bfcl
+pkg_name: bfcl
 config:
   params:
-    limit_samples: null
     parallelism: 10
+    task: ast
     extra:
       native_calling: false
       custom_dataset:
         path: null
         format: null
         data_template_path: null
-    task: ast
-  type: bfclv2_ast_prompting
   supported_endpoint_types:
   - chat
   - vlm
+  type: bfclv2_ast_prompting
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -214,13 +220,15 @@ Single-turn and Multi-turn, Live and Non-Live, AST and Exec evaluation
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/bfcl:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/bfcl:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:afd09c97a14d7a97e63cb3e765b8738a8c5d53ecc1771c953b6283f75f066dfa
+sha256:b25ff910708c61de2588440306ff2fe331521ad84e18525b39f3184baa32512b
 ```
+
+**Task Type:** `bfclv3`
 
 **Command:**
 ```bash
@@ -239,24 +247,24 @@ echo "Using custom dataset at ${BFCL_DATA_DIR}" && \
 
 **Defaults:**
 ```yaml
+framework_name: bfcl
+pkg_name: bfcl
 config:
   params:
-    limit_samples: null
     parallelism: 10
+    task: all
     extra:
       native_calling: false
       custom_dataset:
         path: null
         format: null
         data_template_path: null
-    task: all
-  type: bfclv3
   supported_endpoint_types:
   - chat
   - vlm
+  type: bfclv3
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -274,13 +282,15 @@ Single-turn and Multi-turn, Live and Non-Live, AST evaluation. Uses native funct
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/bfcl:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/bfcl:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:afd09c97a14d7a97e63cb3e765b8738a8c5d53ecc1771c953b6283f75f066dfa
+sha256:b25ff910708c61de2588440306ff2fe331521ad84e18525b39f3184baa32512b
 ```
+
+**Task Type:** `bfclv3_ast`
 
 **Command:**
 ```bash
@@ -299,24 +309,24 @@ echo "Using custom dataset at ${BFCL_DATA_DIR}" && \
 
 **Defaults:**
 ```yaml
+framework_name: bfcl
+pkg_name: bfcl
 config:
   params:
-    limit_samples: null
     parallelism: 10
+    task: multi_turn,ast
     extra:
       native_calling: true
       custom_dataset:
         path: null
         format: null
         data_template_path: null
-    task: multi_turn,ast
-  type: bfclv3_ast
   supported_endpoint_types:
   - chat
   - vlm
+  type: bfclv3_ast
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -334,13 +344,15 @@ Single-turn and Multi-turn, Live and Non-Live, AST evaluation. Not using native 
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/bfcl:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/bfcl:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:afd09c97a14d7a97e63cb3e765b8738a8c5d53ecc1771c953b6283f75f066dfa
+sha256:b25ff910708c61de2588440306ff2fe331521ad84e18525b39f3184baa32512b
 ```
+
+**Task Type:** `bfclv3_ast_prompting`
 
 **Command:**
 ```bash
@@ -359,24 +371,24 @@ echo "Using custom dataset at ${BFCL_DATA_DIR}" && \
 
 **Defaults:**
 ```yaml
+framework_name: bfcl
+pkg_name: bfcl
 config:
   params:
-    limit_samples: null
     parallelism: 10
+    task: multi_turn,ast
     extra:
       native_calling: false
       custom_dataset:
         path: null
         format: null
         data_template_path: null
-    task: multi_turn,ast
-  type: bfclv3_ast_prompting
   supported_endpoint_types:
   - chat
   - vlm
+  type: bfclv3_ast_prompting
 target:
   api_endpoint: {}
-
 ```
 
 </details>

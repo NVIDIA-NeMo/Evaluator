@@ -52,13 +52,15 @@ Extract and structure information from patient-doctor conversations
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
+sha256:70328e79f6f0443f6babe4f66104dd809960f72ed7aafb3121cddf267b25c43d
 ```
+
+**Task Type:** `aci_bench`
 
 **Command:**
 ```bash
@@ -67,10 +69,12 @@ sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
 
 **Defaults:**
 ```yaml
+framework_name: helm
+pkg_name: helm
 config:
   params:
-    limit_samples: null
     parallelism: 1
+    task: aci_bench
     extra:
       data_path: null
       num_output_tokens: null
@@ -82,13 +86,11 @@ config:
       gpt_judge_api_key: GPT_JUDGE_API_KEY
       llama_judge_api_key: LLAMA_JUDGE_API_KEY
       claude_judge_api_key: CLAUDE_JUDGE_API_KEY
-    task: aci_bench
-  type: aci_bench
   supported_endpoint_types:
   - chat
+  type: aci_bench
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -106,13 +108,15 @@ Given a natural language instruction, generate an SQL query that would be used i
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
+sha256:70328e79f6f0443f6babe4f66104dd809960f72ed7aafb3121cddf267b25c43d
 ```
+
+**Task Type:** `ehr_sql`
 
 **Command:**
 ```bash
@@ -121,10 +125,12 @@ sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
 
 **Defaults:**
 ```yaml
+framework_name: helm
+pkg_name: helm
 config:
   params:
-    limit_samples: null
     parallelism: 1
+    task: ehr_sql
     extra:
       data_path: null
       num_output_tokens: null
@@ -136,13 +142,11 @@ config:
       gpt_judge_api_key: GPT_JUDGE_API_KEY
       llama_judge_api_key: LLAMA_JUDGE_API_KEY
       claude_judge_api_key: CLAUDE_JUDGE_API_KEY
-    task: ehr_sql
-  type: ehr_sql
   supported_endpoint_types:
   - chat
+  type: ehr_sql
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -160,13 +164,15 @@ A collection of biomedical multiple-choice questions for testing medical knowled
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
+sha256:70328e79f6f0443f6babe4f66104dd809960f72ed7aafb3121cddf267b25c43d
 ```
+
+**Task Type:** `head_qa`
 
 **Command:**
 ```bash
@@ -175,10 +181,12 @@ sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
 
 **Defaults:**
 ```yaml
+framework_name: helm
+pkg_name: helm
 config:
   params:
-    limit_samples: null
     parallelism: 1
+    task: head_qa
     extra:
       data_path: null
       num_output_tokens: null
@@ -190,13 +198,11 @@ config:
       gpt_judge_api_key: GPT_JUDGE_API_KEY
       llama_judge_api_key: LLAMA_JUDGE_API_KEY
       claude_judge_api_key: CLAUDE_JUDGE_API_KEY
-    task: head_qa
-  type: head_qa
   supported_endpoint_types:
   - chat
+  type: head_qa
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -214,13 +220,15 @@ Generate summaries of doctor-patient conversations, healthcaremagic version
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
+sha256:70328e79f6f0443f6babe4f66104dd809960f72ed7aafb3121cddf267b25c43d
 ```
+
+**Task Type:** `med_dialog_healthcaremagic`
 
 **Command:**
 ```bash
@@ -229,10 +237,12 @@ sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
 
 **Defaults:**
 ```yaml
+framework_name: helm
+pkg_name: helm
 config:
   params:
-    limit_samples: null
     parallelism: 1
+    task: med_dialog
     extra:
       data_path: null
       num_output_tokens: null
@@ -244,13 +254,11 @@ config:
       gpt_judge_api_key: GPT_JUDGE_API_KEY
       llama_judge_api_key: LLAMA_JUDGE_API_KEY
       claude_judge_api_key: CLAUDE_JUDGE_API_KEY
-    task: med_dialog
-  type: med_dialog_healthcaremagic
   supported_endpoint_types:
   - chat
+  type: med_dialog_healthcaremagic
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -268,13 +276,15 @@ Generate summaries of doctor-patient conversations, icliniq version
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
+sha256:70328e79f6f0443f6babe4f66104dd809960f72ed7aafb3121cddf267b25c43d
 ```
+
+**Task Type:** `med_dialog_icliniq`
 
 **Command:**
 ```bash
@@ -283,10 +293,12 @@ sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
 
 **Defaults:**
 ```yaml
+framework_name: helm
+pkg_name: helm
 config:
   params:
-    limit_samples: null
     parallelism: 1
+    task: med_dialog
     extra:
       data_path: null
       num_output_tokens: null
@@ -298,13 +310,11 @@ config:
       gpt_judge_api_key: GPT_JUDGE_API_KEY
       llama_judge_api_key: LLAMA_JUDGE_API_KEY
       claude_judge_api_key: CLAUDE_JUDGE_API_KEY
-    task: med_dialog
-  type: med_dialog_icliniq
   supported_endpoint_types:
   - chat
+  type: med_dialog_icliniq
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -322,13 +332,15 @@ A USMLE-style medical question dataset with multiple-choice answers and explanat
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
+sha256:70328e79f6f0443f6babe4f66104dd809960f72ed7aafb3121cddf267b25c43d
 ```
+
+**Task Type:** `medbullets`
 
 **Command:**
 ```bash
@@ -337,10 +349,12 @@ sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
 
 **Defaults:**
 ```yaml
+framework_name: helm
+pkg_name: helm
 config:
   params:
-    limit_samples: null
     parallelism: 1
+    task: medbullets
     extra:
       data_path: null
       num_output_tokens: null
@@ -352,13 +366,11 @@ config:
       gpt_judge_api_key: GPT_JUDGE_API_KEY
       llama_judge_api_key: LLAMA_JUDGE_API_KEY
       claude_judge_api_key: CLAUDE_JUDGE_API_KEY
-    task: medbullets
-  type: medbullets
   supported_endpoint_types:
   - chat
+  type: medbullets
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -376,13 +388,15 @@ A dataset which consists of a patient note, a question requesting to compute a s
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
+sha256:70328e79f6f0443f6babe4f66104dd809960f72ed7aafb3121cddf267b25c43d
 ```
+
+**Task Type:** `medcalc_bench`
 
 **Command:**
 ```bash
@@ -391,10 +405,12 @@ sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
 
 **Defaults:**
 ```yaml
+framework_name: helm
+pkg_name: helm
 config:
   params:
-    limit_samples: null
     parallelism: 1
+    task: medcalc_bench
     extra:
       data_path: null
       num_output_tokens: null
@@ -406,13 +422,11 @@ config:
       gpt_judge_api_key: GPT_JUDGE_API_KEY
       llama_judge_api_key: LLAMA_JUDGE_API_KEY
       claude_judge_api_key: CLAUDE_JUDGE_API_KEY
-    task: medcalc_bench
-  type: medcalc_bench
   supported_endpoint_types:
   - chat
+  type: medcalc_bench
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -430,13 +444,15 @@ A dataset containing medical narratives with error detection and correction pair
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
+sha256:70328e79f6f0443f6babe4f66104dd809960f72ed7aafb3121cddf267b25c43d
 ```
+
+**Task Type:** `medec`
 
 **Command:**
 ```bash
@@ -445,10 +461,12 @@ sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
 
 **Defaults:**
 ```yaml
+framework_name: helm
+pkg_name: helm
 config:
   params:
-    limit_samples: null
     parallelism: 1
+    task: medec
     extra:
       data_path: null
       num_output_tokens: null
@@ -460,13 +478,11 @@ config:
       gpt_judge_api_key: GPT_JUDGE_API_KEY
       llama_judge_api_key: LLAMA_JUDGE_API_KEY
       claude_judge_api_key: CLAUDE_JUDGE_API_KEY
-    task: medec
-  type: medec
   supported_endpoint_types:
   - chat
+  type: medec
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -484,13 +500,15 @@ A dataset of PubMed articles and associated questions, with the objective being 
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
+sha256:70328e79f6f0443f6babe4f66104dd809960f72ed7aafb3121cddf267b25c43d
 ```
+
+**Task Type:** `medhallu`
 
 **Command:**
 ```bash
@@ -499,10 +517,12 @@ sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
 
 **Defaults:**
 ```yaml
+framework_name: helm
+pkg_name: helm
 config:
   params:
-    limit_samples: null
     parallelism: 1
+    task: medhallu
     extra:
       data_path: null
       num_output_tokens: null
@@ -514,13 +534,11 @@ config:
       gpt_judge_api_key: GPT_JUDGE_API_KEY
       llama_judge_api_key: LLAMA_JUDGE_API_KEY
       claude_judge_api_key: CLAUDE_JUDGE_API_KEY
-    task: medhallu
-  type: medhallu
   supported_endpoint_types:
   - chat
+  type: medhallu
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -538,13 +556,15 @@ Retrieve and rank answers based on medical question understanding
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
+sha256:70328e79f6f0443f6babe4f66104dd809960f72ed7aafb3121cddf267b25c43d
 ```
+
+**Task Type:** `medi_qa`
 
 **Command:**
 ```bash
@@ -553,10 +573,12 @@ sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
 
 **Defaults:**
 ```yaml
+framework_name: helm
+pkg_name: helm
 config:
   params:
-    limit_samples: null
     parallelism: 1
+    task: medi_qa
     extra:
       data_path: null
       num_output_tokens: null
@@ -568,13 +590,11 @@ config:
       gpt_judge_api_key: GPT_JUDGE_API_KEY
       llama_judge_api_key: LLAMA_JUDGE_API_KEY
       claude_judge_api_key: CLAUDE_JUDGE_API_KEY
-    task: medi_qa
-  type: medi_qa
   supported_endpoint_types:
   - chat
+  type: medi_qa
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -592,13 +612,15 @@ Answer consumer medication-related questions
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
+sha256:70328e79f6f0443f6babe4f66104dd809960f72ed7aafb3121cddf267b25c43d
 ```
+
+**Task Type:** `medication_qa`
 
 **Command:**
 ```bash
@@ -607,10 +629,12 @@ sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
 
 **Defaults:**
 ```yaml
+framework_name: helm
+pkg_name: helm
 config:
   params:
-    limit_samples: null
     parallelism: 1
+    task: medication_qa
     extra:
       data_path: null
       num_output_tokens: null
@@ -622,13 +646,11 @@ config:
       gpt_judge_api_key: GPT_JUDGE_API_KEY
       llama_judge_api_key: LLAMA_JUDGE_API_KEY
       claude_judge_api_key: CLAUDE_JUDGE_API_KEY
-    task: medication_qa
-  type: medication_qa
   supported_endpoint_types:
   - chat
+  type: medication_qa
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -646,13 +668,15 @@ Document and extract information about medical procedures
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
+sha256:70328e79f6f0443f6babe4f66104dd809960f72ed7aafb3121cddf267b25c43d
 ```
+
+**Task Type:** `mtsamples_procedures`
 
 **Command:**
 ```bash
@@ -661,10 +685,12 @@ sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
 
 **Defaults:**
 ```yaml
+framework_name: helm
+pkg_name: helm
 config:
   params:
-    limit_samples: null
     parallelism: 1
+    task: mtsamples_procedures
     extra:
       data_path: null
       num_output_tokens: null
@@ -676,13 +702,11 @@ config:
       gpt_judge_api_key: GPT_JUDGE_API_KEY
       llama_judge_api_key: LLAMA_JUDGE_API_KEY
       claude_judge_api_key: CLAUDE_JUDGE_API_KEY
-    task: mtsamples_procedures
-  type: mtsamples_procedures
   supported_endpoint_types:
   - chat
+  type: mtsamples_procedures
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -700,13 +724,15 @@ Generate treatment plans based on clinical notes
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
+sha256:70328e79f6f0443f6babe4f66104dd809960f72ed7aafb3121cddf267b25c43d
 ```
+
+**Task Type:** `mtsamples_replicate`
 
 **Command:**
 ```bash
@@ -715,10 +741,12 @@ sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
 
 **Defaults:**
 ```yaml
+framework_name: helm
+pkg_name: helm
 config:
   params:
-    limit_samples: null
     parallelism: 1
+    task: mtsamples_replicate
     extra:
       data_path: null
       num_output_tokens: null
@@ -730,13 +758,11 @@ config:
       gpt_judge_api_key: GPT_JUDGE_API_KEY
       llama_judge_api_key: LLAMA_JUDGE_API_KEY
       claude_judge_api_key: CLAUDE_JUDGE_API_KEY
-    task: mtsamples_replicate
-  type: mtsamples_replicate
   supported_endpoint_types:
   - chat
+  type: mtsamples_replicate
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -754,13 +780,15 @@ A dataset that provides pubmed abstracts and asks associated questions yes/no/ma
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
+sha256:70328e79f6f0443f6babe4f66104dd809960f72ed7aafb3121cddf267b25c43d
 ```
+
+**Task Type:** `pubmed_qa`
 
 **Command:**
 ```bash
@@ -769,10 +797,12 @@ sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
 
 **Defaults:**
 ```yaml
+framework_name: helm
+pkg_name: helm
 config:
   params:
-    limit_samples: null
     parallelism: 1
+    task: pubmed_qa
     extra:
       data_path: null
       num_output_tokens: null
@@ -784,13 +814,11 @@ config:
       gpt_judge_api_key: GPT_JUDGE_API_KEY
       llama_judge_api_key: LLAMA_JUDGE_API_KEY
       claude_judge_api_key: CLAUDE_JUDGE_API_KEY
-    task: pubmed_qa
-  type: pubmed_qa
   supported_endpoint_types:
   - chat
+  type: pubmed_qa
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -808,13 +836,15 @@ A collection of LLM outputs in response to medical questions with race-based bia
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/helm:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
+sha256:70328e79f6f0443f6babe4f66104dd809960f72ed7aafb3121cddf267b25c43d
 ```
+
+**Task Type:** `race_based_med`
 
 **Command:**
 ```bash
@@ -823,10 +853,12 @@ sha256:6d7b6151100405d700c97d55b9233d98f18a013de357338321ca1a0b14999496
 
 **Defaults:**
 ```yaml
+framework_name: helm
+pkg_name: helm
 config:
   params:
-    limit_samples: null
     parallelism: 1
+    task: race_based_med
     extra:
       data_path: null
       num_output_tokens: null
@@ -838,13 +870,11 @@ config:
       gpt_judge_api_key: GPT_JUDGE_API_KEY
       llama_judge_api_key: LLAMA_JUDGE_API_KEY
       claude_judge_api_key: CLAUDE_JUDGE_API_KEY
-    task: race_based_med
-  type: race_based_med
   supported_endpoint_types:
   - chat
+  type: race_based_med
 target:
   api_endpoint: {}
-
 ```
 
 </details>

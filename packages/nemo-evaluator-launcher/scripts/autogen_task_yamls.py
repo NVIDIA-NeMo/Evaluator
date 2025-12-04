@@ -23,6 +23,7 @@ import re
 import shutil
 import sys
 from collections import defaultdict
+from typing import Optional
 
 import yaml
 
@@ -95,7 +96,7 @@ def normalize_id(name: str) -> str:
 class _TaskAutogen:
     """Handles autogeneration of documentation for a single task."""
 
-    def __init__(self, task_ir):
+    def __init__(self, task_ir: TaskIntermediateRepresentation) -> None:
         """Initialize with a TaskIntermediateRepresentation.
 
         Args:
@@ -136,8 +137,11 @@ class _TaskAutogen:
         lines.append("")
 
         if self.task_ir.description:
-            lines.append(f"{self.task_ir.description}")
-            lines.append("")
+            # Handle None or empty description safely
+            desc = str(self.task_ir.description).strip()
+            if desc:
+                lines.append(desc)
+                lines.append("")
 
         # Extract command and defaults separately
         command = None
@@ -169,14 +173,43 @@ class _TaskAutogen:
         lines.append("")
         lines.append("**Container:**")
         lines.append("```")
-        lines.append(self.task_ir.container)
+        lines.append(str(self.task_ir.container))
         lines.append("```")
         lines.append("")
         if self.task_ir.container_digest:
             lines.append("**Container Digest:**")
             lines.append("```")
-            lines.append(self.task_ir.container_digest)
+            lines.append(str(self.task_ir.container_digest))
             lines.append("```")
+            lines.append("")
+        
+        # Extract and display task type and endpoint type from defaults if available
+        task_type = None
+        endpoint_type = None
+        if self.task_ir.defaults:
+            # Extract task type from config.type
+            config = self.task_ir.defaults.get("config", {})
+            if isinstance(config, dict):
+                task_type = config.get("type")
+            
+            # Extract endpoint type from target.api_endpoint.type
+            target = self.task_ir.defaults.get("target", {})
+            if isinstance(target, dict):
+                api_endpoint = target.get("api_endpoint", {})
+                if isinstance(api_endpoint, dict):
+                    endpoint_type = api_endpoint.get("type")
+                    if isinstance(endpoint_type, list):
+                        endpoint_type = ", ".join(endpoint_type)
+        
+        # Add task type and endpoint type if available
+        metadata_lines = []
+        if task_type:
+            metadata_lines.append(f"**Task Type:** `{task_type}`")
+        if endpoint_type:
+            metadata_lines.append(f"**Endpoint Type:** `{endpoint_type}`")
+        
+        if metadata_lines:
+            lines.extend(metadata_lines)
             lines.append("")
 
         # Show command section if present
@@ -196,10 +229,15 @@ class _TaskAutogen:
         if defaults_without_command:
             lines.append("**Defaults:**")
             lines.append("```yaml")
+            # Use better YAML formatting with proper width and allow_unicode
             defaults_yaml = yaml.dump(
-                defaults_without_command, default_flow_style=False, sort_keys=False
+                defaults_without_command,
+                default_flow_style=False,
+                sort_keys=False,
+                width=120,  # Reasonable width for better readability
+                allow_unicode=True,  # Allow unicode characters
             )
-            lines.append(defaults_yaml)
+            lines.append(defaults_yaml.rstrip())  # Remove trailing newline
             lines.append("```")
             lines.append("")
 
@@ -213,7 +251,11 @@ class _TaskAutogen:
 class _HarnessAutogen:
     """Handles autogeneration of documentation for a harness and its tasks."""
 
-    def __init__(self, harness_ir, tasks: list):
+    def __init__(
+        self,
+        harness_ir: HarnessIntermediateRepresentation,
+        tasks: list[TaskIntermediateRepresentation],
+    ) -> None:
         """Initialize with harness IR and list of tasks.
 
         Args:
@@ -251,7 +293,8 @@ class _HarnessAutogen:
         for task in self.tasks:
             task_autogen = _TaskAutogen(task)
             task_id = f"{self.harness_id}-{normalize_id(task.name)}"
-            description = task.description if task.description else ""
+            # Handle None or empty description safely
+            description = str(task.description).strip() if task.description else ""
             # Use regular markdown link with explicit anchor IDs
             lines.append(f"* - [{task.name}](#{task_id})")
             lines.append(f"  - {description}")
@@ -281,12 +324,26 @@ class _HarnessAutogen:
         task_count = len(self.tasks)
         task_text = f"{task_count} task{'s' if task_count != 1 else ''}"
 
-        # Use harness description if available, otherwise use task count
-        description = (
-            self.harness_ir.description if self.harness_ir.description else task_text
-        )
-        # If we have description, append task count
-        if self.harness_ir.description:
+        # Use harness description if available, otherwise try to derive from tasks
+        description = self.harness_ir.description
+        if not description:
+            # Try to derive description from task descriptions (use first non-empty task description)
+            for task in self.tasks:
+                if task.description:
+                    # Use first sentence or first 100 chars of first task description
+                    desc = task.description.strip()
+                    # Extract first sentence if it ends with period
+                    first_sentence = desc.split(".", 1)[0] + "." if "." in desc[:100] else desc[:100]
+                    if len(desc) > 100:
+                        first_sentence += "..."
+                    description = first_sentence
+                    break
+        
+        # Use task count as fallback if still no description
+        if not description:
+            description = task_text
+        else:
+            # Append task count if we have a description
             description = f"{description}\n\n{task_text}"
 
         # Generate card using MyST card syntax (3 colons for grid-item-card)
@@ -326,11 +383,14 @@ def generate_tasks_catalog_markdown(
         lines.append("No harnesses found.")
         lines.append("")
     else:
+        # Sort harnesses alphabetically for consistent ordering
+        sorted_harnesses = sorted(harnesses, key=lambda h: h.harness_name.lower())
+        
         lines.append("::::{grid} 1 2 2 2")
         lines.append(":gutter: 1 1 1 2")
         lines.append("")
 
-        for harness in harnesses:
+        for harness in sorted_harnesses:
             card_content = harness.generate_card_markdown(harnesses_dir)
             lines.append(card_content)
             lines.append("")
@@ -344,7 +404,9 @@ def generate_tasks_catalog_markdown(
         lines.append(":caption: Harnesses")
         lines.append(":hidden:")
         lines.append("")
-        for harness in harnesses:
+        # Sort harnesses alphabetically for consistent ordering
+        sorted_harnesses = sorted(harnesses, key=lambda h: h.harness_name.lower())
+        for harness in sorted_harnesses:
             # Use relative path from tasks-catalog.md to harness pages
             harness_path = f"../_resources/harnesses_autogen/{harness.harness_filename}"
             lines.append(f"{harness.harness_name} <{harness_path}>")
@@ -446,15 +508,28 @@ Examples:
     # Derive harnesses from tasks
     harness_irs: dict[str, HarnessIntermediateRepresentation] = {}
     for task in tasks:
+        if not task.harness:
+            logger.warning(
+                "Task missing harness name, skipping",
+                task_name=task.name,
+            )
+            continue
+        
         if task.harness not in harness_irs:
+            # Use first task's container info for harness
+            container = str(task.container) if task.container else ""
+            container_digest = (
+                str(task.container_digest) if task.container_digest else None
+            )
+            
             harness_irs[task.harness] = HarnessIntermediateRepresentation(
                 name=task.harness,
                 description="",  # Description not available from tasks alone
                 full_name=None,
                 url=None,
                 source=None,
-                container=task.container,
-                container_digest=task.container_digest,
+                container=container,
+                container_digest=container_digest,
             )
 
     logger.info(
@@ -516,12 +591,23 @@ Examples:
         # Create harness autogen objects with harness IRs (already loaded above)
         harnesses = []
         for harness_name, tasks in sorted(tasks_by_harness.items()):
+            if not tasks:
+                logger.warning(
+                    "No tasks found for harness, skipping",
+                    harness=harness_name,
+                )
+                continue
+            
             harness_ir = harness_irs.get(harness_name)
             if not harness_ir:
                 # This shouldn't happen since we derive harnesses from tasks
                 # But create a minimal harness IR as fallback
-                container = tasks[0].container if tasks else ""
-                container_digest = tasks[0].container_digest if tasks else None
+                container = str(tasks[0].container) if tasks[0].container else ""
+                container_digest = (
+                    str(tasks[0].container_digest)
+                    if tasks[0].container_digest
+                    else None
+                )
                 harness_ir = HarnessIntermediateRepresentation(
                     name=harness_name,
                     description="",

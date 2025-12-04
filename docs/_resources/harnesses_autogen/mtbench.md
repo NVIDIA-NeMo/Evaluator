@@ -26,13 +26,15 @@ Standard MT-Bench
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/mtbench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/mtbench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:d460a64db8ed8944966946cdfb2b74c590f881a50e9b9af3a9fc48dd65262848
+sha256:defd17e9d1b7003b9a32e38580bdd91588aede9a886e3e3d21cd539d13765fdc
 ```
+
+**Task Type:** `mtbench`
 
 **Command:**
 ```bash
@@ -41,11 +43,14 @@ mtbench-evaluator {% if target.api_endpoint.model_id is not none %} --model {{ta
 
 **Defaults:**
 ```yaml
+framework_name: mtbench
+pkg_name: mtbench
 config:
   params:
     max_new_tokens: 1024
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mtbench
     request_timeout: 30
     extra:
       judge:
@@ -57,13 +62,11 @@ config:
         temperature: 0.0
         top_p: 0.0001
         max_tokens: 2048
-    task: mtbench
-  type: mtbench
   supported_endpoint_types:
   - chat
+  type: mtbench
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -81,13 +84,15 @@ Corrected MT-Bench
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/mtbench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/mtbench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:d460a64db8ed8944966946cdfb2b74c590f881a50e9b9af3a9fc48dd65262848
+sha256:defd17e9d1b7003b9a32e38580bdd91588aede9a886e3e3d21cd539d13765fdc
 ```
+
+**Task Type:** `mtbench-cor1`
 
 **Command:**
 ```bash
@@ -96,11 +101,14 @@ mtbench-evaluator {% if target.api_endpoint.model_id is not none %} --model {{ta
 
 **Defaults:**
 ```yaml
+framework_name: mtbench
+pkg_name: mtbench
 config:
   params:
     max_new_tokens: 1024
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    task: mtbench-cor1
     request_timeout: 30
     extra:
       judge:
@@ -113,13 +121,11 @@ config:
         top_p: 0.0001
         max_tokens: 2048
       args: --judge_reference_model gpt-4-0125-preview
-    task: mtbench-cor1
-  type: mtbench-cor1
   supported_endpoint_types:
   - chat
+  type: mtbench-cor1
 target:
   api_endpoint: {}
-
 ```
 
 </details>

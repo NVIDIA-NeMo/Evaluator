@@ -26,13 +26,15 @@ Run LLM judge on provided ProfBench reports and score them
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/profbench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/profbench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:251d1b47c52fbfed94837ef6ab5e0cca61ac218bb82d01b0e4314fb10264a9ef
+sha256:4567903d23f1e28c68ed799ac42f4e1303c0d84a3ddb8b4f5a9c0eff4793dd6b
 ```
+
+**Task Type:** `llm_judge`
 
 **Command:**
 ```bash
@@ -75,15 +77,16 @@ sha256:251d1b47c52fbfed94837ef6ab5e0cca61ac218bb82d01b0e4314fb10264a9ef
 
 **Defaults:**
 ```yaml
+framework_name: profbench
+pkg_name: profbench
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0.0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    temperature: 0.0
     request_timeout: 600
+    top_p: 1.0e-05
     extra:
       run_generation: false
       run_judge_generated: false
@@ -95,12 +98,11 @@ config:
       reasoning: false
       reasoning_effort: null
       debug: false
-  type: llm_judge
   supported_endpoint_types:
   - chat
+  type: llm_judge
 target:
   api_endpoint: {}
-
 ```
 
 </details>
@@ -118,13 +120,15 @@ Generate professional reports and evaluate them (full pipeline)
 
 **Container:**
 ```
-gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/profbench:dev-2025-11-10T13-29-9db0f7ca
+gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/profbench:dev-2025-11-27T12-26-df507571
 ```
 
 **Container Digest:**
 ```
-sha256:251d1b47c52fbfed94837ef6ab5e0cca61ac218bb82d01b0e4314fb10264a9ef
+sha256:4567903d23f1e28c68ed799ac42f4e1303c0d84a3ddb8b4f5a9c0eff4793dd6b
 ```
+
+**Task Type:** `report_generation`
 
 **Command:**
 ```bash
@@ -167,15 +171,16 @@ sha256:251d1b47c52fbfed94837ef6ab5e0cca61ac218bb82d01b0e4314fb10264a9ef
 
 **Defaults:**
 ```yaml
+framework_name: profbench
+pkg_name: profbench
 config:
   params:
-    limit_samples: null
     max_new_tokens: 4096
-    temperature: 0.0
-    top_p: 1.0e-05
-    parallelism: 10
     max_retries: 5
+    parallelism: 10
+    temperature: 0.0
     request_timeout: 600
+    top_p: 1.0e-05
     extra:
       run_generation: true
       run_judge_generated: true
@@ -187,12 +192,11 @@ config:
       reasoning: false
       reasoning_effort: null
       debug: false
-  type: report_generation
   supported_endpoint_types:
   - chat
+  type: report_generation
 target:
   api_endpoint: {}
-
 ```
 
 </details>
