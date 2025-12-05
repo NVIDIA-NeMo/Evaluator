@@ -163,11 +163,20 @@ class _TaskAutogen:
                     if "command" in params:
                         command = params.pop("command")
 
-        # Unfoldable details section using HTML details tag
-        lines.append("<details>")
-        lines.append("<summary><strong>View task details</strong></summary>")
+        # Extract task type from defaults if available
+        task_type = None
+        if self.task_ir.defaults:
+            config = self.task_ir.defaults.get("config", {})
+            if isinstance(config, dict):
+                task_type = config.get("type")
+
+        # Create tab set with three tabs: Container, Command, Defaults
+        lines.append("::::{tab-set}")
         lines.append("")
 
+        # Tab 1: Container (harness name, container, digest, task type)
+        lines.append(":::{tab-item} Container")
+        lines.append("")
         lines.append(f"**Harness:** `{self.task_ir.harness}`")
         lines.append("")
         lines.append("**Container:**")
@@ -181,52 +190,31 @@ class _TaskAutogen:
             lines.append(str(self.task_ir.container_digest))
             lines.append("```")
             lines.append("")
-
-        # Extract and display task type and endpoint type from defaults if available
-        task_type = None
-        endpoint_type = None
-        if self.task_ir.defaults:
-            # Extract task type from config.type
-            config = self.task_ir.defaults.get("config", {})
-            if isinstance(config, dict):
-                task_type = config.get("type")
-
-            # Extract endpoint type from target.api_endpoint.type
-            target = self.task_ir.defaults.get("target", {})
-            if isinstance(target, dict):
-                api_endpoint = target.get("api_endpoint", {})
-                if isinstance(api_endpoint, dict):
-                    endpoint_type = api_endpoint.get("type")
-                    if isinstance(endpoint_type, list):
-                        endpoint_type = ", ".join(endpoint_type)
-
-        # Add task type and endpoint type if available
-        metadata_lines = []
         if task_type:
-            metadata_lines.append(f"**Task Type:** `{task_type}`")
-        if endpoint_type:
-            metadata_lines.append(f"**Endpoint Type:** `{endpoint_type}`")
-
-        if metadata_lines:
-            lines.extend(metadata_lines)
+            lines.append(f"**Task Type:** `{task_type}`")
             lines.append("")
+        lines.append(":::")
+        lines.append("")
 
-        # Show command section if present
+        # Tab 2: Command (if present)
         if command:
-            lines.append("**Command:**")
+            lines.append(":::{tab-item} Command")
+            lines.append("")
             lines.append("```bash")
             if isinstance(command, str):
                 # Output command as-is, let CSS handle wrapping
-                # Simple fallback: break at existing newlines or spaces if very long
                 lines.append(command)
             else:
                 lines.append(str(command))
             lines.append("```")
             lines.append("")
+            lines.append(":::")
+            lines.append("")
 
-        # Show defaults section (without command)
+        # Tab 3: Defaults
         if defaults_without_command:
-            lines.append("**Defaults:**")
+            lines.append(":::{tab-item} Defaults")
+            lines.append("")
             lines.append("```yaml")
             # Use better YAML formatting with proper width and allow_unicode
             defaults_yaml = yaml.dump(
@@ -239,8 +227,10 @@ class _TaskAutogen:
             lines.append(defaults_yaml.rstrip())  # Remove trailing newline
             lines.append("```")
             lines.append("")
+            lines.append(":::")
+            lines.append("")
 
-        lines.append("</details>")
+        lines.append("::::")
         lines.append("")
         lines.append("")
 
