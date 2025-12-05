@@ -290,22 +290,19 @@ def setup(app):
                 env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
 
             # Run autogen script - FAIL BUILD if it fails
+            # Stream stdout in real-time for better UX, but capture stderr for error reporting
             result = subprocess.run(
                 [sys.executable, str(autogen_script)],
                 cwd=str(repo_root),
                 env=env,
-                capture_output=True,
+                stdout=None,  # Let stdout stream normally so users see progress
+                stderr=subprocess.PIPE,  # Capture stderr for error reporting
                 text=True,
                 check=False,  # We'll handle the error ourselves for better messaging
             )
 
             if result.returncode == 0:
                 logger.info("✓ Autogen script completed successfully")
-                if result.stdout:
-                    # Print any output from autogen script
-                    for line in result.stdout.strip().split("\n"):
-                        if line.strip():
-                            logger.info(f"  {line}")
 
                 # Verify expected output files exist
                 missing_files = []
@@ -337,25 +334,13 @@ def setup(app):
                     "",
                     "The documentation build cannot proceed because task documentation generation failed.",
                     "",
-                    "STDOUT:",
+                    "STDERR:",
                     "-" * 80,
                 ]
-                if result.stdout:
-                    error_msg_parts.extend(result.stdout.strip().split("\n"))
-                else:
-                    error_msg_parts.append("(no output)")
-
-                error_msg_parts.extend(
-                    [
-                        "",
-                        "STDERR:",
-                        "-" * 80,
-                    ]
-                )
                 if result.stderr:
                     error_msg_parts.extend(result.stderr.strip().split("\n"))
                 else:
-                    error_msg_parts.append("(no output)")
+                    error_msg_parts.append("(no stderr output - check stdout above for details)")
 
                 error_msg_parts.extend(
                     [
