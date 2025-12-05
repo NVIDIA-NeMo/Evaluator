@@ -258,8 +258,8 @@ def setup(app):
     )
 
     # Expected output files that should be generated
-    expected_catalog_file = docs_dir / "task_catalog" / "task_catalog.md"
     expected_harnesses_dir = docs_dir / "task_catalog" / "harnesses"
+    expected_benchmarks_table_file = docs_dir / "task_catalog" / "benchmarks-table.md"
 
     # Only run if script exists
     if autogen_script.exists():
@@ -306,10 +306,10 @@ def setup(app):
 
                 # Verify expected output files exist
                 missing_files = []
-                if not expected_catalog_file.exists():
-                    missing_files.append(str(expected_catalog_file))
                 if not expected_harnesses_dir.exists():
                     missing_files.append(str(expected_harnesses_dir))
+                if not expected_benchmarks_table_file.exists():
+                    missing_files.append(str(expected_benchmarks_table_file))
 
                 if missing_files:
                     error_msg = (
