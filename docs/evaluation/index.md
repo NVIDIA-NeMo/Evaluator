@@ -117,9 +117,9 @@ Configure your evaluations, create custom tasks, explore benchmarks, and extend 
 Explore 100+ available benchmarks across 18 evaluation harnesses and their specific use cases.
 :::
 
-:::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Tasks Catalog
-:link: ../task_catalog/task_catalog
-:link-type: doc
+:::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Full Benchmarks List
+:link: benchmarks#benchmarks-full-list
+:link-type: ref
 Browse all available evaluation tasks organized by harness with detailed information and configuration.
 :::
 

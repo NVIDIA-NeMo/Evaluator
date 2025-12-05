@@ -417,6 +417,174 @@ def generate_tasks_catalog_markdown(
     return "\n".join(lines)
 
 
+def extract_container_name_and_version(container: str) -> tuple[str, str]:
+    """Extract container name and version from container image identifier.
+
+    Args:
+        container: Container image identifier (e.g., nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11)
+
+    Returns:
+        Tuple of (container_name, version) where container_name is the part after eval-factory/
+    """
+    if not container:
+        return "", ""
+
+    # Extract version if present
+    version = ""
+    if ":" in container:
+        container, version = container.rsplit(":", 1)
+
+    # Extract container name (part after eval-factory/)
+    container_name = ""
+    if "eval-factory/" in container:
+        container_name = container.split("eval-factory/")[-1]
+    elif "/" in container:
+        container_name = container.split("/")[-1]
+
+    return container_name, version
+
+
+def generate_benchmarks_table_markdown(
+    harnesses: list[_HarnessAutogen],
+) -> str:
+    """Generate benchmarks table markdown for benchmarks.md.
+
+    Args:
+        harnesses: List of _HarnessAutogen objects
+
+    Returns:
+        Markdown table content as string
+    """
+    lines = []
+    lines.append("```{list-table}")
+    lines.append(":header-rows: 1")
+    lines.append(":widths: 20 25 15 15 25")
+    lines.append("")
+    lines.append("* - Container")
+    lines.append("  - Description")
+    lines.append("  - NGC Catalog")
+    lines.append("  - Latest Tag")
+    lines.append("  - Tasks")
+
+    # Sort harnesses alphabetically for consistent ordering
+    sorted_harnesses = sorted(harnesses, key=lambda h: h.harness_name.lower())
+
+    for harness in sorted_harnesses:
+        # Get container from harness IR or first task
+        container = harness.harness_ir.container
+        if not container and harness.tasks:
+            container = harness.tasks[0].container
+
+        container_name, version = extract_container_name_and_version(container)
+
+        # Generate NGC catalog link
+        if container_name:
+            ngc_url = f"https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/{container_name}"
+            if version:
+                ngc_url += f"?version={version}"
+            ngc_link = f"[NGC]({ngc_url})"
+        else:
+            ngc_link = "N/A"
+
+        # Get description
+        description = harness.harness_ir.description or ""
+        if not description and harness.tasks:
+            # Try to get description from first task
+            description = harness.tasks[0].description or ""
+
+        # Generate harness page link
+        # benchmarks.md is at docs/evaluation/benchmarks.md
+        # harness page is at docs/task_catalog/harnesses/{filename}.md
+        # Need relative path from benchmarks.md: ../task_catalog/harnesses/{filename}
+        harness_page_path = f"../task_catalog/harnesses/{harness.harness_filename}"
+        # Link to harness page with harness anchor (harness_id is the normalized harness name)
+        # The harness page heading creates an anchor with the harness_id
+        harness_anchor = harness.harness_id
+        container_display = f"<a href=\"{harness_page_path}.html#{harness_anchor}\"><strong>{harness.harness_name}</strong></a>"
+
+        # Generate task links with anchors to specific tasks on the harness page
+        # Use same relative path format
+        task_links = []
+        for task in harness.tasks:
+            task_id = f"{harness.harness_id}-{normalize_id(task.name)}"
+            # HTML link with anchor - use relative path from benchmarks.md
+            task_link = f"<a href=\"{harness_page_path}.html#{task_id}\">{task.name}</a>"
+            task_links.append(task_link)
+
+        # Join task links with commas
+        tasks_display = ", ".join(task_links)
+
+        # Use latest tag placeholder (will be substituted by Sphinx)
+        latest_tag = "{{ docker_compose_latest }}"
+
+        # Escape special characters in markdown (but preserve links)
+        description_display = description.replace("|", "\\|").replace("\n", " ")
+
+        lines.append(f"* - {container_display}")
+        lines.append(f"  - {description_display}")
+        lines.append(f"  - {ngc_link}")
+        lines.append(f"  - {latest_tag}")
+        lines.append(f"  - {tasks_display}")
+
+    lines.append("```")
+
+    return "\n".join(lines)
+
+
+def update_benchmarks_file(
+    benchmarks_file: pathlib.Path, table_content: str
+) -> None:
+    """Update benchmarks.md file by replacing content between markers.
+
+    Args:
+        benchmarks_file: Path to benchmarks.md file
+        table_content: New table content to insert
+    """
+    if not benchmarks_file.exists():
+        logger.warning(
+            "Benchmarks file not found, skipping update",
+            path=str(benchmarks_file),
+        )
+        return
+
+    with open(benchmarks_file, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    begin_marker = "<!-- BEGIN_BENCH_TABLE -->"
+    end_marker = "<!-- END_BENCH_TABLE -->"
+
+    if begin_marker not in content or end_marker not in content:
+        logger.warning(
+            "Benchmarks file missing markers, skipping update",
+            path=str(benchmarks_file),
+        )
+        return
+
+    # Find the markers and replace content between them
+    begin_idx = content.find(begin_marker)
+    end_idx = content.find(end_marker)
+
+    if begin_idx == -1 or end_idx == -1 or begin_idx >= end_idx:
+        logger.warning(
+            "Invalid marker positions in benchmarks file, skipping update",
+            path=str(benchmarks_file),
+        )
+        return
+
+    # Extract the part before begin marker (including the marker)
+    before = content[: begin_idx + len(begin_marker)]
+    # Extract the part after end marker (including the marker)
+    after = content[end_idx:]
+
+    # Combine with new table content
+    new_content = before + "\n" + table_content + "\n" + after
+
+    with open(benchmarks_file, "w", encoding="utf-8") as f:
+        f.write(new_content)
+
+    logger.info("Updated benchmarks table", path=str(benchmarks_file))
+
+
 def main():
     """Main entry point for the script."""
     parser = argparse.ArgumentParser(
@@ -648,27 +816,23 @@ Examples:
                     exc_info=True,
                 )
 
-        # Generate tasks catalog markdown
+        # Note: task_catalog generation removed - everything is now in benchmarks table
+
+        # Generate and update benchmarks table
+        benchmarks_file = repo_root / "docs" / "evaluation" / "benchmarks.md"
         try:
-            catalog_content = generate_tasks_catalog_markdown(
-                harnesses, harnesses_dir_rel
-            )
-            args.catalog_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(args.catalog_file, "w", encoding="utf-8") as f:
-                f.write(catalog_content)
-            logger.info(
-                "Generated tasks catalog",
-                path=str(args.catalog_file),
-            )
-            print(f"Generated tasks catalog: {args.catalog_file}")
+            table_content = generate_benchmarks_table_markdown(harnesses)
+            update_benchmarks_file(benchmarks_file, table_content)
+            logger.info("Updated benchmarks table", path=str(benchmarks_file))
+            print(f"Updated benchmarks table: {benchmarks_file}")
         except Exception as e:
             logger.error(
-                "Failed to generate tasks catalog",
-                path=str(args.catalog_file),
+                "Failed to update benchmarks table",
+                path=str(benchmarks_file),
                 error=str(e),
                 exc_info=True,
             )
-            print(f"Warning: Failed to generate catalog: {e}")
+            print(f"Warning: Failed to update benchmarks table: {e}")
 
         logger.info(
             "Documentation generation complete",
