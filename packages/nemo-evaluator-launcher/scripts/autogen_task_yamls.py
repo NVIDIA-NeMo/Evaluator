@@ -529,8 +529,9 @@ def generate_benchmarks_table_markdown(
         # Join task links with commas
         tasks_display = ", ".join(task_links)
 
-        # Use latest tag placeholder (will be substituted by Sphinx)
-        latest_tag = "{{ docker_compose_latest }}"
+        # Use version from container tag (sourced from container image identifier)
+        # If no version found, use placeholder as fallback
+        latest_tag = version if version else "{{ docker_compose_latest }}"
 
         # Escape special characters in markdown (but preserve links)
         description_display = description.replace("|", "\\|").replace("\n", " ")
