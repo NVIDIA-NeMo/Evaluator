@@ -61,6 +61,10 @@ class PostEvalHookConfig(BaseModel):
 class AdapterConfig(BaseModel):
     """Adapter configuration with registry-based interceptor support"""
 
+    mode: str = Field(
+        description="Adapter mode: 'server' (default) or 'client'",
+        default="server",
+    )
     discovery: DiscoveryConfig = Field(
         description="Configuration for discovering 3rd party modules and directories",
         default_factory=DiscoveryConfig,

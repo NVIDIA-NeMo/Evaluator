@@ -2,7 +2,7 @@
 
 # Client Mode
 
-The NeMo Evaluator adapter system supports two modes of operation: **Server Mode** (the default) and **Client Mode** (new). This page explains both modes and how to choose between them.
+The NeMo Evaluator adapter system supports **Client Mode**, where adapters run in-process through a custom httpx transport, providing a simpler alternative to the proxy server architecture.
 
 ## Overview
 
@@ -14,407 +14,359 @@ The NeMo Evaluator adapter system supports two modes of operation: **Server Mode
 | **Overhead** | Network proxy | Direct in-process execution |
 | **Debugging** | Separate process | Same process, easier debugging |
 
-## Server Mode (Default)
-
-Server mode runs adapters as a separate proxy server that intercepts HTTP requests. This is the default mode when using the `evaluate()` function.
-
-### Example
+## Quick Start
 
 ```python
-from nemo_evaluator.api import evaluate
-from nemo_evaluator.api.api_dataclasses import (
-    Evaluation,
-    EvaluationConfig,
-    Target,
-    APIEndpoint,
-    Task,
-)
+from nemo_evaluator.client import NeMoEvaluatorClient
+from nemo_evaluator.api.api_dataclasses import EndpointModelConfig
 from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
 
-# Configure adapters
-adapter_config = AdapterConfig(
-    interceptors=[
-        InterceptorConfig(
-            name="system_message",
-            enabled=True,
-            config={"system_message": "You are a helpful assistant."}
-        ),
-        InterceptorConfig(name="request_logging", enabled=True),
-        InterceptorConfig(
-            name="caching",
-            enabled=True,
-            config={"cache_dir": "./cache"}
-        ),
-        InterceptorConfig(name="reasoning", enabled=True),
-        InterceptorConfig(name="endpoint", enabled=True),
-    ]
-)
-
-# Configure evaluation with adapter
-evaluation = Evaluation(
-    config=EvaluationConfig(output_dir="./results"),
-    target=Target(
-        api_endpoint=APIEndpoint(
-            url="http://localhost:8000/v1",
-            adapter_config=adapter_config  # Server mode
-        )
+# Configure model and adapters
+config = EndpointModelConfig(
+    model_id="my-model",
+    url="https://api.example.com/v1/chat/completions",
+    api_key_name="API_KEY",  # Environment variable name
+    adapter_config=AdapterConfig(
+        mode="client",  # Use client mode (no server)
+        interceptors=[
+            InterceptorConfig(name="caching", enabled=True),
+            InterceptorConfig(name="endpoint", enabled=True),
+        ]
     ),
-    tasks=[
-        Task(
-            name="hellaswag",
-            framework="lm-eval",
-            task="hellaswag",
-            limit=100,
-        )
-    ]
+    is_base_url=False,  # True if URL is base, False for complete endpoint
 )
 
-# The adapter server starts automatically
-results = evaluate(evaluation)
-```
-
-### How Server Mode Works
-
-1. `AdapterServerProcess` starts a Flask server in a separate process
-2. The evaluation's target URL is rewritten to point to the local proxy
-3. All HTTP requests from the evaluation framework go through the proxy
-4. Interceptors process requests and responses in the proxy server
-5. Server automatically shuts down after evaluation completes
-
-## Client Mode (New)
-
-Client mode runs adapters in-process through a custom httpx transport. This is ideal when you want direct control over API calls without running a full evaluation.
-
-### Example
-
-```python
-from nemo_evaluator.client import NeMoEvaluatorClient
-from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
-
-# Configure adapters (same as server mode!)
-adapter_config = AdapterConfig(
-    interceptors=[
-        InterceptorConfig(
-            name="system_message",
-            enabled=True,
-            config={"system_message": "You are a helpful assistant."}
-        ),
-        InterceptorConfig(name="request_logging", enabled=True),
-        InterceptorConfig(
-            name="caching",
-            enabled=True,
-            config={"cache_dir": "./cache"}
-        ),
-        InterceptorConfig(name="reasoning", enabled=True),
-        InterceptorConfig(name="endpoint", enabled=True),
-    ]
-)
-
-# Create OpenAI-compatible client with integrated adapters
-with NeMoEvaluatorClient(
-    endpoint_url="http://localhost:8000/v1",
-    api_key="your-api-key",
-    adapter_config=adapter_config,
-    output_dir="./eval_output"
-) as client:
-    # Use like normal OpenAI client - adapters run automatically
-    response = client.chat.completions.create(
-        model="my-model",
+# Create client
+async with NeMoEvaluatorClient(config, output_dir="./output") as client:
+    response = await client.chat_completion(
         messages=[{"role": "user", "content": "Hello!"}]
     )
-    print(response.choices[0].message.content)
-
-# Post-eval hooks run automatically on context exit
+    print(response)
 ```
 
-### How Client Mode Works
+## Mode Configuration
 
-1. `NeMoEvaluatorClient` extends the OpenAI Python client
-2. Custom `AdapterTransport` wraps httpx's base transport
-3. Each HTTP request passes through the adapter pipeline in-process
-4. Interceptors process requests and responses (same implementations as server mode)
-5. Post-eval hooks run when the client is closed
+### Adapter Mode Field
 
-### Usage Without Context Manager
+The `mode` field in `AdapterConfig` controls whether a server process is spawned:
+
+- **`mode="server"`** (default): Spawns adapter server process in `evaluate()` calls
+- **`mode="client"`**: Skips server spawning, for use with `NeMoEvaluatorClient`
+
+When using `NeMoEvaluatorClient` directly, set `mode="client"` to prevent unnecessary server creation if the config is also used in `evaluate()` calls.
+
+## URL Modes
+
+Client mode supports two URL configurations via the `is_base_url` flag:
+
+### Base URL Mode (`is_base_url=True`)
+
+Use when the URL is a base URL and the client should append paths:
+
+```python
+config = EndpointModelConfig(
+    url="https://api.example.com/v1",  # Base URL
+    is_base_url=True,
+    ...
+)
+# Requests go to: https://api.example.com/v1/chat/completions
+```
+
+### Passthrough Mode (`is_base_url=False`)
+
+Use when the URL is the complete endpoint:
+
+```python
+config = EndpointModelConfig(
+    url="https://api.example.com/v1/chat/completions",  # Complete endpoint
+    is_base_url=False,  # Default
+    ...
+)
+# Requests go to: https://api.example.com/v1/chat/completions (as-is)
+```
+
+## API Reference
+
+### Initialization
 
 ```python
 from nemo_evaluator.client import NeMoEvaluatorClient
+from nemo_evaluator.api.api_dataclasses import EndpointModelConfig
 
 client = NeMoEvaluatorClient(
-    endpoint_url="http://localhost:8000/v1",
-    api_key="your-api-key",
-    adapter_config=adapter_config,
-    output_dir="./output"
-)
-
-try:
-    response = client.chat.completions.create(
-        model="my-model",
-        messages=[{"role": "user", "content": "Hello!"}]
-    )
-finally:
-    # Important: close() runs post-eval hooks
-    client.close()
-```
-
-### Automatic URL Mode Detection
-
-The client automatically detects and adapts to both URL styles at runtime - you don't need to worry about which format to use:
-
-**Base URL Mode (Standard):**
-```python
-client = NeMoEvaluatorClient(
-    endpoint_url="http://localhost:8000/v1",  # Base URL
-    ...
-)
-# OpenAI client appends paths: /v1 + /chat/completions
-# → Requests go to: http://localhost:8000/v1/chat/completions
-```
-
-**Passthrough Mode (Custom Endpoint):**
-```python
-client = NeMoEvaluatorClient(
-    endpoint_url="http://my-server:2137/submit",  # Custom endpoint
-    ...
-)
-# First request tries: http://my-server:2137/submit/chat/completions (OpenAI appends path)
-# Gets 404! Automatically retries with: http://my-server:2137/submit (endpoint_url directly)
-# → Subsequent requests go to: http://my-server:2137/submit
-```
-
-**How Detection Works:**
-
-1. On the first request, the client tries the URL as constructed by the OpenAI client  
-   (endpoint_url + endpoint path like `/chat/completions`)
-2. If the server returns 404 (Not Found) or 405 (Method Not Allowed)
-3. The client automatically retries using the `endpoint_url` directly (passthrough mode)
-4. Remembers which mode worked for all subsequent requests (no more retries)
-
-This adaptive approach works with:
-- Standard OpenAI-compatible APIs
-- Custom endpoints at any URL path
-- Any server configuration
-
-
-## When to Use Each Mode
-
-### Use Server Mode When:
-
-- Running framework-driven evaluations with `evaluate()`
-- Need to share adapter state across multiple evaluation processes
-- Working with evaluation harnesses that don't support custom clients
-- Running distributed evaluations across multiple processes
-- Need to intercept requests from tools you don't control
-
-### Use Client Mode When:
-
-- Writing custom evaluation scripts with direct API calls
-- Working in Jupyter notebooks or interactive environments
-- Need simpler setup without managing server processes
-- Want easier debugging (same process, clearer stack traces)
-- Building custom evaluation workflows with OpenAI client
-- Running single-process evaluations
-
-## Configuration Compatibility
-
-Both modes use the **exact same** `AdapterConfig` and interceptor implementations. You can switch between modes without changing your adapter configuration:
-
-```python
-# This config works in BOTH modes
-adapter_config = AdapterConfig(
-    interceptors=[
-        InterceptorConfig(name="system_message", enabled=True, 
-                         config={"system_message": "Be concise."}),
-        InterceptorConfig(name="caching", enabled=True),
-        InterceptorConfig(name="endpoint", enabled=True),
-    ]
-)
-
-# Server mode - use with evaluate()
-evaluation = Evaluation(
-    target=Target(
-        api_endpoint=APIEndpoint(
-            url="http://localhost:8000/v1",
-            adapter_config=adapter_config  # ← Same config
-        )
-    ),
-    # ...
-)
-
-# Client mode - use with NeMoEvaluatorClient
-client = NeMoEvaluatorClient(
-    endpoint_url="http://localhost:8000/v1",
-    adapter_config=adapter_config,  # ← Same config
-    output_dir="./output"
-)
-```
-
-## Advanced Client Mode Usage
-
-### Custom HTTP Client
-
-Provide a custom httpx client to be wrapped with adapter transport:
-
-```python
-import httpx
-
-custom_http_client = httpx.Client(
-    timeout=httpx.Timeout(60.0),
-    limits=httpx.Limits(max_keepalive_connections=5)
-)
-
-client = NeMoEvaluatorClient(
-    endpoint_url="http://localhost:8000/v1",
-    api_key="your-api-key",
-    adapter_config=adapter_config,
-    http_client=custom_http_client  # Will be wrapped with adapters
-)
-```
-
-### Async Operations
-
-Client mode supports async operations with the OpenAI client:
-
-```python
-import asyncio
-from nemo_evaluator.client import NeMoEvaluatorClient
-
-async def run_evaluation():
-    async with NeMoEvaluatorClient(
-        endpoint_url="http://localhost:8000/v1",
-        api_key="your-api-key",
+    endpoint_model_config=EndpointModelConfig(
+        model_id="model-name",
+        url="https://api.example.com/v1/chat/completions",
+        api_key_name="API_KEY",
         adapter_config=adapter_config,
-        output_dir="./output"
-    ) as client:
-        response = await client.chat.completions.create(
-            model="my-model",
-            messages=[{"role": "user", "content": "Hello!"}]
-        )
-        return response
-
-asyncio.run(run_evaluation())
+        is_base_url=False,
+        temperature=0.7,
+        top_p=0.9,
+        max_new_tokens=100,
+        request_timeout=60,
+        max_retries=3,
+        parallelism=5,
+    ),
+    output_dir="./eval_output"
+)
 ```
 
-### Manual Post-Eval Hook Execution
+### Methods
 
-Control when post-eval hooks are executed:
+#### Chat Completion
 
 ```python
-client = NeMoEvaluatorClient(...)
+# Single request (async)
+response = await client.chat_completion(
+    messages=[{"role": "user", "content": "Hello"}],
+    seed=42  # Optional
+)
 
-# Do work...
-for prompt in prompts:
-    response = client.chat.completions.create(...)
-    process_response(response)
+# Batch requests (sync wrapper)
+responses = client.chat_completions(
+    messages_list=[
+        [{"role": "user", "content": "Hello"}],
+        [{"role": "user", "content": "Hi"}],
+    ],
+    seeds=[42, 43],  # Optional
+    show_progress=True
+)
 
-# Manually run post-eval hooks when done
-client.close()
+# Batch requests (async)
+responses = await client.batch_chat_completions(
+    messages_list=[...],
+    seeds=[...],
+    show_progress=True
+)
 ```
+
+#### Text Completion
+
+```python
+# Single completion
+response = await client.completion(
+    prompt="Once upon a time",
+    seed=42
+)
+
+# Batch completions
+responses = client.completions(
+    prompts=["Prompt 1", "Prompt 2"],
+    seeds=[42, 43],
+    show_progress=True
+)
+```
+
+#### Embeddings
+
+```python
+# Single embedding
+embedding = await client.embedding(text="Hello world")
+
+# Batch embeddings
+embeddings = client.embeddings(
+    texts=["Text 1", "Text 2"],
+    show_progress=True
+)
+```
+
+### Context Manager
+
+```python
+# Recommended: ensures post-eval hooks run
+async with NeMoEvaluatorClient(config, output_dir="./output") as client:
+    response = await client.chat_completion(messages=[...])
+    # Hooks run automatically on exit
+```
+
+### Manual Cleanup
+
+```python
+client = NeMoEvaluatorClient(config, output_dir="./output")
+try:
+    response = await client.chat_completion(messages=[...])
+finally:
+    await client.aclose()  # Runs post-eval hooks
+```
+
+## Adapter Configuration
+
+Client mode uses the same `AdapterConfig` as server mode, but with `mode="client"` to prevent server spawning:
+
+```python
+from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
+
+adapter_config = AdapterConfig(
+    mode="client",  # Prevents adapter server from spawning
+    interceptors=[
+        InterceptorConfig(
+            name="system_message",
+            config={"system_message": "You are helpful."}
+        ),
+        InterceptorConfig(name="request_logging"),
+        InterceptorConfig(
+            name="caching",
+            config={"cache_dir": "./cache"}
+        ),
+        InterceptorConfig(name="reasoning"),
+        InterceptorConfig(name="endpoint"),  # Required
+    ],
+    post_eval_hooks=[
+        {"name": "post_eval_report", "config": {"report_types": ["html"]}}
+    ]
+)
+```
+
+**Note:** When using `NeMoEvaluatorClient`, the `mode` is automatically set to `"client"` if not specified.
 
 ## Implementation Details
 
-### Architecture Diagram
+### Architecture
 
 ```
-Server Mode:                      Client Mode:
-┌─────────────┐                  ┌─────────────┐
-│ Eval Harness│                  │ Your Script │
-└──────┬──────┘                  └──────┬──────┘
-       │ HTTP                           │
-       ↓                                ↓
-┌──────────────┐              ┌──────────────────┐
-│ Adapter      │              │ OpenAI Client    │
-│ Server       │              │ ┌──────────────┐ │
-│ (Proxy)      │              │ │ Adapter      │ │
-│              │              │ │ Transport    │ │
-│ Interceptors │              │ │              │ │
-└──────┬───────┘              │ │ Interceptors │ │
-       │ HTTP                 │ └──────────────┘ │
-       ↓                      └────────┬─────────┘
-┌──────────────┐                      │ HTTP
-│ Model        │                      ↓
-│ Endpoint     │              ┌──────────────┐
-└──────────────┘              │ Model        │
-                              │ Endpoint     │
-                              └──────────────┘
+┌─────────────────────────┐
+│ Your Script/Notebook    │
+└───────────┬─────────────┘
+            │
+            ↓
+┌─────────────────────────┐
+│ NeMoEvaluatorClient     │
+│ (AsyncOpenAI wrapper)   │
+└───────────┬─────────────┘
+            │
+            ↓
+┌─────────────────────────┐
+│ AsyncAdapterTransport   │
+│ (httpx.AsyncBaseTransport) │
+│                         │
+│  ┌───────────────────┐  │
+│  │ Adapter Pipeline  │  │
+│  │ - Interceptors    │  │
+│  │ - Post-eval hooks │  │
+│  └───────────────────┘  │
+└───────────┬─────────────┘
+            │ HTTP
+            ↓
+┌─────────────────────────┐
+│ Model Endpoint          │
+└─────────────────────────┘
 ```
 
-### Request Flow in Client Mode
+### Request Flow
 
-1. User calls `client.chat.completions.create(...)`
-2. OpenAI client constructs `httpx.Request`
-3. `AdapterTransport.handle_request()` intercepts the request
-4. Request passes through interceptor chain:
-   - System message interceptor adds/modifies system prompt
-   - Request logging interceptor logs the request
-   - Caching interceptor checks cache (may return cached response)
-   - Endpoint interceptor makes actual HTTP call
-5. Response passes back through response interceptors:
-   - Reasoning interceptor extracts reasoning tokens
-   - Response logging interceptor logs response
-   - Response stats interceptor collects metrics
-6. Response converted to `httpx.Response`
-7. OpenAI client receives and parses response
-8. User gets completion object
+1. User calls `client.chat_completion(...)`
+2. AsyncOpenAI client constructs httpx.Request
+3. AsyncAdapterTransport intercepts the request
+4. Request wrapped for adapter compatibility (HttpxRequestWrapper)
+5. Request passes through interceptor chain (in thread pool for sync interceptors)
+6. Endpoint interceptor makes HTTP call
+7. Response passes back through response interceptors
+8. Response converted back to httpx.Response
+9. AsyncOpenAI client parses and returns completion
 
-### Type Conversions
+### Sync/Async Bridging
 
-The adapter pipeline uses Flask/requests types, but client mode uses httpx. The implementation provides transparent conversion:
+Client mode handles the async/sync boundary automatically:
+- AsyncAdapterTransport is async (implements `httpx.AsyncBaseTransport`)
+- Adapter pipeline and interceptors are synchronous
+- `asyncio.to_thread()` runs sync pipeline in thread pool
+- Seamless integration with async OpenAI client
 
-- **Request Phase**: `httpx.Request` → `HttpxRequestWrapper` (Flask-like interface) → `AdapterRequest`
-- **Response Phase**: `AdapterResponse` → `RequestsResponseWrapper` (requests-like interface) → `httpx.Response`
+## When to Use Client Mode
 
-These wrapper classes provide interface compatibility without modifying existing interceptor implementations.
+### Use Client Mode When:
+- Writing custom evaluation scripts
+- Working in Jupyter notebooks
+- Need direct API control
+- Want simpler setup
+- Debugging in same process
+- Single-process evaluations
 
-## Migration Guide
+### Use Server Mode When:
+- Running framework-driven evaluations with `evaluate()`
+- Need shared adapter state across processes
+- Working with harnesses that don't support custom clients
+- Running distributed evaluations
 
-### From Direct OpenAI Client to Client Mode
+## Examples
 
-**Before:**
-```python
-from openai import OpenAI
+### Basic Usage
 
-client = OpenAI(
-    base_url="http://localhost:8000/v1",
-    api_key="your-api-key"
-)
-
-response = client.chat.completions.create(
-    model="my-model",
-    messages=[{"role": "user", "content": "Hello"}]
-)
-```
-
-**After (with adapters):**
 ```python
 from nemo_evaluator.client import NeMoEvaluatorClient
+from nemo_evaluator.api.api_dataclasses import EndpointModelConfig
 from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorConfig
 
-adapter_config = AdapterConfig(
-    interceptors=[
-        InterceptorConfig(name="request_logging", enabled=True),
-        InterceptorConfig(name="caching", enabled=True),
-        InterceptorConfig(name="endpoint", enabled=True),
-    ]
+config = EndpointModelConfig(
+    model_id="llama-3-70b",
+    url="https://integrate.api.nvidia.com/v1/chat/completions",
+    api_key_name="NVIDIA_API_KEY",
+    is_base_url=False,
+    adapter_config=AdapterConfig(
+        interceptors=[
+            InterceptorConfig(name="caching"),
+            InterceptorConfig(name="endpoint"),
+        ]
+    ),
 )
 
-with NeMoEvaluatorClient(
-    endpoint_url="http://localhost:8000/v1",
-    api_key="your-api-key",
-    adapter_config=adapter_config,
-    output_dir="./output"
-) as client:
-    response = client.chat.completions.create(
-        model="my-model",
-        messages=[{"role": "user", "content": "Hello"}]
+async with NeMoEvaluatorClient(config, "./output") as client:
+    response = await client.chat_completion(
+        messages=[{"role": "user", "content": "What is AI?"}]
     )
+    print(response)
 ```
 
-The API is identical to OpenAI client - just add adapter configuration!
+### Batch Processing
+
+```python
+# Process multiple prompts with progress bar
+prompts = [
+    [{"role": "user", "content": f"Question {i}"}]
+    for i in range(100)
+]
+
+responses = client.chat_completions(
+    messages_list=prompts,
+    show_progress=True
+)
+```
+
+### With All Interceptors
+
+```python
+adapter_config = AdapterConfig(
+    interceptors=[
+        InterceptorConfig(
+            name="system_message",
+            config={"system_message": "Be concise."}
+        ),
+        InterceptorConfig(name="request_logging"),
+        InterceptorConfig(name="response_logging"),
+        InterceptorConfig(
+            name="caching",
+            config={
+                "cache_dir": "./cache",
+                "reuse_cached_responses": True,
+                "save_requests": True,
+                "save_responses": True,
+            }
+        ),
+        InterceptorConfig(
+            name="reasoning",
+            config={"start_reasoning_token": "<think>"}
+        ),
+        InterceptorConfig(name="response_stats"),
+        InterceptorConfig(name="endpoint"),
+    ],
+    post_eval_hooks=[
+        {"name": "post_eval_report", "config": {"report_types": ["html", "json"]}}
+    ]
+)
+```
 
 ## See Also
 
 - {ref}`adapters-concepts` - Conceptual overview of the adapter system
 - {ref}`adapters-configuration` - Available interceptors and configuration options
 - {ref}`deployment-adapters-recipes` - Common adapter patterns and recipes
-

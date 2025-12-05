@@ -16,13 +16,13 @@
 """Client module for NeMo Evaluator with adapter support."""
 
 from nemo_evaluator.client.adapter_transport import (
-    AdapterTransport,
-    create_adapter_http_client,
+    AsyncAdapterTransport,
+    create_async_adapter_http_client,
 )
 from nemo_evaluator.client.client import NeMoEvaluatorClient
 
 __all__ = [
     "NeMoEvaluatorClient",
-    "AdapterTransport",
-    "create_adapter_http_client",
+    "AsyncAdapterTransport",
+    "create_async_adapter_http_client",
 ]

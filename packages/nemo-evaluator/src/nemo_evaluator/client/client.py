@@ -15,98 +15,320 @@
 
 """NeMo Evaluator client with integrated adapter support for client-mode evaluation."""
 
-from typing import Any
+import asyncio
+import logging
+import os
+from typing import Any, List, Optional
 
-import httpx
-from openai import OpenAI
+from openai import AsyncOpenAI
+from tenacity import (
+    AsyncRetrying,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+from tqdm.asyncio import tqdm_asyncio
 
-from nemo_evaluator.adapters.adapter_config import AdapterConfig
-from nemo_evaluator.client.adapter_transport import create_adapter_http_client
+from nemo_evaluator.api.api_dataclasses import EndpointModelConfig
+from nemo_evaluator.client.adapter_transport import create_async_adapter_http_client
 from nemo_evaluator.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Silence OpenAI client's internal logging (uses dummy URLs)
+logging.getLogger("httpx").setLevel(logging.ERROR)
+logging.getLogger("openai").setLevel(logging.ERROR)
+logging.getLogger("openai._base_client").setLevel(logging.ERROR)
 
-class NeMoEvaluatorClient(OpenAI):
-    """OpenAI-compatible client with integrated adapter pipeline support.
+
+class NeMoEvaluatorClient:
+    """Async OpenAI-compatible client with integrated adapter pipeline support.
 
     This client enables "client mode" for adapters, where the adapter interceptor
     pipeline runs in-process through the HTTP client, instead of requiring a
     separate proxy server.
 
     Args:
-        adapter_config: Configuration for adapter interceptors and hooks
-        endpoint_url: The endpoint URL - can be base URL (e.g., http://host/v1)
-                     or full endpoint (e.g., http://custom:2137/submit)
-        output_dir: Directory for adapter output files (logs, cache, etc.)
-        http_client: Optional custom httpx client. If provided, it will be wrapped
-                    with adapter transport. If not provided, a new client with
-                    adapter transport is created.
-        **kwargs: Additional arguments passed to OpenAI client (api_key, etc.)
+        endpoint_model_config: Endpoint model configuration
+        output_dir: Directory for adapter output files
     """
 
     def __init__(
         self,
-        *,
-        adapter_config: AdapterConfig,
-        endpoint_url: str,
-        output_dir: str = "./nemo_eval_output",
-        http_client: httpx.Client | None = None,
-        **kwargs: Any,
+        endpoint_model_config: EndpointModelConfig,
+        output_dir: str,
     ):
-        """Initialize NeMoEvaluatorClient with adapter support.
-
-        Args:
-            adapter_config: Adapter configuration with interceptors
-            endpoint_url: The endpoint URL (can be base URL or full endpoint)
-            output_dir: Directory for output files
-            http_client: Optional httpx client to wrap. If None, creates a new one.
-            **kwargs: Additional OpenAI client arguments (api_key, etc.)
-        """
-        self.adapter_config = adapter_config
-        self.endpoint_url = endpoint_url
+        self.model_id = endpoint_model_config.model_id
+        self.model_url = endpoint_model_config.url
+        self.api_key_name = endpoint_model_config.api_key_name
+        self.adapter_config = endpoint_model_config.adapter_config
+        self.temperature = endpoint_model_config.temperature
+        self.top_p = endpoint_model_config.top_p
+        self.max_new_tokens = endpoint_model_config.max_new_tokens
+        self.request_timeout = endpoint_model_config.request_timeout
+        self.max_retries = endpoint_model_config.max_retries or 5
+        self.parallelism = endpoint_model_config.parallelism or 1
         self.output_dir = output_dir
 
-        # Extract base transport if http_client is provided
-        if http_client is not None:
-            base_transport = http_client._transport
-            http_client.close()  # Close the provided client since we'll create a new one
-        else:
-            base_transport = None
+        is_base_url = endpoint_model_config.is_base_url or False
 
-        # Create adapter HTTP client using shared factory
-        adapter_http_client, self.adapter_transport = create_adapter_http_client(
-            adapter_config=adapter_config,
-            output_dir=output_dir,
-            endpoint_url=endpoint_url,
-            base_transport=base_transport,
+        adapter_http_client, self.adapter_transport = create_async_adapter_http_client(
+            endpoint_url=self.model_url,
+            adapter_config=self.adapter_config,
+            output_dir=self.output_dir,
+            is_base_url=is_base_url,
         )
 
-        # Initialize OpenAI client with our custom http_client
-        # Pass endpoint_url as base_url to OpenAI
-        super().__init__(
-            http_client=adapter_http_client, base_url=endpoint_url, **kwargs
+        self.client = AsyncOpenAI(
+            http_client=adapter_http_client,
+            base_url=self.model_url,
+            api_key=os.getenv(self.api_key_name, "dummy_api_key")
+            if self.api_key_name is not None
+            else "dummy_api_key",
+            timeout=self.request_timeout,
+            max_retries=0,  # We handle retries ourselves
         )
 
-        logger.info("NeMoEvaluatorClient initialized")
+        self.semaphore = asyncio.Semaphore(self.parallelism)
 
-    def close(self) -> None:
-        """Close the client and run post-evaluation hooks.
+    async def _retry_with_backoff(self, func, *args, **kwargs):
+        """Execute function with retry logic and exponential backoff."""
+        attempt = 0
+        async for attempt_state in AsyncRetrying(
+            stop=stop_after_attempt(self.max_retries),
+            wait=wait_exponential(multiplier=2, min=2, max=120),
+            retry=retry_if_exception_type(Exception),
+            reraise=True,
+        ):
+            with attempt_state:
+                attempt = attempt_state.retry_state.attempt_number
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as e:
+                    if attempt < self.max_retries:
+                        logger.warning(
+                            f"Request failed (attempt {attempt}/{self.max_retries}): {type(e).__name__}: {str(e)}"
+                        )
+                    raise
 
-        This method should be called when you're done with evaluations to ensure
-        post-eval hooks are executed and resources are cleaned up properly.
-        """
-        logger.info("Closing NeMoEvaluatorClient and running post-eval hooks")
+    async def __call__(
+        self, messages: list[dict[str, Any]], seed: int | None = None
+    ) -> str:
+        return await self.chat_completion(messages, seed=seed)
+
+    async def chat_completion(
+        self, messages: list[dict[str, Any]], seed: Optional[int] = None
+    ) -> str:
+        params = {
+            "model": self.model_id,
+            "messages": messages,
+        }
+
+        if self.temperature is not None:
+            params["temperature"] = self.temperature
+        if self.max_new_tokens is not None:
+            params["max_tokens"] = self.max_new_tokens
+        if self.top_p is not None:
+            params["top_p"] = self.top_p
+        if seed is not None:
+            params["seed"] = seed
+
+        async def _make_request():
+            async with self.semaphore:
+                return await self.client.chat.completions.create(**params)
+
+        response = await self._retry_with_backoff(_make_request)
+        response_text = response.choices[0].message.content
+        return response_text or ""
+
+    def chat_completions(
+        self,
+        messages_list: List[list[dict[str, Any]]],
+        seeds: Optional[List[Optional[int]]] = None,
+        show_progress: bool = True,
+    ) -> List[str]:
         try:
-            self.adapter_transport.run_post_eval_hooks()
-        finally:
-            super().close()
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                raise RuntimeError(
+                    "chat_completions cannot be called from within an async context. "
+                    "Use async batch_chat_completions instead."
+                )
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
 
-    def __enter__(self):
-        """Context manager entry."""
+        try:
+            return loop.run_until_complete(
+                self.batch_chat_completions(messages_list, seeds, show_progress)
+            )
+        finally:
+            pass
+
+    async def batch_chat_completions(
+        self,
+        messages_list: List[list[dict[str, Any]]],
+        seeds: Optional[List[Optional[int]]] = None,
+        show_progress: bool = True,
+    ) -> List[str]:
+        if seeds is None:
+            seeds = [None] * len(messages_list)
+        elif len(seeds) != len(messages_list):
+            raise ValueError(
+                f"Length of seeds ({len(seeds)}) must match length of messages_list ({len(messages_list)})"
+            )
+
+        tasks = [
+            self.chat_completion(messages, seed=seed)
+            for messages, seed in zip(messages_list, seeds)
+        ]
+
+        if show_progress:
+            results = await tqdm_asyncio.gather(*tasks, desc="Chat completions")
+        else:
+            results = await asyncio.gather(*tasks)
+
+        return results
+
+    async def completion(
+        self, prompt: str, seed: Optional[int] = None, **kwargs
+    ) -> str:
+        params = {
+            "model": self.model_id,
+            "prompt": prompt,
+            **kwargs,
+        }
+
+        if self.temperature is not None:
+            params["temperature"] = self.temperature
+        if self.max_new_tokens is not None:
+            params["max_tokens"] = self.max_new_tokens
+        if self.top_p is not None:
+            params["top_p"] = self.top_p
+        if seed is not None:
+            params["seed"] = seed
+
+        async def _make_request():
+            async with self.semaphore:
+                return await self.client.completions.create(**params)
+
+        response = await self._retry_with_backoff(_make_request)
+        return response.choices[0].text or ""
+
+    def completions(
+        self,
+        prompts: List[str],
+        seeds: Optional[List[Optional[int]]] = None,
+        show_progress: bool = True,
+        **kwargs,
+    ) -> List[str]:
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                raise RuntimeError(
+                    "completions cannot be called from within an async context. "
+                    "Use async batch_completions instead."
+                )
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        try:
+            return loop.run_until_complete(
+                self.batch_completions(prompts, seeds, show_progress, **kwargs)
+            )
+        finally:
+            pass
+
+    async def batch_completions(
+        self,
+        prompts: List[str],
+        seeds: Optional[List[Optional[int]]] = None,
+        show_progress: bool = True,
+        **kwargs,
+    ) -> List[str]:
+        if seeds is None:
+            seeds = [None] * len(prompts)
+        elif len(seeds) != len(prompts):
+            raise ValueError(
+                f"Length of seeds ({len(seeds)}) must match length of prompts ({len(prompts)})"
+            )
+
+        tasks = [
+            self.completion(prompt, seed=seed, **kwargs)
+            for prompt, seed in zip(prompts, seeds)
+        ]
+
+        if show_progress:
+            results = await tqdm_asyncio.gather(*tasks, desc="Completions")
+        else:
+            results = await asyncio.gather(*tasks)
+
+        return results
+
+    async def embedding(self, text: str, **kwargs) -> List[float]:
+        params = {
+            "model": self.model_id,
+            "input": text,
+            **kwargs,
+        }
+
+        async def _make_request():
+            async with self.semaphore:
+                return await self.client.embeddings.create(**params)
+
+        response = await self._retry_with_backoff(_make_request)
+        return response.data[0].embedding
+
+    def embeddings(
+        self,
+        texts: List[str],
+        show_progress: bool = True,
+        **kwargs,
+    ) -> List[List[float]]:
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                raise RuntimeError(
+                    "embeddings cannot be called from within an async context. "
+                    "Use async batch_embeddings instead."
+                )
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        try:
+            return loop.run_until_complete(
+                self.batch_embeddings(texts, show_progress, **kwargs)
+            )
+        finally:
+            pass
+
+    async def batch_embeddings(
+        self,
+        texts: List[str],
+        show_progress: bool = True,
+        **kwargs,
+    ) -> List[List[float]]:
+        tasks = [self.embedding(text, **kwargs) for text in texts]
+
+        if show_progress:
+            results = await tqdm_asyncio.gather(*tasks, desc="Embeddings")
+        else:
+            results = await asyncio.gather(*tasks)
+
+        return results
+
+    async def aclose(self) -> None:
+        try:
+            if self.adapter_transport is not None:
+                self.adapter_transport.run_post_eval_hooks()
+        finally:
+            await self.client.close()
+
+    async def __aenter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit - ensures post-eval hooks run."""
-        self.close()
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.aclose()
         return False
