@@ -43,20 +43,18 @@ execution:
   mounts:
     # replace /path/to/hf_home with the absolute path to the HF home directory on the cluster
     deployment:
-      /path/to/hf_home: /workspace/hf_home
+      /path/to/hf_home: /root/.cache/huggingface
     evaluation:
-      /path/to/hf_home: /workspace/hf_home
+      /path/to/hf_home: /root/.cache/huggingface
     mount_home: false   # don't mount home directory
 
   env_vars:
     # if the checkpoint and datasets are already cached, you can set
     # HF_DATASETS_OFFLINE=1 and TRANSFORMERS_OFFLINE=1 for offline mode
     deployment:
-      HF_HOME: /workspace/hf_home
       HF_DATASETS_OFFLINE: 0
       TRANSFORMERS_OFFLINE: 0
     evaluation:
-      HF_HOME: /workspace/hf_home
       HF_DATASETS_OFFLINE: 0
       TRANSFORMERS_OFFLINE: 0
 

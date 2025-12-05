@@ -66,7 +66,7 @@ export:
     
     # MLflow tags (key-value pairs)
     tags:
-      framework: "none"
+      backend: "sglang"
     
     # Additional metadata goes into mlflow.log_params()
     extra_metadata:

@@ -33,7 +33,7 @@ execution:
   output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
   walltime: 02:00:00
   partition: cpu_short # no deployment -> no GPUs needed
-  gpus_per_node: null # no deployment -> no GPUs needed
+  gres: "gpu:0" # no deployment -> no GPUs needed
 
 target:
   api_endpoint:
