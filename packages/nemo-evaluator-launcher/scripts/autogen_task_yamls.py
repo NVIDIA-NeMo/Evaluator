@@ -297,7 +297,7 @@ class _HarnessAutogen:
             if i > 0:
                 lines.append("---")
                 lines.append("")
-            
+
             task_autogen = _TaskAutogen(task)
             task_lines = task_autogen.generate_markdown_section(self.harness_id)
             lines.extend(task_lines)
@@ -505,7 +505,7 @@ def generate_benchmarks_table_markdown(
         # Link to harness page with harness anchor (harness_id is the normalized harness name)
         # The harness page heading creates an anchor with the harness_id
         harness_anchor = harness.harness_id
-        container_display = f"<a href=\"{harness_page_path}.html#{harness_anchor}\"><strong>{harness.harness_name}</strong></a>"
+        container_display = f'<a href="{harness_page_path}.html#{harness_anchor}"><strong>{harness.harness_name}</strong></a>'
 
         # Generate task links with anchors to specific tasks on the harness page
         # Use same relative path format
@@ -513,7 +513,7 @@ def generate_benchmarks_table_markdown(
         for task in harness.tasks:
             task_id = f"{harness.harness_id}-{normalize_id(task.name)}"
             # HTML link with anchor - use relative path from benchmarks.md
-            task_link = f"<a href=\"{harness_page_path}.html#{task_id}\">{task.name}</a>"
+            task_link = f'<a href="{harness_page_path}.html#{task_id}">{task.name}</a>'
             task_links.append(task_link)
 
         # Join task links with commas
@@ -535,8 +535,6 @@ def generate_benchmarks_table_markdown(
     lines.append("```")
 
     return "\n".join(lines)
-
-
 
 
 def main():
@@ -745,8 +743,6 @@ Examples:
         # Generate harness markdown pages
         harnesses_successful = 0
         harnesses_failed = 0
-        # Relative path from task_catalog.md to harnesses/ directory
-        harnesses_dir_rel = "harnesses"
 
         for harness in harnesses:
             harness_file = args.harnesses_dir / f"{harness.harness_filename}.md"
@@ -776,6 +772,7 @@ Examples:
         checksum = None
         try:
             import importlib.resources
+
             tasks_content = importlib.resources.read_text(
                 "nemo_evaluator_launcher.resources",
                 "all_tasks_irs.yaml",
@@ -784,12 +781,18 @@ Examples:
             tasks_data = yaml.safe_load(tasks_content)
             checksum = tasks_data.get("metadata", {}).get("mapping_toml_checksum")
         except Exception as e:
-            logger.warning("Could not load checksum from all_tasks_irs.yaml", error=str(e))
+            logger.warning(
+                "Could not load checksum from all_tasks_irs.yaml", error=str(e)
+            )
 
         # Generate benchmarks table file
-        benchmarks_table_file = repo_root / "docs" / "task_catalog" / "benchmarks-table.md"
+        benchmarks_table_file = (
+            repo_root / "docs" / "task_catalog" / "benchmarks-table.md"
+        )
         try:
-            table_content = generate_benchmarks_table_markdown(harnesses, checksum=checksum)
+            table_content = generate_benchmarks_table_markdown(
+                harnesses, checksum=checksum
+            )
             benchmarks_table_file.parent.mkdir(parents=True, exist_ok=True)
             with open(benchmarks_table_file, "w", encoding="utf-8") as f:
                 f.write(table_content)
