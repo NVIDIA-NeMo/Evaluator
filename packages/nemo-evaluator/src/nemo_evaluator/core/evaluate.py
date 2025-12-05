@@ -106,12 +106,26 @@ def evaluate(
     signal.signal(signal.SIGTERM, kill_all)
     signal.signal(signal.SIGINT, kill_all)
 
+    # Check if adapter is in client mode (no server needed)
+    use_client_mode = (
+        target_cfg.api_endpoint
+        and target_cfg.api_endpoint.adapter_config
+        and target_cfg.api_endpoint.adapter_config.mode == "client"
+    )
+
     def run_evaluation_core():
-        with AdapterServerProcess(evaluation):
+        if use_client_mode:
+            logger.info("Using client mode - skipping adapter server")
             cmd = evaluation.render_command()
             run_command(cmd, verbose=True, propagate_errors=True)
             evaluation_result = parse_output(evaluation)
             return evaluation_result
+        else:
+            with AdapterServerProcess(evaluation):
+                cmd = evaluation.render_command()
+                run_command(cmd, verbose=True, propagate_errors=True)
+                evaluation_result = parse_output(evaluation)
+                return evaluation_result
 
     # Get cache directory from caching interceptor configuration
     cache_dir = None
