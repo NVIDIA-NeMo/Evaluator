@@ -14,12 +14,14 @@
 # limitations under the License.
 #
 import importlib
+import os
 import pathlib
 import sys
 from importlib import resources
 from typing import Any, Optional
 
 import requests
+import yaml
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -27,6 +29,11 @@ else:
     import tomli as tomllib
 
 from nemo_evaluator_launcher.common.logging_utils import logger
+from nemo_evaluator_launcher.common.partial_pull import (
+    GitlabRegistryAuthenticator,
+    NvcrRegistryAuthenticator,
+    find_file_matching_pattern_in_image_layers,
+)
 
 # Configuration constants
 # For below, see docs: https://docs.github.com/en/rest/repos/contents
@@ -145,11 +152,59 @@ def _process_mapping(mapping_toml: dict) -> dict:
     """
     mapping = {}
     for harness_name, harness_data in mapping_toml.items():
-        assert isinstance(harness_data["tasks"], dict)
+        # Skip entries that don't have the expected structure
+        if not isinstance(harness_data, dict):
+            logger.warning(
+                "Skipping invalid harness entry",
+                harness_name=harness_name,
+                reason="harness_data is not a dict",
+            )
+            continue
+
+        # Check if tasks field exists
+        if "tasks" not in harness_data:
+            logger.warning(
+                "Skipping harness entry without tasks",
+                harness_name=harness_name,
+            )
+            continue
+
+        if not isinstance(harness_data["tasks"], dict):
+            logger.warning(
+                "Skipping invalid harness entry",
+                harness_name=harness_name,
+                reason="tasks is not a dict",
+            )
+            continue
+
+        # Get container, which may be optional
+        container = harness_data.get("container")
+        if not container:
+            logger.debug(
+                "Harness entry without container",
+                harness_name=harness_name,
+            )
+
         for endpoint_type, harness_tasks in harness_data["tasks"].items():
-            assert isinstance(harness_tasks, dict)
+            if not isinstance(harness_tasks, dict):
+                logger.warning(
+                    "Skipping invalid endpoint type",
+                    harness_name=harness_name,
+                    endpoint_type=endpoint_type,
+                    reason="harness_tasks is not a dict",
+                )
+                continue
+
             for task_name, task_data in harness_tasks.items():
-                assert isinstance(task_data, dict)
+                if not isinstance(task_data, dict):
+                    logger.warning(
+                        "Skipping invalid task entry",
+                        harness_name=harness_name,
+                        task_name=task_name,
+                        reason="task_data is not a dict",
+                    )
+                    continue
+
                 key = (harness_name, task_name)
                 if key in mapping:
                     raise KeyError(
@@ -158,9 +213,12 @@ def _process_mapping(mapping_toml: dict) -> dict:
                 mapping[key] = {
                     "task": task_name,
                     "harness": harness_name,
-                    "container": harness_data["container"],
                     "endpoint_type": endpoint_type,
                 }
+                # Only add container if it exists
+                if container:
+                    mapping[key]["container"] = container
+
                 for task_data_key in task_data.keys():
                     if task_data_key in mapping[key]:
                         raise KeyError(
@@ -168,6 +226,321 @@ def _process_mapping(mapping_toml: dict) -> dict:
                         )
                 mapping[key].update(task_data)
     return mapping
+
+
+def _parse_container_image(container_image: str) -> tuple[str, str, str, str]:
+    """Parse a container image string into registry type, registry URL, repository, and tag.
+
+    Args:
+        container_image: Container image string (e.g., "nvcr.io/nvidia/eval-factory/simple-evals:25.10")
+
+    Returns:
+        Tuple of (registry_type, registry_url, repository, tag)
+    """
+    # Split tag from image
+    if ":" in container_image:
+        image_part, tag = container_image.rsplit(":", 1)
+    else:
+        image_part = container_image
+        tag = "latest"
+
+    # Parse registry and repository
+    parts = image_part.split("/")
+    if len(parts) < 2:
+        raise ValueError(f"Invalid container image format: {container_image}")
+
+    # Check if first part is a registry (contains '.' or is 'localhost')
+    if "." in parts[0] or parts[0] == "localhost":
+        registry_host = parts[0]
+        # Determine registry type
+        if "gitlab" in registry_host.lower():
+            registry_type = "gitlab"
+        elif "nvcr.io" in registry_host:
+            registry_type = "nvcr"
+        else:
+            registry_type = "nvcr"  # Default to nvcr for other registries
+
+        # Check if registry has a port
+        if ":" in registry_host:
+            registry_url = registry_host
+        else:
+            registry_url = registry_host
+        repository = "/".join(parts[1:])
+    else:
+        # Default registry (Docker Hub)
+        registry_type = "nvcr"
+        registry_url = "registry-1.docker.io"
+        repository = image_part
+
+    return registry_type, registry_url, repository, tag
+
+
+def _extract_tasks_from_framework_yml(
+    framework_yml_content: str, harness_name: str, container: str
+) -> dict[tuple[str, str], dict]:
+    """Extract tasks from framework.yml content and return as mapping entries.
+
+    Args:
+        framework_yml_content: YAML content from framework.yml file
+        harness_name: Name of the harness
+        container: Container image string
+
+    Returns:
+        Dictionary mapping (harness_name, task_name) to task configuration
+    """
+    tasks = {}
+    try:
+        framework_data = yaml.safe_load(framework_yml_content)
+        if not framework_data or "evaluations" not in framework_data:
+            logger.warning(
+                "No evaluations found in framework.yml",
+                harness=harness_name,
+                container=container,
+            )
+            return tasks
+
+        evaluations = framework_data.get("evaluations", [])
+        for eval_config in evaluations:
+            task_name = eval_config.get("name")
+            description = eval_config.get("description", "")
+
+            if not task_name:
+                continue
+
+            # Extract endpoint types from the evaluation config
+            defaults = eval_config.get("defaults", {})
+            config = defaults.get("config", {})
+            supported_endpoint_types = config.get("supported_endpoint_types", ["chat"])
+            task_type = config.get("type", "")  # Extract type from defaults.config.type
+
+            # Use first endpoint type (mapping key is (harness, task), so one entry per task)
+            endpoint_type = (
+                supported_endpoint_types[0] if supported_endpoint_types else "chat"
+            )
+
+            key = (harness_name, task_name)
+            # Only add if not already in mapping (don't override existing entries)
+            if key not in tasks:
+                tasks[key] = {
+                    "task": task_name,
+                    "harness": harness_name,
+                    "container": container,
+                    "endpoint_type": endpoint_type,
+                    "description": description,
+                    "type": task_type,  # Store type from defaults.config.type
+                }
+                # Merge any additional config from defaults
+                if defaults:
+                    tasks[key].update(defaults)
+
+        logger.info(
+            "Extracted tasks from framework.yml",
+            harness=harness_name,
+            container=container,
+            num_tasks=len(tasks),
+        )
+    except yaml.YAMLError as e:
+        logger.warning(
+            "Failed to parse framework.yml",
+            harness=harness_name,
+            container=container,
+            error=str(e),
+        )
+    except Exception as e:
+        logger.warning(
+            "Error extracting tasks from framework.yml",
+            harness=harness_name,
+            container=container,
+            error=str(e),
+        )
+
+    return tasks
+
+
+def _inspect_container_for_tasks(
+    container: str, harness_name: str
+) -> dict[tuple[str, str], dict]:
+    """Inspect a container image to extract tasks from framework.yml.
+
+    Args:
+        container: Container image string (original, may be replaced by PoC stub)
+        harness_name: Name of the harness
+
+    Returns:
+        Dictionary mapping (harness_name, task_name) to task configuration
+    """
+    try:
+        # Parse container image (use the container from mapping.toml as-is)
+        registry_type, registry_url, repository, tag = _parse_container_image(container)
+
+        # Construct docker_id for caching
+        docker_id = f"{registry_url}/{repository}:{tag}"
+
+        # Get credentials from environment (optional for public registries)
+        if registry_type == "gitlab":
+            username = os.getenv("DOCKER_USERNAME")
+            password = os.getenv("GITLAB_TOKEN")
+
+            # If no password from environment, try Docker credentials file
+            if not password:
+                from nemo_evaluator_launcher.common.partial_pull import (
+                    _read_docker_credentials,
+                )
+
+                docker_creds = _read_docker_credentials(registry_url)
+                if docker_creds:
+                    docker_username, docker_password = docker_creds
+                    if not username:
+                        username = docker_username
+                    password = docker_password
+                    logger.debug(
+                        "Using credentials from Docker config file",
+                        container=container,
+                        registry_url=registry_url,
+                        username=username,
+                    )
+
+            # Credentials are optional - try anonymous access first
+            if not password:
+                logger.debug(
+                    "No GITLAB_TOKEN or Docker credentials found, attempting anonymous access to GitLab registry",
+                    container=container,
+                    registry_url=registry_url,
+                )
+            authenticator = GitlabRegistryAuthenticator(
+                registry_url=registry_url,
+                username=username,
+                password=password,
+                repository=repository,
+            )
+        elif registry_type == "nvcr":
+            username = os.getenv("NVCR_USERNAME") or os.getenv("DOCKER_USERNAME")
+            password = os.getenv("NVCR_PASSWORD") or os.getenv("NVCR_API_KEY")
+
+            # If no password from environment, try Docker credentials file
+            if not password:
+                from nemo_evaluator_launcher.common.partial_pull import (
+                    _read_docker_credentials,
+                )
+
+                docker_creds = _read_docker_credentials(registry_url)
+                if docker_creds:
+                    docker_username, docker_password = docker_creds
+                    if not username:
+                        username = docker_username
+                    password = docker_password
+                    logger.debug(
+                        "Using credentials from Docker config file",
+                        container=container,
+                        registry_url=registry_url,
+                        username=username,
+                    )
+
+            if not username or not password:
+                logger.debug(
+                    "Skipping container inspection (missing nvcr credentials)",
+                    container=container,
+                )
+                return {}
+            authenticator = NvcrRegistryAuthenticator(
+                registry_url=registry_url,
+                username=username,
+                password=password,
+            )
+        else:
+            logger.warning(
+                "Unknown registry type, skipping",
+                container=container,
+                registry_type=registry_type,
+            )
+            return {}
+
+        # Get framework.yml from container (authentication handled inside)
+        # Try the specified tag first, then fallback to "latest" if it fails
+        framework_yml_content = None
+
+        def _try_extract_framework_yml(
+            ref_tag: str, ref_docker_id: str
+        ) -> Optional[str]:
+            """Helper function to extract framework.yml using pattern-based search."""
+            # Use pattern-based search to find framework.yml in any subdirectory under /opt/metadata/
+            # This handles both standard location (/opt/metadata/framework.yml) and subdirectories
+            # Note: find_file_matching_pattern_in_image_layers uses pattern-based caching
+            # (cache key: /opt/metadata/framework.yml) so cache hits work regardless of subdirectory location
+            logger.debug(
+                "Searching for framework.yml using pattern-based search",
+                container=container,
+                tag=ref_tag,
+            )
+            result = find_file_matching_pattern_in_image_layers(
+                authenticator=authenticator,
+                repository=repository,
+                reference=ref_tag,
+                prefix="/opt/metadata",
+                filename="framework.yml",
+                max_layer_size=100 * 1024,  # 100KB
+                docker_id=ref_docker_id,
+                use_cache=True,
+            )
+            if result:
+                file_path, content = result
+                logger.info(
+                    "Found framework.yml",
+                    container=container,
+                    tag=ref_tag,
+                    file_path=file_path,
+                )
+                return content
+            return None
+
+        try:
+            framework_yml_content = _try_extract_framework_yml(tag, docker_id)
+        except ValueError as e:
+            # Tag might not exist, try "latest" as fallback
+            if "Failed to get manifest" in str(e) and tag != "latest":
+                logger.debug(
+                    "Tag not found, trying 'latest' as fallback",
+                    original_tag=tag,
+                    container=container,
+                )
+                docker_id_latest = f"{registry_url}/{repository}:latest"
+                try:
+                    framework_yml_content = _try_extract_framework_yml(
+                        "latest", docker_id_latest
+                    )
+                    # Update container to use latest tag for consistency
+                    container = f"{registry_url}/{repository}:latest"
+                except Exception as e2:
+                    logger.debug(
+                        "Failed to get framework.yml with 'latest' tag",
+                        container=container,
+                        error=str(e2),
+                    )
+            else:
+                # Re-raise if it's a different error
+                raise
+
+        if not framework_yml_content:
+            logger.debug(
+                "framework.yml not found in container",
+                container=container,
+                tag=tag,
+            )
+            return {}
+
+        # Extract tasks from framework.yml
+        return _extract_tasks_from_framework_yml(
+            framework_yml_content, harness_name, container
+        )
+
+    except Exception as e:
+        logger.warning(
+            "Failed to inspect container",
+            container=container,
+            harness=harness_name,
+            error=str(e),
+        )
+        return {}
 
 
 def load_tasks_mapping(
@@ -180,6 +553,10 @@ def load_tasks_mapping(
     1. (Default) If latest==False and mapping_toml is None -> load packaged mapping.
     2. If latest==True -> fetch MAPPING_URL, save to cache, load it.
     3. If mapping_toml is not None -> load mapping from this path.
+
+    Args:
+        latest: If True, fetch latest mapping from remote URL.
+        mapping_toml: Optional path to mapping TOML file.
 
     Returns:
         dict: Mapping of (harness_name, task_name) to dict holding their configuration.
