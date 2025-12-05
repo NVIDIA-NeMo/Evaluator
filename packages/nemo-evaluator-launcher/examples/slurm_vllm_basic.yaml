@@ -15,8 +15,10 @@
 
 # How to use:
 #
-# 1. copy this file locally or clone the repository, and run
-# 2. run `nemo-evaluator-launcher run --config path/to/slurm_vllm_basic.yaml`
+# 1. copy this file locally or clone the repository
+# 2. (optional) set the required values in the config file. Alternatively, you can pass them later with -o cli arguments, e.g.
+#    -o execution.hostname=my-cluster.com -o execution.output_dir=/absolute/path/on/cluster -o execution.account=my-account etc.
+# 3. run `nemo-evaluator-launcher run --config path/to/slurm_vllm_basic.yaml`
 
 defaults:
   - execution: slurm/default

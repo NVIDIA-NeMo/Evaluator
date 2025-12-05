@@ -12,19 +12,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# How to use:
 #
-# How to use: copy this file locally into a directory, say `examples`, and run
-# Run this config with `nemo-evaluator-launcher run --config-dir examples --config-name slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks`.
-# For every benchmark to evaluate, it will create a Slurm job to evaluate an endpoint.
-# NOTE: in this example, we are evaluating an existing endpoint, so we don't need to deploy a model.
+# 1. copy this file locally or clone the repository
+# 2. (optional) set the required values in the config file. Alternatively, you can pass them later with -o cli arguments, e.g.
+#    -o execution.hostname=my-cluster.com -o execution.output_dir=/absolute/path/on/cluster -o execution.account=my-account etc.
+# 3. run `nemo-evaluator-launcher run --config path/to/slurm_nemotron_benchmarks.yaml`
 
-# Commented out values show an example of how to override the config values from this file.
-
-# You can also override the values in this config from CLI using dot notation.
-# For example, `nemo-evaluator-launcher run --config-dir examples --config-name slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks execution.walltime="1:00:00"`
-# To see the full config, run `nemo-evaluator-launcher run --config-dir examples --config-name slurm_no_deployment_llama_nemotron_super_v1_nemotron_benchmarks --dry-run`
-
-# specify default configs for execution and deployment
 defaults:
   - execution: slurm/default
   - deployment: none

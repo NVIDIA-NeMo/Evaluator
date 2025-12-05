@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 # ==============================================================================
 # Multi-Node SLURM Deployment: DeepSeek-R1
 # ==============================================================================
@@ -20,8 +20,13 @@
 # deployed across multiple SLURM nodes using Ray and vLLM with tensor
 # and pipeline parallelism.
 #
-# How to use: Copy this file locally into a directory, say `examples`, and run:
-#   nemo-evaluator run --config-dir examples --config-name slurm_multinode_vllm_ray_tp_dp_deepseek_r1
+# How to use:
+#
+# 1. copy this file locally or clone the repository
+# 2. (optional) set the required values in the config file. Alternatively, you can pass them later with -o cli arguments, e.g.
+#    -o execution.hostname=my-cluster.com -o execution.output_dir=/absolute/path/on/cluster -o execution.account=my-account
+#    -o execution.env_vars.deployment.HF_TOKEN=hf_your-token etc.
+# 3. run `nemo-evaluator-launcher run --config path/to/slurm_vllm_multinode_ray_tp_pp.yaml`
 #
 # Model Details:
 # - Model: deepseek-ai/DeepSeek-R1
@@ -35,10 +40,7 @@
 # - deployment.tensor_parallel_size: GPU parallelism within a single node
 # - deployment.pipeline_parallel_size: Model parallelism across multiple nodes
 #
-# Required Setup:
-# - Update execution.hostname, execution.account, and execution.output_dir
-# - Provide HF_TOKEN for accessing the gated model
-# - Custom deployment.command handles Ray cluster initialization automatically
+# Custom deployment.command handles Ray cluster initialization automatically
 # ==============================================================================
 
 defaults:
@@ -61,7 +63,7 @@ execution:
   
   env_vars:
     deployment:
-      HF_TOKEN: "hf_your_token" # Needed to access deepseek-ai/DeepSeek-R1
+      HF_TOKEN: ??? # Needed to access deepseek-ai/DeepSeek-R1
   
   mounts:
     mount_home: false # Whether to mount home directory (default: true)
