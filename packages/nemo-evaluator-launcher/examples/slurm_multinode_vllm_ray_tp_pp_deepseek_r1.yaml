@@ -73,6 +73,7 @@ execution:
 # Override default deployment arguments
 # Note: This uses a custom command for multi-node Ray cluster setup
 deployment:
+  image: vllm/vllm-openai:v0.10.2
   checkpoint_path: null
   hf_model_handle: deepseek-ai/DeepSeek-R1
   served_model_name: deepseek-ai/DeepSeek-R1

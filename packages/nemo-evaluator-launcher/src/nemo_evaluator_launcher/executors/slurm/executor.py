@@ -531,7 +531,7 @@ def _create_slurm_sbatch_script(
     )
     s += "#SBATCH --job-name {}\n".format(job_name)
     s += "#SBATCH --exclusive\n"
-    s += "#SBATCH --output {}\n".format(remote_task_subdir / "logs" / "slurm-%A.out")
+    s += "#SBATCH --output {}\n".format(remote_task_subdir / "logs" / "slurm-%A.log")
     s += "\n"
     s += f'TASK_DIR="{str(remote_task_subdir)}"\n'
     s += "\n"
@@ -696,7 +696,7 @@ def _create_slurm_sbatch_script(
         s += "--no-container-mount-home "
 
     s += "--container-mounts {} ".format(",".join(evaluation_mounts_list))
-    s += "--output {} ".format(remote_task_subdir / "logs" / "client-%A.out")
+    s += "--output {} ".format(remote_task_subdir / "logs" / "client-%A.log")
     s += "bash -c '\n"
     s += eval_factory_command
     s += "'\n\n"
@@ -817,8 +817,8 @@ def _generate_auto_export_section(
     if not cfg.execution.get("mounts", {}).get("mount_home", True):
         s += "--no-container-mount-home "
 
-    s += f"--container-mounts {remote_task_subdir}/artifacts:{remote_task_subdir}/artifacts "
-    s += "--output {} ".format(remote_task_subdir / "logs" / "export-%A.out")
+    s += f"--container-mounts {remote_task_subdir}/artifacts:{remote_task_subdir}/artifacts,{remote_task_subdir}/logs:{remote_task_subdir}/logs "
+    s += "--output {} ".format(remote_task_subdir / "logs" / "export-%A.log")
     s += "    bash -c '\n"
     # FIXME(martas): would be good to install specific version
     s += "        pip install nemo-evaluator-launcher[all]\n"
@@ -1336,7 +1336,7 @@ def _generate_deployment_srun_command(
         s += "--container-mounts {} ".format(",".join(deployment_mounts_list))
     if not cfg.execution.get("mounts", {}).get("mount_home", True):
         s += "--no-container-mount-home "
-    s += "--output {} ".format(remote_task_subdir / "logs" / "server-%A-%t.out")
+    s += "--output {} ".format(remote_task_subdir / "logs" / "server-%A-%t.log")
 
     deployment_env_var_names = list(
         cfg.execution.get("env_vars", {}).get("deployment", {})
@@ -1439,7 +1439,7 @@ def _generate_haproxy_srun_command(cfg, remote_task_subdir):
     s += "--nodes 1 --ntasks 1 "
     s += f"--container-image {cfg.execution.get('proxy', {}).get('image', 'haproxy:latest')} "
     s += f"--container-mounts {remote_task_subdir}/proxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro "
-    s += f"--output {remote_task_subdir}/logs/proxy-%A.out "
+    s += f"--output {remote_task_subdir}/logs/proxy-%A.log "
     s += "haproxy -f /usr/local/etc/haproxy/haproxy.cfg &\n"
     s += "PROXY_PID=$!  # capture the PID of the proxy background srun process\n"
     s += 'echo "Proxy started with PID: $PROXY_PID"\n\n'
