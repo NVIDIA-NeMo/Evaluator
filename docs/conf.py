@@ -340,7 +340,9 @@ def setup(app):
                 if result.stderr:
                     error_msg_parts.extend(result.stderr.strip().split("\n"))
                 else:
-                    error_msg_parts.append("(no stderr output - check stdout above for details)")
+                    error_msg_parts.append(
+                        "(no stderr output - check stdout above for details)"
+                    )
 
                 error_msg_parts.extend(
                     [
