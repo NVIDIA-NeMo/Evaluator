@@ -18,7 +18,16 @@
 # 1. copy this file locally or clone the repository
 # 2. (optional) set the required values in the config file. Alternatively, you can pass them later with -o cli arguments, e.g.
 #    -o execution.hostname=my-cluster.com -o execution.output_dir=/absolute/path/on/cluster -o execution.account=my-account etc.
-# 3. run `nemo-evaluator-launcher run --config path/to/slurm_sglang_auto_export.yaml`
+# 3. (optional) run with 10 samples for quick testing: add the following flag to the command below
+#    -o ++evaluation.nemo_evaluator_config.config.params.limit_samples=10
+# 4. run full evaluation:
+#    nemo-evaluator-launcher run --config path/to/slurm_sglang_auto_export.yaml
+
+# ⚠️  WARNING:
+#     Always run full evaluations (without limit_samples) for actual benchmark results.
+#     Using a subset of samples is solely for testing configuration and setup.
+#     Results from such test runs should NEVER be used to compare models or
+#     report benchmark performance.
 
 defaults:
   - execution: slurm/default
@@ -26,13 +35,13 @@ defaults:
   - _self_
 
 # override default execution arguments
-execution:  
+execution:
   hostname: ??? # SLURM headnode (login) hostname (required)
   username: ${oc.env:USER} # Cluster username; defaults to $USER.
   account: ??? # SLURM account allocation (required)
   output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
   walltime: 02:00:00
-  
+
   auto_export:
     destinations: ["mlflow"]
 
@@ -58,16 +67,16 @@ export:
     # required parameter:
     tracking_uri: ??? # MLflow server URL accessible from compute nodes (http://hostname:port)
 
-    experiment_name: "nv-eval"
-    description: "nemo-evaluator-launcher Evaluation test run with REMOTE auto-export"
+    experiment_name: "nemo-evaluator-launcher"
+    description: "nemo-evaluator-launcher Evaluation test run with auto-export"
     log_metrics: ["gpqa_diamond_score_micro"]  # subset of metrics to log (others will be skipped)
     log_logs: true
     only_required: false
-    
+
     # MLflow tags (key-value pairs)
     tags:
       backend: "sglang"
-    
+
     # Additional metadata goes into mlflow.log_params()
     extra_metadata:
       experiment_phase: "baseline"

@@ -25,8 +25,17 @@
 # 1. copy this file locally or clone the repository
 # 2. (optional) set the required values in the config file. Alternatively, you can pass them later with -o cli arguments, e.g.
 #    -o execution.hostname=my-cluster.com -o execution.output_dir=/absolute/path/on/cluster -o execution.account=my-account etc.
-# 3. run `nemo-evaluator-launcher run --config path/to/slurm_nemotron_benchmarks.yaml`
+# 3. (optional) run with 10 samples for quick testing - add the following flag to the command below
+#    -o ++evaluation.nemo_evaluator_config.config.params.limit_samples=10
+# 4. run full evaluation:
+#    nemo-evaluator-launcher run --config path/to/slurm_vllm_multinode_dp.yaml
 #
+# ⚠️  WARNING:
+#     Always run full evaluations (without limit_samples) for actual benchmark results.
+#     Using a subset of samples is solely for testing configuration and setup.
+#     Results from such test runs should NEVER be used to compare models or
+#     report benchmark performance.
+
 # Model Details:
 # - Model: nvidia/NVIDIA-Nemotron-Nano-9B-v2 (9B parameters)
 # - Hardware: 2 nodes with 8xH100 GPUs each (16 H100 GPUs total)
@@ -58,7 +67,7 @@ execution:
   output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
   num_nodes: 2 # Number of SLURM nodes for multi-node deployment
   walltime: 01:00:00
-  
+
   deployment:
     n_tasks: ${execution.num_nodes}  # For multi-node vLLM deployment, must match num_nodes
 
