@@ -25,7 +25,7 @@ on:
           - nemo-evaluator
           - nemo-evaluator-launcher
       release-ref:
-        description: Tag or SHA to release from
+        description: Full SHA (not short) or tag of the commit to build
         required: true
         type: string
       dry-run:
