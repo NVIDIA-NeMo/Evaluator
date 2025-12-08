@@ -65,17 +65,31 @@ class Cmd:
 
         # If --from is provided, load tasks from container
         if self.from_container:
-            logger.debug(
-                "Loading tasks from container",
-                container=self.from_container,
+            from nemo_evaluator_launcher.common.task_loader import (
+                load_tasks_from_container,
             )
-            tasks = self._load_tasks_from_container(self.from_container)
-            if not tasks:
+
+            try:
+                tasks = load_tasks_from_container(self.from_container)
+            except ValueError as e:
+                print(f"Error: {e}")
+                return
+            except Exception as e:
                 logger.error(
                     "Failed to load tasks from container",
                     container=self.from_container,
+                    error=str(e),
+                    exc_info=True,
                 )
                 return
+
+            if not tasks:
+                logger.error(
+                    "No tasks found in container",
+                    container=self.from_container,
+                )
+                return
+
             logger.debug(
                 "Loaded tasks from container",
                 container=self.from_container,
@@ -83,24 +97,6 @@ class Cmd:
                 containers=set(task.container for task in tasks),
             )
             mapping_verified = True  # Tasks from container are always verified
-            # Don't override containers when loading from --from - the container IS the source
-            # Verify all tasks are from the specified container (safeguard)
-            expected_container = self.from_container
-            original_count = len(tasks)
-            tasks = [task for task in tasks if task.container == expected_container]
-            if len(tasks) != original_count:
-                logger.warning(
-                    "Filtered out tasks from different containers",
-                    expected_container=expected_container,
-                    original_count=original_count,
-                    filtered_count=len(tasks),
-                )
-            if not tasks:
-                logger.warning(
-                    "No tasks found from specified container after filtering",
-                    container=expected_container,
-                )
-                return
         else:
             # Default behavior: load from all_tasks_irs.yaml
             tasks_path = None
@@ -266,81 +262,3 @@ class Cmd:
         # Total count - bold
         task_word = "task" if len(tasks) == 1 else "tasks"
         print(f"\n{bold(f'Total: {len(tasks)} {task_word}')}")
-
-    def _load_tasks_from_container(
-        self, container: str
-    ) -> list[TaskIntermediateRepresentation]:
-        """Load tasks from container by extracting and parsing framework.yml.
-
-        Args:
-            container: Container image identifier (e.g., nvcr.io/nvidia/eval-factory/simple-evals:25.10)
-
-        Returns:
-            List of TaskIntermediateRepresentation objects
-        """
-        # Import framework extraction functions from load_framework_definitions.py script
-        # Note: These functions are in a script, so we need to import them directly
-        import pathlib
-        import sys
-
-        # Add scripts directory to path temporarily
-        # Path: cli -> nemo_evaluator_launcher -> src -> nemo-evaluator-launcher -> packages
-        # Then go to nemo-evaluator-launcher/scripts
-        scripts_dir = pathlib.Path(__file__).parent.parent.parent.parent / "scripts"
-        if str(scripts_dir) not in sys.path:
-            sys.path.insert(0, str(scripts_dir))
-
-        try:
-            from load_framework_definitions import (
-                extract_framework_yml,
-                parse_framework_to_irs,
-            )
-
-            from nemo_evaluator_launcher.common.task_ir import (
-                _extract_harness_from_container,
-            )
-
-            # Extract harness name from container
-            harness_name = _extract_harness_from_container(container)
-
-            # Extract framework.yml from container (uses existing cache)
-            framework_content, container_digest = extract_framework_yml(
-                container=container,
-                harness_name=harness_name,
-                max_layer_size=100 * 1024,  # 100KB default
-                use_cache=True,  # Use existing cache from ~/.nemo-evaluator/docker-meta/
-            )
-
-            if not framework_content:
-                logger.error(
-                    "Could not extract framework.yml from container",
-                    container=container,
-                )
-                return []
-
-            # Parse framework.yml to IRs
-            try:
-                harness_ir, task_irs = parse_framework_to_irs(
-                    framework_content=framework_content,
-                    container_id=container,
-                    container_digest=container_digest,
-                    harness_name=harness_name,
-                )
-                logger.info(
-                    "Loaded tasks from container",
-                    container=container,
-                    num_tasks=len(task_irs),
-                )
-                return task_irs
-            except Exception as e:
-                logger.error(
-                    "Failed to parse framework.yml from container",
-                    container=container,
-                    error=str(e),
-                    exc_info=True,
-                )
-                return []
-        finally:
-            # Remove scripts directory from path
-            if str(scripts_dir) in sys.path:
-                sys.path.remove(str(scripts_dir))

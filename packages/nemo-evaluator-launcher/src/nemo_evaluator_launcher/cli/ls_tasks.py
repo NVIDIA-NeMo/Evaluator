@@ -47,17 +47,37 @@ class Cmd:
 
         if self.from_container:
             # Load tasks from container
-            from nemo_evaluator_launcher.cli.ls_task import Cmd as LsTaskCmd
+            from nemo_evaluator_launcher.common.task_loader import (
+                load_tasks_from_container,
+            )
 
-            # Reuse logic from ls_task.py
-            ls_task_cmd = LsTaskCmd()
-            tasks = ls_task_cmd._load_tasks_from_container(self.from_container)
+            try:
+                tasks = load_tasks_from_container(self.from_container)
+            except ValueError as e:
+                from nemo_evaluator_launcher.common.logging_utils import logger
+
+                logger.error(
+                    "Failed to load tasks from container",
+                    container=self.from_container,
+                    error=str(e),
+                )
+                return
+            except Exception as e:
+                from nemo_evaluator_launcher.common.logging_utils import logger
+
+                logger.error(
+                    "Failed to load tasks from container",
+                    container=self.from_container,
+                    error=str(e),
+                    exc_info=True,
+                )
+                return
 
             if not tasks:
                 from nemo_evaluator_launcher.common.logging_utils import logger
 
                 logger.error(
-                    "Failed to load tasks from container",
+                    "No tasks found in container",
                     container=self.from_container,
                 )
                 return
