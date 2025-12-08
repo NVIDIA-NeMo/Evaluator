@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 import base64
-import copy
 import datetime
 from dataclasses import dataclass
 from typing import Optional
@@ -79,16 +78,12 @@ def get_eval_factory_config(
 
     This function extracts the config field similar to how overrides are handled.
 
-    Overrides will start to be deprecated (or not, but at least a warning will be logged).
+    It applies task-level overrides to the global overrides.
     """
 
     if cfg.evaluation.get("overrides") or user_task_config.get("overrides"):
-        # TODO(agronskiy): start removing overrides, test `test_start_deprecating_overrides`
-        # will start failing soon.
-        logger.warning(
-            "We are deprecating using old-style dot-delimited overrides "
-            "in favour of `nemo_evaluator_config` field. Please check "
-            "the documentation."
+        raise ValueError(
+            "dot-delimited overrides are no longer supported. Use `nemo_evaluator_config` field instead."
         )
 
     logger.debug("Getting nemo evaluator merged config")
@@ -216,18 +211,6 @@ def get_eval_factory_command(
         + "&& $cmd run_eval --run_config config_ef.yaml"
     )
 
-    # NOTE: see note and test about deprecating that.
-    overrides = copy.deepcopy(dict(cfg.evaluation.get("overrides", {})))
-    overrides.update(dict(user_task_config.get("overrides", {})))
-    # NOTE(dfridman): Temporary fix to make sure that the overrides arg is not split into multiple lines.
-    # Consider passing a JSON object on Eval Factory side
-    overrides = {
-        k: (v.strip("\n") if isinstance(v, str) else v) for k, v in overrides.items()
-    }
-    overrides_str = ",".join([f"{k}={v}" for k, v in overrides.items()])
-    if overrides_str:
-        eval_command = f"{eval_command} --overrides {overrides_str}"
-
     # We return both the command and the debugging base64-decoded strings, useful
     # for exposing when building scripts.
     return CmdAndReadableComment(
@@ -256,13 +239,6 @@ def get_endpoint_url(
 
         if nemo_evaluator_config_url:
             return nemo_evaluator_config_url
-
-        # Being deprecated, see `get_eval_factory_config` message.
-        overrides_old_style_url = merged_nemo_evaluator_config.get("overrides", {}).get(
-            "target.api_endpoint.url", None
-        )
-        if overrides_old_style_url:
-            return overrides_old_style_url
 
         return url
 

@@ -192,8 +192,14 @@ def sample_run_config():
             "api_endpoint": {"api_key_name": "test_key", "model_id": "test_model"}
         },
         "evaluation": [
-            {"name": "test_task_1", "overrides": {"param1": "value1"}},
-            {"name": "test_task_2", "overrides": {"param2": "value2"}},
+            {
+                "name": "test_task_1",
+                "nemo_evaluator_config": {"config": {"params": {"param1": "value1"}}},
+            },
+            {
+                "name": "test_task_2",
+                "nemo_evaluator_config": {"config": {"params": {"param2": "value2"}}},
+            },
         ],
     }
     return OmegaConf.create(config_dict)
