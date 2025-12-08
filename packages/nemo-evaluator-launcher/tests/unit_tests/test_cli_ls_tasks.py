@@ -227,8 +227,10 @@ class TestLsTasksCommand:
             ]
             assert len(equals_lines) >= 2  # At least top and bottom borders
 
-            # Check for header structure
-            assert any("task" in line and "endpoint_type" in line for line in lines)
+            # Check for header structure - header contains just "task"
+            assert any(
+                "task" in line.lower() and line.strip() == "task" for line in lines
+            )
 
             # Check that tasks are properly sorted alphabetically within each group
             # (this depends on the implementation but we can verify basic structure)
