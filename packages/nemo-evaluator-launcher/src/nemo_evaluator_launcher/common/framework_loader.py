@@ -20,7 +20,6 @@ import tempfile
 from typing import Optional
 
 import yaml
-
 from nemo_evaluator.core.input import get_framework_evaluations
 
 from nemo_evaluator_launcher.common.logging_utils import logger
@@ -28,8 +27,8 @@ from nemo_evaluator_launcher.common.partial_pull import (
     GitlabRegistryAuthenticator,
     NvcrRegistryAuthenticator,
     RegistryAuthenticator,
-    find_file_matching_pattern_in_image_layers,
     _read_docker_credentials,
+    find_file_matching_pattern_in_image_layers,
 )
 from nemo_evaluator_launcher.common.task_ir import (
     HarnessIntermediateRepresentation,
