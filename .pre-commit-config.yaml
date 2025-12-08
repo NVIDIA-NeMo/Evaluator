@@ -49,3 +49,9 @@ repos:
         files: '.*\/[^\/]*_[^\/]*\.md$'
         exclude: '^\.github/'
         types: [file]
+      - id: check-readme-checksum
+        name: "Check README.md checksum matches mapping.toml"
+        language: system
+        entry: python scripts/check-readme-checksum.py
+        files: ^(README\.md|packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/resources/mapping\.toml)$
+        pass_filenames: false
