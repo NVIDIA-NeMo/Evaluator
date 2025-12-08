@@ -1,5 +1,5 @@
 metadata:
-  mapping_toml_checksum: sha256:0729db5d3920c833062b308beb38f194858aa1d3066389087ae3520ef8415243
+  mapping_toml_checksum: sha256:8dd63e7a829ef6dc57c961b3728a49624a4c5faa168b850c451a6bfa41910dc8
   num_tasks: 306
 tasks:
 - name: mmlu
