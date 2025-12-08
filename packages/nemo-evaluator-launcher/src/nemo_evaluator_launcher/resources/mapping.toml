@@ -1,4 +1,25 @@
-# NOTE(agronskiy): checked parity
+# Workflow diagram:
+# mapping.toml
+# (container = "....")
+# (# container-digest:sha256:....)              <---- CI: check digests are relevant
+#
+#    |
+#    |
+#    v
+# scripts/load_framework_definitions.py
+# (updates the toml
+#  AND
+# creates the resources/all_tasks_irs,
+# records TOML checksum)                        <---- pre-commit guard: checks TOML checksum
+#    |          \
+#    |           \
+#    |            ------------------->    make docs-build
+#    |                                  (builds docs on the fly)
+#    v
+# scripts/update-readme.py
+# (updates README, records checksum)           <----- pre-commit guard: checks TOML checksum
+#
+
 [lm-evaluation-harness]
 container = "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11"
 # container-digest:sha256:e14fe5dfef7b4a3d4b307dc8e23381ac342516a43f822f54159555d574e9b5d7

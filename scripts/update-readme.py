@@ -14,7 +14,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Script to update the README.md table with harness and task information."""
+"""Script to update the README.md table with harness and task information.
+
+Workflow diagram:
+mapping.toml
+(container = "..")
+(# container-digest:sha256:....)              <---- CI: check digests are relevant
+
+   |
+   |
+   v
+scripts/load_framework_definitions.py
+(updates the toml
+ AND
+creates the resources/all_tasks_irs,
+records TOML checksum)                        <---- pre-commit guard: checks TOML checksum
+   |          \
+   |           \
+   |            ------------------->    make docs-build
+   |                                  (builds docs on the fly)
+   v
+scripts/update-readme.py
+(updates README, records checksum)           <----- pre-commit guard: checks TOML checksum
+"""
 
 import argparse
 import pathlib
@@ -25,7 +47,6 @@ from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.task_ir import (
     HarnessIntermediateRepresentation,
     TaskIntermediateRepresentation,
-    _load_harnesses_from_frameworks,
     load_tasks_from_tasks_file,
 )
 
@@ -81,23 +102,27 @@ def generate_readme_table(
     ],
     checksum: str,
 ) -> str:
-    """Generate README.md table markdown.
+    """Generate README.md table markdown inside HTML comments.
 
     Args:
         harnesses: Dictionary mapping harness name to (harness_ir, tasks) tuple
         checksum: Mapping.toml checksum
 
     Returns:
-        Markdown table content as string
+        Markdown table content as string (table wrapped in single HTML comment block)
     """
     lines = []
     lines.append("<!-- BEGIN AUTOGENERATION -->")
     lines.append(f"<!-- mapping toml checksum: {checksum} -->")
-    lines.append("")
-    lines.append(
+
+    # Generate table content first
+    table_lines = []
+    table_lines.append(
         "| Container | Description | NGC Catalog | Latest Tag | Supported benchmarks |"
     )
-    lines.append("|-----------|-------------|-------------|------------| ------------|")
+    table_lines.append(
+        "|-----------|-------------|-------------|------------| ------------|"
+    )
 
     # Sort harnesses alphabetically for consistent ordering
     sorted_harnesses = sorted(harnesses.items(), key=lambda x: x[0].lower())
@@ -139,11 +164,15 @@ def generate_readme_table(
         # Format container name as bold
         container_display = f"**{harness_name}**"
 
-        lines.append(
+        table_lines.append(
             f"| {container_display} | {description_display} | {ngc_link} | `{latest_tag}` | {tasks_display} |"
         )
 
-    lines.append("")
+    # Wrap entire table in a single HTML comment block
+    lines.append("<!--")
+    for table_line in table_lines:
+        lines.append(table_line)
+    lines.append("-->")
     lines.append("<!-- END AUTOGENERATION -->")
 
     return "\n".join(lines)
@@ -283,10 +312,7 @@ def main():
             "mapping.toml checksum mismatch - all_tasks_irs.yaml may be out of sync"
         )
 
-    # Load harness IRs from frameworks
-    harness_irs = _load_harnesses_from_frameworks()
-
-    # Group tasks by harness
+    # Group tasks by harness (harnesses are created from tasks)
     harnesses: dict[
         str,
         tuple[HarnessIntermediateRepresentation, list[TaskIntermediateRepresentation]],
@@ -300,24 +326,21 @@ def main():
             continue
 
         if task.harness not in harnesses:
-            # Get harness IR if available, otherwise create from task
-            harness_ir = harness_irs.get(task.harness)
-            if not harness_ir:
-                # Create harness IR from first task
-                container = str(task.container) if task.container else ""
-                container_digest = (
-                    str(task.container_digest) if task.container_digest else None
-                )
+            # Create harness IR from task
+            container = str(task.container) if task.container else ""
+            container_digest = (
+                str(task.container_digest) if task.container_digest else None
+            )
 
-                harness_ir = HarnessIntermediateRepresentation(
-                    name=task.harness,
-                    description="",  # Description not available from tasks alone
-                    full_name=None,
-                    url=None,
-                    source=None,
-                    container=container,
-                    container_digest=container_digest,
-                )
+            harness_ir = HarnessIntermediateRepresentation(
+                name=task.harness,
+                description="",  # Description not available from tasks alone
+                full_name=None,
+                url=None,
+                source=None,
+                container=container,
+                container_digest=container_digest,
+            )
             harnesses[task.harness] = (harness_ir, [])
 
         harnesses[task.harness][1].append(task)

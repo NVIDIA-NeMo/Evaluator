@@ -14,7 +14,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Script to check that mapping.toml checksum in README.md matches the actual checksum."""
+"""Script to check that mapping.toml checksum in README.md matches the actual checksum.
+
+Workflow diagram:
+mapping.toml
+(container = "..")
+(# container-digest:sha256:....)              <---- CI: check digests are relevant
+
+   |
+   |
+   v
+scripts/load_framework_definitions.py
+(updates the toml
+ AND
+creates the resources/all_tasks_irs,
+records TOML checksum)                        <---- pre-commit guard: checks TOML checksum
+   |          \
+   |           \
+   |            ------------------->    make docs-build
+   |                                  (builds docs on the fly)
+   v
+scripts/update-readme.py
+(updates README, records checksum)           <----- pre-commit guard: checks TOML checksum
+"""
 
 import argparse
 import hashlib
