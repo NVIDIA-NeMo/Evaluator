@@ -33,7 +33,7 @@ Assess model confidence and uncertainty using log-probabilities for multiple-cho
 :::
 
 :::{grid-item-card} {octicon}`comment;1.5em;sd-mr-1` Reasoning
-:link: reasoning
+:link: run-eval-reasoning
 :link-type: ref
 Control the thinking budget and post-process the responses to extract the reasoning content and the final answer
 :::
