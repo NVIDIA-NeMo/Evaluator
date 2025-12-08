@@ -34,7 +34,7 @@ records TOML checksum)                        <---- pre-commit guard: checks TOM
    |            ------------------->    make docs-build
    |                                  (builds docs on the fly)
    v
-scripts/update-readme.py
+scripts/update_readme.py
 (updates README, records checksum)           <----- pre-commit guard: checks TOML checksum
 """
 
@@ -185,7 +185,7 @@ def main():
             else:
                 print(
                     "ERROR: Checksum comment found but contains PLACEHOLDER. "
-                    "Please run: python scripts/update-readme.py",
+                    "Please run: python scripts/update_readme.py",
                     file=sys.stderr,
                 )
         except Exception as e:
@@ -202,7 +202,7 @@ def main():
             f"  mapping.toml checksum: {actual_checksum}\n"
             f"  README.md checksum:    {readme_checksum}\n"
             f"\n"
-            f"Please run: python scripts/update-readme.py",
+            f"Please run: python scripts/update_readme.py",
             file=sys.stderr,
         )
         sys.exit(1)
