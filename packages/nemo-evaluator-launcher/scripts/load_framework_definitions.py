@@ -28,7 +28,6 @@ import json
 import os
 import pathlib
 import sys
-import tempfile
 from typing import Any, Optional
 
 import yaml
@@ -38,17 +37,17 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-from nemo_evaluator.core.input import get_framework_evaluations
-
+from nemo_evaluator_launcher.common.framework_loader import (
+    extract_framework_yml,
+    parse_framework_to_irs,
+)
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.partial_pull import (
     GitlabRegistryAuthenticator,
     NvcrRegistryAuthenticator,
     RegistryAuthenticator,
-    find_file_matching_pattern_in_image_layers,
 )
 from nemo_evaluator_launcher.common.task_ir import (
-    HarnessIntermediateRepresentation,
     TaskIntermediateRepresentation,
 )
 
@@ -279,239 +278,6 @@ def load_mapping_toml(mapping_file: pathlib.Path) -> tuple[dict[str, str], str]:
         return harness_containers, checksum
     except Exception as e:
         logger.error("Failed to load mapping.toml", error=str(e), exc_info=True)
-        raise
-
-
-def extract_framework_yml(
-    container: str,
-    harness_name: str,
-    max_layer_size: Optional[int] = None,
-    use_cache: bool = True,
-) -> tuple[Optional[str], Optional[str]]:
-    """Extract framework.yml from a container using layer inspection.
-
-    Args:
-        container: Container image identifier
-        harness_name: Name of the harness (for logging)
-        max_layer_size: Optional maximum layer size in bytes
-        use_cache: Whether to use caching
-
-    Returns:
-        Tuple of (framework_yml_content, container_digest) or (None, None) if failed
-    """
-    try:
-        registry_type, registry_url, repository, tag = parse_container_image(container)
-
-        logger.info(
-            "Extracting framework.yml from container",
-            container=container,
-            harness=harness_name,
-            registry_type=registry_type,
-        )
-
-        # Create authenticator
-        authenticator = create_authenticator(registry_type, registry_url, repository)
-
-        # Authenticate
-        if not authenticator.authenticate(repository=repository):
-            logger.error(
-                "Authentication failed",
-                container=container,
-                harness=harness_name,
-            )
-            return None, None
-
-        # Get container digest
-        container_digest = get_container_digest(authenticator, repository, tag)
-        if not container_digest:
-            logger.warning(
-                "Could not get container digest, continuing without it",
-                container=container,
-                harness=harness_name,
-            )
-
-        # Extract framework.yml using pattern-based search
-        # Use original container string as docker_id for cache consistency
-        # This ensures cache hits work regardless of how the container string is formatted
-        docker_id = container
-
-        # Use pattern-based search to find framework.yml in any subdirectory under /opt/metadata/
-        # This handles both standard location (/opt/metadata/framework.yml) and subdirectories
-        # Note: find_file_matching_pattern_in_image_layers uses pattern-based caching
-        # (cache key: /opt/metadata/framework.yml) so cache hits work regardless of subdirectory location
-        logger.debug(
-            "Searching for framework.yml using pattern-based search",
-            container=container,
-            harness=harness_name,
-        )
-        result = find_file_matching_pattern_in_image_layers(
-            authenticator=authenticator,
-            repository=repository,
-            reference=tag,
-            prefix="/opt/metadata",
-            filename="framework.yml",
-            max_layer_size=max_layer_size,
-            docker_id=docker_id,
-            use_cache=use_cache,
-        )
-        if result:
-            file_path, framework_yml_content = result
-            logger.info(
-                "Found framework.yml",
-                container=container,
-                harness=harness_name,
-                file_path=file_path,
-            )
-        else:
-            framework_yml_content = None
-
-        if not framework_yml_content:
-            logger.warning(
-                "framework.yml not found in container",
-                container=container,
-                harness=harness_name,
-            )
-            return None, None
-
-        logger.info(
-            "Successfully extracted framework.yml",
-            container=container,
-            harness=harness_name,
-            content_size=len(framework_yml_content),
-            digest=container_digest,
-        )
-
-        return framework_yml_content, container_digest
-
-    except Exception as e:
-        logger.warning(
-            "Failed to extract framework.yml",
-            container=container,
-            harness=harness_name,
-            error=str(e),
-            exc_info=True,
-        )
-        return None, None
-
-
-def parse_framework_to_irs(
-    framework_content: str,
-    container_id: str,
-    container_digest: Optional[str],
-    harness_name: str,
-) -> tuple[HarnessIntermediateRepresentation, list[TaskIntermediateRepresentation]]:
-    """Parse framework.yml content and convert to Intermediate Representations.
-
-    Args:
-        framework_content: Original framework.yml content as string
-        container_id: Full container image identifier
-        container_digest: Container manifest digest (optional)
-        harness_name: Name of the harness (for logging and IR creation)
-
-    Returns:
-        Tuple of (HarnessIntermediateRepresentation, list[TaskIntermediateRepresentation])
-    """
-    try:
-        # Parse framework.yml to get metadata (description, url, etc.)
-        framework_data = yaml.safe_load(framework_content)
-        if not framework_data:
-            raise ValueError("Empty framework.yml content")
-
-        framework_info = framework_data.get("framework", {})
-        framework_name = framework_info.get("name", harness_name)
-        description = framework_info.get("description", "")
-        full_name = framework_info.get("full_name")
-        url = framework_info.get("url")
-        source = framework_info.get("source")
-
-        # Normalize harness name (replace underscores with hyphens)
-        normalized_harness_name = framework_name.replace("_", "-")
-
-        # Write framework.yml to temporary file (required by get_framework_evaluations)
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yml", delete=False
-        ) as temp_file:
-            temp_file.write(framework_content)
-            temp_file_path = temp_file.name
-
-        try:
-            # Parse using get_framework_evaluations (handles merging internally)
-            (
-                parsed_framework_name,
-                framework_defaults,
-                evaluations,
-            ) = get_framework_evaluations(temp_file_path)
-
-            # Create HarnessIntermediateRepresentation
-            harness_ir = HarnessIntermediateRepresentation(
-                name=normalized_harness_name,
-                description=description,
-                full_name=full_name,
-                url=url,
-                source=source,
-                container=container_id,
-                container_digest=container_digest,
-            )
-
-            # Convert Evaluation objects to TaskIntermediateRepresentation
-            task_irs = []
-            for task_name, evaluation in evaluations.items():
-                # Get description from original framework.yml (more complete)
-                task_description = ""
-                for eval_config in framework_data.get("evaluations", []):
-                    eval_task_name = (
-                        eval_config.get("defaults", {}).get("config", {}).get("type")
-                    )
-                    if eval_task_name == task_name:
-                        task_description = eval_config.get("description", "")
-                        break
-
-                # Use evaluation.model_dump() for defaults (already merged)
-                evaluation_dict = evaluation.model_dump(exclude_none=True)
-
-                # Create TaskIntermediateRepresentation
-                task_ir = TaskIntermediateRepresentation(
-                    name=task_name,
-                    description=task_description,
-                    harness=normalized_harness_name,
-                    container=container_id,
-                    container_digest=container_digest,
-                    defaults=evaluation_dict,
-                )
-
-                task_irs.append(task_ir)
-
-                logger.debug(
-                    "Created task IR",
-                    harness=normalized_harness_name,
-                    task=task_name,
-                    container=container_id,
-                )
-
-            logger.info(
-                "Parsed framework to IRs",
-                harness=normalized_harness_name,
-                num_tasks=len(task_irs),
-                container=container_id,
-            )
-
-            return harness_ir, task_irs
-
-        finally:
-            # Clean up temporary file
-            try:
-                os.unlink(temp_file_path)
-            except Exception:
-                pass
-
-    except Exception as e:
-        logger.error(
-            "Failed to parse framework.yml to IRs",
-            error=str(e),
-            container=container_id,
-            harness=harness_name,
-            exc_info=True,
-        )
         raise
 
 

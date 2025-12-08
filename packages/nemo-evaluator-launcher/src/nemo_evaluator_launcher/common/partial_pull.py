@@ -293,7 +293,11 @@ def read_from_cache(
 
 
 def write_to_cache(
-    docker_id: str, target_file: str, metadata_str: str, digest: str
+    docker_id: str,
+    target_file: str,
+    metadata_str: str,
+    digest: str,
+    cached_file_path: Optional[str] = None,
 ) -> None:
     """Write metadata to cache with digest.
 
@@ -303,6 +307,8 @@ def write_to_cache(
         metadata_str: Metadata content to cache
         digest: Manifest digest of the container image. Required and stored in
             the cache entry for validation on subsequent reads.
+        cached_file_path: Optional resolved file path (for pattern-based searches).
+            If provided, stored in cache for retrieval on cache hits.
     """
     # Evict old entries if cache is full
     _evict_lru_cache_entries()
@@ -315,6 +321,9 @@ def write_to_cache(
             "metadata": metadata_str,
             "digest": digest,  # Always store digest - required for validation
         }
+        # Always include cached_file_path if provided (standardized cache structure)
+        if cached_file_path is not None:
+            cache_data["cached_file_path"] = cached_file_path
 
         with open(cache_path, "w", encoding="utf-8") as f:
             json.dump(cache_data, f, indent=2)
@@ -331,6 +340,7 @@ def write_to_cache(
             target_file=target_file,
             digest=digest,
             cache_path=str(cache_path),
+            cached_file_path=cached_file_path,
         )
     except OSError as e:
         logger.warning(
@@ -1178,19 +1188,23 @@ def find_file_matching_pattern_in_image_layers(
                         cached_file_path = cache_data.get("cached_file_path")
                         if cached_file_path:
                             return (cached_file_path, cached_result)
-                        # Fallback: try to infer path from pattern
-                        # Most common case: file is at prefix/filename
-                        inferred_path = f"{prefix.rstrip('/')}/{filename}"
-                        return (inferred_path, cached_result)
-                except Exception:
-                    pass
-            # If we can't get the path, return None to trigger search
-            # But this shouldn't happen if cache is properly structured
-            logger.warning(
-                "Cache hit but couldn't determine file path, re-searching",
+                except Exception as e:
+                    logger.debug(
+                        "Failed to read cached_file_path from cache",
+                        docker_id=docker_id,
+                        pattern=pattern_key,
+                        error=str(e),
+                    )
+            # Fallback: try to infer path from pattern
+            # Most common case: file is at prefix/filename
+            inferred_path = f"{prefix.rstrip('/')}/{filename}"
+            logger.debug(
+                "Using inferred file path from pattern (cached_file_path not in cache)",
                 docker_id=docker_id,
                 pattern=pattern_key,
+                inferred_path=inferred_path,
             )
+            return (inferred_path, cached_result)
         elif stored_digest is not None:
             # Digest mismatch - cache invalidated
             logger.info(
@@ -1283,34 +1297,21 @@ def find_file_matching_pattern_in_image_layers(
             if docker_id and use_cache:
                 pattern_key = f"{prefix.rstrip('/')}/{filename}"
                 # Store both the content and the resolved file path in cache
-                cache_path = _get_cache_path(docker_id, pattern_key)
-                _evict_lru_cache_entries()
-                try:
-                    cache_data = {
-                        "docker_id": docker_id,
-                        "pattern": pattern_key,
-                        "cached_file_path": file_path,  # Store resolved path
-                        "metadata": file_content,
-                        "digest": manifest_digest,
-                    }
-                    with open(cache_path, "w", encoding="utf-8") as f:
-                        json.dump(cache_data, f, indent=2)
-                    cache_path.touch()
-                    logger.info(
-                        "Cached metadata (pattern-based)",
-                        docker_id=docker_id,
-                        pattern=pattern_key,
-                        resolved_path=file_path,
-                        digest=manifest_digest,
-                        cache_path=str(cache_path),
-                    )
-                except OSError as e:
-                    logger.warning(
-                        "Failed to write to cache",
-                        docker_id=docker_id,
-                        pattern=pattern_key,
-                        error=str(e),
-                    )
+                # Standardized cache structure always includes cached_file_path
+                write_to_cache(
+                    docker_id=docker_id,
+                    target_file=pattern_key,
+                    metadata_str=file_content,
+                    digest=manifest_digest,
+                    cached_file_path=file_path,  # Store resolved path
+                )
+                logger.info(
+                    "Cached metadata (pattern-based)",
+                    docker_id=docker_id,
+                    pattern=pattern_key,
+                    resolved_path=file_path,
+                    digest=manifest_digest,
+                )
             return result
         else:
             logger.debug(

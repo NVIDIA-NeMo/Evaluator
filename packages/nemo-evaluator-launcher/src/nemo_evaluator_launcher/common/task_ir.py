@@ -229,6 +229,98 @@ class TaskIntermediateRepresentation:
         }
 
 
+def _process_framework_documents(
+    yaml_documents: list[dict],
+) -> list[TaskIntermediateRepresentation]:
+    """Process YAML documents and extract task intermediate representations.
+
+    Common processing logic shared between package resources and file path loading.
+
+    Args:
+        yaml_documents: List of parsed YAML documents
+
+    Returns:
+        List of TaskIntermediateRepresentation objects
+    """
+    tasks: list[TaskIntermediateRepresentation] = []
+
+    for framework_doc in yaml_documents:
+        # Extract container metadata
+        container = framework_doc.get("__container", "")
+        container_digest = framework_doc.get("__container_digest")
+
+        if not container:
+            logger.warning(
+                "Framework document missing __container field, skipping",
+            )
+            continue
+
+        # Extract harness name from framework.name field
+        framework_info = framework_doc.get("framework", {})
+        harness = framework_info.get("name", "")
+        if not harness:
+            # Fallback to extracting from container if framework.name is missing
+            logger.warning(
+                "Framework document missing framework.name field, extracting from container",
+                container=container,
+            )
+            harness = _extract_harness_from_container(container)
+        else:
+            # Normalize the harness name (replace underscores with hyphens for consistency)
+            harness = harness.replace("_", "-")
+
+        # Get framework-level defaults (if any)
+        framework_defaults = framework_doc.get("defaults", {})
+
+        # Process evaluations
+        evaluations = framework_doc.get("evaluations", [])
+        if not evaluations:
+            logger.debug(
+                "No evaluations found in framework",
+                container=container,
+                harness=harness,
+            )
+            continue
+
+        for eval_config in evaluations:
+            task_name = eval_config.get("name")
+            if not task_name:
+                logger.debug(
+                    "Evaluation missing name, skipping",
+                    container=container,
+                )
+                continue
+
+            description = eval_config.get("description", "")
+
+            # Get task-specific defaults
+            task_defaults = eval_config.get("defaults", {})
+
+            # Merge defaults: framework defaults + task defaults (task overrides)
+            merged_defaults = _deep_merge_dict(framework_defaults, task_defaults)
+
+            # Create task IR
+            task_ir = TaskIntermediateRepresentation(
+                name=task_name,
+                description=description,
+                harness=harness,
+                container=container,
+                container_digest=container_digest,
+                defaults=merged_defaults,
+            )
+
+            tasks.append(task_ir)
+
+            logger.debug(
+                "Created task IR",
+                harness=harness,
+                task=task_name,
+                container=container,
+            )
+
+    return tasks
+
+
 def _load_tasks_from_frameworks(
     frameworks_file: Optional[pathlib.Path] = None,
 ) -> list[TaskIntermediateRepresentation]:
@@ -240,6 +332,8 @@ def _load_tasks_from_frameworks(
     Returns:
         List of TaskIntermediateRepresentation objects
     """
+    yaml_documents = []
+
     if frameworks_file is None:
         # Default path relative to package resources
         import importlib.resources
@@ -252,7 +346,6 @@ def _load_tasks_from_frameworks(
                 encoding="utf-8",
             )
             # Parse content directly
-            yaml_documents = []
             for doc in yaml.safe_load_all(content):
                 if doc:
                     yaml_documents.append(doc)
@@ -261,92 +354,6 @@ def _load_tasks_from_frameworks(
                 "Loaded framework documents from package resources",
                 num_documents=len(yaml_documents),
             )
-
-            # Process documents (same logic as below)
-            tasks: list[TaskIntermediateRepresentation] = []
-            for framework_doc in yaml_documents:
-                # Extract container metadata
-                container = framework_doc.get("__container", "")
-                container_digest = framework_doc.get("__container_digest")
-
-                if not container:
-                    logger.warning(
-                        "Framework document missing __container field, skipping",
-                    )
-                    continue
-
-                # Extract harness name from framework.name field
-                framework_info = framework_doc.get("framework", {})
-                harness = framework_info.get("name", "")
-                if not harness:
-                    # Fallback to extracting from container if framework.name is missing
-                    logger.warning(
-                        "Framework document missing framework.name field, extracting from container",
-                        container=container,
-                    )
-                    harness = _extract_harness_from_container(container)
-                else:
-                    # Normalize the harness name (replace underscores with hyphens for consistency)
-                    harness = harness.replace("_", "-")
-
-                # Get framework-level defaults (if any)
-                framework_defaults = framework_doc.get("defaults", {})
-
-                # Process evaluations
-                evaluations = framework_doc.get("evaluations", [])
-                if not evaluations:
-                    logger.debug(
-                        "No evaluations found in framework",
-                        container=container,
-                        harness=harness,
-                    )
-                    continue
-
-                for eval_config in evaluations:
-                    task_name = eval_config.get("name")
-                    if not task_name:
-                        logger.debug(
-                            "Evaluation missing name, skipping",
-                            container=container,
-                        )
-                        continue
-
-                    description = eval_config.get("description", "")
-
-                    # Get task-specific defaults
-                    task_defaults = eval_config.get("defaults", {})
-
-                    # Merge defaults: framework defaults + task defaults (task overrides)
-                    merged_defaults = _deep_merge_dict(
-                        framework_defaults, task_defaults
-                    )
-
-                    # Create task IR
-                    task_ir = TaskIntermediateRepresentation(
-                        name=task_name,
-                        description=description,
-                        harness=harness,
-                        container=container,
-                        container_digest=container_digest,
-                        defaults=merged_defaults,
-                    )
-
-                    tasks.append(task_ir)
-
-                    logger.debug(
-                        "Created task IR",
-                        harness=harness,
-                        task=task_name,
-                        container=container,
-                    )
-
-            logger.info(
-                "Loaded tasks from frameworks",
-                total_tasks=len(tasks),
-                num_frameworks=len(yaml_documents),
-            )
-            return tasks
-
         except (ImportError, FileNotFoundError, Exception) as e:
             logger.debug(
                 "Failed to load from package resources, trying file path",
@@ -359,126 +366,55 @@ def _load_tasks_from_frameworks(
                 / "all_frameworks.yaml"
             )
 
-    if not frameworks_file.exists():
-        logger.warning(
-            "Frameworks file not found",
-            path=str(frameworks_file),
-        )
-        return []
+    # If we still don't have documents, try loading from file
+    if not yaml_documents:
+        if frameworks_file is None or not frameworks_file.exists():
+            logger.warning(
+                "Frameworks file not found",
+                path=str(frameworks_file) if frameworks_file else "None",
+            )
+            return []
 
-    logger.info("Loading tasks from frameworks file", path=str(frameworks_file))
+        logger.info("Loading tasks from frameworks file", path=str(frameworks_file))
 
-    tasks: list[TaskIntermediateRepresentation] = []
+        try:
+            with open(frameworks_file, "r", encoding="utf-8") as f:
+                content = f.read()
 
-    try:
-        with open(frameworks_file, "r", encoding="utf-8") as f:
-            content = f.read()
+            # Parse multi-YAML (documents separated by ---)
+            for doc in yaml.safe_load_all(content):
+                if doc:
+                    yaml_documents.append(doc)
 
-        # Parse multi-YAML (documents separated by ---)
-        yaml_documents = []
-        for doc in yaml.safe_load_all(content):
-            if doc:
-                yaml_documents.append(doc)
+            logger.info(
+                "Loaded framework documents",
+                num_documents=len(yaml_documents),
+            )
+        except yaml.YAMLError as e:
+            logger.error(
+                "Failed to parse frameworks YAML",
+                error=str(e),
+                path=str(frameworks_file),
+                exc_info=True,
+            )
+            return []
+        except Exception as e:
+            logger.error(
+                "Error loading tasks from frameworks",
+                error=str(e),
+                path=str(frameworks_file),
+                exc_info=True,
+            )
+            return []
 
-        logger.info(
-            "Loaded framework documents",
-            num_documents=len(yaml_documents),
-        )
+    # Process documents using common logic
+    tasks = _process_framework_documents(yaml_documents)
 
-        for framework_doc in yaml_documents:
-            # Extract container metadata
-            container = framework_doc.get("__container", "")
-            container_digest = framework_doc.get("__container_digest")
-
-            if not container:
-                logger.warning(
-                    "Framework document missing __container field, skipping",
-                )
-                continue
-
-            # Extract harness name from framework.name field
-            framework_info = framework_doc.get("framework", {})
-            harness = framework_info.get("name", "")
-            if not harness:
-                # Fallback to extracting from container if framework.name is missing
-                logger.warning(
-                    "Framework document missing framework.name field, extracting from container",
-                    container=container,
-                )
-                harness = _extract_harness_from_container(container)
-            else:
-                # Normalize the harness name (replace underscores with hyphens for consistency)
-                harness = harness.replace("_", "-")
-
-            # Get framework-level defaults (if any)
-            framework_defaults = framework_doc.get("defaults", {})
-
-            # Process evaluations
-            evaluations = framework_doc.get("evaluations", [])
-            if not evaluations:
-                logger.debug(
-                    "No evaluations found in framework",
-                    container=container,
-                    harness=harness,
-                )
-                continue
-
-            for eval_config in evaluations:
-                task_name = eval_config.get("name")
-                if not task_name:
-                    logger.debug(
-                        "Evaluation missing name, skipping",
-                        container=container,
-                    )
-                    continue
-
-                description = eval_config.get("description", "")
-
-                # Get task-specific defaults
-                task_defaults = eval_config.get("defaults", {})
-
-                # Merge defaults: framework defaults + task defaults (task overrides)
-                merged_defaults = _deep_merge_dict(framework_defaults, task_defaults)
-
-                # Create task IR
-                task_ir = TaskIntermediateRepresentation(
-                    name=task_name,
-                    description=description,
-                    harness=harness,
-                    container=container,
-                    container_digest=container_digest,
-                    defaults=merged_defaults,
-                )
-
-                tasks.append(task_ir)
-
-                logger.debug(
-                    "Created task IR",
-                    harness=harness,
-                    task=task_name,
-                    container=container,
-                )
-
-        logger.info(
-            "Loaded tasks from frameworks",
-            total_tasks=len(tasks),
-            num_frameworks=len(yaml_documents),
-        )
-
-    except yaml.YAMLError as e:
-        logger.error(
-            "Failed to parse frameworks YAML",
-            error=str(e),
-            path=str(frameworks_file),
-            exc_info=True,
-        )
-    except Exception as e:
-        logger.error(
-            "Error loading tasks from frameworks",
-            error=str(e),
-            path=str(frameworks_file),
-            exc_info=True,
-        )
+    logger.info(
+        "Loaded tasks from frameworks",
+        total_tasks=len(tasks),
+        num_frameworks=len(yaml_documents),
+    )
 
     return tasks
 
