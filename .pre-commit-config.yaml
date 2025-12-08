@@ -49,11 +49,35 @@ repos:
         files: '.*\/[^\/]*_[^\/]*\.md$'
         exclude: '^\.github/'
         types: [file]
+      # Workflow diagram:
+      # mapping.toml
+      # (container = "..")
+      # (# container-digest:sha256:....)              <---- CI: check digests are relevant
+      #
+      #    |
+      #    |
+      #    v
+      # scripts/load_framework_definitions.py
+      # (updates the toml
+      #  AND
+      # creates the resources/all_tasks_irs,
+      # records TOML checksum)                        <---- pre-commit guard: checks TOML checksum
+      #                                                      pre-commit guard: checks all_tasks_irs checksum
+      #    |          \
+      #    |           \
+      #    |            ------------------->    make docs-build
+      #    |                                  (builds docs on the fly)
+      #    v
+      # scripts/update-readme.py
+      # (updates README, records checksum)           <----- pre-commit guard: checks TOML checksum
+      # pass_filenames: false means pre-commit does NOT pass filenames as arguments to the script.
+      # The script determines which files to check on its own (using auto-detection logic).
+      # This is useful when the script needs to check specific files regardless of which files changed.
       - id: check-readme-checksum
         name: "Check README.md checksum matches mapping.toml"
         language: system
         entry: python scripts/check-readme-checksum.py
-        files: ^(README\.md|packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/resources/mapping\.toml)$
+        files: (README\.md|mapping\.toml)$
         pass_filenames: false
       - id: check-container-digests
         name: "Check container digests in mapping.toml"
@@ -64,5 +88,11 @@ repos:
             python3 -c "import sys; exit(0 if sys.version_info >= (3, 11) else 1)" 2>/dev/null || python3 -m pip install --quiet --user tomli 2>/dev/null || true
             python3 scripts/check-container-digests.py
           '
-        files: ^packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/resources/mapping\.toml$
+        files: mapping\.toml$
+        pass_filenames: false
+      - id: check-all-tasks-irs-checksum
+        name: "Check all_tasks_irs.yaml checksum matches mapping.toml"
+        language: system
+        entry: python scripts/check-all-tasks-irs-checksum.py
+        files: (all_tasks_irs\.yaml|mapping\.toml)$
         pass_filenames: false

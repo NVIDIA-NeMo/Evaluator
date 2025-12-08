@@ -20,6 +20,27 @@ This script reads all containers from mapping.toml, extracts framework.yml from 
 container using OCI layer inspection, parses them using nemo_evaluator.core.input,
 converts them to Intermediate Representations (IRs), and serializes them into
 all_tasks_irs.yaml.
+
+Workflow diagram:
+mapping.toml
+(container = "..")
+(# container-digest:sha256:....)              <---- CI: check digests are relevant
+
+   |
+   |
+   v
+scripts/load_framework_definitions.py
+(updates the toml
+ AND
+creates the resources/all_tasks_irs,
+records TOML checksum)                        <---- pre-commit guard: checks TOML checksum
+   |          \
+   |           \
+   |            ------------------->    make docs-build
+   |                                  (builds docs on the fly)
+   v
+scripts/update-readme.py
+(updates README, records checksum)           <----- pre-commit guard: checks TOML checksum
 """
 
 import argparse

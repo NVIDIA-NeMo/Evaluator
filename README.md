@@ -36,10 +36,29 @@ Most users typically interact with `nemo-evaluator-launcher`, which serves as a 
 
 NeMo Evaluator Launcher provides pre-built evaluation containers for different evaluation harnesses through the NVIDIA NGC catalog. Each harness supports a variety of benchmarks, which can then be called via `nemo-evaluator`. This table provides a list of benchmark names per harness. A more detailed list of task names can be found in the [list of NGC containers](https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator/containers/index.html).
 
-<!-- BEGIN AUTOGENERATION -->
-<!-- BEGIN AUTOGENERATION -->
-<!-- mapping toml checksum: sha256:33f7ca0dbe02b2ca6a9c3e723576644cd6cb6214faa66196b944f3445ffc65be -->
+| Container | Description | NGC Catalog | Latest Tag | Supported benchmarks |
+|-----------|-------------|-------------|------------| ------------|
+| **bfcl** | Function calling | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl) | `25.11` | BFCL v2 and v3 |
+| **bigcode-evaluation-harness** | Code generation evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bigcode-evaluation-harness) | `25.11` | MBPP, MBPP-Plus, HumanEval, HumanEval+, Multiple (cpp, cs, d, go, java, jl, js, lua, php, pl, py, r, rb, rkt, rs, scala, sh, swift, ts) |
+| **garak** | Safety and vulnerability testing | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/garak) | `25.11` | Garak |
+| **helm** | Holistic evaluation framework | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/helm) | `25.11` | MedHelm |
+| **hle** | Academic knowledge and problem solving | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/hle) | `25.11` | HLE |
+| **ifbench** | Instruction following | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/ifbench) | `25.11` | IFBench |
+| **livecodebench** | Coding | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/livecodebench) | `25.11` | LiveCodeBench (v1-v6, 0724_0125, 0824_0225) |
+| **lm-evaluation-harness** | Language model benchmarks | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/lm-evaluation-harness) | `25.11` | ARC Challenge (also multilingual), GSM8K, HumanEval, HumanEval+, MBPP, MBPP+, MINERVA Math, RACE, AGIEval, BBH, BBQ, CSQA, Frames, Global MMLU, GPQA-D, HellaSwag (also multilingual), IFEval, MGSM, MMLU, MMLU-Pro, MMLU-ProX (de, es, fr, it, ja), MMLU-Redux, MUSR, OpenbookQA, Piqa, Social IQa, TruthfulQA, WikiLingua, WinoGrande |
+| **mtbench** | Multi-turn conversation evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench) | `25.11` | MT-Bench |
+| **nemo-skills** | Language model benchmarks (science, math, agentic)  | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/nemo_skills) | `25.11` | AIME 24 & 25, BFCL_v3, GPQA, HLE, LiveCodeBench, MMLU, MMLU-Pro |
+| **profbench** | Professional domains in Business and Scientific Research | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/profbench) | `25.11` | ProfBench |
+| **safety-harness** | Safety and bias evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/safety-harness) | `25.11` | Aegis v2, WildGuard |
+| **scicode** | Coding for scientific research | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/scicode) | `25.11` | SciCode |
+| **simple-evals** | Common evaluation tasks | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/simple-evals) | `25.11` | GPQA-D, MATH-500, AIME 24 & 25, HumanEval, HumanEval+, MGSM, MMLU (also multilingual), MMLU-Pro, MMLU-lite (AR, BN, DE, EN, ES, FR, HI, ID, IT, JA, KO, MY, PT, SW, YO, ZH), SimpleQA, BrowseComp, HealthBench |
+| **tooltalk** | Tool usage evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk) | `25.11` | ToolTalk |
+| **vlmevalkit** | Vision-language model evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit) | `25.11` | AI2D, ChartQA, MMMU, MathVista-MINI, OCRBench, SlideVQA |
 
+<!-- BEGIN AUTOGENERATION -->
+<!-- BEGIN AUTOGENERATION -->
+<!-- mapping toml checksum: sha256:0729db5d3920c833062b308beb38f194858aa1d3066389087ae3520ef8415243 -->
+<!--
 | Container | Description | NGC Catalog | Latest Tag | Supported benchmarks |
 |-----------|-------------|-------------|------------| ------------|
 | **bfcl** | BFCL v3 with Single-turn and Multi-turn, Live and Non-Live, AST and Exec evaluation. Not using native function calling. | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl?version=25.11) | `25.11` | bfclv3, bfclv3_ast, bfclv3_ast_prompting, bfclv2, bfclv2_ast, bfclv2_ast_prompting |
@@ -58,7 +77,9 @@ NeMo Evaluator Launcher provides pre-built evaluation containers for different e
 | **simple-evals** | AIME 2025 questions, math | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/simple-evals?version=25.11) | `25.11` | AIME_2025, AIME_2024, AA_AIME_2024, AA_math_test_500, math_test_500, mgsm, humaneval, humanevalplus, mmlu_pro, mmlu_am, mmlu_ar, mmlu_bn, mmlu_cs, mmlu_de, mmlu_el, mmlu_en, mmlu_es, mmlu_fa, mmlu_fil, mmlu_fr, mmlu_ha, mmlu_he, mmlu_hi, mmlu_id, mmlu_ig, mmlu_it, mmlu_ja, mmlu_ko, mmlu_ky, mmlu_lt, mmlu_mg, mmlu_ms, mmlu_ne, mmlu_nl, mmlu_ny, mmlu_pl, mmlu_pt, mmlu_ro, mmlu_ru, mmlu_si, mmlu_sn, mmlu_so, mmlu_sr, mmlu_sv, mmlu_sw, mmlu_te, mmlu_tr, mmlu_uk, mmlu_vi, mmlu_yo, mmlu_ar-lite, mmlu_bn-lite, mmlu_de-lite, mmlu_en-lite, mmlu_es-lite, mmlu_fr-lite, mmlu_hi-lite, mmlu_id-lite, mmlu_it-lite, mmlu_ja-lite, mmlu_ko-lite, mmlu_my-lite, mmlu_pt-lite, mmlu_sw-lite, mmlu_yo-lite, mmlu_zh-lite, mmlu, gpqa_diamond, gpqa_extended, gpqa_main, simpleqa, aime_2025_nemo, aime_2024_nemo, math_test_500_nemo, gpqa_diamond_nemo, gpqa_diamond_aa_v2_llama_4, gpqa_diamond_aa_v2, AIME_2025_aa_v2, mgsm_aa_v2, mmlu_pro_aa_v2, mmlu_llama_4, mmlu_pro_llama_4, healthbench, healthbench_consensus, healthbench_hard, browsecomp |
 | **tooltalk** | ToolTalk task with default settings. | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk?version=25.11) | `25.11` | tooltalk |
 | **vlmevalkit** | A benchmark for evaluating diagram understanding capabilities of large vision-language models. | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit?version=25.11) | `25.11` | ai2d_judge, chartqa, mathvista-mini, mmmu_judge, ocrbench, ocr_reasoning, slidevqa |
-
+-->
+<!-- END AUTOGENERATION -->
+<!-- END AUTOGENERATION -->
 <!-- END AUTOGENERATION -->
 <!-- END AUTOGENERATION -->
 <!-- END AUTOGENERATION -->
