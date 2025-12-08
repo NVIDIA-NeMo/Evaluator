@@ -39,7 +39,7 @@ records TOML checksum)                        <---- pre-commit guard: checks TOM
    |            ------------------->    make docs-build
    |                                  (builds docs on the fly)
    v
-scripts/update-readme.py
+scripts/update_readme.py
 (updates README, records checksum)           <----- pre-commit guard: checks TOML checksum
 """
 
