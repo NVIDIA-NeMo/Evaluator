@@ -38,7 +38,7 @@ NeMo Evaluator Launcher provides pre-built evaluation containers for different e
 
 <!-- BEGIN AUTOGENERATION -->
 <!-- BEGIN AUTOGENERATION -->
-<!-- mapping toml checksum: sha256:dca6103b8451c32f0013f355ffdcf0c3dde5759f84d96d243e2e1d30ef44d925 -->
+<!-- mapping toml checksum: sha256:33f7ca0dbe02b2ca6a9c3e723576644cd6cb6214faa66196b944f3445ffc65be -->
 
 | Container | Description | NGC Catalog | Latest Tag | Supported benchmarks |
 |-----------|-------------|-------------|------------| ------------|
@@ -59,6 +59,7 @@ NeMo Evaluator Launcher provides pre-built evaluation containers for different e
 | **tooltalk** | ToolTalk task with default settings. | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk?version=25.11) | `25.11` | tooltalk |
 | **vlmevalkit** | A benchmark for evaluating diagram understanding capabilities of large vision-language models. | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit?version=25.11) | `25.11` | ai2d_judge, chartqa, mathvista-mini, mmmu_judge, ocrbench, ocr_reasoning, slidevqa |
 
+<!-- END AUTOGENERATION -->
 <!-- END AUTOGENERATION -->
 <!-- END AUTOGENERATION -->
 

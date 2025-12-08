@@ -222,6 +222,119 @@ def get_container_digest(
         return None
 
 
+def update_digest_comment_in_mapping_toml(
+    mapping_file: pathlib.Path, container: str, digest: str
+) -> None:
+    """Update or add digest comment for container in mapping.toml.
+
+    Args:
+        mapping_file: Path to mapping.toml file
+        container: Container image identifier
+        digest: Container digest (sha256:...)
+    """
+    import re
+
+    try:
+        # Read file as text
+        with open(mapping_file, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        lines = content.split("\n")
+        updated = False
+
+        # Find the container line
+        for i, line in enumerate(lines):
+            # Match container = "..." lines (harness-level sections only)
+            match = re.match(r'^(\s*)container\s*=\s*"([^"]+)"', line)
+            if match and match.group(2) == container:
+                indent = match.group(1)
+                # Check if this is a harness-level section
+                section_line_idx = i
+                while section_line_idx >= 0 and not lines[
+                    section_line_idx
+                ].strip().startswith("["):
+                    section_line_idx -= 1
+                if section_line_idx >= 0:
+                    section_line = lines[section_line_idx].strip()
+                    # Harness-level sections don't have dots
+                    if "." not in section_line.strip("[]"):
+                        # Check if digest comment already exists
+                        digest_comment_pattern = (
+                            r"#\s*container-digest:\s*(sha256:[a-f0-9]+)"
+                        )
+                        existing_digest = None
+                        comment_line_idx = None
+
+                        # Look for existing digest comment in next few lines
+                        for offset in range(1, 5):
+                            if i + offset >= len(lines):
+                                break
+                            next_line = lines[i + offset]
+                            match_comment = re.search(
+                                digest_comment_pattern, next_line, re.IGNORECASE
+                            )
+                            if match_comment:
+                                existing_digest = match_comment.group(1)
+                                comment_line_idx = i + offset
+                                break
+                            # Stop if we hit another section or key
+                            if next_line.strip().startswith("[") or (
+                                next_line.strip()
+                                and not next_line.strip().startswith("#")
+                                and "=" in next_line
+                            ):
+                                break
+
+                        # Update or insert digest comment
+                        digest_comment = f"{indent}# container-digest:{digest}"
+
+                        if existing_digest:
+                            if existing_digest.lower() == digest.lower():
+                                logger.debug(
+                                    "Digest already correct",
+                                    container=container,
+                                    digest=digest,
+                                )
+                                continue
+                            # Update existing comment
+                            lines[comment_line_idx] = digest_comment
+                            logger.debug(
+                                "Updated digest comment",
+                                container=container,
+                                old_digest=existing_digest,
+                                new_digest=digest,
+                            )
+                        else:
+                            # Insert new comment after container line
+                            lines.insert(i + 1, digest_comment)
+                            logger.debug(
+                                "Added digest comment",
+                                container=container,
+                                digest=digest,
+                            )
+                        updated = True
+                        break
+
+        # Write updated content if changed
+        if updated:
+            with open(mapping_file, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines))
+            logger.debug(
+                "Updated mapping.toml with digest comment",
+                container=container,
+                digest=digest,
+            )
+    except Exception as e:
+        logger.warning(
+            "Failed to update digest comment in mapping.toml",
+            container=container,
+            digest=digest,
+            error=str(e),
+            exc_info=True,
+        )
+        # Don't fail the whole process if digest update fails
+
+
 def calculate_mapping_checksum(mapping_file: pathlib.Path) -> str:
     """Calculate SHA256 checksum of mapping.toml file.
 
@@ -473,6 +586,12 @@ Environment Variables:
             use_cache=not args.no_cache,
         )
 
+        # Update digest comment in mapping.toml if we got a digest
+        if container_digest:
+            update_digest_comment_in_mapping_toml(
+                args.mapping_file, container, container_digest
+            )
+
         if framework_content:
             try:
                 harness_ir, task_irs = parse_framework_to_irs(
@@ -505,6 +624,20 @@ Environment Variables:
                 harness=harness_name,
                 container=container,
             )
+
+    # Recalculate checksum after digest updates (digests may have been updated)
+    try:
+        mapping_checksum = calculate_mapping_checksum(args.mapping_file)
+        logger.debug(
+            "Recalculated mapping.toml checksum after digest updates",
+            checksum=mapping_checksum,
+        )
+    except Exception as e:
+        logger.warning(
+            "Failed to recalculate mapping.toml checksum after digest updates",
+            error=str(e),
+        )
+        # Continue with original checksum
 
     # Serialize all task IRs to YAML
     if all_task_irs:
