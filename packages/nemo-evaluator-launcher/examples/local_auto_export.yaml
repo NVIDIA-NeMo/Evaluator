@@ -15,8 +15,16 @@
 
 # How to use:
 #
-# 1. copy this file locally or clone the repository, and run
-# 2. run `nemo-evaluator-launcher run --config path/to/local_auto_export.yaml`
+# 1. copy this file locally or clone the repository
+# 2. (optional) uncomment limit_samples in the config file to run with 10 samples for quick testing
+# 3. run `nemo-evaluator-launcher run --config path/to/local_auto_export.yaml`
+
+# ⚠️  WARNING:
+#     Always run full evaluations (without limit_samples) for actual benchmark results.
+#     Using a subset of samples is solely for testing configuration and setup.
+#     Results from such test runs should NEVER be used to compare models or
+#     report benchmark performance.
+
 
 defaults:
   - execution: local
@@ -25,7 +33,7 @@ defaults:
 
 execution:
   output_dir: nel-results
-  
+
   # Auto-export destinations
   auto_export:
     destinations: ["mlflow"]
@@ -38,6 +46,13 @@ target:
     api_key_name: NGC_API_KEY
 
 evaluation:
+  # global config settings that apply to all tasks, unless overridden by task-specific config
+  nemo_evaluator_config:
+    config:
+      params:
+        request_timeout: 3600  # timeout for API request in seconds
+        parallelism: 1  # 1 parallel request to avoid overloading the server
+        # limit_samples: 10 # uncomment to limit number of samples for quick testing
   tasks:
     - name: gpqa_diamond
       env_vars:
@@ -50,16 +65,16 @@ export:
     tracking_uri: ??? # MLflow server URL (http://hostname:port)
 
     # optional parameters:
-    experiment_name: "nv-eval"
-    description: "nemo-evaluator-launcher Evaluation test run with REMOTE auto-export"
+    experiment_name: "nemo-evaluator-launcher"
+    description: "nemo-evaluator-launcher Evaluation test run with auto-export"
     log_metrics: ["gpqa_diamond_score_micro"]  # subset of metrics to log (others will be skipped)
     log_logs: true
     only_required: false
-    
+
     # MLflow tags (key-value pairs)
     tags:
       framework: "none"
-    
+
     # Additional metadata goes into mlflow.log_params()
     extra_metadata:
       experiment_phase: "baseline"
