@@ -32,28 +32,60 @@ class TestLsTasksCommand:
     def sample_tasks_data(self):
         """Sample task data for testing."""
         return [
-            ["garak", "chat", "garak", "nvcr.io/nvidia/eval-factory/garak:25.08.1"],
-            ["mmlu", "chat", "lm-eval", "nvcr.io/nvidia/eval-factory/lm-eval:25.08.1"],
+            [
+                "garak",
+                "chat",
+                "garak",
+                "nvcr.io/nvidia/eval-factory/garak:25.08.1",
+                "Garak task description",
+                "garak",
+            ],
+            [
+                "mmlu",
+                "chat",
+                "lm-eval",
+                "nvcr.io/nvidia/eval-factory/lm-eval:25.08.1",
+                "MMLU task description",
+                "mmlu",
+            ],
             [
                 "arc",
                 "completions",
                 "lm-eval",
                 "nvcr.io/nvidia/eval-factory/lm-eval:25.08.1",
+                "ARC task description",
+                "arc",
             ],
             [
                 "truthfulqa",
                 "chat",
                 "lm-eval",
                 "nvcr.io/nvidia/eval-factory/lm-eval:25.08.1",
+                "TruthfulQA task description",
+                "truthfulqa",
             ],
-            ["ifeval", "chat", "helm", "nvcr.io/nvidia/eval-factory/helm:25.08.1"],
+            [
+                "ifeval",
+                "chat",
+                "helm",
+                "nvcr.io/nvidia/eval-factory/helm:25.08.1",
+                "IFEval task description",
+                "ifeval",
+            ],
         ]
 
     @pytest.fixture
     def single_task_data(self):
         """Single task data for testing edge cases."""
         return [
-            ["garak", "chat", "garak", "nvcr.io/nvidia/eval-factory/garak:25.08.1"],
+            [
+                "garak",
+                "chat",
+                "garak",
+                "nvcr.io/nvidia/eval-factory/garak:25.08.1",
+                "Garak task description",
+                "garak",
+            ],
         ]
 
     @pytest.fixture
@@ -83,7 +115,14 @@ class TestLsTasksCommand:
 
             # Verify first task content
             first_task = parsed_json["tasks"][0]
-            expected_keys = ["task", "endpoint_type", "harness", "container"]
+            expected_keys = [
+                "task",
+                "endpoint_type",
+                "harness",
+                "container",
+                "description",
+                "type",
+            ]
             assert all(key in first_task for key in expected_keys)
             assert first_task["task"] == "garak"
             assert first_task["endpoint_type"] == "chat"
@@ -234,10 +273,17 @@ class TestLsTasksCommand:
         """Test that tasks are properly grouped by harness and container."""
         # Create data with multiple tasks for same harness/container and different ones
         test_data = [
-            ["task1", "chat", "harness1", "container1"],
-            ["task2", "completions", "harness1", "container1"],
-            ["task3", "chat", "harness1", "container2"],
-            ["task4", "chat", "harness2", "container3"],
+            ["task1", "chat", "harness1", "container1", "Task 1 description", "task1"],
+            [
+                "task2",
+                "completions",
+                "harness1",
+                "container1",
+                "Task 2 description",
+                "task2",
+            ],
+            ["task3", "chat", "harness1", "container2", "Task 3 description", "task3"],
+            ["task4", "chat", "harness2", "container3", "Task 4 description", "task4"],
         ]
 
         cmd = LsTasksCmd(json=False)
@@ -271,6 +317,8 @@ class TestLsTasksCommand:
                 "chat",
                 "harness",
                 "very-long-container-name-that-should-determine-table-width",
+                "Short task description",
+                "short",
             ],
         ]
 
@@ -320,7 +368,11 @@ class TestLsTasksCommand:
 
         # Test with malformed data (wrong number of fields)
         malformed_data = [
-            ["task1", "chat", "harness1"],  # Missing container field
+            [
+                "task1",
+                "chat",
+                "harness1",
+            ],  # Missing container, description, type fields
         ]
 
         with patch(
@@ -333,8 +385,22 @@ class TestLsTasksCommand:
     def test_column_width_distribution(self):
         """Test that column widths are distributed correctly."""
         test_data = [
-            ["very-long-task-name-here", "chat", "harness", "container"],
-            ["short", "completions", "harness", "container"],
+            [
+                "very-long-task-name-here",
+                "chat",
+                "harness",
+                "container",
+                "Very long task description",
+                "very-long-task-name-here",
+            ],
+            [
+                "short",
+                "completions",
+                "harness",
+                "container",
+                "Short task description",
+                "short",
+            ],
         ]
 
         cmd = LsTasksCmd(json=False)
@@ -377,7 +443,9 @@ class TestLsTasksCommand:
     def test_task_count_messages(self):
         """Test task count messages for different scenarios."""
         # Test single task
-        single_data = [["task1", "chat", "harness", "container"]]
+        single_data = [
+            ["task1", "chat", "harness", "container", "Task 1 description", "task1"]
+        ]
         cmd = LsTasksCmd(json=False)
 
         with patch(
@@ -393,8 +461,15 @@ class TestLsTasksCommand:
 
         # Test multiple tasks
         multi_data = [
-            ["task1", "chat", "harness", "container"],
-            ["task2", "completions", "harness", "container"],
+            ["task1", "chat", "harness", "container", "Task 1 description", "task1"],
+            [
+                "task2",
+                "completions",
+                "harness",
+                "container",
+                "Task 2 description",
+                "task2",
+            ],
         ]
 
         with patch(
