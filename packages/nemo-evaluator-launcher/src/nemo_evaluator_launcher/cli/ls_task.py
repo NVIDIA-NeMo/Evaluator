@@ -151,6 +151,20 @@ class Cmd:
 
                 # Update task containers from mapping.toml
                 for task in tasks:
+                    # Defensive checks: ensure task has required attributes
+                    if not hasattr(task, "harness") or not task.harness:
+                        logger.warning(
+                            "Task missing harness attribute, skipping container override",
+                            task_name=getattr(task, "name", "unknown"),
+                        )
+                        continue
+                    if not hasattr(task, "name") or not task.name:
+                        logger.warning(
+                            "Task missing name attribute, skipping container override",
+                            harness=getattr(task, "harness", "unknown"),
+                        )
+                        continue
+
                     # Normalize both harness and task name for case-insensitive lookup
                     normalized_harness = task.harness.lower()
                     normalized_task = task.name.lower()

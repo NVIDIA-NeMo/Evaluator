@@ -500,12 +500,15 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
                 return True
 
             # Step 3: Use credentials for JWT authentication
-            # Use provided repository or fall back to instance repository or default
-            repo_for_scope = (
-                repository
-                or self.repository
-                or f"{self.username}/idea/poc-for-partial-pull"
-            )
+            # Use provided repository or fall back to instance repository
+            # If no repository is provided, fail explicitly rather than using a test value
+            repo_for_scope = repository or self.repository
+            if not repo_for_scope:
+                logger.error(
+                    "Repository name required for GitLab authentication but not provided",
+                    registry_url=self.registry_url,
+                )
+                return False
 
             # GitLab-specific authentication flow
             # Get Bearer Token from GitLab JWT endpoint
@@ -1094,6 +1097,7 @@ def find_file_in_image_layers(
         use_cache=use_cache,
     )
 
+    # Convert tuple result to string for backward compatibility
     if result:
         file_path, file_content = result
         return file_content
@@ -1188,12 +1192,24 @@ def find_file_matching_pattern_in_image_layers(
                         cached_file_path = cache_data.get("cached_file_path")
                         if cached_file_path:
                             return (cached_file_path, cached_result)
-                except Exception as e:
+                except (OSError, json.JSONDecodeError, KeyError) as e:
+                    # Log specific exception types for better debugging
                     logger.debug(
                         "Failed to read cached_file_path from cache",
                         docker_id=docker_id,
                         pattern=pattern_key,
                         error=str(e),
+                        error_type=type(e).__name__,
+                    )
+                except Exception as e:
+                    # Log unexpected exceptions at warning level
+                    logger.warning(
+                        "Unexpected error reading cached_file_path from cache",
+                        docker_id=docker_id,
+                        pattern=pattern_key,
+                        error=str(e),
+                        error_type=type(e).__name__,
+                        exc_info=True,
                     )
             # Fallback: try to infer path from pattern
             # Most common case: file is at prefix/filename

@@ -210,6 +210,12 @@ def _process_mapping(mapping_toml: dict) -> dict:
                     raise KeyError(
                         f"(harness,task)-tuple key {repr(key)} already exists in the mapping"
                     )
+
+                # Validate required fields exist in task_data
+                # task_name and harness_name are already validated above
+                # endpoint_type is validated as a key in harness_tasks
+                # task_data must be a dict (validated above)
+
                 mapping[key] = {
                     "task": task_name,
                     "harness": harness_name,
@@ -219,11 +225,25 @@ def _process_mapping(mapping_toml: dict) -> dict:
                 if container:
                     mapping[key]["container"] = container
 
+                # Validate task_data keys before updating
                 for task_data_key in task_data.keys():
                     if task_data_key in mapping[key]:
                         raise KeyError(
                             f"{repr(task_data_key)} is not allowed as key under {repr(key)} in the mapping"
                         )
+                    # Validate that task_data values are valid types (basic check)
+                    if task_data_key not in ("description", "type") and not isinstance(
+                        task_data[task_data_key],
+                        (str, int, float, bool, dict, list, type(None)),
+                    ):
+                        logger.warning(
+                            "Unexpected value type in task_data",
+                            harness_name=harness_name,
+                            task_name=task_name,
+                            key=task_data_key,
+                            value_type=type(task_data[task_data_key]).__name__,
+                        )
+
                 mapping[key].update(task_data)
     return mapping
 
