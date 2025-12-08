@@ -25,8 +25,8 @@ from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.task_ir import (
     HarnessIntermediateRepresentation,
     TaskIntermediateRepresentation,
-    load_tasks_from_tasks_file,
     _load_harnesses_from_frameworks,
+    load_tasks_from_tasks_file,
 )
 
 
@@ -75,7 +75,10 @@ def extract_container_name_and_version(container: str) -> tuple[str, str]:
 
 
 def generate_readme_table(
-    harnesses: dict[str, tuple[HarnessIntermediateRepresentation, list[TaskIntermediateRepresentation]]],
+    harnesses: dict[
+        str,
+        tuple[HarnessIntermediateRepresentation, list[TaskIntermediateRepresentation]],
+    ],
     checksum: str,
 ) -> str:
     """Generate README.md table markdown.
@@ -91,7 +94,9 @@ def generate_readme_table(
     lines.append("<!-- BEGIN AUTOGENERATION -->")
     lines.append(f"<!-- mapping toml checksum: {checksum} -->")
     lines.append("")
-    lines.append("| Container | Description | NGC Catalog | Latest Tag | Supported benchmarks |")
+    lines.append(
+        "| Container | Description | NGC Catalog | Latest Tag | Supported benchmarks |"
+    )
     lines.append("|-----------|-------------|-------------|------------| ------------|")
 
     # Sort harnesses alphabetically for consistent ordering
@@ -170,9 +175,7 @@ def update_readme_table(readme_path: pathlib.Path, table_content: str) -> None:
             "README.md does not contain '<!-- END AUTOGENERATION -->' marker"
         )
     if begin_match.end() > end_match.start():
-        raise ValueError(
-            "BEGIN marker appears after END marker in README.md"
-        )
+        raise ValueError("BEGIN marker appears after END marker in README.md")
 
     # Replace the content between markers
     before = content[: begin_match.end()]
@@ -284,7 +287,10 @@ def main():
     harness_irs = _load_harnesses_from_frameworks()
 
     # Group tasks by harness
-    harnesses: dict[str, tuple[HarnessIntermediateRepresentation, list[TaskIntermediateRepresentation]]] = {}
+    harnesses: dict[
+        str,
+        tuple[HarnessIntermediateRepresentation, list[TaskIntermediateRepresentation]],
+    ] = {}
     for task in tasks:
         if not task.harness:
             logger.warning(

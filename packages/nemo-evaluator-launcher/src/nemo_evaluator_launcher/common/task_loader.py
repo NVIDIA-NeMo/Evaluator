@@ -97,9 +97,7 @@ def load_tasks_from_container(
                 filtered_count=len(filtered_tasks),
             )
         if not filtered_tasks:
-            error_msg = (
-                f"No tasks found from specified container after filtering: {expected_container}"
-            )
+            error_msg = f"No tasks found from specified container after filtering: {expected_container}"
             logger.warning(
                 "No tasks found from specified container after filtering",
                 container=expected_container,

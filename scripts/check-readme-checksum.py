@@ -83,7 +83,7 @@ def extract_checksum_from_readme(readme_path: pathlib.Path) -> str | None:
             if "PLACEHOLDER" in checksum.upper():
                 return None
             return checksum
-        
+
         # Try a simpler pattern as fallback (without HTML comment markers)
         pattern2 = r"mapping\s+toml\s+checksum:\s*(sha256:[a-f0-9]+|sha256:PLACEHOLDER)"
         match2 = re.search(pattern2, content, re.IGNORECASE)
@@ -92,7 +92,7 @@ def extract_checksum_from_readme(readme_path: pathlib.Path) -> str | None:
             if "PLACEHOLDER" in checksum.upper():
                 return None
             return checksum
-        
+
         return None
     except Exception as e:
         print(f"ERROR: Failed to read README.md: {e}", file=sys.stderr)
