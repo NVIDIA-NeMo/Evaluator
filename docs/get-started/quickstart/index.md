@@ -232,7 +232,7 @@ After completing your quickstart:
 nemo-evaluator-launcher ls tasks
 
 # Run with limited samples for quick testing
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_limit_samples.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml
 ```
 :::
 
@@ -260,10 +260,10 @@ nemo-evaluator-launcher export <invocation_id> --dest local --format json
 ```bash
 cd packages/nemo-evaluator-launcher
 # Run on Slurm cluster
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/slurm_vllm_basic.yaml
 
 # Run on Lepton AI
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_vllm_llama_3_1_8b_instruct.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_vllm.yaml
 ```
 :::
 

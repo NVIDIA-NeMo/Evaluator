@@ -111,7 +111,7 @@ nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/l
 **Slurm Execution:**
 
 ```bash
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml \
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/slurm_vllm_basic.yaml \
   -o execution.output_dir=/shared/results
 ```
 
@@ -119,10 +119,10 @@ nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/s
 
 ```bash
 # With model deployment
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_nim.yaml
 
 # Using existing endpoint
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_none_llama_3_1_8b_instruct.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_basic.yaml
 ```
 
 ## status - Check Job Status

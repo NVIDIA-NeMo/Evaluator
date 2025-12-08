@@ -18,7 +18,7 @@ Lepton launcher-orchestrated deployment:
 ```bash
 # Deploy and evaluate on Lepton AI
 nemo-evaluator-launcher run \
-    --config packages/nemo-evaluator-launcher/examples/lepton_vllm_llama_3_1_8b_instruct.yaml \
+    --config packages/nemo-evaluator-launcher/examples/lepton_vllm.yaml \
     -o deployment.checkpoint_path=meta-llama/Llama-3.1-8B-Instruct \
     -o deployment.lepton_config.resource_shape=gpu.1xh200
 ```

@@ -22,8 +22,8 @@ Let NeMo Evaluator Launcher handle both model deployment and evaluation orchestr
 ```bash
 # Launcher deploys model AND runs evaluation
 nemo-evaluator-launcher run \
-    --config packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml \
-    -o deployment.checkpoint_path=/shared/models/llama-3.1-8b
+    --config packages/nemo-evaluator-launcher/examples/slurm_vllm_checkpoint_path.yaml \
+    -o deployment.checkpoint_path=/shared/models/llama-3.1-8b-it
 ```
 
 **When to use:**

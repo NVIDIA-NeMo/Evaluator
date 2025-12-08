@@ -18,7 +18,7 @@ Run evaluations anywhere with unified configuration and monitoring:
 ```bash
 # Single command, multiple backends
 nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/slurm_basic.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/slurm_vllm_basic.yaml
 nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_basic.yaml
 ```
 
@@ -31,9 +31,6 @@ nemo-evaluator-launcher ls tasks
 
 # Run academic benchmarks
 nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml
-
-# Run safety evaluation
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_safety.yaml
 ```
 
 ### Built-in Result Export
@@ -307,7 +304,12 @@ target:
 Built-in safety assessment through specialized containers:
 
 ```bash
-# Run safety evaluation suite
+# Run Aegis and Garak evaluations
+export JUDGE_API_KEY=your-judge-api-key  # token to access your judge endpoint
+export HF_TOKEN_FOR_AEGIS_V2=hf_your-token  # HF token with access to access the Aegis dataset and meta-llama/Llama-3.1-8B-Instruct
+export NGC_API_KEY=nvapi-your-key  # token with access to build.com
+
+# set judge.url in the config or pass with -o
 nemo-evaluator-launcher run \
     --config packages/nemo-evaluator-launcher/examples/local_safety.yaml \
 ```
