@@ -754,12 +754,14 @@ class TestSlurmExecutorDryRun:
                     {
                         "name": "mmlu_pro",
                         "env_vars": {"TASK_ENV": "TASK_VALUE"},
-                        "overrides": {"num_fewshot": 5},
+                        "nemo_evaluator_config": {
+                            "config": {"params": {"temperature": 0.95}}
+                        },
                     },
                     {
                         "name": "gsm8k",
                         "container": "custom-math-container:v2.0",
-                        "overrides": {"batch_size": 16},
+                        "nemo_evaluator_config": {"config": {"params": {"top_p": 0.1}}},
                     },
                 ],
             },
@@ -1405,7 +1407,9 @@ class TestSlurmExecutorSystemCalls:
                     {
                         "name": "mmlu_pro",
                         "env_vars": {"TASK_ENV": "TASK_VALUE"},
-                        "overrides": {"num_fewshot": 5},
+                        "nemo_evaluator_config": {
+                            "config": {"params": {"temperature": 0.95}}
+                        },
                     }
                 ],
             },
