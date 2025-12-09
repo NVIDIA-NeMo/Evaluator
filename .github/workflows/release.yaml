@@ -110,18 +110,8 @@ jobs:
         env:
           IS_SCHEDULED: ${{ github.event_name == 'schedule' }}
           DRY_RUN_INPUT: ${{ inputs.dry-run }}
-          TEST_MODE: ${{ vars.TEST_ALERT_MODE == 'true' }}
         run: |
           set -euo pipefail  # Fail fast
-          
-          # TEST MODE: Force error alert for testing
-          if [ "$TEST_MODE" == "true" ]; then
-            echo "severity=error" >> $GITHUB_OUTPUT
-            echo "status=failure" >> $GITHUB_OUTPUT
-            echo "message=🧪 TEST MODE: Forced error alert for testing purposes" >> $GITHUB_OUTPUT
-            echo "release_type=Test" >> $GITHUB_OUTPUT
-            exit 0
-          fi
           
           RELEASE_RESULT="${{ needs.release.result }}"
           
@@ -160,7 +150,6 @@ jobs:
             Commit: ${{ github.event_name == 'schedule' && github.sha || inputs.release-ref || github.sha }}
             Trigger: ${{ github.event_name == 'schedule' && 'Scheduled' || 'Manual' }}
             Link: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          test-mode: ${{ vars.TEST_ALERT_MODE == 'true' }}
 
   release-launcher:
     if: ${{ github.event_name == 'schedule' || inputs.component == 'nemo-evaluator-launcher' }}
@@ -204,18 +193,8 @@ jobs:
         env:
           IS_SCHEDULED: ${{ github.event_name == 'schedule' }}
           DRY_RUN_INPUT: ${{ inputs.dry-run }}
-          TEST_MODE: ${{ vars.TEST_ALERT_MODE == 'true' }}
         run: |
           set -euo pipefail  # Fail fast
-          
-          # TEST MODE: Force error alert for testing
-          if [ "$TEST_MODE" == "true" ]; then
-            echo "severity=error" >> $GITHUB_OUTPUT
-            echo "status=failure" >> $GITHUB_OUTPUT
-            echo "message=🧪 TEST MODE: Forced error alert for testing purposes" >> $GITHUB_OUTPUT
-            echo "release_type=Test" >> $GITHUB_OUTPUT
-            exit 0
-          fi
           
           RELEASE_RESULT="${{ needs.release-launcher.result }}"
           
@@ -254,4 +233,3 @@ jobs:
             Commit: ${{ github.event_name == 'schedule' && github.sha || inputs.release-ref || github.sha }}
             Trigger: ${{ github.event_name == 'schedule' && 'Scheduled' || 'Manual' }}
             Link: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          test-mode: ${{ vars.TEST_ALERT_MODE == 'true' }}

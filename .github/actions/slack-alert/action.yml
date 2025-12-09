@@ -1,0 +1,89 @@
+# Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+name: "Slack Alert"
+description: "Send alerts to Slack using the alerting service"
+
+inputs:
+  token:
+    description: "Slack alerting token"
+    required: true
+  channel:
+    description: "Slack channel ID"
+    required: true
+    default: "D08N6TYDS79"
+  severity:
+    description: "Alert severity (info, error, silent)"
+    required: true
+  title:
+    description: "Alert title"
+    required: true
+  text:
+    description: "Alert message text"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Send Slack Alert
+      shell: bash
+      env:
+        SLACK_FRONTIER_EVAL_ALERTING_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail  # Fail fast on any error
+        
+        # Fail fast if token is missing
+        if [ -z "$SLACK_FRONTIER_EVAL_ALERTING_TOKEN" ]; then
+          echo "Error: SLACK_FRONTIER_EVAL_ALERTING_TOKEN is not set"
+          exit 1
+        fi
+        
+        # Check if alerting endpoint is reachable
+        echo "Checking connectivity to alerting endpoint..."
+        if ! curl -sL --max-time 10 --head https://alerting-frontier-evals.nvidia.com/alert > /dev/null 2>&1; then
+          echo "Warning: Alerting endpoint https://alerting-frontier-evals.nvidia.com/alert is not reachable"
+          echo "Attempting to ping endpoint..."
+          if ! curl -sL --max-time 10 https://alerting-frontier-evals.nvidia.com/alert > /dev/null 2>&1; then
+            echo "Error: Cannot reach alerting endpoint"
+            exit 1
+          fi
+        fi
+        echo "Alerting endpoint is reachable"
+        
+        # Download the alert script first to check for errors
+        ALERT_SCRIPT=$(mktemp)
+        if ! curl -sL -o "$ALERT_SCRIPT" https://gitlab-master.nvidia.com/dl/JoC/competitive_evaluation/nvpark-k8s-infra/-/raw/main/alerting-service-helm/alert.sh; then
+          echo "Error: Failed to download alert script"
+          rm -f "$ALERT_SCRIPT"
+          exit 1
+        fi
+        
+        # Run the alert script and capture exit code
+        set +e  # Temporarily disable exit on error to capture exit code
+        bash "$ALERT_SCRIPT" \
+          --token "$SLACK_FRONTIER_EVAL_ALERTING_TOKEN" \
+          --channel "${{ inputs.channel }}" \
+          --severity "${{ inputs.severity }}" \
+          --title "${{ inputs.title }}" \
+          --text "${{ inputs.text }}"
+        ALERT_EXIT_CODE=$?
+        set -e  # Re-enable exit on error
+        
+        # Clean up
+        rm -f "$ALERT_SCRIPT"
+        
+        # Check if the alert script failed
+        if [ $ALERT_EXIT_CODE -ne 0 ]; then
+          echo "Error: Alert script failed with exit code $ALERT_EXIT_CODE"
+          exit $ALERT_EXIT_CODE
+        fi
