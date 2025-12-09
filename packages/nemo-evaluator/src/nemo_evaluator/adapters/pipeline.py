@@ -294,6 +294,7 @@ class AdapterPipeline:
         global_context = AdapterGlobalContext(
             output_dir=self.output_dir,
             url=url,
+            model_name=self.model_name,
         )
 
         for hook in self.post_eval_hooks:
