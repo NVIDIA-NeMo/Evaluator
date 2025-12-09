@@ -69,10 +69,6 @@ execution:
   deployment:
     n_tasks: ${execution.num_nodes}  # For multi-node ray vLLM deployment, must match num_nodes
 
-  env_vars:
-    deployment:
-      HF_TOKEN: ${oc.env:HF_TOKEN} # Needed to access deepseek-ai/DeepSeek-R1
-
   mounts:
     mount_home: false # Whether to mount home directory (default: true)
 

@@ -21,8 +21,15 @@ Let NeMo Evaluator Launcher handle both model deployment and evaluation orchestr
 
 ```bash
 # Launcher deploys model AND runs evaluation
+HOSTNAME=cluster-login-node.com
+ACCOUNT=my_account
+OUT_DIR=/absolute/path/on/login/node
+
 nemo-evaluator-launcher run \
     --config packages/nemo-evaluator-launcher/examples/slurm_vllm_checkpoint_path.yaml \
+    -o execution.hostname=$HOSTNAME \
+    -o execution.output_dir=$OUT_DIR \
+    -o execution.account=$ACCOUNT \
     -o deployment.checkpoint_path=/shared/models/llama-3.1-8b-it
 ```
 
