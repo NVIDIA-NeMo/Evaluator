@@ -20,7 +20,7 @@ from nemo_evaluator_launcher.api import RunConfig, run_eval
 
 # Run evaluation with configuration
 config = RunConfig.from_hydra(
-    config_name="local_llama_3_1_8b_instruct",
+    config_name="local_basic",
     config_dir="examples",
     hydra_overrides=[
         "execution.output_dir=my_results"
@@ -79,7 +79,7 @@ from nemo_evaluator_launcher.api import RunConfig
 
 # Load a specific configuration file
 config = RunConfig.from_hydra(
-    config_name="local_llama_3_1_8b_instruct",
+    config_name="local_basic",
     config_dir="examples"
 )
 ```

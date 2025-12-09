@@ -49,10 +49,13 @@ Use NVIDIA Build, OpenAI API, or other cloud providers for instant availability.
 
 ```bash
 # Point launcher to your deployed model
+URL=http://your-endpoint:8000/v1/completions
+MODEL=your-model-name
+
 nemo-evaluator-launcher run \
-    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
-    -o target.api_endpoint.url=http://your-endpoint:8080/v1/completions \
-    -o target.api_endpoint.model_id=your-model-name \
+    --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
+    -o target.api_endpoint.url=$URL \
+    -o target.api_endpoint.model_id=$MODEL
     -o deployment.type=none  # No launcher deployment
 ```
 
@@ -65,7 +68,7 @@ from nemo_evaluator import (
 
 # Configure your endpoint
 api_endpoint = ApiEndpoint(
-    url="http://your-endpoint:8080/v1/completions",
+    url="http://your-endpoint:8000/v1/completions",
     model_id="your-model-name"
 )
 target = EvaluationTarget(api_endpoint=api_endpoint)
@@ -99,9 +102,9 @@ deployment:
 
 target:
   api_endpoint:
-    url: http://your-endpoint:8080/v1/completions
+    url: http://your-endpoint:8000/v1/completions
     model_id: your-model-name
-    api_key: ${API_KEY}  # Optional
+    api_key_name: API_KEY  # Optional, needed for gated endpoints
 
 evaluation:
   tasks:

@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 # ==============================================================================
 # Multi-Node SLURM Deployment: NVIDIA Nemotron Nano 9B v2
 # ==============================================================================
@@ -20,9 +20,22 @@
 # Nano 9B v2 deployed across multiple SLURM nodes using vLLM's native data
 # parallelism for maximum throughput (no Ray dependency).
 #
-# How to use: Copy this file locally into a directory, say `examples`, and run:
-#   nemo-evaluator run --config-dir examples --config-name slurm_multinode_vllm_dp_nemotron_nano_9b_v2
+# How to use:
 #
+# 1. copy this file locally or clone the repository
+# 2. (optional) set the required values in the config file. Alternatively, you can pass them later with -o cli arguments, e.g.
+#    -o execution.hostname=my-cluster.com -o execution.output_dir=/absolute/path/on/cluster -o execution.account=my-account etc.
+# 3. (optional) run with 10 samples for quick testing - add the following flag to the command below
+#    -o ++evaluation.nemo_evaluator_config.config.params.limit_samples=10
+# 4. run full evaluation:
+#    nemo-evaluator-launcher run --config path/to/slurm_vllm_multinode_dp.yaml
+#
+# ⚠️  WARNING:
+#     Always run full evaluations (without limit_samples) for actual benchmark results.
+#     Using a subset of samples is solely for testing configuration and setup.
+#     Results from such test runs should NEVER be used to compare models or
+#     report benchmark performance.
+
 # Model Details:
 # - Model: nvidia/NVIDIA-Nemotron-Nano-9B-v2 (9B parameters)
 # - Hardware: 2 nodes with 8xH100 GPUs each (16 H100 GPUs total)
@@ -38,9 +51,6 @@
 # - execution.num_nodes: Number of SLURM nodes to allocate (2 in this example)
 # - execution.deployment.n_tasks: Must match num_nodes for multi-instance deployment
 #
-# Required Setup:
-# - Update execution.hostname, execution.account, and execution.output_dir
-# - Provide HF_TOKEN for accessing the gated model
 # ==============================================================================
 
 defaults:
@@ -57,18 +67,11 @@ execution:
   output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
   num_nodes: 2 # Number of SLURM nodes for multi-node deployment
   walltime: 01:00:00
-  # partition: backfill
-  
+
   deployment:
     n_tasks: ${execution.num_nodes}  # For multi-node vLLM deployment, must match num_nodes
-  
-  env_vars:
-    deployment: {}
-    evaluation: {}
-  
+
   mounts:
-    deployment: {} # Mount points for deployment container (source:target format)
-    evaluation: {} # Mount points for evaluation container (source:target format)
     mount_home: false # Whether to mount home directory (default: true)
 
 # Override default deployment arguments
@@ -86,7 +89,6 @@ deployment:
   command: >-
     bash -c 'DP_RPC_PORT=13345 && if [ "$SLURM_PROCID" -eq 0 ]; then echo "=== Starting vLLM HEAD Node (Rank 0-7) ===" && vllm serve ${deployment.hf_model_handle} --data-parallel-size ${deployment.data_parallel_size} --data-parallel-size-local ${deployment.data_parallel_size_local} --data-parallel-address $MASTER_IP --data-parallel-rpc-port $DP_RPC_PORT --port ${deployment.port} --served-model-name ${deployment.served_model_name} ${deployment.extra_args}; else echo "=== Starting vLLM WORKER Node (Rank 8-15) ===" && vllm serve ${deployment.hf_model_handle} --headless --data-parallel-size ${deployment.data_parallel_size} --data-parallel-size-local ${deployment.data_parallel_size_local} --data-parallel-start-rank ${deployment.data_parallel_size_local} --data-parallel-address $MASTER_IP --data-parallel-rpc-port $DP_RPC_PORT ${deployment.extra_args}; fi'
 
-# Specify the benchmarks to evaluate
 evaluation:
   nemo_evaluator_config: # Global config settings that apply to all tasks
     config:
@@ -105,6 +107,4 @@ evaluation:
           max_logged_requests: 10
 
   tasks:
-    - name: gsm8k_cot_instruct # Use the default benchmark configuration
-
-
+    - name: gsm8k_cot_instruct

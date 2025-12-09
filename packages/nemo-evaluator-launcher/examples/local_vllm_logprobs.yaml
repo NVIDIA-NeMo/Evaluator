@@ -13,6 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+# How to use:
+#
+# 1. copy this file locally or clone the repository
+# 2. (optional) uncomment limit_samples in the config file to run with 10 samples for quick testing
+# 3. run `nemo-evaluator-launcher run --config path/to/local_vllm_logprobs.yaml`
+
+# ⚠️  WARNING: 
+#     Always run full evaluations (without limit_samples) for actual benchmark results.
+#     Using a subset of samples is solely for testing configuration and setup.
+#     Results from such test runs should NEVER be used to compare models or
+#     report benchmark performance.
+
 # [docs-start-snippet]
 defaults:
   - execution: local
@@ -36,9 +49,13 @@ deployment:
 
 # specify the benchmarks to evaluate
 evaluation:
-  nemo_evaluator_config:  # global config settings that apply to all tasks
+  # global config settings that apply to all tasks, unless overridden by task-specific config
+  nemo_evaluator_config:
     config:
       params:
+        request_timeout: 3600  # timeout for API request in seconds
+        parallelism: 1  # 1 parallel request to avoid overloading the server
+        # limit_samples: 10 # uncomment to limit number of samples for quick testing
         extra:  # for log-probability tasks like piqa, you need to specify the tokenizer
           tokenizer: meta-llama/Llama-3.1-8B  # or use a path to locally stored checkpoint
           tokenizer_backend: huggingface      # or "tiktoken"
