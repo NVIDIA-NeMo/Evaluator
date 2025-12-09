@@ -96,6 +96,72 @@ jobs:
       SSH_PWD: ${{ secrets.SSH_PWD }}
       BOT_KEY: ${{ secrets.BOT_KEY }}
 
+  send-release-alert:
+    runs-on: ubuntu-latest
+    needs: [release]
+    if: always() && !cancelled()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine release status
+        id: status
+        shell: bash
+        env:
+          IS_SCHEDULED: ${{ github.event_name == 'schedule' }}
+          DRY_RUN_INPUT: ${{ inputs.dry-run }}
+          TEST_MODE: ${{ vars.TEST_ALERT_MODE == 'true' }}
+        run: |
+          set -euo pipefail  # Fail fast
+          
+          # TEST MODE: Force error alert for testing
+          if [ "$TEST_MODE" == "true" ]; then
+            echo "severity=error" >> $GITHUB_OUTPUT
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "message=🧪 TEST MODE: Forced error alert for testing purposes" >> $GITHUB_OUTPUT
+            echo "release_type=Test" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          RELEASE_RESULT="${{ needs.release.result }}"
+          
+          # Determine if this is a dry run: scheduled releases are production, manual can be dry-run
+          if [ "$IS_SCHEDULED" == "true" ]; then
+            RELEASE_TYPE="Production"
+          elif [ "$DRY_RUN_INPUT" == "true" ]; then
+            RELEASE_TYPE="Dry Run"
+          else
+            RELEASE_TYPE="Production"
+          fi
+          
+          if [ "$RELEASE_RESULT" == "success" ]; then
+            echo "severity=info" >> $GITHUB_OUTPUT
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "message=✅ $RELEASE_TYPE release completed successfully for nemo-evaluator" >> $GITHUB_OUTPUT
+          else
+            echo "severity=error" >> $GITHUB_OUTPUT
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "message=❌ $RELEASE_TYPE release failed for nemo-evaluator" >> $GITHUB_OUTPUT
+          fi
+          echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+
+      - name: Send Slack Alert
+        uses: ./.github/actions/slack-alert
+        with:
+          token: ${{ secrets.SLACK_FRONTIER_EVAL_ALERTING_TOKEN }}
+          channel: "D08N6TYDS79"
+          severity: ${{ steps.status.outputs.severity }}
+          title: "Release - nemo-evaluator (${{ steps.status.outputs.release_type }})"
+          text: |
+            ${{ steps.status.outputs.message }}
+            
+            Workflow: ${{ github.workflow }}
+            Run: ${{ github.run_id }}
+            Commit: ${{ github.event_name == 'schedule' && github.sha || inputs.release-ref || github.sha }}
+            Trigger: ${{ github.event_name == 'schedule' && 'Scheduled' || 'Manual' }}
+            Link: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          test-mode: ${{ vars.TEST_ALERT_MODE == 'true' }}
+
   release-launcher:
     if: ${{ github.event_name == 'schedule' || inputs.component == 'nemo-evaluator-launcher' }}
     needs: validate-inputs
@@ -123,3 +189,69 @@ jobs:
       SSH_KEY: ${{ secrets.SSH_KEY }}
       SSH_PWD: ${{ secrets.SSH_PWD }}
       BOT_KEY: ${{ secrets.BOT_KEY }}
+
+  send-release-launcher-alert:
+    runs-on: ubuntu-latest
+    needs: [release-launcher]
+    if: always() && !cancelled()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine release status
+        id: status
+        shell: bash
+        env:
+          IS_SCHEDULED: ${{ github.event_name == 'schedule' }}
+          DRY_RUN_INPUT: ${{ inputs.dry-run }}
+          TEST_MODE: ${{ vars.TEST_ALERT_MODE == 'true' }}
+        run: |
+          set -euo pipefail  # Fail fast
+          
+          # TEST MODE: Force error alert for testing
+          if [ "$TEST_MODE" == "true" ]; then
+            echo "severity=error" >> $GITHUB_OUTPUT
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "message=🧪 TEST MODE: Forced error alert for testing purposes" >> $GITHUB_OUTPUT
+            echo "release_type=Test" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          RELEASE_RESULT="${{ needs.release-launcher.result }}"
+          
+          # Determine if this is a dry run: scheduled releases are production, manual can be dry-run
+          if [ "$IS_SCHEDULED" == "true" ]; then
+            RELEASE_TYPE="Production"
+          elif [ "$DRY_RUN_INPUT" == "true" ]; then
+            RELEASE_TYPE="Dry Run"
+          else
+            RELEASE_TYPE="Production"
+          fi
+          
+          if [ "$RELEASE_RESULT" == "success" ]; then
+            echo "severity=info" >> $GITHUB_OUTPUT
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "message=✅ $RELEASE_TYPE release completed successfully for nemo-evaluator-launcher" >> $GITHUB_OUTPUT
+          else
+            echo "severity=error" >> $GITHUB_OUTPUT
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "message=❌ $RELEASE_TYPE release failed for nemo-evaluator-launcher" >> $GITHUB_OUTPUT
+          fi
+          echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+
+      - name: Send Slack Alert
+        uses: ./.github/actions/slack-alert
+        with:
+          token: ${{ secrets.SLACK_FRONTIER_EVAL_ALERTING_TOKEN }}
+          channel: "D08N6TYDS79"
+          severity: ${{ steps.status.outputs.severity }}
+          title: "Release - nemo-evaluator-launcher (${{ steps.status.outputs.release_type }})"
+          text: |
+            ${{ steps.status.outputs.message }}
+            
+            Workflow: ${{ github.workflow }}
+            Run: ${{ github.run_id }}
+            Commit: ${{ github.event_name == 'schedule' && github.sha || inputs.release-ref || github.sha }}
+            Trigger: ${{ github.event_name == 'schedule' && 'Scheduled' || 'Manual' }}
+            Link: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          test-mode: ${{ vars.TEST_ALERT_MODE == 'true' }}

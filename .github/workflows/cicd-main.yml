@@ -305,3 +305,70 @@ jobs:
           path: |
             .coverage
           include-hidden-files: true
+
+  send-ci-alert:
+    runs-on: ubuntu-latest
+    needs:
+      - Nemo_CICD_Test
+      - Coverage
+      - Coverage_Fake
+    if: |
+      (
+        github.ref == 'refs/heads/main'
+        || github.ref == 'refs/heads/agronskiy/feat/ci-failed-builds-on-main-and-releases'
+      )
+      && always()
+      && !cancelled()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine workflow status
+        id: status
+        shell: bash
+        env:
+          TEST_MODE: ${{ vars.TEST_ALERT_MODE == 'true' }}
+        run: |
+          set -euo pipefail  # Fail fast
+          
+          # TEST MODE: Force error alert for testing
+          if [ "$TEST_MODE" == "true" ]; then
+            echo "severity=error" >> $GITHUB_OUTPUT
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "message=🧪 TEST MODE: Forced error alert for testing purposes" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Check if main test job succeeded
+          MAIN_TEST_RESULT="${{ needs.Nemo_CICD_Test.result }}"
+          
+          # Coverage jobs might be skipped, so we only care if they failed (not if skipped)
+          COVERAGE_RESULT="${{ needs.Coverage.result }}"
+          COVERAGE_FAKE_RESULT="${{ needs.Coverage_Fake.result }}"
+          
+          if [ "$MAIN_TEST_RESULT" == "success" ] && [ "$COVERAGE_RESULT" != "failure" ] && [ "$COVERAGE_FAKE_RESULT" != "failure" ]; then
+            echo "severity=info" >> $GITHUB_OUTPUT
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "message=✅ CI pipeline completed successfully on ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "severity=error" >> $GITHUB_OUTPUT
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "message=❌ CI pipeline failed on ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send Slack Alert
+        uses: ./.github/actions/slack-alert
+        with:
+          token: ${{ secrets.SLACK_FRONTIER_EVAL_ALERTING_TOKEN }}
+          channel: "D08N6TYDS79"
+          severity: ${{ steps.status.outputs.severity }}
+          title: "CI Pipeline - ${{ github.ref_name }}"
+          text: |
+            ${{ steps.status.outputs.message }}
+            
+            Workflow: ${{ github.workflow }}
+            Run: ${{ github.run_id }}
+            Commit: ${{ github.sha }}
+            Author: ${{ github.actor }}
+            Link: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          test-mode: ${{ vars.TEST_ALERT_MODE == 'true' }}
