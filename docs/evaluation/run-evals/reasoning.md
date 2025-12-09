@@ -214,4 +214,4 @@ nemo-evaluator-launcher run \
 ## Additional resources
 
 - [Reasoning handling with vLLM](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html)
-- [Reasoning handling with sglang](https://docs.sglang.ai/backend/separate_reasoning)
+- [Reasoning handling with sglang](https://docs.sglang.io/advanced_features/separate_reasoning.html)
