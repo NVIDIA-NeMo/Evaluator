@@ -170,7 +170,7 @@ class SlurmExecutor(BaseExecutor):
                 if is_potentially_unsafe:
                     print(
                         red(
-                            "\nFound `pre_cmd` (evaluation or deployment) which carries security risk. When running without --dry-run "
+                            "\nFound `pre_cmd` or `post_cmd` (evaluation or deployment) which carries security risk. When running without --dry-run "
                             "make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
                         )
                     )
@@ -180,13 +180,13 @@ class SlurmExecutor(BaseExecutor):
             if is_potentially_unsafe:
                 if os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":
                     logger.warning(
-                        "Found non-empty commands (e.g. `pre_cmd` in evaluation or deployment) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                        "Found non-empty commands (e.g. `pre_cmd` or `post_cmd` in evaluation or deployment) and NEMO_EVALUATOR_TRUST_PRE_CMD "
                         "is set, proceeding with caution."
                     )
 
                 else:
                     logger.error(
-                        "Found non-empty commands (e.g. `pre_cmd` in evaluation or deployment) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                        "Found non-empty commands (e.g. `pre_cmd` or `post_cmd` in evaluation or deployment) and NEMO_EVALUATOR_TRUST_PRE_CMD "
                         "is not set. This might carry security risk and unstable environments. "
                         "To continue, make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1.",
                     )
@@ -699,7 +699,55 @@ def _create_slurm_sbatch_script(
     s += "--output {} ".format(remote_task_subdir / "logs" / "client-%A.log")
     s += "bash -c '\n"
     s += eval_factory_command
-    s += "'\n\n"
+    s += "'\n"
+    exit_code_var = "EVAL_EXIT_CODE=$?\n"
+    s += exit_code_var
+    s += "\n"
+
+    # Extract post_cmd values for host-side execution (task level wins over global)
+    post_cmd_success: str = (
+        task.get("post_cmd", {}).get("success")
+        or cfg.evaluation.get("post_cmd", {}).get("success")
+        or ""
+    )
+    post_cmd_fail: str = (
+        task.get("post_cmd", {}).get("fail")
+        or cfg.evaluation.get("post_cmd", {}).get("fail")
+        or ""
+    )
+    post_cmd_kill: str = (
+        task.get("post_cmd", {}).get("kill")
+        or cfg.evaluation.get("post_cmd", {}).get("kill")
+        or ""
+    )
+
+    # Create post_cmd scripts on the host and run them based on exit code
+    # Note: post_cmd.kill is not fully supported in SLURM as jobs are killed via scancel
+    # which sends signals directly to SLURM-managed processes
+    if post_cmd_success or post_cmd_fail:
+        if post_cmd_success:
+            post_cmd_success_struct = _str_to_echo_command(
+                post_cmd_success, filename="post_cmd_success.sh"
+            )
+            s += f"{post_cmd_success_struct.cmd}\n"
+        if post_cmd_fail:
+            post_cmd_fail_struct = _str_to_echo_command(
+                post_cmd_fail, filename="post_cmd_fail.sh"
+            )
+            s += f"{post_cmd_fail_struct.cmd}\n"
+
+        s += "\n# Run post_cmd scripts based on exit code\n"
+        s += "if [ \"$EVAL_EXIT_CODE\" -eq 0 ]; then\n"
+        if post_cmd_success:
+            s += "    if [ -f \"post_cmd_success.sh\" ]; then\n"
+            s += "        source post_cmd_success.sh\n"
+            s += "    fi\n"
+        s += "else\n"
+        if post_cmd_fail:
+            s += "    if [ -f \"post_cmd_fail.sh\" ]; then\n"
+            s += "        source post_cmd_fail.sh\n"
+            s += "    fi\n"
+        s += "fi\n\n"
 
     # terminate the server after all evaluation clients finish
     if cfg.deployment.type != "none":

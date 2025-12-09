@@ -57,9 +57,38 @@ else
     # Debug contents of the eval factory command's config
     {{ task.eval_factory_command_debug_comment | indent(4) }}
 
+    # Create post_cmd scripts on the host if they exist
+    {% if task.has_post_cmd_success %}
+    {{ task.post_cmd_success_cmd }}
+    {% endif %}
+    {% if task.has_post_cmd_fail %}
+    {{ task.post_cmd_fail_cmd }}
+    {% endif %}
+    {% if task.has_post_cmd_kill %}
+    {{ task.post_cmd_kill_cmd }}
+    {% endif %}
+
     # Docker run with eval factory command
     (
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.running"
+
+        # Set up signal handlers for post_cmd.kill
+        {% if task.has_post_cmd_kill %}
+        cleanup_on_kill() {
+            echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Job {{ task.job_id }} received termination signal, running post_cmd.kill" >> "$logs_dir/stdout.log"
+            if [ -f "post_cmd_kill.sh" ]; then
+                source post_cmd_kill.sh >> "$logs_dir/stdout.log" 2>&1 || true
+            fi
+            # Stop containers if they're still running
+            {% if task.deployment %}
+            docker stop $SERVER_CONTAINER_NAME 2>/dev/null || true
+            {% endif %}
+            docker stop {{ task.client_container_name }} 2>/dev/null || true
+            echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) 130" > "$logs_dir/stage.exit"
+            exit 130
+        }
+        trap cleanup_on_kill SIGTERM SIGINT
+        {% endif %}
         {% if task.deployment %}
         docker run --rm --shm-size=100g --gpus all {{ task.deployment.extra_docker_args }} \
         --name {{ task.deployment.container_name }} --entrypoint '' \
@@ -115,6 +144,30 @@ else
     {% if task.deployment %}
     # Stop the server
     docker stop $SERVER_CONTAINER_NAME 2>/dev/null || true
+    {% endif %}
+
+    # Run post_cmd scripts based on exit code
+    {% if task.has_post_cmd_success or task.has_post_cmd_fail %}
+    if [ "$exit_code" -eq 0 ]; then
+        {% if task.has_post_cmd_success %}
+        if [ -f "post_cmd_success.sh" ]; then
+            echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Running post_cmd.success" >> "$logs_dir/stdout.log"
+            source post_cmd_success.sh >> "$logs_dir/stdout.log" 2>&1 || true
+        fi
+        {% endif %}
+    else
+        {% if task.has_post_cmd_fail %}
+        if [ -f "post_cmd_fail.sh" ]; then
+            echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Running post_cmd.fail" >> "$logs_dir/stdout.log"
+            source post_cmd_fail.sh >> "$logs_dir/stdout.log" 2>&1 || true
+        fi
+        {% endif %}
+    fi
+    {% endif %}
+
+    # Clear signal trap if it was set
+    {% if task.has_post_cmd_kill %}
+    trap - SIGTERM SIGINT
     {% endif %}
 
     echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $exit_code" > "$logs_dir/stage.exit"

@@ -40,6 +40,7 @@ from nemo_evaluator_launcher.common.execdb import (
     generate_job_id,
 )
 from nemo_evaluator_launcher.common.helpers import (
+    _str_to_echo_command,
     get_api_key_name,
     get_endpoint_url,
     get_eval_factory_command,
@@ -258,6 +259,44 @@ class LocalExecutor(BaseExecutor):
                 is_potentially_unsafe
                 or eval_factory_command_struct.is_potentially_unsafe
             )
+
+            # Extract post_cmd values for host-side execution (task level wins over global)
+            post_cmd_success: str = (
+                task.get("post_cmd", {}).get("success")
+                or cfg.evaluation.get("post_cmd", {}).get("success")
+                or ""
+            )
+            post_cmd_fail: str = (
+                task.get("post_cmd", {}).get("fail")
+                or cfg.evaluation.get("post_cmd", {}).get("fail")
+                or ""
+            )
+            post_cmd_kill: str = (
+                task.get("post_cmd", {}).get("kill")
+                or cfg.evaluation.get("post_cmd", {}).get("kill")
+                or ""
+            )
+
+            # Create post_cmd scripts on the host
+            post_cmd_success_cmd = ""
+            post_cmd_fail_cmd = ""
+            post_cmd_kill_cmd = ""
+            if post_cmd_success:
+                post_cmd_success_struct = _str_to_echo_command(
+                    post_cmd_success, filename="post_cmd_success.sh"
+                )
+                post_cmd_success_cmd = post_cmd_success_struct.cmd
+            if post_cmd_fail:
+                post_cmd_fail_struct = _str_to_echo_command(
+                    post_cmd_fail, filename="post_cmd_fail.sh"
+                )
+                post_cmd_fail_cmd = post_cmd_fail_struct.cmd
+            if post_cmd_kill:
+                post_cmd_kill_struct = _str_to_echo_command(
+                    post_cmd_kill, filename="post_cmd_kill.sh"
+                )
+                post_cmd_kill_cmd = post_cmd_kill_struct.cmd
+
             evaluation_task = {
                 "deployment": deployment,
                 "name": task.name,
@@ -270,6 +309,12 @@ class LocalExecutor(BaseExecutor):
                 "eval_factory_command_debug_comment": eval_factory_command_debug_comment,
                 "dataset_mount_host": dataset_mount_host,
                 "dataset_mount_container": dataset_mount_container,
+                "post_cmd_success_cmd": post_cmd_success_cmd,
+                "post_cmd_fail_cmd": post_cmd_fail_cmd,
+                "post_cmd_kill_cmd": post_cmd_kill_cmd,
+                "has_post_cmd_success": bool(post_cmd_success),
+                "has_post_cmd_fail": bool(post_cmd_fail),
+                "has_post_cmd_kill": bool(post_cmd_kill),
             }
             evaluation_tasks.append(evaluation_task)
 
@@ -329,7 +374,7 @@ class LocalExecutor(BaseExecutor):
             if is_potentially_unsafe:
                 print(
                     red(
-                        "\nFound `pre_cmd` which carries security risk. When running without --dry-run "
+                        "\nFound `pre_cmd` or `post_cmd` which carries security risk. When running without --dry-run "
                         "make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
                     )
                 )
@@ -338,13 +383,13 @@ class LocalExecutor(BaseExecutor):
         if is_potentially_unsafe:
             if os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":
                 logger.warning(
-                    "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                    "Found non-empty task commands (e.g. `pre_cmd` or `post_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
                     "is set, proceeding with caution."
                 )
 
             else:
                 logger.error(
-                    "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                    "Found non-empty task commands (e.g. `pre_cmd` or `post_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
                     "is not set. This might carry security risk and unstable environments. "
                     "To continue, make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1.",
                 )

@@ -101,6 +101,13 @@ class LeptonExecutor(BaseExecutor):
             if pre_cmd:
                 is_potentially_unsafe = True
                 break
+            # Check for post_cmd
+            post_cmd_success = task.get("post_cmd", {}).get("success") or cfg.evaluation.get("post_cmd", {}).get("success") or ""
+            post_cmd_fail = task.get("post_cmd", {}).get("fail") or cfg.evaluation.get("post_cmd", {}).get("fail") or ""
+            post_cmd_kill = task.get("post_cmd", {}).get("kill") or cfg.evaluation.get("post_cmd", {}).get("kill") or ""
+            if post_cmd_success or post_cmd_fail or post_cmd_kill:
+                is_potentially_unsafe = True
+                break
 
         # Check for deployment pre_cmd
         deployment_pre_cmd: str = cfg.deployment.get("pre_cmd") or ""
@@ -124,7 +131,7 @@ class LeptonExecutor(BaseExecutor):
             if is_potentially_unsafe:
                 print(
                     red(
-                        "\nFound `pre_cmd` (evaluation or deployment) which carries security risk. When running without --dry-run "
+                        "\nFound `pre_cmd` or `post_cmd` (evaluation or deployment) which carries security risk. When running without --dry-run "
                         "make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
                     )
                 )
@@ -134,13 +141,13 @@ class LeptonExecutor(BaseExecutor):
         if is_potentially_unsafe:
             if os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":
                 logger.warning(
-                    "Found non-empty commands (e.g. `pre_cmd` in evaluation or deployment) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                    "Found non-empty commands (e.g. `pre_cmd` or `post_cmd` in evaluation or deployment) and NEMO_EVALUATOR_TRUST_PRE_CMD "
                     "is set, proceeding with caution."
                 )
 
             else:
                 logger.error(
-                    "Found non-empty commands (e.g. `pre_cmd` in evaluation or deployment) and NEMO_EVALUATOR_TRUST_PRE_CMD "
+                    "Found non-empty commands (e.g. `pre_cmd` or `post_cmd` in evaluation or deployment) and NEMO_EVALUATOR_TRUST_PRE_CMD "
                     "is not set. This might carry security risk and unstable environments. "
                     "To continue, make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1.",
                 )
@@ -472,6 +479,23 @@ class LeptonExecutor(BaseExecutor):
                     if was_struct:
                         OmegaConf.set_struct(cfg, True)
 
+                # Extract post_cmd values for script generation
+                post_cmd_success: str = (
+                    task.get("post_cmd", {}).get("success")
+                    or cfg.evaluation.get("post_cmd", {}).get("success")
+                    or ""
+                )
+                post_cmd_fail: str = (
+                    task.get("post_cmd", {}).get("fail")
+                    or cfg.evaluation.get("post_cmd", {}).get("fail")
+                    or ""
+                )
+                post_cmd_kill: str = (
+                    task.get("post_cmd", {}).get("kill")
+                    or cfg.evaluation.get("post_cmd", {}).get("kill")
+                    or ""
+                )
+
                 # Create evaluation launch script
                 launch_script = _create_evaluation_launch_script(
                     cfg=cfg,
@@ -482,6 +506,9 @@ class LeptonExecutor(BaseExecutor):
                     invocation_id=invocation_id,
                     eval_command=eval_command,  # Pass the fixed command
                     eval_command_debug_comment=eval_command_debug_comment,
+                    post_cmd_success=post_cmd_success,
+                    post_cmd_fail=post_cmd_fail,
+                    post_cmd_kill=post_cmd_kill,
                 )
 
                 # Prepare job command to run the launch script
@@ -813,6 +840,9 @@ def _create_evaluation_launch_script(
     invocation_id: str,
     eval_command: str,
     eval_command_debug_comment: str,
+    post_cmd_success: str = "",
+    post_cmd_fail: str = "",
+    post_cmd_kill: str = "",
 ) -> str:
     """Create bash script for running evaluation in Lepton job container.
 
@@ -841,6 +871,68 @@ def _create_evaluation_launch_script(
         "--output_dir /results", f"--output_dir {output_dir}"
     )
 
+    # Build post_cmd handling code
+    from nemo_evaluator_launcher.common.helpers import _str_to_echo_command
+
+    post_cmd_kill_trap = ""
+    post_cmd_kill_trap_clear = ""
+    post_cmd_success_exec = ""
+    post_cmd_fail_exec = ""
+
+    if post_cmd_kill:
+        post_cmd_kill_struct = _str_to_echo_command(
+            post_cmd_kill, filename="post_cmd_kill.sh"
+        )
+        post_cmd_kill_trap = f"""
+cleanup_on_kill() {{
+    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Job {task_name} received termination signal, running post_cmd.kill" >> {output_dir}/logs/stdout.log
+    if [ -f "post_cmd_kill.sh" ]; then
+        source post_cmd_kill.sh >> {output_dir}/logs/stdout.log 2>&1 || true
+    fi
+    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) 130" > {output_dir}/logs/stage.exit
+    exit 130
+}}
+trap cleanup_on_kill SIGTERM SIGINT
+{post_cmd_kill_struct.cmd}
+"""
+        post_cmd_kill_trap_clear = "trap - SIGTERM SIGINT"
+
+    post_cmd_script_creation = ""
+    post_cmd_success_exec = ""
+    post_cmd_fail_exec = ""
+    
+    if post_cmd_success or post_cmd_fail:
+        if post_cmd_success:
+            post_cmd_success_struct = _str_to_echo_command(
+                post_cmd_success, filename="post_cmd_success.sh"
+            )
+            post_cmd_script_creation += f"{post_cmd_success_struct.cmd}\n"
+            post_cmd_success_exec = f"""
+if [ "$exit_code" -eq 0 ]; then
+    if [ -f "post_cmd_success.sh" ]; then
+        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Running post_cmd.success" >> {output_dir}/logs/stdout.log
+        source post_cmd_success.sh >> {output_dir}/logs/stdout.log 2>&1 || true
+    fi
+fi
+"""
+        if post_cmd_fail:
+            post_cmd_fail_struct = _str_to_echo_command(
+                post_cmd_fail, filename="post_cmd_fail.sh"
+            )
+            post_cmd_script_creation += f"{post_cmd_fail_struct.cmd}\n"
+            post_cmd_fail_exec = f"""
+if [ "$exit_code" -ne 0 ]; then
+    if [ -f "post_cmd_fail.sh" ]; then
+        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Running post_cmd.fail" >> {output_dir}/logs/stdout.log
+        source post_cmd_fail.sh >> {output_dir}/logs/stdout.log 2>&1 || true
+    fi
+fi
+"""
+
+    # Add script creation before evaluation command if needed
+    if post_cmd_script_creation:
+        eval_command_modified = f"{post_cmd_script_creation}\n{eval_command_modified}"
+
     # Create the launch script (based on old implementation)
     script = f"""#!/bin/bash
 set -e
@@ -861,6 +953,8 @@ echo "Command: {eval_command_modified}"
 
 {eval_command_debug_comment}
 
+# Set up signal handlers for post_cmd.kill
+{post_cmd_kill_trap}
 # Execute the evaluation with proper error handling
 set +e
 {eval_command_modified}
@@ -868,6 +962,13 @@ exit_code=$?
 
 # Set proper permissions
 chmod 777 -R {output_dir} 2>/dev/null || true
+
+# Run post_cmd scripts based on exit code
+{post_cmd_success_exec}
+{post_cmd_fail_exec}
+
+# Clear signal trap if it was set
+{post_cmd_kill_trap_clear}
 
 # Record completion status
 echo "exit_code: $exit_code" > {output_dir}/logs/stage.exit
