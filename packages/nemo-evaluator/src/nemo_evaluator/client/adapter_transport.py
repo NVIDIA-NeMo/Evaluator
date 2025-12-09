@@ -43,6 +43,7 @@ def create_async_adapter_http_client(
     output_dir: str = "./nemo_eval_output",
     base_transport: httpx.AsyncBaseTransport | None = None,
     is_base_url: bool = False,
+    model_name: str | None = None,
 ) -> tuple[httpx.AsyncClient, "AsyncAdapterTransport"]:
     """Create an async httpx client with adapter transport for client-mode evaluation.
 
@@ -52,6 +53,7 @@ def create_async_adapter_http_client(
         output_dir: Directory for output files
         base_transport: Optional base async transport to wrap
         is_base_url: If True, client appends paths. If False, use URL as-is.
+        model_name: Optional model name for logging context
 
     Returns:
         Tuple of (httpx.AsyncClient, AsyncAdapterTransport)
@@ -69,6 +71,7 @@ def create_async_adapter_http_client(
         output_dir=output_dir,
         base_transport=base_transport,
         is_base_url=is_base_url,
+        model_name=model_name,
     )
 
     adapter_http_client = httpx.AsyncClient(transport=adapter_transport)
@@ -205,23 +208,32 @@ class AsyncAdapterTransport(httpx.AsyncBaseTransport):
         output_dir: str,
         base_transport: httpx.AsyncBaseTransport | None = None,
         is_base_url: bool = False,
+        model_name: str | None = None,
     ):
         self.adapter_config = adapter_config
         self.output_dir = output_dir
         self.base_transport = base_transport or httpx.AsyncHTTPTransport()
         self.endpoint_url = endpoint_url
         self.is_base_url = is_base_url
-        self.pipeline = AdapterPipeline(adapter_config, output_dir)
+        self.model_name = model_name
+        self.pipeline = AdapterPipeline(adapter_config, output_dir, model_name)
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        from nemo_evaluator.logging import bind_model_name
+
         request_id = bind_request_id()
+
+        # Bind the model name to the logging context if available
+        if self.model_name:
+            bind_model_name(self.model_name)
+
         request_logger = get_logger()
 
         original_url = str(request.url)
         request_url = original_url if self.is_base_url else self.endpoint_url
 
-        request_logger.debug(
-            "Processing request",
+        request_logger.info(
+            "Request started",
             method=request.method,
             url=request_url,
         )
@@ -243,6 +255,7 @@ class AsyncAdapterTransport(httpx.AsyncBaseTransport):
             global_context = AdapterGlobalContext(
                 output_dir=self.output_dir,
                 url=request_url,
+                model_name=self.model_name,
             )
 
             wrapped_request = HttpxRequestWrapper(request, override_url=request_url)

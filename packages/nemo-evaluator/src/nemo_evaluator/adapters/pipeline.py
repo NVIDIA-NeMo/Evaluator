@@ -42,15 +42,22 @@ class AdapterPipeline:
     - Client mode (AdapterTransport with httpx)
     """
 
-    def __init__(self, adapter_config: AdapterConfig, output_dir: str):
+    def __init__(
+        self,
+        adapter_config: AdapterConfig,
+        output_dir: str,
+        model_name: str | None = None,
+    ):
         """Initialize the adapter pipeline.
 
         Args:
             adapter_config: Adapter configuration with interceptors and hooks
             output_dir: Directory for output files
+            model_name: Optional model name for logging context
         """
         self.adapter_config = adapter_config
         self.output_dir = output_dir
+        self.model_name = model_name
 
         # Initialize interceptor chain and hooks
         self.interceptor_chain: List[

@@ -16,7 +16,6 @@
 """NeMo Evaluator client with integrated adapter support for client-mode evaluation."""
 
 import asyncio
-import logging
 import os
 from typing import Any, List, Optional
 
@@ -34,11 +33,6 @@ from nemo_evaluator.client.adapter_transport import create_async_adapter_http_cl
 from nemo_evaluator.logging import get_logger
 
 logger = get_logger(__name__)
-
-# Silence OpenAI client's internal logging (uses dummy URLs)
-logging.getLogger("httpx").setLevel(logging.ERROR)
-logging.getLogger("openai").setLevel(logging.ERROR)
-logging.getLogger("openai._base_client").setLevel(logging.ERROR)
 
 
 class NeMoEvaluatorClient:
@@ -77,6 +71,7 @@ class NeMoEvaluatorClient:
             adapter_config=self.adapter_config,
             output_dir=self.output_dir,
             is_base_url=is_base_url,
+            model_name=self.model_id,
         )
 
         self.client = AsyncOpenAI(

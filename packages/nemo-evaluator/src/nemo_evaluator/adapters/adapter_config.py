@@ -96,6 +96,7 @@ class AdapterConfig(BaseModel):
             "caching_dir": None,
             "log_failed_requests": cls.model_fields["log_failed_requests"].default,
             "endpoint_type": cls.model_fields["endpoint_type"].default,
+            "mode": cls.model_fields["mode"].default,
             # Boolean defaults for optional features
             "use_caching": True,
             "save_responses": False,
@@ -212,6 +213,7 @@ class AdapterConfig(BaseModel):
 
             # If no interceptors are configured, try to convert from legacy format
             if not config.interceptors:
+                # Pass mode through merged config so it's preserved in legacy conversion
                 config = cls.from_legacy_config(merged, run_config)
 
             return config
@@ -279,9 +281,16 @@ class AdapterConfig(BaseModel):
         Returns:
             AdapterConfig instance with interceptors based on legacy config
         """
+        # Preserve mode before merging with defaults
+        original_mode = legacy_config.get("mode")
+
         # Merge legacy config with defaults to avoid repeated .get() calls
         defaults = cls.get_legacy_defaults()
         legacy_config = {**defaults, **legacy_config}
+
+        # Restore mode if it was explicitly set (defaults dict has 'server', don't override explicit 'client')
+        if original_mode is not None:
+            legacy_config["mode"] = original_mode
 
         interceptors = []
         post_eval_hooks = []
@@ -587,6 +596,7 @@ class AdapterConfig(BaseModel):
             )
 
         return cls(
+            mode=legacy_config["mode"],
             interceptors=interceptors,
             post_eval_hooks=post_eval_hooks,
             endpoint_type=legacy_config["endpoint_type"],

@@ -162,9 +162,16 @@ def run(args) -> None:
         exit(0)
 
     metadata_cfg: EvaluationMetadata | None = run_config.get("metadata")
-    adapter_config = AdapterConfig.get_validated_config(run_config)
-    eval_cfg = EvaluationConfig(**run_config["config"])
-    target_cfg = EvaluationTarget(**run_config["target"])
+
+    # Build evaluation configuration with framework defaults merged
+    evaluation = validate_configuration(run_config)
+
+    # Extract adapter config after framework defaults are applied
+    eval_dict = evaluation.model_dump()
+    adapter_config = AdapterConfig.get_validated_config(eval_dict)
+
+    eval_cfg = EvaluationConfig(**eval_dict["config"])
+    target_cfg = EvaluationTarget(**eval_dict["target"])
     target_cfg.api_endpoint.adapter_config = adapter_config
 
     evaluate(eval_cfg=eval_cfg, target_cfg=target_cfg, metadata=metadata_cfg)

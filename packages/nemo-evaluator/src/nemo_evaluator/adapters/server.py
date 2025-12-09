@@ -100,13 +100,21 @@ def wait_for_server(
 
 
 def _run_adapter_server(
-    api_url: str, output_dir: str, adapter_config: AdapterConfig, port: int
+    api_url: str,
+    output_dir: str,
+    adapter_config: AdapterConfig,
+    port: int,
+    model_name: str | None = None,
 ) -> None:
     """Internal function to run the adapter server."""
     # Set up centralized logging using NEMO_EVALUATOR_LOG_DIR environment variable if set
     _setup_file_logging()
     adapter = AdapterServer(
-        api_url=api_url, output_dir=output_dir, adapter_config=adapter_config, port=port
+        api_url=api_url,
+        output_dir=output_dir,
+        adapter_config=adapter_config,
+        port=port,
+        model_name=model_name,
     )
 
     def signal_handler(signum, frame):
@@ -153,6 +161,7 @@ class AdapterServer:
         output_dir: str,
         adapter_config: AdapterConfig,
         port: int = DEFAULT_ADAPTER_PORT,
+        model_name: str | None = None,
     ):
         """
         Initialize the adapter server.
@@ -161,6 +170,7 @@ class AdapterServer:
             api_url: The upstream API URL to forward requests to
             output_dir: Directory for output files
             adapter_config: Adapter configuration including interceptors and discovery
+            model_name: Optional model name for logging context
         """
         self.app = flask.Flask(__name__)
         self.app.route("/", defaults={"path": ""}, methods=["POST"])(self._handler)
@@ -179,9 +189,10 @@ class AdapterServer:
         self.api_url = api_url
         self.output_dir = output_dir
         self.adapter_config = adapter_config
+        self.model_name = model_name
 
         # Initialize the shared adapter pipeline
-        self.pipeline = AdapterPipeline(adapter_config, output_dir)
+        self.pipeline = AdapterPipeline(adapter_config, output_dir, model_name)
 
         logger.info(
             "Using interceptors",
@@ -244,15 +255,23 @@ class AdapterServer:
         """Main request handler that processes requests through the interceptor chain."""
         try:
             # Generate unique request ID for this request and bind it to logging context
-            from nemo_evaluator.logging import bind_request_id, get_logger
+            from nemo_evaluator.logging import (
+                bind_model_name,
+                bind_request_id,
+                get_logger,
+            )
 
             # Bind the request ID to the current context  so all loggers can access it
             request_id = bind_request_id()  # generates a new UUID
 
+            # Bind the model name to the logging context if available
+            if self.model_name:
+                bind_model_name(self.model_name)
+
             # Get a logger for this request - context variables are automatically included
             request_logger = get_logger()
 
-            # Log request start (request_id is automatically included from context)
+            # Log request start (request_id and model_name are automatically included from context)
             request_logger.info(
                 "Request started",
                 path=path,
@@ -264,6 +283,7 @@ class AdapterServer:
             global_context = AdapterGlobalContext(
                 output_dir=self.output_dir,
                 url=self.api_url,
+                model_name=self.model_name,
             )
 
             # Create adapter request
@@ -447,12 +467,17 @@ class AdapterServerProcess:
         )
 
         output_dir = self.evaluation.config.output_dir
+        model_name = (
+            self.evaluation.target.api_endpoint.model_id
+            if self.evaluation.target.api_endpoint
+            else None
+        )
         self.port = self._find_and_reserve_free_port(adapter_host=adapter_host)
         self.evaluation.target.api_endpoint.url = f"http://{adapter_host}:{self.port}"
         self.process = multiprocessing.get_context("spawn").Process(
             target=_run_adapter_server,
             daemon=True,
-            args=(self.original_url, output_dir, adapter_config, self.port),
+            args=(self.original_url, output_dir, adapter_config, self.port, model_name),
         )
         self.process.start()
 

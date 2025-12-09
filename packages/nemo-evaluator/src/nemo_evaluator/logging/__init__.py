@@ -21,6 +21,7 @@ management for the nemo-evaluator package.
 
 from .config import BaseLoggingParams
 from .context import (
+    bind_model_name,
     bind_request_id,
     get_bound_logger,
     get_current_request_id,
@@ -33,6 +34,7 @@ __all__ = [
     "get_logger",
     "configure_logging",
     "bind_request_id",
+    "bind_model_name",
     "request_context",
     "get_current_request_id",
     "get_bound_logger",
