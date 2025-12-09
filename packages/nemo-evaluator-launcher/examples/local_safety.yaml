@@ -15,8 +15,6 @@
 
 # How to use:
 #
-# How to use:
-#
 # 1. copy this file locally or clone the repository
 # 2. (optional) uncomment limit_samples and probes specification in the config file for quick testing
 # 3. run `nemo-evaluator-launcher run --config path/to/local_safety.yaml`

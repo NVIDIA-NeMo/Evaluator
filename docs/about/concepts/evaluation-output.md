@@ -32,7 +32,7 @@ For the reference purposes, we cite here the launcher config that is used in the
 ## Output Structure
 
 After running an evaluation, NeMo Evaluator creates a structured output directory containing various artifacts.
-If you run the command provided above, it will create a following directory structure inside `execution.output_dir` (`./results` in our case):
+If you run the command provided above, it will create the following directory structure inside `execution.output_dir` (`./results` in our case):
 
 ```bash
 ./results/
@@ -53,20 +53,20 @@ If you run the command provided above, it will create a following directory stru
 
 ```
 
-Each `artifacts` direcory contains output produced by the evaluation job.
-Such directory will be also create if you use `nemo-evaluator` or direct container access (see {ref}`gs-quickstart` to compare different ways of using NeMo Evaluator SDK)
+Each `artifacts` directory contains output produced by the evaluation job.
+Such directory will also be created if you use `nemo-evaluator` or direct container access (see {ref}`gs-quickstart` to compare different ways of using NeMo Evaluator SDK)
 
 
 Regardless of the chosen path, the generated artifacts directory will have the following content:
 
-```
+```text
 <artifacts_dir>/
 │   ├── run_config.yml               # Task-specific configuration used during execution
 │   ├── eval_factory_metrics.json    # Evaluation metrics and performance statistics
 │   ├── results.yml                  # Detailed results in YAML format
 │   ├── report.html                  # Human-readable HTML report
 │   ├── report.json                  # JSON format report
-│   └── <Task specific arifacts>/    # Task-specific artifacts
+│   └── <Task specific artifacts>/   # Task-specific artifacts
 ```
 
 These files are standardized and always follow the same structure regardless of the underlying evaluation harness:

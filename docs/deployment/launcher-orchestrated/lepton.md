@@ -51,7 +51,7 @@ Refer to the [Lepton AI documentation](https://docs.nvidia.com/dgx-cloud/lepton/
 
 High-performance inference with cloud scaling:
 
-Refer to the complete working configuration in `examples/lepton_vllm_llama_3_1_8b_instruct.yaml`. Key configuration sections:
+Refer to the complete working configuration in `packages/nemo-evaluator-launcher/examples/lepton_vllm.yaml`. Key configuration sections:
 
 ```yaml
 deployment:
@@ -82,7 +82,7 @@ The launcher automatically retrieves the endpoint URL after deployment, eliminat
 
 ### NIM Lepton Deployment
 
-Enterprise-grade serving in the cloud. Refer to the complete working configuration in `examples/lepton_nim_llama_3_1_8b_instruct.yaml`:
+Enterprise-grade serving in the cloud. Refer to the complete working configuration in `packages/nemo-evaluator-launcher/examples/lepton_nim.yaml`:
 
 ```yaml
 deployment:
@@ -145,7 +145,7 @@ deployment:
 
 To evaluate against an already-deployed Lepton endpoint without creating a new deployment, use `deployment.type: none` and provide the endpoint URL in the `target.api_endpoint` section.
 
-Refer to `examples/lepton_none_llama_3_1_8b_instruct.yaml` for a complete example.
+Refer to `packages/nemo-evaluator-launcher/examples/lepton_basic.yaml` for a complete example.
 
 ### Tasks Requiring Dataset Mounting
 

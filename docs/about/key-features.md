@@ -88,7 +88,7 @@ target:
             cache_dir: "./evaluation_cache"
 
         # Communication with http://localhost:8080/v1/completions/
-        -name: endpoint
+        - name: endpoint
 
         # Processing of reasoning traces
         - name: reasoning
@@ -305,8 +305,8 @@ Built-in safety assessment through specialized containers:
 
 ```bash
 # Run Aegis and Garak evaluations
-export JUDGE_API_KEY=your-judge-api-key  # token to access your judge endpoint
-export HF_TOKEN_FOR_AEGIS_V2=hf_your-token  # HF token with access to access the Aegis dataset and meta-llama/Llama-3.1-8B-Instruct
+export JUDGE_API_KEY=your-judge-api-key  # token with access to your judge endpoint
+export HF_TOKEN_FOR_AEGIS_V2=hf_your-token  # HF token with access to the gated Aegis dataset and meta-llama/Llama-3.1-8B-Instruct
 export NGC_API_KEY=nvapi-your-key  # token with access to build.com
 
 # set judge.url in the config or pass with -o

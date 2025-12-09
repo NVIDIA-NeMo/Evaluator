@@ -118,7 +118,7 @@ This model allows you to control the reasoning effort by including `/think` or `
 }
 ```
 
-When launching the evaluation, we can use the `ref`{interceptor-system-messages} Interceptor to add `/think` or `/no_think` to the system prompt.
+When launching the evaluation, we can use the {ref}`interceptor-system-messages` Interceptor to add `/think` or `/no_think` to the system prompt.
 
 
 ```yaml

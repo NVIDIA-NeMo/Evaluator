@@ -17,7 +17,7 @@
 #
 # 1. copy this file locally or clone the repository
 # 2. (optional) uncomment limit_samples in the config file to run with 10 samples for quick testing
-# 3. run `nemo-evaluator-launcher run --config path/to/local_basic.yaml`
+# 3. run `nemo-evaluator-launcher run --config path/to/local_extra_params.yaml`
 
 # ⚠️  WARNING:
 #     Always run full evaluations (without limit_samples) for actual benchmark results.
@@ -51,7 +51,7 @@ evaluation:
         # limit_samples: 10 # uncomment to limit number of samples for quick testing
   tasks:
     - name: AA_math_test_500 # use the default benchmark configuration
-      nemo_evaluator_config: # task-specific configuration for mbpp
+      nemo_evaluator_config: # task-specific configuration for AA_math_test_500
         config:
           extra:
             n_samples: 3

@@ -23,7 +23,7 @@
 # How to use:
 #
 # 1. copy this file locally or clone the repository
-# 3. (optional) set the required values in the config file. Alternatively, you can pass them later with -o cli arguments, e.g.
+# 2. (optional) set the required values in the config file. Alternatively, you can pass them later with -o cli arguments, e.g.
 #    -o execution.hostname=my-cluster.com -o execution.output_dir=/absolute/path/on/cluster -o execution.account=my-account etc.
 # 3. (optional) run with 10 samples for quick testing - add the following flag to the command below
 #    -o ++evaluation.nemo_evaluator_config.config.params.limit_samples=10
