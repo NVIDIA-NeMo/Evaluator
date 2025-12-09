@@ -56,12 +56,16 @@ class TestLocalExecutorDryRun:
                     {
                         "name": "test_task_1",
                         "env_vars": {"TASK_ENV": "TASK_VALUE"},
-                        "overrides": {"param1": "value1"},
+                        "nemo_evaluator_config": {
+                            "config": {"params": {"param1": "value1"}}
+                        },
                     },
                     {
                         "name": "test_task_2",
                         "container": "custom-container:v2.0",
-                        "overrides": {"param2": "value2"},
+                        "nemo_evaluator_config": {
+                            "config": {"params": {"param2": "value2"}}
+                        },
                     },
                 ],
             },
