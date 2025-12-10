@@ -56,7 +56,7 @@ NeMo Evaluator Launcher provides pre-built evaluation containers for different e
 | **vlmevalkit** | Vision-language model evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit) | `25.11` | AI2D, ChartQA, MMMU, MathVista-MINI, OCRBench, SlideVQA |
 
 <!-- BEGIN AUTOGENERATION -->
-<!-- mapping toml checksum: sha256:08617422e51af4fc77abe97874ab8f25046bf74ce4350cf836b88fc921367042 -->
+<!-- mapping toml checksum: sha256:a6c3a0f05b9d1a417971565f7681259f0a1aa304c88066a258662b6a5ae035c8 -->
 <!--
 | Container | Description | NGC Catalog | Latest Tag | Supported benchmarks |
 |-----------|-------------|-------------|------------| ------------|
