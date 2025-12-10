@@ -612,14 +612,14 @@ Environment Variables:
     # Extract framework.yml from each container and convert to IRs
     all_task_irs: list[TaskIntermediateRepresentation] = []
     successful = 0
-    failed = 0
+    failed_containers: list[tuple[str, str, Optional[str]]] = []  # (harness, container, digest)
 
     for harness_name, container in harness_containers.items():
         logger.info(
             "Processing container",
             harness=harness_name,
             container=container,
-            progress=f"{successful + failed + 1}/{len(harness_containers)}",
+            progress=f"{successful + len(failed_containers) + 1}/{len(harness_containers)}",
         )
 
         framework_content, container_digest = extract_framework_yml(
@@ -629,7 +629,7 @@ Environment Variables:
             use_cache=not args.no_cache,
         )
 
-        # Update digest comment in mapping.toml if we got a digest
+        # Always try to update digest comment if we got a digest (even if framework extraction failed)
         if container_digest:
             update_digest_comment_in_mapping_toml(
                 args.mapping_file, container, container_digest
@@ -652,7 +652,7 @@ Environment Variables:
                     num_tasks=len(task_irs),
                 )
             except Exception as e:
-                failed += 1
+                failed_containers.append((harness_name, container, container_digest))
                 logger.error(
                     "Failed to parse framework.yml to IRs",
                     harness=harness_name,
@@ -661,7 +661,7 @@ Environment Variables:
                     exc_info=True,
                 )
         else:
-            failed += 1
+            failed_containers.append((harness_name, container, container_digest))
             logger.warning(
                 "Skipping container (framework.yml not found)",
                 harness=harness_name,
@@ -717,21 +717,37 @@ Environment Variables:
         sys.exit(1)
 
     # Summary
+    failed_count = len(failed_containers)
     logger.info(
         "Framework extraction complete",
         total=len(harness_containers),
         successful=successful,
-        failed=failed,
+        failed=failed_count,
         output_file=str(args.output_file),
         num_tasks=len(all_task_irs),
     )
 
-    if failed > 0:
+    if failed_containers:
         logger.warning(
             "Some containers failed to process",
-            failed=failed,
+            failed=failed_count,
             total=len(harness_containers),
         )
+        logger.info("Failed containers summary:")
+        for harness_name, container, digest in failed_containers:
+            if digest:
+                logger.info(
+                    "Failed container (digest added)",
+                    harness=harness_name,
+                    container=container,
+                    digest=digest,
+                )
+            else:
+                logger.info(
+                    "Failed container (no digest available)",
+                    harness=harness_name,
+                    container=container,
+                )
 
 
 if __name__ == "__main__":
