@@ -51,7 +51,7 @@ Ensure you have:
 
 Use an example config for deploying and evaluating the [Meta Llama 3.1 8B](https://huggingface.co/meta-llama/Llama-3.1-8B) model:
 
-```{literalinclude} ../../../packages/nemo-evaluator-launcher/examples/local_vllm_llama_3_1_8b_logprobs.yaml
+```{literalinclude} ../../../packages/nemo-evaluator-launcher/examples/local_vllm_logprobs.yaml
 :language: yaml
 :start-after: "[docs-start-snippet]"
 ```
@@ -60,7 +60,7 @@ To launch the evaluation, run:
 
 ```bash
 nemo-evaluator-launcher run \
-  --config packages/nemo-evaluator-launcher/examples/local_vllm_llama_3_1_8b_logprobs.yaml
+  --config packages/nemo-evaluator-launcher/examples/local_vllm_logprobs.yaml
 ```
 
 :::{tip}

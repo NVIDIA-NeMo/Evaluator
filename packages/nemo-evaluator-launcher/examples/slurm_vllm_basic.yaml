@@ -1,0 +1,55 @@
+#
+# Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# How to use:
+#
+# 1. copy this file locally or clone the repository
+# 2. (optional) set the required values in the config file. Alternatively, you can pass them later with -o cli arguments, e.g.
+#    -o execution.hostname=my-cluster.com -o execution.output_dir=/absolute/path/on/cluster -o execution.account=my-account etc.
+# 3. (optional) run with 10 samples for quick testing - add the following flag to the command below
+#    -o ++evaluation.nemo_evaluator_config.config.params.limit_samples=10
+# 4. run full evaluation:
+#    nemo-evaluator-launcher run --config path/to/slurm_vllm_basic.yaml
+
+# ⚠️  WARNING:
+#     Always run full evaluations (without limit_samples) for actual benchmark results.
+#     Using a subset of samples is solely for testing configuration and setup.
+#     Results from such test runs should NEVER be used to compare models or
+#     report benchmark performance.
+
+defaults:
+  - execution: slurm/default
+  - deployment: vllm
+  - _self_
+
+# set required execution arguments
+execution:
+  hostname: ??? # SLURM headnode (login) hostname (required)
+  username: ${oc.env:USER} # Cluster username; defaults to $USER.
+  account: ??? # SLURM account allocation (required)
+  output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
+
+deployment:
+  checkpoint_path: null
+  hf_model_handle: microsoft/Phi-4-mini-instruct
+  served_model_name: microsoft/Phi-4-mini-instruct
+  tensor_parallel_size: 1
+  data_parallel_size: 8
+
+
+evaluation:
+  tasks:
+    - name: ifeval  # chat benchmark will automatically use v1/chat/completions endpoint
+    - name: gsm8k   # completions benchmark will automatically use v1/completions endpoint

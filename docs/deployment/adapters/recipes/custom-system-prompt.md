@@ -20,7 +20,10 @@ api_endpoint.adapter_config = AdapterConfig(
     interceptors=[
         InterceptorConfig(
             name="system_message",
-            config={"system_message": "You are a precise, concise assistant. Answer questions directly and accurately."}
+            config={
+                "system_message": "You are a precise, concise assistant. Answer questions directly and accurately.",
+                "strategy": "prepend"  # Optional: "replace", "append", or "prepend" (default)
+            }
         )
     ]
 )
@@ -33,10 +36,45 @@ results = evaluate(target_cfg=target, eval_cfg=config)
 
 ## How It Works
 
-The `system_message` interceptor modifies chat-format requests by:
+The `system_message` interceptor modifies chat-format requests based on the configured strategy:
 
-1. Removing any existing system messages from the messages array
-2. Inserting the configured system message as the first message with `role: "system"`
-3. Preserving all other request parameters
+- **`prepend` (default)**: Prepends the configured system message before any existing system message
+- **`replace`**: Removes any existing system messages and replaces with the configured message
+- **`append`**: Appends the configured system message after any existing system message
+
+All strategies:
+1. Insert or modify the system message as the first message with `role: "system"`
+2. Preserve all other request parameters
+
+## Strategy Examples
+
+```python
+# Replace existing system messages (ignore any existing ones)
+InterceptorConfig(
+    name="system_message",
+    config={
+        "system_message": "You are a helpful assistant.",
+        "strategy": "replace"
+    }
+)
+
+# Prepend to existing system messages (default behavior)
+InterceptorConfig(
+    name="system_message",
+    config={
+        "system_message": "Important: ",
+        "strategy": "prepend"
+    }
+)
+
+# Append to existing system messages
+InterceptorConfig(
+    name="system_message",
+    config={
+        "system_message": "\nRemember to be concise.",
+        "strategy": "append"
+    }
+)
+```
 
 Refer to {ref}`adapters-configuration` for more configuration options.

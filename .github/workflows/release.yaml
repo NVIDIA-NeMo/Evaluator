@@ -25,7 +25,7 @@ on:
           - nemo-evaluator
           - nemo-evaluator-launcher
       release-ref:
-        description: Tag or SHA to release from
+        description: Full SHA (not short) or tag of the commit to build
         required: true
         type: string
       dry-run:
@@ -71,7 +71,7 @@ jobs:
   release:
     if: ${{ github.event_name == 'schedule' || inputs.component == 'nemo-evaluator' }}
     needs: validate-inputs
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.66.4
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.66.6
     with:
       release-ref: ${{ github.event_name == 'schedule' && github.sha || inputs.release-ref || github.sha }}
       python-package: nemo_evaluator
@@ -99,7 +99,7 @@ jobs:
   release-launcher:
     if: ${{ github.event_name == 'schedule' || inputs.component == 'nemo-evaluator-launcher' }}
     needs: validate-inputs
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.66.4
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@v0.66.6
     with:
       release-ref: ${{ github.event_name == 'schedule' && github.sha || inputs.release-ref || github.sha }}
       python-package: nemo_evaluator_launcher

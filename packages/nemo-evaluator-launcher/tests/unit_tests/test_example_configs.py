@@ -61,14 +61,23 @@ class TestExampleConfigs:
                         "++deployment.checkpoint_path=null",
                     ]
                 )
-                # Auto-export specific overrides
-                if "auto_export" in config_name:
-                    overrides.extend(
-                        [
-                            "++execution.env_vars.export.PATH=/tmp/test/bin:$PATH",
-                            "++export.mlflow.tracking_uri=http://test-mlflow:5000",
-                        ]
-                    )
+            # Auto-export specific overrides
+            if "auto_export" in config_name:
+                overrides.extend(
+                    [
+                        "++execution.env_vars.export.PATH=/tmp/test/bin:$PATH",
+                        "++export.mlflow.tracking_uri=http://test-mlflow:5000",
+                    ]
+                )
+
+            # Set judge url for safety
+            if "safety" in config_name:
+                overrides.extend(
+                    [
+                        "++evaluation.tasks.1.nemo_evaluator_config.config.params.extra.judge.url=https://my-judge-endpoint.com/v1",
+                    ]
+                )
+
             # Load configuration using RunConfig.from_hydra (same as CLI)
             cfg = RunConfig.from_hydra(
                 config_name=config_name,

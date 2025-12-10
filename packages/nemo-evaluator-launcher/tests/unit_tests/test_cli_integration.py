@@ -46,8 +46,18 @@ class TestCLIWorkflowIntegration:
                 "api_endpoint": {"api_key_name": "test_key", "model_id": "test_model"}
             },
             "evaluation": [
-                {"name": "test_task_1", "overrides": {"param1": "value1"}},
-                {"name": "test_task_2", "overrides": {"param2": "value2"}},
+                {
+                    "name": "test_task_1",
+                    "nemo_evaluator_config": {
+                        "config": {"params": {"param1": "value1"}}
+                    },
+                },
+                {
+                    "name": "test_task_2",
+                    "nemo_evaluator_config": {
+                        "config": {"params": {"param2": "value2"}}
+                    },
+                },
             ],
         }
 
@@ -174,7 +184,7 @@ class TestCLIWorkflowIntegration:
             "deployment": {"type": "none"},
             "execution": {"type": "dummy", "output_dir": "/tmp/test1"},
             "target": {"api_endpoint": {"api_key_name": "key1", "model_id": "model1"}},
-            "evaluation": [{"name": "task1", "overrides": {}}],
+            "evaluation": [{"name": "task1"}],
         }
 
         with patch("nemo_evaluator_launcher.api.types.hydra.compose") as mock_compose:
@@ -192,7 +202,7 @@ class TestCLIWorkflowIntegration:
                 "target": {
                     "api_endpoint": {"api_key_name": "key2", "model_id": "model2"}
                 },
-                "evaluation": [{"name": "task2", "overrides": {}}],
+                "evaluation": [{"name": "task2"}],
             }
 
             mock_compose.return_value = OmegaConf.create(config2)
@@ -246,8 +256,8 @@ class TestCLIWorkflowIntegration:
             "execution": {"type": "dummy", "output_dir": "/tmp/test"},
             "target": {"api_endpoint": {"api_key_name": "key", "model_id": "model"}},
             "evaluation": [
-                {"name": "task1", "overrides": {}},
-                {"name": "task2", "overrides": {}},
+                {"name": "task1"},
+                {"name": "task2"},
             ],
         }
 
@@ -292,8 +302,8 @@ class TestCLIWorkflowIntegration:
             "execution": {"type": "dummy", "output_dir": "/tmp/test"},
             "target": {"api_endpoint": {"api_key_name": "key", "model_id": "model"}},
             "evaluation": [
-                {"name": "task1", "overrides": {}},
-                {"name": "task2", "overrides": {}},
+                {"name": "task1"},
+                {"name": "task2"},
             ],
         }
 
@@ -342,7 +352,7 @@ class TestCLIWorkflowIntegration:
             "deployment": {"type": "none"},
             "execution": {"type": "dummy", "output_dir": "/tmp/test"},
             "target": {"api_endpoint": {"api_key_name": "key", "model_id": "model"}},
-            "evaluation": [{"name": "task1", "overrides": {}}],
+            "evaluation": [{"name": "task1"}],
         }
 
         with patch("nemo_evaluator_launcher.api.types.hydra.compose") as mock_compose:
@@ -438,11 +448,15 @@ class TestCLIWorkflowIntegration:
             "evaluation": [
                 {
                     "name": "mmlu",
-                    "overrides": {"model_args": "temperature=0.1", "num_fewshot": 5},
+                    "nemo_evaluator_config": {
+                        "config": {"params": {"temperature": 0.1, "num_fewshot": 5}}
+                    },
                 },
                 {
                     "name": "arc",
-                    "overrides": {"model_args": "temperature=0.0", "num_fewshot": 0},
+                    "nemo_evaluator_config": {
+                        "config": {"params": {"temperature": 0.0, "num_fewshot": 0}}
+                    },
                 },
             ],
         }
@@ -707,7 +721,7 @@ class TestCLIConfigParameter:
             "target": {
                 "api_endpoint": {"api_key_name": "test_key", "model_id": "test_model"}
             },
-            "evaluation": [{"name": "test_task_1", "overrides": {}}],
+            "evaluation": [{"name": "test_task_1"}],
         }
 
         with (
@@ -776,7 +790,7 @@ class TestCLIConfigParameter:
             "target": {
                 "api_endpoint": {"api_key_name": "test_key", "model_id": "test_model"}
             },
-            "evaluation": [{"name": "test_task_1", "overrides": {}}],
+            "evaluation": [{"name": "test_task_1"}],
         }
 
         # Test with .yaml extension

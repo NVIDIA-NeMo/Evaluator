@@ -47,6 +47,10 @@ Adds a system message to requests by adding it as a system role message.
   - `str`
   - Required
   - System message to add to requests
+* - `strategy`
+  - `str`
+  - `"prepend"`
+  - Strategy for handling existing system messages. Options: `"replace"` (replaces existing), `"append"` (appends to existing), `"prepend"` (prepends to existing)
 ```
 
 **Example:**
@@ -56,6 +60,15 @@ InterceptorConfig(
     name="system_message",
     config={
         "system_message": "You are a helpful assistant."
+    }
+)
+
+# With explicit strategy
+InterceptorConfig(
+    name="system_message",
+    config={
+        "system_message": "You are a helpful assistant.",
+        "strategy": "replace"  # Replace existing system messages
     }
 )
 ```
@@ -418,6 +431,7 @@ target:
         - name: system_message
           config:
             system_message: "You are a helpful assistant."
+            strategy: "prepend"  # Optional: replace, append, or prepend (default)
         - name: reasoning
           config:
             start_reasoning_token: "<think>"
