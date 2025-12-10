@@ -77,7 +77,7 @@ _MIGRATION_MESSAGE = """
 
 ```yaml
 evaluation:
-    overrides:
+  overrides:
     config.params.temperature: 0.6
     config.params.top_p: 0.95
 ```
@@ -86,9 +86,9 @@ with:
 
 ```yaml
 evaluation:
-    nemo_evaluator_config:
+  nemo_evaluator_config:
     config:
-        params:
+      params:
         temperature: 0.6
         top_p: 0.95
 ```
