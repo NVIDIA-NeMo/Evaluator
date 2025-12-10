@@ -473,6 +473,6 @@ def test_get_eval_factory_config_overrides_deprecated(global_config):
 
     with pytest.raises(
         ValueError,
-        match="dot-delimited overrides are no longer supported. Use `nemo_evaluator_config` field instead.",
+        match="`overrides` field is no longer supported. Use `nemo_evaluator_config` field instead",
     ):
         _ = get_eval_factory_config(cfg, user_task_config)
