@@ -330,6 +330,9 @@ def load_tasks_from_tasks_file(
     - If checksums match: Logs INFO and returns mapping_verified=True
     - If checksums don't match: Logs WARNING and returns mapping_verified=False
 
+    The function tries to load internal IRs first (if internal package available),
+    then external IRs, and merges them (internal takes precedence).
+
     Args:
         tasks_file: Path to all_tasks_irs.yaml file. If None, uses default path.
 
@@ -337,9 +340,106 @@ def load_tasks_from_tasks_file(
         Tuple of (list of TaskIntermediateRepresentation objects, mapping_verified: bool)
     """
     if tasks_file is None:
-        # Default path relative to package resources
+        # Default path: try internal IRs first, then external
+        import importlib
         import importlib.resources
 
+        internal_tasks: list[TaskIntermediateRepresentation] = []
+        internal_verified = False
+        external_tasks: list[TaskIntermediateRepresentation] = []
+        external_verified = False
+
+        # Try internal IRs first
+        try:
+            importlib.import_module("nemo_evaluator_launcher_internal")
+            logger.debug("Internal package available, trying to load internal IRs")
+            try:
+                content = importlib.resources.read_text(
+                    "nemo_evaluator_launcher_internal.resources",
+                    "all_tasks_irs.yaml",
+                    encoding="utf-8",
+                )
+                yaml_data = yaml.safe_load(content)
+
+                logger.info(
+                    "Loaded internal task IRs from package resources",
+                    num_tasks=yaml_data.get("metadata", {}).get("num_tasks", 0),
+                )
+
+                # Extract metadata and validate checksum
+                metadata = yaml_data.get("metadata", {})
+                stored_checksum = metadata.get("mapping_toml_checksum")
+
+                # Determine internal mapping.toml path
+                # Try to find it relative to internal package
+                try:
+                    importlib.resources.files("nemo_evaluator_launcher_internal.resources")
+                    # If we can access the package, try to get mapping.toml path
+                    # This is a best-effort approach
+                    mapping_file = None
+                    try:
+                        # Try to find the actual file path
+                        import sys
+                        for pkg_path in sys.path:
+                            potential_path = (
+                                pathlib.Path(pkg_path)
+                                / "nemo_evaluator_launcher_internal"
+                                / "resources"
+                                / "mapping.toml"
+                            )
+                            if potential_path.exists():
+                                mapping_file = potential_path
+                                break
+                    except Exception:
+                        pass
+
+                    if mapping_file:
+                        current_checksum = _calculate_mapping_checksum(mapping_file)
+                        internal_verified = (
+                            (stored_checksum == current_checksum)
+                            if stored_checksum and current_checksum
+                            else False
+                        )
+                        if not internal_verified:
+                            logger.warning(
+                                "Internal mapping.toml checksum mismatch detected",
+                                stored_checksum=stored_checksum,
+                                current_checksum=current_checksum,
+                            )
+                except Exception:
+                    logger.debug("Could not validate internal mapping.toml checksum")
+
+                # Parse tasks from tasks section
+                tasks_data = yaml_data.get("tasks", [])
+                for task_dict in tasks_data:
+                    task_ir = TaskIntermediateRepresentation(
+                        name=task_dict["name"],
+                        description=task_dict.get("description", ""),
+                        harness=task_dict["harness"],
+                        container=task_dict["container"],
+                        container_digest=task_dict.get("container_digest"),
+                        defaults=task_dict.get("defaults", {}),
+                    )
+                    internal_tasks.append(task_ir)
+
+                logger.info(
+                    "Loaded internal tasks from IRs",
+                    total_tasks=len(internal_tasks),
+                )
+            except (ImportError, FileNotFoundError) as e:
+                logger.debug(
+                    "Internal IRs not available, will try external",
+                    error=str(e),
+                )
+        except ImportError:
+            logger.debug("Internal package not available, using external IRs only")
+        except Exception as e:
+            logger.debug(
+                "Failed to load internal IRs, will try external",
+                error=str(e),
+            )
+
+        # Try external IRs
         try:
             content = importlib.resources.read_text(
                 "nemo_evaluator_launcher.resources",
@@ -367,15 +467,15 @@ def load_tasks_from_tasks_file(
             current_checksum = _calculate_mapping_checksum(mapping_file)
 
             # Determine if mapping is verified
-            mapping_verified = (
+            external_verified = (
                 (stored_checksum == current_checksum)
                 if stored_checksum and current_checksum
                 else False
             )
 
-            if not mapping_verified:
+            if not external_verified:
                 logger.warning(
-                    "mapping.toml checksum mismatch detected",
+                    "External mapping.toml checksum mismatch detected",
                     stored_checksum=stored_checksum,
                     current_checksum=current_checksum,
                     message=(
@@ -386,13 +486,12 @@ def load_tasks_from_tasks_file(
                 )
             else:
                 logger.info(
-                    "mapping.toml checksum matches all_tasks_irs.yaml",
+                    "External mapping.toml checksum matches all_tasks_irs.yaml",
                     checksum=stored_checksum,
                 )
 
             # Parse tasks from tasks section
             tasks_data = yaml_data.get("tasks", [])
-            tasks: list[TaskIntermediateRepresentation] = []
             for task_dict in tasks_data:
                 task_ir = TaskIntermediateRepresentation(
                     name=task_dict["name"],
@@ -402,25 +501,72 @@ def load_tasks_from_tasks_file(
                     container_digest=task_dict.get("container_digest"),
                     defaults=task_dict.get("defaults", {}),
                 )
-                tasks.append(task_ir)
+                external_tasks.append(task_ir)
 
             logger.info(
-                "Loaded tasks from tasks file",
-                total_tasks=len(tasks),
+                "Loaded external tasks from IRs",
+                total_tasks=len(external_tasks),
             )
-            return tasks, mapping_verified
-
         except (ImportError, FileNotFoundError, Exception) as e:
             logger.debug(
-                "Failed to load from package resources, trying file path",
+                "Failed to load external IRs from package resources",
                 error=str(e),
             )
-            # Fallback: construct path relative to this file
-            tasks_file = (
-                pathlib.Path(__file__).parent.parent
-                / "resources"
-                / "all_tasks_irs.yaml"
+
+        # Merge tasks: internal takes precedence (by key: harness+task)
+        all_tasks: list[TaskIntermediateRepresentation] = []
+        task_keys: set[tuple[str, str]] = set()
+
+        # Add internal tasks first
+        for task in internal_tasks:
+            key = (task.harness, task.name)
+            if key not in task_keys:
+                all_tasks.append(task)
+                task_keys.add(key)
+
+        # Add external tasks (skip if key already exists)
+        for task in external_tasks:
+            key = (task.harness, task.name)
+            if key not in task_keys:
+                all_tasks.append(task)
+                task_keys.add(key)
+
+        # Determine overall verification status
+        mapping_verified = internal_verified and external_verified
+
+        if internal_tasks and external_tasks:
+            logger.info(
+                "Merged internal and external IRs",
+                internal_tasks=len(internal_tasks),
+                external_tasks=len(external_tasks),
+                total_tasks=len(all_tasks),
+                mapping_verified=mapping_verified,
             )
+        elif internal_tasks:
+            logger.info(
+                "Using internal IRs only",
+                total_tasks=len(all_tasks),
+                mapping_verified=internal_verified,
+            )
+            mapping_verified = internal_verified
+        elif external_tasks:
+            logger.info(
+                "Using external IRs only",
+                total_tasks=len(all_tasks),
+                mapping_verified=external_verified,
+            )
+            mapping_verified = external_verified
+
+        if all_tasks:
+            return all_tasks, mapping_verified
+
+        # Fallback: construct path relative to this file
+        logger.debug("No IRs loaded from package resources, trying file path")
+        tasks_file = (
+            pathlib.Path(__file__).parent.parent
+            / "resources"
+            / "all_tasks_irs.yaml"
+        )
 
     if not tasks_file.exists():
         logger.warning(

@@ -20,20 +20,11 @@ import copy
 import pytest
 
 from nemo_evaluator_launcher.common.mapping import (
-    CACHE_DIR,
     CACHE_FILENAME,
-    _get_cache_file,
     _process_mapping,
     get_task_from_mapping,
     load_tasks_mapping,
 )
-
-
-def test_get_cache_file():
-    """Test cache file path generation."""
-    cache_file = _get_cache_file()
-    expected = CACHE_DIR / CACHE_FILENAME
-    assert cache_file == expected
 
 
 def test_process_mapping():

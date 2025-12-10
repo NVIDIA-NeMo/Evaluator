@@ -32,16 +32,13 @@ from nemo_evaluator_launcher.executors.registry import get_executor
 from nemo_evaluator_launcher.exporters import create_exporter
 
 
-def get_tasks_list(latest: bool = False) -> list[list[Any]]:
+def get_tasks_list() -> list[list[Any]]:
     """Get a list of available tasks from the mapping.
-
-    Args:
-        latest: If True, fetch the latest mapping from remote URL instead of using packaged/cached version.
 
     Returns:
         list[list[Any]]: Each sublist contains task name, endpoint type, harness, container, description, and type.
     """
-    mapping = load_tasks_mapping(latest=latest)
+    mapping = load_tasks_mapping()
     data = [
         [
             task_data.get("task"),
