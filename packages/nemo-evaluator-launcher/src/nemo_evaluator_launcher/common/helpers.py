@@ -70,6 +70,47 @@ def _set_nested_optionally_overriding(
         temp[keys[-1]] = val
 
 
+_MIGRATION_MESSAGE = """
+`overrides` field is no longer supported. Use `nemo_evaluator_config` field instead, e.g.:
+
+1. If you are using overrides in your yaml config, replace:
+
+```yaml
+evaluation:
+    overrides:
+    config.params.temperature: 0.6
+    config.params.top_p: 0.95
+```
+
+with:
+
+```yaml
+evaluation:
+    nemo_evaluator_config:
+    config:
+        params:
+        temperature: 0.6
+        top_p: 0.95
+```
+
+2. If you are using overrides in your cli command, replace:
+
+```bash
+nemo-evaluator-launcher run --config my_config.yaml \
+    -o evaluation.overrides.config.params.temperature=0.6 \
+    -o evaluation.overrides.config.params.top_p=0.95
+```
+
+with:
+
+```bash
+nemo-evaluator-launcher run --config my_config.yaml \
+    -o evaluation.nemo_evaluator_config.config.params.temperature=0.6 \
+    -o evaluation.nemo_evaluator_config.config.params.top_p=0.95
+```
+"""
+
+
 def get_eval_factory_config(
     cfg: DictConfig,
     user_task_config: DictConfig,
@@ -82,9 +123,7 @@ def get_eval_factory_config(
     """
 
     if cfg.evaluation.get("overrides") or user_task_config.get("overrides"):
-        raise ValueError(
-            "dot-delimited overrides are no longer supported. Use `nemo_evaluator_config` field instead."
-        )
+        raise ValueError(_MIGRATION_MESSAGE)
 
     logger.debug("Getting nemo evaluator merged config")
     # Extract config fields similar to overrides - convert to basic Python types first
