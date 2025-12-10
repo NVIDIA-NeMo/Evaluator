@@ -43,10 +43,8 @@ import pathlib
 import re
 import sys
 
-if sys.version_info >= (3, 11):
-    pass
-else:
-    pass
+# Maximum number of lines to check after container declaration for digest comment
+MAX_DIGEST_COMMENT_OFFSET_LINES = 4
 
 
 def find_repo_root(start_path: pathlib.Path) -> pathlib.Path:
@@ -95,13 +93,14 @@ def check_container_digests(mapping_file: pathlib.Path) -> tuple[bool, list[str]
             container = match.group(1)
             # Check if this is a harness-level section (not a task-level)
             # Look backwards to find the section header
-            section_line_idx = i - 1
+            # i is 1-indexed (from enumerate start=1), convert to 0-indexed for array access
+            section_line_idx = i - 1  # Convert to 0-indexed
             while section_line_idx >= 0 and not lines[
-                section_line_idx - 1
+                section_line_idx
             ].strip().startswith("["):
                 section_line_idx -= 1
-            if section_line_idx > 0:
-                section_line = lines[section_line_idx - 1].strip()
+            if section_line_idx >= 0:
+                section_line = lines[section_line_idx].strip()
                 # Harness-level sections don't have dots (e.g., [lm-evaluation-harness])
                 # Task-level sections have dots (e.g., [lm-evaluation-harness.tasks.chat.mmlu])
                 if "." not in section_line.strip("[]"):
@@ -112,7 +111,7 @@ def check_container_digests(mapping_file: pathlib.Path) -> tuple[bool, list[str]
         # Check if next line (or lines after) has digest comment
         digest_found = False
         # Look at next few lines for digest comment (allow for blank lines)
-        for offset in range(1, 5):  # Check up to 4 lines after
+        for offset in range(1, MAX_DIGEST_COMMENT_OFFSET_LINES + 1):
             if line_num + offset - 1 >= len(lines):
                 break
             next_line = lines[line_num + offset - 1].strip()
