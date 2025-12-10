@@ -15,8 +15,6 @@
 
 """Tests for configuration merging logic, specifically adapter_config merging."""
 
-import pytest
-
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.api.api_dataclasses import (
     ApiEndpoint,
@@ -88,9 +86,9 @@ class TestAdapterConfigMerge:
         if isinstance(adapter_config_dict, AdapterConfig):
             adapter_config_dict = adapter_config_dict.model_dump()
 
-        assert (
-            adapter_config_dict.get("mode") == "client"
-        ), "Framework default mode: client should be preserved"
+        assert adapter_config_dict.get("mode") == "client", (
+            "Framework default mode: client should be preserved"
+        )
 
     def test_user_mode_overrides_framework_default(self, monkeypatch):
         """Test that user's explicit mode setting overrides framework default."""
@@ -149,9 +147,9 @@ class TestAdapterConfigMerge:
         if isinstance(adapter_config_dict, AdapterConfig):
             adapter_config_dict = adapter_config_dict.model_dump()
 
-        assert (
-            adapter_config_dict.get("mode") == "server"
-        ), "User's explicit mode: server should override framework default"
+        assert adapter_config_dict.get("mode") == "server", (
+            "User's explicit mode: server should override framework default"
+        )
 
     def test_no_framework_defaults_uses_user_config(self, monkeypatch):
         """Test that when no framework defaults exist, user config is used."""
@@ -198,9 +196,9 @@ class TestAdapterConfigMerge:
         if isinstance(adapter_config_dict, AdapterConfig):
             adapter_config_dict = adapter_config_dict.model_dump()
 
-        assert (
-            adapter_config_dict.get("mode") == "client"
-        ), "User config should be used when no framework defaults"
+        assert adapter_config_dict.get("mode") == "client", (
+            "User config should be used when no framework defaults"
+        )
 
     def test_framework_defaults_with_multiple_adapter_params(self, monkeypatch):
         """Test merging when framework has multiple adapter config parameters."""
@@ -261,12 +259,12 @@ class TestAdapterConfigMerge:
 
         # Framework defaults should be preserved except for user overrides
         assert adapter_config_dict.get("mode") == "client", "Framework mode preserved"
-        assert (
-            adapter_config_dict.get("endpoint_type") == "chat"
-        ), "Framework endpoint_type preserved"
-        assert (
-            adapter_config_dict.get("log_failed_requests") is False
-        ), "User override applied"
+        assert adapter_config_dict.get("endpoint_type") == "chat", (
+            "Framework endpoint_type preserved"
+        )
+        assert adapter_config_dict.get("log_failed_requests") is False, (
+            "User override applied"
+        )
 
     def test_exclude_unset_preserves_framework_defaults(self):
         """Test that model_dump(exclude_unset=True) correctly excludes Pydantic defaults."""
@@ -280,13 +278,15 @@ class TestAdapterConfigMerge:
         assert explicit_fields["log_failed_requests"] is True
 
         # mode was not explicitly set, so it should not be in explicit_fields
-        assert "mode" not in explicit_fields, "Pydantic default 'mode' should be excluded"
+        assert "mode" not in explicit_fields, (
+            "Pydantic default 'mode' should be excluded"
+        )
 
         # Full dump includes all fields including defaults
         all_fields = config.model_dump()
-        assert (
-            all_fields["mode"] == "server"
-        ), "Full dump includes Pydantic default mode"
+        assert all_fields["mode"] == "server", (
+            "Full dump includes Pydantic default mode"
+        )
 
 
 class TestAdapterConfigLegacyMerge:
@@ -302,9 +302,9 @@ class TestAdapterConfigLegacyMerge:
 
         adapter_config = AdapterConfig.from_legacy_config(legacy_config)
 
-        assert (
-            adapter_config.mode == "client"
-        ), "mode: client should be preserved from legacy config"
+        assert adapter_config.mode == "client", (
+            "mode: client should be preserved from legacy config"
+        )
         assert len(adapter_config.interceptors) > 0, "Legacy params should be converted"
 
     def test_from_legacy_config_fills_missing_defaults(self):
@@ -317,12 +317,12 @@ class TestAdapterConfigLegacyMerge:
         adapter_config = AdapterConfig.from_legacy_config(legacy_config)
 
         assert adapter_config.mode == "client", "Explicit mode preserved"
-        assert (
-            adapter_config.endpoint_type == "chat"
-        ), "Missing endpoint_type filled with default"
-        assert (
-            adapter_config.log_failed_requests is False
-        ), "Missing log_failed_requests filled with default"
+        assert adapter_config.endpoint_type == "chat", (
+            "Missing endpoint_type filled with default"
+        )
+        assert adapter_config.log_failed_requests is False, (
+            "Missing log_failed_requests filled with default"
+        )
 
     def test_from_legacy_config_no_mode_uses_default(self):
         """Test that when no mode is specified, default is used."""
@@ -334,7 +334,6 @@ class TestAdapterConfigLegacyMerge:
 
         # When mode is not specified, the default from get_legacy_defaults() is used
         defaults = AdapterConfig.get_legacy_defaults()
-        assert (
-            adapter_config.mode == defaults["mode"]
-        ), "Should use default mode when not specified"
-
+        assert adapter_config.mode == defaults["mode"], (
+            "Should use default mode when not specified"
+        )
