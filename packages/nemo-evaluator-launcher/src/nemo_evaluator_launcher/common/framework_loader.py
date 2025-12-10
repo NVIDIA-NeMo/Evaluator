@@ -253,6 +253,7 @@ def extract_framework_yml(
     Returns:
         Tuple of (framework_yml_content, container_digest) or (None, None) if failed
     """
+    container_digest = None  # Initialize to track if we got digest before exception
     try:
         registry_type, registry_url, repository, tag = _parse_container_image(container)
 
@@ -279,7 +280,7 @@ def extract_framework_yml(
             )
             return None, None
 
-        # Get container digest
+        # Get container digest (try to get it even if framework extraction might fail)
         container_digest = _get_container_digest(authenticator, repository, tag)
         if not container_digest:
             logger.warning(
@@ -325,7 +326,8 @@ def extract_framework_yml(
                 container=container,
                 harness=harness_name,
             )
-            return None, None
+            # Return digest even if framework extraction failed
+            return None, container_digest
 
         logger.info(
             "Successfully extracted framework.yml",
@@ -345,7 +347,8 @@ def extract_framework_yml(
             error=str(e),
             exc_info=True,
         )
-        return None, None
+        # Preserve digest if we got it before the exception occurred
+        return None, container_digest
 
 
 def parse_framework_to_irs(
