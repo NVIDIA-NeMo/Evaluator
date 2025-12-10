@@ -373,13 +373,16 @@ def load_tasks_from_tasks_file(
                 # Determine internal mapping.toml path
                 # Try to find it relative to internal package
                 try:
-                    importlib.resources.files("nemo_evaluator_launcher_internal.resources")
+                    importlib.resources.files(
+                        "nemo_evaluator_launcher_internal.resources"
+                    )
                     # If we can access the package, try to get mapping.toml path
                     # This is a best-effort approach
                     mapping_file = None
                     try:
                         # Try to find the actual file path
                         import sys
+
                         for pkg_path in sys.path:
                             potential_path = (
                                 pathlib.Path(pkg_path)
@@ -563,9 +566,7 @@ def load_tasks_from_tasks_file(
         # Fallback: construct path relative to this file
         logger.debug("No IRs loaded from package resources, trying file path")
         tasks_file = (
-            pathlib.Path(__file__).parent.parent
-            / "resources"
-            / "all_tasks_irs.yaml"
+            pathlib.Path(__file__).parent.parent / "resources" / "all_tasks_irs.yaml"
         )
 
     if not tasks_file.exists():

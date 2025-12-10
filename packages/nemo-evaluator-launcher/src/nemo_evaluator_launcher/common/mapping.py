@@ -14,11 +14,10 @@
 # limitations under the License.
 #
 import importlib
-import os
 import pathlib
 import sys
 from importlib import resources
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -28,11 +27,6 @@ else:
     import tomli as tomllib
 
 from nemo_evaluator_launcher.common.logging_utils import logger
-from nemo_evaluator_launcher.common.partial_pull import (
-    GitlabRegistryAuthenticator,
-    NvcrRegistryAuthenticator,
-    find_file_matching_pattern_in_image_layers,
-)
 from nemo_evaluator_launcher.common.task_ir import (
     TaskIntermediateRepresentation,
     load_tasks_from_tasks_file,
@@ -304,192 +298,6 @@ def _extract_tasks_from_framework_yml(
     return tasks
 
 
-def _inspect_container_for_tasks(
-    container: str, harness_name: str
-) -> dict[tuple[str, str], dict]:
-    """Inspect a container image to extract tasks from framework.yml.
-
-    Args:
-        container: Container image string (original, may be replaced by PoC stub)
-        harness_name: Name of the harness
-
-    Returns:
-        Dictionary mapping (harness_name, task_name) to task configuration
-    """
-    try:
-        # Parse container image (use the container from mapping.toml as-is)
-        registry_type, registry_url, repository, tag = _parse_container_image(container)
-
-        # Construct docker_id for caching
-        docker_id = f"{registry_url}/{repository}:{tag}"
-
-        # Get credentials from environment (optional for public registries)
-        if registry_type == "gitlab":
-            username = os.getenv("DOCKER_USERNAME")
-            password = os.getenv("GITLAB_TOKEN")
-
-            # If no password from environment, try Docker credentials file
-            if not password:
-                from nemo_evaluator_launcher.common.partial_pull import (
-                    _read_docker_credentials,
-                )
-
-                docker_creds = _read_docker_credentials(registry_url)
-                if docker_creds:
-                    docker_username, docker_password = docker_creds
-                    if not username:
-                        username = docker_username
-                    password = docker_password
-                    logger.debug(
-                        "Using credentials from Docker config file",
-                        container=container,
-                        registry_url=registry_url,
-                        username=username,
-                    )
-
-            # Credentials are optional - try anonymous access first
-            if not password:
-                logger.debug(
-                    "No GITLAB_TOKEN or Docker credentials found, attempting anonymous access to GitLab registry",
-                    container=container,
-                    registry_url=registry_url,
-                )
-            authenticator = GitlabRegistryAuthenticator(
-                registry_url=registry_url,
-                username=username,
-                password=password,
-                repository=repository,
-            )
-        elif registry_type == "nvcr":
-            username = os.getenv("NVCR_USERNAME") or os.getenv("DOCKER_USERNAME")
-            password = os.getenv("NVCR_PASSWORD") or os.getenv("NVCR_API_KEY")
-
-            # If no password from environment, try Docker credentials file
-            if not password:
-                from nemo_evaluator_launcher.common.partial_pull import (
-                    _read_docker_credentials,
-                )
-
-                docker_creds = _read_docker_credentials(registry_url)
-                if docker_creds:
-                    docker_username, docker_password = docker_creds
-                    if not username:
-                        username = docker_username
-                    password = docker_password
-                    logger.debug(
-                        "Using credentials from Docker config file",
-                        container=container,
-                        registry_url=registry_url,
-                        username=username,
-                    )
-
-            if not username or not password:
-                logger.debug(
-                    "Skipping container inspection (missing nvcr credentials)",
-                    container=container,
-                )
-                return {}
-            authenticator = NvcrRegistryAuthenticator(
-                registry_url=registry_url,
-                username=username,
-                password=password,
-            )
-        else:
-            logger.warning(
-                "Unknown registry type, skipping",
-                container=container,
-                registry_type=registry_type,
-            )
-            return {}
-
-        # Get framework.yml from container (authentication handled inside)
-        # Try the specified tag first, then fallback to "latest" if it fails
-        framework_yml_content = None
-
-        def _try_extract_framework_yml(
-            ref_tag: str, ref_docker_id: str
-        ) -> Optional[str]:
-            """Helper function to extract framework.yml using pattern-based search."""
-            # Use pattern-based search to find framework.yml in any subdirectory under /opt/metadata/
-            # This handles both standard location (/opt/metadata/framework.yml) and subdirectories
-            # Note: find_file_matching_pattern_in_image_layers uses pattern-based caching
-            # (cache key: /opt/metadata/framework.yml) so cache hits work regardless of subdirectory location
-            logger.debug(
-                "Searching for framework.yml using pattern-based search",
-                container=container,
-                tag=ref_tag,
-            )
-            result = find_file_matching_pattern_in_image_layers(
-                authenticator=authenticator,
-                repository=repository,
-                reference=ref_tag,
-                prefix="/opt/metadata",
-                filename="framework.yml",
-                max_layer_size=100 * 1024,  # 100KB
-                docker_id=ref_docker_id,
-                use_cache=True,
-            )
-            if result:
-                file_path, content = result
-                logger.info(
-                    "Found framework.yml",
-                    container=container,
-                    tag=ref_tag,
-                    file_path=file_path,
-                )
-                return content
-            return None
-
-        try:
-            framework_yml_content = _try_extract_framework_yml(tag, docker_id)
-        except ValueError as e:
-            # Tag might not exist, try "latest" as fallback
-            if "Failed to get manifest" in str(e) and tag != "latest":
-                logger.debug(
-                    "Tag not found, trying 'latest' as fallback",
-                    original_tag=tag,
-                    container=container,
-                )
-                docker_id_latest = f"{registry_url}/{repository}:latest"
-                try:
-                    framework_yml_content = _try_extract_framework_yml(
-                        "latest", docker_id_latest
-                    )
-                    # Update container to use latest tag for consistency
-                    container = f"{registry_url}/{repository}:latest"
-                except Exception as e2:
-                    logger.debug(
-                        "Failed to get framework.yml with 'latest' tag",
-                        container=container,
-                        error=str(e2),
-                    )
-            else:
-                # Re-raise if it's a different error
-                raise
-
-        if not framework_yml_content:
-            logger.debug(
-                "framework.yml not found in container",
-                container=container,
-                tag=tag,
-            )
-            return {}
-
-        # Extract tasks from framework.yml
-        return _extract_tasks_from_framework_yml(
-            framework_yml_content, harness_name, container
-        )
-
-    except Exception as e:
-        logger.warning(
-            "Failed to inspect container",
-            container=container,
-            harness=harness_name,
-            error=str(e),
-        )
-        return {}
-
-
 def _convert_irs_to_mapping_format(
     tasks: list[TaskIntermediateRepresentation],
 ) -> dict[tuple[str, str], dict]:
@@ -584,7 +392,8 @@ def load_tasks_mapping(
             )
             local_mapping.update(internal_mapping)
             logger.info(
-                "Successfully merged internal mapping", internal_tasks=len(internal_mapping)
+                "Successfully merged internal mapping",
+                internal_tasks=len(internal_mapping),
             )
         except ImportError:
             logger.debug("Internal package not available, using external mapping only")
@@ -625,7 +434,8 @@ def load_tasks_mapping(
         local_mapping = _process_mapping(_load_packaged_resource(CACHE_FILENAME))
 
     # Merge internal mapping if available (for both IR and mapping.toml paths)
-    # Note: Internal IR support will be added when load_tasks_from_tasks_file() is updated
+    # Note: Internal IRs are already included when IRs are loaded, but we still merge
+    # internal mapping.toml to get any additional harness metadata or entries
     try:
         importlib.import_module("nemo_evaluator_launcher_internal")
         logger.debug("Internal package available, loading internal mapping")
@@ -634,7 +444,8 @@ def load_tasks_mapping(
         )
         local_mapping.update(internal_mapping)
         logger.info(
-            "Successfully merged internal mapping", internal_tasks=len(internal_mapping)
+            "Successfully merged internal mapping",
+            internal_tasks=len(internal_mapping),
         )
     except ImportError:
         logger.debug("Internal package not available, using external mapping only")

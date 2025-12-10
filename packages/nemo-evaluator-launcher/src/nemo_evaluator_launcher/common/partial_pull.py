@@ -76,22 +76,57 @@ def _read_docker_credentials(registry_url: str) -> Optional[Tuple[str, str]]:
             logger.debug("No auths section in Docker config file")
             return None
 
-        # Try exact match first
-        registry_auth = auths.get(registry_url)
+        logger.debug(
+            "Looking up Docker credentials",
+            registry_url=registry_url,
+            available_keys=list(auths.keys()),
+        )
+
+        registry_host = registry_url.split(":")[0]
+        registry_auth = None
+        matched_key = None
+
+        # Try various key formats in order of preference
+        key_variants = [
+            registry_url,  # Exact match
+            registry_host,  # Hostname only
+            f"https://{registry_url}",  # With https://
+            f"https://{registry_host}",  # Hostname with https://
+        ]
+
+        # For GitLab, also try common ports
+        if "gitlab" in registry_host.lower():
+            for port in ["5005", "5050"]:
+                key_variants.extend(
+                    [f"{registry_host}:{port}", f"https://{registry_host}:{port}"]
+                )
+
+        # Try exact matches first
+        for key in key_variants:
+            if key in auths:
+                registry_auth = auths[key]
+                matched_key = key
+                break
+
+        # Fallback: match by hostname
         if not registry_auth:
-            # Try matching by hostname (without port)
-            registry_host = registry_url.split(":")[0]
-            registry_auth = auths.get(registry_host)
-            # Also try with https:// prefix
-            if not registry_auth:
-                registry_auth = auths.get(f"https://{registry_url}")
-            if not registry_auth:
-                registry_auth = auths.get(f"https://{registry_host}")
+            for key in auths.keys():
+                key_host = key.split("://")[-1].split(":")[0].split("/")[0]
+                if key_host == registry_host:
+                    registry_auth = auths[key]
+                    matched_key = key
+                    logger.info(
+                        "Found credentials using hostname match",
+                        registry_url=registry_url,
+                        matched_key=key,
+                    )
+                    break
 
         if not registry_auth:
             logger.debug(
                 "No credentials found for registry in Docker config",
                 registry_url=registry_url,
+                registry_host=registry_host,
                 available_registries=list(auths.keys()),
             )
             return None
@@ -114,10 +149,11 @@ def _read_docker_credentials(registry_url: str) -> Optional[Tuple[str, str]]:
                 )
                 return None
             username, password = decoded.split(":", 1)
-            logger.debug(
+            logger.info(
                 "Found credentials in Docker config",
                 registry_url=registry_url,
                 username=username,
+                matched_key=matched_key or registry_url,
             )
             return username, password
         except Exception as e:

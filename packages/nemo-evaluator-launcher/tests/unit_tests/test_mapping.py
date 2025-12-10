@@ -20,7 +20,6 @@ import copy
 import pytest
 
 from nemo_evaluator_launcher.common.mapping import (
-    CACHE_FILENAME,
     _process_mapping,
     get_task_from_mapping,
     load_tasks_mapping,

@@ -84,6 +84,55 @@ def _parse_container_image(container_image: str) -> tuple[str, str, str, str]:
     return registry_type, registry_url, repository, tag
 
 
+def _get_credentials_from_env_or_docker(
+    registry_url: str,
+    env_username_key: str,
+    env_password_key: str,
+    default_username: Optional[str] = None,
+) -> tuple[Optional[str], Optional[str]]:
+    """Get credentials from environment variables or Docker config file.
+
+    Priority:
+    1. Try token from env - if username in env, use it; if not, use standard username
+    2. Only if no token in env, fallback to Docker config
+
+    Args:
+        registry_url: Registry URL to look up credentials for
+        env_username_key: Environment variable name for username
+        env_password_key: Environment variable name for password
+        default_username: Default username to use if password is set but username is not
+
+    Returns:
+        Tuple of (username, password)
+    """
+    username = os.getenv(env_username_key)
+    password = os.getenv(env_password_key)
+
+    # Priority 1: If password from env, use it (with username from env or default)
+    if password:
+        if not username and default_username:
+            username = default_username
+        logger.info(
+            "Using credentials from environment",
+            registry_url=registry_url,
+            username=username,
+            has_password=True,
+        )
+        return username, password
+
+    # Priority 2: No password in env - fallback to Docker config
+    docker_creds = _read_docker_credentials(registry_url)
+    if docker_creds:
+        username, password = docker_creds
+        logger.info(
+            "Using credentials from Docker config file",
+            registry_url=registry_url,
+            username=username,
+        )
+
+    return username, password
+
+
 def _create_authenticator(
     registry_type: str, registry_url: str, repository: str
 ) -> RegistryAuthenticator:
@@ -98,32 +147,20 @@ def _create_authenticator(
         Registry authenticator instance
     """
     if registry_type == "gitlab":
-        # Credentials are optional - try anonymous access first
-        username = os.getenv("DOCKER_USERNAME")
-        password = os.getenv("GITLAB_TOKEN")
+        username, password = _get_credentials_from_env_or_docker(
+            registry_url=registry_url,
+            env_username_key="DOCKER_USERNAME",
+            env_password_key="GITLAB_TOKEN",
+            default_username="gitlab-ci-token",
+        )
 
-        # If no password from environment, try Docker credentials file
-        if not password:
-            docker_creds = _read_docker_credentials(registry_url)
-            if docker_creds:
-                docker_username, docker_password = docker_creds
-                # Use Docker credentials if username not set, or use Docker username if both available
-                if not username:
-                    username = docker_username
-                password = docker_password
-                logger.debug(
-                    "Using credentials from Docker config file",
-                    registry_url=registry_url,
-                    username=username,
-                )
-
-        # If still no credentials provided, try anonymous access (for public registries)
         if not password:
             logger.debug(
-                "No GITLAB_TOKEN or Docker credentials found, attempting anonymous access to GitLab registry",
+                "No credentials found, attempting anonymous access",
                 registry_url=registry_url,
                 repository=repository,
             )
+
         return GitlabRegistryAuthenticator(
             registry_url=registry_url,
             username=username,
@@ -136,16 +173,12 @@ def _create_authenticator(
         )
         password = os.getenv("NVCR_PASSWORD") or os.getenv("NVCR_API_KEY")
 
-        # If no password from environment, try Docker credentials file
+        # Try Docker config if no password
         if not password:
             docker_creds = _read_docker_credentials(registry_url)
             if docker_creds:
-                docker_username, docker_password = docker_creds
-                # Use Docker credentials if username not set or is default, otherwise keep env username
-                if not username or username == "$oauthtoken":
-                    username = docker_username
-                password = docker_password
-                logger.debug(
+                username, password = docker_creds
+                logger.info(
                     "Using credentials from Docker config file",
                     registry_url=registry_url,
                     username=username,
@@ -156,6 +189,7 @@ def _create_authenticator(
                 "NVCR_PASSWORD, NVCR_API_KEY environment variable, or Docker credentials "
                 "are required for nvcr.io registry. Check ~/.docker/config.json for credentials."
             )
+
         return NvcrRegistryAuthenticator(
             registry_url=registry_url,
             username=username,
