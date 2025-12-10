@@ -72,6 +72,9 @@ from nemo_evaluator_launcher.common.task_ir import (
     TaskIntermediateRepresentation,
 )
 
+# Maximum number of lines to check after container declaration for digest comment
+MAX_DIGEST_COMMENT_OFFSET_LINES = 4
+
 
 def parse_container_image(container_image: str) -> tuple[str, str, str, str]:
     """Parse a container image string into registry type, registry URL, repository, and tag.
@@ -265,6 +268,39 @@ def get_container_digest(
         return None
 
 
+def _find_section_header(lines: list[str], line_index: int) -> int | None:
+    """Find the section header for a given line index.
+
+    Looks backwards from the given line to find the TOML section header (e.g., [section]).
+
+    Args:
+        lines: List of file lines
+        line_index: 0-indexed line number to start searching from
+
+    Returns:
+        0-indexed line number of section header, or None if not found
+    """
+    section_line_idx = line_index
+    while section_line_idx >= 0 and not lines[section_line_idx].strip().startswith("["):
+        section_line_idx -= 1
+    return section_line_idx if section_line_idx >= 0 else None
+
+
+def _is_harness_level_section(section_line: str) -> bool:
+    """Check if a section line represents a harness-level section.
+
+    Harness-level sections don't have dots (e.g., [lm-evaluation-harness]),
+    while task-level sections have dots (e.g., [lm-evaluation-harness.tasks.chat.mmlu]).
+
+    Args:
+        section_line: Section header line (e.g., "[section]")
+
+    Returns:
+        True if harness-level, False otherwise
+    """
+    return "." not in section_line.strip("[]")
+
+
 def update_digest_comment_in_mapping_toml(
     mapping_file: pathlib.Path, container: str, digest: str
 ) -> None:
@@ -292,15 +328,11 @@ def update_digest_comment_in_mapping_toml(
             if match and match.group(2) == container:
                 indent = match.group(1)
                 # Check if this is a harness-level section
-                section_line_idx = i
-                while section_line_idx >= 0 and not lines[
-                    section_line_idx
-                ].strip().startswith("["):
-                    section_line_idx -= 1
-                if section_line_idx >= 0:
+                section_line_idx = _find_section_header(lines, i)
+                if section_line_idx is not None:
                     section_line = lines[section_line_idx].strip()
                     # Harness-level sections don't have dots
-                    if "." not in section_line.strip("[]"):
+                    if _is_harness_level_section(section_line):
                         # Check if digest comment already exists
                         digest_comment_pattern = (
                             r"#\s*container-digest:\s*(sha256:[a-f0-9]+)"
@@ -309,7 +341,7 @@ def update_digest_comment_in_mapping_toml(
                         comment_line_idx = None
 
                         # Look for existing digest comment in next few lines
-                        for offset in range(1, 5):
+                        for offset in range(1, MAX_DIGEST_COMMENT_OFFSET_LINES + 1):
                             if i + offset >= len(lines):
                                 break
                             next_line = lines[i + offset]
@@ -612,7 +644,9 @@ Environment Variables:
     # Extract framework.yml from each container and convert to IRs
     all_task_irs: list[TaskIntermediateRepresentation] = []
     successful = 0
-    failed_containers: list[tuple[str, str, Optional[str]]] = []  # (harness, container, digest)
+    failed_containers: list[
+        tuple[str, str, Optional[str]]
+    ] = []  # (harness, container, digest)
 
     for harness_name, container in harness_containers.items():
         logger.info(
