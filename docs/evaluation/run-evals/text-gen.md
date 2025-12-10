@@ -42,7 +42,7 @@ For log-probability methods, see the {ref}`logprobs`.
 
 Use an example config for evaluating the [Meta Llama 3.1 8B Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct) model:
 
-```{literalinclude} ../../../packages/nemo-evaluator-launcher/examples/local_limit_samples.yaml
+```{literalinclude} ../../../packages/nemo-evaluator-launcher/examples/local_basic.yaml
 :language: yaml
 :start-after: "[docs-start-snippet]"
 ```
@@ -56,7 +56,7 @@ export HF_TOKEN_FOR_GPQA_DIAMOND=hf_your-token-here  # GPQA is a gated dataset
 export NGC_API_KEY=nvapi-your-token-here  # API Key with access to build.nvidia.com
 
 nemo-evaluator-launcher run \
-  --config packages/nemo-evaluator-launcher/examples/local_limit_samples.yaml
+  --config packages/nemo-evaluator-launcher/examples/local_basic.yaml
 ```
 
 

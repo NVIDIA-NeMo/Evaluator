@@ -36,13 +36,13 @@ Run a Lepton evaluation using the provided examples:
 
 ```bash
 # Deploy NIM model and run evaluation
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_nim.yaml
 
 # Deploy vLLM model and run evaluation
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_vllm_llama_3_1_8b_instruct.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_vllm.yaml
 
 # Use an existing endpoint (no deployment)
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_none_llama_3_1_8b_instruct.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_basic.yaml
 ```
 
 ## Parallel Deployment Strategy

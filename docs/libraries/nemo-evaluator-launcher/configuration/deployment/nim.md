@@ -166,7 +166,7 @@ evaluation:
 
 ## Examples
 
-Refer to `packages/nemo-evaluator-launcher/examples/lepton_nim_llama_3_1_8b_instruct.yaml` for a complete NIM deployment example.
+Refer to `packages/nemo-evaluator-launcher/examples/lepton_nim.yaml` for a complete NIM deployment example.
 
 ## Reference
 
