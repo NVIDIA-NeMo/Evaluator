@@ -173,11 +173,18 @@ def create_authenticator(
                     username=username,
                 )
 
+        # If no password found, try anonymous access (for public registries)
         if not password:
-            raise ValueError(
-                "NVCR_PASSWORD, NVCR_API_KEY environment variable, or Docker credentials "
-                "are required for nvcr.io registry. Check ~/.docker/config.json for credentials."
+            logger.debug(
+                "No NVCR_PASSWORD, NVCR_API_KEY, or Docker credentials found, "
+                "attempting anonymous access to nvcr.io registry",
+                registry_url=registry_url,
+                repository=repository,
             )
+            # Use None for username/password to allow anonymous access
+            username = None
+            password = None
+
         return NvcrRegistryAuthenticator(
             registry_url=registry_url,
             username=username,

@@ -485,8 +485,7 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
     def authenticate(self, repository: Optional[str] = None) -> bool:
         """Authenticate with GitLab registry using Bearer Token flow.
 
-        First attempts anonymous access (for public registries), then falls back to
-        JWT authentication if credentials are available and anonymous access fails.
+        Supports both authenticated and anonymous token requests for public containers.
 
         Args:
             repository: Optional repository name for JWT scope. If provided, overrides
@@ -494,7 +493,7 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
                 the format 'namespace/project' (e.g., 'agronskiy/idea/poc-for-partial-pull').
 
         Returns:
-            True if authentication successful (anonymous or authenticated), False otherwise
+            True if authentication successful, False otherwise
         """
         try:
             logger.debug(
@@ -543,48 +542,37 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
                     return True
                 return False
 
-            # Step 2: Registry requires authentication - check if credentials are available
-            if not (self.username and self.password):
-                logger.debug(
-                    "Registry requires authentication but no credentials provided, "
-                    "attempting to proceed without authentication (may work for public repos)"
-                )
-                # Try to proceed anyway - some GitLab registries allow anonymous access
-                # to manifests/blobs even if /v2/ endpoint requires auth
-                self.session.headers.update(
-                    {
-                        "Accept": "application/vnd.docker.distribution.manifest.v2+json",
-                    }
-                )
-                return True
-
-            # Step 3: Use credentials for JWT authentication
-            # Use provided repository or fall back to instance repository
-            # If no repository is provided, fail explicitly rather than using a test value
+            # Step 2: Request token from GitLab JWT endpoint
+            # GitLab supports anonymous token requests for public containers
             repo_for_scope = repository or self.repository
             if not repo_for_scope:
                 logger.error(
-                    "Repository name required for GitLab authentication but not provided",
+                    "Repository name required for GitLab authentication",
                     registry_url=self.registry_url,
                 )
                 return False
 
-            # GitLab-specific authentication flow
-            # Get Bearer Token from GitLab JWT endpoint
-            # Extract hostname from registry URL (remove port if present)
             gitlab_host = self.registry_url.split(":")[0]
             jwt_url = f"https://{gitlab_host}/jwt/auth?service=container_registry&scope=repository:{repo_for_scope}:pull"
-            logger.debug("Requesting Bearer token", jwt_url=jwt_url)
 
-            token_response = self.session.get(
-                jwt_url, auth=(self.username, self.password)
-            )
+            # Request token - use credentials if available, otherwise try anonymous token
+            if self.username and self.password:
+                logger.debug("Requesting Bearer token with credentials", jwt_url=jwt_url)
+                token_response = self.session.get(
+                    jwt_url, auth=(self.username, self.password)
+                )
+            else:
+                logger.debug(
+                    "Requesting anonymous token for public container",
+                    jwt_url=jwt_url,
+                )
+                token_response = self.session.get(jwt_url)
 
             if token_response.status_code != 200:
                 logger.error(
                     "Token request failed",
                     status_code=token_response.status_code,
-                    response_preview=token_response.text[:200],
+                    has_credentials=bool(self.username and self.password),
                 )
                 return False
 
@@ -598,11 +586,6 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
                 )
                 return False
 
-            logger.debug(
-                "Authentication successful",
-                token_length=len(self.bearer_token) if self.bearer_token else 0,
-            )
-
             # Set up session with bearer token
             self.session.headers.update(
                 {
@@ -614,18 +597,7 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
             return True
 
         except Exception as e:
-            logger.error("Authentication error", error=str(e), exc_info=True)
-            # On error, try to proceed without authentication (may work for public repos)
-            if not (self.username and self.password):
-                logger.debug(
-                    "Authentication error but no credentials, attempting to proceed without authentication"
-                )
-                self.session.headers.update(
-                    {
-                        "Accept": "application/vnd.docker.distribution.manifest.v2+json",
-                    }
-                )
-                return True
+            logger.error("Authentication error", error=str(e))
             return False
 
     def get_manifest(self, repository: str, reference: str) -> Optional[Dict]:
@@ -672,6 +644,26 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
                     has_docker_content_digest="Docker-Content-Digest" in headers_dict,
                 )
                 return manifest, headers_dict
+            elif response.status_code in (401, 403):
+                # Retry without authentication for public containers
+                logger.debug(
+                    "Got 401/403, retrying without authentication",
+                    status_code=response.status_code,
+                )
+                temp_session = requests.Session()
+                temp_session.headers.update(
+                    {"Accept": "application/vnd.docker.distribution.manifest.v2+json"}
+                )
+                retry_response = temp_session.get(url)
+                if retry_response.status_code == 200:
+                    manifest = retry_response.json()
+                    headers_dict = dict(retry_response.headers)
+                    return manifest, headers_dict
+                logger.error(
+                    "Failed to get manifest",
+                    status_code=retry_response.status_code,
+                )
+                return None, None
             else:
                 logger.error(
                     "Failed to get manifest",
@@ -704,6 +696,21 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
                 content = response.content
                 logger.debug("Downloaded blob", size_bytes=len(content))
                 return content
+            elif response.status_code in (401, 403):
+                # Retry without authentication for public containers
+                logger.debug(
+                    "Got 401/403, retrying without authentication",
+                    status_code=response.status_code,
+                )
+                temp_session = requests.Session()
+                retry_response = temp_session.get(url, stream=True)
+                if retry_response.status_code == 200:
+                    return retry_response.content
+                logger.error(
+                    "Failed to download blob",
+                    status_code=retry_response.status_code,
+                )
+                return None
             else:
                 logger.error(
                     "Failed to download blob",
@@ -725,13 +732,16 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
 class NvcrRegistryAuthenticator(RegistryAuthenticator):
     """NVIDIA Container Registry (nvcr.io) implementation using Docker Registry API v2."""
 
-    def __init__(self, registry_url: str, username: str, password: str):
+    def __init__(
+        self, registry_url: str, username: Optional[str] = None, password: Optional[str] = None
+    ):
         """Initialize the authenticator.
 
         Args:
             registry_url: The registry URL (e.g., 'nvcr.io')
-            username: Registry username (typically '$oauthtoken' for API key auth)
-            password: Registry password or API key
+            username: Registry username (typically '$oauthtoken' for API key auth).
+                Optional for anonymous access to public containers.
+            password: Registry password or API key. Optional for anonymous access to public containers.
         """
         self.registry_url = registry_url.rstrip("/")
         self.username = username
@@ -742,47 +752,35 @@ class NvcrRegistryAuthenticator(RegistryAuthenticator):
     def authenticate(self, repository: Optional[str] = None) -> bool:
         """Authenticate with nvcr.io using Docker Registry API v2 Bearer token flow.
 
+        Supports both authenticated and anonymous token requests for public containers.
+
         Args:
             repository: Optional repository name for authentication scope.
-                If provided, will be used in the token request scope.
 
         Returns:
             True if authentication successful, False otherwise
         """
         try:
-            logger.debug(
-                "Authenticating with nvcr.io registry",
-                registry_url=self.registry_url,
-            )
-
-            # Docker Registry API v2 authentication flow
-            # Step 1: Try to access /v2/ endpoint to get authentication challenge
+            # Get authentication challenge from /v2/ endpoint
             v2_url = f"https://{self.registry_url}/v2/"
-            logger.debug("Requesting authentication challenge", url=v2_url)
-
             response = self.session.get(v2_url)
 
-            # If we get 200, no auth needed (public registry)
             if response.status_code == 200:
-                logger.debug("Registry is public, no authentication needed")
                 return True
 
-            # If we get 401, parse WWW-Authenticate header
             if response.status_code != 401:
                 logger.error(
                     "Unexpected response from registry",
                     status_code=response.status_code,
-                    response_preview=response.text[:200],
                 )
                 return False
 
+            # Parse WWW-Authenticate header to get auth realm
             www_authenticate = response.headers.get("WWW-Authenticate", "")
             if not www_authenticate:
                 logger.error("No WWW-Authenticate header in 401 response")
                 return False
 
-            # Parse WWW-Authenticate header
-            # Format: Bearer realm="https://auth.example.com/token",service="registry.example.com",scope="repository:name:pull"
             auth_params = {}
             for part in www_authenticate.replace("Bearer ", "").split(","):
                 if "=" in part:
@@ -797,28 +795,27 @@ class NvcrRegistryAuthenticator(RegistryAuthenticator):
                 logger.error("No realm in WWW-Authenticate header")
                 return False
 
-            # Step 2: Request token from realm
+            # Request token - use credentials if available, otherwise try anonymous token
             token_url = realm
             params = {"service": service}
             if scope:
                 params["scope"] = scope
             elif repository:
-                # Construct scope if not provided
                 params["scope"] = f"repository:{repository}:pull"
 
-            logger.debug("Requesting Bearer token", token_url=token_url, params=params)
-
-            token_response = self.session.get(
-                token_url,
-                params=params,
-                auth=(self.username, self.password),
-            )
+            if self.username and self.password:
+                token_response = self.session.get(
+                    token_url, params=params, auth=(self.username, self.password)
+                )
+            else:
+                logger.debug("Requesting anonymous token for public container")
+                token_response = self.session.get(token_url, params=params)
 
             if token_response.status_code != 200:
                 logger.error(
                     "Token request failed",
                     status_code=token_response.status_code,
-                    response_preview=token_response.text[:200],
+                    has_credentials=bool(self.username and self.password),
                 )
                 return False
 
@@ -828,16 +825,8 @@ class NvcrRegistryAuthenticator(RegistryAuthenticator):
             )
 
             if not self.bearer_token:
-                logger.error(
-                    "No token in response",
-                    response_keys=list(token_data.keys()),
-                )
+                logger.error("No token in response")
                 return False
-
-            logger.debug(
-                "Authentication successful",
-                token_length=len(self.bearer_token) if self.bearer_token else 0,
-            )
 
             # Set up session with bearer token
             self.session.headers.update(
@@ -850,7 +839,7 @@ class NvcrRegistryAuthenticator(RegistryAuthenticator):
             return True
 
         except Exception as e:
-            logger.error("Authentication error", error=str(e), exc_info=True)
+            logger.error("Authentication error", error=str(e))
             return False
 
     def get_manifest(self, repository: str, reference: str) -> Optional[Dict]:
@@ -897,6 +886,26 @@ class NvcrRegistryAuthenticator(RegistryAuthenticator):
                     has_docker_content_digest="Docker-Content-Digest" in headers_dict,
                 )
                 return manifest, headers_dict
+            elif response.status_code in (401, 403):
+                # Retry without authentication for public containers
+                logger.debug(
+                    "Got 401/403, retrying without authentication",
+                    status_code=response.status_code,
+                )
+                temp_session = requests.Session()
+                temp_session.headers.update(
+                    {"Accept": "application/vnd.docker.distribution.manifest.v2+json"}
+                )
+                retry_response = temp_session.get(url)
+                if retry_response.status_code == 200:
+                    manifest = retry_response.json()
+                    headers_dict = dict(retry_response.headers)
+                    return manifest, headers_dict
+                logger.error(
+                    "Failed to get manifest",
+                    status_code=retry_response.status_code,
+                )
+                return None, None
             else:
                 logger.error(
                     "Failed to get manifest",
@@ -929,6 +938,21 @@ class NvcrRegistryAuthenticator(RegistryAuthenticator):
                 content = response.content
                 logger.debug("Downloaded blob", size_bytes=len(content))
                 return content
+            elif response.status_code in (401, 403):
+                # Retry without authentication for public containers
+                logger.debug(
+                    "Got 401/403, retrying without authentication",
+                    status_code=response.status_code,
+                )
+                temp_session = requests.Session()
+                retry_response = temp_session.get(url, stream=True)
+                if retry_response.status_code == 200:
+                    return retry_response.content
+                logger.error(
+                    "Failed to download blob",
+                    status_code=retry_response.status_code,
+                )
+                return None
             else:
                 logger.error(
                     "Failed to download blob",
@@ -1236,10 +1260,10 @@ def find_file_matching_pattern_in_image_layers(
     Raises:
         ValueError: If authentication fails or manifest cannot be retrieved
     """
-    # Authenticate if needed
+    # Authenticate if needed (but don't fail if it returns False - may work for public containers)
     if not getattr(authenticator, "bearer_token", None):
-        if not authenticator.authenticate(repository=repository):
-            raise ValueError(f"Failed to authenticate for {repository}:{reference}")
+        authenticator.authenticate(repository=repository)
+        # Don't fail here - authentication may fail but public containers can still be accessed
 
     # Get manifest with headers (required for digest validation)
     manifest, headers = authenticator.get_manifest_with_headers(repository, reference)
