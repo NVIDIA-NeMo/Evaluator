@@ -119,6 +119,21 @@ def evaluate(
             cmd = evaluation.render_command()
             run_command(cmd, verbose=True, propagate_errors=True)
             evaluation_result = parse_output(evaluation)
+
+            # In client mode, explicitly run post-eval hooks after command completes
+            # This ensures hooks run reliably from the parent process rather than
+            # depending on finalizers in the subprocess during interpreter shutdown
+            if target_cfg.api_endpoint and target_cfg.api_endpoint.adapter_config:
+                from nemo_evaluator.adapters.pipeline import AdapterPipeline
+
+                pipeline = AdapterPipeline(
+                    target_cfg.api_endpoint.adapter_config,
+                    evaluation.config.output_dir,
+                    target_cfg.api_endpoint.model_id,
+                )
+                pipeline.run_post_eval_hooks(url=target_cfg.api_endpoint.url or "")
+                logger.info("Post-eval hooks executed after client mode evaluation")
+
             return evaluation_result
         else:
             with AdapterServerProcess(evaluation):

@@ -417,7 +417,12 @@ For example: {framework_handlers[0]}.{evaluation_name}. "
             raw_framework_adapter_config
         )
 
-    return Evaluation(**merged_configuration)
+    evaluation = Evaluation(**merged_configuration)
+
+    # Store raw framework adapter_config for later use in validate_configuration
+    evaluation._raw_framework_adapter_config = raw_framework_adapter_config
+
+    return evaluation
 
 
 def check_type_compatibility(evaluation: Evaluation):
@@ -487,7 +492,7 @@ def validate_configuration(run_config: dict) -> Evaluation:
 
     # Remove adapter_config temporarily to prevent Pydantic from filtering unknown fields
     if (
-        user_adapter_config
+        user_adapter_config is not None
         and "target" in run_config
         and "api_endpoint" in run_config["target"]
     ):
@@ -506,10 +511,29 @@ def validate_configuration(run_config: dict) -> Evaluation:
         EvaluationTarget(**run_config_copy["target"]),
     )
 
-    # Merge user's adapter_config with framework defaults and convert to AdapterConfig object
-    if user_adapter_config:
+    # Get framework's adapter_config from the private attribute (stored as raw dict)
+    framework_adapter_config = getattr(
+        evaluation, "_raw_framework_adapter_config", None
+    )
+
+    # Merge framework adapter config with user adapter config and convert to AdapterConfig object
+    if user_adapter_config is not None or framework_adapter_config is not None:
+        from nemo_evaluator.core.utils import deep_update
+
+        # Start with framework defaults (may be None or {})
+        merged_adapter = (
+            framework_adapter_config.copy() if framework_adapter_config else {}
+        )
+
+        # Merge user overrides on top
+        if user_adapter_config is not None:
+            merged_adapter = deep_update(
+                merged_adapter, user_adapter_config, skip_nones=True
+            )
+
+        # Build eval_dict for AdapterConfig.get_validated_config
         eval_dict = evaluation.model_dump()
-        eval_dict["target"]["api_endpoint"]["adapter_config"] = user_adapter_config
+        eval_dict["target"]["api_endpoint"]["adapter_config"] = merged_adapter
 
         # Convert merged config (framework defaults + user overrides/legacy params) to AdapterConfig
         adapter_cfg_obj = AdapterConfig.get_validated_config(eval_dict)

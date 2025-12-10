@@ -167,6 +167,19 @@ class HttpxRequestWrapper:
     ) -> Dict[str, Any] | None:
         return self.json
 
+    @property
+    def path(self) -> str:
+        """Return the path component of the URL."""
+        return self._request.url.path
+
+    def get_data(self, as_text: bool = False) -> bytes | str:
+        """Get request body data, compatible with flask.Request.get_data()."""
+        if self._request.content:
+            if as_text:
+                return self._request.content.decode("utf-8", errors="ignore")
+            return self._request.content
+        return b"" if not as_text else ""
+
 
 class RequestsResponseWrapper:
     """Wrapper to make httpx.Response compatible with requests.Response interface."""

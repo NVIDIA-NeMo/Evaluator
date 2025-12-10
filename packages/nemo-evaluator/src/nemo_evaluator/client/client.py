@@ -17,7 +17,6 @@
 
 import asyncio
 import os
-import weakref
 from typing import Any, List, Optional
 
 from openai import AsyncOpenAI
@@ -87,21 +86,10 @@ class NeMoEvaluatorClient:
 
         self.semaphore = asyncio.Semaphore(self.parallelism)
 
-        # Register finalizer to ensure post-eval hooks run even if user forgets to close
-        # This is a safety net - using context manager (async with) is still recommended
-        def cleanup_hooks(transport_ref):
-            """Run post-eval hooks on object destruction if not already run."""
-            transport = transport_ref()
-            if transport is not None:
-                try:
-                    transport.run_post_eval_hooks()
-                    logger.info("Post-eval hooks executed via finalizer")
-                except Exception as e:
-                    logger.error(f"Failed to run post-eval hooks in finalizer: {e}")
-
-        self._finalizer = weakref.finalize(
-            self, cleanup_hooks, weakref.ref(self.adapter_transport)
-        )
+        # Note: When used via evaluate() in client mode, post-eval hooks are run
+        # explicitly by the parent process after evaluation completes.
+        # When used directly (e.g., in notebooks), users should use the context manager
+        # or call aclose() explicitly to ensure hooks run.
 
     async def _retry_with_backoff(self, func, *args, **kwargs):
         """Execute function with retry logic and exponential backoff."""

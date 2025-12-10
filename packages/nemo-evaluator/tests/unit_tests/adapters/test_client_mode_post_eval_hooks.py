@@ -338,8 +338,8 @@ async def test_post_eval_hook_error_handling(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_post_eval_hooks_run_via_finalizer(tmp_path):
-    """Test that post-eval hooks run even when user forgets to close the client."""
+async def test_post_eval_hooks_require_explicit_close(tmp_path):
+    """Test that post-eval hooks require explicit close - no automatic finalizer."""
     output_file = tmp_path / "finalizer_test.txt"
 
     # Start fake endpoint
@@ -367,20 +367,21 @@ async def test_post_eval_hooks_run_via_finalizer(tmp_path):
 
         await client.chat_completion(messages=[{"role": "user", "content": "Test"}])
 
-        # Delete the client without calling aclose() - finalizer should trigger
+        # Delete the client without calling aclose()
         del client
 
-        # Force garbage collection to trigger finalizer
+        # Force garbage collection
         import gc
 
         gc.collect()
-
-        # Give finalizer a moment to run
         await asyncio.sleep(0.1)
 
-        # Hook should have been executed via finalizer
-        assert output_file.exists(), "Post-eval hook should run via finalizer"
-        assert output_file.read_text() == "Hook executed via finalizer"
+        # Hook should NOT have been executed (no finalizer anymore)
+        # When used via evaluate() in client mode, hooks are run by parent process
+        # When used directly, users must use context manager or call aclose()
+        assert not output_file.exists(), (
+            "Post-eval hook should not run without explicit close"
+        )
 
     finally:
         # Clean up fake endpoint
@@ -389,8 +390,8 @@ async def test_post_eval_hooks_run_via_finalizer(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_post_eval_hooks_run_only_once(tmp_path):
-    """Test that post-eval hooks run only once even with both aclose() and finalizer."""
+async def test_post_eval_hooks_run_once_via_context_manager(tmp_path):
+    """Test that post-eval hooks run exactly once when using context manager."""
     call_count_file = tmp_path / "call_count.txt"
 
     # Start fake endpoint
@@ -421,7 +422,7 @@ async def test_post_eval_hooks_run_only_once(tmp_path):
             await client.chat_completion(messages=[{"role": "user", "content": "Test"}])
         # aclose() called here, which should run hooks
 
-        # Force garbage collection (finalizer should NOT run hooks again)
+        # Force garbage collection (no finalizer, so hooks won't run again)
         import gc
 
         gc.collect()

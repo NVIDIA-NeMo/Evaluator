@@ -537,7 +537,7 @@ class TestAdapterConfigMergeFlow:
                 ic for ic in adapter_config.interceptors if ic.name == "caching"
             )
             assert caching_interceptor.config.get("reuse_cached_responses") is True
-            assert caching_interceptor.config.get("max_saved_requests") == 1
+            assert caching_interceptor.config.get("max_saved_requests") == 5
 
 
 class TestAdapterConfigLegacyConversion:
