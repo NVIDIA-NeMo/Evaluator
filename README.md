@@ -56,8 +56,7 @@ NeMo Evaluator Launcher provides pre-built evaluation containers for different e
 | **vlmevalkit** | Vision-language model evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit) | `25.11` | AI2D, ChartQA, MMMU, MathVista-MINI, OCRBench, SlideVQA |
 
 <!-- BEGIN AUTOGENERATION -->
-<!-- BEGIN AUTOGENERATION -->
-<!-- mapping toml checksum: sha256:8dd63e7a829ef6dc57c961b3728a49624a4c5faa168b850c451a6bfa41910dc8 -->
+<!-- mapping toml checksum: sha256:08617422e51af4fc77abe97874ab8f25046bf74ce4350cf836b88fc921367042 -->
 <!--
 | Container | Description | NGC Catalog | Latest Tag | Supported benchmarks |
 |-----------|-------------|-------------|------------| ------------|
@@ -78,12 +77,6 @@ NeMo Evaluator Launcher provides pre-built evaluation containers for different e
 | **tooltalk** | ToolTalk task with default settings. | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk?version=25.11) | `25.11` | tooltalk |
 | **vlmevalkit** | A benchmark for evaluating diagram understanding capabilities of large vision-language models. | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit?version=25.11) | `25.11` | ai2d_judge, chartqa, mathvista-mini, mmmu_judge, ocrbench, ocr_reasoning, slidevqa |
 -->
-<!-- END AUTOGENERATION -->
-<!-- END AUTOGENERATION -->
-<!-- END AUTOGENERATION -->
-<!-- END AUTOGENERATION -->
-<!-- END AUTOGENERATION -->
-<!-- END AUTOGENERATION -->
 <!-- END AUTOGENERATION -->
 
 ## 🚀 Quickstart
