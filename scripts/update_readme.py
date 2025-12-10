@@ -207,10 +207,14 @@ def update_readme_table(readme_path: pathlib.Path, table_content: str) -> None:
         raise ValueError("BEGIN marker appears after END marker in README.md")
 
     # Replace the content between markers
-    before = content[: begin_match.end()]
-    after = content[end_match.start() :]
+    # Extract everything BEFORE the BEGIN tag (not including it)
+    before = content[: begin_match.start()]
+    # Extract everything AFTER the END tag (not including it)
+    # table_content already includes BEGIN and END tags, so we exclude them from before/after
+    after = content[end_match.end() :]
 
-    new_content = before + "\n" + table_content + "\n" + after
+    # table_content already includes BEGIN and END tags, so just insert it
+    new_content = before + table_content + after
 
     with open(readme_path, "w", encoding="utf-8") as f:
         f.write(new_content)
