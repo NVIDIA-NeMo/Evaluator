@@ -418,6 +418,29 @@ class RegistryAuthenticator(ABC):
         """
         pass
 
+    def get_manifest_with_headers(
+        self, repository: str, reference: str
+    ) -> Tuple[Optional[Dict], Optional[Dict[str, str]]]:
+        """Get the manifest for a specific image reference along with HTTP response headers.
+
+        This method returns both the manifest and the response headers, which allows
+        callers to access the Docker-Content-Digest header directly from the registry
+        instead of recomputing it from the manifest JSON.
+
+        Args:
+            repository: The repository name
+            reference: The tag or digest
+
+        Returns:
+            Tuple of (manifest dictionary, response headers dictionary).
+            Returns (None, None) if failed. Headers dictionary may be None if
+            the underlying implementation doesn't provide headers.
+        """
+        manifest = self.get_manifest(repository, reference)
+        # Default implementation doesn't have access to headers
+        # Subclasses should override this method to return headers
+        return manifest, None
+
     @abstractmethod
     def get_blob(self, repository: str, digest: str) -> Optional[bytes]:
         """Download a blob (layer) by its digest.
@@ -615,6 +638,22 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
         Returns:
             The manifest as a dictionary, or None if failed
         """
+        manifest, _ = self.get_manifest_with_headers(repository, reference)
+        return manifest
+
+    def get_manifest_with_headers(
+        self, repository: str, reference: str
+    ) -> Tuple[Optional[Dict], Optional[Dict[str, str]]]:
+        """Get the manifest for a specific image reference along with HTTP response headers.
+
+        Args:
+            repository: The repository name
+            reference: The tag or digest
+
+        Returns:
+            Tuple of (manifest dictionary, response headers dictionary).
+            Returns (None, None) if failed.
+        """
         try:
             url = f"https://{self.registry_url}/v2/{repository}/manifests/{reference}"
             logger.debug("Fetching manifest", url=url)
@@ -623,24 +662,27 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
 
             if response.status_code == 200:
                 manifest = response.json()
+                # Convert headers to a dictionary (requests headers are case-insensitive)
+                headers_dict = dict(response.headers)
                 logger.debug(
                     "Successfully retrieved manifest",
                     schema_version=manifest.get("schemaVersion", "unknown"),
                     media_type=manifest.get("mediaType", "unknown"),
                     layers_count=len(manifest.get("layers", [])),
+                    has_docker_content_digest="Docker-Content-Digest" in headers_dict,
                 )
-                return manifest
+                return manifest, headers_dict
             else:
                 logger.error(
                     "Failed to get manifest",
                     status_code=response.status_code,
                     response_preview=response.text[:200],
                 )
-                return None
+                return None, None
 
         except Exception as e:
             logger.error("Error fetching manifest", error=str(e), exc_info=True)
-            return None
+            return None, None
 
     def get_blob(self, repository: str, digest: str) -> Optional[bytes]:
         """Download a blob (layer) by its digest.
@@ -821,6 +863,22 @@ class NvcrRegistryAuthenticator(RegistryAuthenticator):
         Returns:
             The manifest as a dictionary, or None if failed
         """
+        manifest, _ = self.get_manifest_with_headers(repository, reference)
+        return manifest
+
+    def get_manifest_with_headers(
+        self, repository: str, reference: str
+    ) -> Tuple[Optional[Dict], Optional[Dict[str, str]]]:
+        """Get the manifest for a specific image reference along with HTTP response headers.
+
+        Args:
+            repository: The repository name
+            reference: The tag or digest
+
+        Returns:
+            Tuple of (manifest dictionary, response headers dictionary).
+            Returns (None, None) if failed.
+        """
         try:
             url = f"https://{self.registry_url}/v2/{repository}/manifests/{reference}"
             logger.debug("Fetching manifest", url=url)
@@ -829,24 +887,27 @@ class NvcrRegistryAuthenticator(RegistryAuthenticator):
 
             if response.status_code == 200:
                 manifest = response.json()
+                # Convert headers to a dictionary (requests headers are case-insensitive)
+                headers_dict = dict(response.headers)
                 logger.debug(
                     "Successfully retrieved manifest",
                     schema_version=manifest.get("schemaVersion", "unknown"),
                     media_type=manifest.get("mediaType", "unknown"),
                     layers_count=len(manifest.get("layers", [])),
+                    has_docker_content_digest="Docker-Content-Digest" in headers_dict,
                 )
-                return manifest
+                return manifest, headers_dict
             else:
                 logger.error(
                     "Failed to get manifest",
                     status_code=response.status_code,
                     response_preview=response.text[:200],
                 )
-                return None
+                return None, None
 
         except Exception as e:
             logger.error("Error fetching manifest", error=str(e), exc_info=True)
-            return None
+            return None, None
 
     def get_blob(self, repository: str, digest: str) -> Optional[bytes]:
         """Download a blob (layer) by its digest.
@@ -1180,16 +1241,39 @@ def find_file_matching_pattern_in_image_layers(
         if not authenticator.authenticate(repository=repository):
             raise ValueError(f"Failed to authenticate for {repository}:{reference}")
 
-    # Get manifest (required for digest validation)
-    manifest = authenticator.get_manifest(repository, reference)
+    # Get manifest with headers (required for digest validation)
+    manifest, headers = authenticator.get_manifest_with_headers(repository, reference)
     if not manifest:
         raise ValueError(f"Failed to get manifest for {repository}:{reference}")
 
-    # Compute manifest digest for cache validation
-    manifest_json = json.dumps(manifest, sort_keys=True, separators=(",", ":"))
-    manifest_digest = (
-        f"sha256:{hashlib.sha256(manifest_json.encode('utf-8')).hexdigest()}"
-    )
+    # Get actual digest from Docker-Content-Digest header if available
+    manifest_digest = None
+    if headers:
+        # Look for Docker-Content-Digest header (case-insensitive)
+        for header_name, header_value in headers.items():
+            if header_name.lower() == "docker-content-digest":
+                manifest_digest = header_value
+                break
+
+    # Fallback: Compute manifest digest (SHA256 of canonical JSON)
+    # This may not match the registry's digest if JSON serialization differs
+    if not manifest_digest:
+        logger.debug(
+            "Docker-Content-Digest header not available, computing digest from manifest",
+            repository=repository,
+            reference=reference,
+        )
+        manifest_json = json.dumps(manifest, sort_keys=True, separators=(",", ":"))
+        manifest_digest = (
+            f"sha256:{hashlib.sha256(manifest_json.encode('utf-8')).hexdigest()}"
+        )
+    else:
+        logger.debug(
+            "Using Docker-Content-Digest header from registry",
+            repository=repository,
+            reference=reference,
+            digest=manifest_digest,
+        )
 
     # Check cache with digest validation (always validates digest)
     # For pattern searches, use pattern-based cache key (not resolved path)

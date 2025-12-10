@@ -63,6 +63,9 @@ class Cmd:
         """Execute the ls task command."""
         import pathlib
 
+        # Initialize tasks_path to None - it will be set when loading from file
+        tasks_path = None
+
         # If --from is provided, load tasks from container
         if self.from_container:
             from nemo_evaluator_launcher.common.task_loader import (
@@ -99,7 +102,6 @@ class Cmd:
             mapping_verified = True  # Tasks from container are always verified
         else:
             # Default behavior: load from all_tasks_irs.yaml
-            tasks_path = None
             if self.tasks_file:
                 tasks_path = pathlib.Path(self.tasks_file)
                 if not tasks_path.exists():

@@ -22,7 +22,7 @@
 
 [lm-evaluation-harness]
 container = "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11"
-# container-digest:sha256:e14fe5dfef7b4a3d4b307dc8e23381ac342516a43f822f54159555d574e9b5d7
+# container-digest:sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
 
 [lm-evaluation-harness.tasks.chat.ifeval]
 required_env_vars = []
@@ -162,7 +162,7 @@ required_env_vars = []
 # NOTE(agronskiy): checked parity
 [mtbench]
 container = "nvcr.io/nvidia/eval-factory/mtbench:25.11"
-# container-digest:sha256:057cec7f1928b6bf84943f97ee73c184a90497982796878ed9d3945cf7cf2463
+# container-digest:sha256:9c5921eea094249070e0703e2ad98a6062a063440d8ee6fb13b71dd2ed5856a3
 
 [mtbench.tasks.chat.mtbench]
 
@@ -173,7 +173,7 @@ container = "nvcr.io/nvidia/eval-factory/mtbench:25.11"
 # NOTE(agronskiy): checked parity
 [ifbench]
 container = "nvcr.io/nvidia/eval-factory/ifbench:25.11"
-# container-digest:sha256:e116972dc8ad4b0cfc6bc8fa54a8eaa232c453a69cb1cbe3b4c3b674d68a14f9
+# container-digest:sha256:553d6e3570bbc9b74e44e71ae52ec207961f75386c20301cd7b2e02c6d08b419
 
 [ifbench.tasks.chat.ifbench]
 required_env_vars = []
@@ -182,7 +182,7 @@ required_env_vars = []
 ###############################################################################
 [simple_evals]
 container = "nvcr.io/nvidia/eval-factory/simple-evals:25.11"
-# container-digest:sha256:b094b89f5a7258820ca23ef7020e5b1484a9b27f8c5cd9636d0479c049f0ba1d
+# container-digest:sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
 
 [simple_evals.tasks.chat.gpqa_diamond]
 required_env_vars = ["HF_TOKEN"]
@@ -254,7 +254,7 @@ required_env_vars = []
 # NOTE(agronskiy): checked parity
 [bigcode-evaluation-harness]
 container = "nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11"
-# container-digest:sha256:fc34efe95cb18377b697a6e9a87ae8706dba37a1c7f690a58d22c52bfacf23d1
+# container-digest:sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
 
 [bigcode-evaluation-harness.tasks.chat.mbpp]
 required_env_vars = []
@@ -273,7 +273,7 @@ required_env_vars = []
 ###############################################################################
 [livecodebench]
 container = "nvcr.io/nvidia/eval-factory/livecodebench:25.11"
-# container-digest:sha256:2aa133755bb408bd94f931c5797a46e0fa80ea3161a46caefd1649aa567c8b66
+# container-digest:sha256:57b283ae68f10d2f93e7424675685cc2c864761c99c8bb586daecf2e2df0b74e
 
 [livecodebench.tasks.chat.livecodebench_0724_0125]
 required_env_vars = []
@@ -285,7 +285,7 @@ required_env_vars = []
 ###############################################################################
 [scicode]
 container = "nvcr.io/nvidia/eval-factory/scicode:25.11"
-# container-digest:sha256:0b1aeb52d2231ded3d3a005333997b95981c01c64db101ca2fe35695e8b532bb
+# container-digest:sha256:1497f7ae09aecc4a47d28e86952425ad04a10d3ece7b737214cb9f20e4f5d290
 
 [scicode.tasks.chat.scicode_aa_v2]
 required_env_vars = []
@@ -294,7 +294,7 @@ required_env_vars = []
 ###############################################################################
 [hle]
 container = "nvcr.io/nvidia/eval-factory/hle:25.11"
-# container-digest:sha256:98117c3a5c21bf61a68eb7cf7c4e4881a18b9da89325f51d87110e9273f53a58
+# container-digest:sha256:f6d3dc75b49ad6b382a03e63f9906e4e1114c1a0a2554142c54d2a310cc067d3
 
 [hle.tasks.chat.hle]
 required_env_vars = ["HF_TOKEN", "OPENAI_CLIENT_ID", "OPENAI_CLIENT_SECRET"]
@@ -303,7 +303,7 @@ required_env_vars = ["HF_TOKEN", "OPENAI_CLIENT_ID", "OPENAI_CLIENT_SECRET"]
 ###############################################################################
 [bfcl]
 container = "nvcr.io/nvidia/eval-factory/bfcl:25.11"
-# container-digest:sha256:79038a60e720557a403aad772943c4a03ffb4ffbd9406afd8ab6a5a190ffc4e3
+# container-digest:sha256:4b52880ec50ef4eb6f57d5daab9dbe8cf6b69e9ef38865884e44dabc05ebdda0
 
 [bfcl.tasks.chat.bfclv2_ast_prompting]
 required_env_vars = []
@@ -315,7 +315,7 @@ required_env_vars = []
 ###############################################################################
 [profbench]
 container = "nvcr.io/nvidia/eval-factory/profbench:25.11"
-# container-digest:sha256:7e07d7758c55aaf9a341941b3eb1e5b37d50ee48a710af58916c35597de15256
+# container-digest:sha256:235e98c9fa80c9609aa61c607ae3088a5e046c9e1bed401d737190635958a109
 
 [profbench.tasks.chat.llm_judge]
 required_env_vars = []
@@ -327,7 +327,7 @@ required_env_vars = []
 ###############################################################################
 [vlmevalkit]
 container = "nvcr.io/nvidia/eval-factory/vlmevalkit:25.11"
-# container-digest:sha256:ef22dbb3056032735b3e9f31d5c6c28e2af6e5b12b00fff3f5934345c60be17f
+# container-digest:sha256:647f7c9569139087dcd56835841004e5a8a4096cea98ab7bdb6b657e89517f22
 
 [vlmevalkit.tasks.vlm.ocrbench]
 required_env_vars = []
@@ -345,7 +345,7 @@ required_env_vars = ["OPENAI_CLIENT_ID", "OPENAI_CLIENT_SECRET"]
 ###############################################################################
 [garak]
 container = "nvcr.io/nvidia/eval-factory/garak:25.11"
-# container-digest:sha256:b2f476c52cc3e188f4317dc6da380269d74ede895d86dd6a3e60bb78a3fbfb12
+# container-digest:sha256:40a00456268b0b993cd66565c6077a55a96239e9d3ae5d61d39d62c9f79cbca9
 
 [garak.tasks.chat.garak]
 required_env_vars = []
@@ -354,7 +354,7 @@ required_env_vars = []
 # NOTE(wprazuch): to verify if the tasks need any env var setting
 [nemo_skills]
 container = "nvcr.io/nvidia/eval-factory/nemo_skills:25.11"
-# container-digest:sha256:f8269f1c6662017e60dd116b9f462db98349d9715214d6d6055fffd2ab12978d
+# container-digest:sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
 
 [nemo_skills.tasks.chat.ns_aime2024]
 
@@ -395,7 +395,7 @@ required_env_vars = ["JUDGE_API_KEY"]
 ###############################################################################
 [safety-harness]
 container = "nvcr.io/nvidia/eval-factory/safety-harness:25.11"
-# container-digest:sha256:5e2eec51a9ef5c8900849197956c0cbf547fc177f3aa64dacc4373d9fc541a06
+# container-digest:sha256:a0fa5d24c6e66fc4ead85de3823eece8395adbf2b3f111c2c2eca05759fa34df
 
 [safety-harness.tasks.chat.aegis_v2]
 required_env_vars = ["HF_TOKEN"]
@@ -405,7 +405,7 @@ required_env_vars = ["HF_TOKEN"]
 # NOTE(agronskiy): checked parity
 [helm]
 container = "nvcr.io/nvidia/eval-factory/helm:25.11"
-# container-digest:sha256:a07bcdf0e6436cd7c4d4cd8591827a669c8e223da60dbce35d4eee3fdbcc73bd
+# container-digest:sha256:98b69c8fb91ae0de7c9d4583e9555da8fbe498640003b62b1035f76105b6611b
 
 [helm.tasks.chat.medcalc_bench]
 
@@ -442,6 +442,6 @@ container = "nvcr.io/nvidia/eval-factory/helm:25.11"
 # NOTE(agronskiy): checked parity
 [tooltalk]
 container = "nvcr.io/nvidia/eval-factory/tooltalk:25.11"
-# container-digest:sha256:008c039d34e6e9efebdca52efa3ff1b484a4c88da526b855a0c0773eaf2ba7d0
+# container-digest:sha256:154fa634104e0b7e488df21e0dadc155ebc6b14148205ef00ede3fefb3f8157a
 
 [tooltalk.tasks.chat.tooltalk]

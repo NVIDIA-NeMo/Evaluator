@@ -76,53 +76,6 @@ from nemo_evaluator_launcher.common.task_ir import (
 MAX_DIGEST_COMMENT_OFFSET_LINES = 4
 
 
-def parse_container_image(container_image: str) -> tuple[str, str, str, str]:
-    """Parse a container image string into registry type, registry URL, repository, and tag.
-
-    Args:
-        container_image: Container image string (e.g., "nvcr.io/nvidia/eval-factory/simple-evals:25.10")
-
-    Returns:
-        Tuple of (registry_type, registry_url, repository, tag)
-    """
-    # Split tag from image
-    if ":" in container_image:
-        image_part, tag = container_image.rsplit(":", 1)
-    else:
-        image_part = container_image
-        tag = "latest"
-
-    # Parse registry and repository
-    parts = image_part.split("/")
-    if len(parts) < 2:
-        raise ValueError(f"Invalid container image format: {container_image}")
-
-    # Check if first part is a registry (contains '.' or is 'localhost')
-    if "." in parts[0] or parts[0] == "localhost":
-        registry_host = parts[0]
-        # Determine registry type
-        if "gitlab" in registry_host.lower():
-            registry_type = "gitlab"
-        elif "nvcr.io" in registry_host:
-            registry_type = "nvcr"
-        else:
-            registry_type = "nvcr"  # Default to nvcr for other registries
-
-        # Check if registry has a port
-        if ":" in registry_host:
-            registry_url = registry_host
-        else:
-            registry_url = registry_host
-        repository = "/".join(parts[1:])
-    else:
-        # Default registry (Docker Hub)
-        registry_type = "nvcr"
-        registry_url = "registry-1.docker.io"
-        repository = image_part
-
-    return registry_type, registry_url, repository, tag
-
-
 def create_authenticator(
     registry_type: str, registry_url: str, repository: str
 ) -> RegistryAuthenticator:
@@ -239,6 +192,9 @@ def get_container_digest(
 ) -> Optional[str]:
     """Get the manifest digest for a container image.
 
+    Uses the Docker-Content-Digest header from the registry response if available,
+    falling back to computing the digest from the manifest JSON if the header is absent.
+
     Args:
         authenticator: Registry authenticator instance
         repository: Repository name
@@ -248,11 +204,37 @@ def get_container_digest(
         Container digest (sha256:...) or None if failed
     """
     try:
-        manifest = authenticator.get_manifest(repository, reference)
+        manifest, headers = authenticator.get_manifest_with_headers(
+            repository, reference
+        )
         if not manifest:
             return None
 
-        # Compute manifest digest (SHA256 of canonical JSON)
+        # Try to use Docker-Content-Digest header from registry response
+        # This matches the registry's computed digest exactly
+        if headers:
+            # Look for Docker-Content-Digest header (case-insensitive)
+            docker_content_digest = None
+            for header_name, header_value in headers.items():
+                if header_name.lower() == "docker-content-digest":
+                    docker_content_digest = header_value
+                    break
+            if docker_content_digest:
+                logger.debug(
+                    "Using Docker-Content-Digest header from registry",
+                    repository=repository,
+                    reference=reference,
+                    digest=docker_content_digest,
+                )
+                return docker_content_digest
+
+        # Fallback: Compute manifest digest (SHA256 of canonical JSON)
+        # This may not match the registry's digest if JSON serialization differs
+        logger.debug(
+            "Docker-Content-Digest header not available, computing digest from manifest",
+            repository=repository,
+            reference=reference,
+        )
         manifest_json = json.dumps(manifest, sort_keys=True, separators=(",", ":"))
         manifest_digest = (
             f"sha256:{hashlib.sha256(manifest_json.encode('utf-8')).hexdigest()}"

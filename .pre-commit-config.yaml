@@ -79,17 +79,6 @@ repos:
         entry: python scripts/check_readme_checksum.py
         files: (README\.md|mapping\.toml)$
         pass_filenames: false
-      - id: check-container-digests
-        name: "Check container digests in mapping.toml"
-        language: system
-        entry: |
-          bash -c '
-            # Install tomli if Python < 3.11 (tomllib is stdlib in 3.11+)
-            python3 -c "import sys; exit(0 if sys.version_info >= (3, 11) else 1)" 2>/dev/null || python3 -m pip install --quiet --user tomli 2>/dev/null || true
-            python3 scripts/check_container_digests.py
-          '
-        files: mapping\.toml$
-        pass_filenames: false
       - id: check-all-tasks-irs-checksum
         name: "Check all_tasks_irs.yaml checksum matches mapping.toml"
         language: system
