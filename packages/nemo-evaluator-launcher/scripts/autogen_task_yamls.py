@@ -26,12 +26,12 @@ from collections import defaultdict
 
 import yaml
 
-from nemo_evaluator_launcher.common.logging_utils import logger
-from nemo_evaluator_launcher.common.task_ir import (
+from nemo_evaluator_launcher.common.container_metadata import (
     HarnessIntermediateRepresentation,
     TaskIntermediateRepresentation,
     load_tasks_from_tasks_file,
 )
+from nemo_evaluator_launcher.common.logging_utils import logger
 
 
 def find_repo_root(start_path: pathlib.Path) -> pathlib.Path:
@@ -617,7 +617,7 @@ Examples:
             message=(
                 "all_tasks_irs.yaml is out of sync with mapping.toml. "
                 "Please regenerate all_tasks_irs.yaml by running: "
-                "python packages/nemo-evaluator-launcher/scripts/load_framework_definitions.py"
+                "python scripts/container_metadata_controller.py update"
             ),
         )
         sys.exit(1)

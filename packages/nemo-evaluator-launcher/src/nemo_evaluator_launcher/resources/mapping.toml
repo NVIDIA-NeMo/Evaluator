@@ -6,7 +6,7 @@
 #    |
 #    |
 #    v
-# scripts/load_framework_definitions.py
+# scripts/container_metadata_controller.py
 # (updates the toml
 #  AND
 # creates the resources/all_tasks_irs,
@@ -16,7 +16,7 @@
 #    |            ------------------->    make docs-build
 #    |                                  (builds docs on the fly)
 #    v
-# scripts/update_readme.py
+# scripts/container_metadata_controller.py
 # (updates README, records checksum)           <----- pre-commit guard: checks TOML checksum
 #
 
@@ -72,7 +72,7 @@ container = "nvcr.io/nvidia/eval-factory/garak:25.11"
 container = "nvcr.io/nvidia/eval-factory/nemo_skills:25.11"
 # container-digest:sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
 
-[safety-harness]
+[safety_eval]
 container = "nvcr.io/nvidia/eval-factory/safety-harness:25.11"
 # container-digest:sha256:a0fa5d24c6e66fc4ead85de3823eece8395adbf2b3f111c2c2eca05759fa34df
 

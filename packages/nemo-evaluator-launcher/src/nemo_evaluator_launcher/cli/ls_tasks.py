@@ -47,7 +47,7 @@ class Cmd:
 
         if self.from_container:
             # Load tasks from container
-            from nemo_evaluator_launcher.common.task_loader import (
+            from nemo_evaluator_launcher.common.container_metadata import (
                 load_tasks_from_container,
             )
 

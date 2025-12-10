@@ -21,6 +21,10 @@ from dataclasses import dataclass
 import yaml
 from simple_parsing import field
 
+from nemo_evaluator_launcher.common.container_metadata import (
+    TaskIntermediateRepresentation,
+    load_tasks_from_tasks_file,
+)
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.mapping import load_tasks_mapping
 from nemo_evaluator_launcher.common.printing_utils import (
@@ -28,10 +32,6 @@ from nemo_evaluator_launcher.common.printing_utils import (
     cyan,
     magenta,
     yellow,
-)
-from nemo_evaluator_launcher.common.task_ir import (
-    TaskIntermediateRepresentation,
-    load_tasks_from_tasks_file,
 )
 
 
@@ -68,7 +68,7 @@ class Cmd:
 
         # If --from is provided, load tasks from container
         if self.from_container:
-            from nemo_evaluator_launcher.common.task_loader import (
+            from nemo_evaluator_launcher.common.container_metadata import (
                 load_tasks_from_container,
             )
 
