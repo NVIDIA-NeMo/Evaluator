@@ -26,11 +26,11 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-from nemo_evaluator_launcher.common.logging_utils import logger
-from nemo_evaluator_launcher.common.task_ir import (
+from nemo_evaluator_launcher.common.container_metadata import (
     TaskIntermediateRepresentation,
     load_tasks_from_tasks_file,
 )
+from nemo_evaluator_launcher.common.logging_utils import logger
 
 # Configuration constants
 CACHE_FILENAME = "mapping.toml"

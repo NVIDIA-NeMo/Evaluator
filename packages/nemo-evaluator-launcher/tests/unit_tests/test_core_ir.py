@@ -25,9 +25,11 @@ import importlib.resources
 import pytest
 import yaml
 
-from nemo_evaluator_launcher.common.task_ir import (
-    _calculate_mapping_checksum,
+from nemo_evaluator_launcher.common.container_metadata import (
     load_tasks_from_tasks_file,
+)
+from nemo_evaluator_launcher.common.container_metadata.intermediate_repr import (
+    _calculate_mapping_checksum,
 )
 
 
@@ -213,5 +215,5 @@ def test_packaged_mapping_toml_checksum_match():
         f"  current (mapping.toml): {current_checksum}\n"
         f"This means mapping.toml was changed but all_tasks_irs.yaml wasn't regenerated.\n"
         f"Please regenerate all_tasks_irs.yaml by running:\n"
-        f"  python packages/nemo-evaluator-launcher/scripts/load_framework_definitions.py"
+        f"  python scripts/container_metadata_controller.py update"
     )

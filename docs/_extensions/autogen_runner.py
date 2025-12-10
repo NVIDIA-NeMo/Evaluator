@@ -145,7 +145,7 @@ def run_autogen_script(
                     "=" * 80,
                     "To fix this issue:",
                     "1. Ensure all_tasks_irs.yaml is up to date by running:",
-                    "   python packages/nemo-evaluator-launcher/scripts/load_framework_definitions.py",
+                    "   python scripts/container_metadata_controller.py update",
                     "2. Check that all required dependencies are installed",
                     "3. Verify the autogen script can run independently",
                     "=" * 80,

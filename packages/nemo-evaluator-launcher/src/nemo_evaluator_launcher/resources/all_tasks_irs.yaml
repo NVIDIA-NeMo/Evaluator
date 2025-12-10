@@ -1,5 +1,5 @@
 metadata:
-  mapping_toml_checksum: sha256:a6c3a0f05b9d1a417971565f7681259f0a1aa304c88066a258662b6a5ae035c8
+  mapping_toml_checksum: sha256:6f19bf7fcdd2f5b1cd8505a25f666bc4067d2dd0e0d891f2dffce3bfd2ef7e42
   num_tasks: 306
 tasks:
 - name: mmlu
@@ -6330,7 +6330,7 @@ tasks:
         stream: false
 - name: AIME_2025
   description: AIME 2025 questions, math
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -6402,7 +6402,7 @@ tasks:
       api_endpoint: {}
 - name: AIME_2024
   description: AIME 2024 questions, math
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -6473,7 +6473,7 @@ tasks:
       api_endpoint: {}
 - name: AA_AIME_2024
   description: AIME 2024 questions, math, using Artificial Analysis's setup.
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -6545,7 +6545,7 @@ tasks:
       api_endpoint: {}
 - name: AA_math_test_500
   description: Open Ai math test 500, using Artificial Analysis's setup.
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -6617,7 +6617,7 @@ tasks:
       api_endpoint: {}
 - name: math_test_500
   description: Open AI math test 500
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -6689,7 +6689,7 @@ tasks:
 - name: mgsm
   description: MGSM is a benchmark of grade-school math problems. The same 250 problems
     from GSM8K are each translated via human annotators in 10 languages.
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -6764,7 +6764,7 @@ tasks:
     It consists of 164 original programming problems, assessing language comprehension,
     algorithms, and simple mathematics, with some comparable to simple software interview
     questions.
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -6838,7 +6838,7 @@ tasks:
   description: HumanEvalPlus is a dataset of 164 programming problems, assessing language
     comprehension, algorithms, and simple mathematics, with some comparable to simple
     software interview questions.
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -6912,7 +6912,7 @@ tasks:
   description: MMLU-Pro dataset is a more robust and challenging massive multi-task
     understanding dataset tailored to more rigorously benchmark large language models'
     capabilities. This dataset contains 12K complex questions across various disciplines.
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -6983,7 +6983,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_am
   description: Global-MMLU 0-shot CoT in Amharic (am)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -7054,7 +7054,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_ar
   description: Global-MMLU 0-shot CoT in Arabic (ar)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -7125,7 +7125,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_bn
   description: Global-MMLU 0-shot CoT in Bengali (bn)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -7196,7 +7196,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_cs
   description: Global-MMLU 0-shot CoT in Czech (cs)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -7267,7 +7267,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_de
   description: Global-MMLU 0-shot CoT in German (de)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -7338,7 +7338,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_el
   description: Global-MMLU 0-shot CoT in Greek (el)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -7409,7 +7409,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_en
   description: Global-MMLU 0-shot CoT in English (en)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -7480,7 +7480,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_es
   description: Global-MMLU 0-shot CoT in Spanish (es)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -7551,7 +7551,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_fa
   description: Global-MMLU 0-shot CoT in Persian (fa)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -7622,7 +7622,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_fil
   description: Global-MMLU 0-shot CoT in Filipino (fil)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -7693,7 +7693,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_fr
   description: Global-MMLU 0-shot CoT in French (fr)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -7764,7 +7764,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_ha
   description: Global-MMLU 0-shot CoT in Hausa (ha)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -7835,7 +7835,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_he
   description: Global-MMLU 0-shot CoT in Hebrew (he)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -7906,7 +7906,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_hi
   description: Global-MMLU 0-shot CoT in Hindi (hi)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -7977,7 +7977,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_id
   description: Global-MMLU 0-shot CoT in Indonesian (id)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -8048,7 +8048,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_ig
   description: Global-MMLU 0-shot CoT in Igbo (ig)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -8119,7 +8119,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_it
   description: Global-MMLU 0-shot CoT in Italian (it)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -8190,7 +8190,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_ja
   description: Global-MMLU 0-shot CoT in Japanese (ja)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -8261,7 +8261,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_ko
   description: Global-MMLU 0-shot CoT in Korean (ko)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -8332,7 +8332,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_ky
   description: Global-MMLU 0-shot CoT in Kyrgyz (ky)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -8403,7 +8403,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_lt
   description: Global-MMLU 0-shot CoT in Lithuanian (lt)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -8474,7 +8474,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_mg
   description: Global-MMLU 0-shot CoT in Malagasy (mg)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -8545,7 +8545,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_ms
   description: Global-MMLU 0-shot CoT in Malay (ms)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -8616,7 +8616,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_ne
   description: Global-MMLU 0-shot CoT in Nepali (ne)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -8687,7 +8687,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_nl
   description: Global-MMLU 0-shot CoT in Dutch (nl)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -8758,7 +8758,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_ny
   description: Global-MMLU 0-shot CoT in Nyanja (ny)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -8829,7 +8829,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_pl
   description: Global-MMLU 0-shot CoT in Polish (pl)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -8900,7 +8900,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_pt
   description: Global-MMLU 0-shot CoT in Portuguese (pt)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -8971,7 +8971,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_ro
   description: Global-MMLU 0-shot CoT in Romanian (ro)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -9042,7 +9042,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_ru
   description: Global-MMLU 0-shot CoT in Russian (ru)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -9113,7 +9113,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_si
   description: Global-MMLU 0-shot CoT in Sinhala (si)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -9184,7 +9184,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_sn
   description: Global-MMLU 0-shot CoT in Shona (sn)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -9255,7 +9255,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_so
   description: Global-MMLU 0-shot CoT in Somali (so)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -9326,7 +9326,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_sr
   description: Global-MMLU 0-shot CoT in Serbian (sr)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -9397,7 +9397,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_sv
   description: Global-MMLU 0-shot CoT in Swedish (sv)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -9468,7 +9468,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_sw
   description: Global-MMLU 0-shot CoT in Swahili (sw)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -9539,7 +9539,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_te
   description: Global-MMLU 0-shot CoT in Telugu (te)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -9610,7 +9610,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_tr
   description: Global-MMLU 0-shot CoT in Turkish (tr)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -9681,7 +9681,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_uk
   description: Global-MMLU 0-shot CoT in Ukrainian (uk)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -9752,7 +9752,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_vi
   description: Global-MMLU 0-shot CoT in Vietnamese (vi)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -9823,7 +9823,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_yo
   description: Global-MMLU 0-shot CoT in Yoruba (yo)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -9894,7 +9894,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_ar-lite
   description: Global-MMLU-Lite 0-shot CoT in Arabic (ar)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -9965,7 +9965,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_bn-lite
   description: Global-MMLU-Lite 0-shot CoT in Bengali (bn)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -10036,7 +10036,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_de-lite
   description: Global-MMLU-Lite 0-shot CoT in German (de)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -10107,7 +10107,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_en-lite
   description: Global-MMLU-Lite 0-shot CoT in English (en)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -10178,7 +10178,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_es-lite
   description: Global-MMLU-Lite 0-shot CoT in Spanish (es)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -10249,7 +10249,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_fr-lite
   description: Global-MMLU-Lite 0-shot CoT in French (fr)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -10320,7 +10320,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_hi-lite
   description: Global-MMLU-Lite 0-shot CoT in Hindi (hi)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -10391,7 +10391,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_id-lite
   description: Global-MMLU-Lite 0-shot CoT in Indonesian (id)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -10462,7 +10462,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_it-lite
   description: Global-MMLU-Lite 0-shot CoT in Italian (it)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -10533,7 +10533,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_ja-lite
   description: Global-MMLU-Lite 0-shot CoT in Japanese (ja)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -10604,7 +10604,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_ko-lite
   description: Global-MMLU-Lite 0-shot CoT in Korean (ko)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -10675,7 +10675,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_my-lite
   description: Global-MMLU-Lite 0-shot CoT in Malay (my)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -10746,7 +10746,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_pt-lite
   description: Global-MMLU-Lite 0-shot CoT in Portuguese (pt)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -10817,7 +10817,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_sw-lite
   description: Global-MMLU-Lite 0-shot CoT in Swahili (sw)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -10888,7 +10888,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_yo-lite
   description: Global-MMLU-Lite 0-shot CoT in Yoruba (yo)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -10959,7 +10959,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_zh-lite
   description: Global-MMLU-Lite 0-shot CoT in Chinese (Simplified) (zh)
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -11030,7 +11030,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu
   description: MMLU 0-shot CoT
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -11101,7 +11101,7 @@ tasks:
       api_endpoint: {}
 - name: gpqa_diamond
   description: gpqa_diamond 0-shot CoT
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -11172,7 +11172,7 @@ tasks:
       api_endpoint: {}
 - name: gpqa_extended
   description: gpqa_extended 0-shot CoT
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -11243,7 +11243,7 @@ tasks:
       api_endpoint: {}
 - name: gpqa_main
   description: gpqa_main 0-shot CoT
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -11315,7 +11315,7 @@ tasks:
 - name: simpleqa
   description: A factuality benchmark called SimpleQA that measures the ability for
     language models to answer short, fact-seeking questions.
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -11386,7 +11386,7 @@ tasks:
       api_endpoint: {}
 - name: aime_2025_nemo
   description: AIME 2025 questions, math, using NeMo's alignment template
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -11458,7 +11458,7 @@ tasks:
       api_endpoint: {}
 - name: aime_2024_nemo
   description: AIME 2024 questions, math, using NeMo's alignment template
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -11530,7 +11530,7 @@ tasks:
       api_endpoint: {}
 - name: math_test_500_nemo
   description: math_test_500 questions, math, using NeMo's alignment template
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -11602,7 +11602,7 @@ tasks:
       api_endpoint: {}
 - name: gpqa_diamond_nemo
   description: gpqa_diamond questions, reasoning, using NeMo's alignment template
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -11675,7 +11675,7 @@ tasks:
 - name: gpqa_diamond_aa_v2_llama_4
   description: gpqa_diamond questions with custom regex extraction patterns for Llama
     4
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -11755,7 +11755,7 @@ tasks:
 - name: gpqa_diamond_aa_v2
   description: gpqa_diamond questions with custom regex extraction patterns for AA
     v2
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -11832,7 +11832,7 @@ tasks:
 - name: AIME_2025_aa_v2
   description: AIME 2025 questions, math - params aligned with Artificial Analysis
     Index v2
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -11905,7 +11905,7 @@ tasks:
 - name: mgsm_aa_v2
   description: MGSM is a benchmark of grade-school math problems - params aligned
     with Artificial Analysis Index v2
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -11976,7 +11976,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_pro_aa_v2
   description: MMLU-Pro - params aligned with Artificial Analysis Index v2
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -12047,7 +12047,7 @@ tasks:
       api_endpoint: {}
 - name: mmlu_llama_4
   description: MMLU questions with custom regex extraction patterns for Llama 4
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -12126,7 +12126,7 @@ tasks:
 - name: mmlu_pro_llama_4
   description: MMLU-Pro questions with custom regex extraction patterns for Llama
     4
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -12205,7 +12205,7 @@ tasks:
 - name: healthbench
   description: HealthBench is an open-source benchmark measuring the performance and
     safety of large language models in healthcare.
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -12279,7 +12279,7 @@ tasks:
     safety of large language models in healthcare. The consensus subset measures 34
     particularly important aspects of model behavior and has been validated by the
     consensus of multiple physicians.
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -12352,7 +12352,7 @@ tasks:
   description: HealthBench is an open-source benchmark measuring the performance and
     safety of large language models in healthcare. The hard subset consists of 1000
     examples chosen because they are difficult for current frontier models.
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -12424,7 +12424,7 @@ tasks:
 - name: browsecomp
   description: BrowseComp is a benchmark for measuring the ability for agents to browse
     the web.
-  harness: simple-evals
+  harness: simple_evals
   container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
   container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
@@ -15173,7 +15173,7 @@ tasks:
       api_endpoint: {}
 - name: ns_aime2024
   description: AIME2024
-  harness: nemo-skills
+  harness: nemo_skills
   container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
   container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
@@ -15251,7 +15251,7 @@ tasks:
     target: {}
 - name: ns_aime2025
   description: AIME2025
-  harness: nemo-skills
+  harness: nemo_skills
   container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
   container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
@@ -15329,7 +15329,7 @@ tasks:
     target: {}
 - name: ns_gpqa
   description: GPQA Diamond
-  harness: nemo-skills
+  harness: nemo_skills
   container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
   container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
@@ -15407,7 +15407,7 @@ tasks:
     target: {}
 - name: ns_bfcl_v3
   description: BFCLv3
-  harness: nemo-skills
+  harness: nemo_skills
   container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
   container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
@@ -15485,7 +15485,7 @@ tasks:
     target: {}
 - name: ns_bfcl_v4
   description: BFCLv4
-  harness: nemo-skills
+  harness: nemo_skills
   container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
   container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
@@ -15563,7 +15563,7 @@ tasks:
     target: {}
 - name: ns_livecodebench
   description: LiveCodeBench
-  harness: nemo-skills
+  harness: nemo_skills
   container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
   container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
@@ -15641,7 +15641,7 @@ tasks:
     target: {}
 - name: ns_hle
   description: HumanityLastExam
-  harness: nemo-skills
+  harness: nemo_skills
   container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
   container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
@@ -15719,7 +15719,7 @@ tasks:
     target: {}
 - name: ns_ruler
   description: RULER - Long Context Understanding
-  harness: nemo-skills
+  harness: nemo_skills
   container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
   container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
@@ -15797,7 +15797,7 @@ tasks:
     target: {}
 - name: ns_mmlu
   description: MMLU
-  harness: nemo-skills
+  harness: nemo_skills
   container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
   container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
@@ -15875,7 +15875,7 @@ tasks:
     target: {}
 - name: ns_mmlu_pro
   description: MMLU-PRO
-  harness: nemo-skills
+  harness: nemo_skills
   container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
   container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
@@ -15953,7 +15953,7 @@ tasks:
     target: {}
 - name: ns_scicode
   description: SciCode
-  harness: nemo-skills
+  harness: nemo_skills
   container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
   container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
@@ -16031,7 +16031,7 @@ tasks:
     target: {}
 - name: ns_aa_lcr
   description: AA-LCR
-  harness: nemo-skills
+  harness: nemo_skills
   container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
   container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
@@ -16109,7 +16109,7 @@ tasks:
     target: {}
 - name: ns_ifbench
   description: IFBench - Instruction Following Benchmark
-  harness: nemo-skills
+  harness: nemo_skills
   container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
   container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
@@ -16188,7 +16188,7 @@ tasks:
 - name: aegis_v2
   description: Aegis V2 without evaluating reasoning traces. This version is used
     by the NeMo Safety Toolkit.
-  harness: safety-eval
+  harness: safety_eval
   container: nvcr.io/nvidia/eval-factory/safety-harness:25.11
   container_digest: sha256:a0fa5d24c6e66fc4ead85de3823eece8395adbf2b3f111c2c2eca05759fa34df
   defaults:
@@ -16234,7 +16234,7 @@ tasks:
         stream: false
 - name: aegis_v2_reasoning
   description: Aegis V2 with evaluating reasoning traces.
-  harness: safety-eval
+  harness: safety_eval
   container: nvcr.io/nvidia/eval-factory/safety-harness:25.11
   container_digest: sha256:a0fa5d24c6e66fc4ead85de3823eece8395adbf2b3f111c2c2eca05759fa34df
   defaults:
@@ -16280,7 +16280,7 @@ tasks:
         stream: false
 - name: wildguard
   description: Wildguard
-  harness: safety-eval
+  harness: safety_eval
   container: nvcr.io/nvidia/eval-factory/safety-harness:25.11
   container_digest: sha256:a0fa5d24c6e66fc4ead85de3823eece8395adbf2b3f111c2c2eca05759fa34df
   defaults:

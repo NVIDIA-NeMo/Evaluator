@@ -392,6 +392,10 @@ def parse_container_image(container_image: str) -> tuple[str, str, str, str]:
     return registry_type, registry_url, repository, tag
 
 
+# create_authenticator moved to container_metadata.registries
+# Import it from there: from nemo_evaluator_launcher.common.container_metadata import create_authenticator
+
+
 def get_eval_factory_dataset_size_from_run_config(run_config: dict) -> Optional[int]:
     config = run_config["config"]
     limit_samples = config["params"].get("limit_samples", None)
