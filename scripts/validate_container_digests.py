@@ -174,20 +174,15 @@ def validate_container_digests(
                 registry_type, registry_url, repository
             )
 
-            # Authenticate (may succeed with anonymous access for public registries)
+            # Authenticate (but don't fail if it returns False - may work for public containers)
+            # The get_container_digest call will retry without authentication if needed
             try:
-                if not authenticator.authenticate(repository=repository):
-                    errors.append(
-                        f"Failed to authenticate for container '{container}' "
-                        f"(registry: {registry_url}). "
-                        "This may be a private registry requiring credentials."
-                    )
-                    continue
+                authenticator.authenticate(repository=repository)
+                # Don't fail here - authentication may fail but public containers can still be accessed
             except Exception as auth_error:
-                errors.append(
-                    f"Authentication error for container '{container}': {str(auth_error)}"
-                )
-                continue
+                # Continue anyway - may work for public containers
+                # Authentication errors are logged by the authenticator itself
+                pass
 
             # Get actual digest from registry
             actual_digest = get_container_digest(authenticator, repository, tag)

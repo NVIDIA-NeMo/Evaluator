@@ -254,14 +254,10 @@ def extract_framework_yml(
         # Create authenticator
         authenticator = _create_authenticator(registry_type, registry_url, repository)
 
-        # Authenticate
-        if not authenticator.authenticate(repository=repository):
-            logger.error(
-                "Authentication failed",
-                container=container,
-                harness=harness_name,
-            )
-            return None, None
+        # Authenticate (but don't fail if it returns False - may work for public containers)
+        authenticator.authenticate(repository=repository)
+        # Don't fail here - authentication may fail but public containers can still be accessed
+        # The get_manifest/get_blob methods will retry without authentication if needed
 
         # Get container digest (try to get it even if framework extraction might fail)
         container_digest = _get_container_digest(authenticator, repository, tag)
