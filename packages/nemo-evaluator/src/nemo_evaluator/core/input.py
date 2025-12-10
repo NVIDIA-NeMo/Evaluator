@@ -393,10 +393,7 @@ For example: {framework_handlers[0]}.{evaluation_name}. "
     }
 
     # Extract raw adapter_config from framework defaults (before Pydantic processing)
-    # and from user config (the original input, not Pydantic-processed)
     raw_framework_adapter_config = None
-    raw_user_adapter_config = None
-
     if raw_framework_defaults:
         raw_framework_adapter_config = (
             raw_framework_defaults.get("target", {})
@@ -404,42 +401,20 @@ For example: {framework_handlers[0]}.{evaluation_name}. "
             .get("adapter_config")
         )
 
-    # Get the raw user adapter_config from the original input (before Pydantic added defaults)
-    if target_config.api_endpoint and target_config.api_endpoint.adapter_config:
-        # This might be an AdapterConfig object with Pydantic defaults filled in
-        # We need the original dict that was passed in, not the processed object
-        from nemo_evaluator.adapters.adapter_config import AdapterConfig
-
-        if isinstance(target_config.api_endpoint.adapter_config, AdapterConfig):
-            # Get only the fields that were explicitly set (exclude defaults)
-            raw_user_adapter_config = (
-                target_config.api_endpoint.adapter_config.model_dump(exclude_unset=True)
-            )
-        else:
-            raw_user_adapter_config = target_config.api_endpoint.adapter_config
-
     # Merge framework defaults and user config
     merged_configuration = deep_update(
         default_configuration, user_configuration, skip_nones=True
     )
 
-    # Now merge adapter_config properly: framework defaults + user explicit values only
-    if raw_framework_adapter_config and isinstance(raw_framework_adapter_config, dict):
-        if raw_user_adapter_config:
-            # Merge framework defaults with only the explicitly set user values
-            merged_adapter = deep_update(
-                raw_framework_adapter_config, raw_user_adapter_config, skip_nones=True
-            )
-        else:
-            merged_adapter = raw_framework_adapter_config
-
-        # Replace adapter_config with the properly merged version
+    # Add framework adapter_config defaults to merged config if present
+    # Note: User's adapter_config will override these in validate_configuration()
+    if raw_framework_adapter_config:
         if "target" not in merged_configuration:
             merged_configuration["target"] = {}
         if "api_endpoint" not in merged_configuration["target"]:
             merged_configuration["target"]["api_endpoint"] = {}
         merged_configuration["target"]["api_endpoint"]["adapter_config"] = (
-            merged_adapter
+            raw_framework_adapter_config
         )
 
     return Evaluation(**merged_configuration)
@@ -504,10 +479,42 @@ def validate_configuration(run_config: dict) -> Evaluation:
     check_required_default_missing(run_config)
     check_task_invocation(run_config)
     check_adapter_config(run_config)
-    evaluation = get_evaluation(
-        EvaluationConfig(**run_config["config"]),
-        EvaluationTarget(**run_config["target"]),
+
+    # Extract user's adapter_config (may contain legacy params) BEFORE Pydantic processes it
+    user_adapter_config = (
+        run_config.get("target", {}).get("api_endpoint", {}).get("adapter_config")
     )
+
+    # Remove adapter_config temporarily to prevent Pydantic from filtering unknown fields
+    if (
+        user_adapter_config
+        and "target" in run_config
+        and "api_endpoint" in run_config["target"]
+    ):
+        run_config_copy = run_config.copy()
+        run_config_copy["target"] = run_config["target"].copy()
+        run_config_copy["target"]["api_endpoint"] = run_config["target"][
+            "api_endpoint"
+        ].copy()
+        run_config_copy["target"]["api_endpoint"].pop("adapter_config", None)
+    else:
+        run_config_copy = run_config
+
+    # Merge framework defaults (includes framework's adapter_config if present)
+    evaluation = get_evaluation(
+        EvaluationConfig(**run_config_copy["config"]),
+        EvaluationTarget(**run_config_copy["target"]),
+    )
+
+    # Merge user's adapter_config with framework defaults and convert to AdapterConfig object
+    if user_adapter_config:
+        eval_dict = evaluation.model_dump()
+        eval_dict["target"]["api_endpoint"]["adapter_config"] = user_adapter_config
+
+        # Convert merged config (framework defaults + user overrides/legacy params) to AdapterConfig
+        adapter_cfg_obj = AdapterConfig.get_validated_config(eval_dict)
+        evaluation.target.api_endpoint.adapter_config = adapter_cfg_obj
+
     check_type_compatibility(evaluation)
     _logger.info(f"User-invoked config: \n{yaml.dump(evaluation.model_dump())}")
     return evaluation
