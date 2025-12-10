@@ -96,16 +96,16 @@ evaluation:
 2. If you are using overrides in your cli command, replace:
 
 ```bash
-nemo-evaluator-launcher run --config my_config.yaml \
-    -o evaluation.overrides.config.params.temperature=0.6 \
+nemo-evaluator-launcher run --config my_config.yaml \\
+    -o evaluation.overrides.config.params.temperature=0.6 \\
     -o evaluation.overrides.config.params.top_p=0.95
 ```
 
 with:
 
 ```bash
-nemo-evaluator-launcher run --config my_config.yaml \
-    -o evaluation.nemo_evaluator_config.config.params.temperature=0.6 \
+nemo-evaluator-launcher run --config my_config.yaml \\
+    -o evaluation.nemo_evaluator_config.config.params.temperature=0.6 \\
     -o evaluation.nemo_evaluator_config.config.params.top_p=0.95
 ```
 """
