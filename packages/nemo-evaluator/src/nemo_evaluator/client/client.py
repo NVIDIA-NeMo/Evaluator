@@ -55,7 +55,7 @@ class NeMoEvaluatorClient:
     ):
         self.model_id = endpoint_model_config.model_id
         self.model_url = endpoint_model_config.url
-        self.api_key_name = endpoint_model_config.api_key_name
+        self.api_key = endpoint_model_config.api_key
         self.adapter_config = endpoint_model_config.adapter_config
         self.temperature = endpoint_model_config.temperature
         self.top_p = endpoint_model_config.top_p
@@ -78,8 +78,8 @@ class NeMoEvaluatorClient:
         self.client = AsyncOpenAI(
             http_client=adapter_http_client,
             base_url=self.model_url,
-            api_key=os.getenv(self.api_key_name, "dummy_api_key")
-            if self.api_key_name is not None
+            api_key=os.getenv(self.api_key, "dummy_api_key")
+            if self.api_key is not None
             else "dummy_api_key",
             timeout=self.request_timeout,
             max_retries=0,  # We handle retries ourselves

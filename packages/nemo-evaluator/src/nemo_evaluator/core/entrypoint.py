@@ -172,7 +172,9 @@ def run(args) -> None:
 
     eval_cfg = EvaluationConfig(**eval_dict["config"])
     target_cfg = EvaluationTarget(**eval_dict["target"])
-    target_cfg.api_endpoint.adapter_config = adapter_config
+
+    if target_cfg.api_endpoint is not None:
+        target_cfg.api_endpoint.adapter_config = adapter_config
 
     evaluate(eval_cfg=eval_cfg, target_cfg=target_cfg, metadata=metadata_cfg)
 

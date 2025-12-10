@@ -355,15 +355,17 @@ def get_evaluation(
         get_available_evaluations()
     )
 
-    # First, get default Evaluation
+    # First, get default Evaluation and raw framework defaults
     # "framework.task" invocation
+    raw_framework_defaults = None
     if framework_name:
+        raw_framework_defaults = all_framework_defaults.get(framework_name, {})
         try:
             default_evaluation = all_framework_eval_mappings[framework_name][
                 evaluation_name
             ]
         except KeyError:
-            default_evaluation = Evaluation(**all_framework_defaults[framework_name])
+            default_evaluation = Evaluation(**raw_framework_defaults)
             evaluation_config.type = evaluation_name
             default_evaluation.config.params.task = evaluation_name
     else:
@@ -378,15 +380,68 @@ Please indicate which implementation you would like to choose by using 'framewor
 For example: {framework_handlers[0]}.{evaluation_name}. "
             )
         default_evaluation = all_eval_name_mapping[evaluation_name]
+        # Get framework name from evaluation to look up raw defaults
+        if hasattr(default_evaluation, "framework_name"):
+            raw_framework_defaults = all_framework_defaults.get(
+                default_evaluation.framework_name, {}
+            )
 
     default_configuration = default_evaluation.model_dump(exclude_none=True)
     user_configuration = {
         "config": evaluation_config.model_dump(),
         "target": target_config.model_dump(),
     }
+
+    # Extract raw adapter_config from framework defaults (before Pydantic processing)
+    # and from user config (the original input, not Pydantic-processed)
+    raw_framework_adapter_config = None
+    raw_user_adapter_config = None
+
+    if raw_framework_defaults:
+        raw_framework_adapter_config = (
+            raw_framework_defaults.get("target", {})
+            .get("api_endpoint", {})
+            .get("adapter_config")
+        )
+
+    # Get the raw user adapter_config from the original input (before Pydantic added defaults)
+    if target_config.api_endpoint and target_config.api_endpoint.adapter_config:
+        # This might be an AdapterConfig object with Pydantic defaults filled in
+        # We need the original dict that was passed in, not the processed object
+        from nemo_evaluator.adapters.adapter_config import AdapterConfig
+
+        if isinstance(target_config.api_endpoint.adapter_config, AdapterConfig):
+            # Get only the fields that were explicitly set (exclude defaults)
+            raw_user_adapter_config = (
+                target_config.api_endpoint.adapter_config.model_dump(exclude_unset=True)
+            )
+        else:
+            raw_user_adapter_config = target_config.api_endpoint.adapter_config
+
+    # Merge framework defaults and user config
     merged_configuration = deep_update(
         default_configuration, user_configuration, skip_nones=True
     )
+
+    # Now merge adapter_config properly: framework defaults + user explicit values only
+    if raw_framework_adapter_config and isinstance(raw_framework_adapter_config, dict):
+        if raw_user_adapter_config:
+            # Merge framework defaults with only the explicitly set user values
+            merged_adapter = deep_update(
+                raw_framework_adapter_config, raw_user_adapter_config, skip_nones=True
+            )
+        else:
+            merged_adapter = raw_framework_adapter_config
+
+        # Replace adapter_config with the properly merged version
+        if "target" not in merged_configuration:
+            merged_configuration["target"] = {}
+        if "api_endpoint" not in merged_configuration["target"]:
+            merged_configuration["target"]["api_endpoint"] = {}
+        merged_configuration["target"]["api_endpoint"]["adapter_config"] = (
+            merged_adapter
+        )
+
     return Evaluation(**merged_configuration)
 
 

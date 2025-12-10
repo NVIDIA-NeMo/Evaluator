@@ -281,16 +281,10 @@ class AdapterConfig(BaseModel):
         Returns:
             AdapterConfig instance with interceptors based on legacy config
         """
-        # Preserve mode before merging with defaults
-        original_mode = legacy_config.get("mode")
-
-        # Merge legacy config with defaults to avoid repeated .get() calls
         defaults = cls.get_legacy_defaults()
-        legacy_config = {**defaults, **legacy_config}
-
-        # Restore mode if it was explicitly set (defaults dict has 'server', don't override explicit 'client')
-        if original_mode is not None:
-            legacy_config["mode"] = original_mode
+        for key, value in defaults.items():
+            if key not in legacy_config:
+                legacy_config[key] = value
 
         interceptors = []
         post_eval_hooks = []

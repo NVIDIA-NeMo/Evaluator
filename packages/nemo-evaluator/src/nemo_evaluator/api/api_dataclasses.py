@@ -66,7 +66,7 @@ class EndpointModelConfig(BaseModel):
 
     model_id: str = Field(description="Name of the model")
     url: str = Field(description="Url of the model")
-    api_key_name: Optional[str] = Field(
+    api_key: Optional[str] = Field(
         description="Name of the env variable that stores API key", default=None
     )
     stream: Optional[bool] = Field(
