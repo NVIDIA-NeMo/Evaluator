@@ -147,12 +147,34 @@ def create_authenticator(
             docker_creds = _read_docker_credentials(registry_url)
             if docker_creds:
                 docker_username, docker_password = docker_creds
-                # Use Docker credentials if username not set, or use Docker username if both available
-                if not username:
-                    username = docker_username
+                # Use Docker credentials as a pair (both username and password)
+                username = docker_username
                 password = docker_password
                 logger.debug(
                     "Using credentials from Docker config file",
+                    registry_url=registry_url,
+                    username=username,
+                )
+        elif password and not username:
+            # Have password but no username - try Docker config for username first
+            from nemo_evaluator_launcher.common.partial_pull import (
+                _read_docker_credentials,
+            )
+
+            docker_creds = _read_docker_credentials(registry_url)
+            if docker_creds:
+                docker_username, docker_password = docker_creds
+                username = docker_username
+                logger.info(
+                    "Using username from Docker config, password from environment",
+                    registry_url=registry_url,
+                    username=username,
+                )
+            else:
+                # Use standard GitLab CI token username
+                username = "gitlab-ci-token"
+                logger.info(
+                    "Using standard GitLab CI token username with environment token",
                     registry_url=registry_url,
                     username=username,
                 )
@@ -185,9 +207,9 @@ def create_authenticator(
             docker_creds = _read_docker_credentials(registry_url)
             if docker_creds:
                 docker_username, docker_password = docker_creds
-                # Use Docker credentials if username not set or is default, otherwise keep env username
-                if not username or username == "$oauthtoken":
-                    username = docker_username
+                # Use Docker credentials as a pair (both username and password)
+                # Only use env username if password was also provided from env
+                username = docker_username
                 password = docker_password
                 logger.debug(
                     "Using credentials from Docker config file",
