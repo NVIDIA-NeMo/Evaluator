@@ -16,7 +16,7 @@ Configure NeMo Evaluator Launcher for evaluating reasoning models.
 :::
 
 
-:::{grid-item-card} {octicon}`comment;1.5em;sd-mr-1` Switch Executor
+:::{grid-item-card} {octicon}`arrow-switch;1.5em;sd-mr-1` Switch Executor
 :link: how-to-switch-executors
 :link-type: ref
 
