@@ -94,6 +94,68 @@ class Cmd:
         },
     )
 
+    def _parse_requested_tasks(self) -> set[str]:
+        """Parse --tasks arguments into a set of task names."""
+        requested_tasks = set()
+        for task_arg in self.tasks:
+            for task_name in task_arg.split(","):
+                task_name = task_name.strip()
+                if task_name:
+                    requested_tasks.add(task_name)
+        return requested_tasks
+
+    def _build_task_filter_overrides(
+        self, config, requested_tasks: set[str]
+    ) -> list[str]:
+        """Build Hydra overrides to filter tasks based on requested task names.
+
+        Returns list of Hydra override strings that will set unwanted tasks to null.
+        The nulls are filtered out after config is loaded.
+
+        This preserves task-specific overrides that were applied earlier.
+        """
+        # Get original tasks
+        original_tasks = (
+            config.evaluation.tasks
+            if hasattr(config.evaluation, "tasks")
+            else config.evaluation
+        )
+
+        # Find indices of tasks to remove (set to null)
+        indices_to_remove = []
+        found_names = set()
+        for idx, task in enumerate(original_tasks):
+            if task.name in requested_tasks:
+                found_names.add(task.name)
+            else:
+                indices_to_remove.append(idx)
+
+        # Fail if ANY requested tasks are not found
+        not_found = requested_tasks - found_names
+        if not_found:
+            available = [task.name for task in original_tasks]
+            raise ValueError(
+                f"Requested task(s) not found in config: {sorted(not_found)}. "
+                f"Available tasks: {available}"
+            )
+
+        # Build overrides to set unwanted tasks to null
+        # Using evaluation.tasks.INDEX=null syntax
+        # Note: Hydra's ~evaluation.tasks.INDEX deletion doesn't work with list indices
+        overrides = []
+        for idx in indices_to_remove:
+            overrides.append(f"++evaluation.tasks.{idx}=null")
+
+        logger.info(
+            "Filtering tasks via Hydra overrides",
+            keep_count=len(original_tasks) - len(indices_to_remove),
+            remove_count=len(indices_to_remove),
+            tasks=sorted(found_names),
+            overrides=overrides,
+        )
+
+        return overrides
+
     def execute(self) -> None:
         # Import heavy dependencies only when needed
         import yaml
@@ -112,6 +174,9 @@ class Cmd:
             raise ValueError(
                 "--config-mode=raw requires --config to be specified. Raw mode loads config files directly."
             )
+
+        # Parse requested tasks if --tasks is specified
+        requested_tasks = self._parse_requested_tasks() if self.tasks else None
 
         # Load configuration either from Hydra or directly from a config file
         if self.config_mode == "raw" and self.config:
@@ -135,6 +200,29 @@ class Cmd:
 
             # Create RunConfig from the loaded data
             config = OmegaConf.create(config_dict)
+
+            # Apply task filtering for raw mode (directly modify config)
+            if requested_tasks:
+                original_tasks = (
+                    config.evaluation.tasks
+                    if hasattr(config.evaluation, "tasks")
+                    else config.evaluation
+                )
+                filtered_tasks = [
+                    task for task in original_tasks if task.name in requested_tasks
+                ]
+                if not filtered_tasks:
+                    available = [task.name for task in original_tasks]
+                    raise ValueError(
+                        f"No matching tasks found. Requested: {sorted(requested_tasks)}, "
+                        f"Available: {available}"
+                    )
+                config.evaluation.tasks = filtered_tasks
+                logger.info(
+                    "Filtered tasks (raw mode)",
+                    count=len(filtered_tasks),
+                    tasks=[t.name for t in filtered_tasks],
+                )
         else:
             # Handle --config parameter: split path into config_dir and config_name for Hydra
             if self.config:
@@ -149,56 +237,43 @@ class Cmd:
                 config_dir = self.config_dir
                 config_name = self.config_name
 
-            # Load the complete Hydra configuration
-            config = RunConfig.from_hydra(
-                config_dir=config_dir,
-                config_name=config_name,
-                hydra_overrides=self.override,
-            )
-
-        # Filter tasks if --tasks is specified
-        if self.tasks:
-            # Parse comma-separated task names
-            requested_tasks = set()
-            for task_arg in self.tasks:
-                for task_name in task_arg.split(","):
-                    task_name = task_name.strip()
-                    if task_name:
-                        requested_tasks.add(task_name)
-
+            # If tasks filter is requested, first load config to get task list,
+            # then build task filter overrides and reload with them appended LAST
             if requested_tasks:
-                # Filter evaluation.tasks to only include requested tasks
+                # First load to get available tasks
+                config = RunConfig.from_hydra(
+                    config_dir=config_dir,
+                    config_name=config_name,
+                    hydra_overrides=self.override,
+                )
+
+                # Build task filter overrides (sets unwanted tasks to null)
+                task_filter_overrides = self._build_task_filter_overrides(
+                    config, requested_tasks
+                )
+
+                # Reload with task filter overrides appended LAST
+                all_overrides = list(self.override) + task_filter_overrides
+                config = RunConfig.from_hydra(
+                    config_dir=config_dir,
+                    config_name=config_name,
+                    hydra_overrides=all_overrides,
+                )
+
+                # Filter out null tasks (tasks that were set to null by overrides)
                 original_tasks = (
                     config.evaluation.tasks
                     if hasattr(config.evaluation, "tasks")
                     else config.evaluation
                 )
-                filtered_tasks = [
-                    task for task in original_tasks if task.name in requested_tasks
-                ]
-
-                if not filtered_tasks:
-                    available = [task.name for task in original_tasks]
-                    raise ValueError(
-                        f"No matching tasks found. Requested: {sorted(requested_tasks)}, "
-                        f"Available: {available}"
-                    )
-
-                # Check for tasks that weren't found
-                found_names = {task.name for task in filtered_tasks}
-                not_found = requested_tasks - found_names
-                if not_found:
-                    logger.warning(
-                        "Some requested tasks were not found in config",
-                        not_found=sorted(not_found),
-                    )
-
-                # Update config with filtered tasks
+                filtered_tasks = [t for t in original_tasks if t is not None]
                 config.evaluation.tasks = filtered_tasks
-                logger.info(
-                    "Running filtered tasks",
-                    count=len(filtered_tasks),
-                    tasks=[t.name for t in filtered_tasks],
+            else:
+                # Load the complete Hydra configuration normally
+                config = RunConfig.from_hydra(
+                    config_dir=config_dir,
+                    config_name=config_name,
+                    hydra_overrides=self.override,
                 )
 
         try:
