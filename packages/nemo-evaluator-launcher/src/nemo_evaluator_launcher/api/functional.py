@@ -86,7 +86,7 @@ def filter_tasks(cfg: RunConfig, task_names: List[str]) -> RunConfig:
         RunConfig: The configuration with filtered tasks.
 
     Raises:
-        ValueError: If no matching tasks are found.
+        ValueError: If any requested task is not found in config.
     """
     if not task_names:
         return cfg
@@ -97,11 +97,14 @@ def filter_tasks(cfg: RunConfig, task_names: List[str]) -> RunConfig:
     )
     filtered_tasks = [task for task in original_tasks if task.name in requested_tasks]
 
-    if not filtered_tasks:
+    # Fail if ANY requested tasks are not found
+    found_names = {task.name for task in filtered_tasks}
+    not_found = requested_tasks - found_names
+    if not_found:
         available = [task.name for task in original_tasks]
         raise ValueError(
-            f"No matching tasks found. Requested: {sorted(requested_tasks)}, "
-            f"Available: {available}"
+            f"Requested task(s) not found in config: {sorted(not_found)}. "
+            f"Available tasks: {available}"
         )
 
     cfg.evaluation.tasks = filtered_tasks
