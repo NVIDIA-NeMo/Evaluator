@@ -50,7 +50,7 @@ The workflow is executed locally on a machine when you launch it.
 
 ## Modify the Config
 
-In order to permanently switch to a different execution backend, you can modify the execution section of your config:
+To permanently switch to a different execution backend, you can modify the execution section of your config:
 
 ```yaml
 defaults:
