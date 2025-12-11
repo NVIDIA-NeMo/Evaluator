@@ -31,7 +31,7 @@ from nemo_evaluator_launcher.common.container_metadata.intermediate_repr import 
     TaskIntermediateRepresentation,
 )
 from nemo_evaluator_launcher.common.container_metadata.registries import (
-    RegistryAuthenticator,
+    DockerRegistryHandler,
     create_authenticator,
 )
 from nemo_evaluator_launcher.common.helpers import parse_container_image
@@ -437,7 +437,7 @@ class LayerInspector:
 
 
 def find_file_matching_pattern_in_image_layers(
-    authenticator: RegistryAuthenticator,
+    authenticator: DockerRegistryHandler,
     repository: str,
     reference: str,
     prefix: str,
@@ -678,7 +678,7 @@ def find_file_matching_pattern_in_image_layers(
 
 
 def get_container_digest(
-    authenticator: RegistryAuthenticator, repository: str, reference: str
+    authenticator: DockerRegistryHandler, repository: str, reference: str
 ) -> Optional[str]:
     """Get the manifest digest for a container image.
 
@@ -727,9 +727,10 @@ def extract_framework_yml(
         registry_type, registry_url, repository, tag = parse_container_image(container)
 
         logger.info(
-            "Extracting framework.yml from container",
+            "Extracting frame definition file from the container",
             container=container,
             registry_type=registry_type,
+            filename=FRAMEWORK_YML_FILENAME,
         )
 
         # Create authenticator and authenticate
@@ -746,7 +747,8 @@ def extract_framework_yml(
 
         # Search for framework.yml in container layers
         logger.debug(
-            "Searching for framework.yml using pattern-based search",
+            "Searching for frame definition file using pattern-based search",
+            filename=FRAMEWORK_YML_FILENAME,
             container=container,
         )
         result = find_file_matching_pattern_in_image_layers(
@@ -762,14 +764,16 @@ def extract_framework_yml(
 
         if not result:
             logger.warning(
-                "framework.yml not found in container",
+                "Frame definition file not found in container",
+                filename=FRAMEWORK_YML_FILENAME,
                 container=container,
             )
             return None, container_digest
 
         file_path, framework_yml_content = result
         logger.info(
-            "Successfully extracted framework.yml",
+            "Successfully extracted frame definition file",
+            filename=FRAMEWORK_YML_FILENAME,
             container=container,
             file_path=file_path,
             content_size=len(framework_yml_content),
@@ -780,7 +784,8 @@ def extract_framework_yml(
 
     except Exception as e:
         logger.warning(
-            "Failed to extract framework.yml",
+            "Failed to extract frame definition file",
+            filename=FRAMEWORK_YML_FILENAME,
             container=container,
             error=str(e),
             exc_info=True,
@@ -938,7 +943,8 @@ def parse_framework_to_irs(
 
     except Exception as e:
         logger.error(
-            "Failed to parse framework.yml to IRs",
+            "Failed to parse frame definition file to IRs",
+            filename=FRAMEWORK_YML_FILENAME,
             error=str(e),
             container=container_id,
             exc_info=True,
@@ -975,7 +981,9 @@ def load_tasks_from_container(
 
     if not framework_content:
         logger.error(
-            "Could not extract framework.yml from container", container=container
+            "Could not extract frame definition file from container",
+            container=container,
+            filename=FRAMEWORK_YML_FILENAME,
         )
         return []
 
@@ -993,34 +1001,18 @@ def load_tasks_from_container(
             num_tasks=len(task_irs),
         )
 
-        # Filter tasks to ensure they're from the specified container
-        expected_container = container
-        original_count = len(task_irs)
-        filtered_tasks = [
-            task for task in task_irs if task.container == expected_container
-        ]
-
-        if len(filtered_tasks) != original_count:
+        if len(task_irs) == 0:
             logger.warning(
-                "Filtered out tasks from different containers",
-                expected_container=expected_container,
-                original_count=original_count,
-                filtered_count=len(filtered_tasks),
+                "No tasks found in the specified container",
+                container=container,
             )
 
-        if not filtered_tasks:
-            error_msg = f"No tasks found from specified container after filtering: {expected_container}"
-            logger.warning(
-                "No tasks found from specified container after filtering",
-                container=expected_container,
-            )
-            raise ValueError(error_msg)
-
-        return filtered_tasks
+        return task_irs
 
     except Exception as e:
         logger.error(
-            "Failed to parse framework.yml from container",
+            "Failed to parse frame definition file from container",
+            filename=FRAMEWORK_YML_FILENAME,
             container=container,
             error=str(e),
             exc_info=True,

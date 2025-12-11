@@ -26,12 +26,12 @@ from nemo_evaluator_launcher.common.container_metadata.loading import (
     parse_framework_to_irs,
 )
 from nemo_evaluator_launcher.common.container_metadata.registries import (
-    RegistryAuthenticator,
+    DockerRegistryHandler,
     create_authenticator,
 )
 
 __all__ = [
-    "RegistryAuthenticator",
+    "DockerRegistryHandler",
     "create_authenticator",
     "HarnessIntermediateRepresentation",
     "TaskIntermediateRepresentation",

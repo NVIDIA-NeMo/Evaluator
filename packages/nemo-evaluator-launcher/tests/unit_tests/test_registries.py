@@ -22,8 +22,8 @@ from unittest.mock import Mock, patch
 import pytest
 
 from nemo_evaluator_launcher.common.container_metadata.registries import (
-    GitlabRegistryAuthenticator,
-    NvcrRegistryAuthenticator,
+    GitlabDockerRegistryHandler,
+    NvcrDockerRegistryHandler,
     _build_key_variants,
     _decode_auth_string,
     _find_auth_in_config,
@@ -172,12 +172,12 @@ class TestResolveCredentials:
         assert password is None
 
 
-class TestGitlabRegistryAuthenticator:
+class TestGitlabDockerRegistryHandler:
     """Test GitLab registry authenticator."""
 
     def test_init(self):
         """Test authenticator initialization."""
-        auth = GitlabRegistryAuthenticator(
+        auth = GitlabDockerRegistryHandler(
             "gitlab.example.com:5005", username="user", password="pass"
         )
         assert auth.registry_url == "gitlab.example.com:5005"
@@ -193,7 +193,7 @@ class TestGitlabRegistryAuthenticator:
         mock_response.status_code = 200
         mock_session.get.return_value = mock_response
 
-        auth = GitlabRegistryAuthenticator("gitlab.example.com:5005")
+        auth = GitlabDockerRegistryHandler("gitlab.example.com:5005")
         result = auth.authenticate(repository="test/repo")
 
         assert result is True
@@ -216,7 +216,7 @@ class TestGitlabRegistryAuthenticator:
         mock_response.headers = {"Docker-Content-Digest": "sha256:abc123"}
         mock_session.get.return_value = mock_response
 
-        auth = GitlabRegistryAuthenticator("gitlab.example.com:5005")
+        auth = GitlabDockerRegistryHandler("gitlab.example.com:5005")
         auth.session = mock_session
         manifest, digest = auth.get_manifest_and_digest("test/repo", "latest")
 
@@ -240,7 +240,7 @@ class TestGitlabRegistryAuthenticator:
         mock_response.headers = {}
         mock_session.get.return_value = mock_response
 
-        auth = GitlabRegistryAuthenticator("gitlab.example.com:5005")
+        auth = GitlabDockerRegistryHandler("gitlab.example.com:5005")
         auth.session = mock_session
         manifest, digest = auth.get_manifest_and_digest("test/repo", "latest")
 
@@ -249,12 +249,12 @@ class TestGitlabRegistryAuthenticator:
         assert digest.startswith("sha256:")
 
 
-class TestNvcrRegistryAuthenticator:
+class TestNvcrDockerRegistryHandler:
     """Test NVCR registry authenticator."""
 
     def test_init(self):
         """Test authenticator initialization."""
-        auth = NvcrRegistryAuthenticator("nvcr.io", username="user", password="pass")
+        auth = NvcrDockerRegistryHandler("nvcr.io", username="user", password="pass")
         assert auth.registry_url == "nvcr.io"
         assert auth.username == "user"
         assert auth.password == "pass"
@@ -268,7 +268,7 @@ class TestNvcrRegistryAuthenticator:
         mock_response.status_code = 200
         mock_session.get.return_value = mock_response
 
-        auth = NvcrRegistryAuthenticator("nvcr.io")
+        auth = NvcrDockerRegistryHandler("nvcr.io")
         result = auth.authenticate()
 
         assert result is True
@@ -290,7 +290,7 @@ class TestNvcrRegistryAuthenticator:
         mock_response.headers = {"Docker-Content-Digest": "sha256:def456"}
         mock_session.get.return_value = mock_response
 
-        auth = NvcrRegistryAuthenticator("nvcr.io")
+        auth = NvcrDockerRegistryHandler("nvcr.io")
         auth.session = mock_session
         manifest, digest = auth.get_manifest_and_digest("test/repo", "latest")
 
@@ -308,7 +308,7 @@ class TestCreateAuthenticator:
         """Test creating GitLab authenticator."""
         mock_resolve.return_value = ("user", "pass")
         auth = create_authenticator("gitlab", "gitlab.example.com:5005", "test/repo")
-        assert isinstance(auth, GitlabRegistryAuthenticator)
+        assert isinstance(auth, GitlabDockerRegistryHandler)
 
     @patch(
         "nemo_evaluator_launcher.common.container_metadata.registries._resolve_nvcr_credentials"
@@ -317,7 +317,7 @@ class TestCreateAuthenticator:
         """Test creating NVCR authenticator."""
         mock_resolve.return_value = ("user", "pass")
         auth = create_authenticator("nvcr", "nvcr.io")
-        assert isinstance(auth, NvcrRegistryAuthenticator)
+        assert isinstance(auth, NvcrDockerRegistryHandler)
 
     def test_create_authenticator_unknown(self):
         """Test creating authenticator with unknown registry type."""
