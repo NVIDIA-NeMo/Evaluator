@@ -18,7 +18,7 @@ from enum import Enum
 from typing import Any, Dict, Optional
 
 import jinja2
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.core.utils import get_jinja2_environment
@@ -76,6 +76,20 @@ class ConfigParams(BaseModel):
     """Parameters for evaluation execution."""
 
     model_config = ConfigDict(extra="forbid")
+
+    def __init__(self, **data):
+        try:
+            super().__init__(**data)
+        except ValidationError as e:
+            # Check if any errors are extra_forbidden and add valid fields hint
+            for err in e.errors():
+                if err.get("type") == "extra_forbidden":
+                    valid_fields = list(ConfigParams.model_fields.keys())
+                    raise ValueError(
+                        f"Invalid parameter '{err['loc'][0]}'. "
+                        f"Valid params: {valid_fields}"
+                    ) from e
+            raise
 
     limit_samples: Optional[int | float] = Field(
         description="Limit number of evaluation samples", default=None
