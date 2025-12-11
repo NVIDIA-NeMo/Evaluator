@@ -192,7 +192,7 @@ def validate_container_digests(
 def verify_checksums(
     mapping_file: pathlib.Path,
     all_tasks_irs_file: pathlib.Path,
-    readme_file: pathlib.Path,
+    readme_file: Optional[pathlib.Path],
 ) -> tuple[bool, list[str]]:
     """Verify checksums in all_tasks_irs.yaml and README.md match mapping.toml."""
     errors = []
@@ -214,8 +214,8 @@ def verify_checksums(
     else:
         logger.debug("all_tasks_irs.yaml not found, skipping checksum check")
 
-    # Check README.md checksum
-    if readme_file.exists():
+    # Check README.md checksum (skip if readme_file is None)
+    if readme_file is not None and readme_file.exists():
         try:
             content = readme_file.read_text(encoding="utf-8")
             pattern = r"<!--\s*mapping\s+toml\s+checksum:\s*(sha256:[a-f0-9]+)\s*-->"
@@ -231,6 +231,8 @@ def verify_checksums(
                 logger.debug("Could not find checksum comment in README.md")
         except Exception as e:
             errors.append(f"Failed to read README.md: {e}")
+    elif readme_file is None:
+        logger.debug("README.md check skipped (--no-readme specified)")
     else:
         logger.debug("README.md not found, skipping checksum check")
 
@@ -240,7 +242,7 @@ def verify_checksums(
 def verify_mode(
     mapping_file: pathlib.Path,
     all_tasks_irs_file: pathlib.Path,
-    readme_file: pathlib.Path,
+    readme_file: Optional[pathlib.Path],
 ) -> int:
     """Verify digests and checksums."""
     all_valid = True
@@ -484,7 +486,7 @@ def update_readme_table(readme_path: pathlib.Path, table_content: str) -> None:
 def update_mode(
     mapping_file: pathlib.Path,
     all_tasks_irs_file: pathlib.Path,
-    readme_file: pathlib.Path,
+    readme_file: Optional[pathlib.Path],
     max_layer_size: int,
     use_cache: bool,
 ) -> int:
@@ -500,6 +502,7 @@ def update_mode(
     all_task_irs: list[TaskIntermediateRepresentation] = []
     successful = 0
     failed_containers: list[tuple[str, str, Optional[str]]] = []
+    name_warnings: list[str] = []  # Collect harness name validation warnings
 
     for harness_name, container in harness_containers.items():
         logger.info(
@@ -530,8 +533,8 @@ def update_mode(
             continue
 
         try:
-            # Extract original framework name from framework.yml before parsing
-            # (parse_framework_to_irs normalizes it, so we need to get it first)
+            # Extract original framework name from framework.yml for validation
+            # (validation and normalization happen in this controller script, not in parse_framework_to_irs)
             import yaml
 
             framework_data = yaml.safe_load(framework_content)
@@ -540,19 +543,55 @@ def update_mode(
             )
             original_framework_name = framework_info.get("name", "")
 
+            # Normalize original name for comparison (lowercase, same validation as parse_framework_to_irs)
+            if original_framework_name:
+                if not isinstance(original_framework_name, str):
+                    name_warnings.append(
+                        f"Container '{container}' (harness '{harness_name}'): "
+                        f"framework.name must be a string, got {type(original_framework_name).__name__}"
+                    )
+                    normalized_framework_name = ""
+                elif not original_framework_name.replace("-", "").isalnum():
+                    invalid_chars = set(
+                        c
+                        for c in original_framework_name
+                        if not (c.isalnum() or c == "-")
+                    )
+                    name_warnings.append(
+                        f"Container '{container}' (harness '{harness_name}'): "
+                        f"framework.name '{original_framework_name}' contains invalid characters: {sorted(invalid_chars)}. "
+                        f"Only letters, digits, and hyphens are allowed."
+                    )
+                    normalized_framework_name = original_framework_name.lower()
+                else:
+                    normalized_framework_name = original_framework_name.lower()
+            else:
+                normalized_framework_name = ""
+
             harness_ir, task_irs = parse_framework_to_irs(
                 framework_content=framework_content,
                 container_id=container,
                 container_digest=container_digest,
             )
 
-            # Validate that harness name from TOML matches harness name from framework.yml
-            # Compare original names without normalization
-            if original_framework_name != harness_name:
-                raise ValueError(
-                    f"Harness name mismatch: TOML has '{harness_name}', "
-                    f"but framework.yml has '{original_framework_name}'. "
-                    f"These must match exactly (no normalization)."
+            # Validate that harness name from TOML matches normalized harness name from framework.yml
+            # Normalize both for comparison (lowercase)
+            normalized_harness_name = harness_name.lower()
+            normalized_harness_ir_name = harness_ir.name.lower()
+            if normalized_framework_name and normalized_framework_name != normalized_harness_name:
+                name_warnings.append(
+                    f"Container '{container}' (harness '{harness_name}'): "
+                    f"Harness name mismatch: TOML has '{harness_name}' (normalized: '{normalized_harness_name}'), "
+                    f"but framework.yml has '{original_framework_name}' (normalized: '{normalized_framework_name}'). "
+                    f"These should match after normalization (lowercase)."
+                )
+            # Also verify that parse_framework_to_irs returned the expected name
+            if normalized_framework_name and normalized_harness_ir_name != normalized_framework_name:
+                name_warnings.append(
+                    f"Container '{container}' (harness '{harness_name}'): "
+                    f"Harness IR name mismatch: framework.yml has '{original_framework_name}' (normalized: '{normalized_framework_name}'), "
+                    f"but parse_framework_to_irs returned '{harness_ir.name}' (normalized: '{normalized_harness_ir_name}'). "
+                    f"These should match."
                 )
 
             all_task_irs.extend(task_irs)
@@ -605,7 +644,6 @@ def update_mode(
                 description="",
                 full_name=None,
                 url=None,
-                source=None,
                 container=container,
                 container_digest=container_digest,
             )
@@ -613,9 +651,19 @@ def update_mode(
 
         harnesses[task.harness][1].append(task)
 
-    table_content = generate_readme_table(harnesses, mapping_checksum)
-    update_readme_table(readme_file, table_content)
-    logger.info("Updated README.md", checksum=mapping_checksum)
+    # Update README.md (skip if readme_file is None)
+    if readme_file is not None:
+        table_content = generate_readme_table(harnesses, mapping_checksum)
+        update_readme_table(readme_file, table_content)
+        logger.info("Updated README.md", checksum=mapping_checksum)
+    else:
+        logger.info("Skipping README.md update (--no-readme specified)")
+
+    # Display harness name validation warnings at the end
+    if name_warnings:
+        logger.warning("Harness name validation warnings:")
+        for warning in name_warnings:
+            logger.warning(f"  {warning}")
 
     logger.info(
         "Update complete",
@@ -700,11 +748,17 @@ Examples:
         default=default_all_tasks_irs,
         help=f"Path to all_tasks_irs.yaml file (default: {default_all_tasks_irs})",
     )
-    parser.add_argument(
+    readme_group = parser.add_mutually_exclusive_group()
+    readme_group.add_argument(
         "--readme-file",
         type=pathlib.Path,
         default=default_readme,
         help=f"Path to README.md file (default: {default_readme})",
+    )
+    readme_group.add_argument(
+        "--no-readme",
+        action="store_true",
+        help="Skip README.md checks/updates",
     )
     parser.add_argument(
         "--max-layer-size",
@@ -728,6 +782,10 @@ Examples:
     )
 
     args = parser.parse_args()
+
+    # Handle --no-readme: set readme_file to None if --no-readme is specified
+    if args.no_readme:
+        args.readme_file = None
 
     # Set log level
     if not os.getenv("NEMO_EVALUATOR_LOG_LEVEL") and not os.getenv("LOG_LEVEL"):

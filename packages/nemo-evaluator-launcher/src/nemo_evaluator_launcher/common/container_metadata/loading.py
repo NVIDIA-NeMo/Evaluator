@@ -882,6 +882,11 @@ def parse_framework_to_irs(
                 "The harness name must be specified in the framework.yml file."
             )
 
+        if not isinstance(harness_name, str):
+            raise ValueError(
+                f"framework.name must be a string, got {type(harness_name).__name__}"
+            )
+
         # Write to temporary file for get_framework_evaluations
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".yml", delete=False
@@ -903,7 +908,6 @@ def parse_framework_to_irs(
                 description=framework_info.get("description", ""),
                 full_name=framework_info.get("full_name"),
                 url=framework_info.get("url"),
-                source=framework_info.get("source"),
                 container=container_id,
                 container_digest=container_digest,
             )

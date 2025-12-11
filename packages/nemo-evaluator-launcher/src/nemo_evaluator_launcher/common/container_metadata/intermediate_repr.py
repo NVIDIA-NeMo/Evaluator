@@ -48,7 +48,6 @@ class HarnessIntermediateRepresentation:
     description: str
     full_name: Optional[str]
     url: Optional[str]
-    source: Optional[str]
     container: str
     container_digest: Optional[str]
 
@@ -59,7 +58,6 @@ class HarnessIntermediateRepresentation:
             "description": self.description,
             "full_name": self.full_name,
             "url": self.url,
-            "source": self.source,
             "container": self.container,
             "container_digest": self.container_digest,
         }
