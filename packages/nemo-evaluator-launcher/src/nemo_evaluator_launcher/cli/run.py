@@ -95,9 +95,15 @@ class Cmd:
     )
 
     def _parse_requested_tasks(self) -> list[str]:
-        """Parse --tasks arguments into a list of task names."""
+        """Parse --tasks arguments into a list of task names.
+
+        Handles None values that can be appended when using nargs="?" with action="append".
+        """
         requested_tasks = []
         for task_arg in self.tasks:
+            # Skip None or empty values (can happen with nargs="?")
+            if not task_arg:
+                continue
             for task_name in task_arg.split(","):
                 task_name = task_name.strip()
                 if task_name and task_name not in requested_tasks:
@@ -111,7 +117,6 @@ class Cmd:
 
         from nemo_evaluator_launcher.api.functional import (
             RunConfig,
-            filter_tasks,
             run_eval,
         )
 
@@ -173,17 +178,16 @@ class Cmd:
                 hydra_overrides=self.override,
             )
 
-        # Apply task filtering if --tasks is specified
+        # Log task filtering if --tasks is specified
         if requested_tasks:
-            config = filter_tasks(config, requested_tasks)
             logger.info(
                 "Running filtered tasks",
-                count=len(config.evaluation.tasks),
-                tasks=[t.name for t in config.evaluation.tasks],
+                requested_tasks=requested_tasks,
             )
 
         try:
-            invocation_id = run_eval(config, self.dry_run)
+            # Pass tasks to run_eval - it handles filtering internally without mutating config
+            invocation_id = run_eval(config, self.dry_run, tasks=requested_tasks)
         except Exception as e:
             print(red(f"✗ Job submission failed, see logs | Error: {e}"))
             logger.error("Job submission failed", error=e)

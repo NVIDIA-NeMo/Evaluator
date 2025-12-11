@@ -86,15 +86,16 @@ def filter_tasks(cfg: RunConfig, task_names: List[str]) -> RunConfig:
         RunConfig: The configuration with filtered tasks.
 
     Raises:
-        ValueError: If any requested task is not found in config.
+        ValueError: If any requested task is not found in config or no tasks defined.
     """
     if not task_names:
         return cfg
 
+    if not hasattr(cfg.evaluation, "tasks") or not cfg.evaluation.tasks:
+        raise ValueError("No tasks defined in config. Cannot filter tasks.")
+
     requested_tasks = set(task_names)
-    original_tasks = (
-        cfg.evaluation.tasks if hasattr(cfg.evaluation, "tasks") else cfg.evaluation
-    )
+    original_tasks = cfg.evaluation.tasks
     filtered_tasks = [task for task in original_tasks if task.name in requested_tasks]
 
     # Fail if ANY requested tasks are not found
