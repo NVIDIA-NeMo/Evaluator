@@ -38,7 +38,7 @@ from nemo_evaluator_launcher.common.container_metadata.loading import (
     write_to_cache,
 )
 from nemo_evaluator_launcher.common.container_metadata.registries import (
-    RegistryAuthenticator,
+    DockerRegistryHandler,
 )
 
 
@@ -303,7 +303,7 @@ class TestGetContainerDigest:
 
     def test_get_container_digest_success(self):
         """Test getting container digest successfully."""
-        mock_authenticator = Mock(spec=RegistryAuthenticator)
+        mock_authenticator = Mock(spec=DockerRegistryHandler)
         mock_authenticator.get_manifest_and_digest.return_value = (
             {"schemaVersion": 2},
             "sha256:abc123",
@@ -314,7 +314,7 @@ class TestGetContainerDigest:
 
     def test_get_container_digest_failure(self):
         """Test getting container digest when it fails."""
-        mock_authenticator = Mock(spec=RegistryAuthenticator)
+        mock_authenticator = Mock(spec=DockerRegistryHandler)
         mock_authenticator.get_manifest_and_digest.side_effect = Exception(
             "Network error"
         )
@@ -347,7 +347,7 @@ class TestFindFileMatchingPatternInImageLayers:
             cache_dir,
         )
 
-        mock_authenticator = Mock(spec=RegistryAuthenticator)
+        mock_authenticator = Mock(spec=DockerRegistryHandler)
         mock_authenticator.get_manifest_and_digest.return_value = (
             {"layers": []},
             "sha256:abc123",
@@ -378,7 +378,7 @@ class TestFindFileMatchingPatternInImageLayers:
 
     def test_find_file_matching_pattern_found_in_layer(self):
         """Test finding file in layer."""
-        mock_authenticator = Mock(spec=RegistryAuthenticator)
+        mock_authenticator = Mock(spec=DockerRegistryHandler)
         mock_authenticator.get_manifest_and_digest.return_value = (
             {
                 "layers": [
@@ -415,7 +415,7 @@ class TestFindFileMatchingPatternInImageLayers:
 
     def test_find_file_matching_pattern_not_found(self):
         """Test when file is not found in any layer."""
-        mock_authenticator = Mock(spec=RegistryAuthenticator)
+        mock_authenticator = Mock(spec=DockerRegistryHandler)
         mock_authenticator.get_manifest_and_digest.return_value = (
             {
                 "layers": [

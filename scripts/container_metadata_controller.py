@@ -45,7 +45,7 @@ else:
 
 from nemo_evaluator_launcher.common.container_metadata import (
     HarnessIntermediateRepresentation,
-    RegistryAuthenticator,
+    DockerRegistryHandler,
     TaskIntermediateRepresentation,
     create_authenticator,
     extract_framework_yml,
@@ -81,7 +81,7 @@ def calculate_mapping_checksum(mapping_file: pathlib.Path) -> str:
 
 
 def get_container_digest(
-    authenticator: RegistryAuthenticator, repository: str, reference: str
+    authenticator: DockerRegistryHandler, repository: str, reference: str
 ) -> Optional[str]:
     """Get the manifest digest for a container image."""
     try:
@@ -526,7 +526,8 @@ def update_mode(
         if not framework_content:
             failed_containers.append((harness_name, container, container_digest))
             logger.warning(
-                "Skipping container (framework.yml not found)",
+                "Skipping container (frame definition file not found)",
+                filename="framework.yml",
                 harness=harness_name,
                 container=container,
             )
@@ -599,7 +600,8 @@ def update_mode(
         except Exception as e:
             failed_containers.append((harness_name, container, container_digest))
             logger.error(
-                "Failed to parse framework.yml to IRs",
+                "Failed to parse frame definition file to IRs",
+                filename="framework.yml",
                 harness=harness_name,
                 container=container,
                 error=str(e),

@@ -27,11 +27,11 @@ import requests
 
 from nemo_evaluator_launcher.common.logging_utils import logger
 
-# Docker credentials file location
-DOCKER_CONFIG_PATH = pathlib.Path.home() / ".docker" / "config.json"
+# Docker credentials file location for falling back if public and PAT auth failed
+_DOCKER_CONFIG_PATH = pathlib.Path.home() / ".docker" / "config.json"
 
 # Docker Registry API v2 manifest media type
-DOCKER_MANIFEST_MEDIA_TYPE = "application/vnd.docker.distribution.manifest.v2+json"
+_DOCKER_MANIFEST_MEDIA_TYPE = "application/vnd.docker.distribution.manifest.v2+json"
 
 
 def _build_key_variants(registry_url: str) -> list[str]:
@@ -143,14 +143,14 @@ def _read_docker_credentials(registry_url: str) -> Optional[Tuple[str, str]]:
     Returns:
         Tuple of (username, password) if found, None otherwise
     """
-    if not DOCKER_CONFIG_PATH.exists():
+    if not _DOCKER_CONFIG_PATH.exists():
         logger.debug(
-            "Docker config file not found", config_path=str(DOCKER_CONFIG_PATH)
+            "Docker config file not found", config_path=str(_DOCKER_CONFIG_PATH)
         )
         return None
 
     try:
-        with open(DOCKER_CONFIG_PATH, "r", encoding="utf-8") as f:
+        with open(_DOCKER_CONFIG_PATH, "r", encoding="utf-8") as f:
             config = json.load(f)
 
         auths = config.get("auths", {})
@@ -196,14 +196,14 @@ def _read_docker_credentials(registry_url: str) -> Optional[Tuple[str, str]]:
     except json.JSONDecodeError as e:
         logger.warning(
             "Failed to parse Docker config file",
-            config_path=str(DOCKER_CONFIG_PATH),
+            config_path=str(_DOCKER_CONFIG_PATH),
             error=str(e),
         )
         return None
     except Exception as e:
         logger.warning(
             "Error reading Docker config file",
-            config_path=str(DOCKER_CONFIG_PATH),
+            config_path=str(_DOCKER_CONFIG_PATH),
             error=str(e),
         )
         return None
@@ -223,14 +223,14 @@ def _retry_without_auth(url: str, stream: bool = False) -> Optional[requests.Res
         Response object if successful, None otherwise
     """
     temp_session = requests.Session()
-    temp_session.headers.update({"Accept": DOCKER_MANIFEST_MEDIA_TYPE})
+    temp_session.headers.update({"Accept": _DOCKER_MANIFEST_MEDIA_TYPE})
     response = temp_session.get(url, stream=stream)
     if response.status_code == 200:
         return response
     return None
 
 
-class RegistryAuthenticator(ABC):
+class DockerRegistryHandler(ABC):
     """Abstract base class for Docker registry authentication and operations."""
 
     @abstractmethod
@@ -403,7 +403,7 @@ class RegistryAuthenticator(ABC):
             return None
 
 
-class GitlabRegistryAuthenticator(RegistryAuthenticator):
+class GitlabDockerRegistryHandler(DockerRegistryHandler):
     """GitLab-specific implementation of Docker registry authentication flow."""
 
     def __init__(
@@ -440,7 +440,7 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
 
         if response.status_code == 200:
             logger.debug("Registry is public, no authentication needed")
-            self.session.headers.update({"Accept": DOCKER_MANIFEST_MEDIA_TYPE})
+            self.session.headers.update({"Accept": _DOCKER_MANIFEST_MEDIA_TYPE})
             return True
         return False
 
@@ -523,7 +523,7 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
                     logger.debug(
                         "No credentials available, attempting to proceed without authentication"
                     )
-                    self.session.headers.update({"Accept": DOCKER_MANIFEST_MEDIA_TYPE})
+                    self.session.headers.update({"Accept": _DOCKER_MANIFEST_MEDIA_TYPE})
                     return True
                 return False
 
@@ -543,7 +543,7 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
             self.session.headers.update(
                 {
                     "Authorization": f"Bearer {self.bearer_token}",
-                    "Accept": DOCKER_MANIFEST_MEDIA_TYPE,
+                    "Accept": _DOCKER_MANIFEST_MEDIA_TYPE,
                 }
             )
 
@@ -556,7 +556,7 @@ class GitlabRegistryAuthenticator(RegistryAuthenticator):
     # get_manifest_and_digest and get_blob are inherited from base class
 
 
-class NvcrRegistryAuthenticator(RegistryAuthenticator):
+class NvcrDockerRegistryHandler(DockerRegistryHandler):
     """NVIDIA Container Registry (nvcr.io) implementation using Docker Registry API v2."""
 
     def __init__(
@@ -688,7 +688,7 @@ class NvcrRegistryAuthenticator(RegistryAuthenticator):
             self.session.headers.update(
                 {
                     "Authorization": f"Bearer {self.bearer_token}",
-                    "Accept": DOCKER_MANIFEST_MEDIA_TYPE,
+                    "Accept": _DOCKER_MANIFEST_MEDIA_TYPE,
                 }
             )
 
@@ -760,7 +760,7 @@ def _resolve_nvcr_credentials(registry_url: str) -> tuple[Optional[str], Optiona
 
 def create_authenticator(
     registry_type: str, registry_url: str, repository: Optional[str] = None
-) -> RegistryAuthenticator:
+) -> DockerRegistryHandler:
     """Create the appropriate authenticator based on registry type.
 
     Unified authenticator creation that supports:
@@ -785,7 +785,7 @@ def create_authenticator(
             repository=repository,
             has_credentials=bool(username and password),
         )
-        return GitlabRegistryAuthenticator(
+        return GitlabDockerRegistryHandler(
             registry_url=registry_url,
             username=username,
             password=password,
@@ -799,7 +799,7 @@ def create_authenticator(
             registry_url=registry_url,
             has_credentials=bool(username and password),
         )
-        return NvcrRegistryAuthenticator(
+        return NvcrDockerRegistryHandler(
             registry_url=registry_url,
             username=username,
             password=password,

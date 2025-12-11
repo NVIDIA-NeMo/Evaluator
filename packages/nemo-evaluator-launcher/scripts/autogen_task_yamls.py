@@ -308,7 +308,7 @@ class _HarnessAutogen:
         """Generate card markdown for this harness in the catalog.
 
         Args:
-            harnesses_dir: Relative path to harnesses directory (from task_catalog.md, e.g., harnesses)
+            harnesses_dir: Relative path to harnesses directory (from index.md, e.g., harnesses)
 
         Returns:
             Card markdown content
@@ -360,7 +360,7 @@ def generate_tasks_catalog_markdown(
 
     Args:
         harnesses: List of _HarnessAutogen objects
-        harnesses_dir: Relative path to harnesses directory (from task_catalog.md, e.g., harnesses)
+        harnesses_dir: Relative path to harnesses directory (from index.md, e.g., harnesses)
 
     Returns:
         Markdown content as string
@@ -403,7 +403,7 @@ def generate_tasks_catalog_markdown(
         # Sort harnesses alphabetically for consistent ordering
         sorted_harnesses = sorted(harnesses, key=lambda h: h.harness_name.lower())
         for harness in sorted_harnesses:
-            # Use relative path from task_catalog.md to harness pages
+            # Use relative path from index.md to harness pages
             harness_path = f"{harnesses_dir}/{harness.harness_filename}"
             lines.append(f"{harness.harness_name} <{harness_path}>")
         lines.append(":::")
@@ -561,7 +561,7 @@ Examples:
         "--catalog-file",
         type=pathlib.Path,
         default=None,
-        help="Path to tasks catalog markdown file (default: repo_root/docs/task_catalog/task_catalog.md)",
+        help="Path to tasks catalog markdown file (default: repo_root/docs/task_catalog/index.md)",
     )
     parser.add_argument(
         "--harnesses-dir",
@@ -594,7 +594,7 @@ Examples:
 
     # Set default paths relative to repo root if not provided
     if args.catalog_file is None:
-        args.catalog_file = repo_root / "docs" / "task_catalog" / "task_catalog.md"
+        args.catalog_file = repo_root / "docs" / "task_catalog" / "index.md"
     if args.harnesses_dir is None:
         args.harnesses_dir = repo_root / "docs" / "task_catalog" / "harnesses"
 
