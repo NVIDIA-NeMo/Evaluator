@@ -648,7 +648,6 @@ Examples:
                 description="",  # Description not available from tasks alone
                 full_name=None,
                 url=None,
-                source=None,
                 container=container,
                 container_digest=container_digest,
             )
@@ -734,7 +733,6 @@ Examples:
                     description="",
                     full_name=None,
                     url=None,
-                    source=None,
                     container=container,
                     container_digest=container_digest,
                 )

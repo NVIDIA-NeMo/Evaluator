@@ -234,8 +234,54 @@ evaluations:
         )
 
         assert isinstance(harness_ir, HarnessIntermediateRepresentation)
-        assert harness_ir.name == "test-harness"
+        assert harness_ir.name == "test-harness"  # Original name preserved
         assert len(task_irs) > 0
+
+    @patch(
+        "nemo_evaluator_launcher.common.container_metadata.loading.get_framework_evaluations"
+    )
+    def test_parse_framework_to_irs_preserves_case(self, mock_get_evaluations):
+        """Test that framework name case is preserved."""
+        framework_content = """
+framework:
+  name: TestHarness
+  description: Test harness description
+evaluations:
+  - defaults:
+      config:
+        type: task1
+    description: Task 1 description
+"""
+        mock_get_evaluations.return_value = (
+            "TestHarness",
+            {},
+            {"task1": Mock(model_dump=Mock(return_value={"type": "task1"}))},
+        )
+
+        harness_ir, task_irs = parse_framework_to_irs(
+            framework_content, "test:latest", "sha256:abc123"
+        )
+
+        assert harness_ir.name == "TestHarness"  # Original case preserved
+
+    def test_parse_framework_to_irs_preserves_name(self):
+        """Test that framework name is preserved as-is."""
+        framework_content = """
+framework:
+  name: test-harness-123
+  description: Test harness description
+evaluations: []
+"""
+        # This should not raise an error - no validation in loading.py
+        # We'll mock get_framework_evaluations to avoid actual parsing
+        with patch(
+            "nemo_evaluator_launcher.common.container_metadata.loading.get_framework_evaluations"
+        ) as mock_get:
+            mock_get.return_value = ("test-harness-123", {}, {})
+            harness_ir, task_irs = parse_framework_to_irs(
+                framework_content, "test:latest", None
+            )
+            assert harness_ir.name == "test-harness-123"  # Original name preserved
 
     def test_parse_framework_to_irs_missing_name(self):
         """Test parsing framework.yml without framework.name."""
