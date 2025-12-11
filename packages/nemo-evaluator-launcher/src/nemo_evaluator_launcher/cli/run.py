@@ -188,18 +188,17 @@ class Cmd:
                 found_names = {task.name for task in filtered_tasks}
                 not_found = requested_tasks - found_names
                 if not_found:
-                    print(
-                        yellow(
-                            f"Warning: The following tasks were not found in config: {sorted(not_found)}"
-                        )
+                    logger.warning(
+                        "Some requested tasks were not found in config",
+                        not_found=sorted(not_found),
                     )
 
                 # Update config with filtered tasks
                 config.evaluation.tasks = filtered_tasks
-                print(
-                    cyan(
-                        f"Running {len(filtered_tasks)} task(s): {[t.name for t in filtered_tasks]}"
-                    )
+                logger.info(
+                    "Running filtered tasks",
+                    count=len(filtered_tasks),
+                    tasks=[t.name for t in filtered_tasks],
                 )
 
         try:
