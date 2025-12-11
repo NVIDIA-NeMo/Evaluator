@@ -1,7 +1,8 @@
 
-# How-To
+# How-To Guides
 
-
+These practical, task-oriented guides walk you through specific configurations and workflows in NeMo Evaluator.
+Each guide focuses on a single feature or use case, providing clear instructions to help you accomplish common tasks efficiently.
 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
@@ -26,7 +27,7 @@ Learn how to switch between execution backends (e.g. convert from local to slurm
 ::::
 
 :::{toctree}
-:caption: How-To
+:caption: How-To Guides
 :hidden:
 
 reasoning
