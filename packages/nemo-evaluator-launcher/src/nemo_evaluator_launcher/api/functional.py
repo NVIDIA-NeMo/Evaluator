@@ -75,12 +75,48 @@ def _validate_no_missing_values(cfg: Any, path: str = "") -> None:
             _validate_no_missing_values(value, current_path)
 
 
-def run_eval(cfg: RunConfig, dry_run: bool = False) -> Optional[str]:
+def filter_tasks(cfg: RunConfig, task_names: List[str]) -> RunConfig:
+    """Filter evaluation tasks to only include specified task names.
+
+    Args:
+        cfg: The configuration object for the evaluation run.
+        task_names: List of task names to include (e.g., ["ifeval", "gsm8k"]).
+
+    Returns:
+        RunConfig: The configuration with filtered tasks.
+
+    Raises:
+        ValueError: If no matching tasks are found.
+    """
+    if not task_names:
+        return cfg
+
+    requested_tasks = set(task_names)
+    original_tasks = (
+        cfg.evaluation.tasks if hasattr(cfg.evaluation, "tasks") else cfg.evaluation
+    )
+    filtered_tasks = [task for task in original_tasks if task.name in requested_tasks]
+
+    if not filtered_tasks:
+        available = [task.name for task in original_tasks]
+        raise ValueError(
+            f"No matching tasks found. Requested: {sorted(requested_tasks)}, "
+            f"Available: {available}"
+        )
+
+    cfg.evaluation.tasks = filtered_tasks
+    return cfg
+
+
+def run_eval(
+    cfg: RunConfig, dry_run: bool = False, tasks: Optional[List[str]] = None
+) -> Optional[str]:
     """Run evaluation with specified config and overrides.
 
     Args:
         cfg: The configuration object for the evaluation run.
         dry_run: If True, do not run the evaluation, just prepare scripts and save them.
+        tasks: Optional list of task names to run. If provided, only these tasks will be executed.
 
     Returns:
         Optional[str]: The invocation ID for the evaluation run.
@@ -89,6 +125,10 @@ def run_eval(cfg: RunConfig, dry_run: bool = False) -> Optional[str]:
         ValueError: If configuration validation fails or MISSING values are found.
         RuntimeError: If the executor fails to start the evaluation.
     """
+    # Filter tasks if specified
+    if tasks:
+        cfg = filter_tasks(cfg, tasks)
+
     # Validate that no MISSING values exist in the configuration
     _validate_no_missing_values(cfg)
 

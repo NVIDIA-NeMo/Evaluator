@@ -77,6 +77,15 @@ class Cmd:
         alias=["-n", "--dry-run"],
         metadata={"help": "Do not run the evaluation, just print the config."},
     )
+    tasks: list[str] = field(
+        default_factory=list,
+        action="append",
+        nargs="?",
+        alias=["-t", "--tasks"],
+        metadata={
+            "help": "Run only specific tasks from the config (comma-separated or multiple -t flags). Example: -t ifeval -t gsm8k or -t ifeval,gsm8k"
+        },
+    )
     config_output: str | None = field(
         default=None,
         alias=["--config-output"],
@@ -146,6 +155,52 @@ class Cmd:
                 config_name=config_name,
                 hydra_overrides=self.override,
             )
+
+        # Filter tasks if --tasks is specified
+        if self.tasks:
+            # Parse comma-separated task names
+            requested_tasks = set()
+            for task_arg in self.tasks:
+                for task_name in task_arg.split(","):
+                    task_name = task_name.strip()
+                    if task_name:
+                        requested_tasks.add(task_name)
+
+            if requested_tasks:
+                # Filter evaluation.tasks to only include requested tasks
+                original_tasks = (
+                    config.evaluation.tasks
+                    if hasattr(config.evaluation, "tasks")
+                    else config.evaluation
+                )
+                filtered_tasks = [
+                    task for task in original_tasks if task.name in requested_tasks
+                ]
+
+                if not filtered_tasks:
+                    available = [task.name for task in original_tasks]
+                    raise ValueError(
+                        f"No matching tasks found. Requested: {sorted(requested_tasks)}, "
+                        f"Available: {available}"
+                    )
+
+                # Check for tasks that weren't found
+                found_names = {task.name for task in filtered_tasks}
+                not_found = requested_tasks - found_names
+                if not_found:
+                    print(
+                        yellow(
+                            f"Warning: The following tasks were not found in config: {sorted(not_found)}"
+                        )
+                    )
+
+                # Update config with filtered tasks
+                config.evaluation.tasks = filtered_tasks
+                print(
+                    cyan(
+                        f"Running {len(filtered_tasks)} task(s): {[t.name for t in filtered_tasks]}"
+                    )
+                )
 
         try:
             invocation_id = run_eval(config, self.dry_run)
