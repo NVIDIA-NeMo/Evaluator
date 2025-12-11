@@ -2,7 +2,14 @@ framework:
   name: dummy-framework
   pkg_name: dummy_framework
 defaults:
-  command: echo {{config.params.extra.dummy_score}} > {{config.output_dir}}/output.txt
+  command: >
+    echo {{config.params.extra.dummy_score}} > {{config.output_dir}}/output.txt &&
+    echo "Using: max_new_tokens={{config.params.max_new_tokens}} 
+    temperature={{config.params.temperature}}
+    top_p={{config.params.top_p}}
+    parallelism={{config.params.parallelism}}
+    max_retries={{config.params.max_retries}}
+    request_timeout={{config.params.request_timeout}}" > /dev/null
   config:
     params:
       limit_samples: null
