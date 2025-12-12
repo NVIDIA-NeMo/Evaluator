@@ -34,7 +34,7 @@ from nemo_evaluator_launcher.common.container_metadata.registries import (
     DockerRegistryHandler,
     create_authenticator,
 )
-from nemo_evaluator_launcher.common.helpers import parse_container_image
+from nemo_evaluator_launcher.common.container_metadata.utils import parse_container_image
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 # Default max layer size for framework.yml extraction (100KB)

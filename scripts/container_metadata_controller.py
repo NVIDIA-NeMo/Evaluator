@@ -52,7 +52,7 @@ from nemo_evaluator_launcher.common.container_metadata import (
     load_tasks_from_tasks_file,
     parse_framework_to_irs,
 )
-from nemo_evaluator_launcher.common.helpers import parse_container_image
+from nemo_evaluator_launcher.common.container_metadata import parse_container_image
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 # Maximum number of lines to check after container declaration for digest comment

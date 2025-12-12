@@ -15,7 +15,6 @@
 #
 """Autogen script runner for Sphinx documentation builds."""
 
-import os
 import pathlib
 import subprocess
 import sys
@@ -68,30 +67,14 @@ def run_autogen_script(
         logger.info("Running autogen script to regenerate task documentation...")
         logger.info("=" * 80)
 
-        # Build PYTHONPATH with both launcher and evaluator packages
-        launcher_src = repo_root / "packages" / "nemo-evaluator-launcher" / "src"
-        evaluator_src = repo_root / "packages" / "nemo-evaluator" / "src"
-
-        env = os.environ.copy()
-        pythonpath_parts = []
-        if launcher_src.exists():
-            pythonpath_parts.append(str(launcher_src))
-        if evaluator_src.exists():
-            pythonpath_parts.append(str(evaluator_src))
-
-        existing_pythonpath = env.get("PYTHONPATH", "")
-        if existing_pythonpath:
-            pythonpath_parts.append(existing_pythonpath)
-
-        if pythonpath_parts:
-            env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
-
+        # The docs environment (from docs/pyproject.toml docs dependency group) includes
+        # both nemo-evaluator and nemo-evaluator-launcher installed in editable mode,
+        # so we can use sys.executable directly - all dependencies are available.
         # Run autogen script - FAIL BUILD if it fails
         # Stream stdout in real-time for better UX, but capture stderr for error reporting
         result = subprocess.run(
             [sys.executable, str(autogen_script)],
             cwd=str(repo_root),
-            env=env,
             stdout=None,  # Let stdout stream normally so users see progress
             stderr=subprocess.PIPE,  # Capture stderr for error reporting
             text=True,

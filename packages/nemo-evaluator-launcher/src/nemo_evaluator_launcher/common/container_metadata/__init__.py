@@ -29,6 +29,9 @@ from nemo_evaluator_launcher.common.container_metadata.registries import (
     DockerRegistryHandler,
     create_authenticator,
 )
+from nemo_evaluator_launcher.common.container_metadata.utils import (
+    parse_container_image,
+)
 
 __all__ = [
     "DockerRegistryHandler",
@@ -39,4 +42,5 @@ __all__ = [
     "extract_framework_yml",
     "load_tasks_from_container",
     "parse_framework_to_irs",
+    "parse_container_image",
 ]
