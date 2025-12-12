@@ -6,7 +6,7 @@ Comprehensive catalog of hundreds of benchmarks across popular evaluation harnes
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {octicon}`graph;1.5em;sd-mr-1` About Selecting Benchmarks
-:link: gs-quickstart-launcher
+:link: eval-benchmarks
 :link-type: ref
 Browse benchmark categories and choose the ones best suited for your model and use case
 
@@ -14,7 +14,7 @@ Browse benchmark categories and choose the ones best suited for your model and u
 :::
 
 :::{grid-item-card} {octicon}`book;1.5em;sd-mr-1` Available Benchmarks
-:link: gs-quickstart-core
+:link: benchmarks-full-list
 :link-type: ref
 
 Detailed description of all available tasks, groupped by evaluation harness.
