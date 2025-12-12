@@ -1,7 +1,7 @@
 (how-to-switch-executors)=
 # Switch Executor
 
-In this guide you will learn how to switch from one executor to another.
+With Nemo-evaluator, you can choose how your evaluations run: locally using Docker, on clusters with Slurm, or other options - all managed through _executors_. In this guide you will learn how to switch from one executor to another.
 For the purpose of this exercise we will use `local` and `slurm` executors with `vllm` model deployment.
 
 :::{tip}
@@ -77,6 +77,7 @@ execution:
 ```
 
 This will allow you to run the same deployment and evaluation workflow on a remote Slurm cluster.
+If you only want to change the executor, there's no need to update other sections of your config.
 
 ## Dynamically switch executor with CLI overrides
 
