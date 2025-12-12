@@ -147,6 +147,7 @@ class NeMoEvaluatorClient:
         seeds: Optional[List[Optional[int]]] = None,
         show_progress: bool = True,
     ) -> List[str]:
+        created_new_loop = False
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
@@ -157,13 +158,18 @@ class NeMoEvaluatorClient:
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+            created_new_loop = True
 
         try:
             return loop.run_until_complete(
                 self.batch_chat_completions(messages_list, seeds, show_progress)
             )
         finally:
-            pass
+            if created_new_loop:
+                try:
+                    loop.close()
+                finally:
+                    asyncio.set_event_loop(None)
 
     async def batch_chat_completions(
         self,
@@ -222,6 +228,7 @@ class NeMoEvaluatorClient:
         show_progress: bool = True,
         **kwargs,
     ) -> List[str]:
+        created_new_loop = False
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
@@ -232,13 +239,18 @@ class NeMoEvaluatorClient:
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+            created_new_loop = True
 
         try:
             return loop.run_until_complete(
                 self.batch_completions(prompts, seeds, show_progress, **kwargs)
             )
         finally:
-            pass
+            if created_new_loop:
+                try:
+                    loop.close()
+                finally:
+                    asyncio.set_event_loop(None)
 
     async def batch_completions(
         self,
@@ -286,6 +298,7 @@ class NeMoEvaluatorClient:
         show_progress: bool = True,
         **kwargs,
     ) -> List[List[float]]:
+        created_new_loop = False
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
@@ -296,13 +309,18 @@ class NeMoEvaluatorClient:
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+            created_new_loop = True
 
         try:
             return loop.run_until_complete(
                 self.batch_embeddings(texts, show_progress, **kwargs)
             )
         finally:
-            pass
+            if created_new_loop:
+                try:
+                    loop.close()
+                finally:
+                    asyncio.set_event_loop(None)
 
     async def batch_embeddings(
         self,

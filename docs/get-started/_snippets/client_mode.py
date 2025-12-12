@@ -25,7 +25,7 @@ async def main():
     config = EndpointModelConfig(
         model_id="my-model",
         url="https://api.example.com/v1/chat/completions",
-        api_key_name="API_KEY",
+        api_key="API_KEY",
         is_base_url=False,  # URL is complete endpoint, not base
         adapter_config=AdapterConfig(
             mode="client",  # Use client mode (no server spawned)
