@@ -44,15 +44,15 @@ else:
     import tomli as tomllib
 
 from nemo_evaluator_launcher.common.container_metadata import (
-    HarnessIntermediateRepresentation,
     DockerRegistryHandler,
+    HarnessIntermediateRepresentation,
     TaskIntermediateRepresentation,
     create_authenticator,
     extract_framework_yml,
     load_tasks_from_tasks_file,
+    parse_container_image,
     parse_framework_to_irs,
 )
-from nemo_evaluator_launcher.common.container_metadata import parse_container_image
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 # Maximum number of lines to check after container declaration for digest comment
@@ -579,7 +579,10 @@ def update_mode(
             # Normalize both for comparison (lowercase)
             normalized_harness_name = harness_name.lower()
             normalized_harness_ir_name = harness_ir.name.lower()
-            if normalized_framework_name and normalized_framework_name != normalized_harness_name:
+            if (
+                normalized_framework_name
+                and normalized_framework_name != normalized_harness_name
+            ):
                 name_warnings.append(
                     f"Container '{container}' (harness '{harness_name}'): "
                     f"Harness name mismatch: TOML has '{harness_name}' (normalized: '{normalized_harness_name}'), "
@@ -587,7 +590,10 @@ def update_mode(
                     f"These should match after normalization (lowercase)."
                 )
             # Also verify that parse_framework_to_irs returned the expected name
-            if normalized_framework_name and normalized_harness_ir_name != normalized_framework_name:
+            if (
+                normalized_framework_name
+                and normalized_harness_ir_name != normalized_framework_name
+            ):
                 name_warnings.append(
                     f"Container '{container}' (harness '{harness_name}'): "
                     f"Harness IR name mismatch: framework.yml has '{original_framework_name}' (normalized: '{normalized_framework_name}'), "

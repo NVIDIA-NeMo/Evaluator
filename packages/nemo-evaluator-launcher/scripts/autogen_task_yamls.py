@@ -594,9 +594,13 @@ Examples:
 
     # Set default paths relative to repo root if not provided
     if args.catalog_file is None:
-        args.catalog_file = repo_root / "docs" / "evaluation" / "benchmarks" / "catalog" / "index.md"
+        args.catalog_file = (
+            repo_root / "docs" / "evaluation" / "benchmarks" / "catalog" / "index.md"
+        )
     if args.harnesses_dir is None:
-        args.harnesses_dir = repo_root / "docs" / "evaluation" / "benchmarks" / "catalog" / "harnesses"
+        args.harnesses_dir = (
+            repo_root / "docs" / "evaluation" / "benchmarks" / "catalog" / "harnesses"
+        )
 
     logger.info(
         "Starting documentation autogeneration",
@@ -785,7 +789,12 @@ Examples:
 
         # Generate benchmarks table file
         benchmarks_table_file = (
-            repo_root / "docs" / "evaluation" / "benchmarks" / "catalog" / "benchmarks-table.md"
+            repo_root
+            / "docs"
+            / "evaluation"
+            / "benchmarks"
+            / "catalog"
+            / "benchmarks-table.md"
         )
         try:
             table_content = generate_benchmarks_table_markdown(
