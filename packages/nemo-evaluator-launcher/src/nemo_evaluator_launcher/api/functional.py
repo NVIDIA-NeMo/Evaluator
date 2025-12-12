@@ -18,6 +18,7 @@
 This module provides the main functional entry points for running evaluations, querying job status, and listing available tasks. These functions are intended to be used by CLI commands and external integrations.
 """
 
+import copy
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
@@ -75,12 +76,54 @@ def _validate_no_missing_values(cfg: Any, path: str = "") -> None:
             _validate_no_missing_values(value, current_path)
 
 
-def run_eval(cfg: RunConfig, dry_run: bool = False) -> Optional[str]:
+def filter_tasks(cfg: RunConfig, task_names: list[str]) -> RunConfig:
+    """Filter evaluation tasks to only include specified task names.
+
+    Args:
+        cfg: The configuration object for the evaluation run.
+        task_names: List of task names to include (e.g., ["ifeval", "gsm8k"]).
+
+    Returns:
+        RunConfig: A new configuration with filtered tasks (input is not mutated).
+
+    Raises:
+        ValueError: If any requested task is not found in config or no tasks defined.
+    """
+    if not task_names:
+        return cfg
+
+    if not hasattr(cfg.evaluation, "tasks") or not cfg.evaluation.tasks:
+        raise ValueError("No tasks defined in config. Cannot filter tasks.")
+
+    requested_tasks = set(task_names)
+    original_tasks = cfg.evaluation.tasks
+    filtered_tasks = [task for task in original_tasks if task.name in requested_tasks]
+
+    # Fail if ANY requested tasks are not found
+    found_names = {task.name for task in filtered_tasks}
+    not_found = requested_tasks - found_names
+    if not_found:
+        available = [task.name for task in original_tasks]
+        raise ValueError(
+            f"Requested task(s) not found in config: {sorted(not_found)}. "
+            f"Available tasks: {available}"
+        )
+
+    # Create a deep copy to preserve input immutability
+    result = copy.deepcopy(cfg)
+    result.evaluation.tasks = filtered_tasks
+    return result
+
+
+def run_eval(
+    cfg: RunConfig, dry_run: bool = False, tasks: Optional[list[str]] = None
+) -> Optional[str]:
     """Run evaluation with specified config and overrides.
 
     Args:
         cfg: The configuration object for the evaluation run.
         dry_run: If True, do not run the evaluation, just prepare scripts and save them.
+        tasks: Optional list of task names to run. If provided, only these tasks will be executed.
 
     Returns:
         Optional[str]: The invocation ID for the evaluation run.
@@ -89,6 +132,10 @@ def run_eval(cfg: RunConfig, dry_run: bool = False) -> Optional[str]:
         ValueError: If configuration validation fails or MISSING values are found.
         RuntimeError: If the executor fails to start the evaluation.
     """
+    # Filter tasks if specified
+    if tasks:
+        cfg = filter_tasks(cfg, tasks)
+
     # Validate that no MISSING values exist in the configuration
     _validate_no_missing_values(cfg)
 
@@ -285,7 +332,7 @@ def stream_logs(
 
     # Collect all jobs from all IDs, grouped by executor
     executor_to_jobs: Dict[str, Dict[str, JobData]] = {}
-    executor_to_invocations: Dict[str, List[str]] = {}
+    executor_to_invocations: Dict[str, list[str]] = {}
 
     # TODO(agronskiy): refactor the `.`-checking job in all the functions.
     for id_or_prefix in ids_or_prefixes:
@@ -517,7 +564,7 @@ def kill_job_or_invocation(id: str) -> list[dict[str, Any]]:
 
 
 def export_results(
-    invocation_ids: Union[str, List[str]],
+    invocation_ids: Union[str, list[str]],
     dest: str = "local",
     config: dict[Any, Any] | None = None,
 ) -> dict:

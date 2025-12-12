@@ -77,6 +77,15 @@ class Cmd:
         alias=["-n", "--dry-run"],
         metadata={"help": "Do not run the evaluation, just print the config."},
     )
+    tasks: list[str] = field(
+        default_factory=list,
+        action="append",
+        nargs="?",
+        alias=["-t"],
+        metadata={
+            "help": "Run only specific tasks from the config. Example: -t ifeval -t gsm8k"
+        },
+    )
     config_output: str | None = field(
         default=None,
         alias=["--config-output"],
@@ -85,12 +94,30 @@ class Cmd:
         },
     )
 
+    def _parse_requested_tasks(self) -> list[str]:
+        """Parse -t arguments into a list of task names.
+
+        Handles None values that can be appended when using nargs="?" with action="append".
+        """
+        requested_tasks = []
+        for task_arg in self.tasks:
+            # Skip None or empty values (can happen with nargs="?")
+            if not task_arg:
+                continue
+            task_name = task_arg.strip()
+            if task_name and task_name not in requested_tasks:
+                requested_tasks.append(task_name)
+        return requested_tasks
+
     def execute(self) -> None:
         # Import heavy dependencies only when needed
         import yaml
         from omegaconf import OmegaConf
 
-        from nemo_evaluator_launcher.api.functional import RunConfig, run_eval
+        from nemo_evaluator_launcher.api.functional import (
+            RunConfig,
+            run_eval,
+        )
 
         # Validate config_mode value
         if self.config_mode not in ["hydra", "raw"]:
@@ -103,6 +130,9 @@ class Cmd:
             raise ValueError(
                 "--config-mode=raw requires --config to be specified. Raw mode loads config files directly."
             )
+
+        # Parse requested tasks if -t is specified
+        requested_tasks = self._parse_requested_tasks() if self.tasks else None
 
         # Load configuration either from Hydra or directly from a config file
         if self.config_mode == "raw" and self.config:
@@ -147,8 +177,16 @@ class Cmd:
                 hydra_overrides=self.override,
             )
 
+        # Log task filtering if -t is specified
+        if requested_tasks:
+            logger.info(
+                "Running filtered tasks",
+                requested_tasks=requested_tasks,
+            )
+
         try:
-            invocation_id = run_eval(config, self.dry_run)
+            # Pass tasks to run_eval - it handles filtering internally without mutating config
+            invocation_id = run_eval(config, self.dry_run, tasks=requested_tasks)
         except Exception as e:
             print(red(f"✗ Job submission failed, see logs | Error: {e}"))
             logger.error("Job submission failed", error=e)
