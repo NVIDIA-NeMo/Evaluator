@@ -90,12 +90,19 @@ def extract_only_condition(file_path: str) -> str:
                 return None
 
             frontmatter_text = content[3:end_marker]
+            # Skip parsing if frontmatter contains template syntax (e.g., {{ variable }})
+            if "{{" in frontmatter_text and "}}" in frontmatter_text:
+                logger.debug(
+                    f"Skipping frontmatter parsing for {file_path} - contains template syntax"
+                )
+                return None
+
             frontmatter = yaml.safe_load(frontmatter_text)
 
             if isinstance(frontmatter, dict):
                 return frontmatter.get("only")
 
-        except yaml.YAMLError:
+        except (yaml.YAMLError, yaml.constructor.ConstructorError):
             logger.warning(f"Failed to parse frontmatter in {file_path}")
             return None
 

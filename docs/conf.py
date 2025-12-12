@@ -61,6 +61,7 @@ exclude_patterns = [
     "_build",
     "Thumbs.db",
     ".DS_Store",
+    ".venv/**",  # Exclude virtual environment directory
     "_extensions/*/README.md",  # Exclude README files in extension directories
     "_extensions/README.md",  # Exclude main extensions README
     "_extensions/*/__pycache__",  # Exclude Python cache directories

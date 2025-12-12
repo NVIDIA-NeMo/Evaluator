@@ -98,7 +98,7 @@ class TestReadDockerCredentials:
     """Test reading Docker credentials from config file."""
 
     @patch(
-        "nemo_evaluator_launcher.common.container_metadata.registries.DOCKER_CONFIG_PATH"
+        "nemo_evaluator_launcher.common.container_metadata.registries._DOCKER_CONFIG_PATH"
     )
     def test_read_docker_credentials_not_found(self, mock_path):
         """Test when Docker config file doesn't exist."""
@@ -120,9 +120,9 @@ class TestReadDockerCredentials:
         }
         config_file.write_text(json.dumps(config_data))
 
-        # Patch DOCKER_CONFIG_PATH to point to our test file
+        # Patch _DOCKER_CONFIG_PATH to point to our test file
         monkeypatch.setattr(
-            "nemo_evaluator_launcher.common.container_metadata.registries.DOCKER_CONFIG_PATH",
+            "nemo_evaluator_launcher.common.container_metadata.registries._DOCKER_CONFIG_PATH",
             config_file,
         )
         result = _read_docker_credentials("test-registry")

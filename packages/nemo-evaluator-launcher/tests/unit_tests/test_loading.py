@@ -459,7 +459,7 @@ class TestExtractFrameworkYml:
         "nemo_evaluator_launcher.common.container_metadata.loading.get_container_digest"
     )
     @patch(
-        "nemo_evaluator_launcher.common.container_metadata.loading.parse_container_image"
+        "nemo_evaluator_launcher.common.container_metadata.utils.parse_container_image"
     )
     def test_extract_framework_yml_success(
         self, mock_parse, mock_get_digest, mock_find_file, mock_create_auth

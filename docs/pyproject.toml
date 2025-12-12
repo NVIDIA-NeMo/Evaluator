@@ -1,0 +1,33 @@
+[project]
+name = "nemo-evaluator-docs"
+version = "0.1.0"
+description = "Documentation build dependencies for NeMo Evaluator"
+requires-python = ">=3.10,<3.14"
+
+[dependency-groups]
+docs = [
+    "sphinx",
+    "sphinx-autobuild",          # For live doc serving while editing docs
+    "sphinx-autodoc2",           # For documenting Python API
+    "autodoc_pydantic",          # For rendering pydantic dataclasses
+    "enum-tools[sphinx]",        # for rendering enum classes
+    "sphinxcontrib-autoprogram",
+    "sphinx-copybutton",         # Adds a copy button for code blocks
+    "myst-parser",               # For our markdown docs
+    "nvidia-sphinx-theme",       # Our NVIDIA theme
+    "sphinxcontrib-mermaid",     # For mermaid diagrams
+    "sphinx-design",             # For our design elements
+    "swagger-plugin-for-sphinx", # For Swagger API documentation
+    # Editable local dependencies for autogen scripts and API docs
+    "nemo-evaluator-launcher",
+]
+
+[tool.uv.sources]
+nemo-evaluator-launcher = { path = "../packages/nemo-evaluator-launcher", editable = true }
+
+[tool.setuptools]
+packages = []
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
