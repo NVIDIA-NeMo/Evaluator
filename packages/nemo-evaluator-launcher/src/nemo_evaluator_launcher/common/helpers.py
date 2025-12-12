@@ -222,6 +222,23 @@ def get_eval_factory_command(
         user_task_config.get("pre_cmd") or cfg.evaluation.get("pre_cmd") or ""
     )
 
+    # Get post_cmd fields (success, fail, kill) - task level wins over global
+    post_cmd_success: str = (
+        user_task_config.get("post_cmd", {}).get("success")
+        or cfg.evaluation.get("post_cmd", {}).get("success")
+        or ""
+    )
+    post_cmd_fail: str = (
+        user_task_config.get("post_cmd", {}).get("fail")
+        or cfg.evaluation.get("post_cmd", {}).get("fail")
+        or ""
+    )
+    post_cmd_kill: str = (
+        user_task_config.get("post_cmd", {}).get("kill")
+        or cfg.evaluation.get("post_cmd", {}).get("kill")
+        or ""
+    )
+
     is_potentially_unsafe = False
     if pre_cmd:
         logger.warning(
@@ -236,7 +253,35 @@ def get_eval_factory_command(
             pre_cmd,
         )
 
+    if post_cmd_success or post_cmd_fail or post_cmd_kill:
+        logger.warning(
+            "Found non-empty post_cmd that might be a security risk if executed. "
+            "Setting `is_potentially_unsafe` to `True`",
+            post_cmd_success=post_cmd_success,
+            post_cmd_fail=post_cmd_fail,
+            post_cmd_kill=post_cmd_kill,
+        )
+        is_potentially_unsafe = True
+        _set_nested_optionally_overriding(
+            merged_nemo_evaluator_config,
+            ["metadata", "post_cmd"],
+            {
+                "success": post_cmd_success,
+                "fail": post_cmd_fail,
+                "kill": post_cmd_kill,
+            },
+        )
+
     create_pre_script_cmd = _str_to_echo_command(pre_cmd, filename="pre_cmd.sh")
+    create_post_success_script_cmd = _str_to_echo_command(
+        post_cmd_success, filename="post_cmd_success.sh"
+    )
+    create_post_fail_script_cmd = _str_to_echo_command(
+        post_cmd_fail, filename="post_cmd_fail.sh"
+    )
+    create_post_kill_script_cmd = _str_to_echo_command(
+        post_cmd_kill, filename="post_cmd_kill.sh"
+    )
 
     create_yaml_cmd = _str_to_echo_command(
         yaml.safe_dump(merged_nemo_evaluator_config), "config_ef.yaml"
@@ -250,15 +295,42 @@ def get_eval_factory_command(
         + "&& $cmd run_eval --run_config config_ef.yaml"
     )
 
+    # NOTE: see note and test about deprecating that.
+    overrides = copy.deepcopy(dict(cfg.evaluation.get("overrides", {})))
+    overrides.update(dict(user_task_config.get("overrides", {})))
+    # NOTE(dfridman): Temporary fix to make sure that the overrides arg is not split into multiple lines.
+    # Consider passing a JSON object on Eval Factory side
+    overrides = {
+        k: (v.strip("\n") if isinstance(v, str) else v) for k, v in overrides.items()
+    }
+    overrides_str = ",".join([f"{k}={v}" for k, v in overrides.items()])
+    if overrides_str:
+        eval_command = f"{eval_command} --overrides {overrides_str}"
+
+    # Build debug comment including post_cmd scripts
+    debug_parts = [create_pre_script_cmd.debug, create_yaml_cmd.debug]
+    if post_cmd_success:
+        debug_parts.append(create_post_success_script_cmd.debug)
+    if post_cmd_fail:
+        debug_parts.append(create_post_fail_script_cmd.debug)
+    if post_cmd_kill:
+        debug_parts.append(create_post_kill_script_cmd.debug)
+
+    # Build command including post_cmd script creation
+    cmd_parts = [create_pre_script_cmd.cmd, create_yaml_cmd.cmd]
+    if post_cmd_success:
+        cmd_parts.append(create_post_success_script_cmd.cmd)
+    if post_cmd_fail:
+        cmd_parts.append(create_post_fail_script_cmd.cmd)
+    if post_cmd_kill:
+        cmd_parts.append(create_post_kill_script_cmd.cmd)
+    cmd_parts.append(eval_command)
+
     # We return both the command and the debugging base64-decoded strings, useful
     # for exposing when building scripts.
     return CmdAndReadableComment(
-        cmd=create_pre_script_cmd.cmd
-        + " && "
-        + create_yaml_cmd.cmd
-        + " && "
-        + eval_command,
-        debug=create_pre_script_cmd.debug + "\n\n" + create_yaml_cmd.debug,
+        cmd=" && ".join(cmd_parts),
+        debug="\n\n".join(debug_parts),
         is_potentially_unsafe=is_potentially_unsafe,
     )
 
