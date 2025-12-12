@@ -95,7 +95,7 @@ class Cmd:
     )
 
     def _parse_requested_tasks(self) -> list[str]:
-        """Parse --tasks arguments into a list of task names.
+        """Parse -t arguments into a list of task names.
 
         Handles None values that can be appended when using nargs="?" with action="append".
         """
@@ -104,10 +104,9 @@ class Cmd:
             # Skip None or empty values (can happen with nargs="?")
             if not task_arg:
                 continue
-            for task_name in task_arg.split(","):
-                task_name = task_name.strip()
-                if task_name and task_name not in requested_tasks:
-                    requested_tasks.append(task_name)
+            task_name = task_arg.strip()
+            if task_name and task_name not in requested_tasks:
+                requested_tasks.append(task_name)
         return requested_tasks
 
     def execute(self) -> None:
@@ -132,7 +131,7 @@ class Cmd:
                 "--config-mode=raw requires --config to be specified. Raw mode loads config files directly."
             )
 
-        # Parse requested tasks if --tasks is specified
+        # Parse requested tasks if -t is specified
         requested_tasks = self._parse_requested_tasks() if self.tasks else None
 
         # Load configuration either from Hydra or directly from a config file
@@ -178,7 +177,7 @@ class Cmd:
                 hydra_overrides=self.override,
             )
 
-        # Log task filtering if --tasks is specified
+        # Log task filtering if -t is specified
         if requested_tasks:
             logger.info(
                 "Running filtered tasks",
