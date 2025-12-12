@@ -17,14 +17,13 @@ Need more in-depth explanation? See the {ref}`run-eval-reasoning` guide.
 
 Ensure you have:
 
-- **Model Endpoint**: An OpenAI-compatible API endpoint for your model (completions or chat). See {ref}`deployment-testing-compatibility` for snippets you can use to test your endpoint.
+- **Model Endpoint**: An OpenAI-compatible API reasoning endpoint for your model (completions or chat). See {ref}`deployment-testing-compatibility` for snippets you can use to test your endpoint and {ref}`run-eval-reasoning` for details on reasoning models.
 - **API Access**: Valid API key if your endpoint requires authentication
 - **Installed Packages**: NeMo Evaluator or access to evaluation containers
 
 ## Prepare your config file
 
 ### Configure the Evaluation
-
 
 1. Select tasks:
 
@@ -75,6 +74,8 @@ evaluation:
             - name: reasoning
 ```
 
+In this example we will use [NVIDIA-Nemotron-Nano-9B-v2](https://build.nvidia.com/nvidia/nvidia-nemotron-nano-9b-v2), which produces reasoning trace in a `<think>...</think>` format.
+If your model uses a different formatting, make sure to configure the interceptor as shown in {ref}`run-eval-reasoning`.
 
 4. (Optional) Modify the request to turn the reasoning on.
 
@@ -217,4 +218,17 @@ export NGC_API_KEY=nvapi-your-key
 nemo-evaluator-launcher run --config nemotron_eval.yaml
 ```
 
+5. Analyze the metrics and reasoning statistics
+
+After evaluation completes, check these key artifacts:
+
+- **`results.yaml`**: Contains the benchmark metrics (see {ref}`evaluation-output`)
+- **`eval_factory_metrics.json`**: Contains reasoning statistics under the `reasoning` key, including:
+  - `responses_with_reasoning`: How many responses included reasoning traces
+  - `reasoning_finished_count` vs `reasoning_started_count`: If these match, your `max_new_tokens` was sufficient
+  - `avg_reasoning_words` and other word- and tokens count metrics: Use these for cost analysis
+
+:::{tip}
+For detailed explanation of reasoning statistics and artifacts, see {ref}`run-eval-reasoning`.
+:::
 
