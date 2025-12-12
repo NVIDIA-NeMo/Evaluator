@@ -116,6 +116,7 @@ class Cmd:
 
         from nemo_evaluator_launcher.api.functional import (
             RunConfig,
+            filter_tasks,
             run_eval,
         )
 
@@ -177,16 +178,17 @@ class Cmd:
                 hydra_overrides=self.override,
             )
 
-        # Log task filtering if -t is specified
+        # Apply task filtering if -t is specified
         if requested_tasks:
+            config = filter_tasks(config, requested_tasks)
             logger.info(
                 "Running filtered tasks",
-                requested_tasks=requested_tasks,
+                count=len(config.evaluation.tasks),
+                tasks=[t.name for t in config.evaluation.tasks],
             )
 
         try:
-            # Pass tasks to run_eval - it handles filtering internally without mutating config
-            invocation_id = run_eval(config, self.dry_run, tasks=requested_tasks)
+            invocation_id = run_eval(config, self.dry_run)
         except Exception as e:
             print(red(f"✗ Job submission failed, see logs | Error: {e}"))
             logger.error("Job submission failed", error=e)
