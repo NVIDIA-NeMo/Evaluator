@@ -56,7 +56,12 @@ def run_autogen_script(
         docs_dir / "evaluation" / "benchmarks" / "catalog" / "all" / "harnesses"
     )
     expected_benchmarks_table_file = (
-        docs_dir / "evaluation" / "benchmarks" / "catalog" / "all" / "benchmarks-table.md"
+        docs_dir
+        / "evaluation"
+        / "benchmarks"
+        / "catalog"
+        / "all"
+        / "benchmarks-table.md"
     )
 
     # Only run if script exists
