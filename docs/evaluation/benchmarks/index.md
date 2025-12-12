@@ -461,9 +461,3 @@ params = ConfigParams(
 
 - **Container Details**: Browse {ref}`nemo-evaluator-containers` for complete specifications
 - **Custom Benchmarks**: Learn {ref}`framework-definition-file` for custom evaluations
-
-:::{toctree}
-:caption: Benchmark Catalog
-
-All Tasks <catalog/index>
-:::

@@ -7,6 +7,7 @@
 
 :::{toctree}
 :caption: Harnesses
+:hidden:
 
 bfcl <all/harnesses/bfcl>
 bigcode-evaluation-harness <all/harnesses/bigcode-evaluation-harness>
