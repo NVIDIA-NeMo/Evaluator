@@ -1,6 +1,6 @@
 metadata:
-  mapping_toml_checksum: sha256:6f19bf7fcdd2f5b1cd8505a25f666bc4067d2dd0e0d891f2dffce3bfd2ef7e42
-  num_tasks: 306
+  mapping_toml_checksum: sha256:b7fdaa7f01a641970f864c6aab95d7f9e49b883dee8558e8636eb8018a01388e
+  num_tasks: 318
 tasks:
 - name: mmlu
   description: '- The MMLU (Massive Multitask Language Understanding) benchmark covers
@@ -17126,3 +17126,374 @@ tasks:
       type: tooltalk
     target:
       api_endpoint: {}
+- name: genai_perf_summarization
+  description: GenAI Perf speed evaluation, summarization task - long input, short
+    output
+  harness: genai_perf_eval
+  container: nvcr.io/nvidia/eval-factory/genai-perf:25.11
+  container_digest: sha256:cb456449130e23639f49ceb6f30252c9d8a3ea1f7370c5f963eb5853a6abb183
+  defaults:
+    command: genai_perf_eval --model_id {{target.api_endpoint.model_id}} --url {{target.api_endpoint.url}}  {%
+      if target.api_endpoint.api_key is not none %}--api-key {{target.api_endpoint.api_key}}
+      {% endif %} --concurrencies {{config.params.parallelism}} --isl {{config.params.extra.isl}}
+      --osl {{config.params.extra.osl}}  --tokenizer {{config.params.extra.tokenizer}}
+      --endpoint-type {{target.api_endpoint.type}} --artifact-dir {{config.output_dir}}
+      {% if target.api_endpoint.stream %}--streaming {% endif %}{% if config.params.extra.warmup
+      %}--warmup{% endif %}
+    framework_name: genai_perf_eval
+    pkg_name: genai_perf
+    config:
+      params:
+        parallelism: 1
+        task: genai_perf_summarization
+        extra:
+          tokenizer: null
+          warmup: true
+          isl: 5000
+          osl: 500
+      supported_endpoint_types:
+      - chat
+      - completions
+      type: genai_perf_summarization
+    target:
+      api_endpoint: {}
+- name: genai_perf_generation
+  description: GenAI Perf speed evaluation, generation task - short input, long output
+  harness: genai_perf_eval
+  container: nvcr.io/nvidia/eval-factory/genai-perf:25.11
+  container_digest: sha256:cb456449130e23639f49ceb6f30252c9d8a3ea1f7370c5f963eb5853a6abb183
+  defaults:
+    command: genai_perf_eval --model_id {{target.api_endpoint.model_id}} --url {{target.api_endpoint.url}}  {%
+      if target.api_endpoint.api_key is not none %}--api-key {{target.api_endpoint.api_key}}
+      {% endif %} --concurrencies {{config.params.parallelism}} --isl {{config.params.extra.isl}}
+      --osl {{config.params.extra.osl}}  --tokenizer {{config.params.extra.tokenizer}}
+      --endpoint-type {{target.api_endpoint.type}} --artifact-dir {{config.output_dir}}
+      {% if target.api_endpoint.stream %}--streaming {% endif %}{% if config.params.extra.warmup
+      %}--warmup{% endif %}
+    framework_name: genai_perf_eval
+    pkg_name: genai_perf
+    config:
+      params:
+        parallelism: 1
+        task: genai_perf_generation
+        extra:
+          tokenizer: null
+          warmup: true
+          isl: 500
+          osl: 5000
+      supported_endpoint_types:
+      - chat
+      - completions
+      type: genai_perf_generation
+    target:
+      api_endpoint: {}
+- name: mmath_en
+  description: English mmath
+  harness: mmath
+  container: nvcr.io/nvidia/eval-factory/mmath:25.11
+  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
+  defaults:
+    command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
+      {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
+      {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism
+      {{config.params.parallelism}} --retries {{config.params.max_retries}} {% if
+      config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %}'
+    framework_name: mmath
+    pkg_name: mmath
+    config:
+      params:
+        max_new_tokens: 32768
+        max_retries: 5
+        parallelism: 8
+        task: mmath_en
+        temperature: 0.6
+        top_p: 0.95
+        extra:
+          language: en
+      supported_endpoint_types:
+      - chat
+      type: mmath_en
+    target:
+      api_endpoint:
+        stream: false
+- name: mmath_zh
+  description: Chinese mmath
+  harness: mmath
+  container: nvcr.io/nvidia/eval-factory/mmath:25.11
+  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
+  defaults:
+    command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
+      {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
+      {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism
+      {{config.params.parallelism}} --retries {{config.params.max_retries}} {% if
+      config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %}'
+    framework_name: mmath
+    pkg_name: mmath
+    config:
+      params:
+        max_new_tokens: 32768
+        max_retries: 5
+        parallelism: 8
+        task: mmath_zh
+        temperature: 0.6
+        top_p: 0.95
+        extra:
+          language: zh
+      supported_endpoint_types:
+      - chat
+      type: mmath_zh
+    target:
+      api_endpoint:
+        stream: false
+- name: mmath_ar
+  description: Arabic mmath
+  harness: mmath
+  container: nvcr.io/nvidia/eval-factory/mmath:25.11
+  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
+  defaults:
+    command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
+      {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
+      {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism
+      {{config.params.parallelism}} --retries {{config.params.max_retries}} {% if
+      config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %}'
+    framework_name: mmath
+    pkg_name: mmath
+    config:
+      params:
+        max_new_tokens: 32768
+        max_retries: 5
+        parallelism: 8
+        task: mmath_ar
+        temperature: 0.6
+        top_p: 0.95
+        extra:
+          language: ar
+      supported_endpoint_types:
+      - chat
+      type: mmath_ar
+    target:
+      api_endpoint:
+        stream: false
+- name: mmath_es
+  description: Spanish mmath
+  harness: mmath
+  container: nvcr.io/nvidia/eval-factory/mmath:25.11
+  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
+  defaults:
+    command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
+      {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
+      {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism
+      {{config.params.parallelism}} --retries {{config.params.max_retries}} {% if
+      config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %}'
+    framework_name: mmath
+    pkg_name: mmath
+    config:
+      params:
+        max_new_tokens: 32768
+        max_retries: 5
+        parallelism: 8
+        task: mmath_es
+        temperature: 0.6
+        top_p: 0.95
+        extra:
+          language: es
+      supported_endpoint_types:
+      - chat
+      type: mmath_es
+    target:
+      api_endpoint:
+        stream: false
+- name: mmath_fr
+  description: French mmath
+  harness: mmath
+  container: nvcr.io/nvidia/eval-factory/mmath:25.11
+  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
+  defaults:
+    command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
+      {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
+      {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism
+      {{config.params.parallelism}} --retries {{config.params.max_retries}} {% if
+      config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %}'
+    framework_name: mmath
+    pkg_name: mmath
+    config:
+      params:
+        max_new_tokens: 32768
+        max_retries: 5
+        parallelism: 8
+        task: mmath_fr
+        temperature: 0.6
+        top_p: 0.95
+        extra:
+          language: fr
+      supported_endpoint_types:
+      - chat
+      type: mmath_fr
+    target:
+      api_endpoint:
+        stream: false
+- name: mmath_ja
+  description: Japanese mmath
+  harness: mmath
+  container: nvcr.io/nvidia/eval-factory/mmath:25.11
+  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
+  defaults:
+    command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
+      {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
+      {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism
+      {{config.params.parallelism}} --retries {{config.params.max_retries}} {% if
+      config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %}'
+    framework_name: mmath
+    pkg_name: mmath
+    config:
+      params:
+        max_new_tokens: 32768
+        max_retries: 5
+        parallelism: 8
+        task: mmath_ja
+        temperature: 0.6
+        top_p: 0.95
+        extra:
+          language: en
+      supported_endpoint_types:
+      - chat
+      type: mmath_ja
+    target:
+      api_endpoint:
+        stream: false
+- name: mmath_ko
+  description: Korean mmath
+  harness: mmath
+  container: nvcr.io/nvidia/eval-factory/mmath:25.11
+  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
+  defaults:
+    command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
+      {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
+      {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism
+      {{config.params.parallelism}} --retries {{config.params.max_retries}} {% if
+      config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %}'
+    framework_name: mmath
+    pkg_name: mmath
+    config:
+      params:
+        max_new_tokens: 32768
+        max_retries: 5
+        parallelism: 8
+        task: mmath_ko
+        temperature: 0.6
+        top_p: 0.95
+        extra:
+          language: ko
+      supported_endpoint_types:
+      - chat
+      type: mmath_ko
+    target:
+      api_endpoint:
+        stream: false
+- name: mmath_pt
+  description: Portuguese mmath
+  harness: mmath
+  container: nvcr.io/nvidia/eval-factory/mmath:25.11
+  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
+  defaults:
+    command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
+      {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
+      {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism
+      {{config.params.parallelism}} --retries {{config.params.max_retries}} {% if
+      config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %}'
+    framework_name: mmath
+    pkg_name: mmath
+    config:
+      params:
+        max_new_tokens: 32768
+        max_retries: 5
+        parallelism: 8
+        task: mmath_pt
+        temperature: 0.6
+        top_p: 0.95
+        extra:
+          language: pt
+      supported_endpoint_types:
+      - chat
+      type: mmath_pt
+    target:
+      api_endpoint:
+        stream: false
+- name: mmath_th
+  description: Thai mmath
+  harness: mmath
+  container: nvcr.io/nvidia/eval-factory/mmath:25.11
+  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
+  defaults:
+    command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
+      {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
+      {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism
+      {{config.params.parallelism}} --retries {{config.params.max_retries}} {% if
+      config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %}'
+    framework_name: mmath
+    pkg_name: mmath
+    config:
+      params:
+        max_new_tokens: 32768
+        max_retries: 5
+        parallelism: 8
+        task: mmath_th
+        temperature: 0.6
+        top_p: 0.95
+        extra:
+          language: th
+      supported_endpoint_types:
+      - chat
+      type: mmath_th
+    target:
+      api_endpoint:
+        stream: false
+- name: mmath_vi
+  description: Vietnamese mmath
+  harness: mmath
+  container: nvcr.io/nvidia/eval-factory/mmath:25.11
+  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
+  defaults:
+    command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
+      {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
+      {{config.params.extra.language}} --output-dir {{config.output_dir}} --parallelism
+      {{config.params.parallelism}} --retries {{config.params.max_retries}} {% if
+      config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %} {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%
+      endif %}'
+    framework_name: mmath
+    pkg_name: mmath
+    config:
+      params:
+        max_new_tokens: 32768
+        max_retries: 5
+        parallelism: 8
+        task: mmath_vi
+        temperature: 0.6
+        top_p: 0.95
+        extra:
+          language: vi
+      supported_endpoint_types:
+      - chat
+      type: mmath_vi
+    target:
+      api_endpoint:
+        stream: false
