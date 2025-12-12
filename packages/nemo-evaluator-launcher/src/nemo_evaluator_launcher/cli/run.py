@@ -81,7 +81,7 @@ class Cmd:
         default_factory=list,
         action="append",
         nargs="?",
-        alias=["-t", "--tasks"],
+        alias=["-t"],
         metadata={
             "help": "Run only specific tasks from the config (comma-separated or multiple -t flags). Example: -t ifeval -t gsm8k or -t ifeval,gsm8k"
         },
