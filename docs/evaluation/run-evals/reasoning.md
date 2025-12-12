@@ -196,6 +196,8 @@ When evaluating your model on a task that does not require step-by-step thinking
 
 ## Full Working Example
 
+### Run the evaluation
+
 An example config is available in `packages/nemo-evaluator-launcher/examples/local_reasoning.yaml`:
 
 ```{literalinclude} ../../../packages/nemo-evaluator-launcher/examples/local_reasoning.yaml
@@ -210,6 +212,48 @@ export NGC_API_KEY=nvapi-...
 nemo-evaluator-launcher run \
   --config packages/nemo-evaluator-launcher/examples/local_reasoning.yaml
 ```
+
+### Analyze the artifacts
+
+NeMo Evaluator produces several artifacts for analysis after evaluation completion.
+The primary output file is `results.yaml`, which stores the metrics produced by the benchmark (see {ref}`evaluation-output` for more details).
+
+The `eval_factory_metrics.json` file provides valuable insights into your model's behavior.
+When the reasoning interceptor is enabled, this file contains a `reasoning` key that stores statistics about reasoning traces in your model's responses:
+
+```json
+"reasoning": {
+    "description": "Reasoning statistics saved during processing",
+    "total_responses": 3672,
+    "responses_with_reasoning": 2860,
+    "reasoning_finished_count": 2860,
+    "reasoning_started_count": 2860,
+    "avg_reasoning_words": 153.21,
+    "avg_original_content_words": 192.17,
+    "avg_updated_content_words": 38.52,
+    "max_reasoning_words": 806,
+    "max_original_content_words": 863,
+    "max_updated_content_words": 863,
+    "max_reasoning_tokens": null,
+    "avg_reasoning_tokens": null,
+    "max_updated_content_tokens": null,
+    "avg_updated_content_tokens": null,
+    "total_reasoning_words": 561696,
+    "total_original_content_words": 705555,
+    "total_updated_content_words": 140999,
+    "total_reasoning_tokens": 0,
+    "total_updated_content_tokens": 0
+  },
+```
+
+In the example above, the model used reasoning for 2860 out of 3672 responses (approximately 78%).
+
+The matching values for `reasoning_started_count` and `reasoning_finished_count` indicate that the `max_new_tokens` parameter was set sufficiently high, allowing the model to complete all reasoning traces without truncation.
+
+These statistics also enable cost analysis for reasoning operations.
+While the endpoint in this example does not return token usage statistics (the `*_tokens` fields are null or zero), you can still analyze computational cost using the word count metrics from the responses.
+
+For more information on available artifacts, see {ref}`evaluation-output`.
 
 ## Additional resources
 
