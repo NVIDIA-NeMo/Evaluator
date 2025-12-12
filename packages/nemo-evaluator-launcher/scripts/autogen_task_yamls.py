@@ -461,6 +461,19 @@ def generate_benchmarks_table_markdown(
         lines.append(f"Generated from mapping.toml with checksum: {checksum}")
     lines.append("-->")
     lines.append("")
+    
+    # Generate toctree for sidebar navigation
+    lines.append(":::{toctree}")
+    lines.append(":caption: Harnesses")
+    lines.append(":hidden:")
+    lines.append("")
+    # Sort harnesses alphabetically for toctree
+    sorted_harnesses_for_toc = sorted(harnesses, key=lambda h: h.harness_name.lower())
+    for harness in sorted_harnesses_for_toc:
+        lines.append(f"{harness.harness_name} <catalog/all/harnesses/{harness.harness_filename}>")
+    lines.append(":::")
+    lines.append("")
+    
     lines.append("```{list-table}")
     lines.append(":header-rows: 1")
     lines.append(":widths: 20 25 15 15 25")
@@ -498,10 +511,12 @@ def generate_benchmarks_table_markdown(
             description = harness.tasks[0].description or ""
 
         # Generate harness page link
-        # benchmarks.md is at docs/evaluation/benchmarks/index.md
+        # benchmarks-table.md is at docs/evaluation/benchmarks/catalog/all/benchmarks-table.md
         # harness page is at docs/evaluation/benchmarks/catalog/all/harnesses/{filename}.md
-        # Need relative path from benchmarks-table.md: harnesses/{filename}
-        harness_page_path = f"harnesses/{harness.harness_filename}"
+        # Need relative path from benchmarks-table.md (same directory): harnesses/{filename}
+        # But when included from benchmarks/index.md, need: catalog/all/harnesses/{filename}
+        # We'll use the path relative to catalog/all/ since that's where benchmarks-table.md lives
+        harness_page_path = f"catalog/all/harnesses/{harness.harness_filename}"
         # Link to harness page with harness anchor (harness_id is the normalized harness name)
         # The harness page heading creates an anchor with the harness_id
         harness_anchor = harness.harness_id
