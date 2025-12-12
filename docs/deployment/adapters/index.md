@@ -27,6 +27,12 @@ Explore the following pages to use and configure adapters.
 Learn how to enable adapters and pass `AdapterConfig` to `evaluate`.
 :::
 
+:::{grid-item-card} Client Mode
+:link: adapters-client-mode
+:link-type: ref
+Run adapters in-process with OpenAI client for notebooks and custom scripts.
+:::
+
 :::{grid-item-card} Recipes
 :link: deployment-adapters-recipes
 :link-type: ref
@@ -46,6 +52,7 @@ View available `AdapterConfig` options and defaults.
 :hidden:
 
 Usage <usage>
+Client Mode <client-mode>
 Recipes <recipes/index>
 Configuration <configuration>
 ```

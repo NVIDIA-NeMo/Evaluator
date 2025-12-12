@@ -199,7 +199,7 @@ def test_adapter_server_validation_empty_config():
             )
 
         error_msg = str(exc_info.value)
-        assert "Adapter server cannot start" in error_msg
+        assert "Adapter pipeline cannot start" in error_msg
         assert "No enabled interceptors or post-eval hooks found" in error_msg
         assert "Configured interceptors: []" in error_msg
         assert "Configured post-eval hooks: []" in error_msg
@@ -227,7 +227,7 @@ def test_adapter_server_validation_disabled_interceptors():
             )
 
         error_msg = str(exc_info.value)
-        assert "Adapter server cannot start" in error_msg
+        assert "Adapter pipeline cannot start" in error_msg
         assert "No enabled interceptors or post-eval hooks found" in error_msg
         assert "Configured interceptors: ['caching', 'endpoint']" in error_msg
         assert "Configured post-eval hooks: []" in error_msg
@@ -254,7 +254,7 @@ def test_adapter_server_validation_disabled_post_eval_hooks():
             )
 
         error_msg = str(exc_info.value)
-        assert "Adapter server cannot start" in error_msg
+        assert "Adapter pipeline cannot start" in error_msg
         assert "No enabled interceptors or post-eval hooks found" in error_msg
         assert "Configured interceptors: []" in error_msg
         assert "Configured post-eval hooks: ['report', 'post_eval_report']" in error_msg
@@ -284,7 +284,7 @@ def test_adapter_server_validation_mixed_disabled():
             )
 
         error_msg = str(exc_info.value)
-        assert "Adapter server cannot start" in error_msg
+        assert "Adapter pipeline cannot start" in error_msg
         assert "No enabled interceptors or post-eval hooks found" in error_msg
         assert "Configured interceptors: ['caching', 'endpoint']" in error_msg
         assert "Configured post-eval hooks: ['report', 'post_eval_report']" in error_msg

@@ -13,29 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Logging module for nemo-evaluator.
+"""Client module for NeMo Evaluator with adapter support."""
 
-This module provides centralized logging configuration, utilities, and request context
-management for the nemo-evaluator package.
-"""
-
-from .config import BaseLoggingParams
-from .context import (
-    bind_model_name,
-    bind_request_id,
-    get_bound_logger,
-    get_current_request_id,
-    request_context,
+from nemo_evaluator.client.adapter_transport import (
+    AsyncAdapterTransport,
+    create_async_adapter_http_client,
 )
-from .utils import configure_logging, get_logger
+from nemo_evaluator.client.client import NeMoEvaluatorClient
 
 __all__ = [
-    "BaseLoggingParams",
-    "get_logger",
-    "configure_logging",
-    "bind_request_id",
-    "bind_model_name",
-    "request_context",
-    "get_current_request_id",
-    "get_bound_logger",
+    "NeMoEvaluatorClient",
+    "AsyncAdapterTransport",
+    "create_async_adapter_http_client",
 ]

@@ -33,6 +33,7 @@ class AdapterGlobalContext:
 
     output_dir: str  # Directory for output files
     url: str  # The upstream API URL to forward requests to
+    model_name: str | None = None  # Model name for logging context
 
     @property
     def metrics_path(self) -> Path:

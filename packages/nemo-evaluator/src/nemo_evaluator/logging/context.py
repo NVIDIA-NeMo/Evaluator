@@ -44,6 +44,21 @@ def bind_request_id(request_id: Optional[str] = None) -> str:
     return request_id
 
 
+def bind_model_name(model_name: str) -> str:
+    """
+    Bind a model name to the current logging context.
+
+    Args:
+        model_name: The model name to bind to the logging context.
+
+    Returns:
+        The model name that was bound to the context.
+    """
+    # Bind the model name to structlog context variables
+    structlog.contextvars.bind_contextvars(model_name=model_name)
+    return model_name
+
+
 @contextmanager
 def request_context(request_id: Optional[str] = None):
     """

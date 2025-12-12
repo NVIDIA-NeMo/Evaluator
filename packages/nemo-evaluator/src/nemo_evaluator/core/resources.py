@@ -269,9 +269,8 @@ def monitor_memory_usage(
             time.sleep(interval_ms / 1000.0)
 
     th = threading.Thread(target=sampler, daemon=True)
-    th.start()
-
     start_time = time.time()
+    th.start()
 
     try:
         # Filter out cache_dir from kwargs since the target function doesn't expect it

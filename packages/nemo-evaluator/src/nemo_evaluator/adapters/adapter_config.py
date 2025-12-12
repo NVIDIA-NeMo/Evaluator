@@ -61,6 +61,10 @@ class PostEvalHookConfig(BaseModel):
 class AdapterConfig(BaseModel):
     """Adapter configuration with registry-based interceptor support"""
 
+    mode: str = Field(
+        description="Adapter mode: 'server' (default) or 'client'",
+        default="server",
+    )
     discovery: DiscoveryConfig = Field(
         description="Configuration for discovering 3rd party modules and directories",
         default_factory=DiscoveryConfig,
@@ -92,6 +96,7 @@ class AdapterConfig(BaseModel):
             "caching_dir": None,
             "log_failed_requests": cls.model_fields["log_failed_requests"].default,
             "endpoint_type": cls.model_fields["endpoint_type"].default,
+            "mode": cls.model_fields["mode"].default,
             # Boolean defaults for optional features
             "use_caching": True,
             "save_responses": False,
@@ -208,6 +213,7 @@ class AdapterConfig(BaseModel):
 
             # If no interceptors are configured, try to convert from legacy format
             if not config.interceptors:
+                # Pass mode through merged config so it's preserved in legacy conversion
                 config = cls.from_legacy_config(merged, run_config)
 
             return config
@@ -275,9 +281,10 @@ class AdapterConfig(BaseModel):
         Returns:
             AdapterConfig instance with interceptors based on legacy config
         """
-        # Merge legacy config with defaults to avoid repeated .get() calls
         defaults = cls.get_legacy_defaults()
-        legacy_config = {**defaults, **legacy_config}
+        for key, value in defaults.items():
+            if key not in legacy_config:
+                legacy_config[key] = value
 
         interceptors = []
         post_eval_hooks = []
@@ -583,6 +590,7 @@ class AdapterConfig(BaseModel):
             )
 
         return cls(
+            mode=legacy_config["mode"],
             interceptors=interceptors,
             post_eval_hooks=post_eval_hooks,
             endpoint_type=legacy_config["endpoint_type"],
