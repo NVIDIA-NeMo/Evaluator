@@ -52,8 +52,8 @@ def run_autogen_script(
     )
 
     # Expected output files that should be generated
-    expected_harnesses_dir = docs_dir / "task_catalog" / "harnesses"
-    expected_benchmarks_table_file = docs_dir / "task_catalog" / "benchmarks-table.md"
+    expected_harnesses_dir = docs_dir / "evaluation" / "benchmarks" / "catalog" / "harnesses"
+    expected_benchmarks_table_file = docs_dir / "evaluation" / "benchmarks" / "catalog" / "benchmarks-table.md"
 
     # Only run if script exists
     if not autogen_script.exists():

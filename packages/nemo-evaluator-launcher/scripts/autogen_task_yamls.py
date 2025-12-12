@@ -498,10 +498,10 @@ def generate_benchmarks_table_markdown(
             description = harness.tasks[0].description or ""
 
         # Generate harness page link
-        # benchmarks.md is at docs/evaluation/benchmarks.md
-        # harness page is at docs/task_catalog/harnesses/{filename}.md
-        # Need relative path from benchmarks.md: ../task_catalog/harnesses/{filename}
-        harness_page_path = f"../task_catalog/harnesses/{harness.harness_filename}"
+        # benchmarks.md is at docs/evaluation/benchmarks/index.md
+        # harness page is at docs/evaluation/benchmarks/catalog/harnesses/{filename}.md
+        # Need relative path from benchmarks-table.md: harnesses/{filename}
+        harness_page_path = f"harnesses/{harness.harness_filename}"
         # Link to harness page with harness anchor (harness_id is the normalized harness name)
         # The harness page heading creates an anchor with the harness_id
         harness_anchor = harness.harness_id
@@ -561,13 +561,13 @@ Examples:
         "--catalog-file",
         type=pathlib.Path,
         default=None,
-        help="Path to tasks catalog markdown file (default: repo_root/docs/task_catalog/index.md)",
+        help="Path to tasks catalog markdown file (default: repo_root/docs/evaluation/benchmarks/catalog/index.md)",
     )
     parser.add_argument(
         "--harnesses-dir",
         type=pathlib.Path,
         default=None,
-        help="Output directory for generated harness markdown files (default: repo_root/docs/task_catalog/harnesses)",
+        help="Output directory for generated harness markdown files (default: repo_root/docs/evaluation/benchmarks/catalog/harnesses)",
     )
     parser.add_argument(
         "--dry-run",
@@ -594,9 +594,9 @@ Examples:
 
     # Set default paths relative to repo root if not provided
     if args.catalog_file is None:
-        args.catalog_file = repo_root / "docs" / "task_catalog" / "index.md"
+        args.catalog_file = repo_root / "docs" / "evaluation" / "benchmarks" / "catalog" / "index.md"
     if args.harnesses_dir is None:
-        args.harnesses_dir = repo_root / "docs" / "task_catalog" / "harnesses"
+        args.harnesses_dir = repo_root / "docs" / "evaluation" / "benchmarks" / "catalog" / "harnesses"
 
     logger.info(
         "Starting documentation autogeneration",
@@ -785,7 +785,7 @@ Examples:
 
         # Generate benchmarks table file
         benchmarks_table_file = (
-            repo_root / "docs" / "task_catalog" / "benchmarks-table.md"
+            repo_root / "docs" / "evaluation" / "benchmarks" / "catalog" / "benchmarks-table.md"
         )
         try:
             table_content = generate_benchmarks_table_markdown(
