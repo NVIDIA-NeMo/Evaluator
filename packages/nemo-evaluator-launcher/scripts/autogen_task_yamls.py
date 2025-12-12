@@ -471,7 +471,7 @@ def generate_benchmarks_table_markdown(
     sorted_harnesses_for_toc = sorted(harnesses, key=lambda h: h.harness_name.lower())
     for harness in sorted_harnesses_for_toc:
         lines.append(
-            f"{harness.harness_name} <catalog/all/harnesses/{harness.harness_filename}>"
+            f"{harness.harness_name} <all/harnesses/{harness.harness_filename}>"
         )
     lines.append(":::")
     lines.append("")
@@ -518,7 +518,7 @@ def generate_benchmarks_table_markdown(
         # Need relative path from benchmarks-table.md (same directory): harnesses/{filename}
         # But when included from benchmarks/index.md, need: catalog/all/harnesses/{filename}
         # We'll use the path relative to catalog/all/ since that's where benchmarks-table.md lives
-        harness_page_path = f"catalog/all/harnesses/{harness.harness_filename}"
+        harness_page_path = f"all/harnesses/{harness.harness_filename}"
         # Link to harness page with harness anchor (harness_id is the normalized harness name)
         # The harness page heading creates an anchor with the harness_id
         harness_anchor = harness.harness_id
