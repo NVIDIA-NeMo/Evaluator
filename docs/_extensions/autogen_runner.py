@@ -53,10 +53,10 @@ def run_autogen_script(
 
     # Expected output files that should be generated
     expected_harnesses_dir = (
-        docs_dir / "evaluation" / "benchmarks" / "catalog" / "harnesses"
+        docs_dir / "evaluation" / "benchmarks" / "catalog" / "all" / "harnesses"
     )
     expected_benchmarks_table_file = (
-        docs_dir / "evaluation" / "benchmarks" / "catalog" / "benchmarks-table.md"
+        docs_dir / "evaluation" / "benchmarks" / "catalog" / "all" / "benchmarks-table.md"
     )
 
     # Only run if script exists

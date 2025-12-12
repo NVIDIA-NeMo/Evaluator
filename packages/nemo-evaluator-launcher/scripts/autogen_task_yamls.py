@@ -499,7 +499,7 @@ def generate_benchmarks_table_markdown(
 
         # Generate harness page link
         # benchmarks.md is at docs/evaluation/benchmarks/index.md
-        # harness page is at docs/evaluation/benchmarks/catalog/harnesses/{filename}.md
+        # harness page is at docs/evaluation/benchmarks/catalog/all/harnesses/{filename}.md
         # Need relative path from benchmarks-table.md: harnesses/{filename}
         harness_page_path = f"harnesses/{harness.harness_filename}"
         # Link to harness page with harness anchor (harness_id is the normalized harness name)
@@ -567,7 +567,7 @@ Examples:
         "--harnesses-dir",
         type=pathlib.Path,
         default=None,
-        help="Output directory for generated harness markdown files (default: repo_root/docs/evaluation/benchmarks/catalog/harnesses)",
+        help="Output directory for generated harness markdown files (default: repo_root/docs/evaluation/benchmarks/catalog/all/harnesses)",
     )
     parser.add_argument(
         "--dry-run",
@@ -599,7 +599,7 @@ Examples:
         )
     if args.harnesses_dir is None:
         args.harnesses_dir = (
-            repo_root / "docs" / "evaluation" / "benchmarks" / "catalog" / "harnesses"
+            repo_root / "docs" / "evaluation" / "benchmarks" / "catalog" / "all" / "harnesses"
         )
 
     logger.info(
@@ -794,6 +794,7 @@ Examples:
             / "evaluation"
             / "benchmarks"
             / "catalog"
+            / "all"
             / "benchmarks-table.md"
         )
         try:
