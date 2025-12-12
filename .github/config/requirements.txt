@@ -12,5 +12,5 @@ sphinx-design # For our design elements
 swagger-plugin-for-sphinx # For Swagger API documentation
 
 # Editable local dependencies for autogen scripts and API docs
--e ../packages/nemo-evaluator
--e ../packages/nemo-evaluator-launcher
+-e packages/nemo-evaluator
+-e packages/nemo-evaluator-launcher
