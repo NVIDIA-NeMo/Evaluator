@@ -83,3 +83,9 @@ container = "nvcr.io/nvidia/eval-factory/helm:25.11"
 [tooltalk]
 container = "nvcr.io/nvidia/eval-factory/tooltalk:25.11"
 # container-digest:sha256:154fa634104e0b7e488df21e0dadc155ebc6b14148205ef00ede3fefb3f8157a
+
+[genai-perf]
+container = "nvcr.io/nvidia/eval-factory/genai-perf:25.11"
+
+[mmath]
+container = "nvcr.io/nvidia/eval-factory/mmath:25.11"
