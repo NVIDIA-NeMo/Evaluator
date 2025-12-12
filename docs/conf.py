@@ -159,6 +159,7 @@ numfig_secnum_depth = 1  # Gives you "Figure 1.1, 1.2, 2.1, etc."
 suppress_warnings = [
     "toc.not_included",  # Expected when video docs are excluded from GA builds
     "toc.no_title",  # Expected for helm docs that include external README files
+    "toc.not_readable",  # Expected for toctree entries that may not exist in all builds
     "ref.python",  # Expected for ambiguous cross-references (e.g., multiple 'Params' classes)
     "myst.xref_missing",  # Expected for Pydantic BaseModel docstrings that reference Pydantic's own documentation
 ]
