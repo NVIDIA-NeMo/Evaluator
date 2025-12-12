@@ -461,7 +461,7 @@ def generate_benchmarks_table_markdown(
         lines.append(f"Generated from mapping.toml with checksum: {checksum}")
     lines.append("-->")
     lines.append("")
-    
+
     # Generate toctree for sidebar navigation
     lines.append(":::{toctree}")
     lines.append(":caption: Harnesses")
@@ -470,10 +470,12 @@ def generate_benchmarks_table_markdown(
     # Sort harnesses alphabetically for toctree
     sorted_harnesses_for_toc = sorted(harnesses, key=lambda h: h.harness_name.lower())
     for harness in sorted_harnesses_for_toc:
-        lines.append(f"{harness.harness_name} <catalog/all/harnesses/{harness.harness_filename}>")
+        lines.append(
+            f"{harness.harness_name} <catalog/all/harnesses/{harness.harness_filename}>"
+        )
     lines.append(":::")
     lines.append("")
-    
+
     lines.append("```{list-table}")
     lines.append(":header-rows: 1")
     lines.append(":widths: 20 25 15 15 25")
@@ -614,7 +616,13 @@ Examples:
         )
     if args.harnesses_dir is None:
         args.harnesses_dir = (
-            repo_root / "docs" / "evaluation" / "benchmarks" / "catalog" / "all" / "harnesses"
+            repo_root
+            / "docs"
+            / "evaluation"
+            / "benchmarks"
+            / "catalog"
+            / "all"
+            / "harnesses"
         )
 
     logger.info(
