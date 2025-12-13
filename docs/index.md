@@ -24,7 +24,7 @@ Quickstart Evaluations
 
 ---
 
-## Introduction to NeMo Evaluator SDK booo
+## Introduction to NeMo Evaluator SDK booo another
 
 Discover how NeMo Evaluator SDK works and explore its key features.
 
