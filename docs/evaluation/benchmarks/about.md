@@ -1,13 +1,13 @@
 (eval-benchmarks)=
 
-# Benchmark Catalog
+# About Selecting Benchmarks
 
-Comprehensive catalog of hundreds of benchmarks across popular evaluation harnesses, all available through NGC containers and the NeMo Evaluator platform.
-
+NeMo Evaluator provides a comprehensive suite of benchmarks spanning academic reasoning, code generation, safety testing, and domain-specific evaluations. Whether you're validating a new model's capabilities or conducting rigorous academic research, you'll find the right benchmarks to assess your AI system's performance.
+See {ref}`benchmarks-full-list` for the complete catalog of available benchmarks.
 
 ## Available via Launcher
 
-```{literalinclude} _snippets/commands/list_tasks.sh
+```{literalinclude} ../_snippets/commands/list_tasks.sh
 :language: bash
 :start-after: "# [snippet-start]"
 :end-before: "# [snippet-end]"
@@ -15,7 +15,7 @@ Comprehensive catalog of hundreds of benchmarks across popular evaluation harnes
 
 ## Available via Direct Container Access
 
-```{literalinclude} _snippets/commands/list_tasks_core.sh
+```{literalinclude} ../_snippets/commands/list_tasks_core.sh
 :language: bash
 :start-after: "# [snippet-start]"
 :end-before: "# [snippet-end]"
@@ -56,7 +56,7 @@ See benchmark categories below and {ref}`benchmarks-full-list` for more details.
 * - **simple-evals**
   - Common evaluation tasks
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/simple-evals)
-  - GPQA-D, MATH-500, AIME 24 & 25, HumanEval, HumanEval+, MGSM, MMLU (also multilingual), MMLU-Pro, MMLU-lite (AR, BN, DE, EN, ES, FR, HI, ID, IT, JA, KO, MY, PT, SW, YO, ZH), SimpleQA, BrowseComp, HealthBench 
+  - GPQA-D, MATH-500, AIME 24 & 25, HumanEval, HumanEval+, MGSM, MMLU (also multilingual), MMLU-Pro, MMLU-lite (AR, BN, DE, EN, ES, FR, HI, ID, IT, JA, KO, MY, PT, SW, YO, ZH), SimpleQA, BrowseComp, HealthBench
 * - **lm-evaluation-harness**
   - Language model benchmarks
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/lm-evaluation-harness)
@@ -64,19 +64,19 @@ See benchmark categories below and {ref}`benchmarks-full-list` for more details.
 * - **hle**
   - Academic knowledge and problem solving
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/hle)
-  - HLE 
+  - HLE
 * - **ifbench**
   - Instruction following
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/ifbench)
-  - IFBench 
+  - IFBench
 * - **mtbench**
   - Multi-turn conversation evaluation
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench)
   - MT-Bench
 * - **nemo-skills**
-  - Language model benchmarks (science, math, agentic) 
+  - Language model benchmarks (science, math, agentic)
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/nemo_skills)
-  - AIME 24 & 25, BFCL_v3, GPQA, HLE, LiveCodeBench, MMLU, MMLU-Pro 
+  - AIME 24 & 25, BFCL_v3, GPQA, HLE, LiveCodeBench, MMLU, MMLU-Pro
 * - **profbench**
   - Evaluation of professional knowledge accross Physics PhD, Chemistry PhD, Finance MBA and Consulting MBA
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/mtbench)
@@ -131,15 +131,15 @@ nemo-evaluator-launcher run \
 * - **bigcode-evaluation-harness**
   - Code generation evaluation
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bigcode-evaluation-harness)
-  - MBPP, MBPP-Plus, HumanEval, HumanEval+, Multiple (cpp, cs, d, go, java, jl, js, lua, php, pl, py, r, rb, rkt, rs, scala, sh, swift, ts) 
+  - MBPP, MBPP-Plus, HumanEval, HumanEval+, Multiple (cpp, cs, d, go, java, jl, js, lua, php, pl, py, r, rb, rkt, rs, scala, sh, swift, ts)
 * - **livecodebench**
   - Coding
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/livecodebench)
-  - LiveCodeBench (v1-v6, 0724_0125, 0824_0225) 
+  - LiveCodeBench (v1-v6, 0724_0125, 0824_0225)
 * - **scicode**
   - Coding for scientific research
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/scicode)
-  - SciCode 
+  - SciCode
 ```
 
 **Example Usage:**
@@ -234,11 +234,11 @@ nemo-evaluator-launcher run \
 * - **bfcl**
   - Function calling
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/bfcl)
-  - BFCL v2 and v3 
+  - BFCL v2 and v3
 * - **tooltalk**
   - Tool usage evaluation
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/tooltalk)
-  - ToolTalk 
+  - ToolTalk
 ```
 
 :::{note}
@@ -337,7 +337,7 @@ nemo-evaluator-launcher run \
 * - **helm**
   - Holistic evaluation framework
   - [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/helm)
-  - MedHelm 
+  - MedHelm
 ```
 
 **Example Usage:**
@@ -452,13 +452,11 @@ params = ConfigParams(
 - **Multilingual Models**: Include `arc_multilingual`, `hellaswag_multilingual`, `mgsm`
 - **Safety-Critical**: Prioritize `safety-harness` and `garak` evaluations
 
-(benchmarks-full-list)=
-## Full Benchmarks List
-
-```{include} ../_resources/tasks-table.md
-```
 
 ## Next Steps
 
 - **Container Details**: Browse {ref}`nemo-evaluator-containers` for complete specifications
 - **Custom Benchmarks**: Learn {ref}`framework-definition-file` for custom evaluations
+
+
+

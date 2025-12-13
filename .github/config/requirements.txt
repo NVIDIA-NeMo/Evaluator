@@ -9,18 +9,8 @@ nvidia-sphinx-theme # Our NVIDIA theme
 sphinxcontrib-mermaid # For mermaid diagrams
 myst-parser # For our markdown docs
 sphinx-design # For our design elements
-sphinxcontrib-mermaid # For mermaid diagrams
 swagger-plugin-for-sphinx # For Swagger API documentation
 
-
-flask
-jinja2
-psutil
-pydantic
-pydantic-core>=2.17
-requests
-structlog
-typing-extensions>=4.0.0
-pyyaml
-werkzeug
-yq
+# Editable local dependencies for autogen scripts and API docs
+-e packages/nemo-evaluator
+-e packages/nemo-evaluator-launcher

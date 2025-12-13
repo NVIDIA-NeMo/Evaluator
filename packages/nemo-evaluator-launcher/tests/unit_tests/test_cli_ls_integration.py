@@ -33,8 +33,22 @@ class TestLsCommandIntegration:
     def sample_tasks_data(self):
         """Sample task data for testing."""
         return [
-            ["garak", "chat", "garak", "nvcr.io/nvidia/eval-factory/garak:25.08.1"],
-            ["mmlu", "chat", "lm-eval", "nvcr.io/nvidia/eval-factory/lm-eval:25.08.1"],
+            [
+                "garak",
+                "chat",
+                "garak",
+                "nvcr.io/nvidia/eval-factory/garak:25.08.1",
+                "",
+                "",
+            ],
+            [
+                "mmlu",
+                "chat",
+                "lm-eval",
+                "nvcr.io/nvidia/eval-factory/lm-eval:25.08.1",
+                "",
+                "",
+            ],
         ]
 
     def test_ls_tasks_explicit_command(self, sample_tasks_data):

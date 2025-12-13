@@ -36,7 +36,7 @@ def get_tasks_list() -> list[list[Any]]:
     """Get a list of available tasks from the mapping.
 
     Returns:
-        list[list[Any]]: Each sublist contains task name, endpoint type, harness, and container.
+        list[list[Any]]: Each sublist contains task name, endpoint type, harness, container, description, and type.
     """
     mapping = load_tasks_mapping()
     data = [
@@ -45,6 +45,8 @@ def get_tasks_list() -> list[list[Any]]:
             task_data.get("endpoint_type"),
             task_data.get("harness"),
             task_data.get("container"),
+            task_data.get("description", ""),
+            task_data.get("type", ""),
         ]
         for task_data in mapping.values()
     ]
