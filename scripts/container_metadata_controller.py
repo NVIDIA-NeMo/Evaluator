@@ -77,9 +77,6 @@ def calculate_mapping_checksum(mapping_file: pathlib.Path) -> str:
     return f"sha256:{checksum}"
 
 
-# create_authenticator removed - use from helpers instead
-
-
 def get_container_digest(
     authenticator: DockerRegistryHandler, repository: str, reference: str
 ) -> Optional[str]:
@@ -783,11 +780,6 @@ Examples:
     subparsers = parser.add_subparsers(dest="mode", required=True)
     subparsers.add_parser("verify", help="Verify digests and checksums")
     update_parser = subparsers.add_parser("update", help="Update digests and files")
-    update_parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Preview what would be updated without writing files",
-    )
 
     args = parser.parse_args()
 
@@ -813,8 +805,6 @@ Examples:
     if args.mode == "verify":
         sys.exit(verify_mode(args.mapping_toml, args.all_tasks_irs, args.readme_file))
     elif args.mode == "update":
-        if args.dry_run:
-            logger.info("DRY RUN mode - no files will be modified")
         sys.exit(
             update_mode(
                 args.mapping_toml,

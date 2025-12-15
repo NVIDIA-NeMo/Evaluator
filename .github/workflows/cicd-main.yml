@@ -93,7 +93,10 @@ jobs:
           pip install -e .
       - name: Validate container digests
         run: |
-          python scripts/container_metadata_controller.py --mapping-toml packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/resources/mapping.toml --all-tasks-irs packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/resources/all_tasks_irs.yaml --readme-file README.md verify
+          make container-metadata-verify
+      - name: Ensure metadata is up to date (no diffs after update)
+        run: |
+          make container-metadata-update
         env:
           # Allow anonymous access for public registries
           # Private registries may need credentials, but validation will fail gracefully
