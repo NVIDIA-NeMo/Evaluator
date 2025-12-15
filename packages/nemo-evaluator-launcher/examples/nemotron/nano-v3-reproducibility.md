@@ -162,7 +162,7 @@ Different benchmarks use tailored parameters:
 - Test split: `test_v5_2407_2412`
 
 #### GPQA
-- 8 repeated samples for pass@8
+- 8 repeated samples for pass@1
 - 4-choice MCQ prompt format
 
 #### AIME 2025
@@ -277,7 +277,7 @@ nemo-evaluator-launcher ls tasks
 
 ## Expected Results
 
-After running the full evaluation suite, you should obtain results comparable to those reported in the [NVIDIA Nemotron 3 Nano 30B A3B Model Card](https://build.nvidia.com/nvidia/nemotron-nano-3-30b-a3b).
+After running the full evaluation suite, you should obtain results comparable to those reported in the NVIDIA Nemotron 3 Nano 30B A3B Model Card.
 
 > **Important:** Due to the stochastic nature of sampling (temperature > 0) and the use of `num_repeats` for consensus-based scoring, slight variations in results are expected between runs.
 

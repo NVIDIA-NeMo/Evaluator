@@ -331,16 +331,28 @@ container = "nvcr.io/nvidia/eval-factory/nemo_skills:25.11"
 [nemo_skills.tasks.chat.ns_bfcl_v3]
 required_env_vars = []
 
+[nemo_skills.tasks.chat.ns_bfcl_v4]
+required_env_vars = []
+
 [nemo_skills.tasks.chat.ns_gpqa]
 required_env_vars = ["HF_TOKEN"]
 
+[nemo_skills.tasks.chat.ns_ifbench]
+required_env_vars = []
+
 [nemo_skills.tasks.chat.ns_hle]
+required_env_vars = []
+
+[nemo_skills.tasks.chat.ns_livecodebench]
 required_env_vars = []
 
 [nemo_skills.tasks.chat.ns_mmlu]
 required_env_vars = ["HF_TOKEN"]
 
 [nemo_skills.tasks.chat.ns_mmlu_pro]
+required_env_vars = ["HF_TOKEN"]
+
+[nemo_skills.tasks.chat.ns_scicode]
 required_env_vars = ["HF_TOKEN"]
 
 [nemo_skills.tasks.chat.ns_aa_lcr]
