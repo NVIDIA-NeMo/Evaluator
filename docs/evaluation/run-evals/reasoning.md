@@ -251,7 +251,7 @@ In the example above, the model used reasoning for 2860 out of 3672 responses (a
 The matching values for `reasoning_started_count` and `reasoning_finished_count` indicate that the `max_new_tokens` parameter was set sufficiently high, allowing the model to complete all reasoning traces without truncation.
 
 These statistics also enable cost analysis for reasoning operations.
-While the endpoint in this example does not return token usage statistics (the `*_tokens` fields are null or zero), you can still analyze computational cost using the word count metrics from the responses.
+While the endpoint in this example does not return reasoning token usage statistics (the `*_tokens` fields are null or zero), you can still analyze computational cost using the word count metrics from the responses.
 
 For more information on available artifacts, see {ref}`evaluation-output`.
 
