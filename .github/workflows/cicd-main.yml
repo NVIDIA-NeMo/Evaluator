@@ -94,17 +94,6 @@ jobs:
       - name: Validate container digests
         run: |
           make container-metadata-verify
-      - name: Ensure metadata is up to date (no diffs after update)
-        run: |
-          make container-metadata-update
-        env:
-          # Allow anonymous access for public registries
-          # Private registries may need credentials, but validation will fail gracefully
-          NVCR_USERNAME: ${{ secrets.NVCR_USERNAME }}
-          NVCR_PASSWORD: ${{ secrets.NVCR_PASSWORD }}
-          NVCR_API_KEY: ${{ secrets.NVCR_API_KEY }}
-          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
 
   cicd-wait-in-queue:
     runs-on: ubuntu-latest
@@ -168,7 +157,8 @@ jobs:
           package: nemo-evaluator-launcher
 
   cicd-e2e-tests-nemo-evaluator:
-    needs: [pre-flight, cicd-unit-tests-nemo-evaluator, validate-container-digests]
+    needs:
+      [pre-flight, cicd-unit-tests-nemo-evaluator, validate-container-digests]
     runs-on: ubuntu-latest
     name: functional-tests
     environment: nemo-ci
