@@ -52,7 +52,7 @@ evaluation:
 
   tasks:
     # run complex tasks with reasoning on
-    - name: simple-evals.mmlu_pro
+    - name: simple_evals.mmlu_pro
       nemo_evaluator_config:
         config:
           params:
