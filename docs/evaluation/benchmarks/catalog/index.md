@@ -5,24 +5,3 @@
 ```{include} all/benchmarks-table.md
 ```
 
-:::{toctree}
-:caption: Available Benchmarks
-:hidden:
-
-Available Benchmarks <self>
-bfcl <all/harnesses/bfcl>
-bigcode-evaluation-harness <all/harnesses/bigcode-evaluation-harness>
-garak <all/harnesses/garak>
-helm <all/harnesses/helm>
-hle <all/harnesses/hle>
-ifbench <all/harnesses/ifbench>
-livecodebench <all/harnesses/livecodebench>
-lm-evaluation-harness <all/harnesses/lm-evaluation-harness>
-mtbench <all/harnesses/mtbench>
-profbench <all/harnesses/profbench>
-safety-eval <all/harnesses/safety_eval>
-scicode <all/harnesses/scicode>
-simple-evals <all/harnesses/simple_evals>
-tooltalk <all/harnesses/tooltalk>
-vlmevalkit <all/harnesses/vlmevalkit>
-:::
