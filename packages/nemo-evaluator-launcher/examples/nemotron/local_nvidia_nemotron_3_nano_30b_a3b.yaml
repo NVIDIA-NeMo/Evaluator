@@ -45,7 +45,6 @@ evaluation:
         top_p: 0.99999
         parallelism: 512
         request_timeout: 3600
-        limit_samples: 3 # Remove limit_sample setting before merging
         max_retries: 10
         extra:
           tokenizer: NVIDIA-Nemotron-Nano-3-30B-A3B-BF16
