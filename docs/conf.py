@@ -67,6 +67,10 @@ exclude_patterns = [
     "_extensions/*/__pycache__",  # Exclude Python cache directories
     "_extensions/*/*/__pycache__",  # Exclude nested Python cache directories
     "apidocs/**",  # Exclude autodoc2-generated docs (not used in navigation)
+    # Include-only snippet (is pulled into catalog page via `{include}`); if Sphinx
+    # also treats it as a standalone doc, its internal toctree duplicates entries
+    # and can trigger "document is referenced in multiple toctrees" warnings.
+    "evaluation/benchmarks/catalog/all/benchmarks-table.md",
 ]
 
 # -- Options for Intersphinx -------------------------------------------------
