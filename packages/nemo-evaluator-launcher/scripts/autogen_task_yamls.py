@@ -29,7 +29,7 @@ import yaml
 from nemo_evaluator_launcher.common.container_metadata.intermediate_repr import (
     HarnessIntermediateRepresentation,
     TaskIntermediateRepresentation,
-    load_tasks_from_tasks_file,
+    load_harnesses_and_tasks_from_tasks_file,
 )
 from nemo_evaluator_launcher.common.logging_utils import logger
 
@@ -786,12 +786,7 @@ Examples:
         )
     if args.harnesses_dir is None:
         args.harnesses_dir = (
-            docs_root
-            / "evaluation"
-            / "benchmarks"
-            / "catalog"
-            / "all"
-            / "harnesses"
+            docs_root / "evaluation" / "benchmarks" / "catalog" / "all" / "harnesses"
         )
 
     logger.info(
@@ -804,8 +799,10 @@ Examples:
         task_filter=args.task,
     )
 
-    # Load tasks (checksum validation happens automatically)
-    tasks, mapping_verified = load_tasks_from_tasks_file(tasks_file=args.all_tasks_irs_file)
+    # Load harnesses + tasks (checksum validation happens automatically)
+    harness_irs, tasks, mapping_verified = load_harnesses_and_tasks_from_tasks_file(
+        tasks_file=args.all_tasks_irs_file
+    )
 
     # Check if mapping is verified (checksum mismatch)
     if not mapping_verified:
@@ -822,32 +819,6 @@ Examples:
     if not tasks:
         logger.warning("No tasks found")
         sys.exit(1)
-
-    # Derive harnesses from tasks
-    harness_irs: dict[str, HarnessIntermediateRepresentation] = {}
-    for task in tasks:
-        if not task.harness:
-            logger.warning(
-                "Task missing harness name, skipping",
-                task_name=task.name,
-            )
-            continue
-
-        if task.harness not in harness_irs:
-            # Use first task's container info for harness
-            container = str(task.container) if task.container else ""
-            container_digest = (
-                str(task.container_digest) if task.container_digest else None
-            )
-
-            harness_irs[task.harness] = HarnessIntermediateRepresentation(
-                name=task.harness,
-                description="",  # Description not available from tasks alone
-                full_name=None,
-                url=None,
-                container=container,
-                container_digest=container_digest,
-            )
 
     logger.info(
         "Loaded harness IRs",
@@ -981,7 +952,9 @@ Examples:
                 tasks_data = yaml.safe_load(tasks_content)
             checksum = tasks_data.get("metadata", {}).get("mapping_toml_checksum")
         except Exception as e:
-            logger.warning("Could not load checksum from all_tasks_irs.yaml", error=str(e))
+            logger.warning(
+                "Could not load checksum from all_tasks_irs.yaml", error=str(e)
+            )
 
         # Generate benchmarks table file
         benchmarks_table_file = (
@@ -1037,8 +1010,7 @@ Examples:
                 path=str(benchmarks_table_internal_file),
             )
             print(
-                "Generated internal benchmarks table: "
-                f"{benchmarks_table_internal_file}"
+                f"Generated internal benchmarks table: {benchmarks_table_internal_file}"
             )
         except Exception as e:
             logger.error(

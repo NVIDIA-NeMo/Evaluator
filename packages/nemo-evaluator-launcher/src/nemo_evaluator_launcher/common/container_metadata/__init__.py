@@ -18,6 +18,7 @@
 from nemo_evaluator_launcher.common.container_metadata.intermediate_repr import (
     HarnessIntermediateRepresentation,
     TaskIntermediateRepresentation,
+    load_harnesses_and_tasks_from_tasks_file,
     load_tasks_from_tasks_file,
 )
 from nemo_evaluator_launcher.common.container_metadata.registries import (
@@ -33,6 +34,7 @@ __all__ = [
     "create_authenticator",
     "HarnessIntermediateRepresentation",
     "TaskIntermediateRepresentation",
+    "load_harnesses_and_tasks_from_tasks_file",
     "load_tasks_from_tasks_file",
     "parse_container_image",
 ]

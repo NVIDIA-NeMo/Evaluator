@@ -1,14 +1,147 @@
 metadata:
   mapping_toml_checksum: sha256:b7fdaa7f01a641970f864c6aab95d7f9e49b883dee8558e8636eb8018a01388e
   num_tasks: 318
+  num_harnesses: 18
+harnesses:
+- name: lm-evaluation-harness
+  description: This project provides a unified framework to test generative language
+    models on a large number of different evaluation tasks.
+  full_name: Language Model Evaluation Harness
+  url: https://github.com/EleutherAI/lm-evaluation-harness
+  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
+  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
+- name: mtbench
+  description: MT-bench is designed to test multi-turn conversation and instruction-following
+    ability, covering common use cases and focusing on challenging questions to differentiate
+    models.
+  full_name: MT-Bench
+  url: https://github.com/lm-sys/FastChat
+  container: nvcr.io/nvidia/eval-factory/mtbench:25.11
+  container_digest: sha256:9c5921eea094249070e0703e2ad98a6062a063440d8ee6fb13b71dd2ed5856a3
+- name: ifbench
+  description: IFBench is a new, challenging benchmark for precise instruction following.
+  full_name: Generalizing Verifiable Instruction Following
+  url: https://github.com/allenai/IFBench
+  container: nvcr.io/nvidia/eval-factory/ifbench:25.11
+  container_digest: sha256:553d6e3570bbc9b74e44e71ae52ec207961f75386c20301cd7b2e02c6d08b419
+- name: simple_evals
+  description: simple-evals - a lightweight library for evaluating language models.
+  full_name: simple-evals
+  url: https://github.com/openai/simple-evals
+  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
+  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
+- name: bigcode-evaluation-harness
+  description: A framework for the evaluation of autoregressive code generation language
+    models.
+  full_name: Code Generation LM Evaluation Harness
+  url: https://github.com/bigcode-project/bigcode-evaluation-harness
+  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
+  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
+- name: livecodebench
+  description: Holistic and Contamination Free Evaluation of Large Language Models
+    for Code.
+  full_name: LiveCodeBench
+  url: https://github.com/LiveCodeBench/LiveCodeBench
+  container: nvcr.io/nvidia/eval-factory/livecodebench:25.11
+  container_digest: sha256:57b283ae68f10d2f93e7424675685cc2c864761c99c8bb586daecf2e2df0b74e
+- name: scicode
+  description: SciCode is a challenging benchmark designed to evaluate the capabilities
+    of LLMs in generating code for solving realistic scientific research problems.
+  full_name: SciCode Benchmark
+  url: https://github.com/scicode-bench/SciCode
+  container: nvcr.io/nvidia/eval-factory/scicode:25.11
+  container_digest: sha256:1497f7ae09aecc4a47d28e86952425ad04a10d3ece7b737214cb9f20e4f5d290
+- name: hle
+  description: Humanity's Last Exam (HLE) is a multi-modal benchmark at the frontier
+    of human knowledge, designed to be the final closed-ended academic benchmark of
+    its kind with broad subject coverage. Humanity's Last Exam consists of 3,000 questions
+    across dozens of subjects, including mathematics, humanities, and the natural
+    sciences. HLE is developed globally by subject-matter experts and consists of
+    multiple-choice and short-answer questions suitable for automated grading.
+  full_name: Humanity's Last Exam
+  url: https://github.com/centerforaisafety/hle
+  container: nvcr.io/nvidia/eval-factory/hle:25.11
+  container_digest: sha256:f6d3dc75b49ad6b382a03e63f9906e4e1114c1a0a2554142c54d2a310cc067d3
+- name: bfcl
+  description: The Berkeley Function Calling Leaderboard V3 (also called Berkeley
+    Tool Calling Leaderboard V3) evaluates the LLM's ability to call functions (aka
+    tools) accurately.
+  full_name: Berkeley Function Calling Leaderboard
+  url: https://github.com/ShishirPatil/gorilla/tree/main/berkeley-function-call-leaderboard
+  container: nvcr.io/nvidia/eval-factory/bfcl:25.11
+  container_digest: sha256:4b52880ec50ef4eb6f57d5daab9dbe8cf6b69e9ef38865884e44dabc05ebdda0
+- name: profbench
+  description: Professional domain benchmark for evaluating LLMs on Physics PhD, Chemistry
+    PhD, Finance MBA, and Consulting MBA tasks
+  full_name: ProfBench
+  url: https://github.com/nvidia/profbench
+  container: nvcr.io/nvidia/eval-factory/profbench:25.11
+  container_digest: sha256:235e98c9fa80c9609aa61c607ae3088a5e046c9e1bed401d737190635958a109
+- name: vlmevalkit
+  description: VLMEvalKit is an open-source evaluation toolkit of large vision-language
+    models (LVLMs). It enables one-command evaluation of LVLMs on various benchmarks,
+    without the heavy workload of data preparation under multiple repositories. In
+    VLMEvalKit, we adopt generation-based evaluation for all LVLMs, and provide the
+    evaluation results obtained with both exact matching and LLM-based answer extraction.
+  full_name: VLMEvalKit
+  url: https://github.com/open-compass/VLMEvalKit
+  container: nvcr.io/nvidia/eval-factory/vlmevalkit:25.11
+  container_digest: sha256:647f7c9569139087dcd56835841004e5a8a4096cea98ab7bdb6b657e89517f22
+- name: garak
+  description: Garak is an LLM vulnerability scanner.
+  full_name: Garak
+  url: https://github.com/NVIDIA/garak/tree/main
+  container: nvcr.io/nvidia/eval-factory/garak:25.11
+  container_digest: sha256:40a00456268b0b993cd66565c6077a55a96239e9d3ae5d61d39d62c9f79cbca9
+- name: nemo_skills
+  description: NeMo Skills - a project to improve skills of LLMs
+  full_name: NeMo Skills
+  url: https://github.com/NVIDIA/NeMo-Skills
+  container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
+  container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
+- name: safety_eval
+  description: Harness for Safety evaluations
+  full_name: Safety Harness
+  url: null
+  container: nvcr.io/nvidia/eval-factory/safety-harness:25.11
+  container_digest: sha256:a0fa5d24c6e66fc4ead85de3823eece8395adbf2b3f111c2c2eca05759fa34df
+- name: helm
+  description: A framework for evaluating large language models in medical applications
+    across various healthcare tasks
+  full_name: Holistic Evaluation of Language Models for Medical Applications
+  url: https://github.com/stanford-crfm/helm
+  container: nvcr.io/nvidia/eval-factory/helm:25.11
+  container_digest: sha256:98b69c8fb91ae0de7c9d4583e9555da8fbe498640003b62b1035f76105b6611b
+- name: tooltalk
+  description: ToolTalk is designed to evaluate tool-augmented LLMs as a chatbot.
+    ToolTalk contains a handcrafted dataset of 28 easy conversations and 50 hard conversations.
+  full_name: ToolTalk
+  url: https://github.com/microsoft/ToolTalk
+  container: nvcr.io/nvidia/eval-factory/tooltalk:25.11
+  container_digest: sha256:154fa634104e0b7e488df21e0dadc155ebc6b14148205ef00ede3fefb3f8157a
+- name: genai_perf_eval
+  description: GenAI Perf is a tool to evaluate the performance of LLM endpoints.
+  full_name: GenAI Perf
+  url: https://github.com/triton-inference-server
+  container: nvcr.io/nvidia/eval-factory/genai-perf:25.11
+  container_digest: sha256:cb456449130e23639f49ceb6f30252c9d8a3ea1f7370c5f963eb5853a6abb183
+- name: mmath
+  description: MMATH is a new benchmark specifically designed for multilingual complex
+    reasoning. It comprises 374 carefully selected math problems from high-quality
+    sources, including AIME, CNMO, and MATH-500, and covers ten typologically and
+    geographically diverse languages. Each problem is translated and validated through
+    a rigorous pipeline that combines frontier LLMs with human verification, ensuring
+    semantic consistency.
+  full_name: 'MMATH: A Multilingual Benchmark for Mathematical Reasoning'
+  url: https://github.com/RUCAIBox/MMATH/
+  container: nvcr.io/nvidia/eval-factory/mmath:25.11
+  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
 tasks:
 - name: mmlu
   description: '- The MMLU (Massive Multitask Language Understanding) benchmark covers
     57 subjects across various fields, testing both world knowledge and problem-solving
     abilities. - This variant uses text generation.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -60,8 +193,6 @@ tasks:
     abilities. - This variant defaults to zero-shot evaluation and instructs the model
     to produce a single letter response.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -113,8 +244,6 @@ tasks:
     57 subjects across various fields, testing both world knowledge and problem-solving
     abilities. - This variant defaults to chain-of-thought zero-shot evaluation.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -165,8 +294,6 @@ tasks:
     model's adherence to formatting instructions rather than the content generated,
     allowing for the use of strict and rigorous metrics.
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -214,8 +341,6 @@ tasks:
   description: MMLU-Pro is a refined version of the MMLU dataset with 10 choices instead
     of 4.
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -266,8 +391,6 @@ tasks:
     instead of 4. - This variant applies a chat template and defaults to zero-shot
     evaluation.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -317,8 +440,6 @@ tasks:
   description: MMLU-Redux is a subset of 3,000 manually re-annotated questions across
     30 MMLU subjects.
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -367,8 +488,6 @@ tasks:
     across 30 MMLU subjects. - This variant applies a chat template and defaults to
     zero-shot evaluation.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -419,8 +538,6 @@ tasks:
   description: '- The MMLU (Massive Multitask Language Understanding) benchmark translated
     to Indonesian with string-based evaluation.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -471,8 +588,6 @@ tasks:
   description: The GSM8K benchmark evaluates the arithmetic reasoning of large language
     models using 1,319 grade school math word problems.
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -521,8 +636,6 @@ tasks:
     language models using 1,319 grade school math word problems. - This variant defaults
     to chain-of-thought zero-shot evaluation with custom instructions.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -572,8 +685,6 @@ tasks:
     language models using 1,319 grade school math word problems. - This variant defaults
     to chain-of-thought zero-shot evaluation.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -623,8 +734,6 @@ tasks:
     language models using 1,319 grade school math word problems. - This variant defaults
     to chain-of-thought evaluation - implementation taken from llama.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -674,8 +783,6 @@ tasks:
     language models using 1,319 grade school math word problems. - This variant defaults
     to chain-of-thought zero-shot evaluation - implementation taken from llama.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -725,8 +832,6 @@ tasks:
   description: '- The HumanEval benchmark measures functional correctness for synthesizing
     programs from docstrings. - Implementation taken from llama.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -774,8 +879,6 @@ tasks:
   description: MBPP EvalPlus is an extension of the MBPP benchmark with 35x more test
     cases.
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -824,8 +927,6 @@ tasks:
   description: '- The Multilingual Grade School Math (MGSM) benchmark consists of
     250 grade-school math problems from the GSM8K dataset, translated into ten languages.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -874,8 +975,6 @@ tasks:
     250 grade-school math problems from the GSM8K dataset, translated into ten languages.
     - This variant defaults to chain-of-thought evaluation.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -926,8 +1025,6 @@ tasks:
   description: '- The WikiLingua benchmark is a large-scale, multilingual dataset
     designed for evaluating cross-lingual abstractive summarization systems.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -976,8 +1073,6 @@ tasks:
   description: WinoGrande is a collection of 44k problems formulated as a fill-in-a-blank
     task with binary options testing commonsense reasoning.
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1026,8 +1121,6 @@ tasks:
   description: The ARC challenge dataset consists of 2,590 multiple-choice science
     exam questions.
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1076,8 +1169,6 @@ tasks:
     exam questions. - This variant applies a chat template and defaults to zero-shot
     evaluation.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1127,8 +1218,6 @@ tasks:
   description: The HellaSwag benchmark tests a language model's commonsense reasoning
     by having it choose the most logical ending for a given story.
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1179,8 +1268,6 @@ tasks:
     such as health, law, finance, and politics, designed to test whether models can
     avoid generating false answers that mimic common human misconceptions.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1227,8 +1314,6 @@ tasks:
     suite, focusing on 23 particularly difficult tasks that current language models
     struggle with.
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1278,8 +1363,6 @@ tasks:
     struggle with. - This variant aaplies chat template and defaults to zero-shot
     evaluation.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1328,8 +1411,6 @@ tasks:
     capabilities of large language models through complex, multistep tasks specified
     in natural language narratives.
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1377,8 +1458,6 @@ tasks:
   description: The GPQA (Graduate-Level Google-Proof Q&A) benchmark is a challenging
     dataset of 448 multiple-choice questions in biology, physics, and chemistry.
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1428,8 +1507,6 @@ tasks:
     This variant uses the Diamond subset and defaults to zero-shot chain-of-thought
     evaluation.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1477,8 +1554,6 @@ tasks:
 - name: frames_naive
   description: Frames Naive uses the prompt as input without additional context
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1527,8 +1602,6 @@ tasks:
   description: Frames Naive with Links provides the prompt and relevant Wikipedia
     article links
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1577,8 +1650,6 @@ tasks:
   description: Frames Oracle (long context) provides prompts and relevant text from
     curated and processed Wikipedia articles from "parasail-ai/frames-benchmark-wikipedia".
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1628,8 +1699,6 @@ tasks:
     requires different types of commonsense knowledge to predict the correct answers.
     - It contains 12,102 questions with one correct answer and four distractor answers.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1681,8 +1750,6 @@ tasks:
     by design, are answered incorrectly by both a retrieval-based algorithm and a
     word co-occurrence algorithm.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1731,8 +1798,6 @@ tasks:
     57 subjects across various fields, testing both world knowledge and problem-solving
     abilities. - This variant uses the logits of the model to evaluate the accuracy.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1782,8 +1847,6 @@ tasks:
     reasoning benchmark designed to investigate the physical knowledge of large language
     models.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1831,8 +1894,6 @@ tasks:
   description: '- Social IQa contains 38,000 multiple choice questions for probing
     emotional and social intelligence in a variety of everyday situations.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1881,8 +1942,6 @@ tasks:
   description: Version of the AGIEval-EN-CoT benchmark used by NVIDIA Applied Deep
     Learning Research team (ADLR).
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1930,8 +1989,6 @@ tasks:
   description: MATH-500 Sampled version used by NVIDIA Applied Deep Learning Research
     team (ADLR).
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -1979,8 +2036,6 @@ tasks:
 - name: adlr_race
   description: RACE version used by NVIDIA Applied Deep Learning Research team (ADLR).
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2028,8 +2083,6 @@ tasks:
   description: TruthfulQA-MC2 version used by NVIDIA Applied Deep Learning Research
     team (ADLR).
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2077,8 +2130,6 @@ tasks:
   description: ARC-Challenge-Llama version used by NVIDIA Applied Deep Learning Research
     team (ADLR).
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2127,8 +2178,6 @@ tasks:
   description: Version of the GPQA-Diamond-CoT benchmark used by NVIDIA Applied Deep
     Learning Research team (ADLR).
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2176,8 +2225,6 @@ tasks:
 - name: adlr_mmlu
   description: MMLU version used by NVIDIA Applied Deep Learning Research team (ADLR).
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2227,8 +2274,6 @@ tasks:
   description: MMLU-Pro 5-shot base version used by NVIDIA Applied Deep Learning Research
     team (ADLR).
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2277,8 +2322,6 @@ tasks:
   description: Minerva-Math version used by NVIDIA Applied Deep Learning Research
     team (ADLR).
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2327,8 +2370,6 @@ tasks:
   description: GSM8K-CoT version used by NVIDIA Applied Deep Learning Research team
     (ADLR).
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2377,8 +2418,6 @@ tasks:
   description: HumanEval Greedy version used by NVIDIA Applied Deep Learning Research
     team (ADLR).
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2426,8 +2465,6 @@ tasks:
   description: HumanEval Sampled version used by NVIDIA Applied Deep Learning Research
     team (ADLR).
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2475,8 +2512,6 @@ tasks:
   description: MBPP Greedy version used by NVIDIA Applied Deep Learning Research team
     (ADLR).
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2525,8 +2560,6 @@ tasks:
   description: MBPP Sampled version used by NVIDIA Applied Deep Learning Research
     team (ADLR).
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2575,8 +2608,6 @@ tasks:
   description: Global-MMLU subset (8 languages - es, de, fr, zh, it, ja, pt, ko) used
     by NVIDIA Applied Deep Learning Research team (ADLR).
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2625,8 +2656,6 @@ tasks:
   description: MGSM native CoT subset (6 languages - es, de, fr, zh, ja, ru) used
     by NVIDIA Applied Deep Learning Research team (ADLR).
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2675,8 +2704,6 @@ tasks:
   description: CommonsenseQA version used by NVIDIA Applied Deep Learning Research
     team (ADLR).
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2725,8 +2752,6 @@ tasks:
   description: Winogrande version used by NVIDIA Applied Deep Learning Research team
     (ADLR).
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2777,8 +2802,6 @@ tasks:
     9 categories - disability, gender, nationality, physical appearance, race/ethnicity,
     religion, sexual orientation, socioeconomic status, and age.
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2826,8 +2849,6 @@ tasks:
 - name: arc_multilingual
   description: The multilingual versions of the ARC challenge dataset.
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2874,8 +2895,6 @@ tasks:
 - name: hellaswag_multilingual
   description: The multilingual versions of the HellaSwag benchmark.
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2923,8 +2942,6 @@ tasks:
 - name: mmlu_prox
   description: A Multilingual Benchmark for Advanced Large Language Model Evaluation
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -2973,8 +2990,6 @@ tasks:
   description: A Multilingual Benchmark for Advanced Large Language Model Evaluation
     (French dataset)
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3023,8 +3038,6 @@ tasks:
   description: A Multilingual Benchmark for Advanced Large Language Model Evaluation
     (German dataset)
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3073,8 +3086,6 @@ tasks:
   description: A Multilingual Benchmark for Advanced Large Language Model Evaluation
     (Italian dataset)
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3123,8 +3134,6 @@ tasks:
   description: A Multilingual Benchmark for Advanced Large Language Model Evaluation
     (Japanese dataset)
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3173,8 +3182,6 @@ tasks:
   description: A Multilingual Benchmark for Advanced Large Language Model Evaluation
     (Spanish dataset)
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3223,8 +3230,6 @@ tasks:
   description: Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English.
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3272,8 +3277,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the AM subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3321,8 +3324,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the AR subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3370,8 +3371,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the BN subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3419,8 +3418,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the CS subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3468,8 +3465,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the DE subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3517,8 +3512,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the EL subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3566,8 +3559,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the EN subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3615,8 +3606,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the ES subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3664,8 +3653,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the FA subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3713,8 +3700,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the FIL subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3762,8 +3747,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the FR subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3811,8 +3794,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the HA subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3860,8 +3841,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the HE subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3909,8 +3888,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the HI subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -3958,8 +3935,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the ID subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4007,8 +3982,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the IG subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4056,8 +4029,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the IT subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4105,8 +4076,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the JA subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4154,8 +4123,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the KO subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4203,8 +4170,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the KY subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4252,8 +4217,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the LT subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4301,8 +4264,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the MG subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4350,8 +4311,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the MS subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4399,8 +4358,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the NE subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4448,8 +4405,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the NL subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4497,8 +4452,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the NY subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4546,8 +4499,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the PL subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4595,8 +4546,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the PT subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4644,8 +4593,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the RO subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4693,8 +4640,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the RU subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4742,8 +4687,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the SI subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4791,8 +4734,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the SN subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4840,8 +4781,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the SO subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4889,8 +4828,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the SR subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4938,8 +4875,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the SV subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -4987,8 +4922,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the SW subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5036,8 +4969,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the TE subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5085,8 +5016,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the TR subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5134,8 +5063,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the UK subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5183,8 +5110,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the VI subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5232,8 +5157,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the YO subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5281,8 +5204,6 @@ tasks:
   description: '- Global-MMLU is a multilingual evaluation set spanning 42 languages,
     including English. - This variant uses the ZH subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5331,8 +5252,6 @@ tasks:
     and culturally agnostic MMLU tasks. - It is designed for efficient evaluation
     of multilingual models in 15 languages (including English).'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5380,8 +5299,6 @@ tasks:
   description: '- Global-MMLU-Lite is a balanced collection of culturally sensitive
     and culturally agnostic MMLU tasks. - This variant uses the AR subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5429,8 +5346,6 @@ tasks:
   description: '- Global-MMLU-Lite is a balanced collection of culturally sensitive
     and culturally agnostic MMLU tasks. - This variant uses the BN subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5478,8 +5393,6 @@ tasks:
   description: '- Global-MMLU-Lite is a balanced collection of culturally sensitive
     and culturally agnostic MMLU tasks. - This variant uses the DE subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5527,8 +5440,6 @@ tasks:
   description: '- Global-MMLU-Lite is a balanced collection of culturally sensitive
     and culturally agnostic MMLU tasks. - This variant uses the EN subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5576,8 +5487,6 @@ tasks:
   description: '- Global-MMLU-Lite is a balanced collection of culturally sensitive
     and culturally agnostic MMLU tasks. - This variant uses the ES subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5625,8 +5534,6 @@ tasks:
   description: '- Global-MMLU-Lite is a balanced collection of culturally sensitive
     and culturally agnostic MMLU tasks. - This variant uses the FR subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5674,8 +5581,6 @@ tasks:
   description: '- Global-MMLU-Lite is a balanced collection of culturally sensitive
     and culturally agnostic MMLU tasks. - This variant uses the HI subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5723,8 +5628,6 @@ tasks:
   description: '- Global-MMLU-Lite is a balanced collection of culturally sensitive
     and culturally agnostic MMLU tasks. - This variant uses the ID subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5772,8 +5675,6 @@ tasks:
   description: '- Global-MMLU-Lite is a balanced collection of culturally sensitive
     and culturally agnostic MMLU tasks. - This variant uses the IT subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5821,8 +5722,6 @@ tasks:
   description: '- Global-MMLU-Lite is a balanced collection of culturally sensitive
     and culturally agnostic MMLU tasks. - This variant uses the JA subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5870,8 +5769,6 @@ tasks:
   description: '- Global-MMLU-Lite is a balanced collection of culturally sensitive
     and culturally agnostic MMLU tasks. - This variant uses the KO subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5919,8 +5816,6 @@ tasks:
   description: '- Global-MMLU-Lite is a balanced collection of culturally sensitive
     and culturally agnostic MMLU tasks. - This variant uses the PT subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -5968,8 +5863,6 @@ tasks:
   description: '- Global-MMLU-Lite is a balanced collection of culturally sensitive
     and culturally agnostic MMLU tasks. - This variant uses the SW subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -6017,8 +5910,6 @@ tasks:
   description: '- Global-MMLU-Lite is a balanced collection of culturally sensitive
     and culturally agnostic MMLU tasks. - This variant uses the YO subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -6066,8 +5957,6 @@ tasks:
   description: '- Global-MMLU-Lite is a balanced collection of culturally sensitive
     and culturally agnostic MMLU tasks. - This variant uses the ZH subset.'
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -6114,8 +6003,6 @@ tasks:
 - name: agieval
   description: AGIEval - A Human-Centric Benchmark for Evaluating Foundation Models
   harness: lm-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/lm-evaluation-harness:25.11
-  container_digest: sha256:fe2e95616b6e26f7c5fc5e45230ddf382e9898c71fdb0f171f8d35d0105fa2b7
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} lm-eval --tasks {{config.params.task}}{% if config.params.extra.num_fewshot
@@ -6162,8 +6049,6 @@ tasks:
 - name: mtbench
   description: Standard MT-Bench
   harness: mtbench
-  container: nvcr.io/nvidia/eval-factory/mtbench:25.11
-  container_digest: sha256:9c5921eea094249070e0703e2ad98a6062a063440d8ee6fb13b71dd2ed5856a3
   defaults:
     command: 'mtbench-evaluator {% if target.api_endpoint.model_id is not none %}
       --model {{target.api_endpoint.model_id}}{% endif %} {% if target.api_endpoint.url
@@ -6217,8 +6102,6 @@ tasks:
 - name: mtbench-cor1
   description: Corrected MT-Bench
   harness: mtbench
-  container: nvcr.io/nvidia/eval-factory/mtbench:25.11
-  container_digest: sha256:9c5921eea094249070e0703e2ad98a6062a063440d8ee6fb13b71dd2ed5856a3
   defaults:
     command: 'mtbench-evaluator {% if target.api_endpoint.model_id is not none %}
       --model {{target.api_endpoint.model_id}}{% endif %} {% if target.api_endpoint.url
@@ -6273,8 +6156,6 @@ tasks:
 - name: ifbench
   description: IFBench with vanilla settings
   harness: ifbench
-  container: nvcr.io/nvidia/eval-factory/ifbench:25.11
-  container_digest: sha256:553d6e3570bbc9b74e44e71ae52ec207961f75386c20301cd7b2e02c6d08b419
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
       {% endif %} ifbench --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --results-dir
@@ -6302,8 +6183,6 @@ tasks:
 - name: ifbench_aa_v2
   description: IFBench - params aligned with Artificial Analysis Index v2
   harness: ifbench
-  container: nvcr.io/nvidia/eval-factory/ifbench:25.11
-  container_digest: sha256:553d6e3570bbc9b74e44e71ae52ec207961f75386c20301cd7b2e02c6d08b419
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
       {% endif %} ifbench --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --results-dir
@@ -6331,8 +6210,6 @@ tasks:
 - name: AIME_2025
   description: AIME 2025 questions, math
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -6403,8 +6280,6 @@ tasks:
 - name: AIME_2024
   description: AIME 2024 questions, math
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -6474,8 +6349,6 @@ tasks:
 - name: AA_AIME_2024
   description: AIME 2024 questions, math, using Artificial Analysis's setup.
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -6546,8 +6419,6 @@ tasks:
 - name: AA_math_test_500
   description: Open Ai math test 500, using Artificial Analysis's setup.
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -6618,8 +6489,6 @@ tasks:
 - name: math_test_500
   description: Open AI math test 500
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -6690,8 +6559,6 @@ tasks:
   description: MGSM is a benchmark of grade-school math problems. The same 250 problems
     from GSM8K are each translated via human annotators in 10 languages.
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -6765,8 +6632,6 @@ tasks:
     algorithms, and simple mathematics, with some comparable to simple software interview
     questions.
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -6839,8 +6704,6 @@ tasks:
     comprehension, algorithms, and simple mathematics, with some comparable to simple
     software interview questions.
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -6913,8 +6776,6 @@ tasks:
     understanding dataset tailored to more rigorously benchmark large language models'
     capabilities. This dataset contains 12K complex questions across various disciplines.
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -6984,8 +6845,6 @@ tasks:
 - name: mmlu_am
   description: Global-MMLU 0-shot CoT in Amharic (am)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -7055,8 +6914,6 @@ tasks:
 - name: mmlu_ar
   description: Global-MMLU 0-shot CoT in Arabic (ar)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -7126,8 +6983,6 @@ tasks:
 - name: mmlu_bn
   description: Global-MMLU 0-shot CoT in Bengali (bn)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -7197,8 +7052,6 @@ tasks:
 - name: mmlu_cs
   description: Global-MMLU 0-shot CoT in Czech (cs)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -7268,8 +7121,6 @@ tasks:
 - name: mmlu_de
   description: Global-MMLU 0-shot CoT in German (de)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -7339,8 +7190,6 @@ tasks:
 - name: mmlu_el
   description: Global-MMLU 0-shot CoT in Greek (el)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -7410,8 +7259,6 @@ tasks:
 - name: mmlu_en
   description: Global-MMLU 0-shot CoT in English (en)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -7481,8 +7328,6 @@ tasks:
 - name: mmlu_es
   description: Global-MMLU 0-shot CoT in Spanish (es)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -7552,8 +7397,6 @@ tasks:
 - name: mmlu_fa
   description: Global-MMLU 0-shot CoT in Persian (fa)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -7623,8 +7466,6 @@ tasks:
 - name: mmlu_fil
   description: Global-MMLU 0-shot CoT in Filipino (fil)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -7694,8 +7535,6 @@ tasks:
 - name: mmlu_fr
   description: Global-MMLU 0-shot CoT in French (fr)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -7765,8 +7604,6 @@ tasks:
 - name: mmlu_ha
   description: Global-MMLU 0-shot CoT in Hausa (ha)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -7836,8 +7673,6 @@ tasks:
 - name: mmlu_he
   description: Global-MMLU 0-shot CoT in Hebrew (he)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -7907,8 +7742,6 @@ tasks:
 - name: mmlu_hi
   description: Global-MMLU 0-shot CoT in Hindi (hi)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -7978,8 +7811,6 @@ tasks:
 - name: mmlu_id
   description: Global-MMLU 0-shot CoT in Indonesian (id)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -8049,8 +7880,6 @@ tasks:
 - name: mmlu_ig
   description: Global-MMLU 0-shot CoT in Igbo (ig)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -8120,8 +7949,6 @@ tasks:
 - name: mmlu_it
   description: Global-MMLU 0-shot CoT in Italian (it)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -8191,8 +8018,6 @@ tasks:
 - name: mmlu_ja
   description: Global-MMLU 0-shot CoT in Japanese (ja)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -8262,8 +8087,6 @@ tasks:
 - name: mmlu_ko
   description: Global-MMLU 0-shot CoT in Korean (ko)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -8333,8 +8156,6 @@ tasks:
 - name: mmlu_ky
   description: Global-MMLU 0-shot CoT in Kyrgyz (ky)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -8404,8 +8225,6 @@ tasks:
 - name: mmlu_lt
   description: Global-MMLU 0-shot CoT in Lithuanian (lt)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -8475,8 +8294,6 @@ tasks:
 - name: mmlu_mg
   description: Global-MMLU 0-shot CoT in Malagasy (mg)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -8546,8 +8363,6 @@ tasks:
 - name: mmlu_ms
   description: Global-MMLU 0-shot CoT in Malay (ms)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -8617,8 +8432,6 @@ tasks:
 - name: mmlu_ne
   description: Global-MMLU 0-shot CoT in Nepali (ne)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -8688,8 +8501,6 @@ tasks:
 - name: mmlu_nl
   description: Global-MMLU 0-shot CoT in Dutch (nl)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -8759,8 +8570,6 @@ tasks:
 - name: mmlu_ny
   description: Global-MMLU 0-shot CoT in Nyanja (ny)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -8830,8 +8639,6 @@ tasks:
 - name: mmlu_pl
   description: Global-MMLU 0-shot CoT in Polish (pl)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -8901,8 +8708,6 @@ tasks:
 - name: mmlu_pt
   description: Global-MMLU 0-shot CoT in Portuguese (pt)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -8972,8 +8777,6 @@ tasks:
 - name: mmlu_ro
   description: Global-MMLU 0-shot CoT in Romanian (ro)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -9043,8 +8846,6 @@ tasks:
 - name: mmlu_ru
   description: Global-MMLU 0-shot CoT in Russian (ru)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -9114,8 +8915,6 @@ tasks:
 - name: mmlu_si
   description: Global-MMLU 0-shot CoT in Sinhala (si)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -9185,8 +8984,6 @@ tasks:
 - name: mmlu_sn
   description: Global-MMLU 0-shot CoT in Shona (sn)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -9256,8 +9053,6 @@ tasks:
 - name: mmlu_so
   description: Global-MMLU 0-shot CoT in Somali (so)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -9327,8 +9122,6 @@ tasks:
 - name: mmlu_sr
   description: Global-MMLU 0-shot CoT in Serbian (sr)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -9398,8 +9191,6 @@ tasks:
 - name: mmlu_sv
   description: Global-MMLU 0-shot CoT in Swedish (sv)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -9469,8 +9260,6 @@ tasks:
 - name: mmlu_sw
   description: Global-MMLU 0-shot CoT in Swahili (sw)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -9540,8 +9329,6 @@ tasks:
 - name: mmlu_te
   description: Global-MMLU 0-shot CoT in Telugu (te)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -9611,8 +9398,6 @@ tasks:
 - name: mmlu_tr
   description: Global-MMLU 0-shot CoT in Turkish (tr)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -9682,8 +9467,6 @@ tasks:
 - name: mmlu_uk
   description: Global-MMLU 0-shot CoT in Ukrainian (uk)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -9753,8 +9536,6 @@ tasks:
 - name: mmlu_vi
   description: Global-MMLU 0-shot CoT in Vietnamese (vi)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -9824,8 +9605,6 @@ tasks:
 - name: mmlu_yo
   description: Global-MMLU 0-shot CoT in Yoruba (yo)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -9895,8 +9674,6 @@ tasks:
 - name: mmlu_ar-lite
   description: Global-MMLU-Lite 0-shot CoT in Arabic (ar)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -9966,8 +9743,6 @@ tasks:
 - name: mmlu_bn-lite
   description: Global-MMLU-Lite 0-shot CoT in Bengali (bn)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -10037,8 +9812,6 @@ tasks:
 - name: mmlu_de-lite
   description: Global-MMLU-Lite 0-shot CoT in German (de)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -10108,8 +9881,6 @@ tasks:
 - name: mmlu_en-lite
   description: Global-MMLU-Lite 0-shot CoT in English (en)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -10179,8 +9950,6 @@ tasks:
 - name: mmlu_es-lite
   description: Global-MMLU-Lite 0-shot CoT in Spanish (es)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -10250,8 +10019,6 @@ tasks:
 - name: mmlu_fr-lite
   description: Global-MMLU-Lite 0-shot CoT in French (fr)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -10321,8 +10088,6 @@ tasks:
 - name: mmlu_hi-lite
   description: Global-MMLU-Lite 0-shot CoT in Hindi (hi)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -10392,8 +10157,6 @@ tasks:
 - name: mmlu_id-lite
   description: Global-MMLU-Lite 0-shot CoT in Indonesian (id)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -10463,8 +10226,6 @@ tasks:
 - name: mmlu_it-lite
   description: Global-MMLU-Lite 0-shot CoT in Italian (it)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -10534,8 +10295,6 @@ tasks:
 - name: mmlu_ja-lite
   description: Global-MMLU-Lite 0-shot CoT in Japanese (ja)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -10605,8 +10364,6 @@ tasks:
 - name: mmlu_ko-lite
   description: Global-MMLU-Lite 0-shot CoT in Korean (ko)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -10676,8 +10433,6 @@ tasks:
 - name: mmlu_my-lite
   description: Global-MMLU-Lite 0-shot CoT in Malay (my)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -10747,8 +10502,6 @@ tasks:
 - name: mmlu_pt-lite
   description: Global-MMLU-Lite 0-shot CoT in Portuguese (pt)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -10818,8 +10571,6 @@ tasks:
 - name: mmlu_sw-lite
   description: Global-MMLU-Lite 0-shot CoT in Swahili (sw)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -10889,8 +10640,6 @@ tasks:
 - name: mmlu_yo-lite
   description: Global-MMLU-Lite 0-shot CoT in Yoruba (yo)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -10960,8 +10709,6 @@ tasks:
 - name: mmlu_zh-lite
   description: Global-MMLU-Lite 0-shot CoT in Chinese (Simplified) (zh)
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -11031,8 +10778,6 @@ tasks:
 - name: mmlu
   description: MMLU 0-shot CoT
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -11102,8 +10847,6 @@ tasks:
 - name: gpqa_diamond
   description: gpqa_diamond 0-shot CoT
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -11173,8 +10916,6 @@ tasks:
 - name: gpqa_extended
   description: gpqa_extended 0-shot CoT
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -11244,8 +10985,6 @@ tasks:
 - name: gpqa_main
   description: gpqa_main 0-shot CoT
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -11316,8 +11055,6 @@ tasks:
   description: A factuality benchmark called SimpleQA that measures the ability for
     language models to answer short, fact-seeking questions.
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -11387,8 +11124,6 @@ tasks:
 - name: aime_2025_nemo
   description: AIME 2025 questions, math, using NeMo's alignment template
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -11459,8 +11194,6 @@ tasks:
 - name: aime_2024_nemo
   description: AIME 2024 questions, math, using NeMo's alignment template
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -11531,8 +11264,6 @@ tasks:
 - name: math_test_500_nemo
   description: math_test_500 questions, math, using NeMo's alignment template
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -11603,8 +11334,6 @@ tasks:
 - name: gpqa_diamond_nemo
   description: gpqa_diamond questions, reasoning, using NeMo's alignment template
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -11676,8 +11405,6 @@ tasks:
   description: gpqa_diamond questions with custom regex extraction patterns for Llama
     4
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -11756,8 +11483,6 @@ tasks:
   description: gpqa_diamond questions with custom regex extraction patterns for AA
     v2
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -11833,8 +11558,6 @@ tasks:
   description: AIME 2025 questions, math - params aligned with Artificial Analysis
     Index v2
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -11906,8 +11629,6 @@ tasks:
   description: MGSM is a benchmark of grade-school math problems - params aligned
     with Artificial Analysis Index v2
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -11977,8 +11698,6 @@ tasks:
 - name: mmlu_pro_aa_v2
   description: MMLU-Pro - params aligned with Artificial Analysis Index v2
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -12048,8 +11767,6 @@ tasks:
 - name: mmlu_llama_4
   description: MMLU questions with custom regex extraction patterns for Llama 4
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -12127,8 +11844,6 @@ tasks:
   description: MMLU-Pro questions with custom regex extraction patterns for Llama
     4
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -12206,8 +11921,6 @@ tasks:
   description: HealthBench is an open-source benchmark measuring the performance and
     safety of large language models in healthcare.
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -12280,8 +11993,6 @@ tasks:
     particularly important aspects of model behavior and has been validated by the
     consensus of multiple physicians.
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -12353,8 +12064,6 @@ tasks:
     safety of large language models in healthcare. The hard subset consists of 1000
     examples chosen because they are difficult for current frontier models.
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -12425,8 +12134,6 @@ tasks:
   description: BrowseComp is a benchmark for measuring the ability for agents to browse
     the web.
   harness: simple_evals
-  container: nvcr.io/nvidia/eval-factory/simple-evals:25.11
-  container_digest: sha256:969018a9d5b1b316551f12c6ab3de413703b7222b0f72ae505015475067f7704
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.custom_config is defined and config.params.extra.custom_config
@@ -12499,8 +12206,6 @@ tasks:
     language comprehension, algorithms, and simple mathematics, with some comparable
     to simple software interview questions.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -12540,8 +12245,6 @@ tasks:
     LLM. The delimiters used in the instruction-tuning procedure can be use to build
     and instruction that would allow the model to elicit its best capabilities.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -12578,8 +12281,6 @@ tasks:
   description: HumanEvalPlus is a modified version of HumanEval containing 80x more
     test cases.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -12618,8 +12319,6 @@ tasks:
     functionality, and so on. Each problem consists of a task description, code solution
     and 3 automated test cases.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -12656,8 +12355,6 @@ tasks:
 - name: mbppplus
   description: MBPP+ is a modified version of MBPP containing 35x more test cases.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -12695,8 +12392,6 @@ tasks:
   description: MBPP+NeMo is a modified version of MBPP+ that uses the NeMo alignment
     prompt template.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -12733,8 +12428,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "py" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -12771,8 +12464,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "sh" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -12809,8 +12500,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "cpp" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -12847,8 +12536,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "cs" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -12885,8 +12572,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "d" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -12923,8 +12608,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "go" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -12961,8 +12644,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "java" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -12999,8 +12680,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "js" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -13037,8 +12716,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "jl" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -13075,8 +12752,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "lua" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -13113,8 +12788,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "pl" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -13151,8 +12824,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "php" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -13189,8 +12860,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "r" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -13227,8 +12896,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "rkt" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -13265,8 +12932,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "rb" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -13303,8 +12968,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "rs" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -13341,8 +13004,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "scala" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -13379,8 +13040,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "swift" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -13417,8 +13076,6 @@ tasks:
   description: MultiPL-E is a suite of coding tasks for many programming languages.
     This task covers the "ts" subset.
   harness: bigcode-evaluation-harness
-  container: nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:25.11
-  container_digest: sha256:c843fc10f96bdd14a42b0e3be35f3e86489d48ac6f88f5ec76d281cd7e137eb0
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}NVCF_TOKEN=${{target.api_endpoint.api_key}}{%
       endif %} bigcode-eval --model_type {% if target.api_endpoint.type == "completions"
@@ -13454,8 +13111,6 @@ tasks:
 - name: codegeneration_release_latest
   description: Code generation latest version
   harness: livecodebench
-  container: nvcr.io/nvidia/eval-factory/livecodebench:25.11
-  container_digest: sha256:57b283ae68f10d2f93e7424675685cc2c864761c99c8bb586daecf2e2df0b74e
   defaults:
     command: "{% if target.api_endpoint.api_key is not none %}\n  export API_KEY=${{target.api_endpoint.api_key}}\
       \ && \n{% endif %} livecodebench --model {{target.api_endpoint.model_id}} \\\
@@ -13506,8 +13161,6 @@ tasks:
   description: The initial release of the dataset (v1) with problems released between
     May 2023 and Mar 2024 containing 400 problems.
   harness: livecodebench
-  container: nvcr.io/nvidia/eval-factory/livecodebench:25.11
-  container_digest: sha256:57b283ae68f10d2f93e7424675685cc2c864761c99c8bb586daecf2e2df0b74e
   defaults:
     command: "{% if target.api_endpoint.api_key is not none %}\n  export API_KEY=${{target.api_endpoint.api_key}}\
       \ && \n{% endif %} livecodebench --model {{target.api_endpoint.model_id}} \\\
@@ -13558,8 +13211,6 @@ tasks:
   description: The updated release of the dataset (v2) with problems released between
     May 2023 and May 2024 containing 511 problems.
   harness: livecodebench
-  container: nvcr.io/nvidia/eval-factory/livecodebench:25.11
-  container_digest: sha256:57b283ae68f10d2f93e7424675685cc2c864761c99c8bb586daecf2e2df0b74e
   defaults:
     command: "{% if target.api_endpoint.api_key is not none %}\n  export API_KEY=${{target.api_endpoint.api_key}}\
       \ && \n{% endif %} livecodebench --model {{target.api_endpoint.model_id}} \\\
@@ -13610,8 +13261,6 @@ tasks:
   description: The updated release of the dataset (v3) with problems released between
     May 2023 and Jul 2024 containing 612 problems.
   harness: livecodebench
-  container: nvcr.io/nvidia/eval-factory/livecodebench:25.11
-  container_digest: sha256:57b283ae68f10d2f93e7424675685cc2c864761c99c8bb586daecf2e2df0b74e
   defaults:
     command: "{% if target.api_endpoint.api_key is not none %}\n  export API_KEY=${{target.api_endpoint.api_key}}\
       \ && \n{% endif %} livecodebench --model {{target.api_endpoint.model_id}} \\\
@@ -13662,8 +13311,6 @@ tasks:
   description: The updated release of the dataset (v4) with problems released between
     May 2023 and Sep 2024 containing 713 problems.
   harness: livecodebench
-  container: nvcr.io/nvidia/eval-factory/livecodebench:25.11
-  container_digest: sha256:57b283ae68f10d2f93e7424675685cc2c864761c99c8bb586daecf2e2df0b74e
   defaults:
     command: "{% if target.api_endpoint.api_key is not none %}\n  export API_KEY=${{target.api_endpoint.api_key}}\
       \ && \n{% endif %} livecodebench --model {{target.api_endpoint.model_id}} \\\
@@ -13714,8 +13361,6 @@ tasks:
   description: The updated release of the dataset (v5) with problems released between
     May 2023 and Jan 2025 containing 880 problems.
   harness: livecodebench
-  container: nvcr.io/nvidia/eval-factory/livecodebench:25.11
-  container_digest: sha256:57b283ae68f10d2f93e7424675685cc2c864761c99c8bb586daecf2e2df0b74e
   defaults:
     command: "{% if target.api_endpoint.api_key is not none %}\n  export API_KEY=${{target.api_endpoint.api_key}}\
       \ && \n{% endif %} livecodebench --model {{target.api_endpoint.model_id}} \\\
@@ -13766,8 +13411,6 @@ tasks:
   description: The updated release of the dataset (v6) with problems released between
     May 2023 and Apr 2025 containing 1055 problems.
   harness: livecodebench
-  container: nvcr.io/nvidia/eval-factory/livecodebench:25.11
-  container_digest: sha256:57b283ae68f10d2f93e7424675685cc2c864761c99c8bb586daecf2e2df0b74e
   defaults:
     command: "{% if target.api_endpoint.api_key is not none %}\n  export API_KEY=${{target.api_endpoint.api_key}}\
       \ && \n{% endif %} livecodebench --model {{target.api_endpoint.model_id}} \\\
@@ -13817,8 +13460,6 @@ tasks:
 - name: codegeneration_notfast
   description: Not fast version of code generation (v2).
   harness: livecodebench
-  container: nvcr.io/nvidia/eval-factory/livecodebench:25.11
-  container_digest: sha256:57b283ae68f10d2f93e7424675685cc2c864761c99c8bb586daecf2e2df0b74e
   defaults:
     command: "{% if target.api_endpoint.api_key is not none %}\n  export API_KEY=${{target.api_endpoint.api_key}}\
       \ && \n{% endif %} livecodebench --model {{target.api_endpoint.model_id}} \\\
@@ -13870,8 +13511,6 @@ tasks:
     ability to generate testing outputs. The model is given the natural language problem
     description and an input, and the output should be the output for the problem.
   harness: livecodebench
-  container: nvcr.io/nvidia/eval-factory/livecodebench:25.11
-  container_digest: sha256:57b283ae68f10d2f93e7424675685cc2c864761c99c8bb586daecf2e2df0b74e
   defaults:
     command: "{% if target.api_endpoint.api_key is not none %}\n  export API_KEY=${{target.api_endpoint.api_key}}\
       \ && \n{% endif %} livecodebench --model {{target.api_endpoint.model_id}} \\\
@@ -13923,8 +13562,6 @@ tasks:
     \ ability. The model is given a program and an input, and the output should be\
     \ the result."
   harness: livecodebench
-  container: nvcr.io/nvidia/eval-factory/livecodebench:25.11
-  container_digest: sha256:57b283ae68f10d2f93e7424675685cc2c864761c99c8bb586daecf2e2df0b74e
   defaults:
     command: "{% if target.api_endpoint.api_key is not none %}\n  export API_KEY=${{target.api_endpoint.api_key}}\
       \ && \n{% endif %} livecodebench --model {{target.api_endpoint.model_id}} \\\
@@ -13976,8 +13613,6 @@ tasks:
     \ ability. The model is given a program and an input, and the output should be\
     \ the result. Chain-of-Thought version of the task."
   harness: livecodebench
-  container: nvcr.io/nvidia/eval-factory/livecodebench:25.11
-  container_digest: sha256:57b283ae68f10d2f93e7424675685cc2c864761c99c8bb586daecf2e2df0b74e
   defaults:
     command: "{% if target.api_endpoint.api_key is not none %}\n  export API_KEY=${{target.api_endpoint.api_key}}\
       \ && \n{% endif %} livecodebench --model {{target.api_endpoint.model_id}} \\\
@@ -14029,8 +13664,6 @@ tasks:
     is given a program and an input, and the output should be the result. - The data
     period and sampling parameters used by Artificial Analaysis (https://artificialanalysis.ai/methodology/intelligence-benchmarking)'
   harness: livecodebench
-  container: nvcr.io/nvidia/eval-factory/livecodebench:25.11
-  container_digest: sha256:57b283ae68f10d2f93e7424675685cc2c864761c99c8bb586daecf2e2df0b74e
   defaults:
     command: "{% if target.api_endpoint.api_key is not none %}\n  export API_KEY=${{target.api_endpoint.api_key}}\
       \ && \n{% endif %} livecodebench --model {{target.api_endpoint.model_id}} \\\
@@ -14082,8 +13715,6 @@ tasks:
     is given a program and an input, and the output should be the result. - The data
     period and sampling parameters used by Artificial Analaysis (https://artificialanalysis.ai/methodology/intelligence-benchmarking)'
   harness: livecodebench
-  container: nvcr.io/nvidia/eval-factory/livecodebench:25.11
-  container_digest: sha256:57b283ae68f10d2f93e7424675685cc2c864761c99c8bb586daecf2e2df0b74e
   defaults:
     command: "{% if target.api_endpoint.api_key is not none %}\n  export API_KEY=${{target.api_endpoint.api_key}}\
       \ && \n{% endif %} livecodebench --model {{target.api_endpoint.model_id}} \\\
@@ -14136,8 +13767,6 @@ tasks:
     and an input, and the output should be the result.
   - The data period and sampling parameters used by NeMo Alignment team.
   harness: livecodebench
-  container: nvcr.io/nvidia/eval-factory/livecodebench:25.11
-  container_digest: sha256:57b283ae68f10d2f93e7424675685cc2c864761c99c8bb586daecf2e2df0b74e
   defaults:
     command: "{% if target.api_endpoint.api_key is not none %}\n  export API_KEY=${{target.api_endpoint.api_key}}\
       \ && \n{% endif %} livecodebench --model {{target.api_endpoint.model_id}} \\\
@@ -14189,8 +13818,6 @@ tasks:
     of LLMs in generating code for solving realistic scientific research problems.
     - This variant does not include scientist-annotated background in the prompts.'
   harness: scicode
-  container: nvcr.io/nvidia/eval-factory/scicode:25.11
-  container_digest: sha256:1497f7ae09aecc4a47d28e86952425ad04a10d3ece7b737214cb9f20e4f5d290
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} scicode_eval --model {{target.api_endpoint.model_id}} --url {{target.api_endpoint.url}}
@@ -14228,8 +13855,6 @@ tasks:
     of LLMs in generating code for solving realistic scientific research problems.
     - This variant includes scientist-annotated background in the prompts.'
   harness: scicode
-  container: nvcr.io/nvidia/eval-factory/scicode:25.11
-  container_digest: sha256:1497f7ae09aecc4a47d28e86952425ad04a10d3ece7b737214cb9f20e4f5d290
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} scicode_eval --model {{target.api_endpoint.model_id}} --url {{target.api_endpoint.url}}
@@ -14269,8 +13894,6 @@ tasks:
     Benchmark (v2). - It includes scientist-annotated background in the prompts and
     uses all available problems for evaluation (including "dev" set).'
   harness: scicode
-  container: nvcr.io/nvidia/eval-factory/scicode:25.11
-  container_digest: sha256:1497f7ae09aecc4a47d28e86952425ad04a10d3ece7b737214cb9f20e4f5d290
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} scicode_eval --model {{target.api_endpoint.model_id}} --url {{target.api_endpoint.url}}
@@ -14306,8 +13929,6 @@ tasks:
 - name: hle
   description: Text-only questions from Humanity's Last Exam
   harness: hle
-  container: nvcr.io/nvidia/eval-factory/hle:25.11
-  container_digest: sha256:f6d3dc75b49ad6b382a03e63f9906e4e1114c1a0a2554142c54d2a310cc067d3
   defaults:
     command: hle_eval --dataset=cais/hle --model_name={{target.api_endpoint.model_id}}
       --model_url={{target.api_endpoint.url}}  --temperature={{config.params.temperature}}
@@ -14338,8 +13959,6 @@ tasks:
   description: Text-only questions from Humanity's Last Exam and params aligned with
     Artificial Analysis Index v2
   harness: hle
-  container: nvcr.io/nvidia/eval-factory/hle:25.11
-  container_digest: sha256:f6d3dc75b49ad6b382a03e63f9906e4e1114c1a0a2554142c54d2a310cc067d3
   defaults:
     command: hle_eval --dataset=cais/hle --model_name={{target.api_endpoint.model_id}}
       --model_url={{target.api_endpoint.url}}  --temperature={{config.params.temperature}}
@@ -14370,8 +13989,6 @@ tasks:
   description: BFCL v3 with Single-turn and Multi-turn, Live and Non-Live, AST and
     Exec evaluation. Not using native function calling.
   harness: bfcl
-  container: nvcr.io/nvidia/eval-factory/bfcl:25.11
-  container_digest: sha256:4b52880ec50ef4eb6f57d5daab9dbe8cf6b69e9ef38865884e44dabc05ebdda0
   defaults:
     command: "{%- if config.params.extra.custom_dataset.path is not none and config.params.extra.custom_dataset.format\
       \ is not none -%} echo \"Processing custom dataset...\" && export BFCL_DATA_DIR=$(core-evals-process-custom-dataset\
@@ -14413,8 +14030,6 @@ tasks:
   description: BFCL v3 with Single-turn and Multi-turn, Live and Non-Live, AST evaluation.
     Uses native function calling.
   harness: bfcl
-  container: nvcr.io/nvidia/eval-factory/bfcl:25.11
-  container_digest: sha256:4b52880ec50ef4eb6f57d5daab9dbe8cf6b69e9ef38865884e44dabc05ebdda0
   defaults:
     command: "{%- if config.params.extra.custom_dataset.path is not none and config.params.extra.custom_dataset.format\
       \ is not none -%} echo \"Processing custom dataset...\" && export BFCL_DATA_DIR=$(core-evals-process-custom-dataset\
@@ -14456,8 +14071,6 @@ tasks:
   description: BFCL v3 with Single-turn and Multi-turn, Live and Non-Live, AST evaluation.
     Not using native function calling.
   harness: bfcl
-  container: nvcr.io/nvidia/eval-factory/bfcl:25.11
-  container_digest: sha256:4b52880ec50ef4eb6f57d5daab9dbe8cf6b69e9ef38865884e44dabc05ebdda0
   defaults:
     command: "{%- if config.params.extra.custom_dataset.path is not none and config.params.extra.custom_dataset.format\
       \ is not none -%} echo \"Processing custom dataset...\" && export BFCL_DATA_DIR=$(core-evals-process-custom-dataset\
@@ -14499,8 +14112,6 @@ tasks:
   description: BFCL v2 with Single-turn, Live and Non-Live, AST and Exec evaluation.
     Not using native function calling.
   harness: bfcl
-  container: nvcr.io/nvidia/eval-factory/bfcl:25.11
-  container_digest: sha256:4b52880ec50ef4eb6f57d5daab9dbe8cf6b69e9ef38865884e44dabc05ebdda0
   defaults:
     command: "{%- if config.params.extra.custom_dataset.path is not none and config.params.extra.custom_dataset.format\
       \ is not none -%} echo \"Processing custom dataset...\" && export BFCL_DATA_DIR=$(core-evals-process-custom-dataset\
@@ -14542,8 +14153,6 @@ tasks:
   description: BFCL v2 with Single-turn, Live and Non-Live, AST evaluation only. Uses
     native function calling.
   harness: bfcl
-  container: nvcr.io/nvidia/eval-factory/bfcl:25.11
-  container_digest: sha256:4b52880ec50ef4eb6f57d5daab9dbe8cf6b69e9ef38865884e44dabc05ebdda0
   defaults:
     command: "{%- if config.params.extra.custom_dataset.path is not none and config.params.extra.custom_dataset.format\
       \ is not none -%} echo \"Processing custom dataset...\" && export BFCL_DATA_DIR=$(core-evals-process-custom-dataset\
@@ -14585,8 +14194,6 @@ tasks:
   description: BFCL v2 with Single-turn, Live and Non-Live, AST evaluation only. Not
     using native function calling.
   harness: bfcl
-  container: nvcr.io/nvidia/eval-factory/bfcl:25.11
-  container_digest: sha256:4b52880ec50ef4eb6f57d5daab9dbe8cf6b69e9ef38865884e44dabc05ebdda0
   defaults:
     command: "{%- if config.params.extra.custom_dataset.path is not none and config.params.extra.custom_dataset.format\
       \ is not none -%} echo \"Processing custom dataset...\" && export BFCL_DATA_DIR=$(core-evals-process-custom-dataset\
@@ -14627,8 +14234,6 @@ tasks:
 - name: report_generation
   description: Generate professional reports and evaluate them (full pipeline)
   harness: profbench
-  container: nvcr.io/nvidia/eval-factory/profbench:25.11
-  container_digest: sha256:235e98c9fa80c9609aa61c607ae3088a5e046c9e1bed401d737190635958a109
   defaults:
     command: "{% if target.api_endpoint.api_key is not none %}\n  export API_KEY=${{target.api_endpoint.api_key}}\
       \ && \n{% endif %} {% if config.params.extra.run_generation %}\n  python -m\
@@ -14701,8 +14306,6 @@ tasks:
 - name: llm_judge
   description: Run LLM judge on provided ProfBench reports and score them
   harness: profbench
-  container: nvcr.io/nvidia/eval-factory/profbench:25.11
-  container_digest: sha256:235e98c9fa80c9609aa61c607ae3088a5e046c9e1bed401d737190635958a109
   defaults:
     command: "{% if target.api_endpoint.api_key is not none %}\n  export API_KEY=${{target.api_endpoint.api_key}}\
       \ && \n{% endif %} {% if config.params.extra.run_generation %}\n  python -m\
@@ -14776,8 +14379,6 @@ tasks:
   description: A benchmark for evaluating diagram understanding capabilities of large
     vision-language models.
   harness: vlmevalkit
-  container: nvcr.io/nvidia/eval-factory/vlmevalkit:25.11
-  container_digest: sha256:647f7c9569139087dcd56835841004e5a8a4096cea98ab7bdb6b657e89517f22
   defaults:
     command: "cat > {{config.output_dir}}/vlmeval_config.json << 'EOF'\n{\n  \"model\"\
       : {\n    \"{{target.api_endpoint.model_id.split('/')[-1]}}\": {\n      \"class\"\
@@ -14828,8 +14429,6 @@ tasks:
   description: A Benchmark for Question Answering about Charts with Visual and Logical
     Reasoning
   harness: vlmevalkit
-  container: nvcr.io/nvidia/eval-factory/vlmevalkit:25.11
-  container_digest: sha256:647f7c9569139087dcd56835841004e5a8a4096cea98ab7bdb6b657e89517f22
   defaults:
     command: "cat > {{config.output_dir}}/vlmeval_config.json << 'EOF'\n{\n  \"model\"\
       : {\n    \"{{target.api_endpoint.model_id.split('/')[-1]}}\": {\n      \"class\"\
@@ -14876,8 +14475,6 @@ tasks:
 - name: mathvista-mini
   description: Evaluating Math Reasoning in Visual Contexts
   harness: vlmevalkit
-  container: nvcr.io/nvidia/eval-factory/vlmevalkit:25.11
-  container_digest: sha256:647f7c9569139087dcd56835841004e5a8a4096cea98ab7bdb6b657e89517f22
   defaults:
     command: "cat > {{config.output_dir}}/vlmeval_config.json << 'EOF'\n{\n  \"model\"\
       : {\n    \"{{target.api_endpoint.model_id.split('/')[-1]}}\": {\n      \"class\"\
@@ -14928,8 +14525,6 @@ tasks:
   description: A benchmark for evaluating multimodal models on massive multi-discipline
     tasks demanding college-level subject knowledge and deliberate reasoning.
   harness: vlmevalkit
-  container: nvcr.io/nvidia/eval-factory/vlmevalkit:25.11
-  container_digest: sha256:647f7c9569139087dcd56835841004e5a8a4096cea98ab7bdb6b657e89517f22
   defaults:
     command: "cat > {{config.output_dir}}/vlmeval_config.json << 'EOF'\n{\n  \"model\"\
       : {\n    \"{{target.api_endpoint.model_id.split('/')[-1]}}\": {\n      \"class\"\
@@ -14980,8 +14575,6 @@ tasks:
   description: Comprehensive evaluation benchmark designed to assess the OCR capabilities
     of Large Multimodal Models
   harness: vlmevalkit
-  container: nvcr.io/nvidia/eval-factory/vlmevalkit:25.11
-  container_digest: sha256:647f7c9569139087dcd56835841004e5a8a4096cea98ab7bdb6b657e89517f22
   defaults:
     command: "cat > {{config.output_dir}}/vlmeval_config.json << 'EOF'\n{\n  \"model\"\
       : {\n    \"{{target.api_endpoint.model_id.split('/')[-1]}}\": {\n      \"class\"\
@@ -15031,8 +14624,6 @@ tasks:
     by assessing both final answers and the reasoning process across six core abilities
     and 18 practical tasks.
   harness: vlmevalkit
-  container: nvcr.io/nvidia/eval-factory/vlmevalkit:25.11
-  container_digest: sha256:647f7c9569139087dcd56835841004e5a8a4096cea98ab7bdb6b657e89517f22
   defaults:
     command: "cat > {{config.output_dir}}/vlmeval_config.json << 'EOF'\n{\n  \"model\"\
       : {\n    \"{{target.api_endpoint.model_id.split('/')[-1]}}\": {\n      \"class\"\
@@ -15083,8 +14674,6 @@ tasks:
   description: Evaluates ability to answer questions about slide decks by selecting
     relevant slides from multiple images
   harness: vlmevalkit
-  container: nvcr.io/nvidia/eval-factory/vlmevalkit:25.11
-  container_digest: sha256:647f7c9569139087dcd56835841004e5a8a4096cea98ab7bdb6b657e89517f22
   defaults:
     command: "cat > {{config.output_dir}}/vlmeval_config.json << 'EOF'\n{\n  \"model\"\
       : {\n    \"{{target.api_endpoint.model_id.split('/')[-1]}}\": {\n      \"class\"\
@@ -15134,8 +14723,6 @@ tasks:
 - name: garak
   description: Task for running the default set of Garak probes
   harness: garak
-  container: nvcr.io/nvidia/eval-factory/garak:25.11
-  container_digest: sha256:40a00456268b0b993cd66565c6077a55a96239e9d3ae5d61d39d62c9f79cbca9
   defaults:
     command: "cat > garak_config.yaml << 'EOF'\n{% if config.params.extra.seed is\
       \ not none %}run:\n  seed: {{config.params.extra.seed}}{% endif %}\nplugins:\n\
@@ -15174,8 +14761,6 @@ tasks:
 - name: ns_aime2024
   description: AIME2024
   harness: nemo_skills
-  container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
-  container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
     command: cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m
       nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log
@@ -15252,8 +14837,6 @@ tasks:
 - name: ns_aime2025
   description: AIME2025
   harness: nemo_skills
-  container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
-  container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
     command: cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m
       nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log
@@ -15330,8 +14913,6 @@ tasks:
 - name: ns_gpqa
   description: GPQA Diamond
   harness: nemo_skills
-  container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
-  container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
     command: cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m
       nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log
@@ -15408,8 +14989,6 @@ tasks:
 - name: ns_bfcl_v3
   description: BFCLv3
   harness: nemo_skills
-  container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
-  container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
     command: cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m
       nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log
@@ -15486,8 +15065,6 @@ tasks:
 - name: ns_bfcl_v4
   description: BFCLv4
   harness: nemo_skills
-  container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
-  container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
     command: cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m
       nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log
@@ -15564,8 +15141,6 @@ tasks:
 - name: ns_livecodebench
   description: LiveCodeBench
   harness: nemo_skills
-  container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
-  container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
     command: cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m
       nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log
@@ -15642,8 +15217,6 @@ tasks:
 - name: ns_hle
   description: HumanityLastExam
   harness: nemo_skills
-  container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
-  container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
     command: cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m
       nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log
@@ -15720,8 +15293,6 @@ tasks:
 - name: ns_ruler
   description: RULER - Long Context Understanding
   harness: nemo_skills
-  container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
-  container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
     command: cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m
       nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log
@@ -15798,8 +15369,6 @@ tasks:
 - name: ns_mmlu
   description: MMLU
   harness: nemo_skills
-  container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
-  container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
     command: cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m
       nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log
@@ -15876,8 +15445,6 @@ tasks:
 - name: ns_mmlu_pro
   description: MMLU-PRO
   harness: nemo_skills
-  container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
-  container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
     command: cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m
       nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log
@@ -15954,8 +15521,6 @@ tasks:
 - name: ns_scicode
   description: SciCode
   harness: nemo_skills
-  container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
-  container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
     command: cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m
       nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log
@@ -16032,8 +15597,6 @@ tasks:
 - name: ns_aa_lcr
   description: AA-LCR
   harness: nemo_skills
-  container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
-  container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
     command: cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m
       nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log
@@ -16110,8 +15673,6 @@ tasks:
 - name: ns_ifbench
   description: IFBench - Instruction Following Benchmark
   harness: nemo_skills
-  container: nvcr.io/nvidia/eval-factory/nemo_skills:25.11
-  container_digest: sha256:3b9a2b86435c73cc3c80be954a2d0ec99e9ff49c71498bd151a6d88ba409e143
   defaults:
     command: cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m
       nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log
@@ -16189,8 +15750,6 @@ tasks:
   description: Aegis V2 without evaluating reasoning traces. This version is used
     by the NeMo Safety Toolkit.
   harness: safety_eval
-  container: nvcr.io/nvidia/eval-factory/safety-harness:25.11
-  container_digest: sha256:a0fa5d24c6e66fc4ead85de3823eece8395adbf2b3f111c2c2eca05759fa34df
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}  &&
       {% endif %} {% if config.params.extra.judge.api_key is not none %}export JUDGE_API_KEY=${{config.params.extra.judge.api_key}}
@@ -16235,8 +15794,6 @@ tasks:
 - name: aegis_v2_reasoning
   description: Aegis V2 with evaluating reasoning traces.
   harness: safety_eval
-  container: nvcr.io/nvidia/eval-factory/safety-harness:25.11
-  container_digest: sha256:a0fa5d24c6e66fc4ead85de3823eece8395adbf2b3f111c2c2eca05759fa34df
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}  &&
       {% endif %} {% if config.params.extra.judge.api_key is not none %}export JUDGE_API_KEY=${{config.params.extra.judge.api_key}}
@@ -16281,8 +15838,6 @@ tasks:
 - name: wildguard
   description: Wildguard
   harness: safety_eval
-  container: nvcr.io/nvidia/eval-factory/safety-harness:25.11
-  container_digest: sha256:a0fa5d24c6e66fc4ead85de3823eece8395adbf2b3f111c2c2eca05759fa34df
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export API_KEY=${{target.api_endpoint.api_key}}  &&
       {% endif %} {% if config.params.extra.judge.api_key is not none %}export JUDGE_API_KEY=${{config.params.extra.judge.api_key}}
@@ -16328,8 +15883,6 @@ tasks:
     compute a specific medical value, and a ground truth answer (Khandekar et al.,
     2024).
   harness: helm
-  container: nvcr.io/nvidia/eval-factory/helm:25.11
-  container_digest: sha256:98b69c8fb91ae0de7c9d4583e9555da8fbe498640003b62b1035f76105b6611b
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export
@@ -16380,8 +15933,6 @@ tasks:
   description: A dataset containing medical narratives with error detection and correction
     pairs (Abacha et al., 2025).
   harness: helm
-  container: nvcr.io/nvidia/eval-factory/helm:25.11
-  container_digest: sha256:98b69c8fb91ae0de7c9d4583e9555da8fbe498640003b62b1035f76105b6611b
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export
@@ -16432,8 +15983,6 @@ tasks:
   description: A collection of biomedical multiple-choice questions for testing medical
     knowledge (Vilares et al., 2019).
   harness: helm
-  container: nvcr.io/nvidia/eval-factory/helm:25.11
-  container_digest: sha256:98b69c8fb91ae0de7c9d4583e9555da8fbe498640003b62b1035f76105b6611b
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export
@@ -16484,8 +16033,6 @@ tasks:
   description: A USMLE-style medical question dataset with multiple-choice answers
     and explanations (MedBullets, 2025).
   harness: helm
-  container: nvcr.io/nvidia/eval-factory/helm:25.11
-  container_digest: sha256:98b69c8fb91ae0de7c9d4583e9555da8fbe498640003b62b1035f76105b6611b
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export
@@ -16536,8 +16083,6 @@ tasks:
   description: A dataset that provides PubMed abstracts and asks associated questions
     (yes/no/maybe format).
   harness: helm
-  container: nvcr.io/nvidia/eval-factory/helm:25.11
-  container_digest: sha256:98b69c8fb91ae0de7c9d4583e9555da8fbe498640003b62b1035f76105b6611b
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export
@@ -16588,8 +16133,6 @@ tasks:
   description: Given a natural language instruction, generate an SQL query that would
     be used in clinical research.
   harness: helm
-  container: nvcr.io/nvidia/eval-factory/helm:25.11
-  container_digest: sha256:98b69c8fb91ae0de7c9d4583e9555da8fbe498640003b62b1035f76105b6611b
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export
@@ -16641,8 +16184,6 @@ tasks:
     biases, with the objective being to classify whether the output contains racially
     biased content.
   harness: helm
-  container: nvcr.io/nvidia/eval-factory/helm:25.11
-  container_digest: sha256:98b69c8fb91ae0de7c9d4583e9555da8fbe498640003b62b1035f76105b6611b
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export
@@ -16693,8 +16234,6 @@ tasks:
   description: A dataset of PubMed articles and associated questions, with the objective
     being to classify whether the answer is factual or hallucinated.
   harness: helm
-  container: nvcr.io/nvidia/eval-factory/helm:25.11
-  container_digest: sha256:98b69c8fb91ae0de7c9d4583e9555da8fbe498640003b62b1035f76105b6611b
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export
@@ -16744,8 +16283,6 @@ tasks:
 - name: mtsamples_replicate
   description: Generate treatment plans based on clinical notes
   harness: helm
-  container: nvcr.io/nvidia/eval-factory/helm:25.11
-  container_digest: sha256:98b69c8fb91ae0de7c9d4583e9555da8fbe498640003b62b1035f76105b6611b
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export
@@ -16795,8 +16332,6 @@ tasks:
 - name: aci_bench
   description: Extract and structure information from patient-doctor conversations
   harness: helm
-  container: nvcr.io/nvidia/eval-factory/helm:25.11
-  container_digest: sha256:98b69c8fb91ae0de7c9d4583e9555da8fbe498640003b62b1035f76105b6611b
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export
@@ -16846,8 +16381,6 @@ tasks:
 - name: mtsamples_procedures
   description: Document and extract information about medical procedures
   harness: helm
-  container: nvcr.io/nvidia/eval-factory/helm:25.11
-  container_digest: sha256:98b69c8fb91ae0de7c9d4583e9555da8fbe498640003b62b1035f76105b6611b
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export
@@ -16897,8 +16430,6 @@ tasks:
 - name: medication_qa
   description: Answer consumer medication-related questions
   harness: helm
-  container: nvcr.io/nvidia/eval-factory/helm:25.11
-  container_digest: sha256:98b69c8fb91ae0de7c9d4583e9555da8fbe498640003b62b1035f76105b6611b
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export
@@ -16949,8 +16480,6 @@ tasks:
   description: Generate summaries of doctor-patient conversations, healthcaremagic
     version
   harness: helm
-  container: nvcr.io/nvidia/eval-factory/helm:25.11
-  container_digest: sha256:98b69c8fb91ae0de7c9d4583e9555da8fbe498640003b62b1035f76105b6611b
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export
@@ -17000,8 +16529,6 @@ tasks:
 - name: med_dialog_icliniq
   description: Generate summaries of doctor-patient conversations, icliniq version
   harness: helm
-  container: nvcr.io/nvidia/eval-factory/helm:25.11
-  container_digest: sha256:98b69c8fb91ae0de7c9d4583e9555da8fbe498640003b62b1035f76105b6611b
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export
@@ -17051,8 +16578,6 @@ tasks:
 - name: medi_qa
   description: Retrieve and rank answers based on medical question understanding
   harness: helm
-  container: nvcr.io/nvidia/eval-factory/helm:25.11
-  container_digest: sha256:98b69c8fb91ae0de7c9d4583e9555da8fbe498640003b62b1035f76105b6611b
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}
       && {% endif %} {% if config.params.extra.gpt_judge_api_key is not none %}export
@@ -17102,8 +16627,6 @@ tasks:
 - name: tooltalk
   description: ToolTalk task with default settings.
   harness: tooltalk
-  container: nvcr.io/nvidia/eval-factory/tooltalk:25.11
-  container_digest: sha256:154fa634104e0b7e488df21e0dadc155ebc6b14148205ef00ede3fefb3f8157a
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}API_KEY=${{target.api_endpoint.api_key}}{%
       endif %} python -m tooltalk.evaluation.evaluate_{{''openai'' if ''azure'' in
@@ -17130,8 +16653,6 @@ tasks:
   description: GenAI Perf speed evaluation, summarization task - long input, short
     output
   harness: genai_perf_eval
-  container: nvcr.io/nvidia/eval-factory/genai-perf:25.11
-  container_digest: sha256:cb456449130e23639f49ceb6f30252c9d8a3ea1f7370c5f963eb5853a6abb183
   defaults:
     command: genai_perf_eval --model_id {{target.api_endpoint.model_id}} --url {{target.api_endpoint.url}}  {%
       if target.api_endpoint.api_key is not none %}--api-key {{target.api_endpoint.api_key}}
@@ -17160,8 +16681,6 @@ tasks:
 - name: genai_perf_generation
   description: GenAI Perf speed evaluation, generation task - short input, long output
   harness: genai_perf_eval
-  container: nvcr.io/nvidia/eval-factory/genai-perf:25.11
-  container_digest: sha256:cb456449130e23639f49ceb6f30252c9d8a3ea1f7370c5f963eb5853a6abb183
   defaults:
     command: genai_perf_eval --model_id {{target.api_endpoint.model_id}} --url {{target.api_endpoint.url}}  {%
       if target.api_endpoint.api_key is not none %}--api-key {{target.api_endpoint.api_key}}
@@ -17190,8 +16709,6 @@ tasks:
 - name: mmath_en
   description: English mmath
   harness: mmath
-  container: nvcr.io/nvidia/eval-factory/mmath:25.11
-  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
       {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
@@ -17221,8 +16738,6 @@ tasks:
 - name: mmath_zh
   description: Chinese mmath
   harness: mmath
-  container: nvcr.io/nvidia/eval-factory/mmath:25.11
-  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
       {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
@@ -17252,8 +16767,6 @@ tasks:
 - name: mmath_ar
   description: Arabic mmath
   harness: mmath
-  container: nvcr.io/nvidia/eval-factory/mmath:25.11
-  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
       {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
@@ -17283,8 +16796,6 @@ tasks:
 - name: mmath_es
   description: Spanish mmath
   harness: mmath
-  container: nvcr.io/nvidia/eval-factory/mmath:25.11
-  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
       {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
@@ -17314,8 +16825,6 @@ tasks:
 - name: mmath_fr
   description: French mmath
   harness: mmath
-  container: nvcr.io/nvidia/eval-factory/mmath:25.11
-  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
       {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
@@ -17345,8 +16854,6 @@ tasks:
 - name: mmath_ja
   description: Japanese mmath
   harness: mmath
-  container: nvcr.io/nvidia/eval-factory/mmath:25.11
-  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
       {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
@@ -17376,8 +16883,6 @@ tasks:
 - name: mmath_ko
   description: Korean mmath
   harness: mmath
-  container: nvcr.io/nvidia/eval-factory/mmath:25.11
-  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
       {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
@@ -17407,8 +16912,6 @@ tasks:
 - name: mmath_pt
   description: Portuguese mmath
   harness: mmath
-  container: nvcr.io/nvidia/eval-factory/mmath:25.11
-  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
       {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
@@ -17438,8 +16941,6 @@ tasks:
 - name: mmath_th
   description: Thai mmath
   harness: mmath
-  container: nvcr.io/nvidia/eval-factory/mmath:25.11
-  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
       {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang
@@ -17469,8 +16970,6 @@ tasks:
 - name: mmath_vi
   description: Vietnamese mmath
   harness: mmath
-  container: nvcr.io/nvidia/eval-factory/mmath:25.11
-  container_digest: sha256:8d8429adfa49c0472375ec797f6f18552eb5b3609a575dc81c0e68ceac4c4807
   defaults:
     command: '{% if target.api_endpoint.api_key is not none %}export OPENAI_API_KEY=${{target.api_endpoint.api_key}}  &&
       {% endif %} mmath --model-url {{target.api_endpoint.url}} --model-name {{target.api_endpoint.model_id}}  --lang

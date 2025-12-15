@@ -49,7 +49,7 @@ from nemo_evaluator_launcher.common.container_metadata import (
     TaskIntermediateRepresentation,
     create_authenticator,
     extract_framework_yml,
-    load_tasks_from_tasks_file,
+    load_harnesses_and_tasks_from_tasks_file,
     parse_container_image,
     parse_framework_to_irs,
 )
@@ -363,11 +363,40 @@ def load_mapping_toml(mapping_file: pathlib.Path) -> tuple[dict[str, str], str]:
     return harness_containers, checksum
 
 
-def serialize_tasks_irs(tasks: list[Any], metadata: dict[str, Any]) -> str:
-    """Serialize task IRs and metadata into single YAML format."""
+def serialize_tasks_irs(
+    harnesses: list[HarnessIntermediateRepresentation],
+    tasks: list[TaskIntermediateRepresentation],
+    metadata: dict[str, Any],
+) -> str:
+    """Serialize harness + task IRs and metadata into all_tasks_irs.yaml format.
+
+    Schema:
+      metadata: ...
+      harnesses: [HarnessIntermediateRepresentation.to_dict(), ...]
+      tasks:
+        - name: ...
+          description: ...
+          harness: <harness name>
+          defaults: ...
+
+    Note: `container` and `container_digest` are stored at harness level to avoid
+    duplicating these values for every task.
+    """
+    tasks_dicts: list[dict[str, Any]] = []
+    for task in tasks:
+        tasks_dicts.append(
+            {
+                "name": task.name,
+                "description": task.description,
+                "harness": task.harness,
+                "defaults": task.defaults,
+            }
+        )
+
     output_dict = {
         "metadata": metadata,
-        "tasks": [task.to_dict() for task in tasks],
+        "harnesses": [h.to_dict() for h in harnesses],
+        "tasks": tasks_dicts,
     }
     return yaml.dump(output_dict, default_flow_style=False, sort_keys=False)
 
@@ -497,6 +526,7 @@ def update_mode(
 
     # Extract framework.yml from each container and convert to IRs
     all_task_irs: list[TaskIntermediateRepresentation] = []
+    harness_irs_by_name: dict[str, HarnessIntermediateRepresentation] = {}
     successful = 0
     failed_containers: list[tuple[str, str, Optional[str]]] = []
     name_warnings: list[str] = []  # Collect harness name validation warnings
@@ -599,6 +629,9 @@ def update_mode(
                 )
 
             all_task_irs.extend(task_irs)
+            # Keep first harness IR per name (avoid duplicates if any)
+            if harness_ir.name and harness_ir.name not in harness_irs_by_name:
+                harness_irs_by_name[harness_ir.name] = harness_ir
             successful += 1
         except Exception as e:
             failed_containers.append((harness_name, container, container_digest))
@@ -618,19 +651,27 @@ def update_mode(
         metadata = {
             "mapping_toml_checksum": mapping_checksum,
             "num_tasks": len(all_task_irs),
+            "num_harnesses": len(harness_irs_by_name),
         }
-        yaml_content = serialize_tasks_irs(all_task_irs, metadata)
+        yaml_content = serialize_tasks_irs(
+            harnesses=list(harness_irs_by_name.values()),
+            tasks=all_task_irs,
+            metadata=metadata,
+        )
         all_tasks_irs_file.parent.mkdir(parents=True, exist_ok=True)
         with open(all_tasks_irs_file, "w", encoding="utf-8") as f:
             f.write(yaml_content)
         logger.info(
             "Wrote all_tasks_irs.yaml",
             num_tasks=len(all_task_irs),
+            num_harnesses=len(harness_irs_by_name),
             checksum=mapping_checksum,
         )
 
     # Update README.md
-    tasks, _ = load_tasks_from_tasks_file(all_tasks_irs_file)
+    harnesses_by_name, tasks, _ = load_harnesses_and_tasks_from_tasks_file(
+        all_tasks_irs_file
+    )
     harnesses: dict[
         str,
         tuple[HarnessIntermediateRepresentation, list[TaskIntermediateRepresentation]],
@@ -640,18 +681,21 @@ def update_mode(
             continue
 
         if task.harness not in harnesses:
-            container = str(task.container) if task.container else ""
-            container_digest = (
-                str(task.container_digest) if task.container_digest else None
-            )
-            harness_ir = HarnessIntermediateRepresentation(
-                name=task.harness,
-                description="",
-                full_name=None,
-                url=None,
-                container=container,
-                container_digest=container_digest,
-            )
+            harness_ir = harnesses_by_name.get(task.harness)
+            if harness_ir is None:
+                # Backstop for older IR files: infer minimal harness IR from task fields.
+                container = str(task.container) if task.container else ""
+                container_digest = (
+                    str(task.container_digest) if task.container_digest else None
+                )
+                harness_ir = HarnessIntermediateRepresentation(
+                    name=task.harness,
+                    description="",
+                    full_name=None,
+                    url=None,
+                    container=container,
+                    container_digest=container_digest,
+                )
             harnesses[task.harness] = (harness_ir, [])
 
         harnesses[task.harness][1].append(task)
@@ -779,7 +823,7 @@ Examples:
 
     subparsers = parser.add_subparsers(dest="mode", required=True)
     subparsers.add_parser("verify", help="Verify digests and checksums")
-    update_parser = subparsers.add_parser("update", help="Update digests and files")
+    subparsers.add_parser("update", help="Update digests and files")
 
     args = parser.parse_args()
 

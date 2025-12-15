@@ -26,6 +26,7 @@ import pytest
 import yaml
 
 from nemo_evaluator_launcher.common.container_metadata import (
+    load_harnesses_and_tasks_from_tasks_file,
     load_tasks_from_tasks_file,
 )
 from nemo_evaluator_launcher.common.container_metadata.intermediate_repr import (
@@ -167,6 +168,53 @@ def test_load_tasks_missing_mapping_file(tmp_path, caplog):
 
     assert len(tasks) == 1
     assert mapping_verified is False
+
+
+def test_load_harnesses_and_tasks_new_schema_fills_task_container(tmp_path):
+    """New schema: harnesses hold container info; tasks inherit it."""
+    tasks_file = tmp_path / "all_tasks_irs.yaml"
+    mapping_file = tmp_path / "mapping.toml"
+    mapping_file.write_text("[test]\ncontainer = 'test:latest'")
+
+    checksum = _calculate_mapping_checksum(mapping_file)
+
+    tasks_data = {
+        "metadata": {
+            "mapping_toml_checksum": checksum,
+            "num_tasks": 1,
+            "num_harnesses": 1,
+        },
+        "harnesses": [
+            {
+                "name": "test",
+                "description": "Test harness",
+                "full_name": None,
+                "url": None,
+                "container": "test:latest",
+                "container_digest": "sha256:abc",
+            }
+        ],
+        "tasks": [
+            {
+                "name": "test_task",
+                "description": "",
+                "harness": "test",
+                # Note: no container/container_digest here by design
+                "defaults": {},
+            }
+        ],
+    }
+    tasks_file.write_text(yaml.dump(tasks_data, sort_keys=False))
+
+    harnesses, tasks, mapping_verified = load_harnesses_and_tasks_from_tasks_file(
+        tasks_file
+    )
+
+    assert mapping_verified is True
+    assert "test" in harnesses
+    assert len(tasks) == 1
+    assert tasks[0].container == "test:latest"
+    assert tasks[0].container_digest == "sha256:abc"
 
 
 def test_packaged_mapping_toml_checksum_match():
