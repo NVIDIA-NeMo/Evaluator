@@ -64,9 +64,7 @@ evaluation:
     - name: adlr_mmlu
     - name: adlr_agieval_en_cot
     - name: adlr_humaneval_greedy
-    - name: adlr_humaneval_sampled
     - name: adlr_mbpp_sanitized_3_shot_greedy
-    - name: adlr_mbpp_sanitized_3_shot_sampled
     - name: adlr_gsm8k_cot_8_shot
     - name: adlr_minerva_math_nemo_4_shot
     - name: adlr_math_500_4_shot_sampled
