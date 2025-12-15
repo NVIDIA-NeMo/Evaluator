@@ -285,6 +285,125 @@ After running the full evaluation suite, you should obtain results comparable to
 
 ---
 
+## Base Model Evaluation
+
+In addition to the instruct model, you can reproduce evaluation results for the base (pre-trained) models using local vLLM deployment.
+
+### Available Base Model Configs
+
+| Config File | Model |
+|-------------|-------|
+| `local_nvidia-nemotron-3-nano-30b-a3b-base.yaml` | nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-Base-BF16 |
+| `local_qwen3-30b-a3b-base.yaml` | Qwen/Qwen3-30B-A3B-Base |
+
+### Base Model Benchmarks
+
+The base model evaluation suite includes traditional pre-training benchmarks:
+
+| Benchmark | Category | Description |
+|-----------|----------|-------------|
+| **MMLU (5-shot)** | General Knowledge | Massive Multitask Language Understanding |
+| **MMLU-Pro (5-shot, CoT)** | General Knowledge | Multi-task language understanding |
+| **AGIEval-En (CoT)** | General Knowledge | Human-centric benchmark with chain-of-thought |
+| **HumanEval (0-shot)** | Code | Code generation |
+| **MBPP Sanitized (3-shot)** | Code | Python programming problems |
+| **GSM8K (8-shot)** | Math | Grade school math word problems |
+| **MATH (4-shot)** | Math | Competition mathematics |
+| **MATH-500 (4-shot)** | Math | Subset of MATH benchmark |
+| **ARC-Challenge (25-shot)** | Commonsense Understanding | AI2 Reasoning Challenge |
+| **HellaSwag (10-shot)** | Commonsense Understanding | Sentence completion |
+| **OpenBookQA (0-shot)** | Commonsense Understanding | Open-book question answering |
+| **PIQA (0-shot)** | Commonsense Understanding | Physical intuition |
+| **WinoGrande (5-shot)** | Commonsense Understanding | Coreference resolution |
+| **RACE (0-shot)** | Reading Comprehension | Reading comprehension |
+| **Global MMLU Lite (5-shot)** | Multilingual | Multilingual understanding |
+| **MGSM (8-shot)** | Multilingual | Multilingual grade school math |
+
+### Available Task Names (Base Models)
+
+| Task Name | Benchmark |
+|-----------|-----------|
+| `adlr_mmlu` | MMLU (5-shot) |
+| `adlr_mmlu_pro_5_shot_base` | MMLU-Pro (5-shot, CoT) |
+| `adlr_agieval_en_cot` | AGIEval-En (CoT) |
+| `adlr_humaneval_greedy` | HumanEval (greedy) |
+| `adlr_mbpp_sanitized_3_shot_greedy` | MBPP Sanitized (3-shot, greedy) |
+| `adlr_gsm8k_cot_8_shot` | GSM8K (8-shot) |
+| `adlr_minerva_math_nemo_4_shot` | MATH (4-shot) |
+| `adlr_math_500_4_shot_sampled` | MATH-500 (4-shot) |
+| `adlr_arc_challenge_llama_25_shot` | ARC-Challenge (25-shot) |
+| `hellaswag` | HellaSwag (10-shot) |
+| `openbookqa` | OpenBookQA (0-shot) |
+| `piqa` | PIQA (0-shot) |
+| `adlr_race` | RACE (0-shot) |
+| `adlr_winogrande_5_shot` | WinoGrande (5-shot) |
+| `adlr_global_mmlu_lite_5_shot` | Global MMLU Lite (5-shot) |
+| `adlr_mgsm_native_cot_8_shot` | MGSM (8-shot) |
+
+### Running Base Model Evaluations
+
+Base model configs use local vLLM deployment instead of an API endpoint:
+
+```bash
+cd packages/nemo-evaluator-launcher/examples/nemotron
+
+# Run NVIDIA Nemotron base model evaluation
+nemo-evaluator-launcher run --config local_nvidia-nemotron-3-nano-30b-a3b-base.yaml
+
+# Run Qwen3 base model evaluation
+nemo-evaluator-launcher run --config local_qwen3-30b-a3b-base.yaml
+```
+
+### Base Model Configuration Details
+
+#### Deployment (vLLM)
+
+The base models are deployed locally using vLLM:
+
+```yaml
+deployment:
+  image: vllm/vllm-openai:v0.12.0
+  hf_model_handle: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-Base-BF16
+  tensor_parallel_size: 1
+  data_parallel_size: 1
+  extra_args: "--max-model-len 262144 --mamba_ssm_cache_dtype float32 --no-enable-prefix-caching"
+```
+
+#### Inference Parameters
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `max_retries` | 5 | Number of retries for API requests |
+| `request_timeout` | 360 | Request timeout in seconds |
+| `parallelism` | 4 | Concurrent requests |
+
+### Running Individual Base Model Benchmarks
+
+```bash
+# Run only MMLU
+nemo-evaluator-launcher run --config local_nvidia-nemotron-3-nano-30b-a3b-base.yaml -t adlr_mmlu
+
+# Run only coding benchmarks
+nemo-evaluator-launcher run --config local_nvidia-nemotron-3-nano-30b-a3b-base.yaml -t adlr_humaneval_greedy -t adlr_mbpp_sanitized_3_shot_greedy
+
+# Run math benchmarks
+nemo-evaluator-launcher run --config local_nvidia-nemotron-3-nano-30b-a3b-base.yaml -t adlr_gsm8k_cot_8_shot -t adlr_minerva_math_nemo_4_shot -t adlr_math_500_4_shot_sampled
+```
+
+### Quick Testing (Base Models)
+
+For quick configuration testing, uncomment `limit_samples` in the config file or override via CLI:
+
+```bash
+nemo-evaluator-launcher run \
+  --config local_nvidia-nemotron-3-nano-30b-a3b-base.yaml \
+  -o evaluation.nemo_evaluator_config.config.params.limit_samples=10
+```
+
+> **Warning:** Always run full evaluations (without `limit_samples`) for actual benchmark results. Results from test runs with limited samples should never be used to compare models.
+
+---
+
 ## License
 
 This configuration and tutorial are provided under the Apache License 2.0. See the main repository LICENSE file for details.
