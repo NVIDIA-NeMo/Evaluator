@@ -20,11 +20,6 @@ from nemo_evaluator_launcher.common.container_metadata.intermediate_repr import 
     TaskIntermediateRepresentation,
     load_tasks_from_tasks_file,
 )
-from nemo_evaluator_launcher.common.container_metadata.loading import (
-    extract_framework_yml,
-    load_tasks_from_container,
-    parse_framework_to_irs,
-)
 from nemo_evaluator_launcher.common.container_metadata.registries import (
     DockerRegistryHandler,
     create_authenticator,
@@ -39,8 +34,26 @@ __all__ = [
     "HarnessIntermediateRepresentation",
     "TaskIntermediateRepresentation",
     "load_tasks_from_tasks_file",
-    "extract_framework_yml",
-    "load_tasks_from_container",
-    "parse_framework_to_irs",
     "parse_container_image",
 ]
+
+# Optional imports:
+# `loading` pulls in `nemo_evaluator` (and deps like `pydantic`). Keep IR-only
+# workflows (e.g., docs autogen) usable without requiring the full stack.
+try:
+    from nemo_evaluator_launcher.common.container_metadata.loading import (  # noqa: F401
+        extract_framework_yml,
+        load_tasks_from_container,
+        parse_framework_to_irs,
+    )
+
+    __all__.extend(
+        [
+            "extract_framework_yml",
+            "load_tasks_from_container",
+            "parse_framework_to_irs",
+        ]
+    )
+except ModuleNotFoundError:
+    # Allow importing this package for IR-only workflows (docs autogen, etc.)
+    pass

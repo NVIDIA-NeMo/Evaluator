@@ -26,7 +26,7 @@ from collections import defaultdict
 
 import yaml
 
-from nemo_evaluator_launcher.common.container_metadata import (
+from nemo_evaluator_launcher.common.container_metadata.intermediate_repr import (
     HarnessIntermediateRepresentation,
     TaskIntermediateRepresentation,
     load_tasks_from_tasks_file,
@@ -442,12 +442,14 @@ def extract_container_name_and_version(container: str) -> tuple[str, str]:
 def generate_benchmarks_table_markdown(
     harnesses: list[_HarnessAutogen],
     checksum: str | None = None,
+    harnesses_dir: str = "harnesses",
 ) -> str:
     """Generate benchmarks table markdown for benchmarks.md.
 
     Args:
         harnesses: List of _HarnessAutogen objects
         checksum: Checksum from all_tasks_irs.yaml metadata (optional)
+        harnesses_dir: Relative path to harness pages directory from this file.
 
     Returns:
         Markdown table content as string
@@ -471,7 +473,7 @@ def generate_benchmarks_table_markdown(
     sorted_harnesses_for_toc = sorted(harnesses, key=lambda h: h.harness_name.lower())
     for harness in sorted_harnesses_for_toc:
         lines.append(
-            f"{harness.harness_name} <all/harnesses/{harness.harness_filename}>"
+            f"{harness.harness_name} <{harnesses_dir}/{harness.harness_filename}>"
         )
     lines.append(":::")
     lines.append("")
@@ -512,13 +514,8 @@ def generate_benchmarks_table_markdown(
             # Try to get description from first task
             description = harness.tasks[0].description or ""
 
-        # Generate harness page link
-        # benchmarks-table.md is at docs/evaluation/benchmarks/catalog/all/benchmarks-table.md
-        # harness page is at docs/evaluation/benchmarks/catalog/all/harnesses/{filename}.md
-        # Need relative path from benchmarks-table.md (same directory): harnesses/{filename}
-        # But when included from benchmarks/index.md, need: catalog/all/harnesses/{filename}
-        # We'll use the path relative to catalog/all/ since that's where benchmarks-table.md lives
-        harness_page_path = f"all/harnesses/{harness.harness_filename}"
+        # Harness pages live next to this table under `harnesses/`.
+        harness_page_path = f"{harnesses_dir}/{harness.harness_filename}"
         # Link to harness page with harness anchor (harness_id is the normalized harness name)
         # The harness page heading creates an anchor with the harness_id
         harness_anchor = harness.harness_id
@@ -529,7 +526,7 @@ def generate_benchmarks_table_markdown(
         task_links = []
         for task in harness.tasks:
             task_id = f"{harness.harness_id}-{normalize_id(task.name)}"
-            # HTML link with anchor - use relative path from benchmarks.md
+            # HTML link with anchor - relative to this table file.
             task_link = f'<a href="{harness_page_path}.html#{task_id}">{task.name}</a>'
             task_links.append(task_link)
 
@@ -541,7 +538,12 @@ def generate_benchmarks_table_markdown(
         latest_tag = version if version else "{{ docker_compose_latest }}"
 
         # Escape special characters in markdown (but preserve links)
-        description_display = description.replace("|", "\\|").replace("\n", " ")
+        # Some harnesses may store description as non-string types (e.g., list).
+        if isinstance(description, list):
+            description_text = " ".join(str(x) for x in description)
+        else:
+            description_text = str(description)
+        description_display = description_text.replace("|", "\\|").replace("\n", " ")
 
         lines.append(f"* - {container_display}")
         lines.append(f"  - {description_display}")
@@ -573,6 +575,25 @@ Examples:
   # Filter by task name
   python scripts/autogen_task_yamls.py --task mmlu
         """,
+    )
+    parser.add_argument(
+        "--docs-root",
+        type=pathlib.Path,
+        default=None,
+        help=(
+            "Root of the docs tree to write into (default: <repo_root>/docs). "
+            "This allows using this script from other repositories."
+        ),
+    )
+    parser.add_argument(
+        "--all-tasks-irs-file",
+        type=pathlib.Path,
+        default=None,
+        help=(
+            "Path to all_tasks_irs.yaml to load tasks from. "
+            "When provided, checksum is validated against the mapping.toml next "
+            "to that file."
+        ),
     )
     parser.add_argument(
         "--catalog-file",
@@ -609,15 +630,16 @@ Examples:
     # Find repository root
     repo_root = find_repo_root(pathlib.Path(__file__))
 
+    docs_root = args.docs_root if args.docs_root is not None else (repo_root / "docs")
+
     # Set default paths relative to repo root if not provided
     if args.catalog_file is None:
         args.catalog_file = (
-            repo_root / "docs" / "evaluation" / "benchmarks" / "catalog" / "index.md"
+            docs_root / "evaluation" / "benchmarks" / "catalog" / "index.md"
         )
     if args.harnesses_dir is None:
         args.harnesses_dir = (
-            repo_root
-            / "docs"
+            docs_root
             / "evaluation"
             / "benchmarks"
             / "catalog"
@@ -628,6 +650,7 @@ Examples:
     logger.info(
         "Starting documentation autogeneration",
         repo_root=str(repo_root),
+        docs_root=str(docs_root),
         catalog_file=str(args.catalog_file),
         dry_run=args.dry_run,
         harness_filter=args.harness,
@@ -635,7 +658,7 @@ Examples:
     )
 
     # Load tasks (checksum validation happens automatically)
-    tasks, mapping_verified = load_tasks_from_tasks_file()  # Uses default path
+    tasks, mapping_verified = load_tasks_from_tasks_file(tasks_file=args.all_tasks_irs_file)
 
     # Check if mapping is verified (checksum mismatch)
     if not mapping_verified:
@@ -796,24 +819,26 @@ Examples:
         # Load checksum from all_tasks_irs.yaml for inclusion in generated table
         checksum = None
         try:
-            import importlib.resources
+            if args.all_tasks_irs_file is not None:
+                tasks_data = yaml.safe_load(
+                    args.all_tasks_irs_file.read_text(encoding="utf-8")
+                )
+            else:
+                import importlib.resources
 
-            tasks_content = importlib.resources.read_text(
-                "nemo_evaluator_launcher.resources",
-                "all_tasks_irs.yaml",
-                encoding="utf-8",
-            )
-            tasks_data = yaml.safe_load(tasks_content)
+                tasks_content = importlib.resources.read_text(
+                    "nemo_evaluator_launcher.resources",
+                    "all_tasks_irs.yaml",
+                    encoding="utf-8",
+                )
+                tasks_data = yaml.safe_load(tasks_content)
             checksum = tasks_data.get("metadata", {}).get("mapping_toml_checksum")
         except Exception as e:
-            logger.warning(
-                "Could not load checksum from all_tasks_irs.yaml", error=str(e)
-            )
+            logger.warning("Could not load checksum from all_tasks_irs.yaml", error=str(e))
 
         # Generate benchmarks table file
         benchmarks_table_file = (
-            repo_root
-            / "docs"
+            docs_root
             / "evaluation"
             / "benchmarks"
             / "catalog"
@@ -822,7 +847,7 @@ Examples:
         )
         try:
             table_content = generate_benchmarks_table_markdown(
-                harnesses, checksum=checksum
+                harnesses, checksum=checksum, harnesses_dir="harnesses"
             )
             benchmarks_table_file.parent.mkdir(parents=True, exist_ok=True)
             with open(benchmarks_table_file, "w", encoding="utf-8") as f:

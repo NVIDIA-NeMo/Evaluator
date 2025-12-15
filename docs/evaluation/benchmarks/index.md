@@ -29,6 +29,6 @@ Detailed description of all available tasks, groupped by evaluation harness.
 :hidden:
 
 About Selecting Benchmarks <about>
-Available Benchmarks <catalog/overview>
+Available Benchmarks <catalog/index>
 
 :::
