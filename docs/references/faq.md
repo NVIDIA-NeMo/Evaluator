@@ -331,8 +331,8 @@ See the [example configuration](https://github.com/NVIDIA-NeMo/Evaluator/blob/ma
 
 ```{literalinclude} ../../packages/nemo-evaluator-launcher/examples/slurm_vllm_advanced_hf_caching.yaml
 :language: yaml
-:start-after: # [docs-start-snippet]
-:end-before: # [docs-end-snippet]
+:start-after: "# [docs-start-snippet]"
+:end-before: "# [docs-end-snippet]"
 ```
 
 Modify the example with actual paths for the mounts and run:
