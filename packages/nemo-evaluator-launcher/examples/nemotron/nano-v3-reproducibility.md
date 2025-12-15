@@ -18,6 +18,8 @@ The Nemotron 3 Nano 30B A3B is a compact yet powerful reasoning model from NVIDI
 | **IFBench** | Instruction Following | Instruction following benchmark |
 | **HLE** | Humanity's Last Exam | Expert-level questions across domains |
 
+The open source container on NeMo Skills packaged via NVIDIA's NeMo Evaluator SDK used for evaluations can be found [here](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/nemo_skills?version=25.11).
+
 ---
 
 ## Prerequisites
