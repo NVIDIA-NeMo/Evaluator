@@ -151,12 +151,12 @@ curl -X POST "https://integrate.api.nvidia.com/v1/chat/completions" \
 
 # 2. Run a dry-run to validate configuration
 nemo-evaluator-launcher run \
-    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
+    --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
     --dry-run
 
 # 3. Run a minimal test with very few samples
 nemo-evaluator-launcher run \
-    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
+    --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
     -o +config.params.limit_samples=1 \
     -o execution.output_dir=./test_results
 ```
@@ -232,7 +232,7 @@ After completing your quickstart:
 nemo-evaluator-launcher ls tasks
 
 # Run with limited samples for quick testing
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_limit_samples.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml
 ```
 :::
 
@@ -260,10 +260,10 @@ nemo-evaluator-launcher export <invocation_id> --dest local --format json
 ```bash
 cd packages/nemo-evaluator-launcher
 # Run on Slurm cluster
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/slurm_vllm_basic.yaml
 
 # Run on Lepton AI
-nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_vllm_llama_3_1_8b_instruct.yaml
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/lepton_vllm.yaml
 ```
 :::
 

@@ -69,13 +69,13 @@ For multi-model comparison, run separate evaluations for each model and compare 
 ```bash
 # Evaluate first model
 nemo-evaluator-launcher run \
-    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
+    --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
     -o target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
     -o execution.output_dir=./results/llama-3.1-8b
 
 # Evaluate second model
 nemo-evaluator-launcher run \
-    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
+    --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
     -o target.api_endpoint.model_id=meta/llama-3.1-70b-instruct \
     -o execution.output_dir=./results/llama-3.1-70b
 

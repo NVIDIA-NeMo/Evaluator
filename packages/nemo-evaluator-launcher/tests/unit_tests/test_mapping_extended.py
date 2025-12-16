@@ -17,10 +17,9 @@
 
 import pathlib
 import sys
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
-import requests
 
 if sys.version_info >= (3, 11):
     pass
@@ -29,138 +28,11 @@ else:
 
 from nemo_evaluator_launcher.common.mapping import (
     CACHE_FILENAME,
-    _download_latest_mapping,
-    _ensure_cache_dir,
-    _load_cached_mapping,
     _load_packaged_resource,
     _process_mapping,
-    _save_mapping_to_cache,
     get_task_from_mapping,
     load_tasks_mapping,
 )
-
-
-class TestCachingFunctionality:
-    """Test caching functions."""
-
-    def test_ensure_cache_dir(self, tmpdir):
-        """Test cache directory creation."""
-        test_cache_path = pathlib.Path(str(tmpdir)) / "test_cache"
-        with patch("nemo_evaluator_launcher.common.mapping.CACHE_DIR", test_cache_path):
-            _ensure_cache_dir()
-            assert test_cache_path.exists()
-
-    def test_save_mapping_to_cache(self, tmpdir):
-        """Test saving mapping to cache."""
-        test_data = b"[test]\nkey = 'value'\n"
-        tmpdir_path = pathlib.Path(str(tmpdir))
-
-        with patch("nemo_evaluator_launcher.common.mapping.CACHE_DIR", tmpdir_path):
-            _save_mapping_to_cache(test_data)
-            cache_file = tmpdir_path / CACHE_FILENAME
-            assert cache_file.exists()
-            assert cache_file.read_bytes() == test_data
-
-    def test_save_mapping_to_cache_error(self, tmpdir):
-        """Test saving mapping to cache with filesystem error."""
-        test_data = b"[test]\nkey = 'value'\n"
-
-        # Create a file where directory should be to cause OSError
-        cache_file_path = pathlib.Path(str(tmpdir)) / "cache_file_not_dir"
-        cache_file_path.write_text("not a directory")
-
-        with patch("nemo_evaluator_launcher.common.mapping.CACHE_DIR", cache_file_path):
-            # Should not raise exception, just log warning
-            _save_mapping_to_cache(test_data)
-
-    def test_load_cached_mapping_success(self, tmpdir):
-        """Test loading mapping from cache successfully."""
-        test_toml = "[test_harness]\ncontainer = 'test:latest'\n"
-        tmpdir_path = pathlib.Path(str(tmpdir))
-        cache_file = tmpdir_path / CACHE_FILENAME
-        cache_file.write_text(test_toml, encoding="utf-8")
-
-        with patch("nemo_evaluator_launcher.common.mapping.CACHE_DIR", tmpdir_path):
-            result = _load_cached_mapping()
-            assert result is not None
-            assert "test_harness" in result
-            assert result["test_harness"]["container"] == "test:latest"
-
-    def test_load_cached_mapping_missing_file(self, tmpdir):
-        """Test loading mapping when cache file doesn't exist."""
-        tmpdir_path = pathlib.Path(str(tmpdir))
-        with patch("nemo_evaluator_launcher.common.mapping.CACHE_DIR", tmpdir_path):
-            result = _load_cached_mapping()
-            assert result is None
-
-    def test_load_cached_mapping_invalid_toml(self, tmpdir):
-        """Test loading mapping with invalid TOML."""
-        tmpdir_path = pathlib.Path(str(tmpdir))
-        cache_file = tmpdir_path / CACHE_FILENAME
-        cache_file.write_text("invalid toml content [", encoding="utf-8")
-
-        with patch("nemo_evaluator_launcher.common.mapping.CACHE_DIR", tmpdir_path):
-            result = _load_cached_mapping()
-            assert result is None
-
-    def test_load_cached_mapping_read_error(self, tmpdir):
-        """Test loading mapping with read permission error."""
-        tmpdir_path = pathlib.Path(str(tmpdir))
-        cache_file = tmpdir_path / CACHE_FILENAME
-        cache_file.write_text("[test]\nkey = 'value'\n", encoding="utf-8")
-
-        with patch("nemo_evaluator_launcher.common.mapping.CACHE_DIR", tmpdir_path):
-            # Mock open to raise OSError
-            with patch("builtins.open", side_effect=OSError("Permission denied")):
-                result = _load_cached_mapping()
-                assert result is None
-
-
-class TestDownloadFunctionality:
-    """Test download functions."""
-
-    def test_download_latest_mapping_success(self):
-        """Test successful download of mapping."""
-        mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.content = b"[test]\nkey = 'value'\n"
-
-        with patch("requests.get", return_value=mock_response):
-            result = _download_latest_mapping()
-            assert result == b"[test]\nkey = 'value'\n"
-
-    def test_download_latest_mapping_direct_content(self):
-        """Test download using response.content directly."""
-        mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.content = b"[test]\nkey = 'value'\n"
-
-        with patch("requests.get", return_value=mock_response):
-            result = _download_latest_mapping()
-            assert result == b"[test]\nkey = 'value'\n"
-
-    def test_download_latest_mapping_request_error(self):
-        """Test download with request error."""
-        with patch(
-            "requests.get", side_effect=requests.RequestException("Network error")
-        ):
-            result = _download_latest_mapping()
-            assert result is None
-
-    def test_download_latest_mapping_timeout_error(self):
-        """Test download with timeout error."""
-        with patch("requests.get", side_effect=OSError("Timeout")):
-            result = _download_latest_mapping()
-            assert result is None
-
-    def test_download_latest_mapping_http_error(self):
-        """Test download with HTTP error."""
-        mock_response = Mock()
-        mock_response.raise_for_status.side_effect = requests.HTTPError("404 Not Found")
-
-        with patch("requests.get", return_value=mock_response):
-            result = _download_latest_mapping()
-            assert result is None
 
 
 class TestPackagedResourceFunctionality:
@@ -304,50 +176,6 @@ class TestGetTaskFromMappingEdgeCases:
 
 class TestLoadTasksMappingEdgeCases:
     """Test edge cases in load_tasks_mapping."""
-
-    def test_load_tasks_mapping_latest_success(self, tmpdir):
-        """Test loading latest mapping successfully."""
-        test_mapping = b"[test_harness]\ncontainer = 'test:latest'\n[test_harness.tasks.chat]\ntest_task = {}\n"
-        tmpdir_path = pathlib.Path(str(tmpdir))
-
-        with patch(
-            "nemo_evaluator_launcher.common.mapping._download_latest_mapping",
-            return_value=test_mapping,
-        ):
-            with patch("nemo_evaluator_launcher.common.mapping.CACHE_DIR", tmpdir_path):
-                result = load_tasks_mapping(latest=True)
-                assert ("test_harness", "test_task") in result
-
-    def test_load_tasks_mapping_latest_fail_with_cache(self, tmpdir):
-        """Test loading latest mapping fails but cache is available."""
-        # Create cache file
-        tmpdir_path = pathlib.Path(str(tmpdir))
-        cache_file = tmpdir_path / CACHE_FILENAME
-        cache_toml = "[test_harness]\ncontainer = 'test:latest'\n[test_harness.tasks.chat]\ntest_task = {}\n"
-        cache_file.write_text(cache_toml, encoding="utf-8")
-
-        with patch(
-            "nemo_evaluator_launcher.common.mapping._download_latest_mapping",
-            return_value=None,
-        ):
-            with patch("nemo_evaluator_launcher.common.mapping.CACHE_DIR", tmpdir_path):
-                result = load_tasks_mapping(latest=True)
-                assert ("test_harness", "test_task") in result
-
-    def test_load_tasks_mapping_latest_fail_no_cache(self):
-        """Test loading latest mapping fails with no cache available."""
-        with patch(
-            "nemo_evaluator_launcher.common.mapping._download_latest_mapping",
-            return_value=None,
-        ):
-            with patch(
-                "nemo_evaluator_launcher.common.mapping._load_cached_mapping",
-                return_value=None,
-            ):
-                with pytest.raises(
-                    RuntimeError, match="could not download latest mapping"
-                ):
-                    load_tasks_mapping(latest=True)
 
     def test_load_tasks_mapping_from_file(self, tmpdir):
         """Test loading mapping from specific file."""

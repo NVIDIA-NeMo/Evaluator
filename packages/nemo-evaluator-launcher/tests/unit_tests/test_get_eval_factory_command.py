@@ -37,11 +37,7 @@ def test_get_eval_factory_command_basic(monkeypatch):
         {
             "evaluation": {
                 # Use new-style config key
-                "nemo_evaluator_config": {
-                    # Intentionally minimal; function will enrich
-                },
-                # Provide one override with newline to ensure trimming
-                "overrides": {"foo": "bar\n"},
+                "nemo_evaluator_config": {"config": {"foo": "bar\n"}},
             },
             "deployment": {
                 "type": "none",
@@ -59,7 +55,7 @@ def test_get_eval_factory_command_basic(monkeypatch):
         {
             # Old key should also be supported; keep empty so helper sets fields
             "config": {},
-            "overrides": {"baz": 42},
+            "nemo_evaluator_config": {"config": {"baz": 42}},
         }
     )
 
@@ -92,13 +88,7 @@ def test_get_eval_factory_command_basic(monkeypatch):
     assert resolved["deployment"]["type"] == "none"
     assert resolved["target"]["api_endpoint"]["url"] == "https://example.test/api"
     assert resolved["target"]["api_endpoint"]["model_id"] == "model-123"
-    assert resolved["evaluation"]["overrides"] == {"foo": "bar\n"}
+    assert resolved["evaluation"]["nemo_evaluator_config"]["config"] == {"foo": "bar\n"}
 
     # The command to run eval is present
     assert "&& $cmd run_eval --run_config config_ef.yaml" in result.cmd
-
-    # Overrides are appended and newline is trimmed; order-insensitive checks
-    # Accept both possible orders by verifying presence of each "k=v"
-    assert " --overrides " in result.cmd
-    assert "foo=bar" in result.cmd
-    assert re.search(r"(?:,| )baz=42(?:,|$)", result.cmd) is not None
