@@ -1,6 +1,6 @@
 # NVIDIA Nemotron 3 Nano 30B A3B — Reproducing Model Card Evaluation Results
 
-This tutorial demonstrates how to reproduce the evaluation results for the **NVIDIA Nemotron 3 Nano 30B A3B** model using the NeMo Evaluator Launcher.
+This tutorial demonstrates how to reproduce the evaluation results for the [**NVIDIA Nemotron 3 Nano 30B A3B**](https://build.nvidia.com/nvidia/nemotron-3-nano-30b-a3b) model using the NeMo Evaluator Launcher.
 
 ## Overview
 
@@ -33,7 +33,8 @@ pip install nemo-evaluator-launcher
 Or install from source:
 
 ```bash
-cd packages/nemo-evaluator-launcher
+git clone https://github.com/NVIDIA-NeMo/Evaluator.git
+cd Evaluator/packages/nemo-evaluator-launcher
 pip install -e .
 ```
 
@@ -66,28 +67,31 @@ export HF_HOME="/path/to/your/huggingface/cache"
 
 ## Running the Full Evaluation Suite
 
-### Option 1: Using the Config File Directly
+### 1. Get the Configuration
 
-Navigate to the examples directory and run:
-
-```bash
-cd packages/nemo-evaluator-launcher/examples/nemotron
-
-nemo-evaluator-launcher run --config local_nvidia_nemotron_3_nano_30b_a3b.yaml
-```
-
-### Option 2: Using Config Path from Anywhere
+Clone the repository or download the [example config file](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator-launcher/examples/nemotron/local_nvidia_nemotron_3_nano_30b_a3b.yaml):
 
 ```bash
-nemo-evaluator-launcher run --config /path/to/examples/nemotron/local_nvidia_nemotron_3_nano_30b_a3b.yaml
+git clone https://github.com/NVIDIA-NeMo/Evaluator.git
+cd Evaluator  # or navigate to where you placed the config file
 ```
 
-### Option 3: Dry Run (Preview Configuration)
+### 2. Run the Evaluation
+
+```bash
+nemo-evaluator-launcher run \
+  --config packages/nemo-evaluator-launcher/examples/nemotron/local_nvidia_nemotron_3_nano_30b_a3b.yaml
+# Or point to your path if you placed the file under a different location
+```
+
+### 3. Dry Run (Preview Configuration)
 
 To preview the configuration without running the evaluation:
 
 ```bash
-nemo-evaluator-launcher run --config nemotron/local_nvidia_nemotron_3_nano_30b_a3b.yaml --dry-run
+nemo-evaluator-launcher run \
+  --config packages/nemo-evaluator-launcher/examples/nemotron/local_nvidia_nemotron_3_nano_30b_a3b.yaml \
+  --dry-run
 ```
 
 ---
@@ -132,7 +136,7 @@ The evaluation uses the NVIDIA API endpoint:
 ```yaml
 target:
   api_endpoint:
-    model_id: nvidia/nemotron-nano-3-30b-a3b
+    model_id: nvidia/nemotron-3-nano-30b-a3b 
     url: https://integrate.api.nvidia.com/v1/chat/completions
     api_key_name: NGC_API_KEY
 ```
