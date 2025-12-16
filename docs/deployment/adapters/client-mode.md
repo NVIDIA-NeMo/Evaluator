@@ -1,5 +1,9 @@
 (adapters-client-mode)=
 
+<!-- FIXME: The entire docs/deployment/adapters/ directory is currently orphaned (not linked in the docs navigation).
+     This content needs to be reviewed and moved to a proper location
+     in the documentation structure. See follow-up PR for reorganization. -->
+
 # Client Mode
 
 The NeMo Evaluator adapter system supports **Client Mode**, where adapters run in-process through a custom httpx transport, providing a simpler alternative to the proxy server architecture.

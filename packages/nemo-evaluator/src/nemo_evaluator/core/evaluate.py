@@ -79,9 +79,48 @@ def evaluate(
         evaluation.config.output_dir, metadata
     )
 
+    # Check if adapter is in client mode (no server needed)
+    use_client_mode = (
+        target_cfg.api_endpoint
+        and target_cfg.api_endpoint.adapter_config
+        and target_cfg.api_endpoint.adapter_config.mode == "client"
+    )
+
+    # Track if graceful cleanup has been performed
+    cleanup_performed = False
+
+    def run_client_mode_cleanup():
+        """Run post-eval hooks for client mode during graceful shutdown."""
+        nonlocal cleanup_performed
+        if cleanup_performed:
+            return
+
+        cleanup_performed = True
+        if (
+            use_client_mode
+            and target_cfg.api_endpoint
+            and target_cfg.api_endpoint.adapter_config
+        ):
+            try:
+                from nemo_evaluator.adapters.pipeline import AdapterPipeline
+
+                pipeline = AdapterPipeline(
+                    target_cfg.api_endpoint.adapter_config,
+                    evaluation.config.output_dir,
+                    target_cfg.api_endpoint.model_id,
+                )
+                pipeline.run_post_eval_hooks(url=target_cfg.api_endpoint.url or "")
+                logger.info("Post-eval hooks executed during shutdown")
+            except Exception as e:
+                logger.error(f"Failed to run post-eval hooks during shutdown: {e}")
+
     def kill_all(signum=None, frame=None):
         """Kill all processes and exit."""
         logger.critical("FATAL: Terminating all processes...")
+
+        # For SIGTERM (graceful shutdown), run client mode cleanup first
+        if signum == signal.SIGTERM:
+            run_client_mode_cleanup()
 
         parent = psutil.Process(os.getpid())  # current process
         children = parent.children(recursive=True)
@@ -106,13 +145,6 @@ def evaluate(
     signal.signal(signal.SIGTERM, kill_all)
     signal.signal(signal.SIGINT, kill_all)
 
-    # Check if adapter is in client mode (no server needed)
-    use_client_mode = (
-        target_cfg.api_endpoint
-        and target_cfg.api_endpoint.adapter_config
-        and target_cfg.api_endpoint.adapter_config.mode == "client"
-    )
-
     def run_evaluation_core():
         if use_client_mode:
             logger.info("Using client mode - skipping adapter server")
@@ -123,16 +155,9 @@ def evaluate(
             # In client mode, explicitly run post-eval hooks after command completes
             # This ensures hooks run reliably from the parent process rather than
             # depending on finalizers in the subprocess during interpreter shutdown
-            if target_cfg.api_endpoint and target_cfg.api_endpoint.adapter_config:
-                from nemo_evaluator.adapters.pipeline import AdapterPipeline
-
-                pipeline = AdapterPipeline(
-                    target_cfg.api_endpoint.adapter_config,
-                    evaluation.config.output_dir,
-                    target_cfg.api_endpoint.model_id,
-                )
-                pipeline.run_post_eval_hooks(url=target_cfg.api_endpoint.url or "")
-                logger.info("Post-eval hooks executed after client mode evaluation")
+            # Note: cleanup_performed flag prevents double execution if SIGTERM was received
+            if not cleanup_performed:
+                run_client_mode_cleanup()
 
             return evaluation_result
         else:

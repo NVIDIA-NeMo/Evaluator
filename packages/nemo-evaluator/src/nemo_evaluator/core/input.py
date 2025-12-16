@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import os
 import pkgutil
 from typing import Optional
@@ -496,11 +497,7 @@ def validate_configuration(run_config: dict) -> Evaluation:
         and "target" in run_config
         and "api_endpoint" in run_config["target"]
     ):
-        run_config_copy = run_config.copy()
-        run_config_copy["target"] = run_config["target"].copy()
-        run_config_copy["target"]["api_endpoint"] = run_config["target"][
-            "api_endpoint"
-        ].copy()
+        run_config_copy = copy.deepcopy(run_config)
         run_config_copy["target"]["api_endpoint"].pop("adapter_config", None)
     else:
         run_config_copy = run_config
