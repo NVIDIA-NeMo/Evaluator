@@ -136,7 +136,7 @@ The evaluation uses the NVIDIA API endpoint:
 ```yaml
 target:
   api_endpoint:
-    model_id: nvidia/nemotron-3-nano-30b-a3b 
+    model_id: nvidia/nemotron-3-nano-30b-a3b
     url: https://integrate.api.nvidia.com/v1/chat/completions
     api_key_name: NGC_API_KEY
 ```
