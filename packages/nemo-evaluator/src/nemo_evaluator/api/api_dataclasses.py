@@ -19,9 +19,7 @@ from enum import Enum
 from typing import Any, Dict, Optional
 
 import jinja2
-
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
-
 
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.core.utils import get_jinja2_environment
