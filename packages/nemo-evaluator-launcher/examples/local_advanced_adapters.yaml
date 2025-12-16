@@ -47,7 +47,7 @@ target:
 # specify the benchmarks to evaluate
 evaluation:
   tasks:
-    - name: mgsm
+    - name: simple_evals.mgsm
       nemo_evaluator_config:
         config: # global config settings that apply to all tasks
           params:

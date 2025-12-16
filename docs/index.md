@@ -348,7 +348,7 @@ Evaluation Configuration Parameters <evaluation/parameters>
 :hidden:
 
 About Model Evaluation <evaluation/index>
-Benchmark Catalog <evaluation/benchmarks>
+Benchmark Catalog <evaluation/benchmarks/index>
 Tasks Not Explicitly Defined by FDF <evaluation/custom-task>
 Evaluation Techniques <evaluation/run-evals/index>
 Add Evaluation Packages to NeMo Framework <evaluation/nemo-fw-optional-package>
