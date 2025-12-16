@@ -1225,7 +1225,7 @@ wheels = [
 
 [[package]]
 name = "nvidia-simple-evals"
-version = "25.10"
+version = "25.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
