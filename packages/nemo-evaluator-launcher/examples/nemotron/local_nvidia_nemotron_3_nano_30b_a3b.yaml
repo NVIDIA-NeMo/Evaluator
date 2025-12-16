@@ -72,7 +72,6 @@ evaluation:
         params:
           temperature: 0.6
           top_p: 0.95
-          parallelism: 32
           extra:
             num_repeats: 1
             args: ++use_client_parsing=False
@@ -85,7 +84,6 @@ evaluation:
       config:
         params:
           max_new_tokens: 8192
-          parallelism: 128
           temperature: 0.6
           top_p: 0.95
           extra:
