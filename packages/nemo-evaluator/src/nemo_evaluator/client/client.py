@@ -54,7 +54,7 @@ class NeMoEvaluatorClient:
     ):
         self.model_id = endpoint_model_config.model_id
         self.model_url = endpoint_model_config.url
-        self.api_key = endpoint_model_config.api_key
+        self.api_key_name = endpoint_model_config.api_key_name
         self.adapter_config = endpoint_model_config.adapter_config
         self.temperature = endpoint_model_config.temperature
         self.top_p = endpoint_model_config.top_p
@@ -74,12 +74,22 @@ class NeMoEvaluatorClient:
             model_name=self.model_id,
         )
 
+        # Get API key from environment if specified
+        if self.api_key_name is not None:
+            api_key_value = os.getenv(self.api_key_name)
+            if api_key_value is None:
+                raise ValueError(
+                    f"API key environment variable '{self.api_key_name}' is not set. "
+                    f"Please set it or remove 'api_key_name' from the configuration."
+                )
+        else:
+            # No API key specified - use dummy for endpoints that don't require auth
+            api_key_value = "dummy_api_key"
+
         self.client = AsyncOpenAI(
             http_client=adapter_http_client,
             base_url=self.model_url,
-            api_key=os.getenv(self.api_key, "dummy_api_key")
-            if self.api_key is not None
-            else "dummy_api_key",
+            api_key=api_key_value,
             timeout=self.request_timeout,
             max_retries=0,  # We handle retries ourselves
         )
@@ -112,16 +122,17 @@ class NeMoEvaluatorClient:
                     raise
 
     async def __call__(
-        self, messages: list[dict[str, Any]], seed: int | None = None
+        self, messages: list[dict[str, Any]], seed: int | None = None, **kwargs
     ) -> str:
-        return await self.chat_completion(messages, seed=seed)
+        return await self.chat_completion(messages, seed=seed, **kwargs)
 
     async def chat_completion(
-        self, messages: list[dict[str, Any]], seed: Optional[int] = None
+        self, messages: list[dict[str, Any]], seed: Optional[int] = None, **kwargs
     ) -> str:
         params = {
             "model": self.model_id,
             "messages": messages,
+            **kwargs,
         }
 
         if self.temperature is not None:
@@ -146,6 +157,7 @@ class NeMoEvaluatorClient:
         messages_list: List[list[dict[str, Any]]],
         seeds: Optional[List[Optional[int]]] = None,
         show_progress: bool = True,
+        **kwargs,
     ) -> List[str]:
         created_new_loop = False
         try:
@@ -162,7 +174,9 @@ class NeMoEvaluatorClient:
 
         try:
             return loop.run_until_complete(
-                self.batch_chat_completions(messages_list, seeds, show_progress)
+                self.batch_chat_completions(
+                    messages_list, seeds, show_progress, **kwargs
+                )
             )
         finally:
             if created_new_loop:
@@ -176,6 +190,7 @@ class NeMoEvaluatorClient:
         messages_list: List[list[dict[str, Any]]],
         seeds: Optional[List[Optional[int]]] = None,
         show_progress: bool = True,
+        **kwargs,
     ) -> List[str]:
         if seeds is None:
             seeds = [None] * len(messages_list)
@@ -185,7 +200,7 @@ class NeMoEvaluatorClient:
             )
 
         tasks = [
-            self.chat_completion(messages, seed=seed)
+            self.chat_completion(messages, seed=seed, **kwargs)
             for messages, seed in zip(messages_list, seeds)
         ]
 

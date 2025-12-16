@@ -29,7 +29,7 @@ from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorCon
 config = EndpointModelConfig(
     model_id="my-model",
     url="https://api.example.com/v1/chat/completions",
-    api_key="API_KEY",  # Environment variable name
+    api_key_name="API_KEY",  # Environment variable name
     adapter_config=AdapterConfig(
         mode="client",  # Use client mode (no server)
         interceptors=[
@@ -101,7 +101,7 @@ client = NeMoEvaluatorClient(
     endpoint_model_config=EndpointModelConfig(
         model_id="model-name",
         url="https://api.example.com/v1/chat/completions",
-        api_key="API_KEY",
+        api_key_name="API_KEY",
         adapter_config=adapter_config,
         is_base_url=False,
         temperature=0.7,
@@ -304,7 +304,7 @@ from nemo_evaluator.adapters.adapter_config import AdapterConfig, InterceptorCon
 config = EndpointModelConfig(
     model_id="llama-3-70b",
     url="https://integrate.api.nvidia.com/v1/chat/completions",
-    api_key="NVIDIA_API_KEY",
+    api_key_name="NVIDIA_API_KEY",
     is_base_url=False,
     adapter_config=AdapterConfig(
         interceptors=[
