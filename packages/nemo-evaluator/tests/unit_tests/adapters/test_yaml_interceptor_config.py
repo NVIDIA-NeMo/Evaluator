@@ -41,7 +41,9 @@ def test_yaml_config_validation_success():
     )
     class TestYamlInterceptor(RequestInterceptor):
         class Params(BaseModel):
-            api_key: str = Field(..., description="API key for authentication")
+            api_key_name: str = Field(
+                ..., description="API key name for authentication"
+            )
             timeout: int = Field(
                 default=30, ge=1, le=300, description="Request timeout"
             )
@@ -53,7 +55,7 @@ def test_yaml_config_validation_success():
             )
 
         def __init__(self, params: Params):
-            self.api_key = params.api_key
+            self.api_key_name = params.api_key_name
             self.timeout = params.timeout
             self.retry_count = params.retry_count
             self.endpoints = params.endpoints
@@ -64,7 +66,7 @@ def test_yaml_config_validation_success():
             return ar
 
     yaml_config = """
-    api_key: "test-api-key-12345"
+    api_key_name: "test-api-key-12345"
     timeout: 60
     retry_count: 2
     endpoints:
@@ -75,7 +77,7 @@ def test_yaml_config_validation_success():
     interceptors = get_request_interceptors({"test_yaml_interceptor": config_dict})
     assert len(interceptors) == 1
     interceptor = interceptors[0]
-    assert interceptor.api_key == "test-api-key-12345"
+    assert interceptor.api_key_name == "test-api-key-12345"
     assert interceptor.timeout == 60
     assert interceptor.retry_count == 2
     assert len(interceptor.endpoints) == 2
@@ -90,13 +92,15 @@ def test_yaml_config_validation_failure():
     )
     class TestYamlValidationInterceptor(RequestInterceptor):
         class Params(BaseModel):
-            api_key: str = Field(..., description="API key for authentication")
+            api_key_name: str = Field(
+                ..., description="API key name for authentication"
+            )
             timeout: int = Field(
                 default=30, ge=1, le=300, description="Request timeout"
             )
 
         def __init__(self, params: Params):
-            self.api_key = params.api_key
+            self.api_key_name = params.api_key_name
             self.timeout = params.timeout
 
         def intercept_request(
@@ -106,14 +110,14 @@ def test_yaml_config_validation_failure():
 
     yaml_config = """
     timeout: 60
-    # Missing api_key
+    # Missing api_key_name
     """
     config_dict = yaml.safe_load(yaml_config)
-    with pytest.raises(ValidationError, match="api_key"):
+    with pytest.raises(ValidationError, match="api_key_name"):
         get_request_interceptors({"test_yaml_validation": config_dict})
 
     yaml_config_wrong_type = """
-    api_key: "test-key"
+    api_key_name: "test-key"
     timeout: "not-an-int"
     """
     config_dict_wrong_type = yaml.safe_load(yaml_config_wrong_type)
@@ -182,7 +186,9 @@ def test_complex_yaml_configuration():
     )
     class TestComplexInterceptor(RequestInterceptor):
         class Params(BaseModel):
-            api_key: str = Field(..., description="API key for authentication")
+            api_key_name: str = Field(
+                ..., description="API key name for authentication"
+            )
             endpoints: list[str] = Field(
                 default_factory=list, description="List of endpoints"
             )
@@ -194,7 +200,7 @@ def test_complex_yaml_configuration():
             )
 
         def __init__(self, params: Params):
-            self.api_key = params.api_key
+            self.api_key_name = params.api_key_name
             self.endpoints = params.endpoints
             self.retry_config = params.retry_config
             self.headers = params.headers
@@ -205,7 +211,7 @@ def test_complex_yaml_configuration():
             return ar
 
     yaml_config = """
-    api_key: "complex-api-key-12345"
+    api_key_name: "complex-api-key-12345"
     endpoints:
       - "https://primary.example.com"
       - "https://secondary.example.com"
@@ -223,7 +229,7 @@ def test_complex_yaml_configuration():
     interceptors = get_request_interceptors({"test_complex_interceptor": config_dict})
     assert len(interceptors) == 1
     interceptor = interceptors[0]
-    assert interceptor.api_key == "complex-api-key-12345"
+    assert interceptor.api_key_name == "complex-api-key-12345"
     assert len(interceptor.endpoints) == 3
     assert interceptor.retry_config.max_retries == 5
     assert interceptor.retry_config.backoff_factor == 2.0
@@ -241,10 +247,10 @@ def test_multiple_interceptors_yaml_config():
     )
     class AuthInterceptor(RequestInterceptor):
         class Params(BaseModel):
-            api_key: str = Field(..., description="API key")
+            api_key_name: str = Field(..., description="API key name")
 
         def __init__(self, params: Params):
-            self.api_key = params.api_key
+            self.api_key_name = params.api_key_name
 
         def intercept_request(
             self, ar: AdapterRequest, context: AdapterGlobalContext
@@ -271,7 +277,7 @@ def test_multiple_interceptors_yaml_config():
 
     yaml_config = """
     auth_interceptor:
-      api_key: "multi-auth-key"
+      api_key_name: "multi-auth-key"
     logging_interceptor:
       log_level: "DEBUG"
       output_file: "/tmp/debug.log"
@@ -279,8 +285,8 @@ def test_multiple_interceptors_yaml_config():
     config_dict = yaml.safe_load(yaml_config)
     interceptors = get_request_interceptors(config_dict)
     assert len(interceptors) == 2
-    auth_interceptor = next(i for i in interceptors if hasattr(i, "api_key"))
-    assert auth_interceptor.api_key == "multi-auth-key"
+    auth_interceptor = next(i for i in interceptors if hasattr(i, "api_key_name"))
+    assert auth_interceptor.api_key_name == "multi-auth-key"
     logging_interceptor = next(i for i in interceptors if hasattr(i, "log_level"))
     assert logging_interceptor.log_level == "DEBUG"
     assert logging_interceptor.output_file == "/tmp/debug.log"

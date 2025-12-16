@@ -83,9 +83,16 @@ def extract_frontmatter(
                 end_marker = content.find("\n---\n", 3)
                 if end_marker != -1:
                     frontmatter_text = content[3:end_marker]
-                    result = yaml.safe_load(frontmatter_text)
+                    # Skip parsing if frontmatter contains template syntax (e.g., {{ variable }})
+                    if "{{" in frontmatter_text and "}}" in frontmatter_text:
+                        logger.debug(
+                            f"Skipping frontmatter parsing for {file_path} - contains template syntax"
+                        )
+                        result = None
+                    else:
+                        result = yaml.safe_load(frontmatter_text)
 
-        except yaml.YAMLError as e:
+        except (yaml.YAMLError, yaml.constructor.ConstructorError) as e:
             logger.warning(f"YAML parsing error in frontmatter for {file_path}: {e}")
             result = None
         except Exception as e:  # noqa: BLE001

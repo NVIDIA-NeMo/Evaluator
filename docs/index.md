@@ -334,10 +334,10 @@ Quickstart <get-started/quickstart/index>
 :hidden:
 
 About Tutorials <tutorials/index>
+How-To Guides <tutorials/how-to/index>
 Tutorials for NeMo Framework <tutorials/nemo-fw/index>
 Evaluate an Existing Endpoint <tutorials/local-evaluation-of-existing-endpoint>
 :::
-
 
 <!--
 TODO: Add below once ready
@@ -348,7 +348,7 @@ Evaluation Configuration Parameters <evaluation/parameters>
 :hidden:
 
 About Model Evaluation <evaluation/index>
-Benchmark Catalog <evaluation/benchmarks>
+Benchmark Catalog <evaluation/benchmarks/index>
 Tasks Not Explicitly Defined by FDF <evaluation/custom-task>
 Evaluation Techniques <evaluation/run-evals/index>
 Add Evaluation Packages to NeMo Framework <evaluation/nemo-fw-optional-package>
