@@ -1513,16 +1513,16 @@ def _validate_remote_paths_exist(
     hostname: str,
     socket: str | None,
 ) -> None:
-    """Validate that all specified paths exist on the remote host.
+    """Validate that all specified paths exist as directories on the remote host.
 
     Args:
-        paths: List of paths to validate.
+        paths: List of directory paths to validate.
         username: SSH username.
         hostname: SSH hostname.
         socket: control socket location or None
 
     Raises:
-        ValueError: If any paths do not exist on the remote host.
+        ValueError: If any paths do not exist as directories on the remote host.
     """
     if not paths:
         return
@@ -1533,9 +1533,11 @@ def _validate_remote_paths_exist(
     # Build a single SSH command to check all paths at once
     test_commands = []
     for path in unique_paths:
-        # Use test -e to check if path exists
+        # Use test -d to check if directory exists
+        # Escape single quotes in path using POSIX-safe method: ' becomes '"'"'
+        escaped_path = path.replace("'", "'\"'\"'")
         test_commands.append(
-            f"test -e '{path}' && echo 'EXISTS:{path}' || echo 'MISSING:{path}'"
+            f"test -d '{escaped_path}' && echo 'EXISTS:{path}' || echo 'MISSING:{path}'"
         )
 
     combined_command = " ; ".join(test_commands)
@@ -1547,7 +1549,7 @@ def _validate_remote_paths_exist(
     ssh_command.append(combined_command)
     ssh_command = " ".join(ssh_command)
 
-    logger.info("Validating mount paths exist on remote host", cmd=ssh_command)
+    logger.info("Validating mount directories exist on remote host", cmd=ssh_command)
     completed_process = subprocess.run(
         args=shlex.split(ssh_command),
         stdout=subprocess.PIPE,
@@ -1577,9 +1579,9 @@ def _validate_remote_paths_exist(
 
     if missing_paths:
         error_message = (
-            f"The following mount paths do not exist on {username}@{hostname}:\n"
+            f"The following mount paths do not exist as directories on {username}@{hostname}:\n"
             + "\n".join(f"  - {path}" for path in missing_paths)
-            + "\n\nPlease create these directories on the cluster or update your configuration."
+            + "\n\nMount paths must be directories. Please create these directories on the cluster or update your configuration."
         )
         logger.error("Mount validation failed", missing_paths=missing_paths)
         raise ValueError(error_message)
