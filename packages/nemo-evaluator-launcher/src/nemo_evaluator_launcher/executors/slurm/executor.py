@@ -602,6 +602,14 @@ def _create_slurm_sbatch_script(
     deployment_is_unsafe = False
     if cfg.deployment.type != "none":
         if checkpoint_path := cfg.deployment.get("checkpoint_path"):
+            warnings.warn(
+                "cfg.deployment.checkpoint_path will be deprecated in future versions. "
+                "Please use cfg.deployment.model_or_checkpoint instead and set it to "
+                "the path to the checkpoint inside the container. Remember to add the checkpoint "
+                "to the mounts list in the execution.mounts.deployment section as well.",
+                category=DeprecationWarning,
+                stacklevel=2,
+            )
             deployment_mounts_list.append(f"{checkpoint_path}:/checkpoint:ro")
         if cache_path := cfg.deployment.get("cache_path"):
             deployment_mounts_list.append(f"{cache_path}:/cache")

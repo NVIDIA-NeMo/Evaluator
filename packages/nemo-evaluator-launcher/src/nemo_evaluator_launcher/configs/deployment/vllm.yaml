@@ -15,7 +15,6 @@
 #
 type: vllm
 image: vllm/vllm-openai:latest
-checkpoint_path: ???
 served_model_name: ???
 port: 8000
 tensor_parallel_size: 8
@@ -30,7 +29,7 @@ endpoints:
   completions: /v1/completions
   health: /health
 
-command: vllm serve ${oc.select:deployment.hf_model_handle,/checkpoint}
+command: vllm serve ${oc.select:deployment.model_or_checkpoint,${oc.select:deployment.hf_model_handle,/checkpoint}}
   --tensor-parallel-size=${deployment.tensor_parallel_size}
   --pipeline-parallel-size=${deployment.pipeline_parallel_size}
   --data-parallel-size=${deployment.data_parallel_size}
