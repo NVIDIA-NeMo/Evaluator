@@ -66,7 +66,7 @@ def _parse_cli_args(args) -> dict:
     if args.output_dir:
         config["config"]["output_dir"] = args.output_dir
     if args.api_key_name:
-        config["target"]["api_endpoint"]["api_key"] = args.api_key_name
+        config["target"]["api_endpoint"]["api_key_name"] = args.api_key_name
     if args.model_id:
         config["target"]["api_endpoint"]["model_id"] = args.model_id
     if args.model_type:

@@ -14,11 +14,14 @@
 # limitations under the License.
 
 
+import warnings
 from enum import Enum
 from typing import Any, Dict, Optional
 
 import jinja2
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+
 
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.core.utils import get_jinja2_environment
@@ -45,7 +48,12 @@ class ApiEndpoint(BaseModel):
     model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     api_key: Optional[str] = Field(
-        description="Name of the env variable that stores API key for the model",
+        description="[DEPRECATED] Use 'api_key_name' instead. Name of the environment variable that stores API key for the model",
+        default=None,
+        deprecated=True,
+    )
+    api_key_name: Optional[str] = Field(
+        description="Name of the environment variable that stores API key for the model",
         default=None,
     )
     model_id: Optional[str] = Field(description="Name of the model", default=None)
@@ -60,6 +68,33 @@ class ApiEndpoint(BaseModel):
     adapter_config: Optional[AdapterConfig] = Field(
         description="Adapter configuration", default=None
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def handle_api_key_deprecation(cls, values):
+        """Handle deprecation of api_key in favor of api_key_name."""
+        if isinstance(values, dict):
+            api_key = values.get("api_key")
+            api_key_name = values.get("api_key_name")
+
+            # If both are set, raise an error
+            if api_key is not None and api_key_name is not None:
+                raise ValueError(
+                    "Both 'api_key' and 'api_key_name' are set. "
+                    "'api_key' is deprecated, please use only 'api_key_name'."
+                )
+
+            # If only api_key is set, copy to api_key_name and warn
+            if api_key is not None and api_key_name is None:
+                warnings.warn(
+                    "'api_key' is deprecated and will be removed in a future version. "
+                    "Please use 'api_key_name' instead.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                values["api_key_name"] = api_key
+
+        return values
 
 
 class EvaluationTarget(BaseModel):
