@@ -21,9 +21,16 @@ Let NeMo Evaluator Launcher handle both model deployment and evaluation orchestr
 
 ```bash
 # Launcher deploys model AND runs evaluation
+HOSTNAME=cluster-login-node.com
+ACCOUNT=my_account
+OUT_DIR=/absolute/path/on/login/node
+
 nemo-evaluator-launcher run \
-    --config packages/nemo-evaluator-launcher/examples/slurm_llama_3_1_8b_instruct.yaml \
-    -o deployment.checkpoint_path=/shared/models/llama-3.1-8b
+    --config packages/nemo-evaluator-launcher/examples/slurm_vllm_checkpoint_path.yaml \
+    -o execution.hostname=$HOSTNAME \
+    -o execution.output_dir=$OUT_DIR \
+    -o execution.account=$ACCOUNT \
+    -o deployment.checkpoint_path=/shared/models/llama-3.1-8b-it
 ```
 
 **When to use:**
@@ -44,9 +51,12 @@ You handle model deployment, NeMo Evaluator handles evaluation:
 **Launcher users with existing endpoints:**
 ```bash
 # Point launcher to your deployed model
+URL=http://localhost:8000/v1/chat/completions
+MODEL=your-model-name
 nemo-evaluator-launcher run \
-    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
-    -o target.api_endpoint.url=http://localhost:8080/v1/chat/completions
+    --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
+    -o target.api_endpoint.url=$URL \
+    -o target.api_endpoint.model_id=$MODEL
 ```
 
 **Core library users:**

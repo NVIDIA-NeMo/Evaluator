@@ -7,7 +7,7 @@ export NGC_API_KEY="${NGC_API_KEY:-your-api-key-here}"
 # Run evaluation against a hosted endpoint
 # [snippet-start]
 nemo-evaluator-launcher run \
-    --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml \
+    --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
     -o target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o target.api_endpoint.api_key_name=NGC_API_KEY \
     -o execution.output_dir=./results

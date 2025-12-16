@@ -245,6 +245,9 @@ def _configure_structlog(log_dir: str = None) -> None:
         structlog.processors.UnicodeDecoder(),
     ]
 
+    # Check if stderr is a TTY to determine if colors should be enabled
+    colors_enabled = sys.stderr.isatty()
+
     logging.config.dictConfig(
         {
             "version": 1,
@@ -257,7 +260,7 @@ def _configure_structlog(log_dir: str = None) -> None:
                         structlog.stdlib.ProcessorFormatter.remove_processors_meta,
                         custom_timestamper,
                         *shared_processors,
-                        MainConsoleRenderer(colors=True),
+                        MainConsoleRenderer(colors=colors_enabled),
                     ],
                 },
                 # Formatter for plain file output

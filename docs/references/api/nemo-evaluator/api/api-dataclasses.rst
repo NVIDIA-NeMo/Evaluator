@@ -22,7 +22,7 @@ Modeling Target
     EvaluationTarget
 
 Modeling Evaluation
----------------
+-------------------
 .. autosummary::
     :nosignatures:
     :recursive:

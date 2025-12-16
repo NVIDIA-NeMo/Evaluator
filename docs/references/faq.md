@@ -62,7 +62,7 @@ Yes. Preview the full resolved configuration without executing using `--dry-run`
 
 ```bash
 nemo-evaluator-launcher run \
-  --config packages/nemo-evaluator-launcher/examples/local_llama_3_1_8b_instruct.yaml --dry-run
+  --config packages/nemo-evaluator-launcher/examples/local_basic.yaml --dry-run
 ```
 
 Reference: {ref}`launcher-cli-dry-run`.
@@ -320,3 +320,23 @@ nemo-evaluator-launcher run --config-name your_config --dry-run
 Reference: {ref}`configuration-overview`.
 
 ---
+
+## **Can I use Evaluator without internet access?**
+
+Yes. NeMo Evaluator uses datasets and model checkpoints from [Hugging Face Hub](https://huggingface.co/docs/hub/en/index). If a requested dataset or model is not available locally, it is downloaded from the Hub at runtime.
+
+When working in an environment without internet access, configure a cache directory and pre-populate it with all required data before launching the evaluation.
+
+See the [example configuration](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/packages/nemo-evaluator-launcher/examples/slurm_vllm_advanced_hf_caching.yaml) with HF caching:
+
+```{literalinclude} ../../packages/nemo-evaluator-launcher/examples/slurm_vllm_advanced_hf_caching.yaml
+:language: yaml
+:start-after: "# [docs-start-snippet]"
+:end-before: "# [docs-end-snippet]"
+```
+
+Modify the example with actual paths for the mounts and run:
+
+```bash
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/slurm_vllm_advanced_hf_caching.yaml
+```

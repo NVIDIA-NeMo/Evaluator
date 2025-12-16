@@ -296,8 +296,8 @@ interceptor_config = {
     "name": "system_message",
     "enabled": True,
     "config": {
-        "custom_system_prompt": "You are a helpful AI assistant.",
-        "override_existing": True
+        "system_message": "You are a helpful AI assistant.",
+        "strategy": "prepend"  # Optional: "replace", "append", or "prepend" (default)
     }
 }
 ```
@@ -305,14 +305,16 @@ interceptor_config = {
 **Features:**
 
 - Custom system prompt injection
-- Prompt override capabilities
+- Multiple strategies for handling existing system messages (replace, prepend, append)
 - Consistent system behavior
+- Flexible system message composition
 
 **Use Cases:**
 
 - Modify system prompts for different evaluation scenarios
 - Test different prompt variations without code changes
-- Override existing system messages for consistent behavior
+- Replace existing system messages for consistent behavior
+- Prepend or append instructions to existing system messages
 - A/B testing of different prompt strategies
 
 ### 5. Endpoint Interceptor

@@ -18,7 +18,7 @@ Lepton launcher-orchestrated deployment:
 ```bash
 # Deploy and evaluate on Lepton AI
 nemo-evaluator-launcher run \
-    --config packages/nemo-evaluator-launcher/examples/lepton_vllm_llama_3_1_8b_instruct.yaml \
+    --config packages/nemo-evaluator-launcher/examples/lepton_vllm.yaml \
     -o deployment.checkpoint_path=meta-llama/Llama-3.1-8B-Instruct \
     -o deployment.lepton_config.resource_shape=gpu.1xh200
 ```
@@ -43,7 +43,7 @@ pip install leptonai
 lep login
 ```
 
-Refer to the [Lepton AI documentation](https://www.lepton.ai/docs) for authentication and workspace configuration.
+Refer to the [Lepton AI documentation](https://docs.nvidia.com/dgx-cloud/lepton/get-started) for authentication and workspace configuration.
 
 ## Deployment Types
 
@@ -51,7 +51,7 @@ Refer to the [Lepton AI documentation](https://www.lepton.ai/docs) for authentic
 
 High-performance inference with cloud scaling:
 
-Refer to the complete working configuration in `examples/lepton_vllm_llama_3_1_8b_instruct.yaml`. Key configuration sections:
+Refer to the complete working configuration in `packages/nemo-evaluator-launcher/examples/lepton_vllm.yaml`. Key configuration sections:
 
 ```yaml
 deployment:
@@ -59,7 +59,7 @@ deployment:
   checkpoint_path: meta-llama/Llama-3.1-8B-Instruct
   served_model_name: llama-3.1-8b-instruct
   tensor_parallel_size: 1
-  
+
   lepton_config:
     resource_shape: gpu.1xh200
     min_replicas: 1
@@ -82,14 +82,14 @@ The launcher automatically retrieves the endpoint URL after deployment, eliminat
 
 ### NIM Lepton Deployment
 
-Enterprise-grade serving in the cloud. Refer to the complete working configuration in `examples/lepton_nim_llama_3_1_8b_instruct.yaml`:
+Enterprise-grade serving in the cloud. Refer to the complete working configuration in `packages/nemo-evaluator-launcher/examples/lepton_nim.yaml`:
 
 ```yaml
 deployment:
   type: nim
   image: nvcr.io/nim/meta/llama-3.1-8b-instruct:1.8.6
   served_model_name: meta/llama-3.1-8b-instruct
-  
+
   lepton_config:
     resource_shape: gpu.1xh200
     min_replicas: 1
@@ -122,7 +122,7 @@ deployment:
     resource_shape: gpu.1xh200  # Example: Check your Lepton workspace for available shapes
 ```
 
-Refer to the [Lepton AI documentation](https://www.lepton.ai/docs) or check your workspace settings for available resource shapes in your environment.
+Refer to the [Lepton AI documentation](https://docs.nvidia.com/dgx-cloud/lepton/get-started) or check your workspace settings for available resource shapes in your environment.
 
 ## Configuration Examples
 
@@ -145,7 +145,7 @@ deployment:
 
 To evaluate against an already-deployed Lepton endpoint without creating a new deployment, use `deployment.type: none` and provide the endpoint URL in the `target.api_endpoint` section.
 
-Refer to `examples/lepton_none_llama_3_1_8b_instruct.yaml` for a complete example.
+Refer to `packages/nemo-evaluator-launcher/examples/lepton_basic.yaml` for a complete example.
 
 ### Tasks Requiring Dataset Mounting
 
@@ -238,7 +238,7 @@ lepton deployment logs <deployment-name>
 lepton resource list --available
 ```
 
-Refer to the [Lepton AI CLI documentation](https://www.lepton.ai/docs) for the complete command reference.
+Refer to the [Lepton AI CLI documentation](https://docs.nvidia.com/dgx-cloud/lepton/reference/cli/get-started/) for the complete command reference.
 
 ## Exporting Results
 

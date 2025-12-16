@@ -271,6 +271,9 @@ def _configure_structlog() -> None:
         structlog.processors.UnicodeDecoder(),
     ]
 
+    # Check if stderr is a TTY to determine if colors should be enabled
+    colors_enabled = sys.stderr.isatty()
+
     logging.config.dictConfig(
         {
             "version": 1,
@@ -281,7 +284,7 @@ def _configure_structlog() -> None:
                     "()": "structlog.stdlib.ProcessorFormatter",
                     "processors": [
                         *shared_processors,
-                        MainConsoleRenderer(colors=True),
+                        MainConsoleRenderer(colors=colors_enabled),
                     ],
                 },
                 # Formatter for plain file output

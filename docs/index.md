@@ -334,10 +334,10 @@ Quickstart <get-started/quickstart/index>
 :hidden:
 
 About Tutorials <tutorials/index>
+How-To Guides <tutorials/how-to/index>
 Tutorials for NeMo Framework <tutorials/nemo-fw/index>
 Evaluate an Existing Endpoint <tutorials/local-evaluation-of-existing-endpoint>
 :::
-
 
 <!--
 TODO: Add below once ready

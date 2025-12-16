@@ -240,16 +240,6 @@ def old_format_task_config():
     return {"config": {"params": {"temperature": 0.6}}}
 
 
-def test_start_deprecating_overrides():
-    """This test will start failing to remind of removing overrides"""
-    # What to do: remove all the respect of `overrides` in code.
-    from datetime import datetime
-
-    DEPRECATION_DATE = datetime(2025, 12, 1)
-    if datetime.now() > DEPRECATION_DATE:
-        pytest.fail(f"Deprectation of overrides should start {DEPRECATION_DATE}")
-
-
 def test_get_eval_factory_config_global_config_only(global_config):
     """Test with only global nemo_evaluator_config."""
     cfg = _cfg(global_config)
@@ -399,17 +389,13 @@ def test_get_eval_factory_command_pre_cmd_task_overrides_global(monkeypatch):
         {
             "deployment": {"type": "none"},
             "target": {"api_endpoint": {"url": "http://example/v1", "model_id": "m"}},
-            "evaluation": {
-                "pre_cmd": "export GLOBAL_X=1",
-                "nemo_evaluator_config": {"config": {"params": {}}},
-            },
+            "evaluation": {"pre_cmd": "export GLOBAL_X=1"},
         }
     )
     user_task_config = _cfg(
         {
             "name": "some_task",
             "pre_cmd": "export TASK_Y=2",
-            "nemo_evaluator_config": {"config": {"params": {}}},
         }
     )
     task_definition = {"endpoint_type": "chat", "task": "some_task"}
@@ -445,7 +431,6 @@ def test_get_eval_factory_command_pre_cmd_from_global_when_task_absent(monkeypat
             "target": {"api_endpoint": {"url": "http://example/v1", "model_id": "m"}},
             "evaluation": {
                 "pre_cmd": "echo hello",
-                "nemo_evaluator_config": {"config": {"params": {}}},
             },
         }
     )
@@ -468,7 +453,7 @@ def test_get_eval_factory_command_pre_cmd_empty_when_not_provided():
         {
             "deployment": {"type": "none"},
             "target": {"api_endpoint": {"url": "http://example/v1", "model_id": "m"}},
-            "evaluation": {"nemo_evaluator_config": {"config": {"params": {}}}},
+            "evaluation": {},
         }
     )
     user_task_config = _cfg({"name": "some_task"})
@@ -479,3 +464,15 @@ def test_get_eval_factory_command_pre_cmd_empty_when_not_provided():
     # Even with empty pre_cmd, the script is still created and sourced
     assert 'echo "" | base64 -d > pre_cmd.sh' in cmd_and_dbg.cmd
     assert "source pre_cmd.sh" in cmd_and_dbg.cmd
+
+
+def test_get_eval_factory_config_overrides_deprecated(global_config):
+    """Test with only global nemo_evaluator_config."""
+    cfg = _cfg(global_config)
+    user_task_config = _cfg({"overrides": {"foo": "bar"}})
+
+    with pytest.raises(
+        ValueError,
+        match="`overrides` field is no longer supported. Use `nemo_evaluator_config` field instead",
+    ):
+        _ = get_eval_factory_config(cfg, user_task_config)
