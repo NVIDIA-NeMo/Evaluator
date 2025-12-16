@@ -92,23 +92,29 @@ class EndpointInterceptor(RequestToResponseInterceptor):
 
         # replace choices[xx].message.content=None with empty string
         if raw_response.content is not None:
-            response_json = json.loads(raw_response.content)
-            if (
-                "choices" in response_json
-                and isinstance(response_json["choices"], list)
-                and len(response_json["choices"]) > 0
-            ):
-                for i, choice in enumerate(response_json["choices"]):
-                    if (
-                        "message" in choice
-                        and "content" in choice["message"]
-                        and choice["message"]["content"] is None
-                    ):
-                        self.logger.warning(
-                            f"choices[{i}].message.content is None, replacing with empty string"
-                        )
-                        choice["message"]["content"] = ""
-            raw_response._content = json.dumps(response_json).encode("utf-8")
+            try:
+                response_json = json.loads(raw_response.content)
+                if (
+                    "choices" in response_json
+                    and isinstance(response_json["choices"], list)
+                    and len(response_json["choices"]) > 0
+                ):
+                    for i, choice in enumerate(response_json["choices"]):
+                        if (
+                            "message" in choice
+                            and "content" in choice["message"]
+                            and choice["message"]["content"] is None
+                        ):
+                            self.logger.warning(
+                                f"choices[{i}].message.content is None, replacing with empty string"
+                            )
+                            choice["message"]["content"] = ""
+                raw_response._content = json.dumps(response_json).encode("utf-8")
+            except (json.JSONDecodeError, TypeError, KeyError) as e:
+                # If JSON parsing fails or unexpected structure, leave response unchanged
+                self.logger.debug(
+                    "Could not parse response as JSON, leaving unchanged", error=str(e)
+                )
 
         resp = AdapterResponse(
             r=raw_response,
