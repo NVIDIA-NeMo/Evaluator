@@ -218,6 +218,11 @@ html_theme_options = {
 
 html_extra_path = ["project.json", "versions1.json"]
 
+# -- Options for sphinx-llms-txt ----------------------------------------------
+# Keep linking to the Sphinx `_sources/` artifacts, but make the links relative
+# (avoid a leading `/`), so they work when the docs are hosted under a subpath.
+llms_txt_uri_template = "_sources/{docname}{suffix}{sourcelink_suffix}"
+
 # Note: JSON output configuration has been moved to the consolidated
 # json_output_settings dictionary above for better organization and new features!
 autosummary_ignore_module_all = True
