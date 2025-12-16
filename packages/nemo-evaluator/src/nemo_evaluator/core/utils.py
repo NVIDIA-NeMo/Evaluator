@@ -178,15 +178,13 @@ def validate_params_in_command(
     # Raise error if any unused params found
     all_unused = unused_standard + unused_extra
     if all_unused:
-        # Build list of valid params from command
         valid_standard = [f"config.params.{p}" for p in sorted(command_standard_params)]
         valid_extra = [f"config.params.extra.{p}" for p in sorted(command_extra_params)]
-        valid_params = valid_standard + valid_extra
-
         raise MisconfigurationError(
             f"Configuration contains parameter(s) that are not used in the command template: "
             f"{', '.join(all_unused)}. "
-            f"Valid params from command: {valid_params}"
+            f"Valid params from command: {valid_standard + valid_extra}. "
+            f"Remove the unused parameters or update the command template to use them."
         )
 
 
