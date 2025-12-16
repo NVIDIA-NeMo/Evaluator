@@ -1496,14 +1496,6 @@ def _collect_mount_paths(cfg: DictConfig) -> List[str]:
     for source_mnt in cfg.execution.get("mounts", {}).get("evaluation", {}).keys():
         mount_paths.append(source_mnt)
 
-    # Dataset mounts from tasks
-    tasks_mapping = load_tasks_mapping()
-    for task in cfg.evaluation.tasks:
-        task_definition = get_task_from_mapping(task.name, tasks_mapping)
-        if "NEMO_EVALUATOR_DATASET_DIR" in task_definition.get("required_env_vars", []):
-            if "dataset_dir" in task:
-                mount_paths.append(task["dataset_dir"])
-
     return mount_paths
 
 
