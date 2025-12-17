@@ -16,9 +16,20 @@ Install
 ```{button-ref} get-started/quickstart/launcher
 :ref-type: doc
 :color: secondary
-:class: sd-rounded-pill
+:class: sd-rounded-pill sd-mr-3
 
 Quickstart Evaluations
+```
+
+<!-- html below to allow for download attribute -->
+```{raw} html
+<p>
+  <a
+    class="sd-sphinx-override sd-btn sd-text-wrap sd-btn-secondary sd-rounded-pill reference external"
+    href="llms-full.txt"
+    download="llms-full.txt"
+  >Download Docs for LLM Context</a>
+</p>
 ```
 ````
 

@@ -939,6 +939,7 @@ docs = [
     { name = "sphinx-autodoc2" },
     { name = "sphinx-copybutton" },
     { name = "sphinx-design" },
+    { name = "sphinx-llms-txt" },
     { name = "sphinxcontrib-autoprogram" },
     { name = "sphinxcontrib-mermaid" },
     { name = "swagger-plugin-for-sphinx" },
@@ -958,6 +959,7 @@ docs = [
     { name = "sphinx-autodoc2" },
     { name = "sphinx-copybutton" },
     { name = "sphinx-design" },
+    { name = "sphinx-llms-txt" },
     { name = "sphinxcontrib-autoprogram" },
     { name = "sphinxcontrib-mermaid" },
     { name = "swagger-plugin-for-sphinx" },
@@ -1890,6 +1892,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/43/98/43313781f29e8c6c46fec907430310172d6f207e95e4fbea9289990fbbfe/sphinx_jinja2_compat-0.4.1.tar.gz", hash = "sha256:0188f0802d42c3da72997533b55a00815659a78d3f81d4b4747b1fb15a5728e6", size = 5222, upload-time = "2025-08-06T20:06:25.824Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ce/c8/4fd58c1000d7f8f5572c507f4550d2e2d9741e500c68eb2e3da17cbe5a85/sphinx_jinja2_compat-0.4.1-py3-none-any.whl", hash = "sha256:64ca0d46f0d8029fbe69ea612793a55e6ef0113e1bba4a85d402158c09f17a14", size = 8123, upload-time = "2025-08-06T20:06:24.947Z" },
+]
+
+[[package]]
+name = "sphinx-llms-txt"
+version = "0.7.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "sphinx", version = "8.1.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "sphinx", version = "8.2.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d6/00/997472aec9d177bd917024c45de4fba07d82d98e8ada7f556b511b5e559e/sphinx_llms_txt-0.7.0.tar.gz", hash = "sha256:006ddf3e4a0d825b28161c5240c3c06a460649d00dd2b034d54c5bc07cfa6c9e", size = 31576, upload-time = "2025-10-28T00:44:10.602Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8e/c1/ce0cc5b4e6866e0149d02da17f31b299739b655a0d9514ac7f44ad7f67d5/sphinx_llms_txt-0.7.0-py3-none-any.whl", hash = "sha256:1006aa9306bfba5ff04c2431823f75b9d06395f4f048ad8182a43457e71fbf33", size = 21831, upload-time = "2025-10-28T00:44:09.372Z" },
 ]
 
 [[package]]
