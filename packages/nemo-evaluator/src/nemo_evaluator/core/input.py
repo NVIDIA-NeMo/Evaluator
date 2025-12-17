@@ -428,7 +428,6 @@ For example: {framework_handlers[0]}.{evaluation_name}. "
     return evaluation
 
 
-
 def check_type_compatibility(evaluation: Evaluation):
     if (
         evaluation.config.supported_endpoint_types is not None
