@@ -417,7 +417,6 @@ class AdapterConfig(BaseModel):
             # Re-raise the original ValidationError
             raise
 
-
         interceptors = []
         post_eval_hooks = []
 
