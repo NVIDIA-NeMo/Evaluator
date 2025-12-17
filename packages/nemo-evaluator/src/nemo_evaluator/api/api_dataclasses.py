@@ -90,6 +90,8 @@ class ApiEndpoint(BaseModel):
                     stacklevel=2,
                 )
                 values["api_key_name"] = api_key
+                # Clear the deprecated field to avoid having both set
+                values["api_key"] = None
 
         return values
 
