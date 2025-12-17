@@ -1488,9 +1488,13 @@ class TestSlurmExecutorSystemCalls:
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
                 patch("subprocess.run", side_effect=mock_subprocess_run),
+                patch(
+                    "nemo_evaluator_launcher.executors.slurm.executor._open_master_connection"
+                ) as mock_open_connection,
             ):
                 # Configure mocks
                 mock_load_mapping.return_value = mock_tasks_mapping
+                mock_open_connection.return_value = "/tmp/socket"
 
                 def mock_get_task_side_effect(task_name, mapping):
                     for (harness, name), definition in mapping.items():
@@ -1594,11 +1598,11 @@ class TestSlurmExecutorSystemCalls:
                     debug="# Test command for mmlu_pro SSH failure",
                 )
 
-                # Should still succeed (SSH connection can be None)
-                invocation_id = SlurmExecutor.execute_eval(sample_config, dry_run=False)
-
-                assert isinstance(invocation_id, str)
-                assert len(invocation_id) == 16
+                with pytest.raises(
+                    RuntimeError,
+                    match="Failed to connect to the cluster slurm.example.com as user testuser. Please check your SSH configuration.",
+                ):
+                    SlurmExecutor.execute_eval(sample_config, dry_run=False)
 
         finally:
             # Clean up environment
