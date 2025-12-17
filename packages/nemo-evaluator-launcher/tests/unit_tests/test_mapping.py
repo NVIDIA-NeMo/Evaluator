@@ -24,6 +24,9 @@ from nemo_evaluator_launcher.common.mapping import (
     get_task_from_mapping,
     load_tasks_mapping,
 )
+from nemo_evaluator_launcher.common.container_metadata.intermediate_repr import (
+    TaskIntermediateRepresentation,
+)
 
 
 def test_process_mapping():
@@ -132,3 +135,39 @@ def test_load_tasks_mapping():
         assert "endpoint_type" in value
         assert key[0] == value["harness"]
         assert key[1] == value["task"]
+
+
+def test_load_tasks_mapping_from_container(monkeypatch):
+    """If from_container is provided, we should load tasks via container-metadata."""
+
+    container = "example.com/my-image:latest"
+
+    def _fake_load_tasks_from_container(arg):
+        assert arg == container
+        return [
+            TaskIntermediateRepresentation(
+                name="task_a",
+                description="desc",
+                harness="harness_x",
+                container=container,
+                container_digest="sha256:deadbeef",
+                defaults={"config": {"supported_endpoint_types": ["chat"]}},
+            )
+        ]
+
+    # If we accidentally fall back to packaged resources, fail fast.
+    monkeypatch.setattr(
+        "nemo_evaluator_launcher.common.mapping._load_packaged_resource",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("_load_packaged_resource should not be called")
+        ),
+    )
+    monkeypatch.setattr(
+        "nemo_evaluator_launcher.common.container_metadata.load_tasks_from_container",
+        _fake_load_tasks_from_container,
+    )
+
+    mapping = load_tasks_mapping(from_container=container)
+    assert ("harness_x", "task_a") in mapping
+    assert mapping[("harness_x", "task_a")]["container"] == container
+    assert mapping[("harness_x", "task_a")]["endpoint_type"] == "chat"

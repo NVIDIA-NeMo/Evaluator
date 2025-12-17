@@ -317,20 +317,53 @@ def _convert_irs_to_mapping_format(
 
 def load_tasks_mapping(
     mapping_toml: pathlib.Path | str | None = None,
+    *,
+    from_container: str | None = None,
 ) -> dict[tuple[str, str], dict]:
     """Load tasks mapping.
 
     The function obeys the following priority rules:
-    1. (Default) If mapping_toml is None -> try IRs first, then packaged mapping.
-    2. If mapping_toml is not None -> load mapping from this path (uses old mapping.toml path).
+    1. If from_container is not None -> extract framework.yml from that container and build mapping from the resulting IRs.
+    2. (Default) If mapping_toml is None -> try IRs first, then packaged mapping.
+    3. If mapping_toml is not None -> load mapping from this path (uses old mapping.toml path).
 
     Args:
         mapping_toml: Optional path to mapping TOML file (uses old mapping.toml path).
+        from_container: Optional container image identifier. If provided, tasks are loaded on-the-fly from that container.
 
     Returns:
         dict: Mapping of (harness_name, task_name) to dict holding their configuration.
 
     """
+    # Explicit container path: extract tasks from container and return mapping built from IRs.
+    # This bypasses both all_tasks_irs.yaml and mapping.toml.
+    if from_container is not None:
+        try:
+            # Optional dependency path; importing may fail in "IR-only" environments.
+            from nemo_evaluator_launcher.common.container_metadata import (
+                load_tasks_from_container,
+            )
+        except ModuleNotFoundError as e:
+            raise RuntimeError(
+                "Loading tasks from a container requires optional dependencies. "
+                "Install nemo-evaluator-launcher with the full runtime dependencies or use mapping.toml/IRs-on-disk instead."
+            ) from e
+
+        tasks = load_tasks_from_container(from_container)
+        if not tasks:
+            logger.warning(
+                "No tasks loaded from container via container-metadata",
+                container=from_container,
+            )
+        else:
+            logger.info(
+                "Loaded tasks from container via container-metadata",
+                container=from_container,
+                num_tasks=len(tasks),
+            )
+
+        return _convert_irs_to_mapping_format(tasks)
+
     # For explicit mapping_toml path, use old mapping.toml loading
     if mapping_toml is not None:
         with open(mapping_toml, "rb") as f:
