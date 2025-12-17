@@ -120,6 +120,7 @@ class EndpointModelConfig(BaseModel):
     is_base_url: Optional[bool] = Field(
         description="Whether the URL is a base URL", default=False
     )
+    # NOTE: we don't use extra yet but it will allow customization when needed
     extra: Optional[Dict[str, Any]] = Field(description="Extra", default=None)
 
 

@@ -146,6 +146,8 @@ def evaluate(
     signal.signal(signal.SIGINT, kill_all)
 
     def run_evaluation_core():
+        # NOTE: if we use NeMoEvaluatorClient on the benchmark side, there's no need to
+        # run adapter server for evaluation and we can use client model here
         if use_client_mode:
             logger.info("Using client mode - skipping adapter server")
             cmd = evaluation.render_command()
