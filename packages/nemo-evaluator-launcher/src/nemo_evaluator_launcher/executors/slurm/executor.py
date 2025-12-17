@@ -201,6 +201,22 @@ class SlurmExecutor(BaseExecutor):
                 hostname=cfg.execution.hostname,
                 socket=socket,
             )
+
+            if socket_or_none is None:
+                raise RuntimeError(
+                    f"Failed to connect to the cluster {cfg.execution.hostname} as user {cfg.execution.username}. "
+                    "Please check your SSH configuration."
+                )
+
+            # Validate that all mount paths exist on the remote host
+            mount_paths = _collect_mount_paths(cfg)
+            _validate_remote_paths_exist(
+                paths=mount_paths,
+                username=cfg.execution.username,
+                hostname=cfg.execution.hostname,
+                socket=socket_or_none,
+            )
+
             _make_remote_execution_output_dir(
                 dirpath=cfg.execution.output_dir,
                 username=cfg.execution.username,
@@ -1454,3 +1470,110 @@ def _generate_haproxy_srun_command(cfg, remote_task_subdir):
     s += "\n"
 
     return s
+
+
+def _collect_mount_paths(cfg: DictConfig) -> List[str]:
+    """Collect all mount source paths from the configuration.
+
+    Args:
+        cfg: The configuration object for the evaluation run.
+
+    Returns:
+        List of source paths that need to be mounted.
+    """
+    mount_paths = []
+
+    # Deployment mounts
+    if cfg.deployment.type != "none":
+        if checkpoint_path := cfg.deployment.get("checkpoint_path"):
+            mount_paths.append(checkpoint_path)
+        if cache_path := cfg.deployment.get("cache_path"):
+            mount_paths.append(cache_path)
+        for source_mnt in cfg.execution.get("mounts", {}).get("deployment", {}).keys():
+            mount_paths.append(source_mnt)
+
+    # Evaluation mounts
+    for source_mnt in cfg.execution.get("mounts", {}).get("evaluation", {}).keys():
+        mount_paths.append(source_mnt)
+
+    return mount_paths
+
+
+def _validate_remote_paths_exist(
+    paths: List[str],
+    username: str,
+    hostname: str,
+    socket: str | None,
+) -> None:
+    """Validate that all specified paths exist as directories on the remote host.
+
+    Args:
+        paths: List of directory paths to validate.
+        username: SSH username.
+        hostname: SSH hostname.
+        socket: control socket location or None
+
+    Raises:
+        ValueError: If any paths do not exist as directories on the remote host.
+    """
+    if not paths:
+        return
+
+    # Remove duplicates while preserving order
+    unique_paths = list(dict.fromkeys(paths))
+
+    # Build a single SSH command to check all paths at once
+    test_commands = []
+    for path in unique_paths:
+        # Use test -d to check if directory exists
+        # Escape single quotes in path using POSIX-safe method: ' becomes '"'"'
+        escaped_path = path.replace("'", "'\"'\"'")
+        test_commands.append(
+            f"test -d '{escaped_path}' && echo 'EXISTS:{path}' || echo 'MISSING:{path}'"
+        )
+
+    combined_command = " ; ".join(test_commands)
+
+    ssh_command = ["ssh"]
+    if socket is not None:
+        ssh_command.append(f"-S {socket}")
+    ssh_command.append(f"{username}@{hostname}")
+    ssh_command.append(combined_command)
+    ssh_command = " ".join(ssh_command)
+
+    logger.info("Validating mount directories exist on remote host", cmd=ssh_command)
+    completed_process = subprocess.run(
+        args=shlex.split(ssh_command),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    if completed_process.returncode != 0:
+        error_msg = (
+            completed_process.stderr.decode("utf-8")
+            if completed_process.stderr
+            else "Unknown error"
+        )
+        logger.error(
+            "Error validating remote paths",
+            code=completed_process.returncode,
+            msg=error_msg,
+        )
+        raise RuntimeError(f"Failed to validate remote paths: {error_msg}")
+
+    # Parse output to find missing paths
+    output = completed_process.stdout.decode("utf-8")
+    missing_paths = []
+    for line in output.strip().split("\n"):
+        if line.startswith("MISSING:"):
+            missing_path = line.replace("MISSING:", "")
+            missing_paths.append(missing_path)
+
+    if missing_paths:
+        error_message = (
+            f"The following mount paths do not exist as directories on {username}@{hostname}:\n"
+            + "\n".join(f"  - {path}" for path in missing_paths)
+            + "\n\nMount paths must be directories. Please create these directories on the cluster or update your configuration."
+        )
+        logger.error("Mount validation failed", missing_paths=missing_paths)
+        raise ValueError(error_message)

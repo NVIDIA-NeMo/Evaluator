@@ -76,9 +76,13 @@ class ApiEndpoint(BaseModel):
             api_key_name = values.get("api_key_name")
 
             # If both are set, raise an error
-            if api_key is not None and api_key_name is not None:
+            if (
+                api_key is not None
+                and api_key_name is not None
+                and api_key != api_key_name
+            ):
                 raise ValueError(
-                    "Both 'api_key' and 'api_key_name' are set. "
+                    "Both 'api_key' and 'api_key_name' are set and they are different. "
                     "'api_key' is deprecated, please use only 'api_key_name'."
                 )
 
@@ -93,6 +97,36 @@ class ApiEndpoint(BaseModel):
                 values["api_key_name"] = api_key
 
         return values
+
+
+class EndpointModelConfig(BaseModel):
+    """Supporting model configuration."""
+
+    model_id: str = Field(description="Name of the model")
+    url: str = Field(description="Url of the model")
+    api_key_name: Optional[str] = Field(
+        description="Name of the env variable that stores API key", default=None
+    )
+    stream: Optional[bool] = Field(
+        description="Whether responses should be streamed", default=None
+    )
+    type: Optional[EndpointType] = Field(
+        description="The type of the target", default=None
+    )
+    adapter_config: Optional[AdapterConfig] = Field(
+        description="Adapter configuration", default=None
+    )
+    temperature: Optional[float] = Field(description="Temperature", default=None)
+    top_p: Optional[float] = Field(description="Top p", default=None)
+    max_new_tokens: Optional[int] = Field(description="Max new tokens", default=None)
+    max_retries: Optional[int] = Field(description="Max retries", default=None)
+    parallelism: Optional[int] = Field(description="Parallelism", default=None)
+    request_timeout: Optional[int] = Field(description="Request timeout", default=None)
+    is_base_url: Optional[bool] = Field(
+        description="Whether the URL is a base URL", default=False
+    )
+    # NOTE: we don't use extra yet but it will allow customization when needed
+    extra: Optional[Dict[str, Any]] = Field(description="Extra", default=None)
 
 
 class EvaluationTarget(BaseModel):
