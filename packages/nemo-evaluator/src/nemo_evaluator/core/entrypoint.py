@@ -22,7 +22,6 @@ import yaml
 
 # Import logging to ensure centralized logging is configured
 from nemo_evaluator import logging  # noqa: F401
-from nemo_evaluator.adapters.adapter_config import AdapterConfig
 from nemo_evaluator.api.api_dataclasses import (
     EvaluationConfig,
     EvaluationMetadata,
@@ -162,10 +161,12 @@ def run(args) -> None:
         exit(0)
 
     metadata_cfg: EvaluationMetadata | None = run_config.get("metadata")
-    adapter_config = AdapterConfig.get_validated_config(run_config)
-    eval_cfg = EvaluationConfig(**run_config["config"])
-    target_cfg = EvaluationTarget(**run_config["target"])
-    target_cfg.api_endpoint.adapter_config = adapter_config
+
+    # Build evaluation configuration with framework defaults merged
+    evaluation = validate_configuration(run_config)
+
+    eval_cfg = EvaluationConfig(**evaluation.model_dump()["config"])
+    target_cfg = EvaluationTarget(**evaluation.model_dump()["target"])
 
     evaluate(eval_cfg=eval_cfg, target_cfg=target_cfg, metadata=metadata_cfg)
 
