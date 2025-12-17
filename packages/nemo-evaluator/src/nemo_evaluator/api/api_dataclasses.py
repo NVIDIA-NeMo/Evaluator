@@ -75,9 +75,13 @@ class ApiEndpoint(BaseModel):
             api_key_name = values.get("api_key_name")
 
             # If both are set, raise an error
-            if api_key is not None and api_key_name is not None:
+            if (
+                api_key is not None
+                and api_key_name is not None
+                and api_key != api_key_name
+            ):
                 raise ValueError(
-                    "Both 'api_key' and 'api_key_name' are set. "
+                    "Both 'api_key' and 'api_key_name' are set and they are different. "
                     "'api_key' is deprecated, please use only 'api_key_name'."
                 )
 
