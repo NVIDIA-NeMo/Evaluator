@@ -408,10 +408,10 @@ def load_harnesses_and_tasks_from_tasks_file(
 
     Public API function for loading Intermediate Representations (IRs).
 
-    Uses a simple swap strategy:
-    - If internal package is available, load internal IRs only
-    - Otherwise, load external IRs only
-    - No merging is performed
+    Uses a merge strategy:
+    - Always load external IRs (baseline)
+    - If internal package is available, load internal IRs and merge them on top
+      of external IRs (internal overrides external on (harness, task) key).
 
     Validates checksum consistency with current mapping.toml.
 
@@ -425,42 +425,58 @@ def load_harnesses_and_tasks_from_tasks_file(
     if tasks_file is not None:
         return _load_tasks_from_file(tasks_file)
 
-    # Try to load internal IRs first
-    try:
-        importlib.import_module("nemo_evaluator_launcher_internal")
-        logger.debug("Internal package available, loading internal IRs")
-        harnesses, tasks, verified = _load_irs_from_package(
-            "nemo_evaluator_launcher_internal.resources",
-            "all_tasks_irs.yaml",
-            "internal",
-        )
-        if tasks:
-            logger.info(
-                "Using internal IRs",
-                total_tasks=len(tasks),
-                mapping_verified=verified,
-            )
-            return harnesses, tasks, verified
-    except ImportError:
-        logger.debug("Internal package not available, will use external IRs")
-    except Exception as e:
-        logger.debug("Failed to load internal IRs, will use external IRs", error=str(e))
-
-    # Fallback to external IRs
+    # Load external IRs (baseline)
     logger.debug("Loading external IRs")
-    harnesses, tasks, verified = _load_irs_from_package(
+    external_harnesses, external_tasks, external_verified = _load_irs_from_package(
         "nemo_evaluator_launcher.resources",
         "all_tasks_irs.yaml",
         "external",
     )
 
-    if tasks:
-        logger.info(
-            "Using external IRs",
-            total_tasks=len(tasks),
-            mapping_verified=verified,
+    # Load internal IRs (optional overlay)
+    internal_harnesses: dict[str, HarnessIntermediateRepresentation] = {}
+    internal_tasks: list[TaskIntermediateRepresentation] = []
+    internal_verified = False
+    try:
+        importlib.import_module("nemo_evaluator_launcher_internal")
+        logger.debug("Internal package available, loading internal IRs")
+        internal_harnesses, internal_tasks, internal_verified = _load_irs_from_package(
+            "nemo_evaluator_launcher_internal.resources",
+            "all_tasks_irs.yaml",
+            "internal",
         )
-        return harnesses, tasks, verified
+    except ImportError:
+        logger.debug("Internal package not available, proceeding with external IRs only")
+    except Exception as e:
+        logger.debug("Failed to load internal IRs, proceeding with external IRs only", error=str(e))
+
+    # Merge (internal overrides external)
+    def _key(t: TaskIntermediateRepresentation) -> tuple[str, str]:
+        return (t.harness, t.name)
+
+    merged_tasks_by_key: dict[tuple[str, str], TaskIntermediateRepresentation] = {
+        _key(t): t for t in external_tasks
+    }
+    merged_tasks_by_key.update({_key(t): t for t in internal_tasks})
+    merged_tasks = list(merged_tasks_by_key.values())
+
+    merged_harnesses = dict(external_harnesses)
+    merged_harnesses.update(internal_harnesses)
+
+    if merged_tasks:
+        mapping_verified = (
+            (external_verified and internal_verified)
+            if internal_tasks
+            else external_verified
+        )
+        logger.info(
+            "Using merged IRs",
+            total_tasks=len(merged_tasks),
+            internal_tasks=len(internal_tasks),
+            external_tasks=len(external_tasks),
+            mapping_verified=mapping_verified,
+        )
+        return merged_harnesses, merged_tasks, mapping_verified
 
     # Final fallback: try default file path
     logger.debug("No IRs loaded from package resources, trying file path")

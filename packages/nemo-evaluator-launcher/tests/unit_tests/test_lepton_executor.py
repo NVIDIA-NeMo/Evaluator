@@ -271,15 +271,17 @@ class TestLeptonExecutorDryRun:
                 "nemo_evaluator_launcher.executors.lepton.executor.get_lepton_endpoint_url"
             ) as mock_get_url,
             patch(
-                "nemo_evaluator_launcher.executors.lepton.executor.get_task_from_mapping"
-            ) as mock_get_task,
+                "nemo_evaluator_launcher.executors.lepton.executor.get_task_definition_for_job"
+            ) as mock_get_task_def,
             patch("builtins.print") as mock_print,
         ):
             mock_load_mapping.return_value = mock_tasks_mapping
             mock_gen_id.return_value = "def67890"
 
-            def mock_get_task_side_effect(task_name, mapping):
+            def mock_get_task_def_side_effect(*_args, **kwargs):
                 # Handle task names with prefixes like "lm-eval.arc_challenge"
+                task_name = kwargs.get("task_query")
+                mapping = kwargs.get("base_mapping", {})
                 if "." in task_name:
                     task_name = task_name.split(".")[-1]
                 for (harness, name), definition in mapping.items():
@@ -287,7 +289,7 @@ class TestLeptonExecutorDryRun:
                         return definition
                 raise KeyError(f"Task {task_name} not found")
 
-            mock_get_task.side_effect = mock_get_task_side_effect
+            mock_get_task_def.side_effect = mock_get_task_def_side_effect
             mock_create_endpoint.return_value = True
             mock_wait_ready.return_value = True
             mock_get_url.return_value = "https://nim-mmlu-0-def678.lepton.run"
@@ -352,15 +354,17 @@ class TestLeptonExecutorDryRun:
                 "nemo_evaluator_launcher.executors.lepton.executor.get_lepton_endpoint_url"
             ) as mock_get_url,
             patch(
-                "nemo_evaluator_launcher.executors.lepton.executor.get_task_from_mapping"
-            ) as mock_get_task,
+                "nemo_evaluator_launcher.executors.lepton.executor.get_task_definition_for_job"
+            ) as mock_get_task_def,
             patch("builtins.print"),
         ):
             mock_load_mapping.return_value = mock_tasks_mapping
             mock_gen_id.return_value = "987fed65"
 
-            def mock_get_task_side_effect(task_name, mapping):
+            def mock_get_task_def_side_effect(*_args, **kwargs):
                 # Handle task names with prefixes like "lm-eval.arc_challenge"
+                task_name = kwargs.get("task_query")
+                mapping = kwargs.get("base_mapping", {})
                 if "." in task_name:
                     task_name = task_name.split(".")[-1]
                 for (harness, name), definition in mapping.items():
@@ -368,7 +372,7 @@ class TestLeptonExecutorDryRun:
                         return definition
                 raise KeyError(f"Task {task_name} not found")
 
-            mock_get_task.side_effect = mock_get_task_side_effect
+            mock_get_task_def.side_effect = mock_get_task_def_side_effect
             mock_create_endpoint.return_value = True
             mock_wait_ready.return_value = True
             mock_get_url.return_value = "https://vllm-mmlu-0-987fed.lepton.run"
@@ -424,15 +428,17 @@ class TestLeptonExecutorDryRun:
                 "nemo_evaluator_launcher.executors.lepton.executor.get_lepton_endpoint_url"
             ) as mock_get_url,
             patch(
-                "nemo_evaluator_launcher.executors.lepton.executor.get_task_from_mapping"
-            ) as mock_get_task,
+                "nemo_evaluator_launcher.executors.lepton.executor.get_task_definition_for_job"
+            ) as mock_get_task_def,
             patch("builtins.print"),
         ):
             mock_load_mapping.return_value = mock_tasks_mapping
             mock_gen_id.return_value = "fed98765"
 
-            def mock_get_task_side_effect(task_name, mapping):
+            def mock_get_task_def_side_effect(*_args, **kwargs):
                 # Handle task names with prefixes like "lm-eval.arc_challenge"
+                task_name = kwargs.get("task_query")
+                mapping = kwargs.get("base_mapping", {})
                 if "." in task_name:
                     task_name = task_name.split(".")[-1]
                 for (harness, name), definition in mapping.items():
@@ -440,7 +446,7 @@ class TestLeptonExecutorDryRun:
                         return definition
                 raise KeyError(f"Task {task_name} not found")
 
-            mock_get_task.side_effect = mock_get_task_side_effect
+            mock_get_task_def.side_effect = mock_get_task_def_side_effect
             mock_create_endpoint.return_value = True
             mock_wait_ready.return_value = True
             mock_get_url.return_value = "https://sglang-gsm8k-0-fed987.lepton.run"
@@ -600,8 +606,8 @@ class TestLeptonExecutorErrorHandling:
                 "nemo_evaluator_launcher.executors.lepton.executor.get_lepton_endpoint_url"
             ) as mock_get_url,
             patch(
-                "nemo_evaluator_launcher.executors.lepton.executor.get_task_from_mapping"
-            ) as mock_get_task,
+                "nemo_evaluator_launcher.executors.lepton.executor.get_task_definition_for_job"
+            ) as mock_get_task_def,
             patch(
                 "nemo_evaluator_launcher.executors.lepton.executor.create_lepton_job"
             ) as mock_create_job,
@@ -615,7 +621,7 @@ class TestLeptonExecutorErrorHandling:
             mock_create_endpoint.return_value = True
             mock_wait_ready.return_value = True
             mock_get_url.return_value = "https://test-endpoint.lepton.run"
-            mock_get_task.return_value = mock_tasks_mapping[("lm-eval", "mmlu_pro")]
+            mock_get_task_def.return_value = mock_tasks_mapping[("lm-eval", "mmlu_pro")]
             from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
 
             mock_get_command.return_value = CmdAndReadableComment(
@@ -861,8 +867,8 @@ class TestLeptonExecutorHelperFunctions:
                 "nemo_evaluator_launcher.executors.lepton.executor.get_lepton_endpoint_url"
             ) as mock_get_url,
             patch(
-                "nemo_evaluator_launcher.executors.lepton.executor.get_task_from_mapping"
-            ) as mock_get_task,
+                "nemo_evaluator_launcher.executors.lepton.executor.get_task_definition_for_job"
+            ) as mock_get_task_def,
             patch("builtins.print"),
         ):
             mock_load_mapping.return_value = mock_tasks_mapping
@@ -871,7 +877,9 @@ class TestLeptonExecutorHelperFunctions:
             mock_wait_ready.return_value = True
             mock_get_url.return_value = "https://test.lepton.run"
 
-            def mock_get_task_side_effect(task_name, mapping):
+            def mock_get_task_def_side_effect(*_args, **kwargs):
+                task_name = kwargs.get("task_query") or ""
+                mapping = kwargs.get("base_mapping", {})
                 if "very_long" in task_name:
                     return mapping[
                         ("lm-eval", "very_long_task_name_that_might_exceed_limits")
@@ -880,7 +888,7 @@ class TestLeptonExecutorHelperFunctions:
                     return mapping[("lm-eval", "dots")]
                 raise KeyError(f"Task {task_name} not found")
 
-            mock_get_task.side_effect = mock_get_task_side_effect
+            mock_get_task_def.side_effect = mock_get_task_def_side_effect
 
             # Execute dry run
             invocation_id = LeptonExecutor.execute_eval(cfg, dry_run=True)
@@ -936,8 +944,8 @@ class TestLeptonExecutorHelperFunctions:
                 "nemo_evaluator_launcher.executors.lepton.executor.generate_invocation_id"
             ) as mock_gen_id,
             patch(
-                "nemo_evaluator_launcher.executors.lepton.executor.get_task_from_mapping"
-            ) as mock_get_task,
+                "nemo_evaluator_launcher.executors.lepton.executor.get_task_definition_for_job"
+            ) as mock_get_task_def,
             patch(
                 "nemo_evaluator_launcher.executors.lepton.executor.create_lepton_job"
             ) as mock_create_job,
@@ -948,7 +956,7 @@ class TestLeptonExecutorHelperFunctions:
         ):
             mock_load_mapping.return_value = mock_tasks_mapping
             mock_gen_id.return_value = "longjob1"
-            mock_get_task.return_value = mock_tasks_mapping[
+            mock_get_task_def.return_value = mock_tasks_mapping[
                 (
                     "lm-eval",
                     "extremely_long_task_name_that_should_be_truncated_properly",
@@ -1278,8 +1286,8 @@ class TestLeptonExecutorKillJob:
                 "nemo_evaluator_launcher.executors.lepton.executor.get_lepton_endpoint_url"
             ) as mock_get_url,
             patch(
-                "nemo_evaluator_launcher.executors.lepton.executor.get_task_from_mapping"
-            ) as mock_get_task,
+                "nemo_evaluator_launcher.executors.lepton.executor.get_task_definition_for_job"
+            ) as mock_get_task_def,
             patch(
                 "nemo_evaluator_launcher.executors.lepton.executor.create_lepton_job"
             ) as mock_create_job,
@@ -1291,7 +1299,9 @@ class TestLeptonExecutorKillJob:
             mock_load.return_value = mock_tasks_mapping
             mock_gen_id.return_value = "abc12345"
 
-            def get_task_side_effect(task_name, mapping):
+            def get_task_def_side_effect(*_args, **kwargs):
+                task_name = kwargs.get("task_query")
+                mapping = kwargs.get("base_mapping", {})
                 if "." in task_name:
                     task_name = task_name.split(".")[-1]
                 for (harness, name), definition in mapping.items():
@@ -1299,7 +1309,7 @@ class TestLeptonExecutorKillJob:
                         return definition
                 raise KeyError(f"Task {task_name} not found")
 
-            mock_get_task.side_effect = get_task_side_effect
+            mock_get_task_def.side_effect = get_task_def_side_effect
             mock_create_endpoint.return_value = True
             mock_wait.return_value = True
             mock_get_url.side_effect = lambda ep: f"https://{ep}.lepton.run"
