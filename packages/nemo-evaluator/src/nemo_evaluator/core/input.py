@@ -518,9 +518,7 @@ def validate_configuration(run_config: dict) -> Evaluation:
     from nemo_evaluator.core.utils import deep_update
 
     # Start with framework defaults (may be None or {})
-    merged_adapter = (
-        framework_adapter_config.copy() if framework_adapter_config else {}
-    )
+    merged_adapter = framework_adapter_config.copy() if framework_adapter_config else {}
 
     # Merge user overrides on top
     if user_adapter_config is not None:
