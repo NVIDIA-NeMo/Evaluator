@@ -24,6 +24,7 @@ from nemo_evaluator_launcher.common.container_metadata import (
 )
 from nemo_evaluator_launcher.common.logging_utils import logger
 
+
 def _load_packaged_resource(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
     """Deprecated: mapping.toml support was removed in favor of packaged IRs."""
     raise RuntimeError(
@@ -263,6 +264,17 @@ def _convert_irs_to_mapping_format(
             "endpoint_type": endpoint_type,
             "container": task_ir.container,
         }
+
+        # Backwards-compatible enhancement: keep full IR defaults available.
+        # Existing code uses flattened defaults (excluding `config`) below; this adds a
+        # new field without changing any existing keys.
+        mapping[key]["defaults"] = defaults
+
+        # Backwards-compatible enhancement: surface command explicitly if present.
+        # Note: `command` is already included via flattened defaults merge, but
+        # keeping it explicit makes downstream usage simpler.
+        if "command" in defaults and "command" not in mapping[key]:
+            mapping[key]["command"] = defaults["command"]
 
         # Add description if available
         if task_ir.description:

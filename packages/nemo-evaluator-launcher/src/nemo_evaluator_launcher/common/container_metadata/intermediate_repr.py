@@ -446,9 +446,14 @@ def load_harnesses_and_tasks_from_tasks_file(
             "internal",
         )
     except ImportError:
-        logger.debug("Internal package not available, proceeding with external IRs only")
+        logger.debug(
+            "Internal package not available, proceeding with external IRs only"
+        )
     except Exception as e:
-        logger.debug("Failed to load internal IRs, proceeding with external IRs only", error=str(e))
+        logger.debug(
+            "Failed to load internal IRs, proceeding with external IRs only",
+            error=str(e),
+        )
 
     # Merge (internal overrides external)
     def _key(t: TaskIntermediateRepresentation) -> tuple[str, str]:
