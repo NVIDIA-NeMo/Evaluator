@@ -516,27 +516,26 @@ def validate_configuration(run_config: dict) -> Evaluation:
     )
 
     # Merge framework adapter config with user adapter config and convert to AdapterConfig object
-    if user_adapter_config is not None or framework_adapter_config is not None:
-        from nemo_evaluator.core.utils import deep_update
+    # Always create adapter config (with defaults if neither user nor framework specifies one)
+    from nemo_evaluator.core.utils import deep_update
 
-        # Start with framework defaults (may be None or {})
-        merged_adapter = (
-            framework_adapter_config.copy() if framework_adapter_config else {}
+    # Start with framework defaults (may be None or {})
+    merged_adapter = framework_adapter_config.copy() if framework_adapter_config else {}
+
+    # Merge user overrides on top
+    if user_adapter_config is not None:
+        merged_adapter = deep_update(
+            merged_adapter, user_adapter_config, skip_nones=True
         )
 
-        # Merge user overrides on top
-        if user_adapter_config is not None:
-            merged_adapter = deep_update(
-                merged_adapter, user_adapter_config, skip_nones=True
-            )
+    # Build eval_dict for AdapterConfig.get_validated_config
+    eval_dict = evaluation.model_dump()
+    eval_dict["target"]["api_endpoint"]["adapter_config"] = merged_adapter
 
-        # Build eval_dict for AdapterConfig.get_validated_config
-        eval_dict = evaluation.model_dump()
-        eval_dict["target"]["api_endpoint"]["adapter_config"] = merged_adapter
-
-        # Convert merged config (framework defaults + user overrides/legacy params) to AdapterConfig
-        adapter_cfg_obj = AdapterConfig.get_validated_config(eval_dict)
-        evaluation.target.api_endpoint.adapter_config = adapter_cfg_obj
+    # Convert merged config (framework defaults + user overrides/legacy params) to AdapterConfig
+    # This will create default config with caching enabled if merged_adapter is empty
+    adapter_cfg_obj = AdapterConfig.get_validated_config(eval_dict)
+    evaluation.target.api_endpoint.adapter_config = adapter_cfg_obj
 
     check_type_compatibility(evaluation)
     _logger.info(f"User-invoked config: \n{yaml.dump(evaluation.model_dump())}")
