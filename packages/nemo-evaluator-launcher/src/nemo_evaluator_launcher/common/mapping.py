@@ -503,3 +503,51 @@ def get_task_from_mapping(query: str, mapping: dict[Any, Any]) -> dict[Any, Any]
             f"invalid query={repr(query)} for task mapping,"
             " it must contain exactly zero or one occurrence of '.' character"
         )
+
+
+def _minimal_task_definition(task_query: str, *, container: str) -> dict[str, Any]:
+    """Create a minimal task definition when task is not known in any mapping."""
+    if task_query.count(".") == 1:
+        harness, task = task_query.split(".")
+    else:
+        harness, task = "", task_query
+
+    # Default to chat; most configs and endpoints use chat unless explicitly known.
+    return {
+        "task": task,
+        "harness": harness,
+        "endpoint_type": "chat",
+        "container": container,
+    }
+
+
+def get_task_definition_for_job(
+    *,
+    task_query: str,
+    base_mapping: dict[Any, Any],
+    container: str | None = None,
+) -> dict[str, Any]:
+    """Resolve task definition for a job.
+
+    If a container is provided, tasks are loaded from that container (using
+    container-metadata) and we attempt to resolve the task from that mapping.
+    If the task isn't found in the container, we warn and return a minimal
+    task definition so submission can proceed.
+    """
+    if not container:
+        return get_task_from_mapping(task_query, base_mapping)
+
+    # `load_tasks_mapping(from_container=...)` uses container-metadata extraction,
+    # which already has its own caching (e.g., caching extracted framework.yml).
+    container_mapping = load_tasks_mapping(from_container=container)
+
+    try:
+        return get_task_from_mapping(task_query, container_mapping)
+    except ValueError as e:
+        logger.warning(
+            "Task not found in provided container; proceeding with minimal task definition",
+            task=task_query,
+            container=container,
+            error=str(e),
+        )
+        return _minimal_task_definition(task_query, container=container)

@@ -19,13 +19,14 @@ import copy
 
 import pytest
 
-from nemo_evaluator_launcher.common.mapping import (
-    _process_mapping,
-    get_task_from_mapping,
-    load_tasks_mapping,
-)
 from nemo_evaluator_launcher.common.container_metadata.intermediate_repr import (
     TaskIntermediateRepresentation,
+)
+from nemo_evaluator_launcher.common.mapping import (
+    _process_mapping,
+    get_task_definition_for_job,
+    get_task_from_mapping,
+    load_tasks_mapping,
 )
 
 
@@ -171,3 +172,27 @@ def test_load_tasks_mapping_from_container(monkeypatch):
     assert ("harness_x", "task_a") in mapping
     assert mapping[("harness_x", "task_a")]["container"] == container
     assert mapping[("harness_x", "task_a")]["endpoint_type"] == "chat"
+
+
+def test_get_task_definition_for_job_container_missing_task_warns(monkeypatch, caplog):
+    """If task is missing in provided container, we warn and proceed."""
+
+    container = "example.com/my-image:latest"
+    base_mapping = {("base", "base_task"): {"task": "base_task", "harness": "base"}}
+
+    # Force container mapping to not include the task.
+    monkeypatch.setattr(
+        "nemo_evaluator_launcher.common.mapping.load_tasks_mapping",
+        lambda *args, **kwargs: {},
+    )
+
+    td = get_task_definition_for_job(
+        task_query="ruler-1m-chat",
+        base_mapping=base_mapping,
+        container=container,
+    )
+
+    assert td["task"] == "ruler-1m-chat"
+    assert td["container"] == container
+    assert td["endpoint_type"] == "chat"
+    assert "Task not found in provided container" in caplog.text
