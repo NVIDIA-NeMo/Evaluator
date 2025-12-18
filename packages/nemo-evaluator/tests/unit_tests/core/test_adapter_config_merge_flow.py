@@ -43,7 +43,7 @@ class TestAdapterConfigMergeFlow:
             "simple_evals": {
                 "framework_name": "simple_evals",
                 "pkg_name": "simple_evals",
-                "command": "echo test",
+                "command": "echo {{ config.params.task }} {{ config.params.limit_samples | default('') }}",
                 "config": {
                     "type": "mmlu_pro",
                     "params": {"task": "mmlu_pro"},
@@ -149,7 +149,7 @@ class TestAdapterConfigMergeFlow:
             "simple_evals": {
                 "framework_name": "simple_evals",
                 "pkg_name": "simple_evals",
-                "command": "echo test",
+                "command": "echo {{ config.params.task }} {{ config.params.limit_samples | default('') }}",
                 "config": {"type": "mmlu_pro", "params": {"task": "mmlu_pro"}},
                 "target": {
                     "api_endpoint": {
@@ -211,7 +211,7 @@ class TestAdapterConfigMergeFlow:
             "simple_evals": {
                 "framework_name": "simple_evals",
                 "pkg_name": "simple_evals",
-                "command": "echo test",
+                "command": "echo {{ config.params.task }} {{ config.params.limit_samples | default('') }}",
                 "config": {"type": "mmlu_pro", "params": {"task": "mmlu_pro"}},
                 "target": {
                     "api_endpoint": {
@@ -286,7 +286,7 @@ class TestAdapterConfigMergeFlow:
             "simple_evals": {
                 "framework_name": "simple_evals",
                 "pkg_name": "simple_evals",
-                "command": "echo test",
+                "command": "echo {{ config.params.task }} {{ config.params.limit_samples | default('') }}",
                 "config": {"type": "mmlu_pro", "params": {"task": "mmlu_pro"}},
                 "target": {
                     "api_endpoint": {
@@ -367,7 +367,7 @@ class TestAdapterConfigMergeFlow:
             "simple_evals": {
                 "framework_name": "simple_evals",
                 "pkg_name": "simple_evals",
-                "command": "echo test",
+                "command": "echo {{ config.params.task }} {{ config.params.limit_samples | default('') }}",
                 "config": {"type": "test_task", "params": {"task": "test_task"}},
                 "target": {
                     "api_endpoint": {
@@ -443,7 +443,7 @@ class TestAdapterConfigMergeFlow:
             "simple_evals": {
                 "framework_name": "simple_evals",
                 "pkg_name": "simple_evals",
-                "command": "echo test",
+                "command": "echo {{ config.params.task }} {{ config.params.limit_samples | default('') }}",
                 "config": {"type": "mmlu_pro", "params": {"task": "mmlu_pro"}},
                 "target": {
                     "api_endpoint": {
