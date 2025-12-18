@@ -103,6 +103,9 @@ class LegacyAdapterConfig(BaseModel):
     include_json: bool = Field(default=True, description="Include JSON in responses")
 
     # Model fields that are also part of AdapterConfig
+    mode: str = Field(
+        default="server", description="Adapter mode: 'server' or 'client'"
+    )
     generate_html_report: bool = Field(default=True, description="Generate HTML report")
     html_report_size: int | None = Field(default=5, description="HTML report size")
     tracking_requests_stats: bool = Field(
@@ -196,49 +199,6 @@ class AdapterConfig(BaseModel):
     )
 
     @classmethod
-    def get_legacy_defaults(cls) -> dict[str, Any]:
-        """Get default values for legacy configuration parameters."""
-        return {
-            "generate_html_report": True,
-            "html_report_size": 5,
-            "tracking_requests_stats": True,
-            "caching_dir": None,
-            "log_failed_requests": cls.model_fields["log_failed_requests"].default,
-            "endpoint_type": cls.model_fields["endpoint_type"].default,
-            "mode": cls.model_fields["mode"].default,
-            # Boolean defaults for optional features
-            "use_caching": True,
-            "save_responses": False,
-            "save_requests": False,
-            "use_system_prompt": False,
-            "use_omni_info": False,
-            "use_request_logging": False,
-            "use_nvcf": False,
-            "use_response_logging": False,
-            "use_reasoning": False,
-            "process_reasoning_traces": False,
-            "use_progress_tracking": False,
-            "use_raise_client_errors": False,
-            "include_json": True,
-            "custom_system_prompt": None,
-            "output_dir": None,
-            "params_to_add": None,
-            "params_to_remove": None,
-            "params_to_rename": None,
-            "max_logged_requests": None,
-            "max_logged_responses": None,
-            "max_saved_requests": None,
-            "max_saved_responses": None,
-            "start_reasoning_token": None,
-            "include_if_reasoning_not_finished": None,
-            "track_reasoning": None,
-            "end_reasoning_token": "</think>",
-            "progress_tracking_url": None,
-            "progress_tracking_interval": 1,
-            "logging_aggregated_stats_interval": 100,
-        }
-
-    @classmethod
     def get_validated_config(cls, run_config: dict[str, Any]) -> "AdapterConfig":
         """Extract and validate adapter configuration from run_config.
 
@@ -270,9 +230,9 @@ class AdapterConfig(BaseModel):
         )
 
         # Validate that legacy parameters are not mixed with interceptors
-        legacy_defaults = cls.get_legacy_defaults()
+        legacy_params = set(LegacyAdapterConfig.model_fields.keys())
         model_fields = set(cls.model_fields.keys())
-        legacy_only_params = set(legacy_defaults.keys()) - model_fields
+        legacy_only_params = legacy_params - model_fields
 
         for config_name, config in [
             ("global_adapter_config", global_cfg),
