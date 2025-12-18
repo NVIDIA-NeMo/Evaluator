@@ -19,7 +19,6 @@ import hashlib
 import json
 import os
 import pathlib
-import platform
 import tarfile
 import tempfile
 from typing import Optional
@@ -479,65 +478,6 @@ def find_file_matching_pattern_in_image_layers(
         authenticator.authenticate(repository=repository)
         # Don't fail here - authentication may fail but public containers can still be accessed
 
-    def _normalize_arch(a: object) -> Optional[str]:
-        if not a:
-            return None
-        s = str(a).lower()
-        if s in {"amd64", "x86_64"}:
-            return "amd64"
-        if s in {"arm64", "aarch64"}:
-            return "arm64"
-        return None
-
-    def _preferred_arch() -> str:
-        return _normalize_arch(platform.machine()) or "amd64"
-
-    def _pick_platform_manifest_digest(index_manifest: dict) -> Optional[str]:
-        manifests = index_manifest.get("manifests")
-        if not isinstance(manifests, list) or not manifests:
-            return None
-
-        pref = _preferred_arch()
-        # Prefer linux + preferred arch, then linux/amd64, then linux/arm64, then first digest.
-        best_score = 10_000
-        best_digest: Optional[str] = None
-
-        for m in manifests:
-            if not isinstance(m, dict):
-                continue
-            plat = m.get("platform") or {}
-            if not isinstance(plat, dict):
-                continue
-            os_name = str(plat.get("os") or "").lower()
-            arch = _normalize_arch(plat.get("architecture"))
-            digest = m.get("digest")
-            if not (isinstance(digest, str) and digest.startswith("sha256:")):
-                continue
-            if os_name != "linux" or not arch:
-                continue
-
-            score = 100
-            if arch == pref:
-                score = 0
-            elif arch == "amd64":
-                score = 10
-            elif arch == "arm64":
-                score = 20
-
-            if score < best_score:
-                best_score = score
-                best_digest = digest
-
-        if best_digest:
-            return best_digest
-
-        for m in manifests:
-            if isinstance(m, dict):
-                d = m.get("digest")
-                if isinstance(d, str) and d.startswith("sha256:"):
-                    return d
-        return None
-
     # Get top-level manifest and digest (tag may resolve to multi-arch index).
     top_manifest, top_digest = authenticator.get_manifest_and_digest(
         repository, reference
@@ -554,13 +494,30 @@ def find_file_matching_pattern_in_image_layers(
     if isinstance(top_manifest, dict) and isinstance(
         top_manifest.get("manifests"), list
     ):
-        platform_digest = _pick_platform_manifest_digest(top_manifest)
-        if platform_digest:
-            resolved, _ = authenticator.get_manifest_and_digest(
-                repository, platform_digest
-            )
-            if resolved:
-                manifest = resolved
+        # Prefer registry's default platform resolver by requesting a single-image manifest.
+        single_accept = (
+            "application/vnd.oci.image.manifest.v1+json, "
+            "application/vnd.docker.distribution.manifest.v2+json"
+        )
+        resolved, _ = authenticator.get_manifest_and_digest(
+            repository, reference, accept=single_accept
+        )
+        if resolved:
+            manifest = resolved
+
+        # If a registry still returns an index (ignoring Accept), fall back to the
+        # first digest entry for layer inspection. This does NOT affect recorded digests.
+        if isinstance(manifest, dict) and isinstance(manifest.get("manifests"), list):
+            for m in manifest.get("manifests") or []:
+                if isinstance(m, dict):
+                    d = m.get("digest")
+                    if isinstance(d, str) and d.startswith("sha256:"):
+                        resolved2, _ = authenticator.get_manifest_and_digest(
+                            repository, d, accept=single_accept
+                        )
+                        if resolved2:
+                            manifest = resolved2
+                        break
 
     # Check cache with digest validation (always validates digest)
     # For pattern searches, use pattern-based cache key (not resolved path)

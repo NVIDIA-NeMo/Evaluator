@@ -217,7 +217,9 @@ def _read_docker_credentials(registry_url: str) -> Optional[Tuple[str, str]]:
         return None
 
 
-def _retry_without_auth(url: str, stream: bool = False) -> Optional[requests.Response]:
+def _retry_without_auth(
+    url: str, stream: bool = False, accept: Optional[str] = None
+) -> Optional[requests.Response]:
     """Retry HTTP request without authentication headers.
 
     Used for accessing public containers that may return 401/403 even for
@@ -231,7 +233,7 @@ def _retry_without_auth(url: str, stream: bool = False) -> Optional[requests.Res
         Response object if successful, None otherwise
     """
     temp_session = requests.Session()
-    temp_session.headers.update({"Accept": _DOCKER_MANIFEST_MEDIA_TYPE})
+    temp_session.headers.update({"Accept": accept or _DOCKER_MANIFEST_MEDIA_TYPE})
     response = temp_session.get(url, stream=stream)
     if response.status_code == 200:
         return response
@@ -254,7 +256,7 @@ class DockerRegistryHandler(ABC):
         pass
 
     def get_manifest_and_digest(
-        self, repository: str, reference: str
+        self, repository: str, reference: str, accept: Optional[str] = None
     ) -> Tuple[Optional[Dict], Optional[str]]:
         """Get the manifest and digest for a specific image reference.
 
@@ -276,7 +278,12 @@ class DockerRegistryHandler(ABC):
             url = f"https://{self.registry_url}/v2/{repository}/manifests/{reference}"
             logger.debug("Fetching manifest", url=url)
 
-            response = self.session.get(url)
+            accept_header = (
+                accept
+                or self.session.headers.get("Accept")
+                or _DOCKER_MANIFEST_MEDIA_TYPE
+            )
+            response = self.session.get(url, headers={"Accept": accept_header})
 
             if response.status_code == 200:
                 manifest = response.json()
@@ -322,7 +329,7 @@ class DockerRegistryHandler(ABC):
                     "Got 401/403, retrying without authentication",
                     status_code=response.status_code,
                 )
-                retry_response = _retry_without_auth(url)
+                retry_response = _retry_without_auth(url, accept=accept_header)
                 if retry_response:
                     manifest = retry_response.json()
                     headers_dict = dict(retry_response.headers)
