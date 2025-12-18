@@ -16,9 +16,12 @@
 # How to use:
 #
 # 1. copy this file locally or clone the repository
-# 2. set the NIM image and model name for your model
-# 3. (optional) comment out limit_samples to run on the full dataset
-# 4. run `nemo-evaluator-launcher run --config path/to/local_nim.yaml`
+# 2. set the required values (marked with ???) or pass them via -o cli arguments, e.g.
+#    -o execution.hostname=my-cluster.com -o execution.output_dir=/path/on/cluster -o execution.account=my-account
+# 3. (optional) run with 10 samples for quick testing:
+#    -o ++evaluation.nemo_evaluator_config.config.params.limit_samples=10
+# 4. run full evaluation:
+#    nemo-evaluator-launcher run --config path/to/slurm_nim.yaml
 #
 # ⚠️  WARNING:
 #     Always run full evaluations (without limit_samples) for actual benchmark results.
@@ -27,33 +30,26 @@
 #     report benchmark performance.
 
 defaults:
-  - execution: local
+  - execution: slurm/default
   - deployment: nim
   - _self_
 
+# SLURM execution configuration
 execution:
-  output_dir: nel-results-nim
+  hostname: ???  # SLURM headnode hostname (required)
+  account: ???  # SLURM account (required)
+  output_dir: ???  # ABSOLUTE path on cluster (required)
   env_vars:
     deployment:
-      NGC_API_KEY: ${oc.env:NGC_API_KEY}  # Required for NIM container authentication
-  mounts:
-    deployment:
-      /path/to/nim/cache: /opt/nim/.cache  # Mount NIM cache directory
+      NGC_API_KEY: ${oc.env:NGC_API_KEY}
 
 # NIM deployment configuration
-# Note: model_id is auto-derived from deployment.served_model_name
 deployment:
   image: nvcr.io/nim/nvidia/nvidia-nemotron-nano-9b-v2:latest
   served_model_name: nvidia/nvidia-nemotron-nano-9b-v2
 
 # Specify the benchmarks to evaluate
 evaluation:
-  nemo_evaluator_config:
-    config:
-      params:
-        request_timeout: 3600
-        parallelism: 4
-        limit_samples: 10  # TEST ONLY: remove for full evaluation
   tasks:
     - name: ifeval
     - name: gsm8k
