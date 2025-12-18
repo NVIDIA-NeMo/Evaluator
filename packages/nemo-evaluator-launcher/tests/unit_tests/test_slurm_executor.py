@@ -85,8 +85,8 @@ class TestSlurmExecutorFeatures:
                 "nemo_evaluator_launcher.executors.slurm.executor.load_tasks_mapping"
             ) as mock_load_tasks,
             patch(
-                "nemo_evaluator_launcher.executors.slurm.executor.get_task_from_mapping"
-            ) as mock_get_task,
+                "nemo_evaluator_launcher.executors.slurm.executor.get_task_definition_for_job"
+            ) as mock_get_task_def,
             patch(
                 "nemo_evaluator_launcher.common.helpers.get_eval_factory_command"
             ) as mock_get_eval_command,
@@ -95,7 +95,7 @@ class TestSlurmExecutorFeatures:
             ) as mock_get_model_name,
         ):
             mock_load_tasks.return_value = {}
-            mock_get_task.return_value = {
+            mock_get_task_def.return_value = {
                 "container": "test-eval-container:latest",
                 "required_env_vars": [],
                 "endpoint_type": "openai",
@@ -110,7 +110,7 @@ class TestSlurmExecutorFeatures:
 
             yield {
                 "load_tasks_mapping": mock_load_tasks,
-                "get_task_from_mapping": mock_get_task,
+                "get_task_definition_for_job": mock_get_task_def,
                 "get_eval_factory_command": mock_get_eval_command,
                 "get_served_model_name": mock_get_model_name,
             }
@@ -802,8 +802,8 @@ class TestSlurmExecutorDryRun:
                     "nemo_evaluator_launcher.executors.slurm.executor.load_tasks_mapping"
                 ) as mock_load_mapping,
                 patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_task_from_mapping"
-                ) as mock_get_task,
+                    "nemo_evaluator_launcher.executors.slurm.executor.get_task_definition_for_job"
+                ) as mock_get_task_def,
                 patch(
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
@@ -812,14 +812,15 @@ class TestSlurmExecutorDryRun:
                 # Configure mocks
                 mock_load_mapping.return_value = mock_tasks_mapping
 
-                def mock_get_task_side_effect(task_name, mapping):
-                    # Return matching task definition
-                    for (harness, name), definition in mapping.items():
+                def mock_get_task_def_side_effect(*_args, **kwargs):
+                    task_name = kwargs.get("task_query")
+                    mapping = kwargs.get("base_mapping", {})
+                    for (_harness, name), definition in mapping.items():
                         if name == task_name:
                             return definition
                     raise KeyError(f"Task {task_name} not found")
 
-                mock_get_task.side_effect = mock_get_task_side_effect
+                mock_get_task_def.side_effect = mock_get_task_def_side_effect
                 from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
 
                 mock_get_command.return_value = CmdAndReadableComment(
@@ -862,18 +863,20 @@ class TestSlurmExecutorDryRun:
                 "nemo_evaluator_launcher.executors.slurm.executor.load_tasks_mapping"
             ) as mock_load_mapping,
             patch(
-                "nemo_evaluator_launcher.executors.slurm.executor.get_task_from_mapping"
-            ) as mock_get_task,
+                "nemo_evaluator_launcher.executors.slurm.executor.get_task_definition_for_job"
+            ) as mock_get_task_def,
         ):
             mock_load_mapping.return_value = mock_tasks_mapping
 
-            def mock_get_task_side_effect(task_name, mapping):
-                for (harness, name), definition in mapping.items():
+            def mock_get_task_def_side_effect(*_args, **kwargs):
+                task_name = kwargs.get("task_query")
+                mapping = kwargs.get("base_mapping", {})
+                for (_harness, name), definition in mapping.items():
                     if name == task_name:
                         return definition
                 raise KeyError(f"Task {task_name} not found")
 
-            mock_get_task.side_effect = mock_get_task_side_effect
+            mock_get_task_def.side_effect = mock_get_task_def_side_effect
 
             # Should raise ValueError for missing API key
             with pytest.raises(
@@ -896,18 +899,20 @@ class TestSlurmExecutorDryRun:
                     "nemo_evaluator_launcher.executors.slurm.executor.load_tasks_mapping"
                 ) as mock_load_mapping,
                 patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_task_from_mapping"
-                ) as mock_get_task,
+                    "nemo_evaluator_launcher.executors.slurm.executor.get_task_definition_for_job"
+                ) as mock_get_task_def,
             ):
                 mock_load_mapping.return_value = mock_tasks_mapping
 
-                def mock_get_task_side_effect(task_name, mapping):
-                    for (harness, name), definition in mapping.items():
+                def mock_get_task_def_side_effect(*_args, **kwargs):
+                    task_name = kwargs.get("task_query")
+                    mapping = kwargs.get("base_mapping", {})
+                    for (_harness, name), definition in mapping.items():
                         if name == task_name:
                             return definition
                     raise KeyError(f"Task {task_name} not found")
 
-                mock_get_task.side_effect = mock_get_task_side_effect
+                mock_get_task_def.side_effect = mock_get_task_def_side_effect
 
                 # Should raise ValueError for missing environment variable TASK_VALUE
                 # (which is the value of TASK_ENV in the configuration)
@@ -938,8 +943,8 @@ class TestSlurmExecutorDryRun:
                     "nemo_evaluator_launcher.executors.slurm.executor.load_tasks_mapping"
                 ) as mock_load_mapping,
                 patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_task_from_mapping"
-                ) as mock_get_task,
+                    "nemo_evaluator_launcher.executors.slurm.executor.get_task_definition_for_job"
+                ) as mock_get_task_def,
                 patch(
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
@@ -947,13 +952,15 @@ class TestSlurmExecutorDryRun:
             ):
                 mock_load_mapping.return_value = mock_tasks_mapping
 
-                def mock_get_task_side_effect(task_name, mapping):
-                    for (harness, name), definition in mapping.items():
+                def mock_get_task_def_side_effect(*_args, **kwargs):
+                    task_name = kwargs.get("task_query")
+                    mapping = kwargs.get("base_mapping", {})
+                    for (_harness, name), definition in mapping.items():
                         if name == task_name:
                             return definition
                     raise KeyError(f"Task {task_name} not found")
 
-                mock_get_task.side_effect = mock_get_task_side_effect
+                mock_get_task_def.side_effect = mock_get_task_def_side_effect
                 from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
 
                 mock_get_command.return_value = CmdAndReadableComment(
@@ -992,8 +999,8 @@ class TestSlurmExecutorDryRun:
                     "nemo_evaluator_launcher.executors.slurm.executor.load_tasks_mapping"
                 ) as mock_load_mapping,
                 patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_task_from_mapping"
-                ) as mock_get_task,
+                    "nemo_evaluator_launcher.executors.slurm.executor.get_task_definition_for_job"
+                ) as mock_get_task_def,
                 patch(
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
@@ -1001,13 +1008,15 @@ class TestSlurmExecutorDryRun:
             ):
                 mock_load_mapping.return_value = mock_tasks_mapping
 
-                def mock_get_task_side_effect(task_name, mapping):
-                    for (harness, name), definition in mapping.items():
+                def mock_get_task_def_side_effect(*_args, **kwargs):
+                    task_name = kwargs.get("task_query")
+                    mapping = kwargs.get("base_mapping", {})
+                    for (_harness, name), definition in mapping.items():
                         if name == task_name:
                             return definition
                     raise KeyError(f"Task {task_name} not found")
 
-                mock_get_task.side_effect = mock_get_task_side_effect
+                mock_get_task_def.side_effect = mock_get_task_def_side_effect
                 from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
 
                 mock_get_command.return_value = CmdAndReadableComment(
@@ -1482,8 +1491,8 @@ class TestSlurmExecutorSystemCalls:
                     "nemo_evaluator_launcher.executors.slurm.executor.load_tasks_mapping"
                 ) as mock_load_mapping,
                 patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_task_from_mapping"
-                ) as mock_get_task,
+                    "nemo_evaluator_launcher.executors.slurm.executor.get_task_definition_for_job"
+                ) as mock_get_task_def,
                 patch(
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
@@ -1496,13 +1505,15 @@ class TestSlurmExecutorSystemCalls:
                 mock_load_mapping.return_value = mock_tasks_mapping
                 mock_open_connection.return_value = "/tmp/socket"
 
-                def mock_get_task_side_effect(task_name, mapping):
-                    for (harness, name), definition in mapping.items():
+                def mock_get_task_def_side_effect(*_args, **kwargs):
+                    task_name = kwargs.get("task_query")
+                    mapping = kwargs.get("base_mapping", {})
+                    for (_harness, name), definition in mapping.items():
                         if name == task_name:
                             return definition
                     raise KeyError(f"Task {task_name} not found")
 
-                mock_get_task.side_effect = mock_get_task_side_effect
+                mock_get_task_def.side_effect = mock_get_task_def_side_effect
                 from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
 
                 mock_get_command.return_value = CmdAndReadableComment(
@@ -1574,8 +1585,8 @@ class TestSlurmExecutorSystemCalls:
                     "nemo_evaluator_launcher.executors.slurm.executor.load_tasks_mapping"
                 ) as mock_load_mapping,
                 patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_task_from_mapping"
-                ) as mock_get_task,
+                    "nemo_evaluator_launcher.executors.slurm.executor.get_task_definition_for_job"
+                ) as mock_get_task_def,
                 patch(
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
@@ -1584,13 +1595,15 @@ class TestSlurmExecutorSystemCalls:
                 # Configure mocks
                 mock_load_mapping.return_value = mock_tasks_mapping
 
-                def mock_get_task_side_effect(task_name, mapping):
-                    for (harness, name), definition in mapping.items():
+                def mock_get_task_def_side_effect(*_args, **kwargs):
+                    task_name = kwargs.get("task_query")
+                    mapping = kwargs.get("base_mapping", {})
+                    for (_harness, name), definition in mapping.items():
                         if name == task_name:
                             return definition
                     raise KeyError(f"Task {task_name} not found")
 
-                mock_get_task.side_effect = mock_get_task_side_effect
+                mock_get_task_def.side_effect = mock_get_task_def_side_effect
                 from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
 
                 mock_get_command.return_value = CmdAndReadableComment(
@@ -1659,8 +1672,8 @@ class TestSlurmExecutorSystemCalls:
                     "nemo_evaluator_launcher.executors.slurm.executor.load_tasks_mapping"
                 ) as mock_load_mapping,
                 patch(
-                    "nemo_evaluator_launcher.executors.slurm.executor.get_task_from_mapping"
-                ) as mock_get_task,
+                    "nemo_evaluator_launcher.executors.slurm.executor.get_task_definition_for_job"
+                ) as mock_get_task_def,
                 patch(
                     "nemo_evaluator_launcher.executors.slurm.executor.get_eval_factory_command"
                 ) as mock_get_command,
@@ -1669,13 +1682,15 @@ class TestSlurmExecutorSystemCalls:
                 # Configure mocks
                 mock_load_mapping.return_value = mock_tasks_mapping
 
-                def mock_get_task_side_effect(task_name, mapping):
-                    for (harness, name), definition in mapping.items():
+                def mock_get_task_def_side_effect(*_args, **kwargs):
+                    task_name = kwargs.get("task_query")
+                    mapping = kwargs.get("base_mapping", {})
+                    for (_harness, name), definition in mapping.items():
                         if name == task_name:
                             return definition
                     raise KeyError(f"Task {task_name} not found")
 
-                mock_get_task.side_effect = mock_get_task_side_effect
+                mock_get_task_def.side_effect = mock_get_task_def_side_effect
                 from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
 
                 mock_get_command.return_value = CmdAndReadableComment(

@@ -34,7 +34,7 @@ from nemo_evaluator_launcher.common.execdb import (
 from nemo_evaluator_launcher.common.helpers import get_eval_factory_command
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.mapping import (
-    get_task_from_mapping,
+    get_task_definition_for_job,
     load_tasks_mapping,
 )
 from nemo_evaluator_launcher.common.printing_utils import red
@@ -293,8 +293,10 @@ class LeptonExecutor(BaseExecutor):
                             return
 
                         # Construct the full endpoint URL
-                        task_definition = get_task_from_mapping(
-                            task.name, tasks_mapping
+                        task_definition = get_task_definition_for_job(
+                            task_query=task.name,
+                            base_mapping=tasks_mapping,
+                            container=task.get("container"),
                         )
                         task_endpoint_type = task_definition["endpoint_type"]
                         endpoint_path = cfg.deployment.endpoints[task_endpoint_type]
@@ -383,7 +385,11 @@ class LeptonExecutor(BaseExecutor):
 
             # Submit each evaluation task as a Lepton job
             for idx, task in enumerate(cfg.evaluation.tasks):
-                task_definition = get_task_from_mapping(task.name, tasks_mapping)
+                task_definition = get_task_definition_for_job(
+                    task_query=task.name,
+                    base_mapping=tasks_mapping,
+                    container=task.get("container"),
+                )
 
                 # Create job ID and Lepton job name (max 36 chars)
                 job_id = generate_job_id(invocation_id, idx)
@@ -889,9 +895,13 @@ def _dry_run_lepton(
 ) -> None:
     print("DRY RUN: Lepton job configurations prepared")
     try:
-        # validate tasks
+        # validate tasks (container overrides are supported)
         for task in cfg.evaluation.tasks:
-            get_task_from_mapping(task.name, tasks_mapping)
+            _ = get_task_definition_for_job(
+                task_query=task.name,
+                base_mapping=tasks_mapping,
+                container=task.get("container"),
+            )
 
         # nice-to-have checks (existing endpoint URL or endpoints mapping)
         if getattr(cfg.deployment, "type", None) == "none":
@@ -909,7 +919,11 @@ def _dry_run_lepton(
         else:
             endpoints_cfg = getattr(cfg.deployment, "endpoints", {}) or {}
             for task in cfg.evaluation.tasks:
-                td = get_task_from_mapping(task.name, tasks_mapping)
+                td = get_task_definition_for_job(
+                    task_query=task.name,
+                    base_mapping=tasks_mapping,
+                    container=task.get("container"),
+                )
                 etype = td.get("endpoint_type")
                 if etype not in endpoints_cfg:
                     raise ValueError(
@@ -928,7 +942,11 @@ def _dry_run_lepton(
             getattr(cfg, "target", {}).get("api_endpoint", {}), "api_key_name", None
         )
         for task in cfg.evaluation.tasks:
-            td = get_task_from_mapping(task.name, tasks_mapping)
+            td = get_task_definition_for_job(
+                task_query=task.name,
+                base_mapping=tasks_mapping,
+                container=task.get("container"),
+            )
             required = td.get("required_env_vars", []) or []
             for var in required:
                 # Skip NEMO_EVALUATOR_DATASET_DIR as it's handled by dataset mounting logic

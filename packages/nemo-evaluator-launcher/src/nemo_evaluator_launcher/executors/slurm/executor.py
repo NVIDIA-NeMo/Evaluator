@@ -49,7 +49,7 @@ from nemo_evaluator_launcher.common.helpers import (
 )
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.mapping import (
-    get_task_from_mapping,
+    get_task_definition_for_job,
     load_tasks_mapping,
 )
 from nemo_evaluator_launcher.common.printing_utils import bold, cyan, grey, red
@@ -109,7 +109,11 @@ class SlurmExecutor(BaseExecutor):
                 (local_task_subdir / "artifacts").mkdir()
 
                 # resolve eval image and pass directly via task override
-                task_definition = get_task_from_mapping(task.name, tasks_mapping)
+                task_definition = get_task_definition_for_job(
+                    task_query=task.name,
+                    base_mapping=tasks_mapping,
+                    container=task.get("container"),
+                )
                 eval_image = task_definition["container"]
                 if "container" in task:
                     eval_image = task["container"]
@@ -523,7 +527,11 @@ def _create_slurm_sbatch_script(
     """
     # get task from mapping, overrides, urls
     tasks_mapping = load_tasks_mapping()
-    task_definition = get_task_from_mapping(task.name, tasks_mapping)
+    task_definition = get_task_definition_for_job(
+        task_query=task.name,
+        base_mapping=tasks_mapping,
+        container=task.get("container"),
+    )
 
     # TODO(public release): convert to template
     s = "#!/bin/bash\n"

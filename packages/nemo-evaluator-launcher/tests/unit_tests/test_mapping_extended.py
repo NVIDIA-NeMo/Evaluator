@@ -27,7 +27,6 @@ else:
     pass
 
 from nemo_evaluator_launcher.common.mapping import (
-    CACHE_FILENAME,
     _load_packaged_resource,
     _process_mapping,
     get_task_from_mapping,
@@ -39,21 +38,19 @@ class TestPackagedResourceFunctionality:
     """Test packaged resource functions."""
 
     def test_load_packaged_resource_success(self):
-        """Test loading packaged resource successfully."""
-        # This will use the actual packaged resource
-        result = _load_packaged_resource(CACHE_FILENAME)
-        assert isinstance(result, dict)
-        assert len(result) > 0
+        """mapping.toml resources are no longer supported (IR-only mode)."""
+        with pytest.raises(RuntimeError, match="mapping\\.toml is no longer supported"):
+            _ = _load_packaged_resource("mapping.toml")
 
     def test_load_packaged_resource_missing_file(self):
-        """Test loading missing packaged resource."""
-        with pytest.raises(RuntimeError, match="Failed to load nonexistent.toml"):
-            _load_packaged_resource("nonexistent.toml")
+        """mapping.toml resources are no longer supported (IR-only mode)."""
+        with pytest.raises(RuntimeError, match="mapping\\.toml is no longer supported"):
+            _ = _load_packaged_resource("nonexistent.toml")
 
     def test_load_packaged_resource_custom_package(self):
-        """Test loading from custom package."""
-        with pytest.raises((RuntimeError, ModuleNotFoundError)):
-            _load_packaged_resource(CACHE_FILENAME, "nonexistent.package")
+        """mapping.toml resources are no longer supported (IR-only mode)."""
+        with pytest.raises(RuntimeError, match="mapping\\.toml is no longer supported"):
+            _ = _load_packaged_resource("mapping.toml", "nonexistent.package")
 
 
 class TestProcessMappingEdgeCases:
@@ -178,14 +175,14 @@ class TestLoadTasksMappingEdgeCases:
     """Test edge cases in load_tasks_mapping."""
 
     def test_load_tasks_mapping_from_file(self, tmpdir):
-        """Test loading mapping from specific file."""
+        """Test that mapping.toml loading is no longer supported."""
         tmpdir_path = pathlib.Path(str(tmpdir))
         mapping_file = tmpdir_path / "custom_mapping.toml"
         mapping_toml = "[custom_harness]\ncontainer = 'custom:latest'\n[custom_harness.tasks.chat]\ncustom_task = {}\n"
         mapping_file.write_text(mapping_toml, encoding="utf-8")
 
-        result = load_tasks_mapping(mapping_toml=mapping_file)
-        assert ("custom_harness", "custom_task") in result
+        with pytest.raises(ValueError, match="mapping_toml is no longer supported"):
+            _ = load_tasks_mapping(mapping_toml=mapping_file)
 
     def test_load_tasks_mapping_internal_package_import_error(self):
         """Test loading mapping when internal package import fails."""

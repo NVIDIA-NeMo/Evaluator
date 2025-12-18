@@ -13,18 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import importlib
 import pathlib
-import sys
-from importlib import resources
 from typing import Any
 
 import yaml
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
 
 from nemo_evaluator_launcher.common.container_metadata import (
     TaskIntermediateRepresentation,
@@ -32,35 +24,12 @@ from nemo_evaluator_launcher.common.container_metadata import (
 )
 from nemo_evaluator_launcher.common.logging_utils import logger
 
-# Configuration constants
-CACHE_FILENAME = "mapping.toml"
-INTERNAL_RESOURCES_PKG = "nemo_evaluator_launcher_internal.resources"
 
-
-def _load_packaged_resource(
-    resource_name: str, pkg_name: str = "nemo_evaluator_launcher.resources"
-) -> dict[str, Any]:
-    """Load a resource from the packaged resources.
-
-    Args:
-        resource_name: The name of the resource to load.
-    """
-    try:
-        resource_toml: dict[str, Any] = {}
-        with resources.files(pkg_name).joinpath(resource_name).open("rb") as f:
-            resource_toml = tomllib.load(f)
-        logger.info(
-            "Loaded resource from packaged file", resource=resource_name, pkg=pkg_name
-        )
-        return resource_toml
-    except (OSError, tomllib.TOMLDecodeError) as e:
-        logger.error(
-            "Failed to load from packaged file",
-            resource=resource_name,
-            pkg=pkg_name,
-            error=str(e),
-        )
-        raise RuntimeError(f"Failed to load {resource_name} from packaged file") from e
+def _load_packaged_resource(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+    """Deprecated: mapping.toml support was removed in favor of packaged IRs."""
+    raise RuntimeError(
+        "mapping.toml is no longer supported. Use packaged IRs (all_tasks_irs.yaml) instead."
+    )
 
 
 def _process_mapping(mapping_toml: dict) -> dict:
@@ -296,6 +265,17 @@ def _convert_irs_to_mapping_format(
             "container": task_ir.container,
         }
 
+        # Backwards-compatible enhancement: keep full IR defaults available.
+        # Existing code uses flattened defaults (excluding `config`) below; this adds a
+        # new field without changing any existing keys.
+        mapping[key]["defaults"] = defaults
+
+        # Backwards-compatible enhancement: surface command explicitly if present.
+        # Note: `command` is already included via flattened defaults merge, but
+        # keeping it explicit makes downstream usage simpler.
+        if "command" in defaults and "command" not in mapping[key]:
+            mapping[key]["command"] = defaults["command"]
+
         # Add description if available
         if task_ir.description:
             mapping[key]["description"] = task_ir.description
@@ -317,95 +297,71 @@ def _convert_irs_to_mapping_format(
 
 def load_tasks_mapping(
     mapping_toml: pathlib.Path | str | None = None,
+    *,
+    from_container: str | None = None,
 ) -> dict[tuple[str, str], dict]:
     """Load tasks mapping.
 
     The function obeys the following priority rules:
-    1. (Default) If mapping_toml is None -> try IRs first, then packaged mapping.
-    2. If mapping_toml is not None -> load mapping from this path (uses old mapping.toml path).
+    1. If from_container is not None -> extract framework.yml from that container and build mapping from the resulting IRs.
+    2. Otherwise -> load packaged IRs (all_tasks_irs.yaml) and build mapping from those IRs.
 
     Args:
-        mapping_toml: Optional path to mapping TOML file (uses old mapping.toml path).
+        mapping_toml: Deprecated. mapping.toml is no longer supported (IR-only mode).
+        from_container: Optional container image identifier. If provided, tasks are loaded on-the-fly from that container.
 
     Returns:
         dict: Mapping of (harness_name, task_name) to dict holding their configuration.
 
     """
-    # For explicit mapping_toml path, use old mapping.toml loading
     if mapping_toml is not None:
-        with open(mapping_toml, "rb") as f:
-            local_mapping = _process_mapping(tomllib.load(f))
+        raise ValueError(
+            "mapping_toml is no longer supported. This project has switched to packaged IRs (all_tasks_irs.yaml)."
+        )
 
-        # Merge internal mapping if available
+    # Explicit container path: extract tasks from container and return mapping built from IRs.
+    # This bypasses packaged IRs.
+    if from_container is not None:
         try:
-            importlib.import_module("nemo_evaluator_launcher_internal")
-            logger.debug("Internal package available, loading internal mapping")
-            internal_mapping = _process_mapping(
-                _load_packaged_resource(CACHE_FILENAME, INTERNAL_RESOURCES_PKG)
+            # Optional dependency path; importing may fail in "IR-only" environments.
+            from nemo_evaluator_launcher.common.container_metadata import (
+                load_tasks_from_container,
             )
-            local_mapping.update(internal_mapping)
+        except ModuleNotFoundError as e:
+            raise RuntimeError(
+                "Loading tasks from a container requires optional dependencies. "
+                "Install nemo-evaluator-launcher with the full runtime dependencies."
+            ) from e
+
+        tasks = load_tasks_from_container(from_container)
+        if not tasks:
+            logger.warning(
+                "No tasks loaded from container via container-metadata",
+                container=from_container,
+            )
+        else:
             logger.info(
-                "Successfully merged internal mapping",
-                internal_tasks=len(internal_mapping),
+                "Loaded tasks from container via container-metadata",
+                container=from_container,
+                num_tasks=len(tasks),
             )
-        except ImportError:
-            logger.debug("Internal package not available, using external mapping only")
-        except Exception as e:
-            logger.warning("Failed to load internal mapping", error=str(e))
 
-        return local_mapping
+        return _convert_irs_to_mapping_format(tasks)
 
-    # Default path: try IRs first, fall back to mapping.toml
-    local_mapping: dict = {}
-    irs_loaded = False
-
-    # Try to load from IRs
     try:
         tasks, mapping_verified = load_tasks_from_tasks_file()
-        if tasks:
-            local_mapping = _convert_irs_to_mapping_format(tasks)
-            irs_loaded = True
-            if not mapping_verified:
-                logger.warning(
-                    "Loaded tasks from IRs but mapping.toml checksum mismatch detected",
-                )
-            else:
-                logger.info(
-                    "Loaded tasks from IRs",
-                    num_tasks=len(tasks),
-                    mapping_verified=mapping_verified,
-                )
     except Exception as e:
-        logger.debug(
-            "Failed to load from IRs, falling back to mapping.toml",
-            error=str(e),
-        )
+        raise RuntimeError("Failed to load tasks from packaged IRs") from e
 
-    # Fall back to old mapping.toml loading if IRs not available
-    if not irs_loaded:
-        logger.debug("Loading tasks from mapping.toml (IRs not available)")
-        local_mapping = _process_mapping(_load_packaged_resource(CACHE_FILENAME))
+    if not tasks:
+        raise RuntimeError("No tasks available in packaged IRs (all_tasks_irs.yaml)")
 
-    # Merge internal mapping if available (for both IR and mapping.toml paths)
-    # Note: Internal IRs are already included when IRs are loaded, but we still merge
-    # internal mapping.toml to get any additional harness metadata or entries
-    try:
-        importlib.import_module("nemo_evaluator_launcher_internal")
-        logger.debug("Internal package available, loading internal mapping")
-        internal_mapping = _process_mapping(
-            _load_packaged_resource(CACHE_FILENAME, INTERNAL_RESOURCES_PKG)
-        )
-        local_mapping.update(internal_mapping)
-        logger.info(
-            "Successfully merged internal mapping",
-            internal_tasks=len(internal_mapping),
-        )
-    except ImportError:
-        logger.debug("Internal package not available, using external mapping only")
-    except Exception as e:
-        logger.warning("Failed to load internal mapping", error=str(e))
-
-    return local_mapping
+    logger.info(
+        "Loaded tasks from packaged IRs",
+        num_tasks=len(tasks),
+        mapping_verified=mapping_verified,
+    )
+    return _convert_irs_to_mapping_format(tasks)
 
 
 def get_task_from_mapping(query: str, mapping: dict[Any, Any]) -> dict[Any, Any]:
@@ -470,3 +426,51 @@ def get_task_from_mapping(query: str, mapping: dict[Any, Any]) -> dict[Any, Any]
             f"invalid query={repr(query)} for task mapping,"
             " it must contain exactly zero or one occurrence of '.' character"
         )
+
+
+def _minimal_task_definition(task_query: str, *, container: str) -> dict[str, Any]:
+    """Create a minimal task definition when task is not known in any mapping."""
+    if task_query.count(".") == 1:
+        harness, task = task_query.split(".")
+    else:
+        harness, task = "", task_query
+
+    # Default to chat; most configs and endpoints use chat unless explicitly known.
+    return {
+        "task": task,
+        "harness": harness,
+        "endpoint_type": "chat",
+        "container": container,
+    }
+
+
+def get_task_definition_for_job(
+    *,
+    task_query: str,
+    base_mapping: dict[Any, Any],
+    container: str | None = None,
+) -> dict[str, Any]:
+    """Resolve task definition for a job.
+
+    If a container is provided, tasks are loaded from that container (using
+    container-metadata) and we attempt to resolve the task from that mapping.
+    If the task isn't found in the container, we warn and return a minimal
+    task definition so submission can proceed.
+    """
+    if not container:
+        return get_task_from_mapping(task_query, base_mapping)
+
+    # `load_tasks_mapping(from_container=...)` uses container-metadata extraction,
+    # which already has its own caching (e.g., caching extracted framework.yml).
+    container_mapping = load_tasks_mapping(from_container=container)
+
+    try:
+        return get_task_from_mapping(task_query, container_mapping)
+    except ValueError as e:
+        logger.warning(
+            "Task not found in provided container; proceeding with minimal task definition",
+            task=task_query,
+            container=container,
+            error=str(e),
+        )
+        return _minimal_task_definition(task_query, container=container)
