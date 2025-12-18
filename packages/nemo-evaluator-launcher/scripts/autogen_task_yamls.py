@@ -115,6 +115,7 @@ class _TaskAutogen:
             "harness": self.task_ir.harness,
             "container": self.task_ir.container,
             "container_digest": self.task_ir.container_digest,
+            "container_arch": getattr(self.task_ir, "container_arch", None),
             "defaults": self.task_ir.defaults,
         }
 
@@ -190,6 +191,9 @@ class _TaskAutogen:
             lines.append(str(self.task_ir.container_digest))
             lines.append("```")
             lines.append("")
+        container_arch = getattr(self.task_ir, "container_arch", None) or "unknown"
+        lines.append(f"**Container Arch:** `{container_arch}`")
+        lines.append("")
         if task_type:
             lines.append(f"**Task Type:** `{task_type}`")
             lines.append("")
@@ -522,12 +526,13 @@ def generate_benchmarks_table_markdown(
 
     lines.append("```{list-table}")
     lines.append(":header-rows: 1")
-    lines.append(":widths: 20 25 15 15 25")
+    lines.append(":widths: 18 24 14 12 8 24")
     lines.append("")
     lines.append("* - Container")
     lines.append("  - Description")
     lines.append("  - NGC Catalog")
     lines.append("  - Latest Tag")
+    lines.append("  - Arch")
     lines.append("  - Tasks")
 
     # Sort harnesses alphabetically for consistent ordering
@@ -579,6 +584,12 @@ def generate_benchmarks_table_markdown(
         # If no version found, use placeholder as fallback
         latest_tag = version if version else "{{ docker_compose_latest }}"
 
+        arch = (
+            harness.harness_ir.arch
+            or (harness.tasks[0].container_arch if harness.tasks else None)
+            or "unknown"
+        )
+
         # Escape special characters in markdown (but preserve links)
         # Some harnesses may store description as non-string types (e.g., list).
         if isinstance(description, list):
@@ -591,6 +602,7 @@ def generate_benchmarks_table_markdown(
         lines.append(f"  - {description_display}")
         lines.append(f"  - {ngc_link}")
         lines.append(f"  - {latest_tag}")
+        lines.append(f"  - `{arch}`")
         lines.append(f"  - {tasks_display}")
 
     lines.append("```")
@@ -650,11 +662,12 @@ def generate_benchmarks_table_internal_markdown(
 
     lines.append("```{list-table}")
     lines.append(":header-rows: 1")
-    lines.append(":widths: 20 30 25 25")
+    lines.append(":widths: 18 30 18 8 26")
     lines.append("")
     lines.append("* - Container")
     lines.append("  - Description")
     lines.append("  - Container Ref")
+    lines.append("  - Arch")
     lines.append("  - Tasks")
 
     sorted_harnesses = sorted(harnesses, key=lambda h: h.harness_name.lower())
@@ -693,10 +706,16 @@ def generate_benchmarks_table_internal_markdown(
         description_display = description_text.replace("|", "\\|").replace("\n", " ")
 
         container_ref_display = f"`{container_ref}`" if container_ref else "N/A"
+        arch = (
+            harness.harness_ir.arch
+            or (harness.tasks[0].container_arch if harness.tasks else None)
+            or "unknown"
+        )
 
         lines.append(f"* - {container_display}")
         lines.append(f"  - {description_display}")
         lines.append(f"  - {container_ref_display}")
+        lines.append(f"  - `{arch}`")
         lines.append(f"  - {tasks_display}")
 
     lines.append("```")
@@ -903,6 +922,7 @@ Examples:
                     url=None,
                     container=container,
                     container_digest=container_digest,
+                    arch=None,
                 )
             harnesses.append(_HarnessAutogen(harness_ir, tasks))
 

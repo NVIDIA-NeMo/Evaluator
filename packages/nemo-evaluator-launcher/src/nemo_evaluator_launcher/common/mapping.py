@@ -227,6 +227,8 @@ def _convert_irs_to_mapping_format(
 
     Args:
         tasks: List of TaskIntermediateRepresentation objects.
+        harnesses_by_name: Optional mapping of harness name -> Harness IR. If provided,
+            adds harness-level metadata (e.g., arch) to each task mapping entry.
 
     Returns:
         dict: Mapping of (harness_name, task_name) to dict holding their configuration.
@@ -264,6 +266,9 @@ def _convert_irs_to_mapping_format(
             "endpoint_type": endpoint_type,
             "container": task_ir.container,
         }
+
+        if task_ir.container_arch:
+            mapping[key]["arch"] = task_ir.container_arch
 
         # Backwards-compatible enhancement: keep full IR defaults available.
         # Existing code uses flattened defaults (excluding `config`) below; this adds a
