@@ -643,7 +643,7 @@ def _create_slurm_sbatch_script(
         s += deployment_srun_cmd
 
         # wait for the server to initialize
-        health_path = cfg.deployment.get("health_check_path", "/health")
+        health_path = cfg.deployment.endpoints.get("health", "/health")
         # For multi-instance check all node IPs, for single instance check localhost
         if cfg.deployment.get("multiple_instances", False):
             ip_list = '"${NODES_IPS_ARRAY[@]}"'
@@ -1263,9 +1263,11 @@ def _generate_haproxy_config_with_placeholders(cfg):
     for i in range(num_nodes):
         nodes.append({"ip": f"{{IP_{i}}}", "port": cfg.deployment.port})
 
-    # Get health check parameters from execution config
+    # Get health check parameters - prefer proxy config, fallback to deployment.endpoints.health
     proxy_config = cfg.execution.get("proxy", {}).get("config", {})
-    health_check_path = proxy_config.get("health_check_path", "/health")
+    health_check_path = proxy_config.get(
+        "health_check_path", cfg.deployment.endpoints.get("health", "/health")
+    )
     health_check_status = proxy_config.get("health_check_status", 200)
     haproxy_port = proxy_config.get("haproxy_port", 5009)
 
@@ -1300,7 +1302,7 @@ def _generate_haproxy_config(cfg, nodes_ips):
         )
 
     # Get health check parameters from deployment config
-    health_check_path = cfg.deployment.get("health_check_path", "/health")
+    health_check_path = cfg.deployment.endpoints.get("health", "/health")
     health_check_status = cfg.deployment.get("health_check_status", 200)
     haproxy_port = cfg.deployment.get("haproxy_port", 5009)
 
