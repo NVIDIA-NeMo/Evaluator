@@ -30,6 +30,7 @@ from nemo_evaluator.core.utils import (
     MisconfigurationError,
     deep_update,
     dotlist_to_dict,
+    validate_params_in_command,
 )
 from nemo_evaluator.logging import get_logger
 
@@ -417,7 +418,8 @@ For example: {framework_handlers[0]}.{evaluation_name}. "
         merged_configuration["target"]["api_endpoint"]["adapter_config"] = (
             raw_framework_adapter_config
         )
-
+    command = merged_configuration.get("command", "")
+    validate_params_in_command(command, merged_configuration)
     evaluation = Evaluation(**merged_configuration)
 
     # Store raw framework adapter_config for later use in validate_configuration
