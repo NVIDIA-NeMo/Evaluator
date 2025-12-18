@@ -413,7 +413,7 @@ class TestLsTasksCommand:
             "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=malformed_data,
         ):
-            with pytest.raises(AssertionError):
+            with pytest.raises(ValueError):
                 cmd.execute()
 
     def test_column_width_distribution(self):
