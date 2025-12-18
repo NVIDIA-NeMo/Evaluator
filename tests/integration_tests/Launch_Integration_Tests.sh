@@ -22,6 +22,8 @@ export HF_DATASETS_CACHE="${HF_HOME}/datasets"
 mkdir -p /checkpoints && \
 ln -s /home/TestData/nemo2_ckpt/llama-3_2-1b-instruct_v2.0 /checkpoints/llama-3_2-1b-instruct_v2.0
 
+# FIXME(martas): temporary WAR for broken deps in NeMo FW nightly image
+pip install nvidia-lm-eval[math]
 
 SCRIPT_DIR=$(dirname "$0")
 PROJECT_DIR=$SCRIPT_DIR/../../

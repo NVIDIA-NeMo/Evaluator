@@ -32,6 +32,9 @@ def uninstall_nvidia_simple_evals():
     subprocess.run(["pip", "uninstall", "-y", "nvidia-simple-evals"])
 
 
+# FIXME(martas): Errors out due to an MCore bug on deployment side
+# enable once fixed in Export-Deploy
+@pytest.mark.pleasefixme
 @pytest.mark.parametrize(
     "notebook_path",
     [

@@ -94,6 +94,9 @@ def deployment_process():
         subprocess.run(["pkill", f"-{signal.SIGTERM}", "tritonserver"], check=False)
 
 
+# FIXME(martas): Errors out due to an MCore bug on deployment side
+# enable once fixed in Export-Deploy
+@pytest.mark.pleasefixme
 @pytest.mark.run_only_on("GPU")
 @pytest.mark.parametrize(
     "eval_type,endpoint_type,eval_params",
