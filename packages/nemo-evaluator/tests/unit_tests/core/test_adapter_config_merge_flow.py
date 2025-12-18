@@ -108,29 +108,29 @@ class TestAdapterConfigMergeFlow:
             # Verify adapter_config is an AdapterConfig object
             assert evaluation.target.api_endpoint.adapter_config is not None
             adapter_config = evaluation.target.api_endpoint.adapter_config
-            assert isinstance(adapter_config, AdapterConfig), (
-                "adapter_config should be AdapterConfig object"
-            )
+            assert isinstance(
+                adapter_config, AdapterConfig
+            ), "adapter_config should be AdapterConfig object"
 
             # Verify mode: client from framework defaults is preserved
-            assert adapter_config.mode == "client", (
-                "Framework default mode: client should be preserved"
-            )
+            assert (
+                adapter_config.mode == "client"
+            ), "Framework default mode: client should be preserved"
 
             # Verify legacy params were converted to interceptors
             interceptor_names = [ic.name for ic in adapter_config.interceptors]
-            assert "caching" in interceptor_names, (
-                "use_caching should create caching interceptor"
-            )
-            assert "request_logging" in interceptor_names, (
-                "use_request_logging should create request_logging interceptor"
-            )
-            assert "response_logging" in interceptor_names, (
-                "use_response_logging should create response_logging interceptor"
-            )
-            assert "system_message" in interceptor_names, (
-                "use_system_prompt should create system_message interceptor"
-            )
+            assert (
+                "caching" in interceptor_names
+            ), "use_caching should create caching interceptor"
+            assert (
+                "request_logging" in interceptor_names
+            ), "use_request_logging should create request_logging interceptor"
+            assert (
+                "response_logging" in interceptor_names
+            ), "use_response_logging should create response_logging interceptor"
+            assert (
+                "system_message" in interceptor_names
+            ), "use_system_prompt should create system_message interceptor"
 
             # Verify system message interceptor has correct config
             system_msg_interceptor = next(
@@ -149,7 +149,7 @@ class TestAdapterConfigMergeFlow:
             "simple_evals": {
                 "framework_name": "simple_evals",
                 "pkg_name": "simple_evals",
-                "command": "echo test",
+                "command": "echo {{ config.params.task }} {{ config.params.limit_samples | default('') }}",
                 "config": {"type": "mmlu_pro", "params": {"task": "mmlu_pro"}},
                 "target": {
                     "api_endpoint": {
@@ -199,9 +199,9 @@ class TestAdapterConfigMergeFlow:
 
             adapter_config = evaluation.target.api_endpoint.adapter_config
             assert isinstance(adapter_config, AdapterConfig)
-            assert adapter_config.mode == "server", (
-                "User's explicit mode: server should override framework default"
-            )
+            assert (
+                adapter_config.mode == "server"
+            ), "User's explicit mode: server should override framework default"
 
     def test_dotlist_override_merging_preserves_framework_mode(self, monkeypatch):
         """Test that dotlist-style CLI overrides preserve framework mode: client."""
@@ -211,7 +211,7 @@ class TestAdapterConfigMergeFlow:
             "simple_evals": {
                 "framework_name": "simple_evals",
                 "pkg_name": "simple_evals",
-                "command": "echo test",
+                "command": "echo {{ config.params.task }} {{ config.params.limit_samples | default('') }}",
                 "config": {"type": "mmlu_pro", "params": {"task": "mmlu_pro"}},
                 "target": {
                     "api_endpoint": {
@@ -268,9 +268,9 @@ class TestAdapterConfigMergeFlow:
             assert isinstance(adapter_config, AdapterConfig)
 
             # Verify mode: client from framework is preserved
-            assert adapter_config.mode == "client", (
-                "Framework mode: client should be preserved with dotlist overrides"
-            )
+            assert (
+                adapter_config.mode == "client"
+            ), "Framework mode: client should be preserved with dotlist overrides"
 
             # Verify legacy params were converted
             interceptor_names = [ic.name for ic in adapter_config.interceptors]
@@ -286,7 +286,7 @@ class TestAdapterConfigMergeFlow:
             "simple_evals": {
                 "framework_name": "simple_evals",
                 "pkg_name": "simple_evals",
-                "command": "echo test",
+                "command": "echo {{ config.params.task }} {{ config.params.limit_samples | default('') }}",
                 "config": {"type": "mmlu_pro", "params": {"task": "mmlu_pro"}},
                 "target": {
                     "api_endpoint": {
@@ -344,14 +344,14 @@ class TestAdapterConfigMergeFlow:
 
             # Verify framework defaults preserved
             assert adapter_config.mode == "client", "Framework mode preserved"
-            assert adapter_config.endpoint_type == "chat", (
-                "Framework endpoint_type preserved"
-            )
+            assert (
+                adapter_config.endpoint_type == "chat"
+            ), "Framework endpoint_type preserved"
 
             # Verify user override applied
-            assert adapter_config.log_failed_requests is True, (
-                "User override should take precedence"
-            )
+            assert (
+                adapter_config.log_failed_requests is True
+            ), "User override should take precedence"
 
             # Verify legacy params converted to interceptors
             interceptor_names = [ic.name for ic in adapter_config.interceptors]
@@ -367,7 +367,7 @@ class TestAdapterConfigMergeFlow:
             "simple_evals": {
                 "framework_name": "simple_evals",
                 "pkg_name": "simple_evals",
-                "command": "echo test",
+                "command": "echo {{ config.params.task }} {{ config.params.limit_samples | default('') }}",
                 "config": {"type": "test_task", "params": {"task": "test_task"}},
                 "target": {
                     "api_endpoint": {
@@ -422,9 +422,9 @@ class TestAdapterConfigMergeFlow:
 
             # After validate_configuration, adapter_config should be AdapterConfig object
             adapter_config = evaluation.target.api_endpoint.adapter_config
-            assert isinstance(adapter_config, AdapterConfig), (
-                "adapter_config should be converted to AdapterConfig object"
-            )
+            assert isinstance(
+                adapter_config, AdapterConfig
+            ), "adapter_config should be converted to AdapterConfig object"
 
             # Verify it has correct mode from framework
             assert adapter_config.mode == "client"
@@ -443,7 +443,7 @@ class TestAdapterConfigMergeFlow:
             "simple_evals": {
                 "framework_name": "simple_evals",
                 "pkg_name": "simple_evals",
-                "command": "echo test",
+                "command": "echo {{ config.params.task }} {{ config.params.limit_samples | default('') }}",
                 "config": {"type": "mmlu_pro", "params": {"task": "mmlu_pro"}},
                 "target": {
                     "api_endpoint": {
@@ -513,9 +513,9 @@ class TestAdapterConfigMergeFlow:
             assert isinstance(adapter_config, AdapterConfig)
 
             # Critical: mode: client from framework should be preserved
-            assert adapter_config.mode == "client", (
-                "Framework mode: client should be preserved with comprehensive overrides"
-            )
+            assert (
+                adapter_config.mode == "client"
+            ), "Framework mode: client should be preserved with comprehensive overrides"
 
             # Verify all legacy params were converted to interceptors
             interceptor_names = [ic.name for ic in adapter_config.interceptors]
