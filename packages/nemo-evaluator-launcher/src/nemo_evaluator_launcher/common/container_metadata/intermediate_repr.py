@@ -50,6 +50,11 @@ class HarnessIntermediateRepresentation:
     url: Optional[str]
     container: str
     container_digest: Optional[str]
+    # Architecture label for the container image:
+    # - "amd": linux/amd64 only
+    # - "arm": linux/arm64 only
+    # - "multiarch": includes both amd64 and arm64
+    arch: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
@@ -60,6 +65,7 @@ class HarnessIntermediateRepresentation:
             "url": self.url,
             "container": self.container,
             "container_digest": self.container_digest,
+            "arch": self.arch,
         }
 
 
@@ -73,6 +79,7 @@ class TaskIntermediateRepresentation:
     container: str
     container_digest: Optional[str]
     defaults: dict[str, Any]
+    container_arch: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
@@ -82,6 +89,7 @@ class TaskIntermediateRepresentation:
             "harness": self.harness,
             "container": self.container,
             "container_digest": self.container_digest,
+            "container_arch": self.container_arch,
             "defaults": self.defaults,
         }
 
@@ -171,6 +179,9 @@ def _parse_tasks_from_yaml_data(
         container_digest = task_dict.get("container_digest") or (
             harness_ir.container_digest if harness_ir else None
         )
+        container_arch = task_dict.get("container_arch") or (
+            harness_ir.arch if harness_ir else None
+        )
 
         task_ir = TaskIntermediateRepresentation(
             name=task_dict["name"],
@@ -178,6 +189,7 @@ def _parse_tasks_from_yaml_data(
             harness=harness_name,
             container=container,
             container_digest=container_digest,
+            container_arch=container_arch,
             defaults=task_dict.get("defaults", {}),
         )
         tasks.append(task_ir)
@@ -218,6 +230,7 @@ def _parse_harnesses_from_yaml_data(
             url=harness_dict.get("url"),
             container=harness_dict.get("container", ""),
             container_digest=harness_dict.get("container_digest"),
+            arch=harness_dict.get("arch"),
         )
 
         # Keep first occurrence if duplicates exist
@@ -250,6 +263,7 @@ def _infer_harnesses_from_tasks(
             container_digest=str(task.container_digest)
             if task.container_digest
             else None,
+            arch=str(task.container_arch) if task.container_arch else None,
         )
     return harnesses
 

@@ -30,8 +30,16 @@ from nemo_evaluator_launcher.common.logging_utils import logger
 # Docker credentials file location for falling back if public and PAT auth failed
 _DOCKER_CONFIG_PATH = pathlib.Path.home() / ".docker" / "config.json"
 
-# Docker Registry API v2 manifest media type
-_DOCKER_MANIFEST_MEDIA_TYPE = "application/vnd.docker.distribution.manifest.v2+json"
+# Docker Registry API v2 manifest Accept header.
+# IMPORTANT: include *manifest list* / *OCI index* types so multi-arch tags return
+# the index by default (otherwise registries may negotiate down to a single-arch
+# manifest, typically amd64).
+_DOCKER_MANIFEST_MEDIA_TYPE = (
+    "application/vnd.oci.image.index.v1+json, "
+    "application/vnd.docker.distribution.manifest.list.v2+json, "
+    "application/vnd.oci.image.manifest.v1+json, "
+    "application/vnd.docker.distribution.manifest.v2+json"
+)
 
 
 def _build_key_variants(registry_url: str) -> list[str]:

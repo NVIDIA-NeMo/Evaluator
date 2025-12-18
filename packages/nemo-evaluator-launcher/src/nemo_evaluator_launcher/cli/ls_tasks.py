@@ -95,8 +95,6 @@ class Cmd:
                 if isinstance(endpoint_types, str):
                     endpoint_types = [endpoint_types]
 
-                task_type = task.defaults.get("config", {}).get("type", "")
-
                 data.append(
                     [
                         task.name,  # task
@@ -105,8 +103,8 @@ class Cmd:
                         else endpoint_types,  # endpoint_type
                         task.harness,  # harness
                         task.container,  # container
+                        getattr(task, "container_arch", "") or "",  # arch
                         task.description,  # description
-                        task_type,  # type
                     ]
                 )
         else:
@@ -121,13 +119,17 @@ class Cmd:
             "endpoint_type",
             "harness",
             "container",
+            "arch",
             "description",
-            "type",
         ]
         supported_benchmarks = []
         for task_data in data:
-            assert len(task_data) == len(headers)
-            supported_benchmarks.append(dict(zip(headers, task_data)))
+            if len(task_data) < len(headers):
+                raise ValueError(
+                    f"Invalid task row shape: expected at least {len(headers)} columns, got {len(task_data)}"
+                )
+            # Backwards/forwards compat: allow extra columns and ignore them.
+            supported_benchmarks.append(dict(zip(headers, task_data[: len(headers)])))
 
         if self.json:
             print(json.dumps({"tasks": supported_benchmarks}, indent=2))
@@ -139,6 +141,50 @@ class Cmd:
         if not tasks:
             print("No tasks found.")
             return
+
+        def _truncate(s: str, max_len: int) -> str:
+            s = s or ""
+            if max_len <= 0:
+                return ""
+            if len(s) <= max_len:
+                return s
+            if max_len <= 3:
+                return s[:max_len]
+            return s[: max_len - 3] + "..."
+
+        def _infer_arch(container: str, container_tasks: list[dict]) -> str:
+            # Prefer explicit arch from task IRs.
+            for t in container_tasks:
+                a = (t.get("arch") or "").strip()
+                if a:
+                    return a
+
+            # Heuristic fallback: look for common suffixes in tag.
+            c = (container or "").lower()
+            if "arm64" in c or "aarch64" in c:
+                return "arm"
+            if "amd64" in c or "x86_64" in c:
+                return "amd"
+            return "unknown"
+
+        def _infer_registry(container: str) -> str:
+            try:
+                from nemo_evaluator_launcher.common.container_metadata.utils import (
+                    parse_container_image,
+                )
+
+                registry_type, _registry_url, _repo, _ref = parse_container_image(
+                    container
+                )
+                return str(registry_type)
+            except Exception:
+                # Best-effort fallback for unknown formats.
+                c = (container or "").lower()
+                if "nvcr.io/" in c or c.startswith("nvcr.io"):
+                    return "nvcr"
+                if "gitlab" in c:
+                    return "gitlab"
+                return ""
 
         # Group tasks by harness and container
         grouped = defaultdict(lambda: defaultdict(list))
@@ -156,45 +202,31 @@ class Cmd:
                 if j > 0:
                     print()  # Spacing between containers
 
-                # Prepare task table first to get column widths
-                task_header = "task"
                 rows = []
                 for task in container_tasks:
-                    task_name = task["task"]
-                    endpoint_type = task["endpoint_type"]
-                    task_type = task.get("type", "")
-                    description = task.get("description", "")
-                    # Format: task_name (endpoint_type, task_type) - first 30 chars...
-                    description_preview = description[:30] if description else ""
-                    if len(description) > 30:
-                        description_preview += "..."
-
-                    # Build the display name
-                    type_part = f"{endpoint_type}"
-                    if task_type:
-                        type_part += f", {task_type}"
-                    display_name = f"{task_name} ({type_part})"
-                    if description_preview:
-                        display_name = f"{display_name} - {description_preview}"
-                    rows.append(display_name)
-
-                # Sort tasks alphabetically for better readability
-                rows.sort()
-
-                # Calculate column width
-                max_task_width = (
-                    max(len(task_header), max(len(str(row)) for row in rows)) + 2
-                )
+                    rows.append(
+                        {
+                            "task": str(task.get("task", "")),
+                            "endpoint": str(task.get("endpoint_type", "")),
+                            "description": str(task.get("description", "")),
+                        }
+                    )
+                rows.sort(key=lambda r: r["task"].lower())
 
                 # Calculate required width for header content
                 harness_line = f"harness: {harness}"
                 container_line = f"container: {container}"
+                arch_line = f"arch: {_infer_arch(container, container_tasks)}"
+                registry_line = f"registry: {_infer_registry(container)}"
                 header_content_width = (
-                    max(len(harness_line), len(container_line)) + 4
+                    max(
+                        len(harness_line),
+                        len(container_line),
+                        len(arch_line),
+                        len(registry_line),
+                    )
+                    + 4
                 )  # +4 for "| " and " |"
-
-                # Use the larger of the two widths
-                table_width = max(max_task_width, header_content_width)
 
                 # Limit separator width to prevent overflow on small terminals
                 # Use terminal width if available, otherwise cap at 120 characters
@@ -202,27 +234,50 @@ class Cmd:
 
                 try:
                     terminal_width = shutil.get_terminal_size().columns
-                    separator_width = min(
-                        table_width, terminal_width - 2
-                    )  # -2 for safety margin
+                    separator_width = min(terminal_width - 2, 160)  # -2 safety margin
                 except Exception:
                     # Fallback if terminal size can't be determined
-                    separator_width = min(table_width, 120)
+                    separator_width = 120
+
+                separator_width = max(separator_width, min(header_content_width, 160))
+
+                # Table columns (keep compact and stable).
+                col_task = 36
+                col_endpoint = 14
+                sep = "  "
+                fixed = col_task + col_endpoint + len(sep) * 2
+                col_desc = max(20, separator_width - fixed)
 
                 # Print combined header with harness and container info - colorized
                 # Keys: magenta, Values: cyan (matching logging utils)
                 print(bold("=" * separator_width))
                 print(f"{magenta('harness:')} {cyan(str(harness))}")
                 print(f"{magenta('container:')} {cyan(str(container))}")
+                arch = _infer_arch(container, container_tasks)
+                registry = _infer_registry(container)
+                print(f"{magenta('arch:')} {cyan(str(arch))}")
+                if registry:
+                    print(f"{magenta('registry:')} {cyan(str(registry))}")
 
                 # Print task table header separator
-                print(" " * table_width)
-                print(bold(f"{task_header:<{table_width}}"))
+                print()
+                print(
+                    bold(
+                        f"{'task':<{col_task}}{sep}"
+                        f"{'endpoint':<{col_endpoint}}{sep}"
+                        f"{'description':<{col_desc}}"
+                    )
+                )
                 print(bold("-" * separator_width))
 
                 # Print task rows - use grey for task descriptions
-                for row in rows:
-                    print(f"{grey(str(row)):<{table_width}}")
+                for r in rows:
+                    line = (
+                        f"{_truncate(r['task'], col_task):<{col_task}}{sep}"
+                        f"{_truncate(r['endpoint'], col_endpoint):<{col_endpoint}}{sep}"
+                        f"{_truncate(r['description'], col_desc):<{col_desc}}"
+                    )
+                    print(grey(line))
 
                 print(bold("-" * separator_width))
                 # Show task count - grey for count text

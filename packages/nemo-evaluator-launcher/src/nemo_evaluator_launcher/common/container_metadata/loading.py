@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 import pathlib
+import platform
 import tarfile
 import tempfile
 from typing import Optional
@@ -478,14 +479,88 @@ def find_file_matching_pattern_in_image_layers(
         authenticator.authenticate(repository=repository)
         # Don't fail here - authentication may fail but public containers can still be accessed
 
-    # Get manifest and digest
-    manifest, manifest_digest = authenticator.get_manifest_and_digest(
+    def _normalize_arch(a: object) -> Optional[str]:
+        if not a:
+            return None
+        s = str(a).lower()
+        if s in {"amd64", "x86_64"}:
+            return "amd64"
+        if s in {"arm64", "aarch64"}:
+            return "arm64"
+        return None
+
+    def _preferred_arch() -> str:
+        return _normalize_arch(platform.machine()) or "amd64"
+
+    def _pick_platform_manifest_digest(index_manifest: dict) -> Optional[str]:
+        manifests = index_manifest.get("manifests")
+        if not isinstance(manifests, list) or not manifests:
+            return None
+
+        pref = _preferred_arch()
+        # Prefer linux + preferred arch, then linux/amd64, then linux/arm64, then first digest.
+        best_score = 10_000
+        best_digest: Optional[str] = None
+
+        for m in manifests:
+            if not isinstance(m, dict):
+                continue
+            plat = m.get("platform") or {}
+            if not isinstance(plat, dict):
+                continue
+            os_name = str(plat.get("os") or "").lower()
+            arch = _normalize_arch(plat.get("architecture"))
+            digest = m.get("digest")
+            if not (isinstance(digest, str) and digest.startswith("sha256:")):
+                continue
+            if os_name != "linux" or not arch:
+                continue
+
+            score = 100
+            if arch == pref:
+                score = 0
+            elif arch == "amd64":
+                score = 10
+            elif arch == "arm64":
+                score = 20
+
+            if score < best_score:
+                best_score = score
+                best_digest = digest
+
+        if best_digest:
+            return best_digest
+
+        for m in manifests:
+            if isinstance(m, dict):
+                d = m.get("digest")
+                if isinstance(d, str) and d.startswith("sha256:"):
+                    return d
+        return None
+
+    # Get top-level manifest and digest (tag may resolve to multi-arch index).
+    top_manifest, top_digest = authenticator.get_manifest_and_digest(
         repository, reference
     )
-    if not manifest:
+    if not top_manifest:
         raise ValueError(f"Failed to get manifest for {repository}:{reference}")
-    if not manifest_digest:
+    if not top_digest:
         raise ValueError(f"Failed to get digest for {repository}:{reference}")
+
+    # Keep top-level digest for caching/validation, but resolve to a platform-specific
+    # manifest for layer inspection when the top-level is an index/manifest list.
+    manifest = top_manifest
+    manifest_digest = top_digest
+    if isinstance(top_manifest, dict) and isinstance(
+        top_manifest.get("manifests"), list
+    ):
+        platform_digest = _pick_platform_manifest_digest(top_manifest)
+        if platform_digest:
+            resolved, _ = authenticator.get_manifest_and_digest(
+                repository, platform_digest
+            )
+            if resolved:
+                manifest = resolved
 
     # Check cache with digest validation (always validates digest)
     # For pattern searches, use pattern-based cache key (not resolved path)
@@ -569,8 +644,8 @@ def find_file_matching_pattern_in_image_layers(
                 pattern=pattern_key,
             )
 
-    # Get layers from manifest
-    layers = manifest.get("layers", [])
+    # Get layers from manifest (single-arch image manifest).
+    layers = manifest.get("layers", []) if isinstance(manifest, dict) else []
     logger.info(
         "Searching for file matching pattern in image layers",
         repository=repository,
@@ -818,6 +893,7 @@ def _create_task_irs(
     harness_name: str,
     container_id: str,
     container_digest: Optional[str],
+    container_arch: Optional[str] = None,
 ) -> list[TaskIntermediateRepresentation]:
     """Create TaskIntermediateRepresentation objects from evaluations.
 
@@ -842,6 +918,7 @@ def _create_task_irs(
             harness=harness_name,
             container=container_id,
             container_digest=container_digest,
+            container_arch=container_arch,
             defaults=evaluation_dict,
         )
 
@@ -861,6 +938,7 @@ def parse_framework_to_irs(
     framework_content: str,
     container_id: str,
     container_digest: Optional[str],
+    container_arch: Optional[str] = None,
 ) -> tuple[HarnessIntermediateRepresentation, list[TaskIntermediateRepresentation]]:
     """Parse framework.yml content and convert to Intermediate Representations.
 
@@ -926,6 +1004,7 @@ def parse_framework_to_irs(
                 harness_name,
                 container_id,
                 container_digest,
+                container_arch,
             )
 
             logger.info(
@@ -974,6 +1053,73 @@ def load_tasks_from_container(
     """
     logger.debug("Loading tasks from container", container=container)
 
+    def _normalize_platform_arch(arch: object) -> Optional[str]:
+        if not arch:
+            return None
+        arch_l = str(arch).lower()
+        if arch_l in {"amd64", "x86_64"}:
+            return "amd"
+        if arch_l in {"arm64", "aarch64"}:
+            return "arm"
+        return None
+
+    def _arch_label_from_arch_set(archs: set[str]) -> Optional[str]:
+        if not archs:
+            return None
+        if "amd" in archs and "arm" in archs:
+            return "multiarch"
+        if archs == {"amd"}:
+            return "amd"
+        if archs == {"arm"}:
+            return "arm"
+        return None
+
+    def _get_container_arch(container_ref: str) -> Optional[str]:
+        """Best-effort: derive 'amd'|'arm'|'multiarch' from registry manifest APIs."""
+        try:
+            registry_type, registry_url, repository, tag = parse_container_image(
+                container_ref
+            )
+            authenticator = create_authenticator(
+                registry_type, registry_url, repository
+            )
+            authenticator.authenticate(repository=repository)
+
+            manifest, _ = authenticator.get_manifest_and_digest(repository, tag)
+            if not isinstance(manifest, dict):
+                return None
+
+            manifests = manifest.get("manifests")
+            if isinstance(manifests, list):
+                archs = {
+                    _normalize_platform_arch(
+                        (m.get("platform") or {}).get("architecture")
+                    )
+                    for m in manifests
+                    if isinstance(m, dict)
+                }
+                archs.discard(None)  # type: ignore[arg-type]
+                return _arch_label_from_arch_set(set(archs))  # type: ignore[arg-type]
+
+            cfg = manifest.get("config") or {}
+            cfg_digest = cfg.get("digest") if isinstance(cfg, dict) else None
+            if not (isinstance(cfg_digest, str) and cfg_digest.startswith("sha256:")):
+                return None
+            blob = authenticator.get_blob(repository, cfg_digest)
+            if not blob:
+                return None
+            try:
+                cfg_json = json.loads(blob.decode("utf-8"))
+            except Exception:
+                return None
+            if not isinstance(cfg_json, dict):
+                return None
+            return _normalize_platform_arch(cfg_json.get("architecture"))
+        except Exception:
+            return None
+
+    container_arch = _get_container_arch(container)
+
     # Extract framework.yml from container
     framework_content, container_digest = extract_framework_yml(
         container=container,
@@ -995,6 +1141,7 @@ def load_tasks_from_container(
             framework_content=framework_content,
             container_id=container,
             container_digest=container_digest,
+            container_arch=container_arch,
         )
 
         logger.info(

@@ -30,6 +30,7 @@ Modes:
 
 import argparse
 import hashlib
+import json
 import os
 import pathlib
 import re
@@ -60,9 +61,7 @@ def find_repo_root(start_path: pathlib.Path) -> pathlib.Path:
 
 
 _REPO_ROOT = find_repo_root(pathlib.Path(__file__))
-_LAUNCHER_SRC = (
-    _REPO_ROOT / "packages" / "nemo-evaluator-launcher" / "src"
-)
+_LAUNCHER_SRC = _REPO_ROOT / "packages" / "nemo-evaluator-launcher" / "src"
 # Ensure repo-local sources are importable even without an editable install.
 if _LAUNCHER_SRC.exists():
     sys.path.insert(0, str(_LAUNCHER_SRC))
@@ -118,6 +117,71 @@ def calculate_mapping_checksum(mapping_file: pathlib.Path) -> str:
         file_content = f.read()
     checksum = hashlib.sha256(file_content).hexdigest()
     return f"sha256:{checksum}"
+
+
+def _normalize_platform_arch(arch: Optional[str]) -> Optional[str]:
+    if not arch:
+        return None
+    arch_l = str(arch).lower()
+    if arch_l in {"amd64", "x86_64"}:
+        return "amd"
+    if arch_l in {"arm64", "aarch64"}:
+        return "arm"
+    return None
+
+
+def _arch_label_from_arch_set(archs: set[str]) -> Optional[str]:
+    if not archs:
+        return None
+    if "amd" in archs and "arm" in archs:
+        return "multiarch"
+    if archs == {"amd"}:
+        return "amd"
+    if archs == {"arm"}:
+        return "arm"
+    return None
+
+
+def get_container_arch(
+    authenticator: DockerRegistryHandler, repository: str, reference: str
+) -> Optional[str]:
+    """Return 'amd' | 'arm' | 'multiarch' when determinable from registry APIs."""
+    manifest, _digest = authenticator.get_manifest_and_digest(repository, reference)
+    if not manifest:
+        return None
+
+    # Multi-arch: Docker manifest list / OCI index
+    manifests = manifest.get("manifests") if isinstance(manifest, dict) else None
+    if isinstance(manifests, list):
+        archs = {
+            _normalize_platform_arch(m.get("platform", {}).get("architecture"))
+            for m in manifests
+            if isinstance(m, dict)
+        }
+        archs.discard(None)
+        return _arch_label_from_arch_set(set(archs))  # type: ignore[arg-type]
+
+    # Single-arch: fetch config blob and read architecture from image config JSON.
+    config_digest = None
+    if isinstance(manifest, dict):
+        config = manifest.get("config") or {}
+        if isinstance(config, dict):
+            config_digest = config.get("digest")
+    if not config_digest:
+        return None
+
+    blob = authenticator.get_blob(repository, config_digest)
+    if not blob:
+        return None
+    try:
+        cfg = json.loads(blob.decode("utf-8"))
+    except Exception:
+        return None
+
+    arch = _normalize_platform_arch(
+        cfg.get("architecture") if isinstance(cfg, dict) else None
+    )
+    return arch
 
 
 def get_container_digest(
@@ -187,7 +251,7 @@ def extract_container_digests_from_mapping(
 def validate_container_digests(
     mapping_file: pathlib.Path,
     workers: Optional[int] = None,
-) -> tuple[bool, list[str], list[str]]:
+) -> tuple[bool, list[str], list[str], dict[str, Optional[str]]]:
     """Validate that container digests in mapping.toml match actual registry digests."""
     container_digests = extract_container_digests_from_mapping(mapping_file)
 
@@ -196,6 +260,7 @@ def validate_container_digests(
             False,
             ["No container digests found in mapping.toml"],
             [],
+            {},
         )
 
     errors = []
@@ -203,7 +268,40 @@ def validate_container_digests(
 
     max_workers = _resolve_max_workers(workers)
 
-    def _fetch_actual_digest(container: str) -> tuple[str, Optional[str], Optional[str]]:
+    def _arch_from_manifest(
+        authenticator: DockerRegistryHandler,
+        repository: str,
+        manifest: dict,
+    ) -> Optional[str]:
+        manifests = manifest.get("manifests")
+        if isinstance(manifests, list):
+            archs = {
+                _normalize_platform_arch((m.get("platform") or {}).get("architecture"))
+                for m in manifests
+                if isinstance(m, dict)
+            }
+            archs.discard(None)  # type: ignore[arg-type]
+            return _arch_label_from_arch_set(set(archs))  # type: ignore[arg-type]
+
+        config = manifest.get("config") or {}
+        config_digest = config.get("digest") if isinstance(config, dict) else None
+        if not (isinstance(config_digest, str) and config_digest.startswith("sha256:")):
+            return None
+
+        blob = authenticator.get_blob(repository, config_digest)
+        if not blob:
+            return None
+        try:
+            cfg = json.loads(blob.decode("utf-8"))
+        except Exception:
+            return None
+        if not isinstance(cfg, dict):
+            return None
+        return _normalize_platform_arch(cfg.get("architecture"))
+
+    def _fetch_digest_and_arch(
+        container: str,
+    ) -> tuple[str, Optional[str], Optional[str], Optional[str]]:
         try:
             registry_type, registry_url, repository, tag = parse_container_image(
                 container
@@ -212,17 +310,22 @@ def validate_container_digests(
                 registry_type, registry_url, repository
             )
             authenticator.authenticate(repository=repository)
-            actual = get_container_digest(authenticator, repository, tag)
-            return container, actual, None
+            manifest, digest = authenticator.get_manifest_and_digest(repository, tag)
+            if not manifest or not digest:
+                return container, digest, None, None
+            arch = _arch_from_manifest(authenticator, repository, manifest)
+            return container, digest, arch, None
         except Exception as e:
-            return container, None, str(e)
+            return container, None, None, str(e)
 
     # Deterministic ordering: compare results in the same order as mapping.toml.
     containers_in_order = list(container_digests.keys())
+    arch_by_container: dict[str, Optional[str]] = {}
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        for container, actual_digest, err in executor.map(
-            _fetch_actual_digest, containers_in_order
+        for container, actual_digest, arch, err in executor.map(
+            _fetch_digest_and_arch, containers_in_order
         ):
+            arch_by_container[container] = arch
             expected_digest = container_digests[container]
             if err:
                 errors.append(f"Error validating container '{container}': {err}")
@@ -240,7 +343,7 @@ def validate_container_digests(
 
     all_valid = len(errors) == 0 and len(mismatches) == 0
     # Return in a stable order (errors first, then mismatches).
-    return all_valid, errors + mismatches, mismatches
+    return all_valid, errors + mismatches, mismatches, arch_by_container
 
 
 def verify_checksums(
@@ -298,14 +401,15 @@ def verify_mode(
     all_tasks_irs_file: pathlib.Path,
     readme_file: Optional[pathlib.Path],
     workers: Optional[int] = None,
+    strict: bool = False,
 ) -> int:
     """Verify digests and checksums."""
     all_valid = True
 
     # Verify container digests
     logger.info("Validating container digests...")
-    digests_valid, digest_errors, mismatches = validate_container_digests(
-        mapping_file, workers=workers
+    digests_valid, digest_errors, mismatches, arch_by_container = (
+        validate_container_digests(mapping_file, workers=workers)
     )
     if not digests_valid:
         all_valid = False
@@ -316,6 +420,23 @@ def verify_mode(
         for error in digest_errors:
             if error not in mismatches:
                 logger.error(f"  {error}")
+
+    # Warn/error on non-multiarch images.
+    non_multiarch = [
+        (container, arch_by_container.get(container))
+        for container in list(arch_by_container.keys())
+        if arch_by_container.get(container) != "multiarch"
+    ]
+    if non_multiarch:
+        if strict:
+            all_valid = False
+            logger.error("Non-multiarch containers detected (strict mode):")
+            for container, arch in non_multiarch:
+                logger.error(f"  {container}: arch={arch or 'unknown'}")
+        else:
+            logger.warning("Non-multiarch containers detected:")
+            for container, arch in non_multiarch:
+                logger.warning(f"  {container}: arch={arch or 'unknown'}")
 
     # Verify checksums
     logger.info("Validating checksums...")
@@ -488,6 +609,7 @@ class _FetchResult:
     container: str
     framework_content: Optional[str]
     container_digest: Optional[str]
+    arch: Optional[str] = None
     error: Optional[str] = None
 
 
@@ -589,10 +711,10 @@ def generate_readme_table(
 
     table_lines = []
     table_lines.append(
-        "| Container | Description | NGC Catalog | Latest Tag | Supported benchmarks |"
+        "| Container | Description | NGC Catalog | Latest Tag | Arch | Supported benchmarks |"
     )
     table_lines.append(
-        "|-----------|-------------|-------------|------------| ------------|"
+        "|-----------|-------------|-------------|------------|------|----------------------|"
     )
 
     sorted_harnesses = sorted(harnesses.items(), key=lambda x: x[0].lower())
@@ -621,9 +743,12 @@ def generate_readme_table(
         latest_tag = version if version else "25.11"
         description_display = description.replace("|", "\\|").replace("\n", " ")
         container_display = f"**{harness_name}**"
+        arch = (
+            harness_ir.arch or (tasks[0].container_arch if tasks else None) or "unknown"
+        )
 
         table_lines.append(
-            f"| {container_display} | {description_display} | {ngc_link} | `{latest_tag}` | {tasks_display} |"
+            f"| {container_display} | {description_display} | {ngc_link} | `{latest_tag}` | `{arch}` | {tasks_display} |"
         )
 
     lines.append("<!--")
@@ -693,11 +818,24 @@ def update_mode(
     # ---------------------------------------------------------------------
     # Phase 1: Fetch framework.yml + digest in parallel (network-bound)
     # ---------------------------------------------------------------------
-    logger.info("Fetching container metadata in parallel", total=len(harness_items), workers=max_workers)
+    logger.info(
+        "Fetching container metadata in parallel",
+        total=len(harness_items),
+        workers=max_workers,
+    )
 
     def _fetch_one(item: tuple[str, str]) -> _FetchResult:
         harness_name, container = item
         try:
+            registry_type, registry_url, repository, tag = parse_container_image(
+                container
+            )
+            authenticator = create_authenticator(
+                registry_type, registry_url, repository
+            )
+            authenticator.authenticate(repository=repository)
+            arch = get_container_arch(authenticator, repository, tag)
+
             framework_content, container_digest = extract_framework_yml(
                 container=container,
                 max_layer_size=max_layer_size,
@@ -708,6 +846,7 @@ def update_mode(
                 container=container,
                 framework_content=framework_content,
                 container_digest=container_digest,
+                arch=arch,
             )
         except Exception as e:
             # `extract_framework_yml` should already guard, but don't let one
@@ -717,6 +856,7 @@ def update_mode(
                 container=container,
                 framework_content=None,
                 container_digest=None,
+                arch=None,
                 error=str(e),
             )
 
@@ -725,9 +865,7 @@ def update_mode(
 
     # Collect digests first, then update mapping.toml once.
     digests_by_container = {
-        r.container: r.container_digest
-        for r in fetch_results
-        if r.container_digest
+        r.container: r.container_digest for r in fetch_results if r.container_digest
     }
     updated_digest_comments = update_digest_comments_in_mapping_toml(
         mapping_file, digests_by_container
@@ -803,7 +941,11 @@ def update_mode(
                 framework_content=res.framework_content,
                 container_id=res.container,
                 container_digest=res.container_digest,
+                container_arch=res.arch,
             )
+            harness_ir.arch = res.arch
+            for t in task_irs:
+                t.container_arch = res.arch
 
             # Validate that harness name from TOML matches normalized harness name from framework.yml
             normalized_harness_name = res.harness_name.lower()
@@ -945,6 +1087,7 @@ def update_mode(
                     url=None,
                     container=container,
                     container_digest=container_digest,
+                    arch=None,
                 )
             harnesses[task.harness] = (harness_ir, [])
 
@@ -1079,6 +1222,11 @@ Examples:
             "(default: auto; env: NEMO_EVALUATOR_CONTAINER_METADATA_WORKERS)"
         ),
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail verification if any container is not multiarch (amd64+arm64).",
+    )
 
     subparsers = parser.add_subparsers(dest="mode", required=True)
     subparsers.add_parser("verify", help="Verify digests and checksums")
@@ -1112,6 +1260,7 @@ Examples:
                 args.all_tasks_irs,
                 args.readme_file,
                 workers=args.workers,
+                strict=args.strict,
             )
         )
     elif args.mode == "update":
