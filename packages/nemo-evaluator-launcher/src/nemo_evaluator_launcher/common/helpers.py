@@ -197,12 +197,16 @@ def get_eval_factory_command(
         ["config", "output_dir"],
         "/results",
     )
-    # FIXME(martas): update to api_key_name after 25.12 is released
-    _set_nested_optionally_overriding(
-        merged_nemo_evaluator_config,
-        ["target", "api_endpoint", "api_key"],
-        "API_KEY",
-    )
+
+    if get_api_key_name(cfg) is not None:
+        # we use "API_KEY" as the env var in the container
+        # later in the executor we set it to the user-provided environment variable
+        # FIXME(martas): update to api_key_name after 25.12 is released
+        _set_nested_optionally_overriding(
+            merged_nemo_evaluator_config,
+            ["target", "api_endpoint", "api_key"],
+            "API_KEY",
+        )
     _set_nested_optionally_overriding(
         merged_nemo_evaluator_config,
         [
