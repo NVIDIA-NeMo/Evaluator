@@ -331,9 +331,9 @@ def main():
     print(deploy_script)
 
     eval_command = f"git clone -b athitten/nano_v3 https://github.com/NVIDIA-NeMo/Evaluator.git && cd Evaluator/packages/nemo-evaluator-launcher \
-&& pip install -e . && nemo-evaluator-launcher run --config examples/nemotron/nemofw_nvidia-nemotron-3-nano-30b-a3b-base.yaml \
--o target.api_endpoint.url={args.server_address}:{args.server_port}/v1/{ENDPOINT_TYPES[args.endpoint_type]} \
-target.api_endpoint.model_id=megatron_model"
+&& python3.10 -m venv nemo_env && source nemo_env/bin/activate && pip install -e . && nemo-evaluator-launcher run --config examples/nemotron/nemofw_nvidia-nemotron-3-nano-30b-a3b-base.yaml \
+-o +target.api_endpoint.url={args.server_address}:{args.server_port}/v1/{ENDPOINT_TYPES[args.endpoint_type]} -o \
++target.api_endpoint.model_id=megatron_model"
 
     eval_run_script = run.Script(inline=eval_command)
     print("eval_run_script: ", eval_run_script)
@@ -356,9 +356,12 @@ target.api_endpoint.model_id=megatron_model"
         executor.srun_args = ["--mpi=pmix", "--overlap"]
         executor_eval = executor.clone()
         executor_eval.container_image = None
+        executor_eval.container_mounts = []
+        executor_eval.container_workdir = None
         executor_eval.srun_args = [
             "--ntasks-per-node=1",
             "--nodes=1",
+            "--no-container",
         ]  ## so that eval is laucnhed only on main node
         # or node with index 0
     else:
