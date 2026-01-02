@@ -89,8 +89,17 @@ execution:
 ## Sidecar containers (agentic tasks)
 
 Some agentic benchmarks need additional local HTTP services (tool servers, sandbox helpers, etc.) during evaluation.
-The Launcher can start these **sidecar containers** (in the same network namespace as the evaluation container) and
-automatically populate their endpoints into the Eval Factory config under `config.params.extra`.
+The Launcher can start these **sidecar containers** and automatically populate their endpoints into the Eval Factory
+config under `config.params.extra`.
+
+### Why not `localhost`?
+
+Inside containers, **`localhost` means “this container”**. If you run a sidecar in one container and the evaluation in
+another, `http://localhost:8080` from the evaluation container will **not** reach the sidecar container.
+
+For `deployment: none` (no model server container to “join”), the Launcher uses a dedicated Docker network and assigns
+each sidecar a network alias (e.g. `agent_1`). It then injects URLs like `http://agent_1:<port>`, which is the
+docker-compose-style, idiomatic way to wire containers together.
 
 Configure sidecars via `execution.sidecars`:
 

@@ -265,6 +265,222 @@ class TestLocalExecutorDryRun:
                     del os.environ[env_var]
 
 
+class TestLocalExecutorSidecarsDryRun:
+    @pytest.fixture
+    def mock_tasks_mapping(self):
+        return {
+            ("lm-eval", "test_task_1"): {
+                "task": "test_task_1",
+                "endpoint_type": "chat",
+                "harness": "lm-eval",
+                "container": "test-container:latest",
+                "required_env_vars": [],
+            }
+        }
+
+    def _run_and_get_task_script(
+        self,
+        *,
+        tmpdir,
+        cfg_dict: dict,
+        mock_tasks_mapping: dict,
+    ) -> tuple[pathlib.Path, str, dict | None]:
+        """Run LocalExecutor in dry-run and return (task_dir, script_text, launcher_sidecars)."""
+        os.environ["TEST_API_KEY"] = "test_key_value"
+        os.environ["GLOBAL_VALUE"] = "global_env_value"
+        try:
+            cfg = OmegaConf.create(cfg_dict)
+            from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+            captured: dict = {"launcher_sidecars": None}
+
+            def _fake_get_eval_factory_command(*_args, **kwargs):
+                captured["launcher_sidecars"] = kwargs.get("launcher_sidecars")
+                return CmdAndReadableComment(cmd="echo hello", debug="# Test command")
+
+            with (
+                patch(
+                    "nemo_evaluator_launcher.executors.local.executor.load_tasks_mapping"
+                ) as mock_load_mapping,
+                patch(
+                    "nemo_evaluator_launcher.executors.local.executor.get_task_definition_for_job"
+                ) as mock_get_task_def,
+                patch(
+                    "nemo_evaluator_launcher.executors.local.executor.get_eval_factory_command"
+                ) as mock_get_cmd,
+            ):
+                mock_load_mapping.return_value = mock_tasks_mapping
+
+                def mock_get_task_def_side_effect(*_args, **kwargs):
+                    task_name = kwargs.get("task_query")
+                    for (_harness, name), definition in mock_tasks_mapping.items():
+                        if name == task_name:
+                            return definition
+                    raise KeyError(f"Task {task_name} not found")
+
+                mock_get_task_def.side_effect = mock_get_task_def_side_effect
+                mock_get_cmd.side_effect = _fake_get_eval_factory_command
+
+                invocation_id = LocalExecutor.execute_eval(cfg, dry_run=True)
+
+            # Find output dir
+            output_base = pathlib.Path(cfg.execution.output_dir)
+            output_dir = None
+            for item in output_base.iterdir():
+                if item.is_dir() and item.name.endswith(f"-{invocation_id}"):
+                    output_dir = item
+                    break
+            assert output_dir is not None
+            task_dir = output_dir / cfg.evaluation.tasks[0].name
+            script_text = (task_dir / "run.sh").read_text()
+            return task_dir, script_text, captured["launcher_sidecars"]
+        finally:
+            for env_var in ["TEST_API_KEY", "GLOBAL_VALUE"]:
+                if env_var in os.environ:
+                    del os.environ[env_var]
+
+    def test_sidecars_deployment_none_uses_docker_network_and_dns(
+        self, tmpdir, mock_tasks_mapping
+    ):
+        cfg_dict = {
+            "deployment": {"type": "none"},
+            "execution": {
+                "type": "local",
+                "output_dir": str(tmpdir / "test_output"),
+                "sidecars": [
+                    {
+                        "name": "agent_1",
+                        "image": "agent-image:latest",
+                        "command": "python -m agent --port 8080",
+                        "port": 8080,
+                        "healthcheck_url": "/health",
+                    }
+                ],
+            },
+            "target": {
+                "api_endpoint": {
+                    "api_key_name": "TEST_API_KEY",
+                    "model_id": "test_model",
+                    "url": "https://test.api.com/v1/chat/completions",
+                }
+            },
+            "evaluation": {
+                "env_vars": {"GLOBAL_ENV": "GLOBAL_VALUE"},
+                "tasks": [{"name": "test_task_1"}],
+            },
+        }
+
+        _task_dir, script, launcher_sidecars = self._run_and_get_task_script(
+            tmpdir=tmpdir, cfg_dict=cfg_dict, mock_tasks_mapping=mock_tasks_mapping
+        )
+
+        assert 'docker network create "$NETWORK_NAME"' in script
+        assert '--network "$NETWORK_NAME" --network-alias agent_1' in script
+        assert 'health_url="http://agent_1:8080/health"' in script
+        assert '--network "$NETWORK_NAME" curlimages/curl:8.5.0' in script
+        assert launcher_sidecars == {
+            "agent_1": {"url": "http://agent_1:8080", "port": 8080}
+        }
+
+    def test_sidecars_deployment_joins_server_netns_and_uses_localhost(
+        self, tmpdir, mock_tasks_mapping
+    ):
+        cfg_dict = {
+            "deployment": {
+                "type": "vllm",
+                "image": "server-image:latest",
+                "command": "serve",
+                "served_model_name": "test-model",
+                "port": 8000,
+                "endpoints": {"chat": "/v1/chat", "health": "/health"},
+            },
+            "execution": {
+                "type": "local",
+                "output_dir": str(tmpdir / "test_output"),
+                "mode": "sequential",
+                "sidecars": [
+                    {
+                        "name": "agent_1",
+                        "image": "agent-image:latest",
+                        "command": "python -m agent --port 8080",
+                        "port": 8080,
+                        "healthcheck_url": "/health",
+                    }
+                ],
+            },
+            "evaluation": {
+                "env_vars": {"GLOBAL_ENV": "GLOBAL_VALUE"},
+                "tasks": [{"name": "test_task_1"}],
+            },
+        }
+
+        _task_dir, script, launcher_sidecars = self._run_and_get_task_script(
+            tmpdir=tmpdir, cfg_dict=cfg_dict, mock_tasks_mapping=mock_tasks_mapping
+        )
+
+        assert "--network container:$SERVER_CONTAINER_NAME" in script
+        assert 'health_url="http://127.0.0.1:8080/health"' in script
+        assert launcher_sidecars == {
+            "agent_1": {"url": "http://127.0.0.1:8080", "port": 8080}
+        }
+
+    def test_sidecars_skip_if_config_present_skips_spawning(
+        self, tmpdir, mock_tasks_mapping
+    ):
+        cfg_dict = {
+            "deployment": {"type": "none"},
+            "execution": {
+                "type": "local",
+                "output_dir": str(tmpdir / "test_output"),
+                "sidecars": [
+                    {
+                        "name": "agent_1",
+                        "image": "agent-image:latest",
+                        "command": "python -m agent --port 8080",
+                        "port": 8080,
+                        "healthcheck_url": "/health",
+                        "skip_if_config_present": True,
+                    }
+                ],
+            },
+            "target": {
+                "api_endpoint": {
+                    "api_key_name": "TEST_API_KEY",
+                    "model_id": "test_model",
+                    "url": "https://test.api.com/v1/chat/completions",
+                }
+            },
+            "evaluation": {
+                "env_vars": {"GLOBAL_ENV": "GLOBAL_VALUE"},
+                "tasks": [
+                    {
+                        "name": "test_task_1",
+                        "nemo_evaluator_config": {
+                            "config": {
+                                "params": {
+                                    "extra": {
+                                        "agent_1": {
+                                            "url": "http://predeployed:9999",
+                                            "port": 9999,
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                    }
+                ],
+            },
+        }
+
+        _task_dir, script, launcher_sidecars = self._run_and_get_task_script(
+            tmpdir=tmpdir, cfg_dict=cfg_dict, mock_tasks_mapping=mock_tasks_mapping
+        )
+
+        assert "agent-image:latest" not in script
+        assert "docker network create" not in script
+        assert launcher_sidecars in (None, {})
+
+
 class TestLocalExecutorGetStatus:
     """Test LocalExecutor get_status functionality."""
 

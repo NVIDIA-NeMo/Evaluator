@@ -22,16 +22,18 @@ import copy
 import os
 import pathlib
 import platform
+import re
 import shlex
 import shutil
 import subprocess
 import time
 import warnings
 from typing import Iterator, List, Optional, Tuple, Union
+from urllib.parse import urlparse
 
 import jinja2
 import yaml
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo_evaluator_launcher.common.execdb import (
     ExecutionDB,
@@ -124,6 +126,7 @@ class LocalExecutor(BaseExecutor):
 
         for idx, task in enumerate(cfg.evaluation.tasks):
             timestamp = get_timestamp_string()
+            job_id = generate_job_id(invocation_id, idx)
             task_definition = get_task_definition_for_job(
                 task_query=task.name,
                 base_mapping=tasks_mapping,
@@ -142,31 +145,61 @@ class LocalExecutor(BaseExecutor):
             sidecars_cfg = cfg.execution.get("sidecars", []) or []
             sidecars_to_spawn: list[dict] = []
             launcher_sidecars: dict = {}
-            if isinstance(sidecars_cfg, (list, tuple)):
+            sidecar_network_name: str | None = None
+            if isinstance(sidecars_cfg, (list, tuple, ListConfig)):
+
+                def _skip_sidecar(name: str, raw: dict | DictConfig) -> bool:
+                    if not name:
+                        return True
+                    if raw.get("enabled", True) is False:
+                        return True
+                    if raw.get("skip_if_config_present", True) and isinstance(
+                        extra_cfg, dict
+                    ):
+                        existing = extra_cfg.get(name, {})
+                        if isinstance(existing, dict) and (
+                            existing.get("url") is not None
+                            or existing.get("port") is not None
+                        ):
+                            return True
+                    return False
+
+                def _get_health_path(raw_health: object) -> str:
+                    health = str(raw_health or "/health")
+                    if health.startswith(("http://", "https://")):
+                        return urlparse(health).path or "/health"
+                    if not health.startswith("/"):
+                        health = "/" + health
+                    return health
+
                 merged_for_presence_check = get_eval_factory_config(cfg, task)
                 extra_cfg = (
                     merged_for_presence_check.get("config", {})
                     .get("params", {})
                     .get("extra", {})
                 )
+                # If we're not deploying a server container, use a dedicated docker network
+                # and inject URLs that use docker DNS (network aliases), not localhost.
+                #
+                # This avoids the need for network-namespace sharing and matches compose semantics.
+                sidecars_use_docker_network = cfg.deployment.type == "none"
+                if sidecars_use_docker_network:
+                    safe_job_id = re.sub(r"[^a-zA-Z0-9_.-]", "-", job_id)
+                    safe_task = re.sub(r"[^a-zA-Z0-9_.-]", "-", str(task.name))
+                    sidecar_network_name = f"nemo-eval-{safe_task}-{safe_job_id}"
+
+                ports_in_shared_netns: set[int] = set()
+                if cfg.deployment.type != "none":
+                    # When joining the server container netns, ports must be unique across
+                    # all sidecars and must not collide with the server port.
+                    ports_in_shared_netns.add(int(cfg.deployment.port))
+
                 for sc in sidecars_cfg:
                     if not isinstance(sc, (dict, DictConfig)):
                         continue
                     sc_name = str(sc.get("name", "")).strip()
-                    if not sc_name:
+                    if _skip_sidecar(sc_name, sc):
                         continue
-                    if sc.get("enabled", True) is False:
-                        continue
-
-                    # If user already provided config.params.extra.<name>.url/port, treat as pre-deployed and skip spawning.
-                    skip_if_present = sc.get("skip_if_config_present", True)
-                    if skip_if_present and isinstance(extra_cfg, dict):
-                        existing = extra_cfg.get(sc_name, {})
-                        if isinstance(existing, dict) and (
-                            existing.get("url") is not None
-                            or existing.get("port") is not None
-                        ):
-                            continue
 
                     port = sc.get("port", sc.get("target_port", None))
                     if port is None:
@@ -174,19 +207,29 @@ class LocalExecutor(BaseExecutor):
                             f"sidecar {sc_name!r} is missing required field 'port' (or 'target_port')"
                         )
                     port_int = int(port)
-                    url = f"http://127.0.0.1:{port_int}"
+                    url = (
+                        f"http://{sc_name}:{port_int}"
+                        if cfg.deployment.type == "none"
+                        else f"http://127.0.0.1:{port_int}"
+                    )
                     launcher_sidecars[sc_name] = {"url": url, "port": port_int}
 
-                    healthcheck_url = sc.get("healthcheck_url", "/health")
-                    if isinstance(healthcheck_url, str) and healthcheck_url.startswith(
-                        ("http://", "https://")
-                    ):
-                        health_url = healthcheck_url
-                    else:
-                        health_path = str(healthcheck_url)
-                        if not health_path.startswith("/"):
-                            health_path = "/" + health_path
-                        health_url = f"http://127.0.0.1:{port_int}{health_path}"
+                    health_path = _get_health_path(sc.get("healthcheck_url", "/health"))
+
+                    if cfg.deployment.type != "none":
+                        if port_int in ports_in_shared_netns:
+                            raise ValueError(
+                                "sidecar port collision in shared network namespace. "
+                                f"Port {port_int} is already in use (server or another sidecar). "
+                                "Pick unique ports when using deployment (server + sidecars share localhost)."
+                            )
+                        ports_in_shared_netns.add(port_int)
+
+                    pid_var = (
+                        "SIDECAR_"
+                        + re.sub(r"[^A-Za-z0-9_]", "_", sc_name).upper()
+                        + "_PID"
+                    )
 
                     sidecars_to_spawn.append(
                         {
@@ -196,7 +239,10 @@ class LocalExecutor(BaseExecutor):
                                 sc.get("command", sc.get("exec_command", ""))
                             ),
                             "port": port_int,
-                            "health_url": health_url,
+                            "health_path": health_path,
+                            "network_alias": sc_name,
+                            "pid_var": pid_var,
+                            "log_name": re.sub(r"[^A-Za-z0-9_.-]", "_", sc_name),
                             "container_name": f"sidecar-{sc_name}-{task.name}-{timestamp}",
                         }
                     )
@@ -251,8 +297,6 @@ class LocalExecutor(BaseExecutor):
                     "extra_docker_args": deployment_extra_docker_args,
                 }
 
-            # Create job ID as <invocation_id>.<n>
-            job_id = generate_job_id(invocation_id, idx)
             job_ids.append(job_id)
             client_container_name = f"client-{task.name}-{timestamp}"
 
@@ -350,6 +394,7 @@ class LocalExecutor(BaseExecutor):
                 "dataset_mount_host": dataset_mount_host,
                 "dataset_mount_container": dataset_mount_container,
                 "sidecars": sidecars_to_spawn,
+                "sidecar_network_name": sidecar_network_name,
             }
             evaluation_tasks.append(evaluation_task)
 
