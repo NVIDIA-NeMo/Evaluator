@@ -160,12 +160,42 @@ def get_eval_factory_command(
     cfg: DictConfig,
     user_task_config: DictConfig,
     task_definition: dict,
+    *,
+    launcher_sidecars: dict | None = None,
 ) -> CmdAndReadableComment:
     # This gets the eval_factory_config merged from both top-level and task-level.
     merged_nemo_evaluator_config = get_eval_factory_config(
         cfg,
         user_task_config,
     )
+
+    # Optionally inject launcher-provisioned sidecar endpoints into config.params.extra.
+    #
+    # Expected format:
+    # launcher_sidecars = {
+    #   "agent_1": {"url": "http://127.0.0.1:8080", "port": 8080},
+    #   ...
+    # }
+    #
+    # By default we DO NOT override user-provided values (pre-deployed services).
+    if launcher_sidecars:
+        for sidecar_name, endpoint in launcher_sidecars.items():
+            if not isinstance(endpoint, dict):
+                continue
+            if "url" in endpoint:
+                _set_nested_optionally_overriding(
+                    merged_nemo_evaluator_config,
+                    ["config", "params", "extra", str(sidecar_name), "url"],
+                    endpoint["url"],
+                    override_if_exists=False,
+                )
+            if "port" in endpoint:
+                _set_nested_optionally_overriding(
+                    merged_nemo_evaluator_config,
+                    ["config", "params", "extra", str(sidecar_name), "port"],
+                    endpoint["port"],
+                    override_if_exists=False,
+                )
 
     # We now prepare the config to be passed to `nemo-evaluator` command.
     _set_nested_optionally_overriding(

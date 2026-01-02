@@ -92,3 +92,61 @@ def test_get_eval_factory_command_basic(monkeypatch):
 
     # The command to run eval is present
     assert "&& $cmd run_eval --run_config config_ef.yaml" in result.cmd
+
+
+def test_get_eval_factory_command_injects_sidecars_without_overriding(monkeypatch):
+    monkeypatch.setattr(
+        "nemo_evaluator_launcher.common.helpers.get_versions", lambda: "TEST_VER"
+    )
+
+    cfg = OmegaConf.create(
+        {
+            "evaluation": {
+                "nemo_evaluator_config": {"config": {"params": {"extra": {}}}}
+            },
+            "deployment": {"type": "none"},
+            "target": {
+                "api_endpoint": {
+                    "url": "https://example.test/api",
+                    "model_id": "model-123",
+                }
+            },
+        }
+    )
+    # User pre-defines agent_2.url -> launcher should NOT override it.
+    user_task_config = OmegaConf.create(
+        {
+            "nemo_evaluator_config": {
+                "config": {
+                    "params": {
+                        "extra": {
+                            "agent_2": {"url": "http://predeployed:9999", "port": 9999}
+                        }
+                    }
+                }
+            }
+        }
+    )
+
+    task_definition = {"endpoint_type": "chat", "task": "my_task"}
+    result = get_eval_factory_command(
+        cfg,
+        user_task_config,
+        task_definition,
+        launcher_sidecars={
+            "agent_1": {"url": "http://127.0.0.1:8080", "port": 8080},
+            "agent_2": {"url": "http://127.0.0.1:9000", "port": 9000},
+        },
+    )
+
+    b64 = _extract_b64_from_echo_cmd(result.cmd)
+    decoded_yaml = base64.b64decode(b64.encode("utf-8")).decode("utf-8")
+    merged = yaml.safe_load(decoded_yaml)
+
+    extra = merged["config"]["params"]["extra"]
+    assert extra["agent_1"]["url"] == "http://127.0.0.1:8080"
+    assert extra["agent_1"]["port"] == 8080
+
+    # Not overridden:
+    assert extra["agent_2"]["url"] == "http://predeployed:9999"
+    assert extra["agent_2"]["port"] == 9999

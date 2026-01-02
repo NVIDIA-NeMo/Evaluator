@@ -28,10 +28,11 @@ import time
 import warnings
 from pathlib import Path
 from typing import Dict, List, Optional
+from urllib.parse import urlparse
 
 import yaml
 from jinja2 import Environment, FileSystemLoader
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo_evaluator_launcher.common.execdb import (
     ExecutionDB,
@@ -44,6 +45,7 @@ from nemo_evaluator_launcher.common.helpers import (
     _str_to_echo_command,
     get_api_key_name,
     get_eval_factory_command,
+    get_eval_factory_config,
     get_eval_factory_dataset_size_from_run_config,
     get_timestamp_string,
 )
@@ -533,6 +535,77 @@ def _create_slurm_sbatch_script(
         container=task.get("container"),
     )
 
+    # Resolve launcher sidecars for this task and inject config.params.extra.<name>.{url,port}.
+    sidecars_cfg = cfg.execution.get("sidecars", []) or []
+    sidecars_to_spawn: list[dict] = []
+    launcher_sidecars: dict = {}
+    if isinstance(sidecars_cfg, (list, tuple, ListConfig)):
+
+        def _skip_sidecar(name: str, raw: dict | DictConfig) -> bool:
+            if not name:
+                return True
+            if raw.get("enabled", True) is False:
+                return True
+            if raw.get("skip_if_config_present", True) and isinstance(extra_cfg, dict):
+                existing = extra_cfg.get(name, {})
+                if isinstance(existing, dict) and (
+                    existing.get("url") is not None or existing.get("port") is not None
+                ):
+                    return True
+            return False
+
+        def _health_path(raw_health: object) -> str:
+            health = str(raw_health or "/health")
+            if health.startswith(("http://", "https://")):
+                return urlparse(health).path or "/health"
+            if not health.startswith("/"):
+                health = "/" + health
+            return health
+
+        merged_for_presence_check = get_eval_factory_config(cfg, task)
+        extra_cfg = (
+            merged_for_presence_check.get("config", {})
+            .get("params", {})
+            .get("extra", {})
+        )
+        ports_in_host_net: set[int] = set()
+        if cfg.deployment.type != "none":
+            ports_in_host_net.add(int(cfg.deployment.port))
+        for sc in sidecars_cfg:
+            if not isinstance(sc, (dict, DictConfig)):
+                continue
+            sc_name = str(sc.get("name", "")).strip()
+            if _skip_sidecar(sc_name, sc):
+                continue
+            port = sc.get("port", sc.get("target_port", None))
+            if port is None:
+                raise ValueError(
+                    f"sidecar {sc_name!r} is missing required field 'port' (or 'target_port')"
+                )
+            port_int = int(port)
+            url = f"http://127.0.0.1:{port_int}"
+            launcher_sidecars[sc_name] = {"url": url, "port": port_int}
+            health_path = _health_path(sc.get("healthcheck_url", "/health"))
+
+            # Slurm jobs share host networking: ports must be unique across server + sidecars.
+            if port_int in ports_in_host_net:
+                raise ValueError(
+                    "sidecar port collision in Slurm job (shared host network). "
+                    f"Port {port_int} is already in use (server or another sidecar). "
+                    "Pick unique ports."
+                )
+            ports_in_host_net.add(port_int)
+
+            sidecars_to_spawn.append(
+                {
+                    "name": sc_name,
+                    "image": str(sc.get("image", sc.get("image_url", ""))),
+                    "command": str(sc.get("command", sc.get("exec_command", ""))),
+                    "port": port_int,
+                    "health_path": health_path,
+                }
+            )
+
     # TODO(public release): convert to template
     s = "#!/bin/bash\n"
 
@@ -663,6 +736,30 @@ def _create_slurm_sbatch_script(
         if cfg.deployment.get("multiple_instances", False):
             s += _get_proxy_server_srun_command(cfg, remote_task_subdir)
 
+    # Sidecars: start alongside the server (or standalone if no server) and wait for readiness.
+    if sidecars_to_spawn:
+        s += "\n# sidecars\n"
+        for sc in sidecars_to_spawn:
+            sc_name_raw = str(sc["name"])
+            sc_name = re.sub(r"[^A-Za-z0-9_]", "_", sc_name_raw).upper()
+            sc_log_name = re.sub(r"[^A-Za-z0-9_.-]", "_", sc_name_raw)
+            s += (
+                "srun --mpi pmix --overlap "
+                "--nodes 1 --ntasks 1 "
+                f"--container-image {sc['image']} "
+                f"--output {remote_task_subdir / 'logs' / ('sidecar-' + sc_log_name + '-%A.log')} "
+                f"{sc['command']} &\n"
+            )
+            s += f"SIDECAR_{sc_name}_PID=$!\n"
+            s += _get_wait_for_server_handler(
+                "127.0.0.1",
+                int(sc["port"]),
+                str(sc["health_path"]),
+                f"sidecar {sc['name']}",
+                check_pid=True,
+            )
+            s += "\n"
+
     # prepare evaluation mounts
     evaluation_mounts_list = [
         "{}:/results".format(remote_task_subdir / "artifacts"),
@@ -693,6 +790,7 @@ def _create_slurm_sbatch_script(
         cfg,
         task,
         task_definition,
+        launcher_sidecars=launcher_sidecars if launcher_sidecars else None,
     )
 
     eval_factory_command = eval_factory_command_struct.cmd
@@ -731,6 +829,13 @@ def _create_slurm_sbatch_script(
         s += "kill $SERVER_PID  # terminate the server to finish gracefully\n"
         if cfg.deployment.get("multiple_instances", False):
             s += "kill $PROXY_PID  # terminate proxy to finish gracefully\n"
+        s += "\n"
+
+    if sidecars_to_spawn:
+        s += "# terminate sidecars\n"
+        for sc in sidecars_to_spawn:
+            sc_name = re.sub(r"[^A-Za-z0-9_]", "_", str(sc["name"])).upper()
+            s += f"kill $SIDECAR_{sc_name}_PID 2>/dev/null || true\n"
         s += "\n"
 
     # auto-export
