@@ -44,6 +44,7 @@ from nemo_evaluator_launcher.common.helpers import (
     _str_to_echo_command,
     get_api_key_name,
     get_eval_factory_command,
+    get_eval_factory_config,
     get_eval_factory_dataset_size_from_run_config,
     get_timestamp_string,
 )
@@ -533,6 +534,68 @@ def _create_slurm_sbatch_script(
         container=task.get("container"),
     )
 
+    # Resolve launcher sidecars for this task and inject config.params.extra.<name>.{url,port}.
+    sidecars_cfg = cfg.execution.get("sidecars", []) or []
+    sidecars_to_spawn: list[dict] = []
+    launcher_sidecars: dict = {}
+    if isinstance(sidecars_cfg, (list, tuple)):
+        merged_for_presence_check = get_eval_factory_config(cfg, task)
+        extra_cfg = (
+            merged_for_presence_check.get("config", {})
+            .get("params", {})
+            .get("extra", {})
+        )
+        for sc in sidecars_cfg:
+            if not isinstance(sc, (dict, DictConfig)):
+                continue
+            sc_name = str(sc.get("name", "")).strip()
+            if not sc_name:
+                continue
+            if sc.get("enabled", True) is False:
+                continue
+            skip_if_present = sc.get("skip_if_config_present", True)
+            if skip_if_present and isinstance(extra_cfg, dict):
+                existing = extra_cfg.get(sc_name, {})
+                if isinstance(existing, dict) and (
+                    existing.get("url") is not None or existing.get("port") is not None
+                ):
+                    continue
+            port = sc.get("port", sc.get("target_port", None))
+            if port is None:
+                raise ValueError(
+                    f"sidecar {sc_name!r} is missing required field 'port' (or 'target_port')"
+                )
+            port_int = int(port)
+            url = f"http://127.0.0.1:{port_int}"
+            launcher_sidecars[sc_name] = {"url": url, "port": port_int}
+
+            healthcheck_url = sc.get("healthcheck_url", "/health")
+            if isinstance(healthcheck_url, str) and healthcheck_url.startswith(
+                ("http://", "https://")
+            ):
+                # Extract path from full URL; wait helper expects separate host/port/path.
+                # If parsing fails, default to /health.
+                try:
+                    from urllib.parse import urlparse
+
+                    health_path = urlparse(healthcheck_url).path or "/health"
+                except Exception:
+                    health_path = "/health"
+            else:
+                health_path = str(healthcheck_url)
+                if not health_path.startswith("/"):
+                    health_path = "/" + health_path
+
+            sidecars_to_spawn.append(
+                {
+                    "name": sc_name,
+                    "image": str(sc.get("image", sc.get("image_url", ""))),
+                    "command": str(sc.get("command", sc.get("exec_command", ""))),
+                    "port": port_int,
+                    "health_path": health_path,
+                }
+            )
+
     # TODO(public release): convert to template
     s = "#!/bin/bash\n"
 
@@ -663,6 +726,28 @@ def _create_slurm_sbatch_script(
         if cfg.deployment.get("multiple_instances", False):
             s += _get_proxy_server_srun_command(cfg, remote_task_subdir)
 
+    # Sidecars: start alongside the server (or standalone if no server) and wait for readiness.
+    if sidecars_to_spawn:
+        s += "\n# sidecars\n"
+        for sc in sidecars_to_spawn:
+            sc_name = re.sub(r"[^A-Za-z0-9_]", "_", str(sc["name"])).upper()
+            s += (
+                "srun --mpi pmix --overlap "
+                "--nodes 1 --ntasks 1 "
+                f"--container-image {sc['image']} "
+                f"--output {remote_task_subdir / 'logs' / ('sidecar-' + str(sc['name']) + '-%A.log')} "
+                f"{sc['command']} &\n"
+            )
+            s += f"SIDECAR_{sc_name}_PID=$!\n"
+            s += _get_wait_for_server_handler(
+                "127.0.0.1",
+                int(sc["port"]),
+                str(sc["health_path"]),
+                f"sidecar {sc['name']}",
+                check_pid=True,
+            )
+            s += "\n"
+
     # prepare evaluation mounts
     evaluation_mounts_list = [
         "{}:/results".format(remote_task_subdir / "artifacts"),
@@ -693,6 +778,7 @@ def _create_slurm_sbatch_script(
         cfg,
         task,
         task_definition,
+        launcher_sidecars=launcher_sidecars if launcher_sidecars else None,
     )
 
     eval_factory_command = eval_factory_command_struct.cmd
@@ -731,6 +817,13 @@ def _create_slurm_sbatch_script(
         s += "kill $SERVER_PID  # terminate the server to finish gracefully\n"
         if cfg.deployment.get("multiple_instances", False):
             s += "kill $PROXY_PID  # terminate proxy to finish gracefully\n"
+        s += "\n"
+
+    if sidecars_to_spawn:
+        s += "# terminate sidecars\n"
+        for sc in sidecars_to_spawn:
+            sc_name = re.sub(r"[^A-Za-z0-9_]", "_", str(sc["name"])).upper()
+            s += f"kill $SIDECAR_{sc_name}_PID 2>/dev/null || true\n"
         s += "\n"
 
     # auto-export

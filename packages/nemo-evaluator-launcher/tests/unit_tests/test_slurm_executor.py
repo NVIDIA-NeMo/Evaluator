@@ -208,6 +208,36 @@ class TestSlurmExecutorFeatures:
             "--container-mounts" in script and "/host/path1:/container/path1" in script
         )
 
+    def test_sidecars_added_to_script_and_waited_for(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        base_config["deployment"] = {"type": "none"}
+        base_config["execution"]["sidecars"] = [
+            {
+                "name": "agent_1",
+                "image": "agent-image:latest",
+                "command": "python -m agent --port 8080",
+                "port": 8080,
+                "healthcheck_url": "/health",
+            }
+        ]
+        cfg = OmegaConf.create(base_config)
+
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert "# sidecars" in script
+        assert "--container-image agent-image:latest" in script
+        assert "python -m agent --port 8080" in script
+        # Wait handler should probe localhost:8080 with /health
+        assert "127.0.0.1" in script and "8080" in script and "/health" in script
+
     def test_new_execution_mounts_evaluation(
         self, base_config, mock_task, mock_dependencies
     ):

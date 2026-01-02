@@ -86,6 +86,32 @@ execution:
   extra_docker_args: "--volume /my/local/path:/my/container/path"
 ```
 
+## Sidecar containers (agentic tasks)
+
+Some agentic benchmarks need additional local HTTP services (tool servers, sandbox helpers, etc.) during evaluation.
+The Launcher can start these **sidecar containers** (in the same network namespace as the evaluation container) and
+automatically populate their endpoints into the Eval Factory config under `config.params.extra`.
+
+Configure sidecars via `execution.sidecars`:
+
+```yaml
+execution:
+  sidecars:
+    - name: agent_1
+      image: my-org/my-agent:latest
+      command: "python -m my_agent --port 8080"
+      port: 8080
+      healthcheck_url: /health
+      enabled: true
+      # If the user already set config.params.extra.agent_1.url/port, treat as pre-deployed and don't spawn:
+      skip_if_config_present: true
+```
+
+The Launcher will (unless already set by the user) set:
+
+- `config.params.extra.<name>.url` to `http://127.0.0.1:<port>`
+- `config.params.extra.<name>.port` to `<port>`
+
 
 ## Rerunning Evaluations
 

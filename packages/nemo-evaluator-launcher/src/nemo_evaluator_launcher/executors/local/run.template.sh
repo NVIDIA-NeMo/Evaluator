@@ -60,6 +60,13 @@ else
     # Docker run with eval factory command
     (
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.running"
+        {% set has_sidecars = task.sidecars and (task.sidecars|length > 0) %}
+        {% if has_sidecars and not task.deployment %}
+        # Create a lightweight "netns anchor" container so sidecars + client can share localhost
+        NETNS_ANCHOR_NAME="netns-{{ task.name }}-{{ task.job_id }}"
+        docker run -d --rm --name "$NETNS_ANCHOR_NAME" alpine:3.19 sleep infinity > /dev/null
+        NETNS_CONTAINER_NAME="$NETNS_ANCHOR_NAME"
+        {% endif %}
         {% if task.deployment %}
         docker run --rm --shm-size=100g --gpus all {{ task.deployment.extra_docker_args }} \
         --name {{ task.deployment.container_name }} --entrypoint '' \
@@ -75,6 +82,7 @@ else
 
         SERVER_PID=$!
         SERVER_CONTAINER_NAME="{{ task.deployment.container_name }}"
+        NETNS_CONTAINER_NAME="$SERVER_CONTAINER_NAME"
 
         date
         # wait for the server to initialize
@@ -89,8 +97,27 @@ else
         date
 
         {% endif %}
+        {% if has_sidecars %}
+        # Start sidecars in the same network namespace as the server (or netns anchor)
+        {% for sc in task.sidecars %}
+        docker run --rm --shm-size=2g --network container:$NETNS_CONTAINER_NAME \
+        --name {{ sc.container_name }} {{ extra_docker_args }} \
+        {{ sc.image }} {{ sc.command }} > "$logs_dir/sidecar_{{ sc.name }}.log" 2>&1 &
+        SIDECAR_{{ sc.name | upper }}_PID=$!
+
+        # wait for the sidecar to initialize
+        TIMEOUT=600
+        ELAPSED=0
+        while [[ "$(docker run --rm --network container:$NETNS_CONTAINER_NAME curlimages/curl:8.5.0 -s -o /dev/null -w "%{http_code}" {{ sc.health_url }})" != "200" ]]; do
+            kill -0 $SIDECAR_{{ sc.name | upper }}_PID 2>/dev/null || { echo "Sidecar {{ sc.name }} process died"; echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) 1" > "$logs_dir/stage.exit"; exit 1; }
+            [ $ELAPSED -ge $TIMEOUT ] && { echo "Sidecar {{ sc.name }} health check timeout after ${TIMEOUT}s"; echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) 1" > "$logs_dir/stage.exit"; exit 1; }
+            sleep 5
+            ELAPSED=$((ELAPSED + 5))
+        done
+        {% endfor %}
+        {% endif %}
         docker run --rm --shm-size=100g {{ extra_docker_args }} \
-        {% if task.deployment %}--network container:$SERVER_CONTAINER_NAME \{% endif %}--name {{ task.client_container_name }} \
+        {% if task.deployment or has_sidecars %}--network container:$NETNS_CONTAINER_NAME \{% endif %}--name {{ task.client_container_name }} \
       --volume "$artifacts_dir":/results \
       {% if task.dataset_mount_host and task.dataset_mount_container -%}
       --volume "{{ task.dataset_mount_host }}:{{ task.dataset_mount_container }}" \
@@ -112,9 +139,21 @@ else
       ' > "$logs_dir/client_stdout.log" 2>&1
     exit_code=$?
 
+    {% if has_sidecars %}
+    # Stop sidecars
+    {% for sc in task.sidecars %}
+    docker stop {{ sc.container_name }} 2>/dev/null || true
+    {% endfor %}
+    {% endif %}
+
     {% if task.deployment %}
     # Stop the server
     docker stop $SERVER_CONTAINER_NAME 2>/dev/null || true
+    {% endif %}
+
+    {% if has_sidecars and not task.deployment %}
+    # Stop netns anchor
+    docker stop "$NETNS_ANCHOR_NAME" 2>/dev/null || true
     {% endif %}
 
     echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $exit_code" > "$logs_dir/stage.exit"

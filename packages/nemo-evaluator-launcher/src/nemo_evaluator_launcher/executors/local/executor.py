@@ -43,6 +43,7 @@ from nemo_evaluator_launcher.common.helpers import (
     get_api_key_name,
     get_endpoint_url,
     get_eval_factory_command,
+    get_eval_factory_config,
     get_eval_factory_dataset_size_from_run_config,
     get_health_url,
     get_timestamp_string,
@@ -128,6 +129,77 @@ class LocalExecutor(BaseExecutor):
                 base_mapping=tasks_mapping,
                 container=task.get("container"),
             )
+
+            # Resolve launcher sidecars for this task.
+            # Schema (execution.sidecars):
+            # - name: agent_1
+            #   image: repo/image:tag
+            #   command: "python -m mysvc --port 8080"
+            #   port: 8080
+            #   healthcheck_url: /health
+            #   enabled: true
+            #   skip_if_config_present: true   # default true
+            sidecars_cfg = cfg.execution.get("sidecars", []) or []
+            sidecars_to_spawn: list[dict] = []
+            launcher_sidecars: dict = {}
+            if isinstance(sidecars_cfg, (list, tuple)):
+                merged_for_presence_check = get_eval_factory_config(cfg, task)
+                extra_cfg = (
+                    merged_for_presence_check.get("config", {})
+                    .get("params", {})
+                    .get("extra", {})
+                )
+                for sc in sidecars_cfg:
+                    if not isinstance(sc, (dict, DictConfig)):
+                        continue
+                    sc_name = str(sc.get("name", "")).strip()
+                    if not sc_name:
+                        continue
+                    if sc.get("enabled", True) is False:
+                        continue
+
+                    # If user already provided config.params.extra.<name>.url/port, treat as pre-deployed and skip spawning.
+                    skip_if_present = sc.get("skip_if_config_present", True)
+                    if skip_if_present and isinstance(extra_cfg, dict):
+                        existing = extra_cfg.get(sc_name, {})
+                        if isinstance(existing, dict) and (
+                            existing.get("url") is not None
+                            or existing.get("port") is not None
+                        ):
+                            continue
+
+                    port = sc.get("port", sc.get("target_port", None))
+                    if port is None:
+                        raise ValueError(
+                            f"sidecar {sc_name!r} is missing required field 'port' (or 'target_port')"
+                        )
+                    port_int = int(port)
+                    url = f"http://127.0.0.1:{port_int}"
+                    launcher_sidecars[sc_name] = {"url": url, "port": port_int}
+
+                    healthcheck_url = sc.get("healthcheck_url", "/health")
+                    if isinstance(healthcheck_url, str) and healthcheck_url.startswith(
+                        ("http://", "https://")
+                    ):
+                        health_url = healthcheck_url
+                    else:
+                        health_path = str(healthcheck_url)
+                        if not health_path.startswith("/"):
+                            health_path = "/" + health_path
+                        health_url = f"http://127.0.0.1:{port_int}{health_path}"
+
+                    sidecars_to_spawn.append(
+                        {
+                            "name": sc_name,
+                            "image": str(sc.get("image", sc.get("image_url", ""))),
+                            "command": str(
+                                sc.get("command", sc.get("exec_command", ""))
+                            ),
+                            "port": port_int,
+                            "health_url": health_url,
+                            "container_name": f"sidecar-{sc_name}-{task.name}-{timestamp}",
+                        }
+                    )
 
             if cfg.deployment.type != "none":
                 # container name
@@ -249,7 +321,10 @@ class LocalExecutor(BaseExecutor):
             task_output_dir = output_dir / task.name
             task_output_dir.mkdir(parents=True, exist_ok=True)
             eval_factory_command_struct = get_eval_factory_command(
-                cfg, task, task_definition
+                cfg,
+                task,
+                task_definition,
+                launcher_sidecars=launcher_sidecars if launcher_sidecars else None,
             )
             eval_factory_command = eval_factory_command_struct.cmd
             # The debug comment for placing into the script and easy debug. Reason
@@ -274,6 +349,7 @@ class LocalExecutor(BaseExecutor):
                 "eval_factory_command_debug_comment": eval_factory_command_debug_comment,
                 "dataset_mount_host": dataset_mount_host,
                 "dataset_mount_container": dataset_mount_container,
+                "sidecars": sidecars_to_spawn,
             }
             evaluation_tasks.append(evaluation_task)
 
