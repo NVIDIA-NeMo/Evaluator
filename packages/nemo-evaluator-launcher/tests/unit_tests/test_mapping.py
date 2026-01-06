@@ -23,60 +23,10 @@ from nemo_evaluator_launcher.common.container_metadata.intermediate_repr import 
     TaskIntermediateRepresentation,
 )
 from nemo_evaluator_launcher.common.mapping import (
-    _process_mapping,
     get_task_definition_for_job,
     get_task_from_mapping,
     load_tasks_mapping,
 )
-
-
-def test_process_mapping():
-    """Test mapping processing logic."""
-    mapping_toml = {
-        "harness1": {
-            "container": "test-container:latest",
-            "tasks": {
-                "chat": {
-                    "task1": {},
-                },
-                "completions": {
-                    "task2": {},
-                },
-            },
-        },
-        "harness2": {
-            "container": "test-container2:latest",
-            "tasks": {
-                "chat": {
-                    "task3": {},
-                },
-            },
-        },
-    }
-
-    result = _process_mapping(mapping_toml)
-
-    expected = {
-        ("harness1", "task1"): {
-            "task": "task1",
-            "harness": "harness1",
-            "container": "test-container:latest",
-            "endpoint_type": "chat",
-        },
-        ("harness1", "task2"): {
-            "task": "task2",
-            "harness": "harness1",
-            "container": "test-container:latest",
-            "endpoint_type": "completions",
-        },
-        ("harness2", "task3"): {
-            "task": "task3",
-            "harness": "harness2",
-            "container": "test-container2:latest",
-            "endpoint_type": "chat",
-        },
-    }
-    assert result == expected
 
 
 def test_get_task_from_mapping():
@@ -158,9 +108,9 @@ def test_load_tasks_mapping_from_container(monkeypatch):
 
     # If we accidentally fall back to packaged resources, fail fast.
     monkeypatch.setattr(
-        "nemo_evaluator_launcher.common.mapping._load_packaged_resource",
+        "nemo_evaluator_launcher.common.mapping.load_tasks_from_tasks_file",
         lambda *args, **kwargs: (_ for _ in ()).throw(
-            AssertionError("_load_packaged_resource should not be called")
+            AssertionError("load_tasks_from_tasks_file should not be called")
         ),
     )
     monkeypatch.setattr(
