@@ -1480,7 +1480,10 @@ def test_caching_interceptor_internal_attributes(
     legacy_config, expected_interceptor_attributes
 ):
     """Test the internal attributes and behavior of the CachingInterceptor class."""
-    from nemo_evaluator.adapters.adapter_config import AdapterConfig
+    from nemo_evaluator.adapters.adapter_config import (
+        AdapterConfig,
+        LegacyAdapterConfig,
+    )
     from nemo_evaluator.adapters.interceptors.caching_interceptor import (
         CachingInterceptor,
     )
@@ -1523,9 +1526,9 @@ def test_caching_interceptor_internal_attributes(
     hook_configs = adapter_config.get_post_eval_hook_configs()
     has_post_eval_report_hook = "post_eval_report" in hook_configs
 
-    defaults = AdapterConfig.get_legacy_defaults()
     should_enable_html = legacy_config.get(
-        "generate_html_report", defaults["generate_html_report"]
+        "generate_html_report",
+        LegacyAdapterConfig.model_fields["generate_html_report"].default,
     )
 
     if should_enable_html:
@@ -1535,7 +1538,8 @@ def test_caching_interceptor_internal_attributes(
         if has_post_eval_report_hook:
             hook_config = hook_configs["post_eval_report"]
             expected_html_size = legacy_config.get(
-                "html_report_size", defaults["html_report_size"]
+                "html_report_size",
+                LegacyAdapterConfig.model_fields["html_report_size"].default,
             )
             assert hook_config["html_report_size"] == expected_html_size
     else:
@@ -1573,7 +1577,10 @@ def test_caching_interceptor_internal_attributes(
 )
 def test_caching_interceptor_behavior_flags(legacy_config, expected_behavior_flags):
     """Test the behavior flags and capabilities of the CachingInterceptor."""
-    from nemo_evaluator.adapters.adapter_config import AdapterConfig
+    from nemo_evaluator.adapters.adapter_config import (
+        AdapterConfig,
+        LegacyAdapterConfig,
+    )
     from nemo_evaluator.adapters.interceptors.caching_interceptor import (
         CachingInterceptor,
     )
@@ -1604,9 +1611,9 @@ def test_caching_interceptor_behavior_flags(legacy_config, expected_behavior_fla
     hook_configs = adapter_config.get_post_eval_hook_configs()
     has_post_eval_report_hook = "post_eval_report" in hook_configs
 
-    defaults = AdapterConfig.get_legacy_defaults()
     should_enable_html = legacy_config.get(
-        "generate_html_report", defaults["generate_html_report"]
+        "generate_html_report",
+        LegacyAdapterConfig.model_fields["generate_html_report"].default,
     )
 
     if should_enable_html:

@@ -49,7 +49,7 @@ from nemo_evaluator_launcher.common.helpers import (
 )
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.mapping import (
-    get_task_from_mapping,
+    get_task_definition_for_job,
     load_tasks_mapping,
 )
 from nemo_evaluator_launcher.common.printing_utils import bold, cyan, grey, red
@@ -123,7 +123,11 @@ class LocalExecutor(BaseExecutor):
 
         for idx, task in enumerate(cfg.evaluation.tasks):
             timestamp = get_timestamp_string()
-            task_definition = get_task_from_mapping(task.name, tasks_mapping)
+            task_definition = get_task_definition_for_job(
+                task_query=task.name,
+                base_mapping=tasks_mapping,
+                container=task.get("container"),
+            )
 
             if cfg.deployment.type != "none":
                 # container name

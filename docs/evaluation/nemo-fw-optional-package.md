@@ -44,7 +44,7 @@ If multiple harnesses are installed in your environment and they define a task w
 
 ```python
 eval_config = EvaluationConfig(type="lm-evaluation-harness.mmlu")
-eval_config = EvaluationConfig(type="simple-evals.mmlu")
+eval_config = EvaluationConfig(type="simple_evals.mmlu")
 ```
 :::
 

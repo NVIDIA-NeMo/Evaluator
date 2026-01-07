@@ -28,7 +28,7 @@ execution:
 
 target:
   api_endpoint:
-    model_id: nvidia/nemotron-nano-3-30b-a3b
+    model_id: nvidia/nemotron-3-nano-30b-a3b
     url: https://integrate.api.nvidia.com/v1/chat/completions
     api_key_name: NGC_API_KEY # API Key with access to build.nvidia.com
 
@@ -43,7 +43,7 @@ evaluation:
         max_new_tokens: 131072
         temperature: 0.99999
         top_p: 0.99999
-        parallelism: 512
+        parallelism: 1
         request_timeout: 3600
         max_retries: 10
         extra:
@@ -60,15 +60,18 @@ evaluation:
           use_response_logging: true
           max_logged_responses: 10
   tasks:
+  - name: ns_ifbench
+    nemo_evaluator_config:
+      config:
+        params:
+          extra:
+            num_repeats: 8
   - name: ns_bfcl_v3
-    env_vars:
-      HF_TOKEN: HF_TOKEN
     nemo_evaluator_config:
       config:
         params:
           temperature: 0.6
           top_p: 0.95
-          parallelism: 32
           extra:
             num_repeats: 1
             args: ++use_client_parsing=False
@@ -77,21 +80,16 @@ evaluation:
           adapter_config:
             use_caching: false
   - name: ns_bfcl_v4
-    env_vars:
-      HF_TOKEN: HF_TOKEN
     nemo_evaluator_config:
       config:
         params:
           max_new_tokens: 8192
-          parallelism: 128
           temperature: 0.6
           top_p: 0.95
           extra:
             num_repeats: 1
             args: ++use_client_parsing=False
   - name: ns_livecodebench
-    env_vars:
-      HF_TOKEN: HF_TOKEN
     nemo_evaluator_config:
       config:
         params:
@@ -99,8 +97,6 @@ evaluation:
             num_repeats: 8
             dataset_split: test_v5_2407_2412
   - name: ns_mmlu_pro
-    env_vars:
-      HF_TOKEN: HF_TOKEN
     nemo_evaluator_config:
       config:
         params:
@@ -108,45 +104,19 @@ evaluation:
             num_repeats: 1
             args: "++prompt_config=eval/aai/mcq-10choices-boxed"
   - name: ns_gpqa
-    env_vars:
-      HF_TOKEN: HF_TOKEN
     nemo_evaluator_config:
       config:
         params:
           extra:
             num_repeats: 8
             args: "++prompt_config=eval/aai/mcq-4choices"
-  - name: ns_aime2025
-    env_vars:
-      HF_TOKEN: HF_TOKEN
-      JUDGE_API_KEY: JUDGE_API_KEY
-    nemo_evaluator_config:
-      config:
-        params:
-          extra:
-            num_repeats: 64
-            args: ++prompt_config=/prompt_templates/math-oai.yaml
   - name: ns_scicode
-    env_vars:
-      HF_TOKEN: HF_TOKEN
-      JUDGE_API_KEY: JUDGE_API_KEY
-    nemo_evaluator_config:
-      config:
-        params:
-          extra:
-            num_repeats: 8
-  - name: ns_ifbench
-    env_vars:
-      HF_TOKEN: HF_TOKEN
     nemo_evaluator_config:
       config:
         params:
           extra:
             num_repeats: 8
   - name: ns_hle
-    env_vars:
-      HF_TOKEN: HF_TOKEN
-      JUDGE_API_KEY: JUDGE_API_KEY
     nemo_evaluator_config:
       config:
         params:
@@ -156,5 +126,5 @@ evaluation:
             judge:
               parallelism: 16
               model_id: openai/gpt-4o
-              url: <OPENAI_API_URL_FOR_JUDGE>
+              url: ??? # Set your OpenAI-compatible API URL for the judge model
               api_key: JUDGE_API_KEY

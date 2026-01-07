@@ -52,9 +52,6 @@ nemo-evaluator-launcher export <invocation_id> --dest gsheets
 ### Container-First Architecture
 Pre-built NGC containers guarantee reproducible results across environments:
 
-```{include} ../_resources/tasks-table.md
-```
-
 ```bash
 # Pull and run any evaluation container
 docker pull nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }}

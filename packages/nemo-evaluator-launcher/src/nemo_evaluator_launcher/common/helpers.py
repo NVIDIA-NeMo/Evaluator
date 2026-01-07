@@ -197,6 +197,7 @@ def get_eval_factory_command(
         ["config", "output_dir"],
         "/results",
     )
+    # FIXME(martas): update to api_key_name after 25.12 is released
     _set_nested_optionally_overriding(
         merged_nemo_evaluator_config,
         ["target", "api_endpoint", "api_key"],

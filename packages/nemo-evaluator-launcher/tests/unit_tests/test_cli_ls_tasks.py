@@ -32,28 +32,66 @@ class TestLsTasksCommand:
     def sample_tasks_data(self):
         """Sample task data for testing."""
         return [
-            ["garak", "chat", "garak", "nvcr.io/nvidia/eval-factory/garak:25.08.1"],
-            ["mmlu", "chat", "lm-eval", "nvcr.io/nvidia/eval-factory/lm-eval:25.08.1"],
+            [
+                "garak",
+                "chat",
+                "garak",
+                "nvcr.io/nvidia/eval-factory/garak:25.08.1",
+                "multiarch",
+                "Garak task description",
+                "garak",
+            ],
+            [
+                "mmlu",
+                "chat",
+                "lm-eval",
+                "nvcr.io/nvidia/eval-factory/lm-eval:25.08.1",
+                "multiarch",
+                "MMLU task description",
+                "mmlu",
+            ],
             [
                 "arc",
                 "completions",
                 "lm-eval",
                 "nvcr.io/nvidia/eval-factory/lm-eval:25.08.1",
+                "multiarch",
+                "ARC task description",
+                "arc",
             ],
             [
                 "truthfulqa",
                 "chat",
                 "lm-eval",
                 "nvcr.io/nvidia/eval-factory/lm-eval:25.08.1",
+                "multiarch",
+                "TruthfulQA task description",
+                "truthfulqa",
             ],
-            ["ifeval", "chat", "helm", "nvcr.io/nvidia/eval-factory/helm:25.08.1"],
+            [
+                "ifeval",
+                "chat",
+                "helm",
+                "nvcr.io/nvidia/eval-factory/helm:25.08.1",
+                "multiarch",
+                "IFEval task description",
+                "ifeval",
+            ],
         ]
 
     @pytest.fixture
     def single_task_data(self):
         """Single task data for testing edge cases."""
         return [
-            ["garak", "chat", "garak", "nvcr.io/nvidia/eval-factory/garak:25.08.1"],
+            [
+                "garak",
+                "chat",
+                "garak",
+                "nvcr.io/nvidia/eval-factory/garak:25.08.1",
+                "multiarch",
+                "Garak task description",
+                "garak",
+            ],
         ]
 
     @pytest.fixture
@@ -83,7 +121,14 @@ class TestLsTasksCommand:
 
             # Verify first task content
             first_task = parsed_json["tasks"][0]
-            expected_keys = ["task", "endpoint_type", "harness", "container"]
+            expected_keys = [
+                "task",
+                "endpoint_type",
+                "harness",
+                "container",
+                "arch",
+                "description",
+            ]
             assert all(key in first_task for key in expected_keys)
             assert first_task["task"] == "garak"
             assert first_task["endpoint_type"] == "chat"
@@ -188,8 +233,10 @@ class TestLsTasksCommand:
             ]
             assert len(equals_lines) >= 2  # At least top and bottom borders
 
-            # Check for header structure
-            assert any("task" in line and "endpoint_type" in line for line in lines)
+            # Check for header structure - header contains just "task"
+            assert any(
+                "task" in line.lower() and "endpoint" in line.lower() for line in lines
+            )
 
             # Check that tasks are properly sorted alphabetically within each group
             # (this depends on the implementation but we can verify basic structure)
@@ -234,10 +281,42 @@ class TestLsTasksCommand:
         """Test that tasks are properly grouped by harness and container."""
         # Create data with multiple tasks for same harness/container and different ones
         test_data = [
-            ["task1", "chat", "harness1", "container1"],
-            ["task2", "completions", "harness1", "container1"],
-            ["task3", "chat", "harness1", "container2"],
-            ["task4", "chat", "harness2", "container3"],
+            [
+                "task1",
+                "chat",
+                "harness1",
+                "container1",
+                "multiarch",
+                "Task 1 description",
+                "task1",
+            ],
+            [
+                "task2",
+                "completions",
+                "harness1",
+                "container1",
+                "multiarch",
+                "Task 2 description",
+                "task2",
+            ],
+            [
+                "task3",
+                "chat",
+                "harness1",
+                "container2",
+                "amd",
+                "Task 3 description",
+                "task3",
+            ],
+            [
+                "task4",
+                "chat",
+                "harness2",
+                "container3",
+                "arm",
+                "Task 4 description",
+                "task4",
+            ],
         ]
 
         cmd = LsTasksCmd(json=False)
@@ -271,6 +350,9 @@ class TestLsTasksCommand:
                 "chat",
                 "harness",
                 "very-long-container-name-that-should-determine-table-width",
+                "multiarch",
+                "Short task description",
+                "short",
             ],
         ]
 
@@ -320,21 +402,41 @@ class TestLsTasksCommand:
 
         # Test with malformed data (wrong number of fields)
         malformed_data = [
-            ["task1", "chat", "harness1"],  # Missing container field
+            [
+                "task1",
+                "chat",
+                "harness1",
+            ],  # Missing container, arch, description, type fields
         ]
 
         with patch(
             "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=malformed_data,
         ):
-            with pytest.raises(AssertionError):
+            with pytest.raises(ValueError):
                 cmd.execute()
 
     def test_column_width_distribution(self):
         """Test that column widths are distributed correctly."""
         test_data = [
-            ["very-long-task-name-here", "chat", "harness", "container"],
-            ["short", "completions", "harness", "container"],
+            [
+                "very-long-task-name-here",
+                "chat",
+                "harness",
+                "container",
+                "multiarch",
+                "Very long task description",
+                "very-long-task-name-here",
+            ],
+            [
+                "short",
+                "completions",
+                "harness",
+                "container",
+                "multiarch",
+                "Short task description",
+                "short",
+            ],
         ]
 
         cmd = LsTasksCmd(json=False)
@@ -377,7 +479,17 @@ class TestLsTasksCommand:
     def test_task_count_messages(self):
         """Test task count messages for different scenarios."""
         # Test single task
-        single_data = [["task1", "chat", "harness", "container"]]
+        single_data = [
+            [
+                "task1",
+                "chat",
+                "harness",
+                "container",
+                "multiarch",
+                "Task 1 description",
+                "task1",
+            ]
+        ]
         cmd = LsTasksCmd(json=False)
 
         with patch(
@@ -393,8 +505,24 @@ class TestLsTasksCommand:
 
         # Test multiple tasks
         multi_data = [
-            ["task1", "chat", "harness", "container"],
-            ["task2", "completions", "harness", "container"],
+            [
+                "task1",
+                "chat",
+                "harness",
+                "container",
+                "multiarch",
+                "Task 1 description",
+                "task1",
+            ],
+            [
+                "task2",
+                "completions",
+                "harness",
+                "container",
+                "multiarch",
+                "Task 2 description",
+                "task2",
+            ],
         ]
 
         with patch(

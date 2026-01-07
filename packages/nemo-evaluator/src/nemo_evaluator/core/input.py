@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import os
 import pkgutil
 from typing import Optional
@@ -29,6 +30,7 @@ from nemo_evaluator.core.utils import (
     MisconfigurationError,
     deep_update,
     dotlist_to_dict,
+    validate_params_in_command,
 )
 from nemo_evaluator.logging import get_logger
 
@@ -65,7 +67,7 @@ def _parse_cli_args(args) -> dict:
     if args.output_dir:
         config["config"]["output_dir"] = args.output_dir
     if args.api_key_name:
-        config["target"]["api_endpoint"]["api_key"] = args.api_key_name
+        config["target"]["api_endpoint"]["api_key_name"] = args.api_key_name
     if args.model_id:
         config["target"]["api_endpoint"]["model_id"] = args.model_id
     if args.model_type:
@@ -355,15 +357,17 @@ def get_evaluation(
         get_available_evaluations()
     )
 
-    # First, get default Evaluation
+    # First, get default Evaluation and raw framework defaults
     # "framework.task" invocation
+    raw_framework_defaults = None
     if framework_name:
+        raw_framework_defaults = all_framework_defaults.get(framework_name, {})
         try:
             default_evaluation = all_framework_eval_mappings[framework_name][
                 evaluation_name
             ]
         except KeyError:
-            default_evaluation = Evaluation(**all_framework_defaults[framework_name])
+            default_evaluation = Evaluation(**raw_framework_defaults)
             evaluation_config.type = evaluation_name
             default_evaluation.config.params.task = evaluation_name
     else:
@@ -378,16 +382,50 @@ Please indicate which implementation you would like to choose by using 'framewor
 For example: {framework_handlers[0]}.{evaluation_name}. "
             )
         default_evaluation = all_eval_name_mapping[evaluation_name]
+        # Get framework name from evaluation to look up raw defaults
+        if hasattr(default_evaluation, "framework_name"):
+            raw_framework_defaults = all_framework_defaults.get(
+                default_evaluation.framework_name, {}
+            )
 
     default_configuration = default_evaluation.model_dump(exclude_none=True)
     user_configuration = {
         "config": evaluation_config.model_dump(),
         "target": target_config.model_dump(),
     }
+
+    # Extract raw adapter_config from framework defaults (before Pydantic processing)
+    raw_framework_adapter_config = None
+    if raw_framework_defaults:
+        raw_framework_adapter_config = (
+            raw_framework_defaults.get("target", {})
+            .get("api_endpoint", {})
+            .get("adapter_config")
+        )
+
+    # Merge framework defaults and user config
     merged_configuration = deep_update(
         default_configuration, user_configuration, skip_nones=True
     )
-    return Evaluation(**merged_configuration)
+
+    # Add framework adapter_config defaults to merged config if present
+    # Note: User's adapter_config will override these in validate_configuration()
+    if raw_framework_adapter_config:
+        if "target" not in merged_configuration:
+            merged_configuration["target"] = {}
+        if "api_endpoint" not in merged_configuration["target"]:
+            merged_configuration["target"]["api_endpoint"] = {}
+        merged_configuration["target"]["api_endpoint"]["adapter_config"] = (
+            raw_framework_adapter_config
+        )
+    command = merged_configuration.get("command", "")
+    validate_params_in_command(command, merged_configuration)
+    evaluation = Evaluation(**merged_configuration)
+
+    # Store raw framework adapter_config for later use in validate_configuration
+    evaluation._raw_framework_adapter_config = raw_framework_adapter_config
+
+    return evaluation
 
 
 def check_type_compatibility(evaluation: Evaluation):
@@ -449,10 +487,56 @@ def validate_configuration(run_config: dict) -> Evaluation:
     check_required_default_missing(run_config)
     check_task_invocation(run_config)
     check_adapter_config(run_config)
-    evaluation = get_evaluation(
-        EvaluationConfig(**run_config["config"]),
-        EvaluationTarget(**run_config["target"]),
+
+    # Extract user's adapter_config (may contain legacy params) BEFORE Pydantic processes it
+    user_adapter_config = (
+        run_config.get("target", {}).get("api_endpoint", {}).get("adapter_config")
     )
+
+    # Remove adapter_config temporarily to prevent Pydantic from filtering unknown fields
+    if (
+        user_adapter_config is not None
+        and "target" in run_config
+        and "api_endpoint" in run_config["target"]
+    ):
+        run_config_copy = copy.deepcopy(run_config)
+        run_config_copy["target"]["api_endpoint"].pop("adapter_config", None)
+    else:
+        run_config_copy = run_config
+
+    # Merge framework defaults (includes framework's adapter_config if present)
+    evaluation = get_evaluation(
+        EvaluationConfig(**run_config_copy["config"]),
+        EvaluationTarget(**run_config_copy["target"]),
+    )
+
+    # Get framework's adapter_config from the private attribute (stored as raw dict)
+    framework_adapter_config = getattr(
+        evaluation, "_raw_framework_adapter_config", None
+    )
+
+    # Merge framework adapter config with user adapter config and convert to AdapterConfig object
+    # Always create adapter config (with defaults if neither user nor framework specifies one)
+    from nemo_evaluator.core.utils import deep_update
+
+    # Start with framework defaults (may be None or {})
+    merged_adapter = framework_adapter_config.copy() if framework_adapter_config else {}
+
+    # Merge user overrides on top
+    if user_adapter_config is not None:
+        merged_adapter = deep_update(
+            merged_adapter, user_adapter_config, skip_nones=True
+        )
+
+    # Build eval_dict for AdapterConfig.get_validated_config
+    eval_dict = evaluation.model_dump()
+    eval_dict["target"]["api_endpoint"]["adapter_config"] = merged_adapter
+
+    # Convert merged config (framework defaults + user overrides/legacy params) to AdapterConfig
+    # This will create default config with caching enabled if merged_adapter is empty
+    adapter_cfg_obj = AdapterConfig.get_validated_config(eval_dict)
+    evaluation.target.api_endpoint.adapter_config = adapter_cfg_obj
+
     check_type_compatibility(evaluation)
     _logger.info(f"User-invoked config: \n{yaml.dump(evaluation.model_dump())}")
     return evaluation

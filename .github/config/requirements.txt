@@ -3,24 +3,15 @@ sphinx-autobuild    # For live doc serving while editing docs
 sphinx-autodoc2     # For documenting Python API
 autodoc_pydantic    # For rendering pydantic dataclasses
 enum-tools[sphinx]  # for rendering enum classes
+sphinx-llms-txt      # Generate llms.txt from built docs
 sphinxcontrib-autoprogram
 sphinx-copybutton   # Adds a copy button for code blocks
 nvidia-sphinx-theme # Our NVIDIA theme
 sphinxcontrib-mermaid # For mermaid diagrams
 myst-parser # For our markdown docs
 sphinx-design # For our design elements
-sphinxcontrib-mermaid # For mermaid diagrams
 swagger-plugin-for-sphinx # For Swagger API documentation
 
-
-flask
-jinja2
-psutil
-pydantic
-pydantic-core>=2.17
-requests
-structlog
-typing-extensions>=4.0.0
-pyyaml
-werkzeug
-yq
+# Editable local dependencies for autogen scripts and API docs
+-e packages/nemo-evaluator
+-e packages/nemo-evaluator-launcher

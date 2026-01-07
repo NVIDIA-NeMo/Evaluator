@@ -13,9 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
+
+from nemo_evaluator.logging import get_logger
 
 
 class DiscoveryConfig(BaseModel):
@@ -58,9 +61,122 @@ class PostEvalHookConfig(BaseModel):
         use_enum_values = True
 
 
+class LegacyAdapterConfig(BaseModel):
+    """Legacy adapter configuration parameters (pre-interceptor format).
+
+    This model validates legacy configuration dictionaries to catch typos
+    and invalid parameters early, before conversion to the new interceptor format.
+    """
+
+    class Config:
+        extra = "forbid"  # Reject any extra fields not defined here
+
+    # Boolean flags for optional features
+    use_caching: bool = Field(default=True, description="Enable caching interceptor")
+    save_responses: bool = Field(default=False, description="Save responses to disk")
+    save_requests: bool = Field(default=False, description="Save requests to disk")
+    use_system_prompt: bool = Field(
+        default=False, description="Enable system prompt modification"
+    )
+    use_omni_info: bool = Field(
+        default=False, description="Enable omni info processing"
+    )
+    use_request_logging: bool = Field(
+        default=False, description="Enable request logging"
+    )
+    use_nvcf: bool = Field(default=False, description="Enable NVCF integration")
+    use_response_logging: bool = Field(
+        default=False, description="Enable response logging"
+    )
+    use_reasoning: bool = Field(
+        default=False, description="Enable reasoning token processing"
+    )
+    process_reasoning_traces: bool = Field(
+        default=False, description="Process reasoning traces"
+    )
+    use_progress_tracking: bool = Field(
+        default=False, description="Enable progress tracking"
+    )
+    use_raise_client_errors: bool = Field(
+        default=False, description="Raise client errors"
+    )
+    include_json: bool = Field(default=True, description="Include JSON in responses")
+
+    # Model fields that are also part of AdapterConfig
+    mode: str = Field(
+        default="server", description="Adapter mode: 'server' or 'client'"
+    )
+    generate_html_report: bool = Field(default=True, description="Generate HTML report")
+    html_report_size: int | None = Field(default=5, description="HTML report size")
+    tracking_requests_stats: bool = Field(
+        default=True, description="Track request statistics"
+    )
+    log_failed_requests: bool = Field(default=False, description="Log failed requests")
+    endpoint_type: str = Field(default="chat", description="Endpoint type")
+    caching_dir: str | None = Field(default=None, description="Caching directory")
+
+    # Optional string/dict configuration parameters
+    custom_system_prompt: str | None = Field(
+        default=None, description="Custom system prompt"
+    )
+    output_dir: str | None = Field(default=None, description="Output directory")
+    params_to_add: dict[str, Any] | None = Field(
+        default=None, description="Parameters to add"
+    )
+    params_to_remove: list[str] | None = Field(
+        default=None, description="Parameters to remove"
+    )
+    params_to_rename: dict[str, str] | None = Field(
+        default=None, description="Parameters to rename"
+    )
+
+    # Optional integer limits
+    max_logged_requests: int | None = Field(
+        default=None, description="Max logged requests"
+    )
+    max_logged_responses: int | None = Field(
+        default=None, description="Max logged responses"
+    )
+    max_saved_requests: int | None = Field(
+        default=None, description="Max saved requests"
+    )
+    max_saved_responses: int | None = Field(
+        default=None, description="Max saved responses"
+    )
+
+    # Reasoning-specific parameters
+    start_reasoning_token: str | None = Field(
+        default=None, description="Start reasoning token"
+    )
+    include_if_reasoning_not_finished: bool | None = Field(
+        default=None, description="Include unfinished reasoning"
+    )
+    track_reasoning: bool | None = Field(default=None, description="Track reasoning")
+    end_reasoning_token: str = Field(
+        default="</think>", description="End reasoning token"
+    )
+
+    # Progress tracking parameters
+    progress_tracking_url: str | None = Field(
+        default=None, description="Progress tracking URL"
+    )
+    progress_tracking_interval: int = Field(
+        default=1, description="Progress tracking interval"
+    )
+
+    # Logging parameters
+    logging_aggregated_stats_interval: int = Field(
+        default=100, description="Logging aggregated stats interval"
+    )
+
+
 class AdapterConfig(BaseModel):
     """Adapter configuration with registry-based interceptor support"""
 
+    mode: str = Field(
+        description="Adapter mode: 'server' (default) or 'client'",
+        default="server",
+    )
     discovery: DiscoveryConfig = Field(
         description="Configuration for discovering 3rd party modules and directories",
         default_factory=DiscoveryConfig,
@@ -81,48 +197,6 @@ class AdapterConfig(BaseModel):
         description="Whether to log failed requests",
         default=False,
     )
-
-    @classmethod
-    def get_legacy_defaults(cls) -> dict[str, Any]:
-        """Get default values for legacy configuration parameters."""
-        return {
-            "generate_html_report": True,
-            "html_report_size": 5,
-            "tracking_requests_stats": True,
-            "caching_dir": None,
-            "log_failed_requests": cls.model_fields["log_failed_requests"].default,
-            "endpoint_type": cls.model_fields["endpoint_type"].default,
-            # Boolean defaults for optional features
-            "use_caching": True,
-            "save_responses": False,
-            "save_requests": False,
-            "use_system_prompt": False,
-            "use_omni_info": False,
-            "use_request_logging": False,
-            "use_nvcf": False,
-            "use_response_logging": False,
-            "use_reasoning": False,
-            "process_reasoning_traces": False,
-            "use_progress_tracking": False,
-            "use_raise_client_errors": False,
-            "include_json": True,
-            "custom_system_prompt": None,
-            "output_dir": None,
-            "params_to_add": None,
-            "params_to_remove": None,
-            "params_to_rename": None,
-            "max_logged_requests": None,
-            "max_logged_responses": None,
-            "max_saved_requests": None,
-            "max_saved_responses": None,
-            "start_reasoning_token": None,
-            "include_if_reasoning_not_finished": None,
-            "track_reasoning": None,
-            "end_reasoning_token": "</think>",
-            "progress_tracking_url": None,
-            "progress_tracking_interval": 1,
-            "logging_aggregated_stats_interval": 100,
-        }
 
     @classmethod
     def get_validated_config(cls, run_config: dict[str, Any]) -> "AdapterConfig":
@@ -156,9 +230,9 @@ class AdapterConfig(BaseModel):
         )
 
         # Validate that legacy parameters are not mixed with interceptors
-        legacy_defaults = cls.get_legacy_defaults()
+        legacy_params = set(LegacyAdapterConfig.model_fields.keys())
         model_fields = set(cls.model_fields.keys())
-        legacy_only_params = set(legacy_defaults.keys()) - model_fields
+        legacy_only_params = legacy_params - model_fields
 
         for config_name, config in [
             ("global_adapter_config", global_cfg),
@@ -203,14 +277,19 @@ class AdapterConfig(BaseModel):
                 {"name": s} if isinstance(s, str) else s
                 for s in merged["post_eval_hooks"]
             ]
+
         try:
             config = cls(**merged)
 
             # If no interceptors are configured, try to convert from legacy format
             if not config.interceptors:
+                # Pass mode through merged config so it's preserved in legacy conversion
                 config = cls.from_legacy_config(merged, run_config)
 
             return config
+        except ValidationError:
+            # Re-raise ValidationError directly for clear error messages
+            raise
         except Exception as e:
             raise ValueError(f"Invalid adapter configuration: {e}") from e
 
@@ -274,10 +353,29 @@ class AdapterConfig(BaseModel):
 
         Returns:
             AdapterConfig instance with interceptors based on legacy config
+
+        Raises:
+            ValidationError: If legacy_config contains typos or invalid field names
         """
-        # Merge legacy config with defaults to avoid repeated .get() calls
-        defaults = cls.get_legacy_defaults()
-        legacy_config = {**defaults, **legacy_config}
+        logger = get_logger(__name__)
+
+        # Validate legacy config using Pydantic model (catches typos early)
+        # Filter out modern fields (discovery, interceptors, post_eval_hooks) before validation
+        modern_fields = {"discovery", "interceptors", "post_eval_hooks"}
+        legacy_only = {k: v for k, v in legacy_config.items() if k not in modern_fields}
+
+        try:
+            validated = LegacyAdapterConfig(**legacy_only)
+            legacy_config = validated.model_dump()
+        except ValidationError:
+            # Log helpful message with list of valid fields
+            valid_fields = sorted(LegacyAdapterConfig.model_fields.keys())
+            logger.error(
+                f"Invalid legacy adapter configuration. "
+                f"Supported parameters: {', '.join(valid_fields)}"
+            )
+            # Re-raise the original ValidationError
+            raise
 
         interceptors = []
         post_eval_hooks = []
@@ -474,8 +572,6 @@ class AdapterConfig(BaseModel):
             )
 
         if legacy_config["use_reasoning"]:
-            from nemo_evaluator.logging import get_logger
-
             logger = get_logger(__name__)
             logger.warning(
                 '"use_reasoning" is deprecated as it might suggest it touches on switching on/off reasoning for mode when it does not. Use "process_reasoning_traces" instead.'
@@ -543,7 +639,6 @@ class AdapterConfig(BaseModel):
             from nemo_evaluator.adapters.interceptors.raise_client_error_interceptor import (
                 RaiseClientErrorInterceptor,
             )
-            from nemo_evaluator.logging import get_logger
 
             logger = get_logger(__name__)
 
@@ -583,6 +678,7 @@ class AdapterConfig(BaseModel):
             )
 
         return cls(
+            mode=legacy_config["mode"],
             interceptors=interceptors,
             post_eval_hooks=post_eval_hooks,
             endpoint_type=legacy_config["endpoint_type"],

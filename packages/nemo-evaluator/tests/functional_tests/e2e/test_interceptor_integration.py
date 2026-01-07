@@ -211,7 +211,6 @@ class TestInterceptorIntegration:
                 "target.api_endpoint.adapter_config.use_request_logging=True,"
                 "target.api_endpoint.adapter_config.use_response_logging=True,"
                 "target.api_endpoint.adapter_config.use_caching=True,"
-                "target.api_endpoint.adapter_config.reuse_cached_responses=True,"
                 "target.api_endpoint.adapter_config.save_requests=True,"
                 "target.api_endpoint.adapter_config.max_saved_requests=1,"
                 "target.api_endpoint.adapter_config.html_report_size=5,"
@@ -221,9 +220,6 @@ class TestInterceptorIntegration:
                 "target.api_endpoint.adapter_config.progress_tracking_interval=1,"
                 'target.api_endpoint.adapter_config.params_to_add={"comprehensive_test": true},'
                 "target.api_endpoint.adapter_config.tracking_requests_stats=True,"
-                "target.api_endpoint.adapter_config.response_stats_cache_dir="
-                + cache_dir
-                + "/response_stats_cache,"
                 "target.api_endpoint.adapter_config.generate_html_report=True,"
                 "logging.level=DEBUG"
             ),

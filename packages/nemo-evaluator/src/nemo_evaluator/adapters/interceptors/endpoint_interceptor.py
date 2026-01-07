@@ -15,6 +15,7 @@
 
 """Endpoint interceptor that makes actual requests to the upstream API."""
 
+import json
 import time
 from typing import final
 
@@ -80,15 +81,43 @@ class EndpointInterceptor(RequestToResponseInterceptor):
         start_time = time.time()
 
         # This is a final interceptor, we'll need the flask_request and api
+        raw_response = requests.request(
+            method=ar.r.method,
+            url=context.url,
+            headers={k: v for k, v in ar.r.headers if k.lower() != "host"},
+            json=ar.r.json,
+            cookies=ar.r.cookies,
+            allow_redirects=False,
+        )
+
+        # replace choices[xx].message.content=None with empty string
+        if raw_response.content is not None:
+            try:
+                response_json = json.loads(raw_response.content)
+                if (
+                    "choices" in response_json
+                    and isinstance(response_json["choices"], list)
+                    and len(response_json["choices"]) > 0
+                ):
+                    for i, choice in enumerate(response_json["choices"]):
+                        if (
+                            "message" in choice
+                            and "content" in choice["message"]
+                            and choice["message"]["content"] is None
+                        ):
+                            self.logger.warning(
+                                f"choices[{i}].message.content is None, replacing with empty string"
+                            )
+                            choice["message"]["content"] = ""
+                raw_response._content = json.dumps(response_json).encode("utf-8")
+            except (json.JSONDecodeError, TypeError, KeyError) as e:
+                # If JSON parsing fails or unexpected structure, leave response unchanged
+                self.logger.debug(
+                    "Could not parse response as JSON, leaving unchanged", error=str(e)
+                )
+
         resp = AdapterResponse(
-            r=requests.request(
-                method=ar.r.method,
-                url=context.url,
-                headers={k: v for k, v in ar.r.headers if k.lower() != "host"},
-                json=ar.r.json,
-                cookies=ar.r.cookies,
-                allow_redirects=False,
-            ),
+            r=raw_response,
             rctx=ar.rctx,
             latency_ms=round(
                 (time.time() - start_time) * 1000, 2
