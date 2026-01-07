@@ -59,7 +59,7 @@ NeMo Evaluator Launcher provides pre-built evaluation containers for different e
 | **vlmevalkit** | Vision-language model evaluation | [Link](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/vlmevalkit) | `25.11` | AI2D, ChartQA, MMMU, MathVista-MINI, OCRBench, SlideVQA |
 
 <!-- BEGIN AUTOGENERATION -->
-<!-- mapping toml checksum: sha256:b7fdaa7f01a641970f864c6aab95d7f9e49b883dee8558e8636eb8018a01388e -->
+<!-- mapping toml checksum: sha256:881e6d1de31824c9e77a3e13c0a9ab988d6bab7cc9fab5b298ef1e5b1bdf1af9 -->
 <!--
 | Container | Description | NGC Catalog | Latest Tag | Supported benchmarks |
 |-----------|-------------|-------------|------------| ------------|
@@ -129,7 +129,7 @@ Once you have the example configuration file, either by cloning this repository 
 
 
 ```bash
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_nvidia_nemotron_nano_9b_v2 --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_nvidia_nemotron_nano_9b_v2.yaml -o execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
 ```
 
 After running this command, you will see a `job_id`, which can be used to track the job and its results. All logs will be available in your `<YOUR_OUTPUT_LOCAL_DIR>`.

@@ -555,6 +555,7 @@ def _create_slurm_sbatch_script(
     )
     s += "#SBATCH --job-name {}\n".format(job_name)
     s += "#SBATCH --exclusive\n"
+    s += "#SBATCH --no-requeue\n"  # We have our own auto-resume logic
     s += "#SBATCH --output {}\n".format(remote_task_subdir / "logs" / "slurm-%A.log")
     s += "\n"
     s += f'TASK_DIR="{str(remote_task_subdir)}"\n'

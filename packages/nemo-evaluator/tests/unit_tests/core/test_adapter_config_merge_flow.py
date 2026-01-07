@@ -43,7 +43,7 @@ class TestAdapterConfigMergeFlow:
             "simple_evals": {
                 "framework_name": "simple_evals",
                 "pkg_name": "simple_evals",
-                "command": "echo test",
+                "command": "echo {{ config.params.task }} {{ config.params.limit_samples | default('') }}",
                 "config": {
                     "type": "mmlu_pro",
                     "params": {"task": "mmlu_pro"},
@@ -149,7 +149,7 @@ class TestAdapterConfigMergeFlow:
             "simple_evals": {
                 "framework_name": "simple_evals",
                 "pkg_name": "simple_evals",
-                "command": "echo test",
+                "command": "echo {{ config.params.task }} {{ config.params.limit_samples | default('') }}",
                 "config": {"type": "mmlu_pro", "params": {"task": "mmlu_pro"}},
                 "target": {
                     "api_endpoint": {
@@ -211,7 +211,7 @@ class TestAdapterConfigMergeFlow:
             "simple_evals": {
                 "framework_name": "simple_evals",
                 "pkg_name": "simple_evals",
-                "command": "echo test",
+                "command": "echo {{ config.params.task }} {{ config.params.limit_samples | default('') }}",
                 "config": {"type": "mmlu_pro", "params": {"task": "mmlu_pro"}},
                 "target": {
                     "api_endpoint": {
@@ -286,7 +286,7 @@ class TestAdapterConfigMergeFlow:
             "simple_evals": {
                 "framework_name": "simple_evals",
                 "pkg_name": "simple_evals",
-                "command": "echo test",
+                "command": "echo {{ config.params.task }} {{ config.params.limit_samples | default('') }}",
                 "config": {"type": "mmlu_pro", "params": {"task": "mmlu_pro"}},
                 "target": {
                     "api_endpoint": {
@@ -367,7 +367,7 @@ class TestAdapterConfigMergeFlow:
             "simple_evals": {
                 "framework_name": "simple_evals",
                 "pkg_name": "simple_evals",
-                "command": "echo test",
+                "command": "echo {{ config.params.task }} {{ config.params.limit_samples | default('') }}",
                 "config": {"type": "test_task", "params": {"task": "test_task"}},
                 "target": {
                     "api_endpoint": {
@@ -406,7 +406,7 @@ class TestAdapterConfigMergeFlow:
                         "adapter_config": {
                             # Dict with legacy params (this is what dotlist_to_dict produces)
                             "use_caching": True,
-                            "caching_dir": f"{temp_dir}/cache",
+                            "caching_dir": f"{temp_dir}/git pu",
                             "use_request_logging": True,
                         },
                     }
@@ -443,7 +443,7 @@ class TestAdapterConfigMergeFlow:
             "simple_evals": {
                 "framework_name": "simple_evals",
                 "pkg_name": "simple_evals",
-                "command": "echo test",
+                "command": "echo {{ config.params.task }} {{ config.params.limit_samples | default('') }}",
                 "config": {"type": "mmlu_pro", "params": {"task": "mmlu_pro"}},
                 "target": {
                     "api_endpoint": {
@@ -479,7 +479,6 @@ class TestAdapterConfigMergeFlow:
                 f"target.api_endpoint.adapter_config.use_request_logging=True,"
                 f"target.api_endpoint.adapter_config.use_response_logging=True,"
                 f"target.api_endpoint.adapter_config.use_caching=True,"
-                f"target.api_endpoint.adapter_config.reuse_cached_responses=True,"
                 f"target.api_endpoint.adapter_config.save_requests=True,"
                 f"target.api_endpoint.adapter_config.max_saved_requests=1,"
                 f"target.api_endpoint.adapter_config.html_report_size=5,"
@@ -489,7 +488,6 @@ class TestAdapterConfigMergeFlow:
                 f"target.api_endpoint.adapter_config.progress_tracking_interval=1,"
                 f'target.api_endpoint.adapter_config.params_to_add={{"comprehensive_test": true}},'
                 f"target.api_endpoint.adapter_config.tracking_requests_stats=True,"
-                f"target.api_endpoint.adapter_config.response_stats_cache_dir={temp_dir}/cache/response_stats_cache,"
                 f"target.api_endpoint.adapter_config.generate_html_report=True"
             )
             overrides = dotlist_to_dict(override_str.split(","))
@@ -536,7 +534,6 @@ class TestAdapterConfigMergeFlow:
             caching_interceptor = next(
                 ic for ic in adapter_config.interceptors if ic.name == "caching"
             )
-            assert caching_interceptor.config.get("reuse_cached_responses") is True
             assert caching_interceptor.config.get("max_saved_requests") == 5
 
 

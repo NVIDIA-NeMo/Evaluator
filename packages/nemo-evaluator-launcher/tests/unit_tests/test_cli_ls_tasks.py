@@ -37,6 +37,7 @@ class TestLsTasksCommand:
                 "chat",
                 "garak",
                 "nvcr.io/nvidia/eval-factory/garak:25.08.1",
+                "multiarch",
                 "Garak task description",
                 "garak",
             ],
@@ -45,6 +46,7 @@ class TestLsTasksCommand:
                 "chat",
                 "lm-eval",
                 "nvcr.io/nvidia/eval-factory/lm-eval:25.08.1",
+                "multiarch",
                 "MMLU task description",
                 "mmlu",
             ],
@@ -53,6 +55,7 @@ class TestLsTasksCommand:
                 "completions",
                 "lm-eval",
                 "nvcr.io/nvidia/eval-factory/lm-eval:25.08.1",
+                "multiarch",
                 "ARC task description",
                 "arc",
             ],
@@ -61,6 +64,7 @@ class TestLsTasksCommand:
                 "chat",
                 "lm-eval",
                 "nvcr.io/nvidia/eval-factory/lm-eval:25.08.1",
+                "multiarch",
                 "TruthfulQA task description",
                 "truthfulqa",
             ],
@@ -69,6 +73,7 @@ class TestLsTasksCommand:
                 "chat",
                 "helm",
                 "nvcr.io/nvidia/eval-factory/helm:25.08.1",
+                "multiarch",
                 "IFEval task description",
                 "ifeval",
             ],
@@ -83,6 +88,7 @@ class TestLsTasksCommand:
                 "chat",
                 "garak",
                 "nvcr.io/nvidia/eval-factory/garak:25.08.1",
+                "multiarch",
                 "Garak task description",
                 "garak",
             ],
@@ -120,8 +126,8 @@ class TestLsTasksCommand:
                 "endpoint_type",
                 "harness",
                 "container",
+                "arch",
                 "description",
-                "type",
             ]
             assert all(key in first_task for key in expected_keys)
             assert first_task["task"] == "garak"
@@ -229,7 +235,7 @@ class TestLsTasksCommand:
 
             # Check for header structure - header contains just "task"
             assert any(
-                "task" in line.lower() and line.strip() == "task" for line in lines
+                "task" in line.lower() and "endpoint" in line.lower() for line in lines
             )
 
             # Check that tasks are properly sorted alphabetically within each group
@@ -275,17 +281,42 @@ class TestLsTasksCommand:
         """Test that tasks are properly grouped by harness and container."""
         # Create data with multiple tasks for same harness/container and different ones
         test_data = [
-            ["task1", "chat", "harness1", "container1", "Task 1 description", "task1"],
+            [
+                "task1",
+                "chat",
+                "harness1",
+                "container1",
+                "multiarch",
+                "Task 1 description",
+                "task1",
+            ],
             [
                 "task2",
                 "completions",
                 "harness1",
                 "container1",
+                "multiarch",
                 "Task 2 description",
                 "task2",
             ],
-            ["task3", "chat", "harness1", "container2", "Task 3 description", "task3"],
-            ["task4", "chat", "harness2", "container3", "Task 4 description", "task4"],
+            [
+                "task3",
+                "chat",
+                "harness1",
+                "container2",
+                "amd",
+                "Task 3 description",
+                "task3",
+            ],
+            [
+                "task4",
+                "chat",
+                "harness2",
+                "container3",
+                "arm",
+                "Task 4 description",
+                "task4",
+            ],
         ]
 
         cmd = LsTasksCmd(json=False)
@@ -319,6 +350,7 @@ class TestLsTasksCommand:
                 "chat",
                 "harness",
                 "very-long-container-name-that-should-determine-table-width",
+                "multiarch",
                 "Short task description",
                 "short",
             ],
@@ -374,14 +406,14 @@ class TestLsTasksCommand:
                 "task1",
                 "chat",
                 "harness1",
-            ],  # Missing container, description, type fields
+            ],  # Missing container, arch, description, type fields
         ]
 
         with patch(
             "nemo_evaluator_launcher.api.functional.get_tasks_list",
             return_value=malformed_data,
         ):
-            with pytest.raises(AssertionError):
+            with pytest.raises(ValueError):
                 cmd.execute()
 
     def test_column_width_distribution(self):
@@ -392,6 +424,7 @@ class TestLsTasksCommand:
                 "chat",
                 "harness",
                 "container",
+                "multiarch",
                 "Very long task description",
                 "very-long-task-name-here",
             ],
@@ -400,6 +433,7 @@ class TestLsTasksCommand:
                 "completions",
                 "harness",
                 "container",
+                "multiarch",
                 "Short task description",
                 "short",
             ],
@@ -446,7 +480,15 @@ class TestLsTasksCommand:
         """Test task count messages for different scenarios."""
         # Test single task
         single_data = [
-            ["task1", "chat", "harness", "container", "Task 1 description", "task1"]
+            [
+                "task1",
+                "chat",
+                "harness",
+                "container",
+                "multiarch",
+                "Task 1 description",
+                "task1",
+            ]
         ]
         cmd = LsTasksCmd(json=False)
 
@@ -463,12 +505,21 @@ class TestLsTasksCommand:
 
         # Test multiple tasks
         multi_data = [
-            ["task1", "chat", "harness", "container", "Task 1 description", "task1"],
+            [
+                "task1",
+                "chat",
+                "harness",
+                "container",
+                "multiarch",
+                "Task 1 description",
+                "task1",
+            ],
             [
                 "task2",
                 "completions",
                 "harness",
                 "container",
+                "multiarch",
                 "Task 2 description",
                 "task2",
             ],
