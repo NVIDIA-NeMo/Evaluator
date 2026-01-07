@@ -22,16 +22,18 @@ import copy
 import os
 import pathlib
 import platform
+import re
 import shlex
 import shutil
 import subprocess
 import time
 import warnings
 from typing import Iterator, List, Optional, Tuple, Union
+from urllib.parse import urlparse
 
 import jinja2
 import yaml
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo_evaluator_launcher.common.execdb import (
     ExecutionDB,
@@ -43,6 +45,7 @@ from nemo_evaluator_launcher.common.helpers import (
     get_api_key_name,
     get_endpoint_url,
     get_eval_factory_command,
+    get_eval_factory_config,
     get_eval_factory_dataset_size_from_run_config,
     get_health_url,
     get_timestamp_string,
@@ -123,11 +126,126 @@ class LocalExecutor(BaseExecutor):
 
         for idx, task in enumerate(cfg.evaluation.tasks):
             timestamp = get_timestamp_string()
+            job_id = generate_job_id(invocation_id, idx)
             task_definition = get_task_definition_for_job(
                 task_query=task.name,
                 base_mapping=tasks_mapping,
                 container=task.get("container"),
             )
+
+            # Resolve launcher sidecars for this task.
+            # Schema (execution.sidecars):
+            # - name: agent_1
+            #   image: repo/image:tag
+            #   command: "python -m mysvc --port 8080"
+            #   port: 8080
+            #   healthcheck_url: /health
+            #   enabled: true
+            #   skip_if_config_present: true   # default true
+            sidecars_cfg = cfg.execution.get("sidecars", []) or []
+            sidecars_to_spawn: list[dict] = []
+            launcher_sidecars: dict = {}
+            sidecar_network_name: str | None = None
+            if isinstance(sidecars_cfg, (list, tuple, ListConfig)):
+
+                def _skip_sidecar(name: str, raw: dict | DictConfig) -> bool:
+                    if not name:
+                        return True
+                    if raw.get("enabled", True) is False:
+                        return True
+                    if raw.get("skip_if_config_present", True) and isinstance(
+                        extra_cfg, dict
+                    ):
+                        existing = extra_cfg.get(name, {})
+                        if isinstance(existing, dict) and (
+                            existing.get("url") is not None
+                            or existing.get("port") is not None
+                        ):
+                            return True
+                    return False
+
+                def _get_health_path(raw_health: object) -> str:
+                    health = str(raw_health or "/health")
+                    if health.startswith(("http://", "https://")):
+                        return urlparse(health).path or "/health"
+                    if not health.startswith("/"):
+                        health = "/" + health
+                    return health
+
+                merged_for_presence_check = get_eval_factory_config(cfg, task)
+                extra_cfg = (
+                    merged_for_presence_check.get("config", {})
+                    .get("params", {})
+                    .get("extra", {})
+                )
+                # If we're not deploying a server container, use a dedicated docker network
+                # and inject URLs that use docker DNS (network aliases), not localhost.
+                #
+                # This avoids the need for network-namespace sharing and matches compose semantics.
+                sidecars_use_docker_network = cfg.deployment.type == "none"
+                if sidecars_use_docker_network:
+                    safe_job_id = re.sub(r"[^a-zA-Z0-9_.-]", "-", job_id)
+                    safe_task = re.sub(r"[^a-zA-Z0-9_.-]", "-", str(task.name))
+                    sidecar_network_name = f"nemo-eval-{safe_task}-{safe_job_id}"
+
+                ports_in_shared_netns: set[int] = set()
+                if cfg.deployment.type != "none":
+                    # When joining the server container netns, ports must be unique across
+                    # all sidecars and must not collide with the server port.
+                    ports_in_shared_netns.add(int(cfg.deployment.port))
+
+                for sc in sidecars_cfg:
+                    if not isinstance(sc, (dict, DictConfig)):
+                        continue
+                    sc_name = str(sc.get("name", "")).strip()
+                    if _skip_sidecar(sc_name, sc):
+                        continue
+
+                    port = sc.get("port", sc.get("target_port", None))
+                    if port is None:
+                        raise ValueError(
+                            f"sidecar {sc_name!r} is missing required field 'port' (or 'target_port')"
+                        )
+                    port_int = int(port)
+                    url = (
+                        f"http://{sc_name}:{port_int}"
+                        if cfg.deployment.type == "none"
+                        else f"http://127.0.0.1:{port_int}"
+                    )
+                    launcher_sidecars[sc_name] = {"url": url, "port": port_int}
+
+                    health_path = _get_health_path(sc.get("healthcheck_url", "/health"))
+
+                    if cfg.deployment.type != "none":
+                        if port_int in ports_in_shared_netns:
+                            raise ValueError(
+                                "sidecar port collision in shared network namespace. "
+                                f"Port {port_int} is already in use (server or another sidecar). "
+                                "Pick unique ports when using deployment (server + sidecars share localhost)."
+                            )
+                        ports_in_shared_netns.add(port_int)
+
+                    pid_var = (
+                        "SIDECAR_"
+                        + re.sub(r"[^A-Za-z0-9_]", "_", sc_name).upper()
+                        + "_PID"
+                    )
+
+                    sidecars_to_spawn.append(
+                        {
+                            "name": sc_name,
+                            "image": str(sc.get("image", sc.get("image_url", ""))),
+                            "command": str(
+                                sc.get("command", sc.get("exec_command", ""))
+                            ),
+                            "port": port_int,
+                            "health_path": health_path,
+                            "network_alias": sc_name,
+                            "pid_var": pid_var,
+                            "log_name": re.sub(r"[^A-Za-z0-9_.-]", "_", sc_name),
+                            "container_name": f"sidecar-{sc_name}-{task.name}-{timestamp}",
+                        }
+                    )
 
             if cfg.deployment.type != "none":
                 # container name
@@ -179,8 +297,6 @@ class LocalExecutor(BaseExecutor):
                     "extra_docker_args": deployment_extra_docker_args,
                 }
 
-            # Create job ID as <invocation_id>.<n>
-            job_id = generate_job_id(invocation_id, idx)
             job_ids.append(job_id)
             client_container_name = f"client-{task.name}-{timestamp}"
 
@@ -249,7 +365,10 @@ class LocalExecutor(BaseExecutor):
             task_output_dir = output_dir / task.name
             task_output_dir.mkdir(parents=True, exist_ok=True)
             eval_factory_command_struct = get_eval_factory_command(
-                cfg, task, task_definition
+                cfg,
+                task,
+                task_definition,
+                launcher_sidecars=launcher_sidecars if launcher_sidecars else None,
             )
             eval_factory_command = eval_factory_command_struct.cmd
             # The debug comment for placing into the script and easy debug. Reason
@@ -274,6 +393,8 @@ class LocalExecutor(BaseExecutor):
                 "eval_factory_command_debug_comment": eval_factory_command_debug_comment,
                 "dataset_mount_host": dataset_mount_host,
                 "dataset_mount_container": dataset_mount_container,
+                "sidecars": sidecars_to_spawn,
+                "sidecar_network_name": sidecar_network_name,
             }
             evaluation_tasks.append(evaluation_task)
 

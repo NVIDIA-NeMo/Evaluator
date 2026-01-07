@@ -60,6 +60,13 @@ else
     # Docker run with eval factory command
     (
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.running"
+        {% set has_sidecars = task.sidecars and (task.sidecars|length > 0) %}
+        {% if has_sidecars and not task.deployment %}
+        # Dedicated docker network for sidecars + client.
+        # We inject sidecar URLs using docker DNS names (network aliases), not localhost.
+        NETWORK_NAME="{{ task.sidecar_network_name }}"
+        docker network create "$NETWORK_NAME" > /dev/null
+        {% endif %}
         {% if task.deployment %}
         docker run --rm --shm-size=100g --gpus all {{ task.deployment.extra_docker_args }} \
         --name {{ task.deployment.container_name }} --entrypoint '' \
@@ -89,8 +96,46 @@ else
         date
 
         {% endif %}
+        {% if has_sidecars %}
+        # Start sidecars and wait for readiness.
+        {% for sc in task.sidecars %}
+        {% if task.deployment %}
+        # Sidecars join the server container network namespace (share localhost)
+        docker run --rm --shm-size=2g --network container:$SERVER_CONTAINER_NAME \
+        --name {{ sc.container_name }} {{ extra_docker_args }} \
+        {{ sc.image }} {{ sc.command }} > "$logs_dir/sidecar_{{ sc.name }}.log" 2>&1 &
+        {{ sc.pid_var }}=$!
+        {% else %}
+        docker run --rm --shm-size=2g --network "$NETWORK_NAME" --network-alias {{ sc.network_alias }} \
+        --name {{ sc.container_name }} {{ extra_docker_args }} \
+        {{ sc.image }} {{ sc.command }} > "$logs_dir/sidecar_{{ sc.log_name }}.log" 2>&1 &
+        {{ sc.pid_var }}=$!
+        {% endif %}
+
+        # wait for the sidecar to initialize
+        TIMEOUT=600
+        ELAPSED=0
+        {% if task.deployment %}
+        health_url="http://127.0.0.1:{{ sc.port }}{{ sc.health_path }}"
+        while [[ "$(docker run --rm --network container:$SERVER_CONTAINER_NAME curlimages/curl:8.5.0 -s -o /dev/null -w "%{http_code}" "$health_url")" != "200" ]]; do
+            kill -0 ${{ sc.pid_var }} 2>/dev/null || { echo "Sidecar {{ sc.name }} process died"; echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) 1" > "$logs_dir/stage.exit"; exit 1; }
+            [ $ELAPSED -ge $TIMEOUT ] && { echo "Sidecar {{ sc.name }} health check timeout after ${TIMEOUT}s"; echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) 1" > "$logs_dir/stage.exit"; exit 1; }
+            sleep 5
+            ELAPSED=$((ELAPSED + 5))
+        done
+        {% else %}
+        health_url="http://{{ sc.network_alias }}:{{ sc.port }}{{ sc.health_path }}"
+        while [[ "$(docker run --rm --network "$NETWORK_NAME" curlimages/curl:8.5.0 -s -o /dev/null -w "%{http_code}" "$health_url")" != "200" ]]; do
+            kill -0 ${{ sc.pid_var }} 2>/dev/null || { echo "Sidecar {{ sc.name }} process died"; echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) 1" > "$logs_dir/stage.exit"; exit 1; }
+            [ $ELAPSED -ge $TIMEOUT ] && { echo "Sidecar {{ sc.name }} health check timeout after ${TIMEOUT}s"; echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) 1" > "$logs_dir/stage.exit"; exit 1; }
+            sleep 5
+            ELAPSED=$((ELAPSED + 5))
+        done
+        {% endif %}
+        {% endfor %}
+        {% endif %}
         docker run --rm --shm-size=100g {{ extra_docker_args }} \
-        {% if task.deployment %}--network container:$SERVER_CONTAINER_NAME \{% endif %}--name {{ task.client_container_name }} \
+        {% if task.deployment %}--network container:$SERVER_CONTAINER_NAME \{% endif %}{% if has_sidecars and not task.deployment %}--network "$NETWORK_NAME" \{% endif %}--name {{ task.client_container_name }} \
       --volume "$artifacts_dir":/results \
       {% if task.dataset_mount_host and task.dataset_mount_container -%}
       --volume "{{ task.dataset_mount_host }}:{{ task.dataset_mount_container }}" \
@@ -112,9 +157,21 @@ else
       ' > "$logs_dir/client_stdout.log" 2>&1
     exit_code=$?
 
+    {% if has_sidecars %}
+    # Stop sidecars
+    {% for sc in task.sidecars %}
+    docker stop {{ sc.container_name }} 2>/dev/null || true
+    {% endfor %}
+    {% endif %}
+
     {% if task.deployment %}
     # Stop the server
     docker stop $SERVER_CONTAINER_NAME 2>/dev/null || true
+    {% endif %}
+
+    {% if has_sidecars and not task.deployment %}
+    # Remove sidecar network
+    docker network rm "$NETWORK_NAME" 2>/dev/null || true
     {% endif %}
 
     echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $exit_code" > "$logs_dir/stage.exit"
