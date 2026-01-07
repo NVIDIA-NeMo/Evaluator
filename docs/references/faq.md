@@ -242,11 +242,11 @@ Yes. You can override any field in the YAML file directly from the command line 
 
 ```bash
 # Override output directory
-nemo-evaluator-launcher run --config-name your_config \
+nemo-evaluator-launcher run --config your_config.yaml \
   -o execution.output_dir=my_results
 
 # Override multiple fields
-nemo-evaluator-launcher run --config-name your_config \
+nemo-evaluator-launcher run --config your_config.yaml \
   -o target.api_endpoint.url="https://new-endpoint.com/v1/chat/completions" \
   -o target.api_endpoint.model_id=openai/gpt-4o
 ```
@@ -257,7 +257,7 @@ Overrides are merged dynamically at runtime—ideal for testing new endpoints, s
 Always start with a dry run to validate your configuration before launching a full evaluation:
 
 ```bash
-nemo-evaluator-launcher run --config-name your_config --dry-run
+nemo-evaluator-launcher run --config your_config.yaml --dry-run
 ```
 :::
 
@@ -314,7 +314,7 @@ Always test first:
 
 
 ```bash
-nemo-evaluator-launcher run --config-name your_config --dry-run
+nemo-evaluator-launcher run --config your_config.yaml --dry-run
 ```
 
 Reference: {ref}`configuration-overview`.
