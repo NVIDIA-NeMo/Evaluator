@@ -129,7 +129,7 @@ Once you have the example configuration file, either by cloning this repository 
 
 
 ```bash
-nemo-evaluator-launcher run --config-dir packages/nemo-evaluator-launcher/examples --config-name local_nvidia_nemotron_nano_9b_v2 --override execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_nvidia_nemotron_nano_9b_v2.yaml -o execution.output_dir=<YOUR_OUTPUT_LOCAL_DIR>
 ```
 
 After running this command, you will see a `job_id`, which can be used to track the job and its results. All logs will be available in your `<YOUR_OUTPUT_LOCAL_DIR>`.
