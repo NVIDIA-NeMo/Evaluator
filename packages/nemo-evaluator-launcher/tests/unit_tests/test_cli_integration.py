@@ -65,7 +65,7 @@ class TestCLIWorkflowIntegration:
             mock_compose.return_value = OmegaConf.create(config_dict)
 
             # Run evaluation
-            run_cmd = RunCmd(config_name="test_config")
+            run_cmd = RunCmd()
             run_cmd.execute()
 
             # Get the invocation ID from the print output
@@ -190,7 +190,7 @@ class TestCLIWorkflowIntegration:
         with patch("nemo_evaluator_launcher.api.types.hydra.compose") as mock_compose:
             mock_compose.return_value = OmegaConf.create(config1)
 
-            run_cmd1 = RunCmd(config_name="config1")
+            run_cmd1 = RunCmd()
             run_cmd1.execute()
 
             invocation_id1 = extract_invocation_id(mock_print)
@@ -208,7 +208,7 @@ class TestCLIWorkflowIntegration:
             mock_compose.return_value = OmegaConf.create(config2)
 
             with patch("builtins.print") as mock_print2:
-                run_cmd2 = RunCmd(config_name="config2")
+                run_cmd2 = RunCmd()
                 run_cmd2.execute()
 
                 invocation_id2 = extract_invocation_id(mock_print2)
@@ -466,7 +466,6 @@ class TestCLIWorkflowIntegration:
 
             # Run evaluation
             run_cmd = RunCmd(
-                config_name="realistic",
                 override=["target.api_endpoint.model_id=gpt-4-turbo"],
             )
             run_cmd.execute()
@@ -706,7 +705,7 @@ class TestCLIConfigParameter:
     def test_config_parameter_splits_path_correctly(
         self, mock_execdb, mock_api_endpoint_check, mock_print, tmp_path
     ):
-        """Test that --config parameter properly splits path into config_dir and config_name."""
+        """Test that --config parameter is passed to Hydra correctly."""
         import pathlib
 
         # Create a test config file
@@ -820,16 +819,3 @@ class TestCLIConfigParameter:
             run_cmd.execute()
             call_kwargs = mock_compose.call_args.kwargs
             assert call_kwargs["config_name"] == "test_config"
-
-
-def test_start_deprecating_config_dir_and_config_name():
-    """This test will start failing to remind of removing config_dir and config_name parameters."""
-    # What to do: remove support for --config-dir and --config-name parameters when used together.
-    # Users should use --config <full_path> instead.
-    from datetime import datetime
-
-    DEPRECATION_DATE = datetime(2026, 1, 7)
-    if datetime.now() > DEPRECATION_DATE:
-        pytest.fail(
-            f"Deprecation of config_dir and config_name should start {DEPRECATION_DATE}"
-        )
