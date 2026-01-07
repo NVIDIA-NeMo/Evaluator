@@ -38,7 +38,8 @@ execution:
       NGC_API_KEY: ${oc.env:NGC_API_KEY}  # Required for NIM container authentication
   mounts:
     deployment:
-      /path/to/nim/cache: /opt/nim/.cache  # Mount NIM cache directory
+      # Replace /path/to/nim/cache with the absolute path to the NIM cache directory on your machine
+      /path/to/nim/cache: /opt/nim/.cache
 
 # NIM deployment configuration
 # Note: model_id is auto-derived from deployment.served_model_name
