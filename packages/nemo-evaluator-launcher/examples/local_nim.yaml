@@ -35,7 +35,7 @@ execution:
   output_dir: nel-results-nim
   env_vars:
     deployment:
-      NGC_API_KEY: ${oc.env:NGC_API_KEY}  # Required for NIM container authentication
+      NGC_API_KEY: $NGC_API_KEY # Required for NIM container authentication
   mounts:
     deployment:
       # Replace /path/to/nim/cache with the absolute path to the NIM cache directory on your machine
