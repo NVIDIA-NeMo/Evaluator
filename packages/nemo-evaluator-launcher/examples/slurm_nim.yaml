@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# How to use:
+#
+# 1. copy this file locally or clone the repository
+# 2. set the required values (marked with ???) or pass them via -o cli arguments, e.g.
+#    -o execution.hostname=my-cluster.com -o execution.output_dir=/path/on/cluster -o execution.account=my-account
+# 3. replace /path/to/nim/cache with the absolute path to the NIM cache directory on the cluster
+# 4. (optional) run with 10 samples for quick testing:
+#    -o ++evaluation.nemo_evaluator_config.config.params.limit_samples=10
+# 5. run full evaluation:
+#    nemo-evaluator-launcher run --config path/to/slurm_nim.yaml
+#
+# ⚠️  WARNING:
+#     Always run full evaluations (without limit_samples) for actual benchmark results.
+#     Using a subset of samples is solely for testing configuration and setup.
+#     Results from such test runs should NEVER be used to compare models or
+#     report benchmark performance.
+
+defaults:
+  - execution: slurm/default
+  - deployment: nim
+  - _self_
+
+# SLURM execution configuration
+execution:
+  hostname: ???  # SLURM headnode hostname (required)
+  account: ???  # SLURM account (required)
+  output_dir: ???  # ABSOLUTE path on cluster (required)
+  env_vars:
+    deployment:
+      NGC_API_KEY: ${oc.env:NGC_API_KEY}  # Required for NIM container authentication
+  mounts:
+    deployment:
+      # Replace /path/to/nim/cache with the absolute path to the NIM cache directory on the cluster
+      /path/to/nim/cache: /opt/nim/.cache
+
+# NIM deployment configuration
+deployment:
+  image: nvcr.io/nim/nvidia/nvidia-nemotron-nano-9b-v2:latest
+  served_model_name: nvidia/nvidia-nemotron-nano-9b-v2
+
+# Specify the benchmarks to evaluate
+evaluation:
+  tasks:
+    - name: ifeval
+    - name: gsm8k
+
