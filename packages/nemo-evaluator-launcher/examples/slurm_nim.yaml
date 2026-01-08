@@ -21,7 +21,7 @@
 # 3. replace /path/to/nim/cache with the absolute path to the NIM cache directory on the cluster
 # 4. (optional) run with 10 samples for quick testing:
 #    -o ++evaluation.nemo_evaluator_config.config.params.limit_samples=10
-# 4. run full evaluation:
+# 5. run full evaluation:
 #    nemo-evaluator-launcher run --config path/to/slurm_nim.yaml
 #
 # ⚠️  WARNING:

@@ -19,7 +19,7 @@
 # 2. set the NIM image and model name for your model
 # 3. replace /path/to/nim/cache with the absolute path to the NIM cache directory on your machine
 # 4. (optional) comment out limit_samples to run on the full dataset
-# 4. run `nemo-evaluator-launcher run --config path/to/local_nim.yaml`
+# 5. run `nemo-evaluator-launcher run --config path/to/local_nim.yaml`
 #
 # ⚠️  WARNING:
 #     Always run full evaluations (without limit_samples) for actual benchmark results.
