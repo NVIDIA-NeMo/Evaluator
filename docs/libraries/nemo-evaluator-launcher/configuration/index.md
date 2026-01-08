@@ -14,10 +14,10 @@ The nemo-evaluator-launcher uses [Hydra](https://hydra.cc/docs/intro/) for confi
 
 ```bash
 # Verify configuration
-nemo-evaluator-launcher run --config-name your_config --dry-run
+nemo-evaluator-launcher run --config your_config.yaml --dry-run
 
 # Run evaluation
-nemo-evaluator-launcher run --config-name your_config
+nemo-evaluator-launcher run --config your_config.yaml
 ```
 
 ### Basic Structure
@@ -147,11 +147,11 @@ Override any configuration value using the `-o` flag:
 
 ```bash
 # Basic override
-nemo-evaluator-launcher run --config-name your_config \
+nemo-evaluator-launcher run --config your_config.yaml \
   -o execution.output_dir=my_results
 
 # Multiple overrides
-nemo-evaluator-launcher run --config-name your_config \
+nemo-evaluator-launcher run --config your_config.yaml \
   -o execution.output_dir=my_results \
   -o target.api_endpoint.url="https://new-endpoint.com/v1/chat/completions"
 ```

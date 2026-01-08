@@ -27,7 +27,6 @@ from nemo_evaluator_launcher.common.printing_utils import (
     green,
     magenta,
     red,
-    yellow,
 )
 
 
@@ -40,20 +39,6 @@ class Cmd:
         alias=["--config"],
         metadata={
             "help": "Full path to config file. Uses Hydra by default (--config-mode=hydra). Use --config-mode=raw to load directly (bypasses Hydra)."
-        },
-    )
-    config_name: str = field(
-        default="default",
-        alias=["-c", "--config-name"],
-        metadata={
-            "help": "Config name to use. Consult `nemo_evaluator_launcher.configs`"
-        },
-    )
-    config_dir: str | None = field(
-        default=None,
-        alias=["-d", "--config-dir"],
-        metadata={
-            "help": "Path to user config directory. If provided, searches here first, then falls back to internal configs."
         },
     )
     config_mode: Literal["hydra", "raw"] = field(
@@ -138,14 +123,6 @@ class Cmd:
         # Load configuration either from Hydra or directly from a config file
         if self.config_mode == "raw" and self.config:
             # Validate that raw config loading is not used with other config options
-            if self.config_name != "default":
-                raise ValueError(
-                    "Cannot use --config-mode=raw with --config-name. Raw mode only works with --config."
-                )
-            if self.config_dir is not None:
-                raise ValueError(
-                    "Cannot use --config-mode=raw with --config-dir. Raw mode only works with --config."
-                )
             if self.override:
                 raise ValueError(
                     "Cannot use --config-mode=raw with --override. Raw mode only works with --config."
@@ -158,23 +135,9 @@ class Cmd:
             # Create RunConfig from the loaded data
             config = OmegaConf.create(config_dict)
         else:
-            # Handle --config parameter: split path into config_dir and config_name for Hydra
-            if self.config:
-                if self.config_name != "default":
-                    raise ValueError("Cannot use --config with --config-name")
-                if self.config_dir is not None:
-                    raise ValueError("Cannot use --config with --config-dir")
-                config_path = pathlib.Path(self.config)
-                config_dir = str(config_path.parent)
-                config_name = str(config_path.stem)
-            else:
-                config_dir = self.config_dir
-                config_name = self.config_name
-
             # Load the complete Hydra configuration
             config = RunConfig.from_hydra(
-                config_dir=config_dir,
-                config_name=config_name,
+                config=self.config,
                 hydra_overrides=self.override,
             )
 
@@ -283,16 +246,4 @@ class Cmd:
                 )
             )
 
-        # Warn if both config_dir and config_name are provided (and config_name is not default)
-        if (
-            self.config is None
-            and self.config_dir is not None
-            and self.config_name != "default"
-        ):
-            joint_path = pathlib.Path(self.config_dir) / f"{self.config_name}.yaml"
-            print(
-                yellow(
-                    f"Warning: Using --config-dir and --config-name together is deprecated. "
-                    f"Please use --config {joint_path} instead."
-                )
-            )
+        # Done.
