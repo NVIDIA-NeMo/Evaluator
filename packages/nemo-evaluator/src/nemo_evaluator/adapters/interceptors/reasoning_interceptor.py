@@ -284,7 +284,7 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
             # Increment counters
             if reasoning_words > 0:
                 self._reasoning_stats["responses_with_reasoning"] += 1
-            if reasoning_info.get("reasoning_started"):
+            if reasoning_info.get("reasoning_started") is True:
                 self._reasoning_stats["reasoning_started_count"] += 1
                 if reasoning_info.get("reasoning_finished"):
                     self._reasoning_stats["reasoning_finished_count"] += 1

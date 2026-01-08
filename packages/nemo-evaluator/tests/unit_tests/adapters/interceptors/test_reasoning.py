@@ -488,6 +488,17 @@ def test_get_reasoning_info_explicit_content(
             0,  # Should NOT be counted as finished since it never started
             0,  # Not unfinished either since it never started
         ),
+        (
+            "reasoning_started_unknown",
+            # Edge case: start_reasoning_token is None and no end token found
+            # In this case, reasoning_started="unknown" (truthy string)
+            # We should NOT count this as started since we don't know
+            "unknown",
+            False,
+            0,  # Unknown should NOT be counted as started
+            0,  # Not finished
+            0,  # Not unfinished since we don't know if it started
+        ),
     ],
 )
 def test_reasoning_unfinished_count(
