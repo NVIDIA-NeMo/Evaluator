@@ -228,6 +228,7 @@ When the reasoning interceptor is enabled, this file contains a `reasoning` key 
     "responses_with_reasoning": 2860,
     "reasoning_finished_count": 2860,
     "reasoning_started_count": 2860,
+    "reasoning_unfinished_count": 0,
     "avg_reasoning_words": 153.21,
     "avg_original_content_words": 192.17,
     "avg_updated_content_words": 38.52,
@@ -248,7 +249,7 @@ When the reasoning interceptor is enabled, this file contains a `reasoning` key 
 
 In the example above, the model used reasoning for 2860 out of 3672 responses (approximately 78%).
 
-The matching values for `reasoning_started_count` and `reasoning_finished_count` indicate that the `max_new_tokens` parameter was set sufficiently high, allowing the model to complete all reasoning traces without truncation.
+The matching values for `reasoning_started_count` and `reasoning_finished_count` (and `reasoning_unfinished_count` being 0) indicate that the `max_new_tokens` parameter was set sufficiently high, allowing the model to complete all reasoning traces without truncation.
 
 These statistics also enable cost analysis for reasoning operations.
 While the endpoint in this example does not return reasoning token usage statistics (the `*_tokens` fields are null or zero), you can still analyze computational cost using the word count metrics from the responses.

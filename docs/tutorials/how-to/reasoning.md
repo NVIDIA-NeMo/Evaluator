@@ -226,6 +226,7 @@ After evaluation completes, check these key artifacts:
 - **`eval_factory_metrics.json`**: Contains reasoning statistics under the `reasoning` key, including:
   - `responses_with_reasoning`: How many responses included reasoning traces
   - `reasoning_finished_count` vs `reasoning_started_count`: If these match, your `max_new_tokens` was sufficient
+  - `reasoning_unfinished_count`: Number of responses where reasoning started but was truncated (didn't reach end token)
   - `avg_reasoning_words` and other word- and tokens count metrics: Use these for cost analysis
 
 :::{tip}

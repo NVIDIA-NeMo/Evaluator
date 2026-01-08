@@ -76,6 +76,7 @@ The interceptor automatically tracks the following statistics:
 | `responses_with_reasoning` | Number of responses containing reasoning content |
 | `reasoning_finished_count` | Number of responses where reasoning completed (end token found) |
 | `reasoning_started_count` | Number of responses where reasoning started |
+| `reasoning_unfinished_count` | Number of responses where reasoning started but did not complete (end token not found) |
 | `avg_reasoning_words` | Average word count in reasoning content |
 | `avg_reasoning_tokens` | Average token count in reasoning content |
 | `avg_original_content_words` | Average word count in original content (before processing) |
