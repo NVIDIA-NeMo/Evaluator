@@ -18,7 +18,8 @@
 # 1. copy this file locally or clone the repository
 # 2. set the required values (marked with ???) or pass them via -o cli arguments, e.g.
 #    -o execution.hostname=my-cluster.com -o execution.output_dir=/path/on/cluster -o execution.account=my-account
-# 3. (optional) run with 10 samples for quick testing:
+# 3. replace /path/to/nim/cache with the absolute path to the NIM cache directory on the cluster
+# 4. (optional) run with 10 samples for quick testing:
 #    -o ++evaluation.nemo_evaluator_config.config.params.limit_samples=10
 # 4. run full evaluation:
 #    nemo-evaluator-launcher run --config path/to/slurm_nim.yaml
