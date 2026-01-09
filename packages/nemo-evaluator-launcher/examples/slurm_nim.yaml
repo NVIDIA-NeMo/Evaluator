@@ -50,8 +50,8 @@ execution:
 
 # NIM deployment configuration
 deployment:
-  image: nvcr.io/nim/nvidia/nvidia-nemotron-nano-9b-v2:latest
-  served_model_name: nvidia/nvidia-nemotron-nano-9b-v2
+  image: nvcr.io/nim/meta/llama-3.2-1b-instruct:latest
+  served_model_name: meta/llama-3.2-1b-instruct
 
 # Specify the benchmarks to evaluate
 evaluation:
