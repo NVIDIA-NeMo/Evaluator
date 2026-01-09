@@ -40,6 +40,7 @@ extensions = [
     "sphinx.ext.viewcode",  # For adding a link to view source code in docs
     "sphinx.ext.doctest",  # Allows testing in docstrings
     "sphinx.ext.napoleon",  # For google style docstrings
+    "sphinx_llms_txt",  # Generate llms.txt in built docs root
     "sphinx_copybutton",  # For copy button in code blocks,
     "sphinx_design",  # For grid layout
     "sphinx.ext.ifconfig",  # For conditional content
@@ -216,6 +217,11 @@ html_theme_options = {
 # html_static_path = ["_static"]
 
 html_extra_path = ["project.json", "versions1.json"]
+
+# -- Options for sphinx-llms-txt ----------------------------------------------
+# Keep linking to the Sphinx `_sources/` artifacts, but make the links relative
+# (avoid a leading `/`), so they work when the docs are hosted under a subpath.
+llms_txt_uri_template = "_sources/{docname}{suffix}{sourcelink_suffix}"
 
 # Note: JSON output configuration has been moved to the consolidated
 # json_output_settings dictionary above for better organization and new features!

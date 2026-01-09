@@ -30,10 +30,13 @@ Modes:
 
 import argparse
 import hashlib
+import json
 import os
 import pathlib
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from typing import Any, Optional
 
 import yaml
@@ -42,18 +45,6 @@ if sys.version_info >= (3, 11):
     import tomllib
 else:
     import tomli as tomllib
-
-from nemo_evaluator_launcher.common.container_metadata import (
-    DockerRegistryHandler,
-    HarnessIntermediateRepresentation,
-    TaskIntermediateRepresentation,
-    create_authenticator,
-    extract_framework_yml,
-    load_harnesses_and_tasks_from_tasks_file,
-    parse_container_image,
-    parse_framework_to_irs,
-)
-from nemo_evaluator_launcher.common.logging_utils import logger
 
 # Maximum number of lines to check after container declaration for digest comment
 MAX_DIGEST_COMMENT_OFFSET_LINES = 4
@@ -69,12 +60,128 @@ def find_repo_root(start_path: pathlib.Path) -> pathlib.Path:
     return start_path.parent.parent
 
 
+_REPO_ROOT = find_repo_root(pathlib.Path(__file__))
+_LAUNCHER_SRC = _REPO_ROOT / "packages" / "nemo-evaluator-launcher" / "src"
+# Ensure repo-local sources are importable even without an editable install.
+if _LAUNCHER_SRC.exists():
+    sys.path.insert(0, str(_LAUNCHER_SRC))
+
+from nemo_evaluator_launcher.common.container_metadata import (  # noqa: E402
+    DockerRegistryHandler,
+    HarnessIntermediateRepresentation,
+    TaskIntermediateRepresentation,
+    create_authenticator,
+    extract_framework_yml,
+    load_harnesses_and_tasks_from_tasks_file,
+    parse_container_image,
+    parse_framework_to_irs,
+)
+from nemo_evaluator_launcher.common.logging_utils import logger  # noqa: E402
+
+
+def _resolve_max_workers(cli_workers: Optional[int] = None) -> int:
+    """Resolve worker count for ThreadPoolExecutor-based parallelism.
+
+    Priority:
+      1) CLI value if provided and > 0
+      2) NEMO_EVALUATOR_CONTAINER_METADATA_WORKERS env var if set and > 0
+      3) A safe default tuned for network-bound workloads
+    """
+    if cli_workers is not None:
+        if cli_workers <= 0:
+            raise ValueError("--workers must be a positive integer")
+        return cli_workers
+
+    env_val = os.getenv("NEMO_EVALUATOR_CONTAINER_METADATA_WORKERS")
+    if env_val:
+        try:
+            env_workers = int(env_val)
+        except ValueError as e:
+            raise ValueError(
+                "NEMO_EVALUATOR_CONTAINER_METADATA_WORKERS must be an integer"
+            ) from e
+        if env_workers <= 0:
+            raise ValueError(
+                "NEMO_EVALUATOR_CONTAINER_METADATA_WORKERS must be a positive integer"
+            )
+        return env_workers
+
+    # Mostly network-bound (registry calls + blob downloads); use moderate parallelism.
+    cpu = os.cpu_count() or 4
+    return max(4, min(32, cpu * 4))
+
+
 def calculate_mapping_checksum(mapping_file: pathlib.Path) -> str:
     """Calculate SHA256 checksum of mapping.toml file."""
     with open(mapping_file, "rb") as f:
         file_content = f.read()
     checksum = hashlib.sha256(file_content).hexdigest()
     return f"sha256:{checksum}"
+
+
+def _normalize_platform_arch(arch: Optional[str]) -> Optional[str]:
+    if not arch:
+        return None
+    arch_l = str(arch).lower()
+    if arch_l in {"amd64", "x86_64"}:
+        return "amd"
+    if arch_l in {"arm64", "aarch64"}:
+        return "arm"
+    return None
+
+
+def _arch_label_from_arch_set(archs: set[str]) -> Optional[str]:
+    if not archs:
+        return None
+    if "amd" in archs and "arm" in archs:
+        return "multiarch"
+    if archs == {"amd"}:
+        return "amd"
+    if archs == {"arm"}:
+        return "arm"
+    return None
+
+
+def get_container_arch(
+    authenticator: DockerRegistryHandler, repository: str, reference: str
+) -> Optional[str]:
+    """Return 'amd' | 'arm' | 'multiarch' when determinable from registry APIs."""
+    manifest, _digest = authenticator.get_manifest_and_digest(repository, reference)
+    if not manifest:
+        return None
+
+    # Multi-arch: Docker manifest list / OCI index
+    manifests = manifest.get("manifests") if isinstance(manifest, dict) else None
+    if isinstance(manifests, list):
+        archs = {
+            _normalize_platform_arch(m.get("platform", {}).get("architecture"))
+            for m in manifests
+            if isinstance(m, dict)
+        }
+        archs.discard(None)
+        return _arch_label_from_arch_set(set(archs))  # type: ignore[arg-type]
+
+    # Single-arch: fetch config blob and read architecture from image config JSON.
+    config_digest = None
+    if isinstance(manifest, dict):
+        config = manifest.get("config") or {}
+        if isinstance(config, dict):
+            config_digest = config.get("digest")
+    if not config_digest:
+        return None
+
+    blob = authenticator.get_blob(repository, config_digest)
+    if not blob:
+        return None
+    try:
+        cfg = json.loads(blob.decode("utf-8"))
+    except Exception:
+        return None
+
+    arch = _normalize_platform_arch(
+        cfg.get("architecture") if isinstance(cfg, dict) else None
+    )
+    return arch
 
 
 def get_container_digest(
@@ -143,7 +250,8 @@ def extract_container_digests_from_mapping(
 
 def validate_container_digests(
     mapping_file: pathlib.Path,
-) -> tuple[bool, list[str], list[str]]:
+    workers: Optional[int] = None,
+) -> tuple[bool, list[str], list[str], dict[str, Optional[str]]]:
     """Validate that container digests in mapping.toml match actual registry digests."""
     container_digests = extract_container_digests_from_mapping(mapping_file)
 
@@ -152,12 +260,48 @@ def validate_container_digests(
             False,
             ["No container digests found in mapping.toml"],
             [],
+            {},
         )
 
     errors = []
     mismatches = []
 
-    for container, expected_digest in container_digests.items():
+    max_workers = _resolve_max_workers(workers)
+
+    def _arch_from_manifest(
+        authenticator: DockerRegistryHandler,
+        repository: str,
+        manifest: dict,
+    ) -> Optional[str]:
+        manifests = manifest.get("manifests")
+        if isinstance(manifests, list):
+            archs = {
+                _normalize_platform_arch((m.get("platform") or {}).get("architecture"))
+                for m in manifests
+                if isinstance(m, dict)
+            }
+            archs.discard(None)  # type: ignore[arg-type]
+            return _arch_label_from_arch_set(set(archs))  # type: ignore[arg-type]
+
+        config = manifest.get("config") or {}
+        config_digest = config.get("digest") if isinstance(config, dict) else None
+        if not (isinstance(config_digest, str) and config_digest.startswith("sha256:")):
+            return None
+
+        blob = authenticator.get_blob(repository, config_digest)
+        if not blob:
+            return None
+        try:
+            cfg = json.loads(blob.decode("utf-8"))
+        except Exception:
+            return None
+        if not isinstance(cfg, dict):
+            return None
+        return _normalize_platform_arch(cfg.get("architecture"))
+
+    def _fetch_digest_and_arch(
+        container: str,
+    ) -> tuple[str, Optional[str], Optional[str], Optional[str]]:
         try:
             registry_type, registry_url, repository, tag = parse_container_image(
                 container
@@ -166,24 +310,40 @@ def validate_container_digests(
                 registry_type, registry_url, repository
             )
             authenticator.authenticate(repository=repository)
-            actual_digest = get_container_digest(authenticator, repository, tag)
+            manifest, digest = authenticator.get_manifest_and_digest(repository, tag)
+            if not manifest or not digest:
+                return container, digest, None, None
+            arch = _arch_from_manifest(authenticator, repository, manifest)
+            return container, digest, arch, None
+        except Exception as e:
+            return container, None, None, str(e)
 
+    # Deterministic ordering: compare results in the same order as mapping.toml.
+    containers_in_order = list(container_digests.keys())
+    arch_by_container: dict[str, Optional[str]] = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        for container, actual_digest, arch, err in executor.map(
+            _fetch_digest_and_arch, containers_in_order
+        ):
+            arch_by_container[container] = arch
+            expected_digest = container_digests[container]
+            if err:
+                errors.append(f"Error validating container '{container}': {err}")
+                continue
             if not actual_digest:
                 errors.append(
                     f"Failed to fetch digest from registry for container '{container}'"
                 )
                 continue
-
             if actual_digest.lower() != expected_digest.lower():
                 mismatches.append(
                     f"Container '{container}': expected '{expected_digest}' "
                     f"but registry has '{actual_digest}'"
                 )
-        except Exception as e:
-            errors.append(f"Error validating container '{container}': {str(e)}")
 
     all_valid = len(errors) == 0 and len(mismatches) == 0
-    return all_valid, errors + mismatches, mismatches
+    # Return in a stable order (errors first, then mismatches).
+    return all_valid, errors + mismatches, mismatches, arch_by_container
 
 
 def verify_checksums(
@@ -240,13 +400,17 @@ def verify_mode(
     mapping_file: pathlib.Path,
     all_tasks_irs_file: pathlib.Path,
     readme_file: Optional[pathlib.Path],
+    workers: Optional[int] = None,
+    strict: bool = False,
 ) -> int:
     """Verify digests and checksums."""
     all_valid = True
 
     # Verify container digests
     logger.info("Validating container digests...")
-    digests_valid, digest_errors, mismatches = validate_container_digests(mapping_file)
+    digests_valid, digest_errors, mismatches, arch_by_container = (
+        validate_container_digests(mapping_file, workers=workers)
+    )
     if not digests_valid:
         all_valid = False
         if mismatches:
@@ -256,6 +420,23 @@ def verify_mode(
         for error in digest_errors:
             if error not in mismatches:
                 logger.error(f"  {error}")
+
+    # Warn/error on non-multiarch images.
+    non_multiarch = [
+        (container, arch_by_container.get(container))
+        for container in list(arch_by_container.keys())
+        if arch_by_container.get(container) != "multiarch"
+    ]
+    if non_multiarch:
+        if strict:
+            all_valid = False
+            logger.error("Non-multiarch containers detected (strict mode):")
+            for container, arch in non_multiarch:
+                logger.error(f"  {container}: arch={arch or 'unknown'}")
+        else:
+            logger.warning("Non-multiarch containers detected:")
+            for container, arch in non_multiarch:
+                logger.warning(f"  {container}: arch={arch or 'unknown'}")
 
     # Verify checksums
     logger.info("Validating checksums...")
@@ -346,6 +527,103 @@ def update_digest_comment_in_mapping_toml(
             f.write("\n".join(lines))
 
 
+def update_digest_comments_in_mapping_toml(
+    mapping_file: pathlib.Path, container_digests: dict[str, str]
+) -> int:
+    """Batch-update digest comments for multiple containers in a single file write."""
+    if not container_digests:
+        return 0
+
+    content = mapping_file.read_text(encoding="utf-8")
+    lines = content.split("\n")
+
+    digest_comment_pattern = r"#\s*container-digest:\s*(sha256:[a-f0-9]+)"
+    updated_count = 0
+
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        match = re.match(r'^(\s*)container\s*=\s*"([^"]+)"', line)
+        if not match:
+            i += 1
+            continue
+
+        indent = match.group(1)
+        container = match.group(2)
+        new_digest = container_digests.get(container)
+        if not new_digest:
+            i += 1
+            continue
+
+        section_line_idx = _find_section_header(lines, i)
+        if section_line_idx is None:
+            i += 1
+            continue
+
+        section_line = lines[section_line_idx].strip()
+        if not _is_harness_level_section(section_line):
+            i += 1
+            continue
+
+        existing_digest = None
+        comment_line_idx = None
+
+        for offset in range(1, MAX_DIGEST_COMMENT_OFFSET_LINES + 1):
+            if i + offset >= len(lines):
+                break
+            next_line = lines[i + offset]
+            match_comment = re.search(digest_comment_pattern, next_line, re.IGNORECASE)
+            if match_comment:
+                existing_digest = match_comment.group(1)
+                comment_line_idx = i + offset
+                break
+            if next_line.strip().startswith("[") or (
+                next_line.strip()
+                and not next_line.strip().startswith("#")
+                and "=" in next_line
+            ):
+                break
+
+        digest_comment = f"{indent}# container-digest:{new_digest}"
+
+        if existing_digest and comment_line_idx is not None:
+            if existing_digest.lower() != new_digest.lower():
+                lines[comment_line_idx] = digest_comment
+                updated_count += 1
+        else:
+            lines.insert(i + 1, digest_comment)
+            updated_count += 1
+            i += 1  # Skip past the inserted comment line
+
+        i += 1
+
+    if updated_count > 0:
+        mapping_file.write_text("\n".join(lines), encoding="utf-8")
+
+    return updated_count
+
+
+@dataclass(frozen=True)
+class _FetchResult:
+    harness_name: str
+    container: str
+    framework_content: Optional[str]
+    container_digest: Optional[str]
+    arch: Optional[str] = None
+    error: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class _ParseResult:
+    harness_name: str
+    container: str
+    container_digest: Optional[str]
+    harness_ir: Optional[HarnessIntermediateRepresentation]
+    task_irs: list[TaskIntermediateRepresentation]
+    name_warnings: list[str]
+    error: Optional[str]
+
+
 def load_mapping_toml(mapping_file: pathlib.Path) -> tuple[dict[str, str], str]:
     """Load mapping.toml and extract unique containers per harness."""
     checksum = calculate_mapping_checksum(mapping_file)
@@ -433,10 +711,10 @@ def generate_readme_table(
 
     table_lines = []
     table_lines.append(
-        "| Container | Description | NGC Catalog | Latest Tag | Supported benchmarks |"
+        "| Container | Description | NGC Catalog | Latest Tag | Arch | Supported benchmarks |"
     )
     table_lines.append(
-        "|-----------|-------------|-------------|------------| ------------|"
+        "|-----------|-------------|-------------|------------|------|----------------------|"
     )
 
     sorted_harnesses = sorted(harnesses.items(), key=lambda x: x[0].lower())
@@ -465,9 +743,12 @@ def generate_readme_table(
         latest_tag = version if version else "25.11"
         description_display = description.replace("|", "\\|").replace("\n", " ")
         container_display = f"**{harness_name}**"
+        arch = (
+            harness_ir.arch or (tasks[0].container_arch if tasks else None) or "unknown"
+        )
 
         table_lines.append(
-            f"| {container_display} | {description_display} | {ngc_link} | `{latest_tag}` | {tasks_display} |"
+            f"| {container_display} | {description_display} | {ngc_link} | `{latest_tag}` | `{arch}` | {tasks_display} |"
         )
 
     lines.append("<!--")
@@ -515,6 +796,7 @@ def update_mode(
     readme_file: Optional[pathlib.Path],
     max_layer_size: int,
     use_cache: bool,
+    workers: Optional[int] = None,
 ) -> int:
     """Update digests, load framework definitions, and update README."""
     # Load containers from mapping.toml
@@ -527,45 +809,104 @@ def update_mode(
     # Extract framework.yml from each container and convert to IRs
     all_task_irs: list[TaskIntermediateRepresentation] = []
     harness_irs_by_name: dict[str, HarnessIntermediateRepresentation] = {}
-    successful = 0
     failed_containers: list[tuple[str, str, Optional[str]]] = []
     name_warnings: list[str] = []  # Collect harness name validation warnings
 
-    for harness_name, container in harness_containers.items():
-        logger.info(
-            "Processing container",
-            harness=harness_name,
-            container=container,
-            progress=f"{successful + len(failed_containers) + 1}/{len(harness_containers)}",
-        )
+    max_workers = _resolve_max_workers(workers)
+    harness_items = list(harness_containers.items())  # Preserve TOML iteration order
 
-        framework_content, container_digest = extract_framework_yml(
-            container=container,
-            max_layer_size=max_layer_size,
-            use_cache=use_cache,
-        )
+    # ---------------------------------------------------------------------
+    # Phase 1: Fetch framework.yml + digest in parallel (network-bound)
+    # ---------------------------------------------------------------------
+    logger.info(
+        "Fetching container metadata in parallel",
+        total=len(harness_items),
+        workers=max_workers,
+    )
 
-        if container_digest:
-            update_digest_comment_in_mapping_toml(
-                mapping_file, container, container_digest
-            )
-
-        if not framework_content:
-            failed_containers.append((harness_name, container, container_digest))
-            logger.warning(
-                "Skipping container (frame definition file not found)",
-                filename="framework.yml",
-                harness=harness_name,
-                container=container,
-            )
-            continue
-
+    def _fetch_one(item: tuple[str, str]) -> _FetchResult:
+        harness_name, container = item
         try:
-            # Extract original framework name from framework.yml for validation
-            # (validation and normalization happen in this controller script, not in parse_framework_to_irs)
-            import yaml
+            registry_type, registry_url, repository, tag = parse_container_image(
+                container
+            )
+            authenticator = create_authenticator(
+                registry_type, registry_url, repository
+            )
+            authenticator.authenticate(repository=repository)
+            arch = get_container_arch(authenticator, repository, tag)
 
-            framework_data = yaml.safe_load(framework_content)
+            framework_content, container_digest = extract_framework_yml(
+                container=container,
+                max_layer_size=max_layer_size,
+                use_cache=use_cache,
+            )
+            return _FetchResult(
+                harness_name=harness_name,
+                container=container,
+                framework_content=framework_content,
+                container_digest=container_digest,
+                arch=arch,
+            )
+        except Exception as e:
+            # `extract_framework_yml` should already guard, but don't let one
+            # container abort the whole update.
+            return _FetchResult(
+                harness_name=harness_name,
+                container=container,
+                framework_content=None,
+                container_digest=None,
+                arch=None,
+                error=str(e),
+            )
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        fetch_results = list(executor.map(_fetch_one, harness_items))
+
+    # Collect digests first, then update mapping.toml once.
+    digests_by_container = {
+        r.container: r.container_digest for r in fetch_results if r.container_digest
+    }
+    updated_digest_comments = update_digest_comments_in_mapping_toml(
+        mapping_file, digests_by_container
+    )
+    if updated_digest_comments:
+        logger.info(
+            "Updated mapping.toml digest comments",
+            updated=updated_digest_comments,
+        )
+
+    # Recalculate checksum after digest updates
+    mapping_checksum = calculate_mapping_checksum(mapping_file)
+
+    # ---------------------------------------------------------------------
+    # Phase 2: Parse framework.yml -> IRs in parallel (CPU-bound-ish)
+    # ---------------------------------------------------------------------
+    def _parse_one(res: _FetchResult) -> _ParseResult:
+        if res.error:
+            return _ParseResult(
+                harness_name=res.harness_name,
+                container=res.container,
+                container_digest=res.container_digest,
+                harness_ir=None,
+                task_irs=[],
+                name_warnings=[],
+                error=res.error,
+            )
+        if not res.framework_content:
+            return _ParseResult(
+                harness_name=res.harness_name,
+                container=res.container,
+                container_digest=res.container_digest,
+                harness_ir=None,
+                task_irs=[],
+                name_warnings=[],
+                error="framework.yml not found in container",
+            )
+
+        local_warnings: list[str] = []
+        try:
+            framework_data = yaml.safe_load(res.framework_content)
             framework_info = (
                 framework_data.get("framework", {}) if framework_data else {}
             )
@@ -574,8 +915,8 @@ def update_mode(
             # Normalize original name for comparison (lowercase, same validation as parse_framework_to_irs)
             if original_framework_name:
                 if not isinstance(original_framework_name, str):
-                    name_warnings.append(
-                        f"Container '{container}' (harness '{harness_name}'): "
+                    local_warnings.append(
+                        f"Container '{res.container}' (harness '{res.harness_name}'): "
                         f"framework.name must be a string, got {type(original_framework_name).__name__}"
                     )
                     normalized_framework_name = ""
@@ -585,8 +926,8 @@ def update_mode(
                         for c in original_framework_name
                         if not (c.isalnum() or c == "-")
                     )
-                    name_warnings.append(
-                        f"Container '{container}' (harness '{harness_name}'): "
+                    local_warnings.append(
+                        f"Container '{res.container}' (harness '{res.harness_name}'): "
                         f"framework.name '{original_framework_name}' contains invalid characters: {sorted(invalid_chars)}. "
                         f"Only letters, digits, and hyphens are allowed."
                     )
@@ -597,54 +938,105 @@ def update_mode(
                 normalized_framework_name = ""
 
             harness_ir, task_irs = parse_framework_to_irs(
-                framework_content=framework_content,
-                container_id=container,
-                container_digest=container_digest,
+                framework_content=res.framework_content,
+                container_id=res.container,
+                container_digest=res.container_digest,
+                container_arch=res.arch,
             )
+            harness_ir.arch = res.arch
+            for t in task_irs:
+                t.container_arch = res.arch
 
             # Validate that harness name from TOML matches normalized harness name from framework.yml
-            # Normalize both for comparison (lowercase)
-            normalized_harness_name = harness_name.lower()
+            normalized_harness_name = res.harness_name.lower()
             normalized_harness_ir_name = harness_ir.name.lower()
             if (
                 normalized_framework_name
                 and normalized_framework_name != normalized_harness_name
             ):
-                name_warnings.append(
-                    f"Container '{container}' (harness '{harness_name}'): "
-                    f"Harness name mismatch: TOML has '{harness_name}' (normalized: '{normalized_harness_name}'), "
+                local_warnings.append(
+                    f"Container '{res.container}' (harness '{res.harness_name}'): "
+                    f"Harness name mismatch: TOML has '{res.harness_name}' (normalized: '{normalized_harness_name}'), "
                     f"but framework.yml has '{original_framework_name}' (normalized: '{normalized_framework_name}'). "
                     f"These should match after normalization (lowercase)."
                 )
-            # Also verify that parse_framework_to_irs returned the expected name
             if (
                 normalized_framework_name
                 and normalized_harness_ir_name != normalized_framework_name
             ):
-                name_warnings.append(
-                    f"Container '{container}' (harness '{harness_name}'): "
+                local_warnings.append(
+                    f"Container '{res.container}' (harness '{res.harness_name}'): "
                     f"Harness IR name mismatch: framework.yml has '{original_framework_name}' (normalized: '{normalized_framework_name}'), "
                     f"but parse_framework_to_irs returned '{harness_ir.name}' (normalized: '{normalized_harness_ir_name}'). "
                     f"These should match."
                 )
 
-            all_task_irs.extend(task_irs)
-            # Keep first harness IR per name (avoid duplicates if any)
-            if harness_ir.name and harness_ir.name not in harness_irs_by_name:
-                harness_irs_by_name[harness_ir.name] = harness_ir
-            successful += 1
+            return _ParseResult(
+                harness_name=res.harness_name,
+                container=res.container,
+                container_digest=res.container_digest,
+                harness_ir=harness_ir,
+                task_irs=task_irs,
+                name_warnings=local_warnings,
+                error=None,
+            )
         except Exception as e:
-            failed_containers.append((harness_name, container, container_digest))
-            logger.error(
-                "Failed to parse frame definition file to IRs",
-                filename="framework.yml",
-                harness=harness_name,
-                container=container,
+            return _ParseResult(
+                harness_name=res.harness_name,
+                container=res.container,
+                container_digest=res.container_digest,
+                harness_ir=None,
+                task_irs=[],
+                name_warnings=local_warnings,
                 error=str(e),
             )
 
-    # Recalculate checksum after digest updates
-    mapping_checksum = calculate_mapping_checksum(mapping_file)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        parse_results = list(executor.map(_parse_one, fetch_results))
+
+    # Build final outputs in stable TOML order (executor.map preserves input order).
+    successful = 0
+    for parsed in parse_results:
+        name_warnings.extend(parsed.name_warnings)
+
+        if parsed.error:
+            failed_containers.append(
+                (parsed.harness_name, parsed.container, parsed.container_digest)
+            )
+            if parsed.error == "framework.yml not found in container":
+                logger.warning(
+                    "Skipping container (frame definition file not found)",
+                    filename="framework.yml",
+                    harness=parsed.harness_name,
+                    container=parsed.container,
+                )
+            else:
+                logger.error(
+                    "Failed to parse frame definition file to IRs",
+                    filename="framework.yml",
+                    harness=parsed.harness_name,
+                    container=parsed.container,
+                    error=parsed.error,
+                )
+            continue
+
+        if parsed.harness_ir is None:
+            failed_containers.append(
+                (parsed.harness_name, parsed.container, parsed.container_digest)
+            )
+            logger.error(
+                "Failed to parse frame definition file to IRs",
+                filename="framework.yml",
+                harness=parsed.harness_name,
+                container=parsed.container,
+                error="Unknown parsing failure",
+            )
+            continue
+
+        all_task_irs.extend(parsed.task_irs)
+        if parsed.harness_ir.name and parsed.harness_ir.name not in harness_irs_by_name:
+            harness_irs_by_name[parsed.harness_ir.name] = parsed.harness_ir
+        successful += 1
 
     # Write all_tasks_irs.yaml
     if all_task_irs:
@@ -695,6 +1087,7 @@ def update_mode(
                     url=None,
                     container=container,
                     container_digest=container_digest,
+                    arch=None,
                 )
             harnesses[task.harness] = (harness_ir, [])
 
@@ -820,6 +1213,20 @@ Examples:
         action="store_true",
         help="Disable caching of framework.yml files",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help=(
+            "Number of worker threads for parallel registry operations "
+            "(default: auto; env: NEMO_EVALUATOR_CONTAINER_METADATA_WORKERS)"
+        ),
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail verification if any container is not multiarch (amd64+arm64).",
+    )
 
     subparsers = parser.add_subparsers(dest="mode", required=True)
     subparsers.add_parser("verify", help="Verify digests and checksums")
@@ -847,7 +1254,15 @@ Examples:
         sys.exit(1)
 
     if args.mode == "verify":
-        sys.exit(verify_mode(args.mapping_toml, args.all_tasks_irs, args.readme_file))
+        sys.exit(
+            verify_mode(
+                args.mapping_toml,
+                args.all_tasks_irs,
+                args.readme_file,
+                workers=args.workers,
+                strict=args.strict,
+            )
+        )
     elif args.mode == "update":
         sys.exit(
             update_mode(
@@ -856,6 +1271,7 @@ Examples:
                 args.readme_file,
                 args.max_layer_size,
                 not args.no_cache,
+                workers=args.workers,
             )
         )
 

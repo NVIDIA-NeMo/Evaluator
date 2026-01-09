@@ -22,6 +22,7 @@ from typing import Any, Literal, TypeVar
 
 import requests
 import yaml
+from jinja2 import Environment, StrictUndefined, nodes
 
 from nemo_evaluator.logging import get_logger
 
@@ -35,6 +36,18 @@ class MisconfigurationError(Exception):
 
 
 KeyType = TypeVar("KeyType")
+
+
+def get_jinja2_environment() -> Environment:
+    """Get a configured Jinja2 environment for template operations.
+
+    This ensures consistency between template parsing and rendering.
+    Uses StrictUndefined to match the behavior in api_dataclasses.py.
+
+    Returns:
+        Environment: Configured Jinja2 environment
+    """
+    return Environment(undefined=StrictUndefined)
 
 
 def deep_update(
@@ -63,6 +76,116 @@ def deep_update(
                     continue
                 updated_mapping[k] = v
     return updated_mapping
+
+
+def extract_params_from_command(command: str) -> tuple[set[str], set[str]]:
+    """Extract all config.params.* parameter names used in a command template.
+
+    Args:
+        command: Jinja2 command template string
+
+    Returns:
+        Tuple of (standard_params, extra_params) where:
+        - standard_params: Set of param names like {'temperature', 'max_new_tokens'}
+        - extra_params: Set of params.extra names like {'dummy_score', 'another_param'}
+    """
+    # Use Jinja2's AST parser to extract variable attribute access patterns
+    # Uses the same environment configuration as template rendering
+    env = get_jinja2_environment()
+    ast = env.parse(command)
+
+    standard_params = set()
+    extra_params = set()
+
+    def extract_getattr_path(node):
+        """Recursively extract the full dotted path from a Getattr node."""
+        if isinstance(node, nodes.Name):
+            return node.name
+        elif isinstance(node, nodes.Getattr):
+            base = extract_getattr_path(node.node)
+            if base:
+                return f"{base}.{node.attr}"
+            return node.attr
+        return None
+
+    def visit_node(node):
+        """Visit all nodes in the AST to find variable references."""
+        if isinstance(node, nodes.Getattr):
+            full_path = extract_getattr_path(node)
+            if full_path:
+                # Check for config.params.extra.PARAM_NAME pattern
+                if full_path.startswith("config.params.extra."):
+                    param_name = full_path.replace("config.params.extra.", "")
+                    if param_name:  # Only add if there's something after "extra."
+                        # Extract only the first-level key after "extra."
+                        param_name = param_name.split(".")[0]
+                        extra_params.add(param_name)
+                # Check for config.params.PARAM_NAME pattern (but not just config.params.extra)
+                elif (
+                    full_path.startswith("config.params.")
+                    and full_path != "config.params.extra"
+                ):
+                    param_name = full_path.replace("config.params.", "")
+                    if param_name != "extra":  # Don't add "extra" itself
+                        standard_params.add(param_name)
+
+        # Recursively visit child nodes
+        for child in node.iter_child_nodes():
+            visit_node(child)
+
+    visit_node(ast)
+    return standard_params, extra_params
+
+
+def validate_params_in_command(
+    command: str,
+    merged_config: dict[KeyType, Any],
+) -> None:
+    """Validate that all params keys in merged config are used in the command.
+
+    Args:
+        command: The command template from framework.yml
+        merged_config: The final merged configuration
+
+    Raises:
+        MisconfigurationError: If merged_config contains params keys not used in command
+    """
+    # Extract params keys used in command
+    command_standard_params, command_extra_params = extract_params_from_command(command)
+
+    # Get params from merged config
+    config_params = merged_config.get("config", {}).get("params", {})
+
+    if not config_params:
+        return  # No params to validate
+
+    # Check standard params
+    unused_standard = []
+    for key, value in config_params.items():
+        if key == "extra":
+            continue  # Handle extra separately
+        # Only validate non-None values (None means not set/using default)
+        if value is not None and key not in command_standard_params:
+            unused_standard.append(f"config.params.{key}")
+
+    # Check params.extra
+    config_extra = config_params.get("extra", {})
+    unused_extra = []
+    for key in config_extra.keys():
+        if key not in command_extra_params:
+            unused_extra.append(f"config.params.extra.{key}")
+
+    # Raise error if any unused params found
+    all_unused = unused_standard + unused_extra
+    if all_unused:
+        valid_standard = [f"config.params.{p}" for p in sorted(command_standard_params)]
+        valid_extra = [f"config.params.extra.{p}" for p in sorted(command_extra_params)]
+        logger.warn(
+            f"Configuration contains parameter(s) that are not used in the command template: "
+            f"{', '.join(all_unused)}. "
+            f"Valid params from command: {valid_standard + valid_extra}. "
+            f"Remove the unused parameters or update the command template to use them."
+        )
 
 
 def dotlist_to_dict(dotlist: list[str]) -> dict:

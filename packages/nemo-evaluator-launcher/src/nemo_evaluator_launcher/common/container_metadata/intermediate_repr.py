@@ -50,6 +50,11 @@ class HarnessIntermediateRepresentation:
     url: Optional[str]
     container: str
     container_digest: Optional[str]
+    # Architecture label for the container image:
+    # - "amd": linux/amd64 only
+    # - "arm": linux/arm64 only
+    # - "multiarch": includes both amd64 and arm64
+    arch: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
@@ -60,6 +65,7 @@ class HarnessIntermediateRepresentation:
             "url": self.url,
             "container": self.container,
             "container_digest": self.container_digest,
+            "arch": self.arch,
         }
 
 
@@ -73,6 +79,7 @@ class TaskIntermediateRepresentation:
     container: str
     container_digest: Optional[str]
     defaults: dict[str, Any]
+    container_arch: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
@@ -82,6 +89,7 @@ class TaskIntermediateRepresentation:
             "harness": self.harness,
             "container": self.container,
             "container_digest": self.container_digest,
+            "container_arch": self.container_arch,
             "defaults": self.defaults,
         }
 
@@ -171,6 +179,9 @@ def _parse_tasks_from_yaml_data(
         container_digest = task_dict.get("container_digest") or (
             harness_ir.container_digest if harness_ir else None
         )
+        container_arch = task_dict.get("container_arch") or (
+            harness_ir.arch if harness_ir else None
+        )
 
         task_ir = TaskIntermediateRepresentation(
             name=task_dict["name"],
@@ -178,6 +189,7 @@ def _parse_tasks_from_yaml_data(
             harness=harness_name,
             container=container,
             container_digest=container_digest,
+            container_arch=container_arch,
             defaults=task_dict.get("defaults", {}),
         )
         tasks.append(task_ir)
@@ -218,6 +230,7 @@ def _parse_harnesses_from_yaml_data(
             url=harness_dict.get("url"),
             container=harness_dict.get("container", ""),
             container_digest=harness_dict.get("container_digest"),
+            arch=harness_dict.get("arch"),
         )
 
         # Keep first occurrence if duplicates exist
@@ -250,6 +263,7 @@ def _infer_harnesses_from_tasks(
             container_digest=str(task.container_digest)
             if task.container_digest
             else None,
+            arch=str(task.container_arch) if task.container_arch else None,
         )
     return harnesses
 
@@ -408,10 +422,10 @@ def load_harnesses_and_tasks_from_tasks_file(
 
     Public API function for loading Intermediate Representations (IRs).
 
-    Uses a simple swap strategy:
-    - If internal package is available, load internal IRs only
-    - Otherwise, load external IRs only
-    - No merging is performed
+    Uses a merge strategy:
+    - Always load external IRs (baseline)
+    - If internal package is available, load internal IRs and merge them on top
+      of external IRs (internal overrides external on (harness, task) key).
 
     Validates checksum consistency with current mapping.toml.
 
@@ -425,42 +439,63 @@ def load_harnesses_and_tasks_from_tasks_file(
     if tasks_file is not None:
         return _load_tasks_from_file(tasks_file)
 
-    # Try to load internal IRs first
-    try:
-        importlib.import_module("nemo_evaluator_launcher_internal")
-        logger.debug("Internal package available, loading internal IRs")
-        harnesses, tasks, verified = _load_irs_from_package(
-            "nemo_evaluator_launcher_internal.resources",
-            "all_tasks_irs.yaml",
-            "internal",
-        )
-        if tasks:
-            logger.info(
-                "Using internal IRs",
-                total_tasks=len(tasks),
-                mapping_verified=verified,
-            )
-            return harnesses, tasks, verified
-    except ImportError:
-        logger.debug("Internal package not available, will use external IRs")
-    except Exception as e:
-        logger.debug("Failed to load internal IRs, will use external IRs", error=str(e))
-
-    # Fallback to external IRs
+    # Load external IRs (baseline)
     logger.debug("Loading external IRs")
-    harnesses, tasks, verified = _load_irs_from_package(
+    external_harnesses, external_tasks, external_verified = _load_irs_from_package(
         "nemo_evaluator_launcher.resources",
         "all_tasks_irs.yaml",
         "external",
     )
 
-    if tasks:
-        logger.info(
-            "Using external IRs",
-            total_tasks=len(tasks),
-            mapping_verified=verified,
+    # Load internal IRs (optional overlay)
+    internal_harnesses: dict[str, HarnessIntermediateRepresentation] = {}
+    internal_tasks: list[TaskIntermediateRepresentation] = []
+    internal_verified = False
+    try:
+        importlib.import_module("nemo_evaluator_launcher_internal")
+        logger.debug("Internal package available, loading internal IRs")
+        internal_harnesses, internal_tasks, internal_verified = _load_irs_from_package(
+            "nemo_evaluator_launcher_internal.resources",
+            "all_tasks_irs.yaml",
+            "internal",
         )
-        return harnesses, tasks, verified
+    except ImportError:
+        logger.debug(
+            "Internal package not available, proceeding with external IRs only"
+        )
+    except Exception as e:
+        logger.debug(
+            "Failed to load internal IRs, proceeding with external IRs only",
+            error=str(e),
+        )
+
+    # Merge (internal overrides external)
+    def _key(t: TaskIntermediateRepresentation) -> tuple[str, str]:
+        return (t.harness, t.name)
+
+    merged_tasks_by_key: dict[tuple[str, str], TaskIntermediateRepresentation] = {
+        _key(t): t for t in external_tasks
+    }
+    merged_tasks_by_key.update({_key(t): t for t in internal_tasks})
+    merged_tasks = list(merged_tasks_by_key.values())
+
+    merged_harnesses = dict(external_harnesses)
+    merged_harnesses.update(internal_harnesses)
+
+    if merged_tasks:
+        mapping_verified = (
+            (external_verified and internal_verified)
+            if internal_tasks
+            else external_verified
+        )
+        logger.info(
+            "Using merged IRs",
+            total_tasks=len(merged_tasks),
+            internal_tasks=len(internal_tasks),
+            external_tasks=len(external_tasks),
+            mapping_verified=mapping_verified,
+        )
+        return merged_harnesses, merged_tasks, mapping_verified
 
     # Final fallback: try default file path
     logger.debug("No IRs loaded from package resources, trying file path")

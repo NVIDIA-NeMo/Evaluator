@@ -19,9 +19,10 @@ from enum import Enum
 from typing import Any, Dict, Optional
 
 import jinja2
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
+from nemo_evaluator.core.utils import get_jinja2_environment
 
 # NOTE: For ApiEndpoint, EvaluationTarget, ConfigParams, and EvaluationConfig all fields
 #       are Optional and default=None, because depending on the command run (run_eval or
@@ -42,7 +43,7 @@ class EndpointType(str, Enum):
 class ApiEndpoint(BaseModel):
     """API endpoint configuration containing information on endpoint placement, targeted model name and adapter used before prompting endpoint."""
 
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     api_key: Optional[str] = Field(
         description="[DEPRECATED] Use 'api_key_name' instead. Name of the environment variable that stores API key for the model",
@@ -75,9 +76,13 @@ class ApiEndpoint(BaseModel):
             api_key_name = values.get("api_key_name")
 
             # If both are set, raise an error
-            if api_key is not None and api_key_name is not None:
+            if (
+                api_key is not None
+                and api_key_name is not None
+                and api_key != api_key_name
+            ):
                 raise ValueError(
-                    "Both 'api_key' and 'api_key_name' are set. "
+                    "Both 'api_key' and 'api_key_name' are set and they are different. "
                     "'api_key' is deprecated, please use only 'api_key_name'."
                 )
 
@@ -94,8 +99,40 @@ class ApiEndpoint(BaseModel):
         return values
 
 
+class EndpointModelConfig(BaseModel):
+    """Supporting model configuration."""
+
+    model_id: str = Field(description="Name of the model")
+    url: str = Field(description="Url of the model")
+    api_key_name: Optional[str] = Field(
+        description="Name of the env variable that stores API key", default=None
+    )
+    stream: Optional[bool] = Field(
+        description="Whether responses should be streamed", default=None
+    )
+    type: Optional[EndpointType] = Field(
+        description="The type of the target", default=None
+    )
+    adapter_config: Optional[AdapterConfig] = Field(
+        description="Adapter configuration", default=None
+    )
+    temperature: Optional[float] = Field(description="Temperature", default=None)
+    top_p: Optional[float] = Field(description="Top p", default=None)
+    max_new_tokens: Optional[int] = Field(description="Max new tokens", default=None)
+    max_retries: Optional[int] = Field(description="Max retries", default=None)
+    parallelism: Optional[int] = Field(description="Parallelism", default=None)
+    request_timeout: Optional[int] = Field(description="Request timeout", default=None)
+    is_base_url: Optional[bool] = Field(
+        description="Whether the URL is a base URL", default=False
+    )
+    # NOTE: we don't use extra yet but it will allow customization when needed
+    extra: Optional[Dict[str, Any]] = Field(description="Extra", default=None)
+
+
 class EvaluationTarget(BaseModel):
     """Target configuration for API endpoints."""
+
+    model_config = ConfigDict(extra="forbid")
 
     api_endpoint: Optional[ApiEndpoint] = Field(
         description="API endpoint to be used for evaluation", default=None
@@ -104,6 +141,22 @@ class EvaluationTarget(BaseModel):
 
 class ConfigParams(BaseModel):
     """Parameters for evaluation execution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    def __init__(self, **data):
+        try:
+            super().__init__(**data)
+        except ValidationError as e:
+            # Check if any errors are extra_forbidden and add valid fields hint
+            for err in e.errors():
+                if err.get("type") == "extra_forbidden":
+                    valid_fields = list(ConfigParams.model_fields.keys())
+                    raise ValueError(
+                        f"Invalid parameter '{err['loc'][0]}'. "
+                        f"Valid params: {valid_fields}"
+                    ) from e
+            raise
 
     limit_samples: Optional[int | float] = Field(
         description="Limit number of evaluation samples", default=None
@@ -138,6 +191,8 @@ class ConfigParams(BaseModel):
 class EvaluationConfig(BaseModel):
     """Configuration for evaluation runs."""
 
+    model_config = ConfigDict(extra="forbid")
+
     output_dir: Optional[str] = Field(
         description="Directory to output the results", default=None
     )
@@ -157,6 +212,8 @@ class EvaluationMetadata(dict):
 
 
 class Evaluation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     command: str = Field(description="jinja template of the command to be executed")
     framework_name: str = Field(description="Name of the framework")
     pkg_name: str = Field(description="Name of the package")
@@ -165,14 +222,13 @@ class Evaluation(BaseModel):
 
     def render_command(self):
         values = self.model_dump()
+        env = get_jinja2_environment()
 
         def recursive_render(tpl):
             prev = tpl
             while True:
                 try:
-                    curr = jinja2.Template(
-                        prev, undefined=jinja2.StrictUndefined
-                    ).render(values)
+                    curr = env.from_string(prev).render(values)
                     if curr != prev:
                         prev = curr
                     else:
