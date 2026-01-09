@@ -99,6 +99,26 @@ nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/l
   -o +config.params.limit_samples=10
 ```
 
+### Task Filtering
+
+Run only specific tasks from your configuration using the `-t` flag:
+
+```bash
+# Run a single task (local_basic.yaml has ifeval, gpqa_diamond, mbpp)
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml -t ifeval
+
+# Run multiple specific tasks
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml -t ifeval -t mbpp
+
+# Combine with other options
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml -t ifeval -t mbpp --dry-run
+```
+
+**Notes:**
+- Tasks must be defined in your configuration file under `evaluation.tasks`
+- If any requested task is not found in the configuration, the command will fail with an error listing available tasks
+- Task filtering preserves all task-specific overrides and `nemo_evaluator_config` settings
+
 ### Examples by Executor
 
 **Local Execution:**
