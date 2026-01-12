@@ -45,5 +45,6 @@ The central point of evaluation is ``evaluate()`` function that takes standarize
     
     api-dataclasses
     nemo-evaluator.adapters <../adapters/adapters>
+    nemo-evaluator.sandbox <../sandbox/index>
 
 
