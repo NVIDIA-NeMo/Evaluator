@@ -57,11 +57,25 @@ Each package has its own virtual environment managed by UV. Choose your setup ba
    **For Documentation:**
 
    ```bash
-   cd packages/nemo-evaluator
-   uv sync --group docs
+   # 1. First, sync the documentation dependencies
+   make docs-env
+
+   # 2. Build the HTML documentation
+   make docs-html
+
+   # 3. View the built documentation
+   python3 -m http.server --directory docs/_build/html 8000
    ```
 
-   Then build documentation with `make docs-html` from the repository root.
+   Then open your browser to: http://localhost:8000
+
+   If you want to see changes in real-time as you edit run the command below:
+
+   ```bash
+   # This starts a live-reload server that automatically rebuilds on changes
+   make docs-live
+   ```
+   This will start a server at http://localhost:8000 that automatically rebuilds when you save changes to any documentation files.
 
 ### Development Tools
 
