@@ -108,7 +108,9 @@ def test_ecs_sandbox_checks_for_aws_cli(monkeypatch: pytest.MonkeyPatch):
         )
 
 
-def test_parse_exec_markers_extracts_payload_and_strips_noise(monkeypatch: pytest.MonkeyPatch):
+def test_parse_exec_markers_extracts_payload_and_strips_noise(
+    monkeypatch: pytest.MonkeyPatch,
+):
     ecs_fargate = importlib.import_module("nemo_evaluator.sandbox.ecs_fargate")
 
     # Avoid host-tool checks in constructor.
@@ -207,7 +209,9 @@ def test_exec_capture_uses_s3_fallback_when_aws_reports_command_too_long(
         return "via_s3"
 
     def fake_aws(*, command: str, timeout_sec: float):
-        return CompletedProcess(args=["aws"], returncode=0, stdout=b"", stderr=b"COMMAND TOO LONG")
+        return CompletedProcess(
+            args=["aws"], returncode=0, stdout=b"", stderr=b"COMMAND TOO LONG"
+        )
 
     monkeypatch.setattr(s, "_exec_capture_via_s3_script", fake_s3)
     monkeypatch.setattr(s, "_aws_ecs_execute_with_retry", fake_aws)
@@ -240,7 +244,9 @@ def test_tmux_session_send_keys_large_payload_uses_paste_buffer(
     exec_calls: list[list[str]] = []
     paste_calls: list[str] = []
 
-    def fake_exec_capture(*, cmd: list[str], timeout_sec: float, check: bool = True) -> str:
+    def fake_exec_capture(
+        *, cmd: list[str], timeout_sec: float, check: bool = True
+    ) -> str:
         _ = timeout_sec, check
         exec_calls.append(cmd)
         return ""
@@ -263,7 +269,9 @@ def test_tmux_session_send_keys_large_payload_uses_paste_buffer(
     assert all(big not in " ".join(c) for c in exec_calls)
 
 
-def test_tmux_session_blocking_send_keys_waits_for_done(monkeypatch: pytest.MonkeyPatch):
+def test_tmux_session_blocking_send_keys_waits_for_done(
+    monkeypatch: pytest.MonkeyPatch,
+):
     ecs_fargate = importlib.import_module("nemo_evaluator.sandbox.ecs_fargate")
     monkeypatch.setattr(ecs_fargate, "_which", lambda _name: "/usr/bin/true")
 
@@ -284,7 +292,9 @@ def test_tmux_session_blocking_send_keys_waits_for_done(monkeypatch: pytest.Monk
 
     exec_calls: list[list[str]] = []
 
-    def fake_exec_capture(*, cmd: list[str], timeout_sec: float, check: bool = True) -> str:
+    def fake_exec_capture(
+        *, cmd: list[str], timeout_sec: float, check: bool = True
+    ) -> str:
         _ = timeout_sec, check
         exec_calls.append(cmd)
         return ""
