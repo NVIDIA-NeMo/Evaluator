@@ -227,6 +227,7 @@ When the reasoning interceptor is enabled, this file contains a `reasoning` key 
     "total_responses": 3672,
     "responses_with_reasoning": 2860,
     "reasoning_finished_count": 2860,
+    "reasoning_finished_ratio": 1.0,
     "reasoning_started_count": 2860,
     "reasoning_unfinished_count": 0,
     "avg_reasoning_words": 153.21,
