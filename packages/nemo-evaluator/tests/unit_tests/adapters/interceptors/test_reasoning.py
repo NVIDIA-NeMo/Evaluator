@@ -510,7 +510,7 @@ def test_reasoning_unfinished_count(
     expected_unfinished_count,
 ):
     """Test that reasoning_unfinished_count is correctly tracked.
-    
+
     Maintains the mathematical invariant:
     unfinished_count = started_count - finished_count
     """
@@ -525,7 +525,7 @@ def test_reasoning_unfinished_count(
     # Simulate reasoning info from _process_reasoning_message
     reasoning_info = {
         "reasoning_words": 10 if reasoning_started else 0,
-        "original_content_words": 5,
+        "original_content_words": 15 if reasoning_started else 5,
         "updated_content_words": 5,
         "reasoning_finished": reasoning_finished,
         "reasoning_started": reasoning_started,
@@ -537,10 +537,19 @@ def test_reasoning_unfinished_count(
     interceptor._update_reasoning_stats(reasoning_info)
 
     # Verify the counts
-    assert interceptor._reasoning_stats["reasoning_started_count"] == expected_started_count
-    assert interceptor._reasoning_stats["reasoning_finished_count"] == expected_finished_count
-    assert interceptor._reasoning_stats["reasoning_unfinished_count"] == expected_unfinished_count
-    
+    assert (
+        interceptor._reasoning_stats["reasoning_started_count"]
+        == expected_started_count
+    )
+    assert (
+        interceptor._reasoning_stats["reasoning_finished_count"]
+        == expected_finished_count
+    )
+    assert (
+        interceptor._reasoning_stats["reasoning_unfinished_count"]
+        == expected_unfinished_count
+    )
+
     # Verify the mathematical invariant: unfinished = started - finished
     assert (
         interceptor._reasoning_stats["reasoning_unfinished_count"]
@@ -597,6 +606,54 @@ def test_get_reasoning_info_embedded_content(
     assert reasoning_info["reasoning_finished"] == expected_reasoning_finished
     # When start_reasoning_token is not configured, reasoning_started should be "unknown"
     assert reasoning_info["reasoning_started"] == "unknown"
+
+
+def test_reasoning_ratio():
+    """Test _process_reasoning_message when reasoning content is embedded in the message content."""
+    interceptor = ResponseReasoningInterceptor(
+        params=ResponseReasoningInterceptor.Params(
+            add_reasoning=True,
+            enable_reasoning_tracking=True,
+            end_reasoning_token="</think>",
+            start_reasoning_token="<think>",
+            enable_caching=False,
+        )
+    )
+    # Create message with embedded reasoning content
+    messages = []
+    n_finished_reasoning = 7
+    n_unfinished_reasoning = 3
+    n_no_reasoning = 20
+
+    messages.extend(
+        [
+            {
+                "role": "assistant",
+                "content": "<think> thinking trace </think> rest of the message",
+            }
+            for _ in range(n_finished_reasoning)
+        ]
+    )
+    messages.extend(
+        [
+            {"role": "assistant", "content": "<think> thinking trace unfinished"}
+            for _ in range(n_unfinished_reasoning)
+        ]
+    )
+    messages.extend(
+        [
+            {"role": "assistant", "content": "no thinking trace"}
+            for _ in range(n_no_reasoning)
+        ]
+    )
+
+    reasoning_info = None
+
+    # Test the _process_reasoning_message method directly
+    for message in messages:
+        _, reasoning_info = interceptor._process_reasoning_message(message)
+        interceptor._update_reasoning_stats(reasoning_info)
+    assert interceptor._reasoning_stats["reasoning_finished_ratio"] == 0.7
 
 
 @pytest.mark.parametrize(
