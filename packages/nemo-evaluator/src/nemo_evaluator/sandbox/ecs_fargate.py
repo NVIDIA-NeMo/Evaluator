@@ -295,8 +295,10 @@ class EcsFargateTmuxSession(NemoSandboxSession):
         if pb and pb in current_buffer:
             idx = current_buffer.index(pb)
             if "\n" in pb:
-                idx = pb.rfind("\n")
-            return current_buffer[idx:]
+                start = idx + pb.rfind("\n") + 1
+            else:
+                start = idx
+            return current_buffer[start:]
         return None
 
     def get_incremental_output(self) -> str:
@@ -464,13 +466,14 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
                 or "TooManyRequestsException" in combined
                 or "Rate exceeded" in combined
             )
-            is_exec_not_ready = (
-                "TargetNotConnectedException" in combined
-                or "execute command agent isn’t running" in combined
-                or "execute command agent isn't running" in combined
-                or "execute command was not enabled" in combined
-                or "TimeoutExpired" in combined
+            _exec_not_ready_markers = (
+                "TargetNotConnectedException",
+                "execute command agent isn't running",
+                "execute command agent isn’t running",
+                "execute command was not enabled",
+                "TimeoutExpired",
             )
+            is_exec_not_ready = any(m in combined for m in _exec_not_ready_markers)
 
             if is_throttled and (time.time() - start) < 600:
                 sleep_sec = min(30.0, throttle_sleep) + random.random()
@@ -798,7 +801,22 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
             "with urllib.request.urlopen(url, timeout=180) as r:\n"
             "  data=r.read()\n"
             "os.makedirs(dest, exist_ok=True)\n"
-            "tarfile.open(fileobj=io.BytesIO(data), mode='r:*').extractall(dest)\n"
+            "buf=io.BytesIO(data)\n"
+            "with tarfile.open(fileobj=buf, mode='r:*') as t:\n"
+            "  try:\n"
+            "    # Python 3.12+: prevent path traversal via tarfile's built-in filter.\n"
+            "    t.extractall(dest, filter='data')\n"
+            "  except TypeError:\n"
+            "    # Python 3.10-3.11: validate members before extracting.\n"
+            "    dest_real=os.path.realpath(dest)\n"
+            "    for m in t.getmembers():\n"
+            "      name=m.name\n"
+            "      if os.path.isabs(name):\n"
+            "        raise RuntimeError('Unsafe tar member (absolute path): %r' % (name,))\n"
+            "      target=os.path.realpath(os.path.join(dest, name))\n"
+            "      if not (target == dest_real or target.startswith(dest_real + os.sep)):\n"
+            "        raise RuntimeError('Unsafe tar member (path traversal): %r' % (name,))\n"
+            "    t.extractall(dest)\n"
             "print('ok')\n"
         )
         self._exec_capture(
