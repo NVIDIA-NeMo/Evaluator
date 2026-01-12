@@ -710,7 +710,7 @@ def _create_slurm_sbatch_script(
 
     s += "# evaluation client\n"
     s += "srun --mpi pmix --overlap "
-    s += "--nodes 1 --ntasks 1 "  # Client always runs on single node
+    s += "--nodelist ${nodes_array[0]} --nodes 1 --ntasks 1 "
     s += "--container-image {} ".format(eval_image)
     evaluation_env_var_names = list(
         cfg.execution.get("env_vars", {}).get("evaluation", {})
@@ -835,7 +835,7 @@ def _generate_auto_export_section(
 
     s += "    # export\n"
     s += "    srun --mpi pmix --overlap "
-    s += "--nodes 1 --ntasks 1 "  # Client always runs on single node
+    s += "--nodelist ${nodes_array[0]} --nodes 1 --ntasks 1 "
     s += "--container-image {} ".format(export_image)
     if export_env:
         s += "--container-env {} ".format(",".join(export_env))
@@ -1577,7 +1577,7 @@ def _generate_haproxy_srun_command(cfg, remote_task_subdir):
     s += "done\n"
     s += "\n"
     s += "srun --mpi pmix --overlap "
-    s += "--nodes 1 --ntasks 1 "
+    s += "--nodelist ${nodes_array[0]} --nodes 1 --ntasks 1 "
     s += f"--container-image {cfg.execution.get('proxy', {}).get('image', 'haproxy:latest')} "
     s += f"--container-mounts {remote_task_subdir}/proxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro "
     s += f"--output {remote_task_subdir}/logs/proxy-%A.log "
