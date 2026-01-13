@@ -4,7 +4,9 @@ This guide provides step-by-step instructions for evaluating TensorRT-LLM (TRTLL
 
 Here, we focus on benchmarks within the `lm-evaluation-harness` that depend on text generation. For a detailed comparison between generation-based and log-probability-based benchmarks, refer to {ref}`eval-run`. 
 
-> **Note:** Evaluation on log-probability-based benchmarks for TRTLLM models will be added in the upcoming release.
+:::{note}
+Evaluation on log-probability-based benchmarks for TRTLLM models will be added in the upcoming release.
+:::
 
 ## Deploy TRTLLM Checkpoints
 
