@@ -33,7 +33,7 @@ from nemo_evaluator.core.evaluate import evaluate
 target_config = EvaluationTarget(
     api_endpoint=ApiEndpoint(
         url="https://integrate.api.nvidia.com/v1/chat/completions",
-        model_id="meta/llama-3.1-8b-instruct",
+        model_id="meta/llama-3.2-3b-instruct",
         api_key="NGC_API_KEY",
         type=EndpointType.CHAT,
     )

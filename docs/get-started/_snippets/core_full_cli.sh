@@ -7,7 +7,7 @@ Basic NeMo Evaluator Core CLI quickstart example.
 
 nemo-evaluator run_eval \
     --eval_type mmlu_pro \
-    --model_id meta/llama-3.1-8b-instruct \
+    --model_id meta/llama-3.2-3b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
     --model_type chat \
     --api_key_name NGC_API_KEY \  # pass variable name not the key itself

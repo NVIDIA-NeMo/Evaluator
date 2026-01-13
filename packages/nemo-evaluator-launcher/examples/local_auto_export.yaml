@@ -40,8 +40,8 @@ execution:
 
 target:
   api_endpoint:
-    # see https://build.nvidia.com/meta/llama-3.1-8b-instruct for endpoint details
-    model_id: meta/llama-3.1-8b-instruct
+    # see https://build.nvidia.com/meta/llama-3.2-3b-instruct for endpoint details
+    model_id: meta/llama-3.2-3b-instruct
     url: https://integrate.api.nvidia.com/v1/chat/completions
     api_key_name: NGC_API_KEY
 

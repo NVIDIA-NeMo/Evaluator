@@ -79,7 +79,7 @@ nemo-evaluator run_eval --help
 # Basic evaluation
 nemo-evaluator run_eval \
   --eval_type mmlu_pro \
-  --model_id "meta/llama-3.1-8b-instruct" \
+  --model_id "meta/llama-3.2-3b-instruct" \
   --model_url "https://integrate.api.nvidia.com/v1/chat/completions" \
   --model_type chat \
   --api_key_name MY_API_KEY \
@@ -88,7 +88,7 @@ nemo-evaluator run_eval \
 # With parameter overrides
 nemo-evaluator run_eval \
   --eval_type mmlu_pro \
-  --model_id "meta/llama-3.1-8b-instruct" \
+  --model_id "meta/llama-3.2-3b-instruct" \
   --model_url "https://integrate.api.nvidia.com/v1/chat/completions" \
   --model_type chat \
   --api_key_name MY_API_KEY \
@@ -98,7 +98,7 @@ nemo-evaluator run_eval \
 # Dry run to see configuration
 nemo-evaluator run_eval \
   --eval_type mmlu_pro \
-  --model_id "meta/llama-3.1-8b-instruct" \
+  --model_id "meta/llama-3.2-3b-instruct" \
   --model_url "https://integrate.api.nvidia.com/v1/chat/completions" \
   --model_type chat \
   --api_key_name MY_API_KEY \
@@ -130,7 +130,7 @@ config:
 target:
   api_endpoint:
     url: https://integrate.api.nvidia.com/v1/chat/completions
-    model_id: meta/llama-3.1-8b-instruct
+    model_id: meta/llama-3.2-3b-instruct
     type: chat
     api_key: MY_API_KEY
     adapter_config:
@@ -207,7 +207,7 @@ nemo-evaluator ls
 # 2. Run evaluation
 nemo-evaluator run_eval \
   --eval_type mmlu_pro \
-  --model_id "meta/llama-3.1-8b-instruct" \
+  --model_id "meta/llama-3.2-3b-instruct" \
   --model_url "https://integrate.api.nvidia.com/v1/chat/completions" \
   --model_type chat \
   --api_key_name MY_API_KEY \
