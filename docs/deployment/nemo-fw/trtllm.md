@@ -33,7 +33,9 @@ trt_llm_exporter.export(
 )
 ```
 
-> **Note:** `deploy_ray_trtllm.py` also supports passing the NeMo checkpoint to the script which gets exported to TRTLLM for deployment with Ray. In this case, use the argument `--nemo_checkpoint_path` instead of `--trt_llm_path`. This can be followed if TRTLLM checkpoint is not already available and you would like to export NeMo 2.0 checkpoint to TRTLLM and evalaute without following a separate export step mentioned above.
+:::{note}
+`deploy_ray_trtllm.py` also supports passing the NeMo checkpoint to the script which gets exported to TRTLLM for deployment with Ray. In this case, use the argument `--nemo_checkpoint_path` instead of `--trt_llm_path`. This can be followed if TRTLLM checkpoint is not already available and you would like to export NeMo 2.0 checkpoint to TRTLLM and evalaute without following a separate export step mentioned above.
+:::
 
 ## Evaluate TRTLLM Checkpoints
 
