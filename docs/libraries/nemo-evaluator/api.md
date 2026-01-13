@@ -39,7 +39,7 @@ def run_eval() -> None:
     
     CLI Arguments:
         --eval_type: Type of evaluation to run (such as "mmlu_pro", "gpqa_diamond")
-        --model_id: Model identifier (such as "meta/llama-3.1-8b-instruct")
+        --model_id: Model identifier (such as "meta/llama-3.2-3b-instruct")
         --model_url: API endpoint URL (such as "https://integrate.api.NVIDIA.com/v1/chat/completions" for chat endpoint type)
         --model_type: Endpoint type ("chat", "completions", "vlm", "embedding")
         --api_key_name: Environment variable name for API key integration with endpoints (optional)
@@ -108,7 +108,7 @@ eval_config = EvaluationConfig(
 target_config = EvaluationTarget(
     api_endpoint=ApiEndpoint(
         url="https://integrate.api.NVIDIA.com/v1/chat/completions",
-        model_id="meta/llama-3.1-8b-instruct",
+        model_id="meta/llama-3.2-3b-instruct",
         type="chat",
         api_key="MY_API_KEY" # Name of the environment variable that stores api_key
     )

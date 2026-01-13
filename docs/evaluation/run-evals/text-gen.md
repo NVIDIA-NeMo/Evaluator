@@ -83,7 +83,7 @@ export NGC_API_KEY=nvapi-your-token-here  # API Key with access to build.nvidia.
 # Run evaluation
 nemo-evaluator run_eval \
     --eval_type gpqa_diamond \
-    --model_id meta/llama-3.1-8b-instruct \
+    --model_id meta/llama-3.2-3b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
     --model_type chat \
     --api_key_name NGC_API_KEY \
@@ -106,7 +106,7 @@ from nemo_evaluator.api.api_dataclasses import (
 api_endpoint = ApiEndpoint(
     url="https://integrate.api.nvidia.com/v1/chat/completions",
     type=EndpointType.CHAT,
-    model_id="meta/llama-3.1-8b-instruct",
+    model_id="meta/llama-3.2-3b-instruct",
     api_key="NGC_API_KEY"  # variable name storing the key
 )
 target = EvaluationTarget(api_endpoint=api_endpoint)
