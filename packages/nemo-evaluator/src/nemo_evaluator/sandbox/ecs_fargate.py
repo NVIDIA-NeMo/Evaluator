@@ -58,7 +58,7 @@ class EcsFargateConfig:
     execution_role_arn: str | None = None
     task_role_arn: str | None = None
     log_group: str | None = None
-    log_stream_prefix: str = "terminalbench"
+    log_stream_prefix: str = "nemo-evaluator"
 
     # Hard TTL for the sandbox task. Container main process will be `sleep <max_task_lifetime_sec>`.
     max_task_lifetime_sec: int = 180 * 60
@@ -68,7 +68,7 @@ class EcsFargateConfig:
 
     # File staging (required for ECS sandbox here)
     s3_bucket: str | None = None
-    s3_prefix: str = "terminal-bench"
+    s3_prefix: str = "nemo-evaluator"
 
     # Minimum timeout for each `aws ecs execute-command` subprocess call.
     ecs_exec_timeout_sec: int = 180
@@ -169,6 +169,12 @@ class EcsFargateTmuxSession(NemoSandboxSession):
         self._logger = logging.getLogger(f"{__name__}.EcsFargateTmuxSession")
 
     def start(self) -> None:
+        """Ensure the tmux session exists inside the remote container.
+
+        We use tmux as a lightweight "PTY" so agents can stream incremental output by
+        capturing the pane buffer. The session is created with a large history limit
+        so we can diff across polls.
+        """
         if self._has_session():
             return
         self._sandbox._exec_capture(
@@ -208,6 +214,14 @@ class EcsFargateTmuxSession(NemoSandboxSession):
         min_timeout_sec: float = 0.0,
         max_timeout_sec: float = 180.0,
     ) -> None:
+        """Send keystrokes to the tmux session (optionally blocking until completion).
+
+        Notes:
+        - Large text payloads are pasted via a tmux buffer (staged through S3) to avoid
+          shell/CLI length limits and tmux send-keys slowness.
+        - When `block=True` and the last key is Enter, we inject a `tmux wait` marker so
+          the caller can reliably wait for command completion without polling output.
+        """
         if isinstance(keys, str):
             keys = [keys]
 
@@ -260,6 +274,7 @@ class EcsFargateTmuxSession(NemoSandboxSession):
             time.sleep(min_timeout_sec)
 
     def send_command(self, command: NemoSandboxCommand) -> None:
+        """Send a high-level `NemoSandboxCommand` to the tmux session."""
         keys = [command.command, "Enter"] if command.append_enter else [command.command]
         self.send_keys(
             keys=keys,
@@ -269,6 +284,11 @@ class EcsFargateTmuxSession(NemoSandboxSession):
         )
 
     def capture_pane(self, capture_entire: bool = False) -> str:
+        """Capture tmux pane output.
+
+        - `capture_entire=False` returns only the visible screen.
+        - `capture_entire=True` returns the full scrollback (up to history-limit).
+        """
         cmd = ["tmux", "capture-pane", "-p"]
         if capture_entire:
             cmd.extend(["-S", "-"])
@@ -288,6 +308,12 @@ class EcsFargateTmuxSession(NemoSandboxSession):
         return self.capture_pane(capture_entire=False)
 
     def _find_new_content(self, current_buffer: str) -> str | None:
+        """Best-effort diff of tmux scrollback between polls.
+
+        We keep the previous buffer and try to locate it as a substring of the current
+        scrollback. If found, return only the appended region; otherwise return None
+        and let the caller fall back to showing the visible screen.
+        """
         if self._previous_buffer is None:
             return None
 
@@ -302,6 +328,12 @@ class EcsFargateTmuxSession(NemoSandboxSession):
         return None
 
     def get_incremental_output(self) -> str:
+        """Return incremental terminal output since the last call.
+
+        The return value is a human-friendly string prefixed with either:
+        - "New Terminal Output:" if we can find appended lines, or
+        - "Current Terminal Screen:" as a safe fallback.
+        """
         current_buffer = self.capture_pane(capture_entire=True)
 
         if self._previous_buffer is None:
@@ -389,6 +421,11 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
     def _aws_ecs_execute(
         self, *, command: str, timeout_sec: float
     ) -> subprocess.CompletedProcess:
+        """Invoke `aws ecs execute-command` for this task/container.
+
+        This uses the AWS CLI (and `session-manager-plugin`) on the harness host to run
+        a remote shell command inside the running Fargate task.
+        """
         args = [
             "aws",
             *(["--region", self._cfg.region] if self._cfg.region else []),
@@ -422,6 +459,13 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
     def _aws_ecs_execute_with_retry(
         self, *, command: str, timeout_sec: float
     ) -> subprocess.CompletedProcess:
+        """Run ECS Exec with retries for common transient failures.
+
+        Retries cover:
+        - AWS CLI throttling / rate limiting (exponential-ish backoff)
+        - Exec agent not ready / not yet connected shortly after task start
+        - Occasional CLI timeouts (treated as retryable for a short window)
+        """
         effective_timeout = max(
             float(timeout_sec), float(self._cfg.ecs_exec_timeout_sec)
         )
@@ -493,6 +537,17 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
     def _parse_exec_markers(
         self, *, cp: subprocess.CompletedProcess, check: bool
     ) -> str:
+        """Extract payload/rc from our wrapped shell output.
+
+        `_exec_capture` wraps every remote command as:
+          __NEMO_BEGIN__
+          <payload>
+          __NEMO_RC__=<rc>
+
+        This function strips noisy session-manager lines, extracts the payload, and
+        raises a helpful `EcsExecError` on non-zero return codes when `check=True`.
+        """
+
         def _as_text(x) -> str:
             if x is None:
                 return ""
@@ -508,11 +563,14 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
 
         filtered_lines: list[str] = []
         for line in combined_lines:
-            if line.startswith("The Session Manager plugin was installed successfully"):
+            # AWS CLI / session-manager-plugin emits a few non-payload chatter lines. The
+            # exact casing has been observed to vary across versions, so match loosely.
+            ll = line.lower()
+            if ll.startswith("the session manager plugin was installed successfully"):
                 continue
-            if line.startswith("Starting session with SessionId:"):
+            if ll.startswith("starting session with sessionid:"):
                 continue
-            if line.startswith("Exiting session with sessionId:"):
+            if ll.startswith("exiting session with sessionid:"):
                 continue
             filtered_lines.append(line)
 
@@ -520,7 +578,7 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
 
         begin_idx = None
         for i, line in enumerate(filtered_lines):
-            if line.strip() == "__TB_BEGIN__":
+            if line.strip() == "__NEMO_BEGIN__":
                 begin_idx = i
                 break
 
@@ -528,7 +586,7 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
         rc_line_idx = None
         for i in range(len(filtered_lines) - 1, -1, -1):
             line = filtered_lines[i].strip()
-            if line.startswith("__TB_RC__="):
+            if line.startswith("__NEMO_RC__="):
                 rc_line_idx = i
                 try:
                     rc = int(line.split("=", 1)[1])
@@ -576,12 +634,20 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
     def _exec_capture(
         self, *, cmd: list[str], timeout_sec: float, check: bool = True
     ) -> str:
+        """Execute a command in the remote container and return captured output.
+
+        Implementation notes:
+        - We run via `sh -lc` to get a predictable shell, and wrap output with markers
+          so we can recover the true exit code even if the AWS CLI returns 0.
+        - If the wrapped command exceeds common CLI length limits, we fall back to
+          staging the script in S3 and executing it from `/tmp` in the container.
+        """
         shell = " ".join(shlex.quote(x) for x in cmd)
         wrapped = (
-            "printf '__TB_BEGIN__\\n'; "
+            "printf '__NEMO_BEGIN__\\n'; "
             f"{shell}; "
             "rc=$?; "
-            "printf '\\n__TB_RC__=%s\\n' \"$rc\""
+            "printf '\\n__NEMO_RC__=%s\\n' \"$rc\""
         )
         command = f"sh -lc {shlex.quote(wrapped)}"
 
@@ -613,6 +679,12 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
     def _exec_capture_via_s3_script(
         self, *, shell: str, timeout_sec: float, check: bool
     ) -> str:
+        """Fallback for very long commands: stage a script in S3, then download+run it.
+
+        This avoids AWS CLI / shell quoting / argument length limits by shipping the
+        command body as a `.sh` file, downloaded inside the container using Python
+        stdlib + a presigned URL.
+        """
         boto3, _Config, _ClientError, _NoCredentialsError, _PartialCredentialsError = (
             _require_aws_sdks()
         )
@@ -624,10 +696,10 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
 
         script = (
             "#!/bin/sh\n"
-            "printf '__TB_BEGIN__\\n'\n"
+            "printf '__NEMO_BEGIN__\\n'\n"
             f"{shell}\n"
             "rc=$?\n"
-            "printf '\\n__TB_RC__=%s\\n' \"$rc\"\n"
+            "printf '\\n__NEMO_RC__=%s\\n' \"$rc\"\n"
         )
 
         s3 = boto3.client("s3", region_name=self._cfg.region)
@@ -644,8 +716,8 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
 
         py = (
             "import os,urllib.request\n"
-            "url=os.environ['TB_URL']\n"
-            "dst=os.environ['TB_DST']\n"
+            "url=os.environ['NEMO_URL']\n"
+            "dst=os.environ['NEMO_DST']\n"
             "with urllib.request.urlopen(url, timeout=180) as r:\n"
             "  data=r.read()\n"
             "open(dst,'wb').write(data)\n"
@@ -654,7 +726,7 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
         remote = f"/tmp/nemo_exec_{int(time.time() * 1000)}.sh"
         download_and_run = (
             f"PY=python3; command -v python3 >/dev/null 2>&1 || PY=python; "
-            f"TB_URL={shlex.quote(url)} TB_DST={shlex.quote(remote)} "
+            f"NEMO_URL={shlex.quote(url)} NEMO_DST={shlex.quote(remote)} "
             f"$PY -c {shlex.quote(py)} >/dev/null 2>&1; "
             f"chmod +x {shlex.quote(remote)} >/dev/null 2>&1 || true; "
             f"sh {shlex.quote(remote)}; "
@@ -667,6 +739,7 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
         return self._parse_exec_markers(cp=cp, check=check)
 
     def _s3_stage_text(self, *, text: str, suffix: str) -> str:
+        """Upload small text to S3 and return a presigned GET URL."""
         boto3, _Config, _ClientError, _NoCredentialsError, _PartialCredentialsError = (
             _require_aws_sdks()
         )
@@ -689,13 +762,18 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
     def _tmux_paste_large_text(
         self, *, session_name: str, text: str, timeout_sec: float
     ) -> None:
+        """Paste a large text blob into tmux via S3 staging.
+
+        This is used by `EcsFargateTmuxSession.send_keys` when a keystroke payload is
+        too large for reliable `tmux send-keys`.
+        """
         url = self._s3_stage_text(text=text, suffix="tmux-paste")
         remote = f"/tmp/nemo_paste_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}.txt"
 
         py = (
             "import os,urllib.request\n"
-            "url=os.environ['TB_URL']\n"
-            "dst=os.environ['TB_DST']\n"
+            "url=os.environ['NEMO_URL']\n"
+            "dst=os.environ['NEMO_DST']\n"
             "with urllib.request.urlopen(url, timeout=180) as r:\n"
             "  data=r.read()\n"
             "open(dst,'wb').write(data)\n"
@@ -708,7 +786,7 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
                 "-lc",
                 (
                     f"PY=python3; command -v python3 >/dev/null 2>&1 || PY=python; "
-                    f"TB_URL={shlex.quote(url)} TB_DST={shlex.quote(remote)} "
+                    f"NEMO_URL={shlex.quote(url)} NEMO_DST={shlex.quote(remote)} "
                     f"$PY -c {shlex.quote(py)} >/dev/null"
                 ),
             ],
@@ -735,6 +813,7 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
         is_active_stream: bool = False,
         as_configured_user: bool = True,
     ) -> EcsFargateTmuxSession:
+        """Create (and start) a tmux-backed sandbox session."""
         _ = is_active_stream
         _ = as_configured_user
         if session_name in self._sessions:
@@ -751,6 +830,16 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
         container_dir: str | None = None,
         container_filename: str | None = None,
     ) -> None:
+        """Copy local files/dirs into the remote container via S3-staged tarball.
+
+        Flow:
+        - Tar+gzip the provided paths in-memory on the harness host
+        - Upload to S3 and generate a presigned URL
+        - Download inside the container and extract into `container_dir`
+
+        Security note: extraction uses tarfile's safety filter on Python 3.12+, and a
+        manual path traversal check on Python 3.10-3.11.
+        """
         boto3, _Config, _ClientError, _NoCredentialsError, _PartialCredentialsError = (
             _require_aws_sdks()
         )
@@ -796,8 +885,8 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
 
         py = (
             "import os,tarfile,urllib.request,io\n"
-            "url=os.environ['TB_URL']\n"
-            "dest=os.environ['TB_DEST']\n"
+            "url=os.environ['NEMO_URL']\n"
+            "dest=os.environ['NEMO_DEST']\n"
             "with urllib.request.urlopen(url, timeout=180) as r:\n"
             "  data=r.read()\n"
             "os.makedirs(dest, exist_ok=True)\n"
@@ -825,7 +914,7 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
                 "-lc",
                 (
                     f"PY=python3; command -v python3 >/dev/null 2>&1 || PY=python; "
-                    f"TB_URL={shlex.quote(url)} TB_DEST={shlex.quote(container_dir)} "
+                    f"NEMO_URL={shlex.quote(url)} NEMO_DEST={shlex.quote(container_dir)} "
                     f"$PY -c {shlex.quote(py)}"
                 ),
             ],
@@ -833,6 +922,7 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
         )
 
     def stop(self) -> None:
+        """Best-effort teardown for local session objects (remote task is stopped by the contextmanager)."""
         self._sessions.clear()
 
 
@@ -846,6 +936,23 @@ def _spin_up_ecs_fargate_sandbox(
     pre_upload_paths: Iterable[Path] | None = None,
     upload_dest_dir: str | None = None,
 ) -> Generator[EcsFargateSandbox, None, None]:
+    """Create a short-lived ECS Fargate task and expose it as an `EcsFargateSandbox`.
+
+    High-level flow:
+
+        (optional) register per-task task definition (image override)
+                           |
+                      ecs.run_task (retry on capacity)
+                           |
+                     wait until RUNNING
+                           |
+                       yield sandbox
+                           |
+         stop_task + (optional) deregister temporary task definition
+
+    If `pre_upload_paths` and `upload_dest_dir` are provided, files are staged into the
+    container immediately after the task is RUNNING (via `copy_to_sandbox`).
+    """
     boto3, Config, ClientError, _NoCredentialsError, _PartialCredentialsError = (
         _require_aws_sdks()
     )
@@ -896,10 +1003,10 @@ def _spin_up_ecs_fargate_sandbox(
         except ClientError:
             base = None
 
-        raw_family = f"tb-{run_id}-{task_id}-{trial_name}-{int(time.time() * 1000)}-{uuid.uuid4().hex[:8]}"
+        raw_family = f"nemo-{run_id}-{task_id}-{trial_name}-{int(time.time() * 1000)}-{uuid.uuid4().hex[:8]}"
         family = re.sub(r"[^A-Za-z0-9_-]", "_", raw_family)
         if not family or not re.match(r"^[A-Za-z0-9]", family):
-            family = f"tb_{family}"
+            family = f"nemo_{family}"
         family = family[:255]
         log.info(
             "Registering per-task ECS task definition family=%s (raw=%s)",
