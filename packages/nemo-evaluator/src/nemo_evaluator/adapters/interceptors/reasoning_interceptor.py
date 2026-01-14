@@ -127,6 +127,8 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
             "responses_with_reasoning": 0,
             "reasoning_finished_count": 0,
             "reasoning_started_count": 0,
+            "reasoning_unfinished_count": 0,
+            "reasoning_finished_ratio": 0,
             "avg_reasoning_words": None,
             "avg_original_content_words": None,
             "avg_updated_content_words": None,
@@ -281,12 +283,18 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
             )
 
             # Increment counters
-            if reasoning_words > 0:
+            if (
+                reasoning_words == "unknown"
+                and reasoning_info.get("reasoning_started") is True
+            ) or (isinstance(reasoning_words, int) and reasoning_words > 0):
+                # if reasoning started but not finished, or finished and we have non-zero reasoning words
                 self._reasoning_stats["responses_with_reasoning"] += 1
-            if reasoning_info.get("reasoning_started"):
+            if reasoning_info.get("reasoning_started") is True:
                 self._reasoning_stats["reasoning_started_count"] += 1
-            if reasoning_info.get("reasoning_finished"):
-                self._reasoning_stats["reasoning_finished_count"] += 1
+                if reasoning_info.get("reasoning_finished"):
+                    self._reasoning_stats["reasoning_finished_count"] += 1
+                else:
+                    self._reasoning_stats["reasoning_unfinished_count"] += 1
 
             # Update running averages
             for stat_key, value in [
@@ -338,6 +346,13 @@ class ResponseReasoningInterceptor(ResponseInterceptor, PostEvalHook):
             if updated_content_tokens != "unknown":
                 self._reasoning_stats["total_updated_content_tokens"] += (
                     updated_content_tokens
+                )
+
+            # Update ratio
+            if self._reasoning_stats["responses_with_reasoning"]:
+                self._reasoning_stats["reasoning_finished_ratio"] = (
+                    self._reasoning_stats["reasoning_finished_count"]
+                    / self._reasoning_stats["responses_with_reasoning"]
                 )
 
             # Log aggregated stats at specified interval
