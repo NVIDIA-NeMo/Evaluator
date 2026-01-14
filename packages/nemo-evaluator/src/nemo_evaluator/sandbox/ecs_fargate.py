@@ -147,7 +147,7 @@ class _EcsExecContainer:
     Minimal docker.Container-like shim used by some agents (installed agents).
     """
 
-    def __init__(self, sandbox: "EcsFargateSandbox"):
+    def __init__(self, sandbox: EcsFargateSandbox):
         self._s = sandbox
         self.attrs = {"Config": {"User": ""}}
 
@@ -161,7 +161,7 @@ class EcsFargateTmuxSession(NemoSandboxSession):
     _TMUX_COMPLETION_COMMAND = "; tmux wait -S done"
     _LONG_TEXT_THRESHOLD = 2000
 
-    def __init__(self, *, session_name: str, sandbox: "EcsFargateSandbox"):
+    def __init__(self, *, session_name: str, sandbox: EcsFargateSandbox):
         self._session_name = session_name
         self._sandbox = sandbox
         self.container = _EcsExecContainer(sandbox)
@@ -175,6 +175,7 @@ class EcsFargateTmuxSession(NemoSandboxSession):
         capturing the pane buffer. The session is created with a large history limit
         so we can diff across polls.
         """
+        self._sandbox._check_tmux_version()
         if self._has_session():
             return
         self._sandbox._exec_capture(
@@ -397,6 +398,58 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
         self._sessions: dict[str, EcsFargateTmuxSession] = {}
         self.container = _EcsExecContainer(self)
         self._logger = logging.getLogger(f"{__name__}.EcsFargateSandbox")
+        self._tmux_version_checked = False
+
+    def _check_tmux_version(self) -> None:
+        """Best-effort compatibility warning for tmux output/behavior changes.
+
+        We rely on tmux for:
+        - `capture-pane` output diffing (incremental output)
+        - `wait`/`wait -S` markers for "block until command finished"
+
+        tmux does not guarantee backward compatibility of all emitted strings across
+        minor versions. To reduce surprise, we probe `tmux -V` once and emit a loud
+        warning if the version is newer than the known-tested minor + 1.
+        """
+        if self._tmux_version_checked:
+            return
+        self._tmux_version_checked = True
+
+        # Bump this when we validate against a newer tmux release.
+        KNOWN_TESTED_TMUX = (3, 4)  # (major, minor)
+        max_ok = (KNOWN_TESTED_TMUX[0], KNOWN_TESTED_TMUX[1] + 1)
+
+        try:
+            out = self._exec_capture(
+                cmd=["sh", "-lc", "tmux -V 2>/dev/null || true"],
+                timeout_sec=30.0,
+                check=False,
+            ).strip()
+        except Exception:
+            # Don't block sandbox startup on a version probe.
+            return
+
+        m = re.search(r"tmux\s+(\d+)\.(\d+)", out)
+        if not m:
+            return
+        major = int(m.group(1))
+        minor = int(m.group(2))
+
+        if (major, minor) > max_ok or major != KNOWN_TESTED_TMUX[0]:
+            self._logger.warning(
+                "tmux version appears newer than the known-tested range; output parsing or "
+                "magic strings may break across tmux minor releases.\n\n"
+                "Detected: tmux %s.%s (raw=%r)\n"
+                "Known-tested: tmux %s.%s\n"
+                "Allowed (safe-ish): up to tmux %s.%s\n",
+                major,
+                minor,
+                out,
+                KNOWN_TESTED_TMUX[0],
+                KNOWN_TESTED_TMUX[1],
+                max_ok[0],
+                max_ok[1],
+            )
 
     @classmethod
     def spin_up(
@@ -408,7 +461,7 @@ class EcsFargateSandbox(NemoEvaluatorSandbox):
         run_id: str,
         pre_upload_paths: Iterable[Path] | None = None,
         upload_dest_dir: str | None = None,
-    ) -> ContextManager["EcsFargateSandbox"]:
+    ) -> ContextManager[EcsFargateSandbox]:
         return _spin_up_ecs_fargate_sandbox(
             cfg=cfg,
             task_id=task_id,
