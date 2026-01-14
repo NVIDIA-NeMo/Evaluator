@@ -54,6 +54,10 @@ class ApiEndpoint(BaseModel):
         description="Name of the environment variable that stores API key for the model",
         default=None,
     )
+    api_key_value: Optional[str] = Field(
+        description="Literal API key value for authentication. Use this to pass the API key directly instead of via an environment variable. Cannot be used together with 'api_key_name'.",
+        default=None,
+    )
     model_id: Optional[str] = Field(description="Name of the model", default=None)
     stream: Optional[bool] = Field(
         description="Whether responses should be streamed", default=None
@@ -74,8 +78,17 @@ class ApiEndpoint(BaseModel):
         if isinstance(values, dict):
             api_key = values.get("api_key")
             api_key_name = values.get("api_key_name")
+            api_key_value = values.get("api_key_value")
 
-            # If both are set, raise an error
+            # If both api_key_name and api_key_value are set, raise an error
+            if api_key_name is not None and api_key_value is not None:
+                raise ValueError(
+                    "Both 'api_key_name' and 'api_key_value' are set. "
+                    "Please use only one: 'api_key_name' for environment variable reference, "
+                    "or 'api_key_value' for a literal API key."
+                )
+
+            # If both api_key and api_key_name are set with different values, raise an error
             if (
                 api_key is not None
                 and api_key_name is not None
@@ -87,7 +100,7 @@ class ApiEndpoint(BaseModel):
                 )
 
             # If only api_key is set, copy to api_key_name and warn
-            if api_key is not None and api_key_name is None:
+            if api_key is not None and api_key_name is None and api_key_value is None:
                 warnings.warn(
                     "'api_key' is deprecated and will be removed in a future version. "
                     "Please use 'api_key_name' instead.",
@@ -106,6 +119,10 @@ class EndpointModelConfig(BaseModel):
     url: str = Field(description="Url of the model")
     api_key_name: Optional[str] = Field(
         description="Name of the env variable that stores API key", default=None
+    )
+    api_key_value: Optional[str] = Field(
+        description="Literal API key value for authentication. Cannot be used together with 'api_key_name'.",
+        default=None,
     )
     stream: Optional[bool] = Field(
         description="Whether responses should be streamed", default=None
@@ -127,6 +144,22 @@ class EndpointModelConfig(BaseModel):
     )
     # NOTE: we don't use extra yet but it will allow customization when needed
     extra: Optional[Dict[str, Any]] = Field(description="Extra", default=None)
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_api_key_fields(cls, values):
+        """Validate that api_key_name and api_key_value are mutually exclusive."""
+        if isinstance(values, dict):
+            api_key_name = values.get("api_key_name")
+            api_key_value = values.get("api_key_value")
+
+            if api_key_name is not None and api_key_value is not None:
+                raise ValueError(
+                    "Both 'api_key_name' and 'api_key_value' are set. "
+                    "Please use only one: 'api_key_name' for environment variable reference, "
+                    "or 'api_key_value' for a literal API key."
+                )
+        return values
 
 
 class EvaluationTarget(BaseModel):

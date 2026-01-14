@@ -19,7 +19,7 @@ from datetime import datetime
 
 import pytest
 
-from nemo_evaluator.api.api_dataclasses import ApiEndpoint
+from nemo_evaluator.api.api_dataclasses import ApiEndpoint, EndpointModelConfig
 
 
 @pytest.mark.parametrize(
@@ -51,6 +51,63 @@ def test_api_key_deprecation(api_key, api_key_name):
             endpoint.api_key is None
         )
         assert (endpoint.api_key == api_key) or (endpoint.api_key is None)
+
+
+def test_api_key_value_field():
+    """Test that api_key_value field works correctly."""
+    # api_key_value can be set alone
+    endpoint = ApiEndpoint(api_key_value="sk-literal-key-123")
+    assert endpoint.api_key_value == "sk-literal-key-123"
+    assert endpoint.api_key_name is None
+
+    # api_key_name can be set alone
+    endpoint = ApiEndpoint(api_key_name="MY_API_KEY_ENV")
+    assert endpoint.api_key_name == "MY_API_KEY_ENV"
+    assert endpoint.api_key_value is None
+
+
+def test_api_key_value_and_api_key_name_mutually_exclusive():
+    """Test that api_key_value and api_key_name cannot be set together."""
+    with pytest.raises(
+        ValueError,
+        match="Both 'api_key_name' and 'api_key_value' are set",
+    ):
+        ApiEndpoint(api_key_name="MY_API_KEY_ENV", api_key_value="sk-literal-key")
+
+
+def test_endpoint_model_config_api_key_value():
+    """Test that api_key_value field works in EndpointModelConfig."""
+    # api_key_value can be set alone
+    config = EndpointModelConfig(
+        model_id="test-model",
+        url="http://localhost:8000",
+        api_key_value="sk-literal-key-123",
+    )
+    assert config.api_key_value == "sk-literal-key-123"
+    assert config.api_key_name is None
+
+    # api_key_name can be set alone
+    config = EndpointModelConfig(
+        model_id="test-model",
+        url="http://localhost:8000",
+        api_key_name="MY_API_KEY_ENV",
+    )
+    assert config.api_key_name == "MY_API_KEY_ENV"
+    assert config.api_key_value is None
+
+
+def test_endpoint_model_config_api_key_mutually_exclusive():
+    """Test that api_key_value and api_key_name cannot be set together in EndpointModelConfig."""
+    with pytest.raises(
+        ValueError,
+        match="Both 'api_key_name' and 'api_key_value' are set",
+    ):
+        EndpointModelConfig(
+            model_id="test-model",
+            url="http://localhost:8000",
+            api_key_name="MY_API_KEY_ENV",
+            api_key_value="sk-literal-key",
+        )
 
 
 def test_api_key_deprecation_removal_reminder():

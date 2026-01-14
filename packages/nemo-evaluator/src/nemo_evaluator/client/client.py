@@ -55,6 +55,7 @@ class NeMoEvaluatorClient:
         self.model_id = endpoint_model_config.model_id
         self.model_url = endpoint_model_config.url
         self.api_key_name = endpoint_model_config.api_key_name
+        self.api_key_value = endpoint_model_config.api_key_value
         self.adapter_config = endpoint_model_config.adapter_config
         self.temperature = endpoint_model_config.temperature
         self.top_p = endpoint_model_config.top_p
@@ -74,22 +75,26 @@ class NeMoEvaluatorClient:
             model_name=self.model_id,
         )
 
-        # Get API key from environment if specified
-        if self.api_key_name is not None:
-            api_key_value = os.getenv(self.api_key_name)
-            if api_key_value is None:
+        # Get API key: prefer literal value, then environment variable
+        if self.api_key_value is not None:
+            # Use the literal API key value directly
+            api_key_resolved = self.api_key_value
+        elif self.api_key_name is not None:
+            # Lookup API key from environment variable
+            api_key_resolved = os.getenv(self.api_key_name)
+            if api_key_resolved is None:
                 raise ValueError(
                     f"API key environment variable '{self.api_key_name}' is not set. "
                     f"Please set it or remove 'api_key_name' from the configuration."
                 )
         else:
             # No API key specified - use dummy for endpoints that don't require auth
-            api_key_value = "dummy_api_key"
+            api_key_resolved = "dummy_api_key"
 
         self.client = AsyncOpenAI(
             http_client=adapter_http_client,
             base_url=self.model_url,
-            api_key=api_key_value,
+            api_key=api_key_resolved,
             timeout=self.request_timeout,
             max_retries=0,  # We handle retries ourselves
         )
