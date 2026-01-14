@@ -136,9 +136,9 @@ def test_parse_exec_markers_extracts_payload_and_strips_noise(
         returncode=0,
         stdout=(
             "Starting session with SessionId: abc\n"
-            "__TB_BEGIN__\n"
+            "__NEMO_BEGIN__\n"
             "hello\n"
-            "__TB_RC__=0\n"
+            "__NEMO_RC__=0\n"
             "Exiting session with sessionId: abc\n"
         ),
         stderr="The Session Manager plugin was installed successfully. Use the AWS CLI to start a session.\n",
@@ -169,7 +169,7 @@ def test_parse_exec_markers_raises_when_rc_nonzero(monkeypatch: pytest.MonkeyPat
     cp = CompletedProcess(
         args=["aws", "ecs", "execute-command"],
         returncode=0,
-        stdout="__TB_BEGIN__\nboom\n__TB_RC__=7\n",
+        stdout="__NEMO_BEGIN__\nboom\n__NEMO_RC__=7\n",
         stderr="",
     )
 
