@@ -39,6 +39,9 @@ class CmdAndReadableComment:
     # downstream callers who want to raise exceptions e.g. when a script was
     # saved that would execute this command.
     is_potentially_unsafe: bool = False
+    # Whether this task is unlisted (not in FDF). Unlisted tasks require explicit
+    # container specification and NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1 safeguard.
+    is_unlisted_task: bool = False
 
 
 def _str_to_echo_command(str_to_save: str, filename: str) -> CmdAndReadableComment:
@@ -251,6 +254,16 @@ def get_eval_factory_command(
         + "&& $cmd run_eval --run_config config_ef.yaml"
     )
 
+    # Check if this is an unlisted task (not in FDF)
+    is_unlisted_task = task_definition.get("is_unlisted_task", False)
+    if is_unlisted_task:
+        logger.warning(
+            "Running unlisted task (not in FDF). Requires NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1",
+            task=task_definition.get("task"),
+            harness=task_definition.get("harness"),
+            container=task_definition.get("container"),
+        )
+
     # We return both the command and the debugging base64-decoded strings, useful
     # for exposing when building scripts.
     return CmdAndReadableComment(
@@ -261,6 +274,7 @@ def get_eval_factory_command(
         + eval_command,
         debug=create_pre_script_cmd.debug + "\n\n" + create_yaml_cmd.debug,
         is_potentially_unsafe=is_potentially_unsafe,
+        is_unlisted_task=is_unlisted_task,
     )
 
 

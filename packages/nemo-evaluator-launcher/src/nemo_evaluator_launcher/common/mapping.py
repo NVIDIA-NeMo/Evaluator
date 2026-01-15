@@ -172,16 +172,22 @@ def load_tasks_mapping(
     return _convert_irs_to_mapping_format(tasks)
 
 
-def get_task_from_mapping(query: str, mapping: dict[Any, Any]) -> dict[Any, Any]:
+def get_task_from_mapping(
+    query: str, mapping: dict[Any, Any], *, allow_missing: bool = False
+) -> dict[Any, Any] | None:
     """Unambiguously selects one task from the mapping based on the query.
 
     Args:
         query: Either `task_name` or `harness_name.task_name`.
         mapping: The object returned from `load_tasks_mapping` function.
+        allow_missing: If True, return None when task is not found instead of raising ValueError.
 
     Returns:
-        dict: Task data.
+        dict: Task data, or None if allow_missing=True and task not found.
 
+    Raises:
+        ValueError: If task not found (when allow_missing=False), multiple tasks match,
+            or query format is invalid.
     """
     num_dots = query.count(".")
 
@@ -204,6 +210,8 @@ def get_task_from_mapping(query: str, mapping: dict[Any, Any]) -> dict[Any, Any]
             )
         # no tasks have been found:
         else:
+            if allow_missing:
+                return None
             raise ValueError(f"task {repr(query)} does not exist in the mapping")
 
     # if there is one dot in query, treat it like "{harness_name}.{task_name}"
@@ -224,6 +232,8 @@ def get_task_from_mapping(query: str, mapping: dict[Any, Any]) -> dict[Any, Any]
             )
         # no tasks have been found:
         else:
+            if allow_missing:
+                return None
             raise ValueError(
                 f"harness.task {repr(query)} does not exist in the mapping"
             )
@@ -237,7 +247,12 @@ def get_task_from_mapping(query: str, mapping: dict[Any, Any]) -> dict[Any, Any]
 
 
 def _minimal_task_definition(task_query: str, *, container: str) -> dict[str, Any]:
-    """Create a minimal task definition when task is not known in any mapping."""
+    """Create a minimal task definition when task is not known in any mapping.
+
+    This is used for unlisted tasks - tasks not exposed in the FDF but available
+    in the evaluation container. The returned dict includes `is_unlisted_task: True`
+    to signal that safeguards should be applied.
+    """
     if task_query.count(".") == 1:
         harness, task = task_query.split(".")
     else:
@@ -249,6 +264,7 @@ def _minimal_task_definition(task_query: str, *, container: str) -> dict[str, An
         "harness": harness,
         "endpoint_type": "chat",
         "container": container,
+        "is_unlisted_task": True,
     }
 
 
@@ -262,23 +278,54 @@ def get_task_definition_for_job(
 
     If a container is provided, tasks are loaded from that container (using
     container-metadata) and we attempt to resolve the task from that mapping.
-    If the task isn't found in the container, we warn and return a minimal
-    task definition so submission can proceed.
+    If the task isn't found in the container or base mapping, we return a minimal
+    task definition so submission can proceed (requires explicit container).
+
+    For unlisted tasks (not in any mapping), the returned dict includes
+    `is_unlisted_task: True` to signal that safeguards should be applied.
+
+    Args:
+        task_query: Either `task_name` or `harness_name.task_name`.
+        base_mapping: The base tasks mapping from packaged IRs.
+        container: Optional container image identifier. Required for unlisted tasks.
+
+    Returns:
+        dict: Task definition with all required fields.
+
+    Raises:
+        ValueError: If task not found and no container specified for unlisted task.
     """
-    if not container:
-        return get_task_from_mapping(task_query, base_mapping)
+    # First try to find task in base mapping
+    task_def = get_task_from_mapping(task_query, base_mapping, allow_missing=True)
+    if task_def is not None:
+        # Task found in base mapping - use container override if provided
+        if container:
+            task_def = dict(task_def)  # Make a copy to avoid mutating the mapping
+            task_def["container"] = container
+        return task_def
 
-    # `load_tasks_mapping(from_container=...)` uses container-metadata extraction,
-    # which already has its own caching (e.g., caching extracted framework.yml).
-    container_mapping = load_tasks_mapping(from_container=container)
+    # Task not found in base mapping - try container-specific mapping if provided
+    if container:
+        # `load_tasks_mapping(from_container=...)` uses container-metadata extraction,
+        # which already has its own caching (e.g., caching extracted framework.yml).
+        container_mapping = load_tasks_mapping(from_container=container)
+        task_def = get_task_from_mapping(
+            task_query, container_mapping, allow_missing=True
+        )
+        if task_def is not None:
+            return task_def
 
-    try:
-        return get_task_from_mapping(task_query, container_mapping)
-    except ValueError as e:
+        # Task not found in container either - return minimal definition for unlisted task
         logger.warning(
-            "Task not found in provided container; proceeding with minimal task definition",
+            "Task not found in any mapping; proceeding with minimal task definition (unlisted task)",
             task=task_query,
             container=container,
-            error=str(e),
         )
         return _minimal_task_definition(task_query, container=container)
+
+    # No container provided and task not found - fail with helpful error
+    raise ValueError(
+        f"Task {repr(task_query)} does not exist in the mapping. "
+        f"To run an unlisted task, specify the container explicitly in the task config "
+        f"(e.g., 'container: nvcr.io/nvidia/eval-factory/your-container:tag')."
+    )

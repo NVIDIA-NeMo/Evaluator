@@ -97,6 +97,7 @@ class SlurmExecutor(BaseExecutor):
             eval_images: list[str] = []
 
             is_potentially_unsafe = False
+            has_unlisted_tasks = False
             for idx, task in enumerate(cfg.evaluation.tasks):
                 # calculate job_id
                 job_id = f"{invocation_id}.{idx}"
@@ -155,6 +156,10 @@ class SlurmExecutor(BaseExecutor):
                     is_potentially_unsafe
                     or sbatch_script_content_struct.is_potentially_unsafe
                 )
+                # We accumulate if any task is unlisted (not in FDF)
+                has_unlisted_tasks = (
+                    has_unlisted_tasks or sbatch_script_content_struct.is_unlisted_task
+                )
                 local_runsub_path = local_task_subdir / "run.sub"
                 remote_runsub_path = remote_task_subdir / "run.sub"
                 with open(local_runsub_path, "w") as f:
@@ -178,6 +183,13 @@ class SlurmExecutor(BaseExecutor):
                             "make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
                         )
                     )
+                if has_unlisted_tasks:
+                    print(
+                        red(
+                            "\nFound unlisted task(s) not in FDF. When running without --dry-run "
+                            "make sure you trust the configuration and set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1"
+                        )
+                    )
 
                 return invocation_id
 
@@ -197,6 +209,23 @@ class SlurmExecutor(BaseExecutor):
                     raise AttributeError(
                         "Untrusted command found in config, make sure you trust and "
                         "set NEMO_EVALUATOR_TRUST_PRE_CMD=1."
+                    )
+
+            if has_unlisted_tasks:
+                if os.environ.get("NEMO_EVALUATOR_TRUST_UNLISTED_TASKS", "") == "1":
+                    logger.warning(
+                        "Found unlisted task(s) not in FDF and NEMO_EVALUATOR_TRUST_UNLISTED_TASKS "
+                        "is set, proceeding with caution."
+                    )
+                else:
+                    logger.error(
+                        "Found unlisted task(s) not in FDF and NEMO_EVALUATOR_TRUST_UNLISTED_TASKS "
+                        "is not set. Unlisted tasks may have incorrect configurations. "
+                        "To continue, make sure you trust the configuration and set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1.",
+                    )
+                    raise AttributeError(
+                        "Unlisted task found in config, make sure you trust and "
+                        "set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1."
                     )
 
             socket = str(Path(tmpdirname) / "socket")
@@ -754,10 +783,14 @@ def _create_slurm_sbatch_script(
         eval_factory_command_struct.is_potentially_unsafe or deployment_is_unsafe
     )
 
+    # Track unlisted task flag from evaluation
+    is_unlisted_task = eval_factory_command_struct.is_unlisted_task
+
     return CmdAndReadableComment(
         cmd=s,
         debug=debug_str,
         is_potentially_unsafe=is_potentially_unsafe,
+        is_unlisted_task=is_unlisted_task,
     )
 
 

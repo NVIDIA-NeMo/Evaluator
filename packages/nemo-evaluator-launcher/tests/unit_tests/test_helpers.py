@@ -476,3 +476,56 @@ def test_get_eval_factory_config_overrides_deprecated(global_config):
         match="`overrides` field is no longer supported. Use `nemo_evaluator_config` field instead",
     ):
         _ = get_eval_factory_config(cfg, user_task_config)
+
+
+def test_get_eval_factory_command_unlisted_task_flag():
+    """Test that is_unlisted_task flag is propagated from task_definition."""
+    from nemo_evaluator_launcher.common.helpers import get_eval_factory_command
+
+    cfg = _cfg(
+        {
+            "deployment": {"type": "none"},
+            "target": {"api_endpoint": {"url": "http://example/v1", "model_id": "m"}},
+            "evaluation": {},
+        }
+    )
+    user_task_config = _cfg({"name": "unlisted_task"})
+
+    # Task definition with is_unlisted_task=True
+    task_definition = {
+        "endpoint_type": "chat",
+        "task": "unlisted_task",
+        "harness": "harness",
+        "container": "test:latest",
+        "is_unlisted_task": True,
+    }
+
+    cmd_and_dbg = get_eval_factory_command(cfg, user_task_config, task_definition)
+
+    assert cmd_and_dbg.is_unlisted_task is True
+
+
+def test_get_eval_factory_command_listed_task_no_unlisted_flag():
+    """Test that is_unlisted_task is False for regular tasks."""
+    from nemo_evaluator_launcher.common.helpers import get_eval_factory_command
+
+    cfg = _cfg(
+        {
+            "deployment": {"type": "none"},
+            "target": {"api_endpoint": {"url": "http://example/v1", "model_id": "m"}},
+            "evaluation": {},
+        }
+    )
+    user_task_config = _cfg({"name": "listed_task"})
+
+    # Regular task definition without is_unlisted_task flag
+    task_definition = {
+        "endpoint_type": "chat",
+        "task": "listed_task",
+        "harness": "harness",
+        "container": "test:latest",
+    }
+
+    cmd_and_dbg = get_eval_factory_command(cfg, user_task_config, task_definition)
+
+    assert cmd_and_dbg.is_unlisted_task is False
