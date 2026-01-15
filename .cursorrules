@@ -152,7 +152,8 @@ The launcher provides these CLI commands (via `nel` or `nemo-evaluator-launcher`
 
 ## Development Guidelines
 
-1. **Read before modifying**: Always read existing code before making changes
+1. **Consult docs first**: Always check the `docs/` directory for existing documentation before making changes
+2. **Read before modifying**: Always read existing code before making changes
 2. **Keep it simple**: Avoid over-engineering; make minimal necessary changes
 3. **Type everything**: All code must pass MyPy strict mode
 4. **Test coverage**: Add tests for new functionality
