@@ -1,0 +1,169 @@
+# NeMo Evaluator SDK - Cursor IDE Context
+
+## Project Overview
+
+NeMo Evaluator SDK is an open-source platform for robust, reproducible, and scalable evaluation of Large Language Models (LLMs). It evaluates any OpenAI-compatible model API against 100+ benchmarks from 18 different evaluation harnesses.
+
+Key characteristics:
+- Reproducibility by default (captures configs, seeds, software provenance)
+- Scales from local machines to Slurm clusters or cloud platforms (Lepton AI)
+- Containerized evaluations for auditability
+- Extensible with custom harnesses, datasets, and exporters
+
+## Tech Stack
+
+- **Language**: Python 3.10-3.13
+- **Data Validation**: Pydantic 2.x
+- **Configuration**: Hydra, PyYAML
+- **CLI**: simple-parsing
+- **Logging**: structlog (structured logging)
+- **Testing**: pytest, pytest-asyncio, pytest-cov
+- **Formatting/Linting**: Ruff (v0.9.9+)
+- **Type Checking**: MyPy (strict mode)
+- **Package Manager**: UV (preferred over pip)
+
+## Project Structure
+
+```
+packages/
+├── nemo-evaluator/              # Core evaluation engine
+│   └── src/nemo_evaluator/
+│       ├── api/                 # Public API (Pydantic models)
+│       ├── adapters/            # Request/response middleware
+│       ├── core/                # Evaluation orchestration
+│       ├── client/              # API client implementations
+│       ├── logging/             # Centralized logging
+│       └── sandbox/             # Container execution (ECS Fargate)
+│
+└── nemo-evaluator-launcher/     # CLI and orchestration layer
+    └── src/nemo_evaluator_launcher/
+        ├── api/                 # Functional API
+        ├── cli/                 # CLI commands (run, status, logs, kill, etc.)
+        ├── executors/           # Pluggable backends (local, slurm, lepton)
+        ├── exporters/           # Result exporters (mlflow, wandb, gsheets)
+        ├── configs/             # Hydra configuration schemas
+        └── common/              # Shared utilities
+```
+
+## Code Style & Conventions
+
+### Formatting
+- Use Ruff for formatting and linting (pre-commit enforced)
+- Line length: 120 characters (default Ruff setting)
+- Import sorting: isort-compatible via Ruff
+
+### Naming Conventions
+- Package names: snake_case (`nemo_evaluator`)
+- CLI commands: kebab-case (`nemo-evaluator-launcher`, `nel`)
+- Test files: `test_*.py` pattern
+- Markdown files: Use hyphens, not underscores
+
+### Type Hints
+- All code must pass MyPy strict mode
+- Use Pydantic models for data classes (prefer over dataclasses)
+- Type all function signatures
+
+### Commit Messages
+- Semantic format: `type(scope): description`
+- Types: feat, fix, docs, test, chore, refactor, style
+
+## Key Patterns
+
+### Plugin Architecture
+Executors and exporters use a registry pattern for pluggability:
+- `BaseExecutor` interface in `executors/base.py`
+- Registration decorators for new implementations
+- Hydra configs define executor/exporter selection
+
+### Configuration
+- Hydra for hierarchical configuration management
+- YAML-based evaluation configs in `examples/` directory
+- Environment-specific settings via Hydra overrides
+
+### Pydantic Models
+- All API data classes in `api/api_dataclasses.py`
+- Use Pydantic v2 syntax (model_validator, field_validator)
+- Strict validation with detailed error messages
+
+### Logging
+- Always use structlog for structured logging
+- Log context propagation through adapters
+- Avoid print statements; use appropriate log levels
+
+## Testing
+
+### Running Tests
+```bash
+# Unit tests (network disabled by default)
+pytest packages/nemo-evaluator/tests/unit_tests/
+pytest packages/nemo-evaluator-launcher/tests/unit_tests/
+
+# With coverage
+pytest --cov=nemo_evaluator --cov-report=term-missing
+```
+
+### Test Conventions
+- Use pytest fixtures (see `conftest.py` files)
+- Mock external services (network disabled)
+- Test files mirror source structure
+- Use pytest-asyncio for async tests
+
+## Common Commands
+
+```bash
+# Install dependencies with UV
+uv pip install -e "packages/nemo-evaluator[dev]"
+uv pip install -e "packages/nemo-evaluator-launcher[dev]"
+
+# Format and lint
+ruff format .
+ruff check . --fix
+
+# Type checking
+mypy packages/nemo-evaluator/src
+mypy packages/nemo-evaluator-launcher/src
+
+# Run pre-commit hooks
+pre-commit run --all-files
+
+# Build documentation
+make docs-html
+```
+
+## CLI Commands
+
+The launcher provides these CLI commands (via `nel` or `nemo-evaluator-launcher`):
+- `run` - Launch evaluations
+- `status` - Check job status
+- `logs` - Stream job logs
+- `kill` - Terminate jobs
+- `ls-tasks` - List available evaluation tasks
+- `ls-runs` - List past evaluation runs
+- `export` - Export results to various formats
+- `info` - Show system information
+
+## Important Files
+
+- `packages/nemo-evaluator/src/nemo_evaluator/core/evaluate.py` - Main evaluation orchestration
+- `packages/nemo-evaluator/src/nemo_evaluator/api/api_dataclasses.py` - API data models
+- `packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/api/functional.py` - Functional API
+- `packages/nemo-evaluator-launcher/src/nemo_evaluator_launcher/executors/base.py` - Executor interface
+- `packages/*/examples/` - Example YAML configurations
+
+## Development Guidelines
+
+1. **Read before modifying**: Always read existing code before making changes
+2. **Keep it simple**: Avoid over-engineering; make minimal necessary changes
+3. **Type everything**: All code must pass MyPy strict mode
+4. **Test coverage**: Add tests for new functionality
+5. **Use existing patterns**: Follow established patterns in the codebase
+6. **Pydantic for data**: Use Pydantic models, not plain dataclasses
+7. **Structured logging**: Use structlog, not print statements
+8. **Configuration via Hydra**: Use Hydra for any configurable behavior
+
+## Monorepo Notes
+
+This is a monorepo with two independent packages:
+- Changes to `nemo-evaluator` may require version bumps in `nemo-evaluator-launcher`
+- Both packages have their own `pyproject.toml` and test suites
+- Shared version management via `package_info.py`
