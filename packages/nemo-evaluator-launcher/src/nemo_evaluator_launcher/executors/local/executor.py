@@ -40,6 +40,7 @@ from nemo_evaluator_launcher.common.execdb import (
     generate_job_id,
 )
 from nemo_evaluator_launcher.common.helpers import (
+    enforce_trust_safeguard,
     get_api_key_name,
     get_endpoint_url,
     get_eval_factory_command,
@@ -335,57 +336,36 @@ class LocalExecutor(BaseExecutor):
             print(bold("\nTo execute, run without --dry-run"))
 
             if is_potentially_unsafe:
-                print(
-                    red(
-                        "\nFound `pre_cmd` which carries security risk. When running without --dry-run "
-                        "make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
-                    )
+                enforce_trust_safeguard(
+                    env_var="NEMO_EVALUATOR_TRUST_PRE_CMD",
+                    items=["pre_cmd"],
+                    item_description="potentially unsafe pre_cmd",
+                    dry_run=dry_run,
                 )
             if unlisted_tasks:
-                print(
-                    red(
-                        f"\nFound unlisted task(s) not in FDF: {unlisted_tasks}. When running without --dry-run "
-                        "make sure you trust the configuration and set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1"
-                    )
+                enforce_trust_safeguard(
+                    env_var="NEMO_EVALUATOR_TRUST_UNLISTED_TASKS",
+                    items=unlisted_tasks,
+                    item_description="unlisted task(s) not in FDF",
+                    dry_run=dry_run,
                 )
             return invocation_id
 
         if is_potentially_unsafe:
-            if os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":
-                logger.warning(
-                    "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
-                    "is set, proceeding with caution."
-                )
-
-            else:
-                logger.error(
-                    "Found non-empty task commands (e.g. `pre_cmd`) and NEMO_EVALUATOR_TRUST_PRE_CMD "
-                    "is not set. This might carry security risk and unstable environments. "
-                    "To continue, make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1.",
-                )
-                raise AttributeError(
-                    "Untrusted command found in config, make sure you trust and "
-                    "set NEMO_EVALUATOR_TRUST_PRE_CMD=1."
-                )
+            enforce_trust_safeguard(
+                env_var="NEMO_EVALUATOR_TRUST_PRE_CMD",
+                items=["pre_cmd"],
+                item_description="potentially unsafe pre_cmd",
+                dry_run=dry_run,
+            )
 
         if unlisted_tasks:
-            if os.environ.get("NEMO_EVALUATOR_TRUST_UNLISTED_TASKS", "") == "1":
-                logger.warning(
-                    "Found unlisted task(s) not in FDF and NEMO_EVALUATOR_TRUST_UNLISTED_TASKS "
-                    "is set, proceeding with caution.",
-                    unlisted_tasks=unlisted_tasks,
-                )
-            else:
-                logger.error(
-                    "Found unlisted task(s) not in FDF and NEMO_EVALUATOR_TRUST_UNLISTED_TASKS "
-                    "is not set. Unlisted tasks may have incorrect configurations. "
-                    "To continue, make sure you trust the configuration and set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1.",
-                    unlisted_tasks=unlisted_tasks,
-                )
-                raise AttributeError(
-                    f"Unlisted task(s) found in config: {unlisted_tasks}. Make sure you trust and "
-                    "set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1."
-                )
+            enforce_trust_safeguard(
+                env_var="NEMO_EVALUATOR_TRUST_UNLISTED_TASKS",
+                items=unlisted_tasks,
+                item_description="unlisted task(s) not in FDF",
+                dry_run=dry_run,
+            )
 
         # Save launched jobs metadata
         db = ExecutionDB()

@@ -15,6 +15,7 @@
 #
 import base64
 import datetime
+import os
 from dataclasses import dataclass
 from typing import Optional
 
@@ -23,6 +24,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from nemo_evaluator_launcher.cli.version import get_versions
 from nemo_evaluator_launcher.common.logging_utils import logger
+from nemo_evaluator_launcher.common.printing_utils import red
 
 
 @dataclass(frozen=True)
@@ -358,6 +360,49 @@ def get_timestamp_string(include_microseconds: bool = True) -> str:
         fmt += "_%f"
     dts = datetime.datetime.strftime(dt, fmt)
     return dts
+
+
+def enforce_trust_safeguard(
+    *,
+    env_var: str,
+    items: list[str],
+    item_description: str,
+    dry_run: bool,
+) -> None:
+    """Enforce trust safeguard for potentially dangerous operations.
+
+    Args:
+        env_var: Environment variable name that must be set to "1" to proceed.
+        items: List of items triggering the safeguard (e.g., task names).
+        item_description: Human-readable description (e.g., "unlisted task(s) not in FDF").
+        dry_run: If True, only print warning; if False, enforce or raise.
+
+    Raises:
+        ValueError: If env_var is not set to "1" and dry_run is False.
+    """
+    if dry_run:
+        print(
+            red(
+                f"\nFound {item_description}: {items}. When running without "
+                f"--dry-run make sure you trust the configuration and set {env_var}=1"
+            )
+        )
+        return
+
+    if os.environ.get(env_var, "") == "1":
+        logger.warning(
+            f"Found {item_description} and {env_var} is set, proceeding with caution.",
+            items=items,
+        )
+    else:
+        logger.error(
+            f"Found {item_description} and {env_var} is not set. "
+            f"To continue, set {env_var}=1.",
+            items=items,
+        )
+        raise ValueError(
+            f"Found {item_description}: {items}. Set {env_var}=1 to proceed."
+        )
 
 
 def get_eval_factory_dataset_size_from_run_config(run_config: dict) -> Optional[int]:
