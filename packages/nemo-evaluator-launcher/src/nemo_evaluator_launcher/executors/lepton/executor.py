@@ -96,26 +96,25 @@ class LeptonExecutor(BaseExecutor):
         # populated.
         # Refactor the whole thing.
         is_potentially_unsafe = False
-        has_unlisted_tasks = False
+        unlisted_tasks: list[str] = []
         for idx, task in enumerate(cfg.evaluation.tasks):
             pre_cmd: str = task.get("pre_cmd") or cfg.evaluation.get("pre_cmd") or ""
             if pre_cmd:
                 is_potentially_unsafe = True
 
             # Check if task is unlisted (not in FDF)
-            # Use try/except because tasks without explicit container will raise ValueError
-            # if not found - this will be handled properly later in the execution flow
-            try:
-                task_definition = get_task_definition_for_job(
-                    task_query=task.name,
-                    base_mapping=tasks_mapping,
-                    container=task.get("container"),
-                )
-                if task_definition.get("is_unlisted_task", False):
-                    has_unlisted_tasks = True
-            except ValueError:
-                # Task not found and no container specified - will be caught in validation
-                pass
+            # Use allow_missing=True so tasks without explicit container return None
+            # instead of raising - this will be validated properly later in the flow
+            task_definition = get_task_definition_for_job(
+                task_query=task.name,
+                base_mapping=tasks_mapping,
+                container=task.get("container"),
+                allow_missing=True,
+            )
+            if task_definition is not None and task_definition.get(
+                "is_unlisted_task", False
+            ):
+                unlisted_tasks.append(task.name)
 
         # Check for deployment pre_cmd
         deployment_pre_cmd: str = cfg.deployment.get("pre_cmd") or ""
@@ -143,10 +142,10 @@ class LeptonExecutor(BaseExecutor):
                         "make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
                     )
                 )
-            if has_unlisted_tasks:
+            if unlisted_tasks:
                 print(
                     red(
-                        "\nFound unlisted task(s) not in FDF. When running without --dry-run "
+                        f"\nFound unlisted task(s) not in FDF: {unlisted_tasks}. When running without --dry-run "
                         "make sure you trust the configuration and set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1"
                     )
                 )
@@ -171,20 +170,22 @@ class LeptonExecutor(BaseExecutor):
                     "set NEMO_EVALUATOR_TRUST_PRE_CMD=1."
                 )
 
-        if has_unlisted_tasks:
+        if unlisted_tasks:
             if os.environ.get("NEMO_EVALUATOR_TRUST_UNLISTED_TASKS", "") == "1":
                 logger.warning(
                     "Found unlisted task(s) not in FDF and NEMO_EVALUATOR_TRUST_UNLISTED_TASKS "
-                    "is set, proceeding with caution."
+                    "is set, proceeding with caution.",
+                    unlisted_tasks=unlisted_tasks,
                 )
             else:
                 logger.error(
                     "Found unlisted task(s) not in FDF and NEMO_EVALUATOR_TRUST_UNLISTED_TASKS "
                     "is not set. Unlisted tasks may have incorrect configurations. "
                     "To continue, make sure you trust the configuration and set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1.",
+                    unlisted_tasks=unlisted_tasks,
                 )
                 raise AttributeError(
-                    "Unlisted task found in config, make sure you trust and "
+                    f"Unlisted task(s) found in config: {unlisted_tasks}. Make sure you trust and "
                     "set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1."
                 )
 

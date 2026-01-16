@@ -118,8 +118,8 @@ class LocalExecutor(BaseExecutor):
 
         # Will accumulate if any task contains unsafe commands.
         is_potentially_unsafe = False
-        # Will accumulate if any task is unlisted (not in FDF).
-        has_unlisted_tasks = False
+        # Will accumulate unlisted task names (not in FDF).
+        unlisted_tasks: list[str] = []
 
         deployment = None
 
@@ -264,9 +264,8 @@ class LocalExecutor(BaseExecutor):
                 is_potentially_unsafe
                 or eval_factory_command_struct.is_potentially_unsafe
             )
-            has_unlisted_tasks = (
-                has_unlisted_tasks or eval_factory_command_struct.is_unlisted_task
-            )
+            if eval_factory_command_struct.is_unlisted_task:
+                unlisted_tasks.append(task.name)
             evaluation_task = {
                 "deployment": deployment,
                 "name": task.name,
@@ -342,10 +341,10 @@ class LocalExecutor(BaseExecutor):
                         "make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
                     )
                 )
-            if has_unlisted_tasks:
+            if unlisted_tasks:
                 print(
                     red(
-                        "\nFound unlisted task(s) not in FDF. When running without --dry-run "
+                        f"\nFound unlisted task(s) not in FDF: {unlisted_tasks}. When running without --dry-run "
                         "make sure you trust the configuration and set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1"
                     )
                 )
@@ -369,20 +368,22 @@ class LocalExecutor(BaseExecutor):
                     "set NEMO_EVALUATOR_TRUST_PRE_CMD=1."
                 )
 
-        if has_unlisted_tasks:
+        if unlisted_tasks:
             if os.environ.get("NEMO_EVALUATOR_TRUST_UNLISTED_TASKS", "") == "1":
                 logger.warning(
                     "Found unlisted task(s) not in FDF and NEMO_EVALUATOR_TRUST_UNLISTED_TASKS "
-                    "is set, proceeding with caution."
+                    "is set, proceeding with caution.",
+                    unlisted_tasks=unlisted_tasks,
                 )
             else:
                 logger.error(
                     "Found unlisted task(s) not in FDF and NEMO_EVALUATOR_TRUST_UNLISTED_TASKS "
                     "is not set. Unlisted tasks may have incorrect configurations. "
                     "To continue, make sure you trust the configuration and set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1.",
+                    unlisted_tasks=unlisted_tasks,
                 )
                 raise AttributeError(
-                    "Unlisted task found in config, make sure you trust and "
+                    f"Unlisted task(s) found in config: {unlisted_tasks}. Make sure you trust and "
                     "set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1."
                 )
 

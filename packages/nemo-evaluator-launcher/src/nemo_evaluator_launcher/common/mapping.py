@@ -273,11 +273,12 @@ def get_task_definition_for_job(
     task_query: str,
     base_mapping: dict[Any, Any],
     container: str | None = None,
-) -> dict[str, Any]:
+    allow_missing: bool = False,
+) -> dict[str, Any] | None:
     """Resolve task definition for a job.
 
-    If a container is provided, tasks are loaded from that container (using
-    container-metadata) and we attempt to resolve the task from that mapping.
+    When a container is provided, the container mapping takes precedence over the
+    base mapping (container may have different/updated task configuration).
     If the task isn't found in the container or base mapping, we return a minimal
     task definition so submission can proceed (requires explicit container).
 
@@ -288,23 +289,18 @@ def get_task_definition_for_job(
         task_query: Either `task_name` or `harness_name.task_name`.
         base_mapping: The base tasks mapping from packaged IRs.
         container: Optional container image identifier. Required for unlisted tasks.
+        allow_missing: If True, return None when task not found and no container
+            specified, instead of raising ValueError.
 
     Returns:
-        dict: Task definition with all required fields.
+        dict: Task definition with all required fields, or None if allow_missing=True
+            and task not found without container.
 
     Raises:
-        ValueError: If task not found and no container specified for unlisted task.
+        ValueError: If task not found and no container specified for unlisted task
+            (when allow_missing=False).
     """
-    # First try to find task in base mapping
-    task_def = get_task_from_mapping(task_query, base_mapping, allow_missing=True)
-    if task_def is not None:
-        # Task found in base mapping - use container override if provided
-        if container:
-            task_def = dict(task_def)  # Make a copy to avoid mutating the mapping
-            task_def["container"] = container
-        return task_def
-
-    # Task not found in base mapping - try container-specific mapping if provided
+    # If container is provided, check container mapping first (takes precedence)
     if container:
         # `load_tasks_mapping(from_container=...)` uses container-metadata extraction,
         # which already has its own caching (e.g., caching extracted framework.yml).
@@ -315,7 +311,15 @@ def get_task_definition_for_job(
         if task_def is not None:
             return task_def
 
-        # Task not found in container either - return minimal definition for unlisted task
+        # Task not found in container - fall back to base mapping
+        task_def = get_task_from_mapping(task_query, base_mapping, allow_missing=True)
+        if task_def is not None:
+            # Task found in base mapping - override container
+            task_def = dict(task_def)  # Make a copy to avoid mutating the mapping
+            task_def["container"] = container
+            return task_def
+
+        # Task not found in container or base mapping - return minimal definition
         logger.warning(
             "Task not found in any mapping; proceeding with minimal task definition (unlisted task)",
             task=task_query,
@@ -323,7 +327,14 @@ def get_task_definition_for_job(
         )
         return _minimal_task_definition(task_query, container=container)
 
-    # No container provided and task not found - fail with helpful error
+    # No container provided - check base mapping only
+    task_def = get_task_from_mapping(task_query, base_mapping, allow_missing=True)
+    if task_def is not None:
+        return task_def
+
+    # No container provided and task not found - fail or return None
+    if allow_missing:
+        return None
     raise ValueError(
         f"Task {repr(task_query)} does not exist in the mapping. "
         f"To run an unlisted task, specify the container explicitly in the task config "

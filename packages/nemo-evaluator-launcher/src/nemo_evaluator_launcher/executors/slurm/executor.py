@@ -97,7 +97,7 @@ class SlurmExecutor(BaseExecutor):
             eval_images: list[str] = []
 
             is_potentially_unsafe = False
-            has_unlisted_tasks = False
+            unlisted_tasks: list[str] = []
             for idx, task in enumerate(cfg.evaluation.tasks):
                 # calculate job_id
                 job_id = f"{invocation_id}.{idx}"
@@ -156,10 +156,9 @@ class SlurmExecutor(BaseExecutor):
                     is_potentially_unsafe
                     or sbatch_script_content_struct.is_potentially_unsafe
                 )
-                # We accumulate if any task is unlisted (not in FDF)
-                has_unlisted_tasks = (
-                    has_unlisted_tasks or sbatch_script_content_struct.is_unlisted_task
-                )
+                # We accumulate unlisted task names (not in FDF)
+                if sbatch_script_content_struct.is_unlisted_task:
+                    unlisted_tasks.append(task.name)
                 local_runsub_path = local_task_subdir / "run.sub"
                 remote_runsub_path = remote_task_subdir / "run.sub"
                 with open(local_runsub_path, "w") as f:
@@ -183,10 +182,10 @@ class SlurmExecutor(BaseExecutor):
                             "make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
                         )
                     )
-                if has_unlisted_tasks:
+                if unlisted_tasks:
                     print(
                         red(
-                            "\nFound unlisted task(s) not in FDF. When running without --dry-run "
+                            f"\nFound unlisted task(s) not in FDF: {unlisted_tasks}. When running without --dry-run "
                             "make sure you trust the configuration and set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1"
                         )
                     )
@@ -211,20 +210,22 @@ class SlurmExecutor(BaseExecutor):
                         "set NEMO_EVALUATOR_TRUST_PRE_CMD=1."
                     )
 
-            if has_unlisted_tasks:
+            if unlisted_tasks:
                 if os.environ.get("NEMO_EVALUATOR_TRUST_UNLISTED_TASKS", "") == "1":
                     logger.warning(
                         "Found unlisted task(s) not in FDF and NEMO_EVALUATOR_TRUST_UNLISTED_TASKS "
-                        "is set, proceeding with caution."
+                        "is set, proceeding with caution.",
+                        unlisted_tasks=unlisted_tasks,
                     )
                 else:
                     logger.error(
                         "Found unlisted task(s) not in FDF and NEMO_EVALUATOR_TRUST_UNLISTED_TASKS "
                         "is not set. Unlisted tasks may have incorrect configurations. "
                         "To continue, make sure you trust the configuration and set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1.",
+                        unlisted_tasks=unlisted_tasks,
                     )
                     raise AttributeError(
-                        "Unlisted task found in config, make sure you trust and "
+                        f"Unlisted task(s) found in config: {unlisted_tasks}. Make sure you trust and "
                         "set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1."
                     )
 
