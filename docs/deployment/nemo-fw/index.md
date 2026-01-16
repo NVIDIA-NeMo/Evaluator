@@ -36,4 +36,5 @@ PyTriton Serving Backend <pytriton>
 Ray Serving Backend <ray>
 Evaluate Megatron Bridge Checkpoints <mbridge>
 Evaluate Automodel Checkpoints <hf>
+Evaluate TRTLLM Checkpoints <trtllm>
 ```
