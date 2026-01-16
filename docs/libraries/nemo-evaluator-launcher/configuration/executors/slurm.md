@@ -198,6 +198,30 @@ The Slurm executor includes advanced auto-resume capabilities:
 3. **Automatic Resubmission**: New job is submitted with dependency on previous job
 4. **Progress Preservation**: Evaluation continues from where it left off
 
+### Maximum Total Walltime
+
+To prevent jobs from resuming indefinitely, you can configure a maximum total wall-clock time across all resumes using the `max_walltime` parameter:
+
+```yaml
+execution:
+  walltime: "04:00:00"       # Time limit per job submission
+  max_walltime: "24:00:00"   # Maximum total time across all resumes (optional)
+```
+
+**How it works:**
+- On the first job submission, the start time is recorded
+- Before each resume, the total elapsed time is checked against `max_walltime`
+- If the total elapsed time exceeds `max_walltime`, the job chain stops with an error
+- This prevents runaway jobs that might otherwise resume indefinitely
+
+**Configuration:**
+- `max_walltime`: Maximum total wall-clock time in `HH:MM:SS` format (e.g., `"24:00:00"` for 24 hours)
+- Set to `null` (default) for unlimited resuming
+
+:::{note}
+The `max_walltime` is measured from the first job submission in the chain, not from each individual job. This ensures a hard upper bound on total runtime regardless of how many times the job is preempted or times out.
+:::
+
 ## Monitoring and Job Management
 
 For monitoring jobs, checking status, and managing evaluations, see the [Executors Overview](overview.md#job-management) section.
