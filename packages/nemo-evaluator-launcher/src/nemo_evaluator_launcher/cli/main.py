@@ -26,6 +26,7 @@ import nemo_evaluator_launcher.cli.logs as logs
 import nemo_evaluator_launcher.cli.ls_runs as ls_runs
 import nemo_evaluator_launcher.cli.ls_task as ls_task
 import nemo_evaluator_launcher.cli.ls_tasks as ls_tasks
+import nemo_evaluator_launcher.cli.quickstart as quickstart
 import nemo_evaluator_launcher.cli.run as run
 import nemo_evaluator_launcher.cli.status as status
 import nemo_evaluator_launcher.cli.version as version
@@ -43,6 +44,7 @@ def is_verbose_enabled(args) -> bool:
     # Check subcommand verbose flags
     subcommands = [
         "run",
+        "quickstart",
         "status",
         "logs",
         "info",
@@ -97,6 +99,14 @@ def create_parser() -> ArgumentParser:
         help="Enable verbose logging (sets LOG_LEVEL=DEBUG)",
     )
     run_parser.add_arguments(run.Cmd, dest="run")
+
+    # Quickstart subcommand
+    quickstart_parser = subparsers.add_parser(
+        "quickstart",
+        help="Interactive quickstart to generate a config",
+        description="Interactive questionnaire that generates a YAML config referencing internal defaults",
+    )
+    quickstart_parser.add_arguments(quickstart.Cmd, dest="quickstart")
 
     # Status subcommand
     status_parser = subparsers.add_parser(
@@ -222,6 +232,8 @@ def main() -> None:
         args.version.execute()
     elif args.command == "run":
         args.run.execute()
+    elif args.command == "quickstart":
+        args.quickstart.execute()
     elif args.command == "status":
         args.status.execute()
     elif args.command == "logs":
