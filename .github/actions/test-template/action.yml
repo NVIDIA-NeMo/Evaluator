@@ -125,6 +125,59 @@ runs:
         tenant-id: ${{ inputs.azure-tenant-id }}
         subscription-id: ${{ inputs.azure-subscription-id }}
 
+    - name: Azure Fileshare
+      if: ${{ inputs.has-azure-credentials == 'true' && inputs.type_of_test != 'unit-tests' && !contains(inputs.runner, 'aws') }}
+      shell: bash
+      id: azure-fileshare
+      run: |
+        echo "::group::Mount SMB drive"
+        sudo apt update
+        sudo apt install -y cifs-utils
+
+        RESOURCE_GROUP_NAME="azure-gpu-vm-runner_group"
+        STORAGE_ACCOUNT_NAME="nemocistorageaccount2"
+        FILE_SHARE_NAME="fileshare"
+
+        MNT_PATH="/mnt/datadrive"
+
+        sudo mkdir -p $MNT_PATH
+
+        # Create a folder to store the credentials for this storage account and
+        # any other that you might set up.
+        CREDENTIAL_ROOT="/etc/smbcredentials"
+        sudo mkdir -p "/etc/smbcredentials"
+
+        # Get the storage account key for the indicated storage account.
+        # You must be logged in with az login and your user identity must have
+        # permissions to list the storage account keys for this command to work.
+        STORAGE_ACCOUNT_KEY=$(az storage account keys list \
+            --resource-group $RESOURCE_GROUP_NAME \
+            --account-name $STORAGE_ACCOUNT_NAME \
+            --query "[0].value" --output tsv | tr -d '"')
+
+        # Create the credential file for this individual storage account
+        SMB_CREDENTIAL_FILE="$CREDENTIAL_ROOT/$STORAGE_ACCOUNT_NAME.cred"
+        if [ ! -f $SMB_CREDENTIAL_FILE ]; then
+            echo "username=$STORAGE_ACCOUNT_NAME" | sudo tee $SMB_CREDENTIAL_FILE > /dev/null
+            echo "password=$STORAGE_ACCOUNT_KEY" | sudo tee -a $SMB_CREDENTIAL_FILE > /dev/null
+        else
+            echo "The credential file $SMB_CREDENTIAL_FILE already exists, and was not modified."
+        fi
+
+        # Change permissions on the credential file so only root can read or modify the password file.
+        sudo chmod 600 $SMB_CREDENTIAL_FILE
+
+        # This command assumes you have logged in with az login
+        HTTP_ENDPOINT=$(az storage account show --resource-group $RESOURCE_GROUP_NAME --name $STORAGE_ACCOUNT_NAME --query "primaryEndpoints.file" --output tsv | tr -d '"')
+        SMB_PATH=$(echo $HTTP_ENDPOINT | cut -c7-${#HTTP_ENDPOINT})$FILE_SHARE_NAME
+
+        STORAGE_ACCOUNT_KEY=$(az storage account keys list --resource-group $RESOURCE_GROUP_NAME --account-name $STORAGE_ACCOUNT_NAME --query "[0].value" --output tsv | tr -d '"')
+
+        sudo mount -t cifs $SMB_PATH $MNT_PATH -o credentials=$SMB_CREDENTIAL_FILE,serverino,nosharesock,actimeo=30,mfsymlinks,fsc,cache=strict
+
+        ls -al $MNT_PATH/TestData
+        echo "::endgroup::"
+
     - name: Install uuidgen
       shell: bash -x -e -u -o pipefail {0}
       if: ${{ contains(inputs.runner, 'aws') }}
@@ -135,11 +188,14 @@ runs:
     - name: Start container
       shell: bash
       env:
+        AWS_RUNNER: ${{ contains(inputs.runner, 'aws') }}
         MOUNT_FS: ${{ inputs.type_of_test == 'integration_tests' || inputs.type_of_test == 'functional_tests' }}
       run: |
         echo "::group::Start test container"
-        if [[ "$MOUNT_FS" == "true" ]]; then
+        if [[ "$MOUNT_FS" == "true" && "$AWS_RUNNER" == "true" ]]; then
           VOLUME_ARGS="--volume ${{ inputs.test-data-path }}:/home/TestData"
+        elif [[ "$MOUNT_FS" == "true" && "$AWS_RUNNER" == "false" ]]; then
+          VOLUME_ARGS="--volume /mnt/datadrive/TestData:/home/TestData"
         else
           VOLUME_ARGS=""
         fi
