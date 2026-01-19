@@ -81,6 +81,7 @@ class RunConfig(DictConfig):
                 version_base=None,
             )
         else:
+            config_path = None
             hydra.initialize_config_module(
                 config_module="nemo_evaluator_launcher.configs",
                 version_base=None,
@@ -93,6 +94,11 @@ class RunConfig(DictConfig):
         # Merge dict_overrides if provided
         if dict_overrides:
             cfg = OmegaConf.merge(cfg, dict_overrides)
+        if config_path:
+            is_struct = OmegaConf.is_struct(cfg)
+            OmegaConf.set_struct(cfg, False)
+            cfg.user_config_path = str(config_path)
+            OmegaConf.set_struct(cfg, is_struct)
 
         logger.debug(
             "Loaded run config from hydra",

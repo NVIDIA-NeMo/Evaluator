@@ -24,6 +24,8 @@ from omegaconf import DictConfig, OmegaConf
 from nemo_evaluator_launcher.cli.version import get_versions
 from nemo_evaluator_launcher.common.logging_utils import logger
 
+CONTAINER_RESULTS_DIR = "/results"
+
 
 @dataclass(frozen=True)
 class CmdAndReadableComment:
@@ -195,7 +197,7 @@ def get_eval_factory_command(
     _set_nested_optionally_overriding(
         merged_nemo_evaluator_config,
         ["config", "output_dir"],
-        "/results",
+        CONTAINER_RESULTS_DIR,
     )
     # FIXME(martas): update to api_key_name after 25.12 is released
     _set_nested_optionally_overriding(
@@ -237,11 +239,28 @@ def get_eval_factory_command(
             pre_cmd,
         )
 
+    commands = []
+    debug = []
+
     create_pre_script_cmd = _str_to_echo_command(pre_cmd, filename="pre_cmd.sh")
+    commands.append(create_pre_script_cmd.cmd)
+    debug.append(create_pre_script_cmd.debug)
 
     create_yaml_cmd = _str_to_echo_command(
         yaml.safe_dump(merged_nemo_evaluator_config), "config_ef.yaml"
     )
+    commands.append(create_yaml_cmd.cmd)
+    debug.append(create_yaml_cmd.debug)
+
+    # Store the original unresolved config if available
+    config_path = cfg.get("user_config_path", None)
+    if config_path:
+        create_unresolved_config_cmd = _str_to_echo_command(
+            open(config_path, "r").read(),
+            filename=f"{CONTAINER_RESULTS_DIR}/launcher_unresolved_config.yaml",
+        )
+        commands.append(create_unresolved_config_cmd.cmd)
+        debug.append(create_unresolved_config_cmd.debug)
 
     # NOTE: we use `source` to allow tricks like exports etc (if needed) -- it runs in the same
     # shell as the command.
@@ -251,15 +270,13 @@ def get_eval_factory_command(
         + "&& $cmd run_eval --run_config config_ef.yaml"
     )
 
+    commands.append(eval_command)
+
     # We return both the command and the debugging base64-decoded strings, useful
     # for exposing when building scripts.
     return CmdAndReadableComment(
-        cmd=create_pre_script_cmd.cmd
-        + " && "
-        + create_yaml_cmd.cmd
-        + " && "
-        + eval_command,
-        debug=create_pre_script_cmd.debug + "\n\n" + create_yaml_cmd.debug,
+        cmd=" && ".join(commands),
+        debug="\n\n".join(debug),
         is_potentially_unsafe=is_potentially_unsafe,
     )
 
