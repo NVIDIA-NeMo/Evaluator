@@ -41,7 +41,8 @@ config = EvaluationConfig(
     ),
 )
 
-# Run evaluation
-results = evaluate(target_cfg=target, eval_cfg=config)
-print(results)
+if __name__ == "__main__":
+    # Run evaluation
+    results = evaluate(target_cfg=target, eval_cfg=config)
+    print(results)
 # [snippet-end]
