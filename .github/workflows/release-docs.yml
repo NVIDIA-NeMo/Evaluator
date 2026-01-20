@@ -73,4 +73,4 @@ jobs:
           akamai-client-secret: ${{ secrets.AKAMAI_CLIENT_SECRET }}
           akamai-access-token: ${{ secrets.AKAMAI_ACCESS_TOKEN }}
           s3-target-root: ${{ secrets.S3_BUCKET_NAME }}
-          s3-target-path: nemo/megatron-bridge
+          s3-target-path: nemo/evaluator
