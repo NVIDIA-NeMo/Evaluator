@@ -166,8 +166,9 @@ config = EvaluationConfig(
     )
 )
 
-result = evaluate(eval_cfg=config, target_cfg=target)
-print(f"Evaluation completed: {result}")
+if __name__ == "__main__":
+    result = evaluate(eval_cfg=config, target_cfg=target)
+    print(f"Evaluation completed: {result}")
 ```
 
 **Available Interceptors:**
