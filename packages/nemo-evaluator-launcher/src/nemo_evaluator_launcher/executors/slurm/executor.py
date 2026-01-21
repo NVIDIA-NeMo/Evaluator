@@ -1384,20 +1384,29 @@ def _generate_autoresume_handler(
     """
     start_time_file = remote_task_subdir / ".job_start_time"
 
+    accumulated_walltime_file = remote_task_subdir / ".accumulated_walltime"
+
     # Generate max walltime check logic if max_walltime is specified
     if max_walltime:
         max_walltime_check = f'''
 # Check if max_walltime has been exceeded
 _max_walltime="{max_walltime}"
 _start_time_file="{start_time_file}"
+_accumulated_walltime_file="{accumulated_walltime_file}"
 
-# Convert HH:MM:SS to seconds
+# Convert HH:MM:SS or D-HH:MM:SS to seconds
 _walltime_to_seconds() {{
     local time_str=$1
-    local hours=0 minutes=0 seconds=0
+    local days=0 hours=0 minutes=0 seconds=0
 
+    # Handle format with days: D-HH:MM:SS (sacct output format)
+    if [[ "$time_str" =~ ^([0-9]+)-([0-9]+):([0-9]+):([0-9]+)$ ]]; then
+        days=${{BASH_REMATCH[1]}}
+        hours=${{BASH_REMATCH[2]}}
+        minutes=${{BASH_REMATCH[3]}}
+        seconds=${{BASH_REMATCH[4]}}
     # Handle different formats: HH:MM:SS, MM:SS, or just seconds
-    if [[ "$time_str" =~ ^([0-9]+):([0-9]+):([0-9]+)$ ]]; then
+    elif [[ "$time_str" =~ ^([0-9]+):([0-9]+):([0-9]+)$ ]]; then
         hours=${{BASH_REMATCH[1]}}
         minutes=${{BASH_REMATCH[2]}}
         seconds=${{BASH_REMATCH[3]}}
@@ -1408,31 +1417,45 @@ _walltime_to_seconds() {{
         seconds=${{BASH_REMATCH[1]}}
     fi
 
-    echo $((hours * 3600 + minutes * 60 + seconds))
+    echo $((days * 86400 + hours * 3600 + minutes * 60 + seconds))
 }}
 
 _max_walltime_seconds=$(_walltime_to_seconds "$_max_walltime")
 
-# Record start time on first run (when no previous job ID exists)
-if [[ ! -f "$_start_time_file" ]]; then
-    date +%s > "$_start_time_file"
+# Initialize accumulated walltime file on first run
+if [[ ! -f "$_accumulated_walltime_file" ]]; then
+    echo "0" > "$_accumulated_walltime_file"
     echo "Job chain started at $(date). Max total walltime: $_max_walltime"
 fi
 
-# Read start time and calculate elapsed time
-_job_chain_start_time=$(cat "$_start_time_file")
-_current_time=$(date +%s)
-_elapsed_seconds=$((_current_time - _job_chain_start_time))
-_elapsed_formatted=$(printf '%02d:%02d:%02d' $((_elapsed_seconds/3600)) $(((_elapsed_seconds%3600)/60)) $((_elapsed_seconds%60)))
+# Read accumulated walltime from previous jobs
+_accumulated_seconds=$(cat "$_accumulated_walltime_file")
 
-echo "Total elapsed time since job chain start: $_elapsed_formatted (max: $_max_walltime)"
+# If there's a previous job, add its actual elapsed time (from sacct) to the accumulated walltime
+# This must happen BEFORE the max walltime check to ensure accurate tracking
+if [[ -n "$_prev_slurm_job_id" ]]; then
+    _prev_elapsed=$(sacct -j $_prev_slurm_job_id -P -n -o Elapsed | head -n 1)
+    if [[ -n "$_prev_elapsed" ]]; then
+        _prev_elapsed_seconds=$(_walltime_to_seconds "$_prev_elapsed")
+        _accumulated_seconds=$((_accumulated_seconds + _prev_elapsed_seconds))
+        echo "$_accumulated_seconds" > "$_accumulated_walltime_file"
+        echo "Previous job $_prev_slurm_job_id ran for $_prev_elapsed"
+    fi
+fi
+
+_elapsed_formatted=$(printf '%02d:%02d:%02d' $((_accumulated_seconds/3600)) $(((_accumulated_seconds%3600)/60)) $((_accumulated_seconds%60)))
+
+echo "Total accumulated walltime: $_elapsed_formatted (max: $_max_walltime)"
 
 # Check if we've exceeded max walltime - if so, don't schedule next job and exit
-if [[ $_elapsed_seconds -ge $_max_walltime_seconds ]]; then
-    echo "ERROR: Maximum total walltime ($_max_walltime) exceeded. Total elapsed: $_elapsed_formatted"
+if [[ $_accumulated_seconds -ge $_max_walltime_seconds ]]; then
+    echo "ERROR: Maximum total walltime ($_max_walltime) exceeded. Accumulated: $_elapsed_formatted"
     echo "Stopping job chain to prevent infinite resuming."
     exit 1
 fi
+
+# Record job start time for this job (for debugging/logging purposes)
+date +%s > "$_start_time_file"
 '''
     else:
         max_walltime_check = ""
