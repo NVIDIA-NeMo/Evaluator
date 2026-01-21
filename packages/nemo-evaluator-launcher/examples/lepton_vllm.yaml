@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 # How to use: copy this file locally into a directory, say `examples`, and run
-# Run this config with `nemo-evaluator-launcher run --config-dir examples --config-name lepton_vllm_llama_3_1_8b_instruct`.
+# Run this config with `nemo-evaluator-launcher run --config examples/lepton_vllm.yaml`.
 
 # This example shows how to use Lepton as an execution platform with vLLM.
 # Execution flow:

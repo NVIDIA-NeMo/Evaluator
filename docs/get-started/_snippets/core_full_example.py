@@ -45,22 +45,16 @@ eval_config = EvaluationConfig(
 # Configure target
 target_config = EvaluationTarget(
     api_endpoint=ApiEndpoint(
-        model_id="meta/llama-3.1-8b-instruct",
+        model_id="meta/llama-3.2-3b-instruct",
         url="https://integrate.api.nvidia.com/v1/chat/completions",
         type=EndpointType.CHAT,
         api_key="NGC_API_KEY",
     )
 )
 
-# Run evaluation
-try:
+if __name__ == "__main__":
+    # Run evaluation
     result = evaluate(eval_cfg=eval_config, target_cfg=target_config)
     print(f"Evaluation completed. Results saved to: {eval_config.output_dir}")
-except Exception as e:
-    print(f"Evaluation failed: {e}")
-# [snippet-end]
 
-if __name__ == "__main__":
-    print(
-        "Replace 'nvapi-your-key-here' with your actual NGC API key to run this example"
-    )
+# [snippet-end]

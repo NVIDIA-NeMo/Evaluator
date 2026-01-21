@@ -20,6 +20,7 @@
 from nemo_evaluator.api import evaluate
 from nemo_evaluator.api.api_dataclasses import (
     ApiEndpoint,
+    ConfigParams,
     EvaluationConfig,
     EvaluationTarget,
 )
@@ -31,9 +32,17 @@ api_endpoint = ApiEndpoint(
     model_id="megatron_model",
 )
 target = EvaluationTarget(api_endpoint=api_endpoint)
-config = EvaluationConfig(type="gsm8k", output_dir="results")
+config = EvaluationConfig(
+    type="gsm8k",
+    output_dir="results",
+    # Remove limit_samples for running on full dataset
+    params=ConfigParams(
+        limit_samples=10, temperature=0, top_p=0, parallelism=1, request_timeout=300
+    ),
+)
 
-# Run evaluation
-results = evaluate(target_cfg=target, eval_cfg=config)
-print(results)
+if __name__ == "__main__":
+    # Run evaluation
+    results = evaluate(target_cfg=target, eval_cfg=config)
+    print(results)
 # [snippet-end]

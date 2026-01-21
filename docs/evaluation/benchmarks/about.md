@@ -113,7 +113,7 @@ export HF_TOKEN=hf_...
 nemo-evaluator-launcher run \
     --config ./config.yml \
     -o execution.output_dir=results \
-    -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
+    -o +target.api_endpoint.model_id=meta/llama-3.2-3b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o +target.api_endpoint.api_key_name=NGC_API_KEY
 ```
@@ -166,7 +166,7 @@ export NGC_API_KEY=nvapi-...
 nemo-evaluator-launcher run \
     --config ./config.yml \
     -o execution.output_dir=results \
-    -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
+    -o +target.api_endpoint.model_id=meta/llama-3.2-3b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o +target.api_endpoint.api_key_name=NGC_API_KEY
 ```
@@ -216,7 +216,7 @@ export HF_TOKEN=hf_...
 nemo-evaluator-launcher run \
     --config ./config.yml \
     -o execution.output_dir=results \
-    -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
+    -o +target.api_endpoint.model_id=meta/llama-3.2-3b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o +target.api_endpoint.api_key_name=NGC_API_KEY
 ```
@@ -269,7 +269,7 @@ export NGC_API_KEY=nvapi-...
 nemo-evaluator-launcher run \
     --config ./config.yml \
     -o execution.output_dir=results \
-    -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
+    -o +target.api_endpoint.model_id=meta/llama-3.2-3b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o +target.api_endpoint.api_key_name=NGC_API_KEY
 ```
@@ -319,7 +319,7 @@ export NGC_API_KEY=nvapi-...
 nemo-evaluator-launcher run \
     --config ./config.yml \
     -o execution.output_dir=results \
-    -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
+    -o +target.api_endpoint.model_id=meta/llama-3.2-3b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o +target.api_endpoint.api_key_name=NGC_API_KEY
 ```
@@ -364,7 +364,7 @@ export NGC_API_KEY=nvapi-...
 nemo-evaluator-launcher run \
     --config ./config.yml \
     -o execution.output_dir=results \
-    -o +target.api_endpoint.model_id=meta/llama-3.1-8b-instruct \
+    -o +target.api_endpoint.model_id=meta/llama-3.2-3b-instruct \
     -o +target.api_endpoint.url=https://integrate.api.nvidia.com/v1/chat/completions \
     -o +target.api_endpoint.api_key_name=NGC_API_KEY
 ```

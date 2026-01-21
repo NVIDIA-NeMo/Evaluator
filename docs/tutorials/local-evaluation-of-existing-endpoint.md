@@ -42,7 +42,7 @@ Deploy an OpenAI-compatible endpoint using frameworks like vLLM, SGLang, TRT-LLM
 <!-- Refer to {ref}`bring-your-own-endpoint-manual` for deployment guidance -->
 
 :::{note}
-For this tutorial, we will use `meta/llama-3.1-8b-instruct` from [build.nvidia.com](https://build.nvidia.com/meta/llama-3_1-8b-instruct). You will need to export your `NGC_API_KEY` to access this endpoint.
+For this tutorial, we will use `meta/llama-3.2-3b-instruct` from [build.nvidia.com](https://build.nvidia.com/meta/llama-3_1-8b-instruct). You will need to export your `NGC_API_KEY` to access this endpoint.
 :::
 
 ### 2. Select Tasks
@@ -84,7 +84,7 @@ execution:
 
 target:
   api_endpoint:
-    model_id: meta/llama-3.1-8b-instruct  # TODO: update to the model you want to evaluate
+    model_id: meta/llama-3.2-3b-instruct  # TODO: update to the model you want to evaluate
     url: https://integrate.api.nvidia.com/v1/chat/completions  # TODO: update to the endpoint you want to evaluate
     api_key_name: NGC_API_KEY  # Name of the env variable that stores the API Key with access to build.nvidia.com (or model of your choice)
 

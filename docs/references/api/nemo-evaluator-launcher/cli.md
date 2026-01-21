@@ -65,7 +65,7 @@ nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/l
 
 The `--config-mode` parameter controls how configuration files are loaded:
 
-- **`hydra`** (default): Uses Hydra configuration system. The config file path is parsed to extract `config_dir` and `config_name`, and Hydra handles configuration composition, overrides, and validation.
+- **`hydra`** (default): Uses Hydra configuration system. Hydra handles configuration composition, overrides, and validation.
 - **`raw`**: Loads the config file directly without Hydra processing. Useful for loading pre-generated complete configuration files.
 
 ```bash
@@ -79,7 +79,7 @@ nemo-evaluator-launcher run --config my_config.yaml --config-mode=hydra
 nemo-evaluator-launcher run --config complete_config.yaml --config-mode=raw
 ```
 
-**Note:** When using `--config-mode=raw`, the `--config` parameter is required, and other config-related options (`--config-name`, `--config-dir`, `--override`) cannot be used.
+**Note:** When using `--config-mode=raw`, the `--config` parameter is required, and `-o/--override` cannot be used.
 
 (launcher-cli-dry-run)=
 ### Dry Run
@@ -98,6 +98,26 @@ Run with limited samples for testing:
 nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
   -o +config.params.limit_samples=10
 ```
+
+### Task Filtering
+
+Run only specific tasks from your configuration using the `-t` flag:
+
+```bash
+# Run a single task (local_basic.yaml has ifeval, gpqa_diamond, mbpp)
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml -t ifeval
+
+# Run multiple specific tasks
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml -t ifeval -t mbpp
+
+# Combine with other options
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml -t ifeval -t mbpp --dry-run
+```
+
+**Notes:**
+- Tasks must be defined in your configuration file under `evaluation.tasks`
+- If any requested task is not found in the configuration, the command will fail with an error listing available tasks
+- Task filtering preserves all task-specific overrides and `nemo_evaluator_config` settings
 
 ### Examples by Executor
 

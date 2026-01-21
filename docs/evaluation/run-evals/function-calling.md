@@ -78,7 +78,7 @@ eval_config = EvaluationConfig(
 target_config = EvaluationTarget(
     api_endpoint=ApiEndpoint(
         url="https://integrate.api.nvidia.com/v1/chat/completions",
-        model_id="meta/llama-3.1-8b-instruct", 
+        model_id="meta/llama-3.2-3b-instruct", 
         type=EndpointType.CHAT,
         api_key="your_api_key"
     )
@@ -104,7 +104,7 @@ export MY_API_KEY=your_api_key_here
 # Run function calling evaluation
 nemo-evaluator run_eval \
     --eval_type bfclv3_ast_prompting \
-    --model_id meta/llama-3.1-8b-instruct \
+    --model_id meta/llama-3.2-3b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
     --model_type chat \
     --api_key_name MY_API_KEY \

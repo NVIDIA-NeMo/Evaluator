@@ -18,7 +18,7 @@
 This module defines data structures and helpers for configuration and type safety in the API layer.
 """
 
-import os
+import pathlib
 import warnings
 from dataclasses import dataclass
 from typing import cast
@@ -42,38 +42,46 @@ from nemo_evaluator_launcher.common.logging_utils import logger
 class RunConfig(DictConfig):
     @staticmethod
     def from_hydra(
-        config_name: str = "default",
-        config_dir: str | None = None,
-        hydra_overrides: list[str] = [],
-        dict_overrides: dict = {},
+        config: str | None = None,
+        hydra_overrides: list[str] | None = None,
+        dict_overrides: dict | None = None,
     ) -> "RunConfig":
         """Load configuration from Hydra and merge with dictionary overrides.
 
         Args:
-            config_name: Name of the Hydra configuration to load.
+            config: Optional full path to a config file (e.g. /path/to/my_config.yaml).
+                    If omitted, loads the internal default config from
+                    `nemo_evaluator_launcher.configs`.
             hydra_overrides: List of Hydra command-line style overrides.
             dict_overrides: Dictionary of configuration overrides to merge.
-            config_dir: Optional path to user config directory. If provided, Hydra will
-                       search in this directory first, then fall back to internal configs.
 
         Returns:
             RunConfig: Merged configuration object.
         """
-        overrides = hydra_overrides.copy()
+        overrides = list(hydra_overrides or [])
+        dict_overrides = dict_overrides or {}
+
+        resolved_config_path: str | None = None
+        config_name = "default"
+
         # Check if a GlobalHydra instance is already initialized and clear it
         if GlobalHydra.instance().is_initialized():
             GlobalHydra.instance().clear()
 
-        if config_dir:
-            # Convert relative path to absolute path if needed
-            if not os.path.isabs(config_dir):
-                config_dir = os.path.abspath(config_dir)
+        if config:
+            config_path = pathlib.Path(config).expanduser()
+            if not config_path.is_absolute():
+                config_path = (pathlib.Path.cwd() / config_path).resolve()
+            resolved_config_path = str(config_path)
 
+            config_dir = str(config_path.parent)
+            config_name = str(config_path.stem)
             hydra.initialize_config_dir(
                 config_dir=config_dir,
                 version_base=None,
             )
         else:
+            config_path = None
             hydra.initialize_config_module(
                 config_module="nemo_evaluator_launcher.configs",
                 version_base=None,
@@ -86,11 +94,16 @@ class RunConfig(DictConfig):
         # Merge dict_overrides if provided
         if dict_overrides:
             cfg = OmegaConf.merge(cfg, dict_overrides)
+        if config_path:
+            is_struct = OmegaConf.is_struct(cfg)
+            OmegaConf.set_struct(cfg, False)
+            cfg.user_config_path = str(config_path)
+            OmegaConf.set_struct(cfg, is_struct)
 
         logger.debug(
             "Loaded run config from hydra",
             config_name=config_name,
-            config_dir=config_dir,
+            config=resolved_config_path,
             overrides=hydra_overrides,
             dict_overrides=dict_overrides,
             result=cfg,

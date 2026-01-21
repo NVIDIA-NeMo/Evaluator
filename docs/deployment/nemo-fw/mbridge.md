@@ -16,17 +16,10 @@ python -c "from megatron.bridge import AutoBridge; AutoBridge.import_ckpt('meta-
 
 The deployment scripts are available inside the [`/opt/Export-Deploy/scripts/deploy/nlp/`](https://github.com/NVIDIA-NeMo/Export-Deploy/tree/main/scripts/deploy/nlp) directory. Below is an example command for deployment. It uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to Megatron Bridge format using the command shared above.
 
-```shell
-python \
-  /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
-  --megatron_checkpoint "/workspace/mbridge_llama3_8b/iter_0000000" \
-  --model_id "megatron_model" \
-  --port 8080 \
-  --num_gpus 4 \
-  --num_replicas 2 \
-  --tensor_model_parallel_size 2 \
-  --pipeline_model_parallel_size 1 \
-  --context_parallel_size 1
+```{literalinclude} _snippets/deploy_mbridge.sh
+:language: bash
+:start-after: "# [snippet-start]"
+:end-before: "# [snippet-end]"
 ```
 
 :::{note}

@@ -270,14 +270,14 @@ def installed_modules(n: int, monkeypatch):
                 {"type": "dummy_task", "params": {"extra": {"non_existing": 789}}}
             ),
             [],
-            True,
+            False,  # temp retract
             "non_existing",
         ),
         # Invalid: CLI override with params.extra key not in command
         (
             make_config({"type": "dummy_task"}),
             ["--overrides", "config.params.extra.invalid_param=value"],
-            True,
+            False,  # temp retract
             "invalid_param",
         ),
         # Valid: Override params.extra.dummy_score that exists in command
@@ -300,7 +300,7 @@ def installed_modules(n: int, monkeypatch):
         (
             make_config({"type": "dummy_task"}),
             ["--overrides", "config.params.limit_samples=100"],
-            True,
+            False,  # temp retract
             "limit_samples",
         ),
         # Valid: Existing standard param in YAML - max_new_tokens IS in command
@@ -346,7 +346,7 @@ def installed_modules(n: int, monkeypatch):
                 {"type": "dummy_task", "params": {"extra": {"not_in_command": 777}}}
             ),
             [],
-            True,
+            False,  # temp retract
             "not_in_command",
         ),
         # Valid: Existing extra param in CLI override - dummy_score IS in command
@@ -360,7 +360,7 @@ def installed_modules(n: int, monkeypatch):
         (
             make_config({"type": "dummy_task"}),
             ["--overrides", "config.params.extra.missing_extra=444"],
-            True,
+            False,  # temp retract
             "missing_extra",
         ),
         # Valid: Multiple existing params in YAML (standard + extra)

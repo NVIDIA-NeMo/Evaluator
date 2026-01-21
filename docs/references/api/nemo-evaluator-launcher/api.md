@@ -20,8 +20,7 @@ from nemo_evaluator_launcher.api import RunConfig, run_eval
 
 # Run evaluation with configuration
 config = RunConfig.from_hydra(
-    config_name="local_basic",
-    config_dir="examples",
+    config="examples/local_basic.yaml",
     hydra_overrides=[
         "execution.output_dir=my_results"
     ]
@@ -79,8 +78,7 @@ from nemo_evaluator_launcher.api import RunConfig
 
 # Load a specific configuration file
 config = RunConfig.from_hydra(
-    config_name="local_basic",
-    config_dir="examples"
+    config="examples/local_basic.yaml"
 )
 ```
 
@@ -99,7 +97,7 @@ config = RunConfig.from_hydra(
         "target": {
             "api_endpoint": {
                 "url": "https://integrate.api.nvidia.com/v1/chat/completions",
-                "model_id": "meta/llama-3.1-8b-instruct",
+                "model_id": "meta/llama-3.2-3b-instruct",
                 "api_key_name": "NGC_API_KEY"
             }
         },
@@ -154,7 +152,7 @@ config = RunConfig.from_hydra(
         "target": {
             "api_endpoint": {
                 "url": "https://integrate.api.nvidia.com/v1/chat/completions",
-                "model_id": "meta/llama-3.1-8b-instruct",
+                "model_id": "meta/llama-3.2-3b-instruct",
                 "api_key_name": "NGC_API_KEY"
             }
         },

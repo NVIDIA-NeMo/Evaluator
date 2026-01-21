@@ -3,7 +3,7 @@
   "benchmarks": {
     "ifeval": {
       "models": {
-        "meta/llama-3.1-8b-instruct": [
+        "meta/llama-3.2-3b-instruct": [
           {
             "invocation_id": "30500ae952e1eeab",
             "job_id": "30500ae952e1eeab.0",
@@ -23,7 +23,7 @@
     },
     "gpqa_diamond": {
       "models": {
-        "meta/llama-3.1-8b-instruct": [
+        "meta/llama-3.2-3b-instruct": [
           {
             "invocation_id": "30500ae952e1eeab",
             "job_id": "30500ae952e1eeab.1",
@@ -40,7 +40,7 @@
     },
     "mbpp": {
       "models": {
-        "meta/llama-3.1-8b-instruct": [
+        "meta/llama-3.2-3b-instruct": [
           {
             "invocation_id": "30500ae952e1eeab",
             "job_id": "30500ae952e1eeab.2",

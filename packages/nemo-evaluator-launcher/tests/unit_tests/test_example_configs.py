@@ -80,9 +80,8 @@ class TestExampleConfigs:
 
             # Load configuration using RunConfig.from_hydra (same as CLI)
             cfg = RunConfig.from_hydra(
-                config_name=config_name,
                 hydra_overrides=overrides,
-                config_dir=str(EXAMPLES_DIR),
+                config=str(EXAMPLES_DIR / f"{config_name}.yaml"),
             )
 
             # Run with dry_run - should not raise

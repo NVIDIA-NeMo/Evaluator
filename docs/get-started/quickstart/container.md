@@ -26,7 +26,7 @@ export HF_TOKEN=hf_your-token-here  # If using gated datasets
 # 4. Run evaluation
 nemo-evaluator run_eval \
     --eval_type mmlu_pro \
-    --model_id meta/llama-3.1-8b-instruct \
+    --model_id meta/llama-3.2-3b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
     --model_type chat \
     --api_key_name NGC_API_KEY \
@@ -54,7 +54,7 @@ docker run --rm -it \
 # 3. Inside container - run evaluation
 nemo-evaluator run_eval \
     --eval_type mmlu_pro \
-    --model_id meta/llama-3.1-8b-instruct \
+    --model_id meta/llama-3.2-3b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
     --model_type chat \
     --api_key_name NGC_API_KEY \
@@ -82,7 +82,7 @@ docker run --rm \
         --eval_type mmlu_pro \
         --model_url https://integrate.api.nvidia.com/v1/chat/completions \
         --model_type chat \
-        --model_id meta/llama-3.1-8b-instruct \
+        --model_id meta/llama-3.2-3b-instruct \
         --api_key_name NGC_API_KEY \
         --output_dir /workspace/results
 ```
@@ -136,7 +136,7 @@ services:
     command: |
       nemo-evaluator run_eval 
         --eval_type mmlu_pro 
-        --model_id meta/llama-3.1-8b-instruct 
+        --model_id meta/llama-3.2-3b-instruct 
         --model_url https://integrate.api.nvidia.com/v1/chat/completions 
         --model_type chat 
         --api_key_name MY_API_KEY 
@@ -163,7 +163,7 @@ for benchmark in "${BENCHMARKS[@]}"; do
         nvcr.io/nvidia/eval-factory/simple-evals:{{ docker_compose_latest }} \
         nemo-evaluator run_eval \
             --eval_type $benchmark \
-            --model_id meta/llama-3.1-8b-instruct \
+            --model_id meta/llama-3.2-3b-instruct \
             --model_url https://integrate.api.nvidia.com/v1/chat/completions \
             --model_type chat \
             --api_key_name MY_API_KEY \

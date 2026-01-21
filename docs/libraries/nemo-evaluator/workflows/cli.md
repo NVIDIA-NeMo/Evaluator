@@ -23,7 +23,7 @@ config:
 target:
   api_endpoint:
     url: https://integrate.api.nvidia.com/v1/chat/completions
-    model_id: meta/llama-3.1-8b-instruct
+    model_id: meta/llama-3.2-3b-instruct
     type: chat
     api_key: NGC_API_KEY
 ```
@@ -48,7 +48,7 @@ export NGC_API_KEY=nvapi-xxx
 
 nemo-evaluator run_eval \
     --eval_type mmlu_pro \
-    --model_id meta/llama-3.1-8b-instruct \
+    --model_id meta/llama-3.2-3b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
     --model_type chat \
     --api_key_name NGC_API_KEY \
@@ -78,7 +78,7 @@ config:
 target:
   api_endpoint:
     url: https://integrate.api.nvidia.com/v1/chat/completions
-    model_id: meta/llama-3.1-8b-instruct
+    model_id: meta/llama-3.2-3b-instruct
     type: chat
     api_key: NGC_API_KEY
     adapter_config:
@@ -112,7 +112,7 @@ config:
 target:
   api_endpoint:
     url: https://integrate.api.nvidia.com/v1/chat/completions
-    model_id: meta/llama-3.1-8b-instruct
+    model_id: meta/llama-3.2-3b-instruct
     type: chat
     api_key: NGC_API_KEY
     adapter_config:
@@ -150,7 +150,7 @@ config:
 target:
   api_endpoint:
     url: https://integrate.api.nvidia.com/v1/chat/completions
-    model_id: meta/llama-3.1-8b-instruct
+    model_id: meta/llama-3.2-3b-instruct
     type: chat
     api_key: NGC_API_KEY
     adapter_config:
@@ -194,7 +194,7 @@ Provide Interceptor configuration with `--overrides` flag:
 ```bash
 nemo-evaluator run_eval \
     --eval_type mmlu_pro \
-    --model_id meta/llama-3.1-8b-instruct \
+    --model_id meta/llama-3.2-3b-instruct \
     --model_url https://integrate.api.nvidia.com/v1/chat/completions \
     --model_type chat \
     --api_key_name NGC_API_KEY \
