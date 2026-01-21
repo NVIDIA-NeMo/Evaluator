@@ -209,17 +209,18 @@ execution:
 ```
 
 **How it works:**
-- On the first job submission, the start time is recorded
-- Before each resume, the total elapsed time is checked against `max_walltime`
-- If the total elapsed time exceeds `max_walltime`, the job chain stops with an error
+- The actual runtime of each job is tracked using SLURM's `sacct` command
+- When a job resumes, the previous job's actual elapsed time is added to the accumulated total
+- Before starting each resumed job, the accumulated runtime is checked against `max_walltime`
+- If the accumulated runtime exceeds `max_walltime`, the job chain stops with an error
 - This prevents runaway jobs that might otherwise resume indefinitely
 
 **Configuration:**
-- `max_walltime`: Maximum total wall-clock time in `HH:MM:SS` format (e.g., `"24:00:00"` for 24 hours)
-- Set to `null` (default) for unlimited resuming
+- `max_walltime`: Maximum total runtime in `HH:MM:SS` format (e.g., `"24:00:00"` for 24 hours)
+- Defaults to `"72:00:00"` (72 hours). Set to `null` for unlimited resuming
 
 :::{note}
-The `max_walltime` is measured from the first job submission in the chain, not from each individual job. This ensures a hard upper bound on total runtime regardless of how many times the job is preempted or times out.
+The `max_walltime` tracks **actual job execution time only**, excluding time spent waiting in the queue. This ensures accurate runtime accounting even when jobs are repeatedly preempted or must wait for resources.
 :::
 
 ## Monitoring and Job Management
