@@ -656,7 +656,7 @@ class TestMaxWalltimeFeature:
         # Should NOT have max_walltime checks
         assert "_max_walltime=" not in handler
         assert "Maximum total walltime" not in handler
-        assert "_job_chain_start_time" not in handler
+        assert "_accumulated_seconds" not in handler
 
     def test_generate_autoresume_handler_with_max_walltime(self):
         """Test autoresume handler generation with max_walltime."""
@@ -672,11 +672,13 @@ class TestMaxWalltimeFeature:
         # Should have max_walltime checks
         assert '_max_walltime="24:00:00"' in handler
         assert "/test/remote/.job_start_time" in handler
+        assert "/test/remote/.accumulated_walltime" in handler
         assert "_walltime_to_seconds()" in handler
-        assert "_job_chain_start_time" in handler
-        assert "_elapsed_seconds" in handler
+        assert "_accumulated_seconds" in handler
         assert "Maximum total walltime" in handler
         assert "Stopping job chain to prevent infinite resuming" in handler
+        # Should use sacct to get actual elapsed time from previous jobs
+        assert "sacct -j $_prev_slurm_job_id -P -n -o Elapsed" in handler
 
     def test_generate_autoresume_handler_max_walltime_formats(self):
         """Test autoresume handler with various max_walltime formats."""
@@ -732,8 +734,10 @@ class TestMaxWalltimeFeature:
         assert "_this_script=$0" in script
         assert "sbatch --dependency=afternotok:$SLURM_JOB_ID" in script
         assert '_max_walltime="24:00:00"' in script
-        assert "_job_chain_start_time" in script
+        assert "_accumulated_seconds" in script
         assert "Maximum total walltime" in script
+        # Should use sacct for accurate walltime tracking
+        assert "sacct" in script
 
     def test_create_sbatch_script_max_walltime_null(
         self, base_config, mock_task, mock_dependencies
@@ -756,15 +760,17 @@ class TestMaxWalltimeFeature:
         assert "_max_walltime=" not in script
 
     def test_autoresume_handler_creates_start_time_file(self):
-        """Test that autoresume handler creates start time file on first run."""
+        """Test that autoresume handler creates accumulated walltime file on first run."""
         handler = _generate_autoresume_handler(
             Path("/test/remote"), max_walltime="08:00:00"
         )
 
-        # Should create start time file on first run
-        assert 'if [[ ! -f "$_start_time_file" ]]' in handler
-        assert 'date +%s > "$_start_time_file"' in handler
+        # Should create accumulated walltime file on first run
+        assert 'if [[ ! -f "$_accumulated_walltime_file" ]]' in handler
+        assert 'echo "0" > "$_accumulated_walltime_file"' in handler
         assert "Job chain started at" in handler
+        # Should still write start time for current job
+        assert 'date +%s > "$_start_time_file"' in handler
 
     def test_autoresume_handler_time_conversion(self):
         """Test that autoresume handler includes time conversion logic."""
