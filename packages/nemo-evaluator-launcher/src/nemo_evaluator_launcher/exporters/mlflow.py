@@ -549,11 +549,17 @@ class MLflowExporter(BaseExporter):
             if mlflow_config.get("tags"):
                 tags.update({k: v for k, v in mlflow_config["tags"].items() if v})
 
-            # Truncate
+            # Sanitize params and tags
             safe_params = {
-                str(k)[:250]: str(v)[:250] for k, v in all_params.items() if v
+                mlflow_sanitize(k, "param_key"): mlflow_sanitize(v, "param_value")
+                for k, v in (all_params or {}).items()
+                if v is not None
             }
-            safe_tags = {str(k)[:250]: str(v)[:5000] for k, v in tags.items() if v}
+            safe_tags = {
+                mlflow_sanitize(k, "tag_key"): mlflow_sanitize(v, "tag_value")
+                for k, v in (tags or {}).items()
+                if v is not None
+            }
 
             # Check for existing run
             exists, existing_run_id = self._get_existing_run_info(
