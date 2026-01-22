@@ -587,6 +587,52 @@ def _safe_update_metrics(
 
 
 # =============================================================================
+# CONFIG FLATTENING
+# =============================================================================
+
+
+def flatten_config(
+    config: Dict[str, Any],
+    parent_key: str = "",
+    sep: str = ".",
+    max_depth: int = 10,
+) -> Dict[str, str]:
+    """
+    Flatten a nested config dict into dot-notation keys.
+
+    Args:
+        config: Nested configuration dictionary
+        parent_key: Prefix for keys (used in recursion)
+        sep: Separator between nested keys
+        max_depth: Maximum recursion depth to prevent infinite loops
+
+    Returns:
+        Flattened dictionary with string values
+    """
+    items: Dict[str, str] = {}
+    if max_depth <= 0:
+        return {parent_key: str(config)} if parent_key else {}
+
+    if not isinstance(config, dict):
+        return {parent_key: str(config)} if parent_key else {}
+
+    for key, value in config.items():
+        new_key = f"{parent_key}{sep}{key}" if parent_key else key
+
+        if isinstance(value, dict):
+            items.update(flatten_config(value, new_key, sep, max_depth - 1))
+        elif isinstance(value, list):
+            # Convert lists to JSON-like string representation
+            items[new_key] = str(value)
+        elif value is None:
+            items[new_key] = "null"
+        else:
+            items[new_key] = str(value)
+
+    return items
+
+
+# =============================================================================
 # MLFLOW FUNCTIONS
 # =============================================================================
 
