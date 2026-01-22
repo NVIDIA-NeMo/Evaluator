@@ -416,12 +416,19 @@ def ssh_download_artifacts(
                 if scp_file(remote_file, local_file):
                     exported_files.append(str(local_file))
         else:
-            # Copy known files individually to avoid subfolders and satisfy tests
-            for artifact in get_available_artifacts(paths.get("artifacts_dir", Path())):
-                remote_file = f"{paths['remote_path']}/artifacts/{artifact}"
-                local_file = art_dir / artifact
-                if scp_file(remote_file, local_file):
-                    exported_files.append(str(local_file))
+            # Copy all artifacts recursively when only_required=False
+            cmd = (
+                ["scp", "-r"]
+                + ssh_opts
+                + [
+                    f"{paths['username']}@{paths['hostname']}:{paths['remote_path']}/artifacts/.",
+                    str(art_dir),
+                ]
+            )
+            if subprocess.run(cmd, capture_output=True).returncode == 0:
+                exported_files.extend(
+                    [str(f) for f in art_dir.rglob("*") if f.is_file()]
+                )
 
     # Logs (top-level only)
     if copy_logs:
