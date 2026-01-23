@@ -377,3 +377,104 @@ class TestMLflowExporter:
         assert res.metadata["artifacts_logged"] == 1
         assert calls["config"] == 1
         assert calls["files"] == [("results.yml", "taskX/artifacts")]
+
+    def test_log_config_params_flattens_config(
+        self, monkeypatch, mlflow_fake, tmp_path: Path
+    ):
+        """Test that log_config_params=True flattens the config into MLflow params."""
+        _ML, _RunCtx = mlflow_fake
+
+        # Job with nested config
+        config = {
+            "deployment": {"tensor_parallel_size": 8, "model": "test-model"},
+            "evaluation": {
+                "tasks": [
+                    {"name": "task1", "config": {"param": "value1"}},
+                    {"name": "task2"},
+                ]
+            },
+        }
+        jd = JobData("mP", "mP.0", 0.0, "local", {"output_dir": str(tmp_path)}, config)
+
+        monkeypatch.setattr(
+            "nemo_evaluator_launcher.exporters.mlflow.extract_accuracy_metrics",
+            lambda *_: {"task_accuracy": 0.9},
+            raising=True,
+        )
+
+        # Capture log_params calls
+        logged_params = {}
+        monkeypatch.setattr(
+            "nemo_evaluator_launcher.exporters.mlflow.mlflow.log_params",
+            lambda p: logged_params.update(p),
+            raising=True,
+        )
+
+        exp = MLflowExporter(
+            {
+                "tracking_uri": "http://mlflow",
+                "log_config_params": True,
+            }
+        )
+        monkeypatch.setattr(
+            exp, "_get_existing_run_info", lambda *a, **k: (False, None), raising=False
+        )
+
+        res = exp.export_job(jd)
+        assert res.success
+
+        # Verify flattened config params are logged
+        assert "config.deployment.tensor_parallel_size" in logged_params
+        assert logged_params["config.deployment.tensor_parallel_size"] == "8"
+        assert "config.deployment.model" in logged_params
+        assert logged_params["config.deployment.model"] == "test-model"
+        assert "config.evaluation.tasks.0.name" in logged_params
+        assert logged_params["config.evaluation.tasks.0.name"] == "task1"
+        assert "config.evaluation.tasks.1.name" in logged_params
+        assert logged_params["config.evaluation.tasks.1.name"] == "task2"
+
+    def test_log_config_params_with_max_depth(
+        self, monkeypatch, mlflow_fake, tmp_path: Path
+    ):
+        """Test that log_config_params_max_depth limits flattening depth."""
+        _ML, _RunCtx = mlflow_fake
+
+        config = {"a": {"b": {"c": {"d": "deep"}}}}
+        jd = JobData(
+            "mDepth", "mDepth.0", 0.0, "local", {"output_dir": str(tmp_path)}, config
+        )
+
+        monkeypatch.setattr(
+            "nemo_evaluator_launcher.exporters.mlflow.extract_accuracy_metrics",
+            lambda *_: {"acc": 0.9},
+            raising=True,
+        )
+
+        logged_params = {}
+        monkeypatch.setattr(
+            "nemo_evaluator_launcher.exporters.mlflow.mlflow.log_params",
+            lambda p: logged_params.update(p),
+            raising=True,
+        )
+
+        exp = MLflowExporter(
+            {
+                "tracking_uri": "http://mlflow",
+                "log_config_params": True,
+                "log_config_params_max_depth": 2,
+            }
+        )
+        monkeypatch.setattr(
+            exp, "_get_existing_run_info", lambda *a, **k: (False, None), raising=False
+        )
+
+        res = exp.export_job(jd)
+        assert res.success
+
+        # At depth 2, a.b should be stringified (not further flattened)
+        assert "config.a.b" in logged_params
+        # The value should be a string representation of the remaining dict
+        assert "c" in logged_params["config.a.b"]
+        # Deeper keys should not exist
+        assert "config.a.b.c" not in logged_params
+        assert "config.a.b.c.d" not in logged_params
