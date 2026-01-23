@@ -37,6 +37,7 @@ from nemo_evaluator_launcher.exporters.utils import (
     MetricConflictError,
     _safe_update_metrics,
     extract_accuracy_metrics,
+    flatten_config,
     get_available_artifacts,
     get_benchmark_info,
     get_container_from_mapping,
@@ -323,24 +324,41 @@ class TestSSHHelpers:
         }
         assert set(out).issuperset(expected_artifacts)
 
-    def test_download_artifacts_available_only(self, tmp_path: Path):
-        local_artifacts = tmp_path / "local_artifacts"
-        local_artifacts.mkdir()
-        (local_artifacts / "results.yml").write_text("x")
-
+    def test_download_artifacts_only_required_false_uses_scp_recursive(
+        self, tmp_path: Path
+    ):
+        """Test only_required=False uses scp -r to copy all artifacts recursively."""
         paths = {
             "username": "user",
             "hostname": "host",
             "remote_path": "/remote",
-            "artifacts_dir": local_artifacts,
         }
+        scp_calls = []
 
-        with patch("subprocess.run", return_value=SimpleNamespace(returncode=0)):
+        # Mock scp -r to simulate creating files in the target directory
+        def fake_run(cmd, capture_output=True):
+            scp_calls.append(cmd)
+            if "-r" in cmd:
+                # Simulate scp -r by creating files including nested dirs
+                art_dir = tmp_path / "artifacts"
+                art_dir.mkdir(parents=True, exist_ok=True)
+                (art_dir / "results.yml").write_text("x")
+                (art_dir / "extra.json").write_text("{}")
+                (art_dir / "subdir").mkdir(exist_ok=True)
+                (art_dir / "subdir" / "nested.txt").write_text("nested")
+            return SimpleNamespace(returncode=0)
+
+        with patch("subprocess.run", side_effect=fake_run):
             out = U.ssh_download_artifacts(
                 paths, tmp_path, config={"only_required": False}, control_paths=None
             )
 
+        # Verify scp -r was called
+        assert any("-r" in c for c in scp_calls)
+        # Verify all files including nested are listed
         assert str(tmp_path / "artifacts" / "results.yml") in out
+        assert str(tmp_path / "artifacts" / "extra.json") in out
+        assert str(tmp_path / "artifacts" / "subdir" / "nested.txt") in out
 
     def test_download_with_control_paths(self, tmp_path: Path, monkeypatch):
         paths = {"username": "u", "hostname": "h", "remote_path": "/remote"}
@@ -593,3 +611,86 @@ class TestExportResultsInvocationPath:
             # metadata injected for each job
             for job in payload["jobs"].values():
                 assert "metadata" in job
+
+
+class TestFlattenConfig:
+    def test_simple_dict(self):
+        config = {"a": 1, "b": "hello"}
+        result = flatten_config(config)
+        assert result == {"a": "1", "b": "hello"}
+
+    def test_nested_dict(self):
+        config = {"a": {"b": {"c": 42}}}
+        result = flatten_config(config)
+        assert result == {"a.b.c": "42"}
+
+    def test_with_parent_key(self):
+        config = {"x": 1}
+        result = flatten_config(config, parent_key="config")
+        assert result == {"config.x": "1"}
+
+    def test_list_with_scalars(self):
+        config = {"items": ["a", "b", "c"]}
+        result = flatten_config(config)
+        assert result == {"items.0": "a", "items.1": "b", "items.2": "c"}
+
+    def test_list_with_dicts(self):
+        config = {"tasks": [{"name": "foo"}, {"name": "bar"}]}
+        result = flatten_config(config)
+        assert result == {"tasks.0.name": "foo", "tasks.1.name": "bar"}
+
+    def test_nested_list_of_dicts(self):
+        config = {
+            "evaluation": {
+                "tasks": [
+                    {"name": "task1", "config": {"param": "value1"}},
+                    {"name": "task2", "config": {"param": "value2"}},
+                ]
+            }
+        }
+        result = flatten_config(config, parent_key="config")
+        assert result["config.evaluation.tasks.0.name"] == "task1"
+        assert result["config.evaluation.tasks.0.config.param"] == "value1"
+        assert result["config.evaluation.tasks.1.name"] == "task2"
+        assert result["config.evaluation.tasks.1.config.param"] == "value2"
+
+    def test_null_values(self):
+        config = {"a": None, "b": {"c": None}}
+        result = flatten_config(config)
+        assert result == {"a": "null", "b.c": "null"}
+
+    def test_max_depth_limit(self):
+        config = {"a": {"b": {"c": {"d": "deep"}}}}
+        result = flatten_config(config, max_depth=2)
+        # At depth 2, the inner dict should be stringified
+        assert "a.b" in result
+        assert "{'c': {'d': 'deep'}}" in result["a.b"]
+
+    def test_empty_dict(self):
+        result = flatten_config({})
+        assert result == {}
+
+    def test_empty_list(self):
+        config = {"items": []}
+        result = flatten_config(config)
+        assert result == {}
+
+    def test_mixed_types(self):
+        config = {
+            "string": "hello",
+            "number": 42,
+            "float": 3.14,
+            "bool": True,
+            "none": None,
+        }
+        result = flatten_config(config)
+        assert result["string"] == "hello"
+        assert result["number"] == "42"
+        assert result["float"] == "3.14"
+        assert result["bool"] == "True"
+        assert result["none"] == "null"
+
+    def test_custom_separator(self):
+        config = {"a": {"b": 1}}
+        result = flatten_config(config, sep="/")
+        assert result == {"a/b": "1"}

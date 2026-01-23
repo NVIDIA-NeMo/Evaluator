@@ -35,6 +35,7 @@ from nemo_evaluator_launcher.exporters.registry import register_exporter
 from nemo_evaluator_launcher.exporters.utils import (
     extract_accuracy_metrics,
     extract_exporter_config,
+    flatten_config,
     get_artifact_root,
     get_available_artifacts,
     get_benchmark_info,
@@ -177,6 +178,15 @@ class MLflowExporter(BaseExporter):
             # Add extra metadata if provided
             if mlflow_config.get("extra_metadata"):
                 all_params.update(mlflow_config["extra_metadata"])
+
+            # Add flattened config as params if enabled
+            if mlflow_config.get("log_config_params", False):
+                config_params = flatten_config(
+                    job_data.config or {},
+                    parent_key="config",
+                    max_depth=mlflow_config.get("log_config_params_max_depth", 10),
+                )
+                all_params.update(config_params)
 
             # Add webhook info if available
             if mlflow_config.get("triggered_by_webhook"):
@@ -525,16 +535,31 @@ class MLflowExporter(BaseExporter):
             if mlflow_config.get("extra_metadata"):
                 all_params.update(mlflow_config["extra_metadata"])
 
+            # Add flattened config as params if enabled
+            if mlflow_config.get("log_config_params", False):
+                config_params = flatten_config(
+                    first_job.config or {},
+                    parent_key="config",
+                    max_depth=mlflow_config.get("log_config_params_max_depth", 10),
+                )
+                all_params.update(config_params)
+
             # Prepare tags
             tags = {"invocation_id": invocation_id}
             if mlflow_config.get("tags"):
                 tags.update({k: v for k, v in mlflow_config["tags"].items() if v})
 
-            # Truncate
+            # Sanitize params and tags
             safe_params = {
-                str(k)[:250]: str(v)[:250] for k, v in all_params.items() if v
+                mlflow_sanitize(k, "param_key"): mlflow_sanitize(v, "param_value")
+                for k, v in (all_params or {}).items()
+                if v is not None
             }
-            safe_tags = {str(k)[:250]: str(v)[:5000] for k, v in tags.items() if v}
+            safe_tags = {
+                mlflow_sanitize(k, "tag_key"): mlflow_sanitize(v, "tag_value")
+                for k, v in (tags or {}).items()
+                if v is not None
+            }
 
             # Check for existing run
             exists, existing_run_id = self._get_existing_run_info(
