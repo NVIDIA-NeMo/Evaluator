@@ -19,8 +19,6 @@ Basic NeMo Evaluator Core API quickstart example.
 # Prerequisites: Set your API key
 # export NGC_API_KEY="nvapi-..."
 
-import os
-
 # [snippet-start]
 from nemo_evaluator.api.api_dataclasses import (
     ApiEndpoint,
@@ -49,14 +47,9 @@ target_config = EvaluationTarget(
     )
 )
 
-# Run evaluation
-result = evaluate(eval_cfg=eval_config, target_cfg=target_config)
-print(f"Evaluation completed: {result}")
-# [snippet-end]
 
 if __name__ == "__main__":
-    # Note: This requires a valid API key to actually run
-    api_key = os.getenv("NGC_API_KEY")
-    if not api_key:
-        print("Set NGC_API_KEY environment variable to run this example")
-        print("export NGC_API_KEY='your-key-here'")
+    # Run evaluation
+    result = evaluate(eval_cfg=eval_config, target_cfg=target_config)
+    print(f"Evaluation completed: {result}")
+# [snippet-end]
