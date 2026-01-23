@@ -199,6 +199,13 @@ jobs:
       - pre-flight
       - cicd-unit-tests-nemo-evaluator
     runs-on: ${{ needs.pre-flight.outputs.runner_prefix }}-gpu-x2
+    if: |
+      (
+        github.event_name == 'schedule'
+        || github.event_name == 'workflow_dispatch'
+        || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      )
+      && !cancelled()
     name: integration-tests
     steps:
       - name: Checkout
