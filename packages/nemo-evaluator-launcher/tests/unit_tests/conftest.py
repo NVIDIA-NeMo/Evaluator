@@ -251,6 +251,21 @@ def mock_api_endpoint_check():
 
 
 @pytest.fixture
+def mock_validation():
+    """Mock the validation to always pass for CLI integration tests."""
+    from nemo_evaluator_launcher.common.validation import ValidationResult
+
+    def mock_validate_config(*args, **kwargs):
+        return ValidationResult()  # Empty result = validation passes
+
+    with patch(
+        "nemo_evaluator_launcher.common.validation.validate_config",
+        side_effect=mock_validate_config,
+    ) as mock_validate:
+        yield mock_validate
+
+
+@pytest.fixture
 def mock_tasks_mapping_load():
     """Mock the tasks mapping loading function."""
     with patch(

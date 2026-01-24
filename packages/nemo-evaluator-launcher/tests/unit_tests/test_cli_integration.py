@@ -35,7 +35,7 @@ class TestCLIWorkflowIntegration:
     """Test complete CLI workflow integration."""
 
     def test_complete_workflow_run_status_ls(
-        self, mock_execdb, mock_api_endpoint_check, mock_print
+        self, mock_execdb, mock_api_endpoint_check, mock_print, mock_validation
     ):
         """Test complete workflow: run -> status -> ls."""
         # Step 1: Run evaluation
@@ -176,7 +176,7 @@ class TestCLIWorkflowIntegration:
                 assert "harness: helm" in all_printed
 
     def test_workflow_with_multiple_evaluations(
-        self, mock_execdb, mock_api_endpoint_check, mock_print
+        self, mock_execdb, mock_api_endpoint_check, mock_print, mock_validation
     ):
         """Test workflow with multiple evaluation runs."""
         # Run first evaluation
@@ -247,7 +247,7 @@ class TestCLIWorkflowIntegration:
                     assert status_data[1]["status"] == "failed"
 
     def test_workflow_with_job_id_status_queries(
-        self, mock_execdb, mock_api_endpoint_check, mock_print
+        self, mock_execdb, mock_api_endpoint_check, mock_print, mock_validation
     ):
         """Test workflow with individual job ID status queries."""
         # Run evaluation
@@ -293,7 +293,7 @@ class TestCLIWorkflowIntegration:
                 assert status_data[1]["status"] == "running"
 
     def test_workflow_with_mixed_status_queries(
-        self, mock_execdb, mock_api_endpoint_check, mock_print
+        self, mock_execdb, mock_api_endpoint_check, mock_print, mock_validation
     ):
         """Test workflow with mixed invocation ID and job ID queries."""
         # Run evaluation
@@ -344,7 +344,7 @@ class TestCLIWorkflowIntegration:
                 assert len(job_results) >= 1
 
     def test_workflow_with_nonexistent_queries(
-        self, mock_execdb, mock_api_endpoint_check, mock_print
+        self, mock_execdb, mock_api_endpoint_check, mock_print, mock_validation
     ):
         """Test workflow with queries for nonexistent jobs/invocations."""
         # Run evaluation
@@ -389,7 +389,7 @@ class TestCLIWorkflowIntegration:
                 assert status_data[1]["job_id"] is None
 
     def test_workflow_with_error_handling(
-        self, mock_execdb, mock_api_endpoint_check, mock_print
+        self, mock_execdb, mock_api_endpoint_check, mock_print, mock_validation
     ):
         """Test workflow with error handling scenarios."""
         # Test run command with invalid config
@@ -435,7 +435,7 @@ class TestCLIWorkflowIntegration:
                 assert status_data[0]["status"] == "error"
 
     def test_workflow_with_realistic_data(
-        self, mock_execdb, mock_api_endpoint_check, mock_print
+        self, mock_execdb, mock_api_endpoint_check, mock_print, mock_validation
     ):
         """Test workflow with realistic data structures."""
         # Realistic config
@@ -703,7 +703,7 @@ class TestCLIConfigParameter:
     """Test CLI --config parameter functionality."""
 
     def test_config_parameter_splits_path_correctly(
-        self, mock_execdb, mock_api_endpoint_check, mock_print, tmp_path
+        self, mock_execdb, mock_api_endpoint_check, mock_print, tmp_path, mock_validation
     ):
         """Test that --config parameter is passed to Hydra correctly."""
         import pathlib
@@ -777,7 +777,7 @@ class TestCLIConfigParameter:
                 os.chdir(original_cwd)
 
     def test_config_parameter_with_various_extensions(
-        self, mock_execdb, mock_api_endpoint_check, mock_print, tmp_path
+        self, mock_execdb, mock_api_endpoint_check, mock_print, tmp_path, mock_validation
     ):
         """Test that --config parameter works with various file extensions."""
         config_dir = tmp_path / "test_configs"

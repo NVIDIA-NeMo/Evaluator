@@ -23,6 +23,8 @@ import nemo_evaluator_launcher.cli.export as export
 import nemo_evaluator_launcher.cli.info as info
 import nemo_evaluator_launcher.cli.kill as kill
 import nemo_evaluator_launcher.cli.logs as logs
+import nemo_evaluator_launcher.cli.ls_deployments as ls_deployments
+import nemo_evaluator_launcher.cli.ls_executors as ls_executors
 import nemo_evaluator_launcher.cli.ls_runs as ls_runs
 import nemo_evaluator_launcher.cli.ls_task as ls_task
 import nemo_evaluator_launcher.cli.ls_tasks as ls_tasks
@@ -169,6 +171,22 @@ def create_parser() -> ArgumentParser:
     )
     ls_task_parser.add_arguments(ls_task.Cmd, dest="task")
 
+    # ls executors
+    ls_executors_parser = ls_sub.add_parser(
+        "executors",
+        help="List available executors",
+        description="List available executors (where to run evaluations)",
+    )
+    ls_executors_parser.add_arguments(ls_executors.Cmd, dest="executors")
+
+    # ls deployments
+    ls_deployments_parser = ls_sub.add_parser(
+        "deployments",
+        help="List available deployments",
+        description="List available deployments (how model is served)",
+    )
+    ls_deployments_parser.add_arguments(ls_deployments.Cmd, dest="deployments")
+
     # Export subcommand
     export_parser = subparsers.add_parser(
         "export",
@@ -243,6 +261,10 @@ def main() -> None:
             args.task.execute()
         elif args.ls_command == "runs":
             args.runs.execute()
+        elif args.ls_command == "executors":
+            args.executors.execute()
+        elif args.ls_command == "deployments":
+            args.deployments.execute()
     elif args.command == "export":
         args.export.execute()
     elif args.command == "info":

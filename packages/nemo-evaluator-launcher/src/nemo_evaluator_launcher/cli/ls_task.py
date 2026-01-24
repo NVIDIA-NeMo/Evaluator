@@ -58,6 +58,11 @@ class Cmd:
         help="Load tasks from container image (e.g., nvcr.io/nvidia/eval-factory/simple-evals:25.10). "
         "If provided, extracts framework.yml from container and loads tasks on-the-fly instead of using all_tasks_irs.yaml",
     )
+    snippet: bool = field(
+        default=False,
+        action="store_true",
+        help="Show a CLI example snippet for running this task",
+    )
 
     def execute(self) -> None:
         """Execute the ls task command."""
@@ -222,10 +227,44 @@ class Cmd:
             return
 
         # Display tasks
-        if self.json:
+        if self.snippet:
+            self._print_snippet(filtered_tasks)
+        elif self.json:
             self._print_json(filtered_tasks)
         else:
             self._print_formatted(filtered_tasks, mapping_verified)
+
+    def _print_snippet(self, tasks: list[TaskIntermediateRepresentation]) -> None:
+        """Print CLI example snippets for running tasks."""
+        from nemo_evaluator_launcher.common.printing_utils import grey
+
+        for i, task in enumerate(tasks):
+            if i > 0:
+                print()
+
+            # Extract endpoint type from defaults
+            defaults = task.defaults or {}
+            config = defaults.get("config", {})
+            endpoint_types = config.get("supported_endpoint_types", ["chat"])
+            endpoint_type = endpoint_types[0] if endpoint_types else "chat"
+
+            print(f"{bold(magenta('Task:'))} {bold(cyan(str(task.name)))}")
+            print(f"{magenta('Endpoint:')} {cyan(endpoint_type)}")
+            print(f"{magenta('Harness:')} {cyan(str(task.harness))}")
+            print()
+
+            print(bold("Example:"))
+            print(grey(f"  nel run --model meta/llama-3.2-3b-instruct --task {task.name}"))
+            print()
+
+            print(bold("Config snippet:"))
+            print(grey("  evaluation:"))
+            print(grey("    tasks:"))
+            print(grey(f"      - name: {task.name}"))
+
+            if len(tasks) > 1:
+                print()
+                print(bold("-" * 60))
 
     def _print_json(self, tasks: list[TaskIntermediateRepresentation]) -> None:
         """Print tasks as JSON."""
