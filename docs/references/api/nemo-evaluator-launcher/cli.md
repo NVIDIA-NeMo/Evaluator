@@ -456,25 +456,6 @@ Show detailed information about a specific task:
 ```bash
 # Basic task info
 nemo-evaluator-launcher ls task ifeval
-
-# With CLI example snippet
-nemo-evaluator-launcher ls task ifeval --snippet
-```
-
-**Output with `--snippet`:**
-
-```text
-Task: ifeval
-Endpoint: chat
-Harness: lm-evaluation-harness
-
-Example:
-  nel run --model meta/llama-3.2-3b-instruct --task ifeval
-
-Config snippet:
-  evaluation:
-    tasks:
-      - name: ifeval
 ```
 
 **Additional options:**
