@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import Any, Optional, Union
 
 import questionary
+from questionary import Style
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -55,6 +56,22 @@ EXPORTERS = {
     "wandb": "Export to Weights & Biases",
     "gsheets": "Export to Google Sheets",
 }
+
+# NVIDIA green color (#76b900) - using closest ANSI approximation
+NVIDIA_GREEN = "#76b900"
+
+# Custom style for questionary prompts - NVIDIA branding with minimal highlighting
+WIZARD_STYLE = Style(
+    [
+        ("qmark", f"fg:{NVIDIA_GREEN} bold"),  # question mark
+        ("question", "bold"),  # question text
+        ("answer", f"fg:{NVIDIA_GREEN}"),  # submitted answer
+        ("pointer", f"fg:{NVIDIA_GREEN} bold"),  # pointer for current item
+        ("highlighted", ""),  # no background highlight for pointed item
+        ("selected", f"fg:{NVIDIA_GREEN}"),  # selected checkbox items
+        ("instruction", "fg:bright_black"),  # instructions
+    ]
+)
 
 
 @dataclass
@@ -190,6 +207,7 @@ class Cmd:
                     questionary.Choice("Run evaluation now", value="run"),
                     questionary.Choice("Exit (config saved)", value="exit"),
                 ],
+                style=WIZARD_STYLE,
             ).ask()
 
             if action == "run":
@@ -212,6 +230,7 @@ class Cmd:
             "Where do you want to run the evaluation?",
             choices=choices,
             default="local",
+            style=WIZARD_STYLE,
         ).ask()
 
     def _prompt_deployment(self) -> Optional[str]:
@@ -228,6 +247,7 @@ class Cmd:
             "How will the model be served?",
             choices=choices,
             default="none",
+            style=WIZARD_STYLE,
         ).ask()
 
     def _prompt_tasks(self) -> Optional[list[str]]:
@@ -235,15 +255,13 @@ class Cmd:
         tasks, _ = load_tasks_from_tasks_file()
         task_names = sorted(set(t.name for t in tasks))
 
-        console = Console()
-        console.print(
-            "\n[dim]Type to filter tasks, space to select, enter to confirm[/dim]"
-        )
-
         result = questionary.checkbox(
             "Select tasks to run:",
             choices=[questionary.Choice(name, value=name) for name in task_names],
             validate=lambda x: len(x) > 0 or "Select at least one task",
+            use_search_filter=True,
+            instruction="(type to search, space to select, enter to confirm)",
+            style=WIZARD_STYLE,
         ).ask()
 
         return result
@@ -398,6 +416,7 @@ class Cmd:
                 for key, desc in REASONING_MODES.items()
             ],
             default="none",
+            style=WIZARD_STYLE,
         ).ask()
         if reasoning is None:
             return None
@@ -486,12 +505,6 @@ class Cmd:
 
     def _prompt_interceptors(self) -> Optional[list[str]]:
         """Configure interceptors with caching and response_stats enabled by default."""
-        console = Console()
-        console.print("\n[dim]Interceptors process API requests/responses[/dim]")
-        console.print(
-            "[dim]caching and response_stats are enabled by default[/dim]\n"
-        )
-
         choices = [
             questionary.Choice(
                 f"{name} - {desc}",
@@ -502,8 +515,10 @@ class Cmd:
         ]
 
         return questionary.checkbox(
-            "Select interceptors:",
+            "Select interceptors (caching and response_stats enabled by default):",
             choices=choices,
+            instruction="(space to toggle, enter to confirm)",
+            style=WIZARD_STYLE,
         ).ask()
 
     def _prompt_output_dir(self) -> Optional[str]:
@@ -542,6 +557,8 @@ class Cmd:
         selected = questionary.checkbox(
             "Export results to (optional):",
             choices=choices,
+            instruction="(space to select, enter to confirm)",
+            style=WIZARD_STYLE,
         ).ask()
         if selected is None:
             return None
@@ -555,6 +572,7 @@ class Cmd:
                     "Output format:",
                     choices=["json", "csv", "yaml"],
                     default="json",
+                    style=WIZARD_STYLE,
                 ).ask()
                 if fmt is None:
                     return None
