@@ -449,6 +449,44 @@ winogrande             completions
 ===================================================
 ```
 
+### List Task Details
+
+Show detailed information about a specific task:
+
+```bash
+# Basic task info
+nemo-evaluator-launcher ls task ifeval
+
+# With CLI example snippet
+nemo-evaluator-launcher ls task ifeval --snippet
+```
+
+**Output with `--snippet`:**
+
+```text
+Task: ifeval
+Endpoint: chat
+Harness: lm-evaluation-harness
+
+Example:
+  nel run --model meta/llama-3.2-3b-instruct --task ifeval
+
+Config snippet:
+  evaluation:
+    tasks:
+      - name: ifeval
+```
+
+**Additional options:**
+
+```bash
+# Output as JSON
+nemo-evaluator-launcher ls task ifeval --json
+
+# Load task info from a specific container
+nemo-evaluator-launcher ls task ifeval --from-container nvcr.io/nvidia/eval-factory/simple-evals:25.10
+```
+
 ### List Runs
 
 ```bash
@@ -553,44 +591,6 @@ Deployments (how model is served):
     Required: --image
 
 Use --deployment <name> to select a deployment.
-```
-
-### List Task Details
-
-Show detailed information about a specific task:
-
-```bash
-# Basic task info
-nemo-evaluator-launcher ls task ifeval
-
-# With CLI example snippet
-nemo-evaluator-launcher ls task ifeval --snippet
-```
-
-**Output with `--snippet`:**
-
-```text
-Task: ifeval
-Endpoint: chat
-Harness: lm-evaluation-harness
-
-Example:
-  nel run --model meta/llama-3.2-3b-instruct --task ifeval
-
-Config snippet:
-  evaluation:
-    tasks:
-      - name: ifeval
-```
-
-**Additional options:**
-
-```bash
-# Output as JSON
-nemo-evaluator-launcher ls task ifeval --json
-
-# Load task info from a specific container
-nemo-evaluator-launcher ls task ifeval --from-container nvcr.io/nvidia/eval-factory/simple-evals:25.10
 ```
 
 ## export - Export Results

@@ -9,11 +9,7 @@ The NeMo Evaluator Launcher provides the simplest way to run evaluations with au
 
 - OpenAI-compatible endpoint (hosted or self-deployed) and an API key (if the endpoint is gated), below referred as `NGC_API_KEY` in case one uses models hosted under [NVIDIA's serving platform](https://build.nvidia.com)
 - Docker installed (for local execution)
-- NeMo Evaluator repository cloned (for access to [examples](https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples))
-  ```bash
-  git clone https://github.com/NVIDIA-NeMo/Evaluator.git
-  ```
-- Your Hugging Face token with access to the GPQA-Diamond dataset (click [here](https://huggingface.co/datasets/Idavidrein/gpqa) to request), below referred as `HF_TOKEN_FOR_GPQA_DIAMOND`.
+- Your Hugging Face token with access to the GPQA-Diamond dataset (click [here](https://huggingface.co/datasets/Idavidrein/gpqa) to request), below referred as `HF_TOKEN_FOR_GPQA_DIAMOND`
 
 ## Quick Start
 
@@ -36,8 +32,6 @@ nemo-evaluator-launcher ls tasks
 # to get access to the gated GPQA dataset for this task.
 export NGC_API_KEY=nvapi-...
 export HF_TOKEN_FOR_GPQA_DIAMOND=hf_...
-# Move into the cloned directory (see above).
-cd Evaluator
 ```
 
 ```{literalinclude} ../_snippets/launcher_basic.sh
@@ -45,6 +39,14 @@ cd Evaluator
 :start-after: "# [snippet-start]"
 :end-before: "# [snippet-end]"
 ```
+
+:::{tip}
+The example above uses direct CLI flags for quick evaluations. For more complex setups, you can also use config files:
+```bash
+nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml --output-dir ./results
+```
+Run `nemo-evaluator-launcher ls executors` and `nemo-evaluator-launcher ls deployments` to explore available options.
+:::
 
 ```bash
 # 4. Check status
