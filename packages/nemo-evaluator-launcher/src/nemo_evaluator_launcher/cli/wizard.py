@@ -69,7 +69,7 @@ WIZARD_STYLE = Style(
         ("pointer", f"fg:{NVIDIA_GREEN} bold"),  # pointer for current item
         ("highlighted", ""),  # no background highlight for pointed item
         ("selected", f"fg:{NVIDIA_GREEN}"),  # selected checkbox items
-        ("instruction", "fg:bright_black"),  # instructions
+        ("instruction", "fg:ansibrightblack"),  # instructions (gray)
     ]
 )
 
