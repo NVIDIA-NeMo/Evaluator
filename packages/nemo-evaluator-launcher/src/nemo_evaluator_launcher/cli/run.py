@@ -196,12 +196,18 @@ class Cmd:
     dry_run: bool = field(
         default=False,
         alias=["--dry-run"],
-        metadata={"help": "Print config without running."},
+        metadata={
+            "help": "Print the final config to stdout without executing. "
+            "Useful for debugging and verifying configuration before running."
+        },
     )
     save_config: str | None = field(
         default=None,
         alias=["--save-config"],
-        metadata={"help": "Save generated config to file without running."},
+        metadata={
+            "help": "Save generated config to file and exit without running. "
+            "The saved file can be used with --config for subsequent runs."
+        },
     )
     check: bool = field(
         default=False,
@@ -212,7 +218,9 @@ class Cmd:
         default=None,
         alias=["--config-output"],
         metadata={
-            "help": "Directory to save the complete run config. Defaults to ~/.nemo-evaluator/run_configs/"
+            "help": "Directory to save the run config after execution. "
+            "Defaults to ~/.nemo-evaluator/run_configs/. "
+            "Config is saved as {invocation_id}_config.yml."
         },
     )
     # Keep for backward compatibility (deprecated, use --task instead)
