@@ -132,18 +132,29 @@ def run_task_selector(
         result.append(("class:label", "Harness: "))
         result.append(("class:value", f"{harness}\n"))
 
-        # Defaults
-        result.append(("class:label", "\nDefaults:\n"))
+        # Defaults - show all available params
+        params = meta.get("params", {})
+        has_defaults = any(v is not None for v in params.values())
 
-        num_fewshot = meta.get("num_fewshot")
-        if num_fewshot is not None:
-            result.append(("", "  num_fewshot: "))
-            result.append(("class:value", f"{num_fewshot}\n"))
+        if has_defaults:
+            result.append(("class:label", "\nDefaults:\n"))
 
-        temperature = meta.get("temperature")
-        if temperature is not None:
-            result.append(("", "  temperature: "))
-            result.append(("class:value", f"{temperature}\n"))
+            # Display in consistent order with nice names
+            param_display = [
+                ("temperature", "temperature"),
+                ("top_p", "top_p"),
+                ("max_new_tokens", "max_new_tokens"),
+                ("parallelism", "parallelism"),
+                ("num_fewshot", "num_fewshot"),
+            ]
+
+            for key, display_name in param_display:
+                value = params.get(key)
+                if value is not None:
+                    result.append(("", f"  {display_name}: "))
+                    result.append(("class:value", f"{value}\n"))
+        else:
+            result.append(("class:instruction", "\n(uses harness defaults)\n"))
 
         # Endpoint types
         endpoint_types = meta.get("endpoint_types", [])

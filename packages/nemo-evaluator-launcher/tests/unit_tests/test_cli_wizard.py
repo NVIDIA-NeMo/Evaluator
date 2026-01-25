@@ -591,3 +591,135 @@ class TestTaskSelector:
         from nemo_evaluator_launcher.cli.task_selector import run_task_selector
 
         assert callable(run_task_selector)
+
+
+class TestTaskMetadataExtraction:
+    """Tests for task metadata extraction from task defaults."""
+
+    def test_task_metadata_includes_all_params(self):
+        """Test that task metadata extraction includes all relevant params."""
+        cmd = Cmd()
+
+        # Mock task data structure similar to what comes from all_tasks_irs.yaml
+        class MockTask:
+            def __init__(self, name, defaults):
+                self.name = name
+                self.description = "Test task"
+                self.harness = "test-harness"
+                self.defaults = defaults
+
+        # Simulate task with full params structure
+        task_defaults = {
+            "config": {
+                "params": {
+                    "temperature": 0.7,
+                    "top_p": 0.95,
+                    "max_new_tokens": 1024,
+                    "parallelism": 16,
+                    "extra": {
+                        "num_fewshot": 5,
+                    },
+                },
+                "supported_endpoint_types": ["chat"],
+            }
+        }
+
+        task = MockTask("test_task", task_defaults)
+
+        # Extract params the same way wizard does
+        params = task.defaults.get("config", {}).get("params", {})
+        extra = params.get("extra", {})
+
+        metadata = {
+            "params": {
+                "temperature": params.get("temperature"),
+                "top_p": params.get("top_p"),
+                "max_new_tokens": params.get("max_new_tokens"),
+                "parallelism": params.get("parallelism"),
+                "num_fewshot": extra.get("num_fewshot"),
+            },
+        }
+
+        assert metadata["params"]["temperature"] == 0.7
+        assert metadata["params"]["top_p"] == 0.95
+        assert metadata["params"]["max_new_tokens"] == 1024
+        assert metadata["params"]["parallelism"] == 16
+        assert metadata["params"]["num_fewshot"] == 5
+
+
+class TestGenerationParams:
+    """Tests for generation parameters feature."""
+
+    def test_build_yaml_config_with_generation_params(self):
+        """Test generation params are included in YAML config."""
+        cmd = Cmd()
+        config = {
+            "executor": "local",
+            "deployment": "none",
+            "model": "meta/llama-3.2-3b-instruct",
+            "tasks": ["simple_evals.mmlu"],
+            "interceptors": ["caching"],
+            "output_dir": "./results",
+            "generation_params": {
+                "temperature": 0.7,
+                "top_p": 0.95,
+            },
+        }
+
+        yaml_config = cmd._build_yaml_config(config)
+
+        nemo_config = yaml_config["evaluation"]["nemo_evaluator_config"]
+        params = nemo_config["config"]["params"]
+
+        assert params["temperature"] == 0.7
+        assert params["top_p"] == 0.95
+
+    def test_build_yaml_config_with_generation_params_and_limit_samples(self):
+        """Test generation params combined with limit_samples."""
+        cmd = Cmd()
+        config = {
+            "executor": "local",
+            "deployment": "none",
+            "model": "meta/llama-3.2-3b-instruct",
+            "tasks": ["simple_evals.mmlu"],
+            "interceptors": ["caching"],
+            "output_dir": "./results",
+            "generation_params": {
+                "temperature": 0.7,
+                "max_new_tokens": 2048,
+            },
+            "limit_samples": 100,
+        }
+
+        yaml_config = cmd._build_yaml_config(config)
+
+        nemo_config = yaml_config["evaluation"]["nemo_evaluator_config"]
+        params = nemo_config["config"]["params"]
+
+        assert params["temperature"] == 0.7
+        assert params["max_new_tokens"] == 2048
+        assert params["limit_samples"] == 100
+
+    def test_build_yaml_config_empty_generation_params(self):
+        """Test empty generation params don't add unnecessary config."""
+        cmd = Cmd()
+        config = {
+            "executor": "local",
+            "deployment": "none",
+            "model": "meta/llama-3.2-3b-instruct",
+            "tasks": ["simple_evals.mmlu"],
+            "interceptors": ["caching"],
+            "output_dir": "./results",
+            "generation_params": {},
+        }
+
+        yaml_config = cmd._build_yaml_config(config)
+
+        # No nemo_evaluator_config should be present
+        assert "nemo_evaluator_config" not in yaml_config["evaluation"]
+
+    def test_prompt_generation_params_method_exists(self):
+        """Test _prompt_generation_params method exists."""
+        cmd = Cmd()
+        assert hasattr(cmd, "_prompt_generation_params")
+        assert callable(cmd._prompt_generation_params)

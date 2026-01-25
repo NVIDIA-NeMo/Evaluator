@@ -222,6 +222,12 @@ class Cmd:
 
             config["limit_samples"] = self._prompt_limit_samples()
 
+            # Step 8b: Generation parameters
+            gen_params = self._prompt_generation_params()
+            if gen_params is None:
+                return
+            config["generation_params"] = gen_params
+
             # Step 9: Export destinations
             config["exporters"] = self._prompt_exporters()
             if config["exporters"] is None:
@@ -313,14 +319,21 @@ class Cmd:
         task_metadata = {}
         for task in tasks:
             if task.name not in task_metadata:
-                # Extract key defaults
-                defaults = task.defaults.get("config", {}).get("params", {})
-                extra = defaults.get("extra", {})
+                # Extract all defaults from config.params
+                params = task.defaults.get("config", {}).get("params", {})
+                extra = params.get("extra", {})
+
                 task_metadata[task.name] = {
                     "description": task.description or "No description available",
                     "harness": task.harness,
-                    "num_fewshot": extra.get("num_fewshot"),
-                    "temperature": defaults.get("temperature"),
+                    # Store all params for display
+                    "params": {
+                        "temperature": params.get("temperature"),
+                        "top_p": params.get("top_p"),
+                        "max_new_tokens": params.get("max_new_tokens"),
+                        "parallelism": params.get("parallelism"),
+                        "num_fewshot": extra.get("num_fewshot"),
+                    },
                     "endpoint_types": task.defaults.get("config", {}).get(
                         "supported_endpoint_types", []
                     ),
@@ -649,6 +662,65 @@ class Cmd:
         except ValueError:
             return 10
 
+    def _prompt_generation_params(self) -> Optional[dict[str, Any]]:
+        """Prompt for global generation parameters (temperature, top_p, max_new_tokens)."""
+        # Ask if user wants to set global params
+        set_global = questionary.confirm(
+            "Set global generation parameters? (applies to all tasks)",
+            default=False,
+            style=WIZARD_STYLE,
+        ).ask()
+
+        if set_global is None:
+            return None
+
+        result: dict[str, Any] = {}
+
+        if set_global:
+            # Temperature
+            temp_str = questionary.text(
+                "Temperature (leave empty for task defaults):",
+                default="",
+                style=WIZARD_STYLE,
+            ).ask()
+            if temp_str is None:
+                return None
+            if temp_str:
+                try:
+                    result["temperature"] = float(temp_str)
+                except ValueError:
+                    pass
+
+            # Top-p
+            top_p_str = questionary.text(
+                "Top-p (leave empty for task defaults):",
+                default="",
+                style=WIZARD_STYLE,
+            ).ask()
+            if top_p_str is None:
+                return None
+            if top_p_str:
+                try:
+                    result["top_p"] = float(top_p_str)
+                except ValueError:
+                    pass
+
+            # Max new tokens
+            max_tokens_str = questionary.text(
+                "Max new tokens (leave empty for task defaults):",
+                default="",
+                style=WIZARD_STYLE,
+            ).ask()
+            if max_tokens_str is None:
+                return None
+            if max_tokens_str:
+                try:
+                    result["max_new_tokens"] = int(max_tokens_str)
+                except ValueError:
+                    pass
+
+        return result
+
     def _prompt_config_path(self, default: str = "config.yaml") -> Optional[str]:
         """Prompt for config path with overwrite protection."""
         console = Console()
@@ -911,10 +983,19 @@ class Cmd:
             "tasks": [{"name": task} for task in config["tasks"]],
         }
 
-        if config.get("limit_samples"):
-            yaml_config["evaluation"]["nemo_evaluator_config"] = {
-                "config": {"params": {"limit_samples": config["limit_samples"]}}
-            }
+        # Add global generation params and limit_samples
+        gen_params = config.get("generation_params", {})
+
+        if gen_params or config.get("limit_samples"):
+            nemo_config = yaml_config["evaluation"].setdefault(
+                "nemo_evaluator_config", {}
+            )
+            params = nemo_config.setdefault("config", {}).setdefault("params", {})
+
+            if config.get("limit_samples"):
+                params["limit_samples"] = config["limit_samples"]
+
+            params.update(gen_params)
 
         return yaml_config
 
@@ -938,8 +1019,15 @@ class Cmd:
         console = Console()
         console.print(f"\n[green]Config saved to {path}[/green]")
         console.print(
-            f"[dim]  Run with: nemo-evaluator-launcher run --config {path}[/dim]\n"
+            f"[dim]  Run with: nemo-evaluator-launcher run --config {path}[/dim]"
         )
+
+        # Show hint about per-task overrides if global generation params were set
+        if config.get("generation_params"):
+            console.print(
+                "[dim]  Tip: Edit YAML to add task-specific overrides under each task's nemo_evaluator_config[/dim]"
+            )
+        console.print()
 
         # Show export commands if specified
         if config.get("exporters"):
