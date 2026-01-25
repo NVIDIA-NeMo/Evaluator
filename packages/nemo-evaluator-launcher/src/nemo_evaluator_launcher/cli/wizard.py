@@ -260,6 +260,7 @@ class Cmd:
             choices=[questionary.Choice(name, value=name) for name in task_names],
             validate=lambda x: len(x) > 0 or "Select at least one task",
             use_search_filter=True,
+            use_jk_keys=False,  # Disable j/k navigation when using search filter
             instruction="(type to search, space to select, enter to confirm)",
             style=WIZARD_STYLE,
         ).ask()
