@@ -31,6 +31,7 @@ import nemo_evaluator_launcher.cli.ls_tasks as ls_tasks
 import nemo_evaluator_launcher.cli.run as run
 import nemo_evaluator_launcher.cli.status as status
 import nemo_evaluator_launcher.cli.version as version
+import nemo_evaluator_launcher.cli.wizard as wizard
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 VERSION_HELP = "Show version information"
@@ -212,6 +213,14 @@ def create_parser() -> ArgumentParser:
     )
     info_parser.add_arguments(info.InfoCmd, dest="info")
 
+    # Wizard subcommand
+    wizard_parser = subparsers.add_parser(
+        "wizard",
+        help="Interactive configuration wizard",
+        description="Interactively create evaluation configurations step by step",
+    )
+    wizard_parser.add_arguments(wizard.Cmd, dest="wizard")
+
     return parser
 
 
@@ -269,6 +278,8 @@ def main() -> None:
         args.export.execute()
     elif args.command == "info":
         args.info.execute()
+    elif args.command == "wizard":
+        args.wizard.execute()
 
 
 if __name__ == "__main__":
