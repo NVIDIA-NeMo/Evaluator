@@ -19,48 +19,24 @@ from dataclasses import dataclass
 
 from simple_parsing import field
 
+from nemo_evaluator_launcher.common.metadata import (
+    DEPLOYMENT_CLI_FLAGS,
+    DEPLOYMENT_DESCRIPTIONS,
+    get_available_deployments,
+)
 from nemo_evaluator_launcher.common.printing_utils import bold, cyan, grey, magenta
 
 
-# Deployment definitions with metadata
+# Deployment definitions with metadata (dynamically built from configs/deployment/)
 DEPLOYMENTS = {
-    "none": {
-        "description": "Use existing API endpoint (no model deployment)",
-        "required": ["--model"],
-        "optional": ["--url", "--api-key-env"],
-        "default": True,
-        "note": "Default URL: NVIDIA API Catalog",
-    },
-    "vllm": {
-        "description": "Deploy model with vLLM",
-        "required": ["--checkpoint OR --hf-model", "--model-name"],
-        "optional": ["--tp", "--dp"],
-        "default": False,
-    },
-    "nim": {
-        "description": "Deploy NVIDIA NIM container",
-        "required": ["--nim-model"],
-        "optional": [],
-        "default": False,
-    },
-    "sglang": {
-        "description": "Deploy model with SGLang",
-        "required": ["--checkpoint OR --hf-model", "--model-name"],
-        "optional": ["--tp", "--dp"],
-        "default": False,
-    },
-    "trtllm": {
-        "description": "Deploy model with TensorRT-LLM",
-        "required": ["--checkpoint", "--model-name"],
-        "optional": ["--tp"],
-        "default": False,
-    },
-    "generic": {
-        "description": "Deploy with custom container image",
-        "required": ["--image"],
-        "optional": [],
-        "default": False,
-    },
+    name: {
+        "description": DEPLOYMENT_DESCRIPTIONS.get(name, ""),
+        "required": DEPLOYMENT_CLI_FLAGS.get(name, {}).get("required", []),
+        "optional": DEPLOYMENT_CLI_FLAGS.get(name, {}).get("optional", []),
+        "default": name == "none",
+        **({"note": "Default URL: NVIDIA API Catalog"} if name == "none" else {}),
+    }
+    for name in get_available_deployments()
 }
 
 

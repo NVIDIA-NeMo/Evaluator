@@ -19,29 +19,23 @@ from dataclasses import dataclass
 
 from simple_parsing import field
 
+from nemo_evaluator_launcher.common.metadata import (
+    EXECUTOR_CLI_FLAGS,
+    EXECUTOR_DESCRIPTIONS,
+    get_available_executors,
+)
 from nemo_evaluator_launcher.common.printing_utils import bold, cyan, grey, magenta
 
 
-# Executor definitions with metadata
+# Executor definitions with metadata (dynamically built from registry)
 EXECUTORS = {
-    "local": {
-        "description": "Run with Docker on this machine",
-        "required": ["--output-dir"],
-        "optional": [],
-        "default": True,
-    },
-    "slurm": {
-        "description": "Run on SLURM HPC cluster",
-        "required": ["--slurm-hostname", "--slurm-account", "--output-dir"],
-        "optional": ["--slurm-partition", "--slurm-walltime"],
-        "default": False,
-    },
-    "lepton": {
-        "description": "Run on Lepton AI cloud",
-        "required": ["--output-dir"],
-        "optional": [],
-        "default": False,
-    },
+    name: {
+        "description": EXECUTOR_DESCRIPTIONS.get(name, ""),
+        "required": EXECUTOR_CLI_FLAGS.get(name, {}).get("required", []),
+        "optional": EXECUTOR_CLI_FLAGS.get(name, {}).get("optional", []),
+        "default": name == "local",
+    }
+    for name in get_available_executors()
 }
 
 

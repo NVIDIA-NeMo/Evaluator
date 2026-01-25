@@ -41,6 +41,11 @@ from typing import Any
 
 from omegaconf import DictConfig, OmegaConf
 
+from nemo_evaluator_launcher.common.metadata import (
+    DEPLOYMENT_REQUIRED_CONFIG_FIELDS,
+    EXECUTOR_REQUIRED_CONFIG_FIELDS,
+)
+
 
 @dataclass
 class ValidationError:
@@ -133,22 +138,11 @@ class ValidationResult:
         print()
 
 
-# Required fields per executor type
-EXECUTOR_REQUIRED_FIELDS: dict[str, list[str]] = {
-    "local": ["output_dir"],
-    "slurm": ["hostname", "account", "output_dir"],
-    "lepton": ["output_dir"],
-}
+# Required fields per executor type (imported from metadata module)
+EXECUTOR_REQUIRED_FIELDS = EXECUTOR_REQUIRED_CONFIG_FIELDS
 
-# Required fields per deployment type
-DEPLOYMENT_REQUIRED_FIELDS: dict[str, list[str]] = {
-    "none": [],  # API endpoint validation handled separately
-    "vllm": ["checkpoint_path", "served_model_name"],
-    "sglang": ["checkpoint_path", "served_model_name"],
-    "nim": ["model_name"],
-    "trtllm": ["checkpoint_path", "served_model_name"],
-    "generic": ["image"],
-}
+# Required fields per deployment type (imported from metadata module)
+DEPLOYMENT_REQUIRED_FIELDS = DEPLOYMENT_REQUIRED_CONFIG_FIELDS
 
 # CLI flag suggestions for common fields
 CLI_FLAG_SUGGESTIONS: dict[str, str] = {
