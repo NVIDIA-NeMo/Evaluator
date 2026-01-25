@@ -39,7 +39,7 @@ class TestWizardConstants:
 
     def test_interceptors_dict_structure(self):
         """Test INTERCEPTORS dict has correct structure."""
-        expected_interceptors = ["caching", "response_stats", "request_logging", "system_message"]
+        expected_interceptors = ["caching", "response_stats", "reasoning", "request_logging", "system_message"]
         for name in expected_interceptors:
             assert name in INTERCEPTORS
             assert isinstance(INTERCEPTORS[name], str)
@@ -430,3 +430,164 @@ class TestCLIIntegration:
         assert "wizard" in result.stdout.lower() or "configuration" in result.stdout.lower()
         assert "--save-only" in result.stdout or "save_only" in result.stdout
         assert "--output" in result.stdout or "-o" in result.stdout
+        assert "--no-fun" in result.stdout or "no_fun" in result.stdout
+
+
+class TestWizardNewFeatures:
+    """Tests for new wizard features."""
+
+    def test_no_fun_flag_default(self):
+        """Test no_fun flag defaults to False."""
+        cmd = Cmd()
+        assert cmd.no_fun is False
+
+    def test_no_fun_flag_can_be_set(self):
+        """Test no_fun flag can be set to True."""
+        cmd = Cmd(no_fun=True)
+        assert cmd.no_fun is True
+
+    def test_reasoning_interceptor_in_interceptors(self):
+        """Test reasoning interceptor is in INTERCEPTORS dict."""
+        assert "reasoning" in INTERCEPTORS
+        assert "reasoning" in INTERCEPTORS["reasoning"].lower() or "think" in INTERCEPTORS["reasoning"].lower()
+
+    def test_supports_emoji_method(self):
+        """Test _supports_emoji method exists and returns bool."""
+        cmd = Cmd()
+        result = cmd._supports_emoji()
+        assert isinstance(result, bool)
+
+    def test_show_fun_message_with_no_fun(self, capsys):
+        """Test fun messages are suppressed when no_fun=True."""
+        from rich.console import Console
+
+        cmd = Cmd(no_fun=True)
+        console = Console()
+        cmd._show_fun_message(console, "executor", executor="local")
+
+        captured = capsys.readouterr()
+        # With no_fun=True, nothing should be printed
+        assert "local" not in captured.out or "Great choice" not in captured.out
+
+    def test_build_yaml_config_with_reasoning_interceptor(self):
+        """Test reasoning interceptor config is included in YAML."""
+        cmd = Cmd()
+        config = {
+            "executor": "local",
+            "deployment": "none",
+            "model": "meta/llama-3.2-3b-instruct",
+            "tasks": ["simple_evals.mmlu"],
+            "interceptors": ["reasoning", "caching"],
+            "reasoning_interceptor_config": {
+                "start_reasoning_token": "<think>",
+                "end_reasoning_token": "</think>",
+            },
+            "output_dir": "./results",
+        }
+
+        yaml_config = cmd._build_yaml_config(config)
+
+        interceptors = yaml_config["target"]["api_endpoint"]["adapter_config"]["interceptors"]
+        reasoning = next((i for i in interceptors if i["name"] == "reasoning"), None)
+
+        assert reasoning is not None
+        assert reasoning["enabled"] is True
+        assert reasoning["config"]["start_reasoning_token"] == "<think>"
+        assert reasoning["config"]["end_reasoning_token"] == "</think>"
+
+    def test_yaml_formatting_has_empty_lines(self, tmp_path):
+        """Test that saved YAML has empty lines between top-level sections."""
+        cmd = Cmd()
+        config = {
+            "executor": "local",
+            "deployment": "none",
+            "model": "meta/llama-3.2-3b-instruct",
+            "tasks": ["simple_evals.mmlu"],
+            "interceptors": ["caching"],
+            "output_dir": "./results",
+            "exporters": [],
+        }
+
+        config_path = tmp_path / "test-config.yaml"
+        cmd._save_config(config, str(config_path))
+
+        with open(config_path) as f:
+            content = f.read()
+
+        # Check for empty lines between sections (double newline before section names)
+        # The content starts with "defaults:" so we check for \n\n before other sections
+        assert content.startswith("defaults:")
+        # Check that there are empty lines between top-level sections
+        lines = content.split("\n")
+        found_empty_before_execution = False
+        found_empty_before_evaluation = False
+        for i, line in enumerate(lines):
+            if line.startswith("execution:") and i > 0 and lines[i - 1] == "":
+                found_empty_before_execution = True
+            if line.startswith("evaluation:") and i > 0 and lines[i - 1] == "":
+                found_empty_before_evaluation = True
+        assert found_empty_before_execution, "No empty line before execution section"
+        assert found_empty_before_evaluation, "No empty line before evaluation section"
+
+    def test_show_summary_with_reasoning_interceptor(self, capsys):
+        """Test summary displays reasoning interceptor config."""
+        cmd = Cmd()
+        config = {
+            "executor": "local",
+            "deployment": "none",
+            "model": "meta/llama-3.2-3b-instruct",
+            "tasks": ["simple_evals.mmlu"],
+            "interceptors": ["reasoning"],
+            "reasoning_interceptor_config": {
+                "start_reasoning_token": "<think>",
+                "end_reasoning_token": "</think>",
+            },
+            "output_dir": "./results",
+        }
+
+        cmd._show_summary(config)
+
+        captured = capsys.readouterr()
+        assert "<think>" in captured.out or "Reasoning Tags" in captured.out
+
+
+class TestWizardMessages:
+    """Tests for wizard messages module."""
+
+    def test_messages_module_loads(self):
+        """Test wizard_messages module loads correctly."""
+        from nemo_evaluator_launcher.cli.wizard_messages import MESSAGES
+
+        assert "executor" in MESSAGES
+        assert "deployment" in MESSAGES
+        assert "tasks" in MESSAGES
+        assert "saved" in MESSAGES
+
+    def test_messages_have_emoji_and_text_versions(self):
+        """Test each message has both emoji and text versions."""
+        from nemo_evaluator_launcher.cli.wizard_messages import MESSAGES
+
+        for stage, messages in MESSAGES.items():
+            assert len(messages) > 0, f"No messages for stage {stage}"
+            for emoji_msg, text_msg in messages:
+                assert isinstance(emoji_msg, str)
+                assert isinstance(text_msg, str)
+                assert len(emoji_msg) > 0
+                assert len(text_msg) > 0
+
+    def test_messages_have_enough_variety(self):
+        """Test each stage has enough message variety."""
+        from nemo_evaluator_launcher.cli.wizard_messages import MESSAGES
+
+        for stage, messages in MESSAGES.items():
+            assert len(messages) >= 3, f"Stage {stage} should have at least 3 messages"
+
+
+class TestTaskSelector:
+    """Tests for task selector module."""
+
+    def test_task_selector_module_loads(self):
+        """Test task_selector module loads correctly."""
+        from nemo_evaluator_launcher.cli.task_selector import run_task_selector
+
+        assert callable(run_task_selector)

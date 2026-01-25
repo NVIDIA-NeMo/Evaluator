@@ -15,6 +15,9 @@
 #
 """Interactive configuration wizard for NeMo Evaluator Launcher."""
 
+import os
+import random
+import sys
 from dataclasses import dataclass
 from typing import Any, Optional, Union
 
@@ -27,6 +30,7 @@ from simple_parsing import field
 
 from nemo_evaluator_launcher.cli.ls_deployments import DEPLOYMENTS
 from nemo_evaluator_launcher.cli.ls_executors import EXECUTORS
+from nemo_evaluator_launcher.cli.wizard_messages import MESSAGES
 from nemo_evaluator_launcher.common.container_metadata import load_tasks_from_tasks_file
 
 
@@ -37,6 +41,7 @@ DEFAULT_INTERCEPTORS = ["caching", "response_stats"]
 INTERCEPTORS = {
     "caching": "Cache API responses to avoid redundant calls",
     "response_stats": "Collect statistics about API responses",
+    "reasoning": "Strip reasoning tags (<think>) and collect stats",
     "request_logging": "Log API requests for debugging",
     "system_message": "Inject custom system message",
 }
@@ -102,6 +107,37 @@ class Cmd:
         alias=["--output", "-o"],
         metadata={"help": "Output config file path (skip filename prompt)"},
     )
+    no_fun: bool = field(
+        default=False,
+        action="store_true",
+        alias=["--no-fun"],
+        metadata={"help": "Disable fun messages (or set NEL_WIZARD_NO_FUN=1)"},
+    )
+
+    def _supports_emoji(self) -> bool:
+        """Check if terminal likely supports emoji."""
+        if sys.platform == "win32":
+            # Windows Terminal and newer consoles support emoji
+            return "WT_SESSION" in os.environ or "TERM_PROGRAM" in os.environ
+        # Most modern Unix terminals support emoji
+        encoding = sys.stdout.encoding
+        return encoding is not None and encoding.lower() in ("utf-8", "utf8")
+
+    def _show_fun_message(
+        self, console: Console, stage: str, **kwargs: Any
+    ) -> None:
+        """Show a fun message if enabled."""
+        # Check disable conditions
+        if self.no_fun or os.environ.get("NEL_WIZARD_NO_FUN"):
+            return
+
+        messages = MESSAGES.get(stage, [])
+        if not messages:
+            return
+
+        emoji_msg, text_msg = random.choice(messages)
+        msg = emoji_msg if self._supports_emoji() else text_msg
+        console.print(f"[dim]{msg.format(**kwargs)}[/dim]")
 
     def execute(self) -> None:
         """Run the interactive wizard."""
@@ -124,6 +160,7 @@ class Cmd:
             config["executor"] = self._prompt_executor()
             if config["executor"] is None:
                 return  # User cancelled
+            self._show_fun_message(console, "executor", executor=config["executor"])
 
             # Step 2: Executor-specific config
             if config["executor"] == "slurm":
@@ -153,11 +190,15 @@ class Cmd:
                 if nim_config is None:
                     return
                 config.update(nim_config)
+            self._show_fun_message(
+                console, "deployment", deployment=config["deployment"]
+            )
 
             # Step 5: Tasks (searchable multi-select)
             config["tasks"] = self._prompt_tasks()
             if config["tasks"] is None:
                 return
+            self._show_fun_message(console, "tasks", count=len(config["tasks"]))
 
             # Step 6: Adapters
             adapter_config = self._prompt_adapters()
@@ -166,9 +207,13 @@ class Cmd:
             config.update(adapter_config)
 
             # Step 7: Interceptors (caching + response_stats ON by default)
-            config["interceptors"] = self._prompt_interceptors()
-            if config["interceptors"] is None:
+            interceptors_result = self._prompt_interceptors()
+            if interceptors_result is None:
                 return
+            config["interceptors"] = interceptors_result["selected"]
+            config["reasoning_interceptor_config"] = interceptors_result[
+                "reasoning_config"
+            ]
 
             # Step 8: Common options
             config["output_dir"] = self._prompt_output_dir()
@@ -188,14 +233,22 @@ class Cmd:
             # Step 11: Always save config
             config_path = self.output
             if not config_path:
-                config_path = questionary.text(
-                    "Save config to:",
-                    default="config.yaml",
-                ).ask()
+                config_path = self._prompt_config_path()
                 if config_path is None:
                     return
+            elif os.path.exists(config_path):
+                # Even with --output flag, warn about overwrite
+                console.print(f"[yellow]⚠ File '{config_path}' already exists.[/yellow]")
+                overwrite = questionary.confirm(
+                    "Overwrite?", default=False, style=WIZARD_STYLE
+                ).ask()
+                if not overwrite:
+                    config_path = self._prompt_config_path(default=config_path)
+                    if config_path is None:
+                        return
 
             self._save_config(config, config_path)
+            self._show_fun_message(console, "saved")
 
             # Step 12: Action
             if self.save_only:
@@ -251,21 +304,34 @@ class Cmd:
         ).ask()
 
     def _prompt_tasks(self) -> Optional[list[str]]:
-        """Searchable multi-select for tasks."""
+        """Searchable multi-select for tasks with preview panel."""
+        from nemo_evaluator_launcher.cli.task_selector import run_task_selector
+
         tasks, _ = load_tasks_from_tasks_file()
-        task_names = sorted(set(t.name for t in tasks))
 
-        result = questionary.checkbox(
-            "Select tasks to run:",
-            choices=[questionary.Choice(name, value=name) for name in task_names],
-            validate=lambda x: len(x) > 0 or "Select at least one task",
-            use_search_filter=True,
-            use_jk_keys=False,  # Disable j/k navigation when using search filter
-            instruction="(type to search, space to select, enter to confirm)",
-            style=WIZARD_STYLE,
-        ).ask()
+        # Build task metadata dict for preview
+        task_metadata = {}
+        for task in tasks:
+            if task.name not in task_metadata:
+                # Extract key defaults
+                defaults = task.defaults.get("config", {}).get("params", {})
+                extra = defaults.get("extra", {})
+                task_metadata[task.name] = {
+                    "description": task.description or "No description available",
+                    "harness": task.harness,
+                    "num_fewshot": extra.get("num_fewshot"),
+                    "temperature": defaults.get("temperature"),
+                    "endpoint_types": task.defaults.get("config", {}).get(
+                        "supported_endpoint_types", []
+                    ),
+                }
 
-        return result
+        task_names = sorted(task_metadata.keys())
+
+        # Use custom task selector with preview
+        result = run_task_selector(task_names, task_metadata, WIZARD_STYLE)
+
+        return result if result else None
 
     def _prompt_slurm_config(self) -> Optional[dict[str, Any]]:
         """Prompt for SLURM-specific configuration."""
@@ -504,8 +570,13 @@ class Cmd:
 
         return {"params_to_add": params} if params else {}
 
-    def _prompt_interceptors(self) -> Optional[list[str]]:
-        """Configure interceptors with caching and response_stats enabled by default."""
+    def _prompt_interceptors(self) -> Optional[dict[str, Any]]:
+        """Configure interceptors with caching and response_stats enabled by default.
+
+        Returns a dict with:
+            - "selected": list of selected interceptor names
+            - "reasoning_config": dict with reasoning interceptor config (if selected)
+        """
         choices = [
             questionary.Choice(
                 f"{name} - {desc}",
@@ -515,12 +586,42 @@ class Cmd:
             for name, desc in INTERCEPTORS.items()
         ]
 
-        return questionary.checkbox(
+        selected = questionary.checkbox(
             "Select interceptors (caching and response_stats enabled by default):",
             choices=choices,
             instruction="(space to toggle, enter to confirm)",
             style=WIZARD_STYLE,
         ).ask()
+
+        if selected is None:
+            return None
+
+        result: dict[str, Any] = {"selected": selected, "reasoning_config": None}
+
+        # If reasoning interceptor selected, prompt for config
+        if "reasoning" in selected:
+            start_token = questionary.text(
+                "Reasoning start token:",
+                default="<think>",
+                style=WIZARD_STYLE,
+            ).ask()
+            if start_token is None:
+                return None
+
+            end_token = questionary.text(
+                "Reasoning end token:",
+                default="</think>",
+                style=WIZARD_STYLE,
+            ).ask()
+            if end_token is None:
+                return None
+
+            result["reasoning_config"] = {
+                "start_reasoning_token": start_token,
+                "end_reasoning_token": end_token,
+            }
+
+        return result
 
     def _prompt_output_dir(self) -> Optional[str]:
         """Prompt for output directory."""
@@ -547,6 +648,36 @@ class Cmd:
             return int(limit_str)
         except ValueError:
             return 10
+
+    def _prompt_config_path(self, default: str = "config.yaml") -> Optional[str]:
+        """Prompt for config path with overwrite protection."""
+        console = Console()
+        while True:
+            path = questionary.text(
+                "Save config to:",
+                default=default,
+                style=WIZARD_STYLE,
+            ).ask()
+            if path is None:
+                return None
+
+            # Ensure .yaml extension
+            if not path.endswith(".yaml") and not path.endswith(".yml"):
+                path += ".yaml"
+
+            if not os.path.exists(path):
+                return path
+
+            console.print(f"[yellow]⚠ File '{path}' already exists.[/yellow]")
+            overwrite = questionary.confirm(
+                "Overwrite?", default=False, style=WIZARD_STYLE
+            ).ask()
+            if overwrite is None:
+                return None
+            if overwrite:
+                return path
+            # Loop continues to ask for new filename
+            default = path  # Use the same name as default for retry
 
     def _prompt_exporters(self) -> Optional[list[dict[str, Any]]]:
         """Select export destinations."""
@@ -653,6 +784,12 @@ class Cmd:
         if interceptors:
             table.add_row("Interceptors", ", ".join(interceptors))
 
+        # Show reasoning interceptor config if set
+        reasoning_cfg = config.get("reasoning_interceptor_config")
+        if reasoning_cfg:
+            tokens = f"{reasoning_cfg.get('start_reasoning_token', '<think>')}...{reasoning_cfg.get('end_reasoning_token', '</think>')}"
+            table.add_row("Reasoning Tags", tokens)
+
         exporters = config.get("exporters", [])
         if exporters:
             exporter_names = [e["dest"] for e in exporters]
@@ -736,6 +873,10 @@ class Cmd:
                         "cache_dir": "/results/cache",
                         "reuse_cached_responses": True,
                     }
+                elif interceptor == "reasoning":
+                    reasoning_cfg = config.get("reasoning_interceptor_config")
+                    if reasoning_cfg:
+                        interceptor_cfg["config"] = reasoning_cfg
                 interceptors.append(interceptor_cfg)
 
             # Always add endpoint interceptor at the end
@@ -778,12 +919,21 @@ class Cmd:
         return yaml_config
 
     def _save_config(self, config: dict[str, Any], path: str) -> None:
-        """Save configuration to YAML file."""
+        """Save configuration to YAML file with readable formatting."""
         import yaml
 
         yaml_config = self._build_yaml_config(config)
+
+        # Dump each top-level section separately with empty lines between them
+        sections = []
+        for key, value in yaml_config.items():
+            section = yaml.dump(
+                {key: value}, default_flow_style=False, sort_keys=False
+            )
+            sections.append(section.rstrip())
+
         with open(path, "w") as f:
-            yaml.dump(yaml_config, f, default_flow_style=False, sort_keys=False)
+            f.write("\n\n".join(sections) + "\n")
 
         console = Console()
         console.print(f"\n[green]Config saved to {path}[/green]")
