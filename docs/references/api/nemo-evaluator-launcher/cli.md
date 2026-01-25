@@ -35,9 +35,28 @@ nemo-evaluator-launcher --version                 # Show version information
 
 ## run - Run Evaluations
 
-Execute evaluations using Hydra configuration management.
+Execute evaluations using either direct CLI flags or Hydra configuration files. The `run` command supports a unified experience where you can start simple and progressively add complexity.
 
-### Basic Usage
+### Quick Start with Direct Flags
+
+Run evaluations without config files using direct CLI flags:
+
+```bash
+# Quick API evaluation (no config file needed)
+nemo-evaluator-launcher run --model meta/llama-3.2-3b-instruct --task ifeval
+
+# Deploy with vLLM locally
+nemo-evaluator-launcher run --deployment vllm --checkpoint /path/to/model \
+  --model-name my-model --task ifeval
+
+# Deploy on SLURM cluster
+nemo-evaluator-launcher run --deployment vllm --executor slurm \
+  --slurm-hostname cluster.example.com --slurm-account my-account \
+  --output-dir /shared/results --checkpoint /path/to/model \
+  --model-name my-model --task ifeval
+```
+
+### Config File Usage
 
 ```bash
 # Using example configurations
@@ -46,6 +65,89 @@ nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/l
 # With output directory override
 nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/local_basic.yaml \
   -o execution.output_dir=/path/to/results
+
+# Config file with flag overrides (flags take precedence)
+nemo-evaluator-launcher run --config base.yaml --model new-model --task gsm8k
+```
+
+### Direct CLI Flags
+
+The `run` command supports direct CLI flags for common options, eliminating the need for config files in simple cases.
+
+#### Target/API Flags (for `--deployment none`)
+
+```{list-table}
+:header-rows: 1
+:widths: 30 70
+
+* - Flag
+  - Description
+* - `--model, -m`
+  - Model ID (e.g., `meta/llama-3.2-3b-instruct`)
+* - `--url, -u`
+  - API endpoint URL (default: NVIDIA API Catalog)
+* - `--api-key-env`
+  - Environment variable for API key (default: `NGC_API_KEY`)
+```
+
+#### Task Flags
+
+```{list-table}
+:header-rows: 1
+:widths: 30 70
+
+* - Flag
+  - Description
+* - `--task, -t`
+  - Task name (repeatable: `-t ifeval -t gsm8k`)
+* - `--limit-samples, -n`
+  - Limit samples for testing (not for benchmarking)
+```
+
+#### Executor Flags
+
+```{list-table}
+:header-rows: 1
+:widths: 30 70
+
+* - Flag
+  - Description
+* - `--executor, -e`
+  - Executor type: `local`, `slurm`, `lepton` (default: `local`)
+* - `--output-dir`
+  - Output directory for results
+* - `--slurm-hostname`
+  - SLURM cluster hostname (required for `slurm`)
+* - `--slurm-account`
+  - SLURM account (required for `slurm`)
+* - `--slurm-partition`
+  - SLURM partition (default: `batch`)
+* - `--slurm-walltime`
+  - SLURM walltime in HH:MM:SS (default: `01:00:00`)
+```
+
+#### Deployment Flags
+
+```{list-table}
+:header-rows: 1
+:widths: 30 70
+
+* - Flag
+  - Description
+* - `--deployment, -d`
+  - Deployment type: `none`, `vllm`, `nim`, `sglang`, `trtllm`, `generic` (default: `none`)
+* - `--checkpoint, -c`
+  - Model checkpoint path (for `vllm`/`sglang`)
+* - `--model-name`
+  - Served model name (for `vllm`/`sglang`)
+* - `--hf-model`
+  - HuggingFace model handle (alternative to `--checkpoint`)
+* - `--tp, --tensor-parallel`
+  - Tensor parallel size (default: 1)
+* - `--dp, --data-parallel`
+  - Data parallel size (default: 1)
+* - `--nim-model`
+  - NIM model name (for `nim` deployment)
 ```
 
 ### Configuration Options
@@ -118,6 +220,51 @@ nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/l
 - Tasks must be defined in your configuration file under `evaluation.tasks`
 - If any requested task is not found in the configuration, the command will fail with an error listing available tasks
 - Task filtering preserves all task-specific overrides and `nemo_evaluator_config` settings
+
+### Validation and Config Saving
+
+#### Pre-submission Validation (`--check`)
+
+Run deep validation checks before submitting jobs:
+
+```bash
+nemo-evaluator-launcher run --config my_config.yaml --check
+```
+
+Checks performed:
+- **Local executor**: Docker availability
+- **SLURM executor**: SSH connectivity to cluster
+- **Environment**: Required environment variables are set
+
+#### Save Config Without Running (`--save-config`)
+
+Generate and save the resolved configuration without executing:
+
+```bash
+# Save config from direct flags
+nemo-evaluator-launcher run --model meta/llama-3.2-3b-instruct --task ifeval \
+  --save-config my_resolved_config.yaml
+
+# Save config from config file with overrides
+nemo-evaluator-launcher run --config base.yaml --model new-model \
+  --save-config final_config.yaml
+```
+
+The saved file can be used with `--config` for subsequent runs:
+
+```bash
+nemo-evaluator-launcher run --config my_resolved_config.yaml --config-mode=raw
+```
+
+#### Custom Config Output Directory (`--config-output`)
+
+Override where run configs are saved after execution:
+
+```bash
+nemo-evaluator-launcher run --config my_config.yaml --config-output ./my-configs/
+```
+
+Default location: `~/.nemo-evaluator/run_configs/{invocation_id}_config.yml`
 
 ### Examples by Executor
 
@@ -331,6 +478,119 @@ nemo-evaluator-launcher ls runs --since 6h
 invocation_id  earliest_job_ts       num_jobs  executor  benchmarks
 abc12345       2024-01-01T10:00:00   3         local     ifeval,gpqa_diamond,mbpp
 def67890       2024-01-02T14:30:00   2         slurm     hellaswag,winogrande
+```
+
+### List Executors
+
+List available executor types and their requirements:
+
+```bash
+nemo-evaluator-launcher ls executors
+```
+
+**Output:**
+
+```text
+Executors (where to run):
+
+  local (default)
+    Run with Docker on this machine
+    Required: --output-dir
+
+  slurm
+    Run on SLURM HPC cluster
+    Required: --slurm-hostname, --slurm-account, --output-dir
+    Optional: --slurm-partition, --slurm-walltime
+
+  lepton
+    Run on Lepton AI cloud
+    Required: --output-dir
+
+Use --executor <name> to select an executor.
+Example: nel run --executor slurm --slurm-hostname my-cluster ...
+```
+
+### List Deployments
+
+List available deployment types and their requirements:
+
+```bash
+nemo-evaluator-launcher ls deployments
+```
+
+**Output:**
+
+```text
+Deployments (how model is served):
+
+  none (default)
+    Use existing API endpoint (no model deployment)
+    Required: --model
+    Optional: --url, --api-key-env
+    Note: Default URL: NVIDIA API Catalog
+
+  vllm
+    Deploy model with vLLM
+    Required: --checkpoint OR --hf-model, --model-name
+    Optional: --tp, --dp
+
+  nim
+    Deploy NVIDIA NIM container
+    Required: --nim-model
+
+  sglang
+    Deploy model with SGLang
+    Required: --checkpoint OR --hf-model, --model-name
+    Optional: --tp, --dp
+
+  trtllm
+    Deploy model with TensorRT-LLM
+    Required: --checkpoint, --model-name
+    Optional: --tp
+
+  generic
+    Deploy with custom container image
+    Required: --image
+
+Use --deployment <name> to select a deployment.
+```
+
+### List Task Details
+
+Show detailed information about a specific task:
+
+```bash
+# Basic task info
+nemo-evaluator-launcher ls task ifeval
+
+# With CLI example snippet
+nemo-evaluator-launcher ls task ifeval --snippet
+```
+
+**Output with `--snippet`:**
+
+```text
+Task: ifeval
+Endpoint: chat
+Harness: lm-evaluation-harness
+
+Example:
+  nel run --model meta/llama-3.2-3b-instruct --task ifeval
+
+Config snippet:
+  evaluation:
+    tasks:
+      - name: ifeval
+```
+
+**Additional options:**
+
+```bash
+# Output as JSON
+nemo-evaluator-launcher ls task ifeval --json
+
+# Load task info from a specific container
+nemo-evaluator-launcher ls task ifeval --from-container nvcr.io/nvidia/eval-factory/simple-evals:25.10
 ```
 
 ## export - Export Results
