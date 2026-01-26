@@ -16,6 +16,7 @@
 """Unified loading utilities for extracting and parsing framework.yml from containers."""
 
 import hashlib
+import importlib.util
 import json
 import os
 import pathlib
@@ -937,12 +938,19 @@ def parse_framework_to_irs(
             temp_file_path = temp_file.name
 
         try:
+            include_internal = (
+                importlib.util.find_spec("nemo_evaluator_internal") is not None
+                or importlib.util.find_spec("nemo_evaluator_launcher_internal")
+                is not None
+            )
             # Parse evaluations using nemo_evaluator
             (
                 parsed_framework_name,
                 framework_defaults,
                 evaluations,
-            ) = get_framework_evaluations(temp_file_path)
+            ) = get_framework_evaluations(
+                temp_file_path, include_internal=include_internal
+            )
 
             # Create harness IR
             harness_ir = HarnessIntermediateRepresentation(

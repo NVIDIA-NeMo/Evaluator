@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import copy
+import importlib.util
 import os
 import pkgutil
 from typing import Optional
@@ -112,7 +113,13 @@ def parse_override_params(override_params_str: Optional[str] = None) -> dict:
     return dotlist_to_dict(pairs)
 
 
-def get_framework_evaluations(filepath: str) -> tuple[str, dict, dict[str, Evaluation]]:
+def _is_internal_package_installed() -> bool:
+    return importlib.util.find_spec("nemo_evaluator_internal") is not None
+
+
+def get_framework_evaluations(
+    filepath: str, *, include_internal: bool = True
+) -> tuple[str, dict, dict[str, Evaluation]]:
     framework = {}
     with open(filepath, "r") as f:
         framework = yaml.safe_load(f)
@@ -124,6 +131,8 @@ def get_framework_evaluations(filepath: str) -> tuple[str, dict, dict[str, Evalu
     run_config_framework_defaults["pkg_name"] = pkg_name
     evaluations = dict()
     for evaluation_dict in framework["evaluations"]:
+        if evaluation_dict.get("internal", False) and not include_internal:
+            continue
         # Apply run config evaluation defaults onto the framework defaults
         run_config_task_defaults = deep_update(
             run_config_framework_defaults, evaluation_dict["defaults"], skip_nones=True
@@ -139,7 +148,7 @@ def get_framework_evaluations(filepath: str) -> tuple[str, dict, dict[str, Evalu
 
 # improve typing
 def _get_framework_evaluations(
-    def_file: str,
+    def_file: str, *, include_internal: bool = True
 ) -> tuple[dict[str, dict[str, Evaluation]], dict[str, dict], dict[str, Evaluation]]:
     # we should decide if this should raise at this point.
     # Probably not because this function is used with task invocation that might
@@ -155,7 +164,7 @@ def _get_framework_evaluations(
         framework_name,
         framework_defaults,
         framework_evaluations,
-    ) = get_framework_evaluations(def_file)
+    ) = get_framework_evaluations(def_file, include_internal=include_internal)
     framework_eval_mapping[framework_name] = framework_evaluations
     eval_name_mapping.update(framework_evaluations)
     framework_defaults = {framework_name: framework_defaults}

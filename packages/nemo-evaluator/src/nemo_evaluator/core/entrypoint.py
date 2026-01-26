@@ -30,6 +30,7 @@ from nemo_evaluator.api.api_dataclasses import (
 from nemo_evaluator.core.evaluate import evaluate
 from nemo_evaluator.core.input import (
     _get_framework_evaluations,
+    _is_internal_package_installed,
     _parse_cli_args,
     load_run_config,
     validate_configuration,
@@ -136,11 +137,15 @@ def show_available_tasks() -> None:
     if not core_evals_pkg:
         print("NO evaluation packages are installed.")
 
+    include_internal = _is_internal_package_installed()
     for pkg in core_evals_pkg:
         framework_eval_mapping, *_ = _get_framework_evaluations(
-            os.path.join(pkg.module_finder.path, pkg.name, "framework.yml")
+            os.path.join(pkg.module_finder.path, pkg.name, "framework.yml"),
+            include_internal=include_internal,
         )
         for ind_pkg in framework_eval_mapping.keys():
+            if not framework_eval_mapping[ind_pkg]:
+                continue
             print(f"{ind_pkg}: ")
             for task in framework_eval_mapping[ind_pkg].keys():
                 print(f"  * {task}")
