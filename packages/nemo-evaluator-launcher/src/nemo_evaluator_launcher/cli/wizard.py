@@ -32,19 +32,12 @@ from nemo_evaluator_launcher.cli.ls_deployments import DEPLOYMENTS
 from nemo_evaluator_launcher.cli.ls_executors import EXECUTORS
 from nemo_evaluator_launcher.cli.wizard_messages import MESSAGES
 from nemo_evaluator_launcher.common.container_metadata import load_tasks_from_tasks_file
+from nemo_evaluator_launcher.common.settings import (
+    EnvVarSettings,
+    SlurmProfile,
+    get_settings,
+)
 
-
-# Default interceptors enabled by wizard
-DEFAULT_INTERCEPTORS = ["caching", "response_stats"]
-
-# Available interceptors with descriptions
-INTERCEPTORS = {
-    "caching": "Cache API responses to avoid redundant calls",
-    "response_stats": "Collect statistics about API responses",
-    "reasoning": "Strip reasoning tags (<think>) and collect stats",
-    "request_logging": "Log API requests for debugging",
-    "system_message": "Inject custom system message",
-}
 
 # Reasoning modes
 REASONING_MODES = {
@@ -200,22 +193,19 @@ class Cmd:
                 return
             self._show_fun_message(console, "tasks", count=len(config["tasks"]))
 
+            # Step 5b: Environment variables
+            env_config = self._prompt_env_vars(config["deployment"], config["tasks"])
+            if env_config is None:
+                return
+            config.update(env_config)
+
             # Step 6: Adapters
             adapter_config = self._prompt_adapters()
             if adapter_config is None:
                 return
             config.update(adapter_config)
 
-            # Step 7: Interceptors (caching + response_stats ON by default)
-            interceptors_result = self._prompt_interceptors()
-            if interceptors_result is None:
-                return
-            config["interceptors"] = interceptors_result["selected"]
-            config["reasoning_interceptor_config"] = interceptors_result[
-                "reasoning_config"
-            ]
-
-            # Step 8: Common options
+            # Step 7: Common options
             config["output_dir"] = self._prompt_output_dir()
             if config["output_dir"] is None:
                 return
@@ -346,18 +336,202 @@ class Cmd:
 
         return result if result else None
 
+    def _prompt_env_vars(
+        self, deployment: str, tasks: list[str]
+    ) -> Optional[dict[str, Any]]:
+        """Prompt for environment variables needed for the configuration."""
+        settings = get_settings()
+        saved_env = settings.get_env_vars()
+
+        # Suggested deployment env vars (merge predefined with saved)
+        deployment_suggestions = ["NGC_API_KEY", "HF_TOKEN", "HF_HOME"]
+        if deployment in ("vllm", "sglang"):
+            deployment_suggestions.append("VLLM_CACHE_ROOT")
+        # Add any saved vars that aren't in suggestions
+        for var in saved_env.deployment:
+            if var not in deployment_suggestions:
+                deployment_suggestions.append(var)
+
+        # Suggested evaluation env vars (merge predefined with saved)
+        eval_suggestions = ["HF_TOKEN"]
+
+        # Check if tasks need JUDGE_API_KEY
+        judge_tasks = [
+            "ns_aime2025",
+            "ns_aa_lcr",
+            "ns_scicode",
+            "ns_livecodebench",
+            "simple_evals.AIME_2025",
+            "simple_evals.AA_math_test_500",
+            "aa_lcr.aa_lcr",
+        ]
+        if any(t in tasks for t in judge_tasks):
+            eval_suggestions.append("JUDGE_API_KEY")
+        # Add any saved vars that aren't in suggestions
+        for var in saved_env.task:
+            if var not in eval_suggestions:
+                eval_suggestions.append(var)
+
+        # Ask if user wants to configure env vars
+        configure = questionary.confirm(
+            "Configure environment variables?", default=False, style=WIZARD_STYLE
+        ).ask()
+        if configure is None:
+            return None
+
+        if not configure:
+            return {"deployment_env_vars": [], "evaluation_env_vars": []}
+
+        # Prompt for deployment env vars
+        deployment_choices = [
+            questionary.Choice(v, checked=v in saved_env.deployment)
+            for v in deployment_suggestions
+        ]
+        deployment_vars = questionary.checkbox(
+            "Select environment variables for deployment:",
+            choices=deployment_choices,
+            instruction="(space to toggle, enter to confirm)",
+            style=WIZARD_STYLE,
+        ).ask()
+        if deployment_vars is None:
+            return None
+
+        # Allow adding custom deployment env vars
+        add_custom_deploy = questionary.confirm(
+            "Add additional deployment env vars?", default=False, style=WIZARD_STYLE
+        ).ask()
+        if add_custom_deploy is None:
+            return None
+
+        if add_custom_deploy:
+            custom_vars = self._prompt_custom_env_vars()
+            if custom_vars is None:
+                return None
+            deployment_vars = list(deployment_vars or []) + custom_vars
+
+        # Prompt for evaluation env vars
+        eval_choices = [
+            questionary.Choice(v, checked=v in saved_env.task) for v in eval_suggestions
+        ]
+        eval_vars = questionary.checkbox(
+            "Select environment variables for evaluation:",
+            choices=eval_choices,
+            instruction="(space to toggle, enter to confirm)",
+            style=WIZARD_STYLE,
+        ).ask()
+        if eval_vars is None:
+            return None
+
+        # Allow adding custom evaluation env vars
+        add_custom_eval = questionary.confirm(
+            "Add additional evaluation env vars?", default=False, style=WIZARD_STYLE
+        ).ask()
+        if add_custom_eval is None:
+            return None
+
+        if add_custom_eval:
+            custom_vars = self._prompt_custom_env_vars()
+            if custom_vars is None:
+                return None
+            eval_vars = list(eval_vars or []) + custom_vars
+
+        # Offer to save preferences
+        save_prefs = questionary.confirm(
+            "Save env var preferences for future use?", default=True, style=WIZARD_STYLE
+        ).ask()
+        if save_prefs is None:
+            return None
+
+        if save_prefs:
+            settings.save_env_vars(
+                EnvVarSettings(
+                    deployment=deployment_vars or [],
+                    task=eval_vars or [],
+                )
+            )
+
+        return {
+            "deployment_env_vars": deployment_vars or [],
+            "evaluation_env_vars": eval_vars or [],
+        }
+
+    def _prompt_custom_env_vars(self) -> Optional[list[str]]:
+        """Prompt for custom environment variable names."""
+        console = Console()
+        console.print("[dim]Enter env var names (empty to finish)[/dim]")
+
+        custom_vars: list[str] = []
+        while True:
+            var_name = questionary.text(
+                "Env var name (empty to finish):", style=WIZARD_STYLE
+            ).ask()
+            if var_name is None:
+                return None
+            if not var_name:
+                break
+            # Normalize to uppercase
+            var_name = var_name.strip().upper()
+            if var_name and var_name not in custom_vars:
+                custom_vars.append(var_name)
+
+        return custom_vars
+
     def _prompt_slurm_config(self) -> Optional[dict[str, Any]]:
-        """Prompt for SLURM-specific configuration."""
+        """Prompt for SLURM-specific configuration with profile support."""
+        settings = get_settings()
+        profiles = settings.list_slurm_profiles()
+        selected_profile: Optional[SlurmProfile] = None
+
+        # If profiles exist, offer selection
+        if profiles:
+            choices = [
+                questionary.Choice(f"{name} (saved)", value=name) for name in profiles
+            ]
+            choices.append(questionary.Choice("Enter new configuration", value="_new_"))
+
+            selection = questionary.select(
+                "Select SLURM configuration:",
+                choices=choices,
+                style=WIZARD_STYLE,
+            ).ask()
+            if selection is None:
+                return None
+
+            if selection != "_new_":
+                selected_profile = settings.get_slurm_profile(selection)
+
+        # If profile selected, use its values
+        if selected_profile:
+            return {
+                "slurm_hostname": selected_profile.hostname,
+                "slurm_username": selected_profile.username or "${oc.env:USER}",
+                "slurm_account": selected_profile.account or "",
+                "slurm_partition": selected_profile.partition,
+                "slurm_walltime": selected_profile.walltime,
+                "slurm_gres": selected_profile.gres,
+            }
+
+        # Prompt for new configuration
         hostname = questionary.text(
             "SLURM cluster hostname:",
             validate=lambda x: len(x) > 0 or "Hostname is required",
+            style=WIZARD_STYLE,
         ).ask()
         if hostname is None:
+            return None
+
+        username = questionary.text(
+            "SLURM username:",
+            default="${oc.env:USER}",
+            style=WIZARD_STYLE,
+        ).ask()
+        if username is None:
             return None
 
         account = questionary.text(
             "SLURM account:",
             validate=lambda x: len(x) > 0 or "Account is required",
+            style=WIZARD_STYLE,
         ).ask()
         if account is None:
             return None
@@ -365,6 +539,7 @@ class Cmd:
         partition = questionary.text(
             "SLURM partition:",
             default="batch",
+            style=WIZARD_STYLE,
         ).ask()
         if partition is None:
             return None
@@ -372,15 +547,55 @@ class Cmd:
         walltime = questionary.text(
             "Walltime (HH:MM:SS):",
             default="01:00:00",
+            style=WIZARD_STYLE,
         ).ask()
         if walltime is None:
             return None
 
+        gres = questionary.text(
+            "GRES (e.g., gpu:8, optional):",
+            default="",
+            style=WIZARD_STYLE,
+        ).ask()
+        if gres is None:
+            return None
+
+        # Offer to save as profile
+        save_profile = questionary.confirm(
+            "Save this configuration as a profile?",
+            default=True,
+            style=WIZARD_STYLE,
+        ).ask()
+        if save_profile is None:
+            return None
+
+        if save_profile:
+            # Default profile name from hostname (extract short name)
+            default_name = hostname.split(".")[0] if "." in hostname else hostname
+            profile_name = questionary.text(
+                "Profile name:",
+                default=default_name,
+                style=WIZARD_STYLE,
+            ).ask()
+            if profile_name:
+                profile = SlurmProfile(
+                    hostname=hostname,
+                    username=username if username != "${oc.env:USER}" else None,
+                    account=account,
+                    partition=partition,
+                    walltime=walltime,
+                    gres=gres if gres else None,
+                )
+                settings.save_slurm_profile(profile_name, profile)
+                Console().print(f"[green]Profile '{profile_name}' saved.[/green]")
+
         return {
             "slurm_hostname": hostname,
+            "slurm_username": username,
             "slurm_account": account,
             "slurm_partition": partition,
             "slurm_walltime": walltime,
+            "slurm_gres": gres if gres else None,
         }
 
     def _prompt_api_config(self) -> Optional[dict[str, Any]]:
@@ -465,6 +680,16 @@ class Cmd:
             except ValueError:
                 config["tensor_parallel"] = 1
 
+        # Ask for container image
+        image = questionary.text(
+            "Container image (e.g., vllm/vllm-openai:v0.10.2):",
+            default="vllm/vllm-openai:v0.10.2",
+            style=WIZARD_STYLE,
+        ).ask()
+        if image is None:
+            return None
+        config["image"] = image
+
         return config
 
     def _prompt_nim_config(self) -> Optional[dict[str, Any]]:
@@ -479,7 +704,7 @@ class Cmd:
         return {"nim_model": nim_model}
 
     def _prompt_adapters(self) -> Optional[dict[str, Any]]:
-        """Configure adapters (reasoning, payload modifier)."""
+        """Configure adapters (logging, reasoning, payload modifier)."""
         result: dict[str, Any] = {}
 
         configure = questionary.confirm("Configure adapters?", default=False).ask()
@@ -487,6 +712,52 @@ class Cmd:
             return None
         if not configure:
             return result
+
+        # Logging options
+        enable_logging = questionary.confirm(
+            "Enable request/response logging?", default=True, style=WIZARD_STYLE
+        ).ask()
+        if enable_logging is None:
+            return None
+
+        if enable_logging:
+            logging_config: dict[str, Any] = {
+                "use_request_logging": True,
+                "max_logged_requests": 10,
+                "use_response_logging": True,
+                "max_logged_responses": 10,
+                "log_failed_requests": True,
+            }
+
+            # Ask for custom limits
+            customize_logging = questionary.confirm(
+                "Customize logging limits?", default=False, style=WIZARD_STYLE
+            ).ask()
+            if customize_logging is None:
+                return None
+
+            if customize_logging:
+                max_req = questionary.text(
+                    "Max logged requests:", default="10", style=WIZARD_STYLE
+                ).ask()
+                if max_req is None:
+                    return None
+                try:
+                    logging_config["max_logged_requests"] = int(max_req)
+                except ValueError:
+                    pass
+
+                max_resp = questionary.text(
+                    "Max logged responses:", default="10", style=WIZARD_STYLE
+                ).ask()
+                if max_resp is None:
+                    return None
+                try:
+                    logging_config["max_logged_responses"] = int(max_resp)
+                except ValueError:
+                    pass
+
+            result["logging"] = logging_config
 
         # Reasoning mode
         reasoning = questionary.select(
@@ -503,7 +774,9 @@ class Cmd:
 
         if reasoning == "think":
             result["reasoning"] = {
-                "process_reasoning_traces": True,
+                "use_reasoning": True,
+                "start_reasoning_token": "<think>",
+                "end_reasoning_token": "</think>",
                 "use_system_prompt": True,
                 "custom_system_prompt": "/think",
             }
@@ -513,27 +786,49 @@ class Cmd:
                 "custom_system_prompt": "/no_think",
             }
         elif reasoning == "custom":
-            process_traces = questionary.confirm(
-                "Process reasoning traces?", default=True
+            use_reasoning = questionary.confirm(
+                "Process reasoning traces?", default=True, style=WIZARD_STYLE
             ).ask()
-            if process_traces is None:
+            if use_reasoning is None:
                 return None
 
+            reasoning_config: dict[str, Any] = {"use_reasoning": use_reasoning}
+
+            if use_reasoning:
+                start_token = questionary.text(
+                    "Reasoning start token:",
+                    default="<think>",
+                    style=WIZARD_STYLE,
+                ).ask()
+                if start_token is None:
+                    return None
+                reasoning_config["start_reasoning_token"] = start_token
+
+                end_token = questionary.text(
+                    "Reasoning end token:",
+                    default="</think>",
+                    style=WIZARD_STYLE,
+                ).ask()
+                if end_token is None:
+                    return None
+                reasoning_config["end_reasoning_token"] = end_token
+
             custom_prompt = questionary.text(
-                "Custom system prompt for reasoning:"
+                "Custom system prompt for reasoning (optional):",
+                style=WIZARD_STYLE,
             ).ask()
             if custom_prompt is None:
                 return None
 
-            result["reasoning"] = {
-                "process_reasoning_traces": process_traces,
-                "use_system_prompt": True,
-                "custom_system_prompt": custom_prompt,
-            }
+            if custom_prompt:
+                reasoning_config["use_system_prompt"] = True
+                reasoning_config["custom_system_prompt"] = custom_prompt
+
+            result["reasoning"] = reasoning_config
 
         # Payload modifier
         add_payload = questionary.confirm(
-            "Add payload modifiers?", default=False
+            "Add payload modifiers?", default=False, style=WIZARD_STYLE
         ).ask()
         if add_payload is None:
             return None
@@ -548,20 +843,28 @@ class Cmd:
         return result
 
     def _prompt_payload_modifier(self) -> Optional[dict[str, Any]]:
-        """Configure payload modifier interceptor."""
+        """Configure payload modifier (params_to_add, params_to_remove)."""
         console = Console()
+        result: dict[str, Any] = {}
+
+        # params_to_add
         console.print("[dim]Add custom parameters to API requests[/dim]")
         console.print("[dim]Enter parameter key (empty to finish)[/dim]")
+        console.print(
+            "[dim]Use dot notation for nested keys (e.g., chat_template_kwargs.thinking)[/dim]"
+        )
 
         params: dict[str, Any] = {}
         while True:
-            key = questionary.text("Parameter key (empty to finish):").ask()
+            key = questionary.text(
+                "Parameter key (empty to finish):", style=WIZARD_STYLE
+            ).ask()
             if key is None:
                 return None
             if not key:
                 break
 
-            value = questionary.text(f"Value for '{key}':").ask()
+            value = questionary.text(f"Value for '{key}':", style=WIZARD_STYLE).ask()
             if value is None:
                 return None
 
@@ -579,60 +882,37 @@ class Cmd:
             except ValueError:
                 parsed_value = value
 
-            params[key] = parsed_value
+            # Handle nested keys (e.g., "chat_template_kwargs.thinking" -> nested dict)
+            if "." in key:
+                parts = key.split(".")
+                current = params
+                for part in parts[:-1]:
+                    current = current.setdefault(part, {})
+                current[parts[-1]] = parsed_value
+            else:
+                params[key] = parsed_value
 
-        return {"params_to_add": params} if params else {}
+        if params:
+            result["params_to_add"] = params
 
-    def _prompt_interceptors(self) -> Optional[dict[str, Any]]:
-        """Configure interceptors with caching and response_stats enabled by default.
+        # params_to_remove
+        console.print()
+        console.print("[dim]Parameters to remove from API requests[/dim]")
+        console.print("[dim]Enter parameter name (empty to finish)[/dim]")
 
-        Returns a dict with:
-            - "selected": list of selected interceptor names
-            - "reasoning_config": dict with reasoning interceptor config (if selected)
-        """
-        choices = [
-            questionary.Choice(
-                f"{name} - {desc}",
-                value=name,
-                checked=(name in DEFAULT_INTERCEPTORS),
-            )
-            for name, desc in INTERCEPTORS.items()
-        ]
-
-        selected = questionary.checkbox(
-            "Select interceptors (caching and response_stats enabled by default):",
-            choices=choices,
-            instruction="(space to toggle, enter to confirm)",
-            style=WIZARD_STYLE,
-        ).ask()
-
-        if selected is None:
-            return None
-
-        result: dict[str, Any] = {"selected": selected, "reasoning_config": None}
-
-        # If reasoning interceptor selected, prompt for config
-        if "reasoning" in selected:
-            start_token = questionary.text(
-                "Reasoning start token:",
-                default="<think>",
-                style=WIZARD_STYLE,
+        params_to_remove: list[str] = []
+        while True:
+            param = questionary.text(
+                "Parameter to remove (empty to finish):", style=WIZARD_STYLE
             ).ask()
-            if start_token is None:
+            if param is None:
                 return None
+            if not param:
+                break
+            params_to_remove.append(param)
 
-            end_token = questionary.text(
-                "Reasoning end token:",
-                default="</think>",
-                style=WIZARD_STYLE,
-            ).ask()
-            if end_token is None:
-                return None
-
-            result["reasoning_config"] = {
-                "start_reasoning_token": start_token,
-                "end_reasoning_token": end_token,
-            }
+        if params_to_remove:
+            result["params_to_remove"] = params_to_remove
 
         return result
 
@@ -836,6 +1116,8 @@ class Cmd:
             model_source = config.get("checkpoint") or config.get("hf_model", "")
             table.add_row("Checkpoint/HF", model_source)
             table.add_row("Model Name", config.get("model_name", ""))
+            if config.get("image"):
+                table.add_row("Image", config["image"])
         elif config["deployment"] == "nim":
             table.add_row("NIM Model", config.get("nim_model", ""))
 
@@ -850,17 +1132,37 @@ class Cmd:
 
         if config.get("reasoning"):
             reasoning_prompt = config["reasoning"].get("custom_system_prompt", "")
-            table.add_row("Reasoning", reasoning_prompt or "enabled")
+            tokens = ""
+            if config["reasoning"].get("use_reasoning"):
+                start = config["reasoning"].get("start_reasoning_token", "<think>")
+                end = config["reasoning"].get("end_reasoning_token", "</think>")
+                tokens = f" [{start}...{end}]"
+            table.add_row("Reasoning", (reasoning_prompt or "enabled") + tokens)
 
-        interceptors = config.get("interceptors", [])
-        if interceptors:
-            table.add_row("Interceptors", ", ".join(interceptors))
+        # Show logging if enabled
+        if config.get("logging"):
+            logging_items = []
+            if config["logging"].get("use_request_logging"):
+                logging_items.append("requests")
+            if config["logging"].get("use_response_logging"):
+                logging_items.append("responses")
+            if logging_items:
+                table.add_row("Logging", ", ".join(logging_items))
 
-        # Show reasoning interceptor config if set
-        reasoning_cfg = config.get("reasoning_interceptor_config")
-        if reasoning_cfg:
-            tokens = f"{reasoning_cfg.get('start_reasoning_token', '<think>')}...{reasoning_cfg.get('end_reasoning_token', '</think>')}"
-            table.add_row("Reasoning Tags", tokens)
+        # Show payload modifier
+        if config.get("payload_modifier"):
+            if config["payload_modifier"].get("params_to_add"):
+                params = ", ".join(config["payload_modifier"]["params_to_add"].keys())
+                table.add_row("Params to Add", params)
+            if config["payload_modifier"].get("params_to_remove"):
+                params = ", ".join(config["payload_modifier"]["params_to_remove"])
+                table.add_row("Params to Remove", params)
+
+        # Show env vars if configured
+        if config.get("deployment_env_vars"):
+            table.add_row("Deploy Env Vars", ", ".join(config["deployment_env_vars"]))
+        if config.get("evaluation_env_vars"):
+            table.add_row("Eval Env Vars", ", ".join(config["evaluation_env_vars"]))
 
         exporters = config.get("exporters", [])
         if exporters:
@@ -901,14 +1203,17 @@ class Cmd:
             yaml_config["execution"].update(
                 {
                     "hostname": config.get("slurm_hostname"),
+                    "username": config.get("slurm_username", "${oc.env:USER}"),
                     "account": config.get("slurm_account"),
                     "partition": config.get("slurm_partition", "batch"),
                 }
             )
             if config.get("slurm_walltime"):
                 yaml_config["execution"]["walltime"] = config["slurm_walltime"]
+            if config.get("slurm_gres"):
+                yaml_config["execution"]["gres"] = config["slurm_gres"]
 
-        # Add target config for API endpoint
+        # Add target config for API endpoint (deployment == "none")
         if deployment == "none":
             api_endpoint: dict[str, Any] = {
                 "model_id": config["model"],
@@ -917,52 +1222,10 @@ class Cmd:
                 ),
                 "api_key_name": config.get("api_key_env", "NGC_API_KEY"),
             }
-
-            # Add adapter config if any
-            adapter_config: dict[str, Any] = {}
-            if config.get("reasoning"):
-                adapter_config.update(config["reasoning"])
-
-            # Add interceptors
-            interceptors: list[dict[str, Any]] = []
-            if config.get("payload_modifier") and config["payload_modifier"].get(
-                "params_to_add"
-            ):
-                interceptors.append(
-                    {
-                        "name": "payload_modifier",
-                        "config": config["payload_modifier"],
-                    }
-                )
-
-            for interceptor in config.get("interceptors", []):
-                interceptor_cfg: dict[str, Any] = {
-                    "name": interceptor,
-                    "enabled": True,
-                }
-                if interceptor == "caching":
-                    interceptor_cfg["config"] = {
-                        "cache_dir": "/results/cache",
-                        "reuse_cached_responses": True,
-                    }
-                elif interceptor == "reasoning":
-                    reasoning_cfg = config.get("reasoning_interceptor_config")
-                    if reasoning_cfg:
-                        interceptor_cfg["config"] = reasoning_cfg
-                interceptors.append(interceptor_cfg)
-
-            # Always add endpoint interceptor at the end
-            interceptors.append({"name": "endpoint", "enabled": True})
-
-            if adapter_config or interceptors:
-                api_endpoint["adapter_config"] = adapter_config
-                if interceptors:
-                    api_endpoint["adapter_config"]["interceptors"] = interceptors
-
             yaml_config["target"] = {"api_endpoint": api_endpoint}
 
         # Add vLLM/SGLang deployment config
-        elif deployment in ("vllm", "sglang"):
+        if deployment in ("vllm", "sglang"):
             yaml_config["deployment"] = {}
             if config.get("hf_model"):
                 yaml_config["deployment"]["hf_model_handle"] = config["hf_model"]
@@ -971,6 +1234,8 @@ class Cmd:
             yaml_config["deployment"]["model_name"] = config.get("model_name")
             if config.get("tensor_parallel"):
                 yaml_config["deployment"]["tensor_parallel"] = config["tensor_parallel"]
+            if config.get("image"):
+                yaml_config["deployment"]["image"] = config["image"]
 
         # Add NIM deployment config
         elif deployment == "nim":
@@ -996,6 +1261,46 @@ class Cmd:
                 params["limit_samples"] = config["limit_samples"]
 
             params.update(gen_params)
+
+        # Build adapter_config for ALL deployments (flat format)
+        adapter_config: dict[str, Any] = {}
+
+        # Logging settings
+        if config.get("logging"):
+            adapter_config.update(config["logging"])
+
+        # Reasoning settings
+        if config.get("reasoning"):
+            adapter_config.update(config["reasoning"])
+
+        # params_to_add (from payload_modifier)
+        if config.get("payload_modifier", {}).get("params_to_add"):
+            adapter_config["params_to_add"] = config["payload_modifier"]["params_to_add"]
+
+        # params_to_remove (from payload_modifier)
+        if config.get("payload_modifier", {}).get("params_to_remove"):
+            adapter_config["params_to_remove"] = config["payload_modifier"][
+                "params_to_remove"
+            ]
+
+        # Add adapter_config to evaluation.nemo_evaluator_config.target.api_endpoint
+        if adapter_config:
+            nemo_config = yaml_config["evaluation"].setdefault(
+                "nemo_evaluator_config", {}
+            )
+            target = nemo_config.setdefault("target", {})
+            api_endpoint = target.setdefault("api_endpoint", {})
+            api_endpoint["adapter_config"] = adapter_config
+
+        # Add env vars to execution.env_vars (deployment and evaluation)
+        if config.get("deployment_env_vars") or config.get("evaluation_env_vars"):
+            env_vars = yaml_config["execution"].setdefault("env_vars", {})
+
+            if config.get("deployment_env_vars"):
+                env_vars["deployment"] = {var: f"${var}" for var in config["deployment_env_vars"]}
+
+            if config.get("evaluation_env_vars"):
+                env_vars["evaluation"] = {var: f"${var}" for var in config["evaluation_env_vars"]}
 
         return yaml_config
 

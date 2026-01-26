@@ -19,9 +19,7 @@ import pytest
 
 from nemo_evaluator_launcher.cli.wizard import (
     Cmd,
-    DEFAULT_INTERCEPTORS,
     EXPORTERS,
-    INTERCEPTORS,
     NVIDIA_GREEN,
     REASONING_MODES,
     WIZARD_STYLE,
@@ -30,20 +28,6 @@ from nemo_evaluator_launcher.cli.wizard import (
 
 class TestWizardConstants:
     """Tests for wizard module constants."""
-
-    def test_default_interceptors(self):
-        """Test that default interceptors include caching and response_stats."""
-        assert "caching" in DEFAULT_INTERCEPTORS
-        assert "response_stats" in DEFAULT_INTERCEPTORS
-        assert len(DEFAULT_INTERCEPTORS) == 2
-
-    def test_interceptors_dict_structure(self):
-        """Test INTERCEPTORS dict has correct structure."""
-        expected_interceptors = ["caching", "response_stats", "reasoning", "request_logging", "system_message"]
-        for name in expected_interceptors:
-            assert name in INTERCEPTORS
-            assert isinstance(INTERCEPTORS[name], str)
-            assert len(INTERCEPTORS[name]) > 0
 
     def test_reasoning_modes_structure(self):
         """Test REASONING_MODES dict has correct structure."""
@@ -104,7 +88,6 @@ class TestBuildYamlConfig:
             "url": "https://integrate.api.nvidia.com/v1/chat/completions",
             "api_key_env": "NGC_API_KEY",
             "tasks": ["simple_evals.mmlu"],
-            "interceptors": ["caching", "response_stats"],
             "output_dir": "./results",
         }
 
@@ -136,11 +119,11 @@ class TestBuildYamlConfig:
             "deployment": "none",
             "model": "meta/llama-3.2-3b-instruct",
             "slurm_hostname": "cluster.example.com",
+            "slurm_username": "${oc.env:USER}",
             "slurm_account": "my-account",
             "slurm_partition": "gpu",
             "slurm_walltime": "02:00:00",
             "tasks": ["simple_evals.mmlu"],
-            "interceptors": [],
             "output_dir": "./results",
         }
 
@@ -149,9 +132,50 @@ class TestBuildYamlConfig:
         # Check SLURM execution config
         assert {"execution": "slurm/default"} in yaml_config["defaults"]
         assert yaml_config["execution"]["hostname"] == "cluster.example.com"
+        assert yaml_config["execution"]["username"] == "${oc.env:USER}"
         assert yaml_config["execution"]["account"] == "my-account"
         assert yaml_config["execution"]["partition"] == "gpu"
         assert yaml_config["execution"]["walltime"] == "02:00:00"
+
+    def test_slurm_executor_config_with_custom_username(self):
+        """Test building SLURM executor config with custom username."""
+        cmd = Cmd()
+        config = {
+            "executor": "slurm",
+            "deployment": "none",
+            "model": "meta/llama-3.2-3b-instruct",
+            "slurm_hostname": "cluster.example.com",
+            "slurm_username": "myuser",
+            "slurm_account": "my-account",
+            "slurm_partition": "gpu",
+            "slurm_walltime": "02:00:00",
+            "tasks": ["simple_evals.mmlu"],
+            "output_dir": "./results",
+        }
+
+        yaml_config = cmd._build_yaml_config(config)
+
+        # Check custom username is used
+        assert yaml_config["execution"]["username"] == "myuser"
+
+    def test_slurm_executor_config_default_username(self):
+        """Test SLURM executor config uses default username when not provided."""
+        cmd = Cmd()
+        config = {
+            "executor": "slurm",
+            "deployment": "none",
+            "model": "meta/llama-3.2-3b-instruct",
+            "slurm_hostname": "cluster.example.com",
+            "slurm_account": "my-account",
+            "slurm_partition": "gpu",
+            "tasks": ["simple_evals.mmlu"],
+            "output_dir": "./results",
+        }
+
+        yaml_config = cmd._build_yaml_config(config)
+
+        # Check default username is used
+        assert yaml_config["execution"]["username"] == "${oc.env:USER}"
 
     def test_vllm_deployment_config(self):
         """Test building vLLM deployment config."""
@@ -163,7 +187,6 @@ class TestBuildYamlConfig:
             "model_name": "llama-3.2-3b",
             "tensor_parallel": 2,
             "tasks": ["simple_evals.mmlu"],
-            "interceptors": [],
             "output_dir": "./results",
         }
 
@@ -176,6 +199,57 @@ class TestBuildYamlConfig:
         assert yaml_config["deployment"]["model_name"] == "llama-3.2-3b"
         assert yaml_config["deployment"]["tensor_parallel"] == 2
 
+    def test_vllm_deployment_config_with_image(self):
+        """Test building vLLM deployment config with image."""
+        cmd = Cmd()
+        config = {
+            "executor": "local",
+            "deployment": "vllm",
+            "hf_model": "meta-llama/Llama-3.2-3B-Instruct",
+            "model_name": "llama-3.2-3b",
+            "image": "vllm/vllm-openai:v0.10.2",
+            "tasks": ["simple_evals.mmlu"],
+            "output_dir": "./results",
+        }
+
+        yaml_config = cmd._build_yaml_config(config)
+
+        # Check deployment config includes image
+        assert yaml_config["deployment"]["image"] == "vllm/vllm-openai:v0.10.2"
+
+    def test_env_vars_format(self):
+        """Test env vars are placed under execution.env_vars with correct format."""
+        cmd = Cmd()
+        config = {
+            "executor": "local",
+            "deployment": "vllm",
+            "hf_model": "meta-llama/Llama-3.2-3B-Instruct",
+            "model_name": "llama-3.2-3b",
+            "tasks": ["simple_evals.mmlu"],
+            "output_dir": "./results",
+            "deployment_env_vars": ["HF_TOKEN", "VLLM_CACHE_ROOT"],
+            "evaluation_env_vars": ["HF_TOKEN", "JUDGE_API_KEY"],
+        }
+
+        yaml_config = cmd._build_yaml_config(config)
+
+        # Check env vars are under execution.env_vars
+        assert "env_vars" in yaml_config["execution"]
+        env_vars = yaml_config["execution"]["env_vars"]
+
+        # Check deployment env vars
+        assert "deployment" in env_vars
+        assert env_vars["deployment"]["HF_TOKEN"] == "$HF_TOKEN"
+        assert env_vars["deployment"]["VLLM_CACHE_ROOT"] == "$VLLM_CACHE_ROOT"
+
+        # Check evaluation env vars
+        assert "evaluation" in env_vars
+        assert env_vars["evaluation"]["HF_TOKEN"] == "$HF_TOKEN"
+        assert env_vars["evaluation"]["JUDGE_API_KEY"] == "$JUDGE_API_KEY"
+
+        # Ensure env_vars is NOT in evaluation section
+        assert "env_vars" not in yaml_config["evaluation"]
+
     def test_reasoning_config(self):
         """Test building config with reasoning enabled."""
         cmd = Cmd()
@@ -185,52 +259,55 @@ class TestBuildYamlConfig:
             "model": "meta/llama-3.2-3b-instruct",
             "tasks": ["simple_evals.mmlu"],
             "reasoning": {
-                "process_reasoning_traces": True,
+                "use_reasoning": True,
+                "start_reasoning_token": "<think>",
+                "end_reasoning_token": "</think>",
                 "use_system_prompt": True,
                 "custom_system_prompt": "/think",
             },
-            "interceptors": ["caching"],
             "output_dir": "./results",
         }
 
         yaml_config = cmd._build_yaml_config(config)
 
-        # Check adapter config contains reasoning
-        adapter_config = yaml_config["target"]["api_endpoint"]["adapter_config"]
-        assert adapter_config["process_reasoning_traces"] is True
+        # Check adapter config contains reasoning (flat format)
+        nemo_config = yaml_config["evaluation"]["nemo_evaluator_config"]
+        adapter_config = nemo_config["target"]["api_endpoint"]["adapter_config"]
+        assert adapter_config["use_reasoning"] is True
+        assert adapter_config["start_reasoning_token"] == "<think>"
+        assert adapter_config["end_reasoning_token"] == "</think>"
         assert adapter_config["use_system_prompt"] is True
         assert adapter_config["custom_system_prompt"] == "/think"
 
-    def test_interceptors_in_config(self):
-        """Test interceptors are correctly added to config."""
+    def test_logging_config(self):
+        """Test logging config is correctly added to flat adapter_config."""
         cmd = Cmd()
         config = {
             "executor": "local",
-            "deployment": "none",
-            "model": "meta/llama-3.2-3b-instruct",
+            "deployment": "vllm",
+            "hf_model": "meta-llama/Llama-3.2-3B-Instruct",
+            "model_name": "llama-3.2-3b",
             "tasks": ["simple_evals.mmlu"],
-            "interceptors": ["caching", "response_stats", "request_logging"],
+            "logging": {
+                "use_request_logging": True,
+                "max_logged_requests": 10,
+                "use_response_logging": True,
+                "max_logged_responses": 10,
+                "log_failed_requests": True,
+            },
             "output_dir": "./results",
         }
 
         yaml_config = cmd._build_yaml_config(config)
 
-        interceptors = yaml_config["target"]["api_endpoint"]["adapter_config"]["interceptors"]
-
-        # Check interceptors are present (plus endpoint at the end)
-        interceptor_names = [i["name"] for i in interceptors]
-        assert "caching" in interceptor_names
-        assert "response_stats" in interceptor_names
-        assert "request_logging" in interceptor_names
-        assert "endpoint" in interceptor_names
-
-        # Endpoint should be last
-        assert interceptors[-1]["name"] == "endpoint"
-
-        # Caching should have config
-        caching_interceptor = next(i for i in interceptors if i["name"] == "caching")
-        assert caching_interceptor["config"]["cache_dir"] == "/results/cache"
-        assert caching_interceptor["config"]["reuse_cached_responses"] is True
+        # Check flat adapter_config in evaluation.nemo_evaluator_config
+        nemo_config = yaml_config["evaluation"]["nemo_evaluator_config"]
+        adapter_config = nemo_config["target"]["api_endpoint"]["adapter_config"]
+        assert adapter_config["use_request_logging"] is True
+        assert adapter_config["max_logged_requests"] == 10
+        assert adapter_config["use_response_logging"] is True
+        assert adapter_config["max_logged_responses"] == 10
+        assert adapter_config["log_failed_requests"] is True
 
     def test_limit_samples_config(self):
         """Test limit_samples is correctly added to config."""
@@ -240,7 +317,6 @@ class TestBuildYamlConfig:
             "deployment": "none",
             "model": "meta/llama-3.2-3b-instruct",
             "tasks": ["simple_evals.mmlu"],
-            "interceptors": [],
             "output_dir": "./results",
             "limit_samples": 100,
         }
@@ -258,7 +334,6 @@ class TestBuildYamlConfig:
             "deployment": "none",
             "model": "meta/llama-3.2-3b-instruct",
             "tasks": ["simple_evals.mmlu", "simple_evals.gpqa_diamond", "ifeval"],
-            "interceptors": [],
             "output_dir": "./results",
         }
 
@@ -278,7 +353,6 @@ class TestBuildYamlConfig:
             "deployment": "nim",
             "nim_model": "llama3-8b-instruct",
             "tasks": ["simple_evals.mmlu"],
-            "interceptors": [],
             "output_dir": "./results",
         }
 
@@ -288,7 +362,7 @@ class TestBuildYamlConfig:
         assert yaml_config["deployment"]["nim_model"] == "llama3-8b-instruct"
 
     def test_payload_modifier_config(self):
-        """Test payload modifier is correctly added."""
+        """Test payload modifier is correctly added to flat adapter_config."""
         cmd = Cmd()
         config = {
             "executor": "local",
@@ -299,20 +373,21 @@ class TestBuildYamlConfig:
                 "params_to_add": {
                     "temperature": 0.7,
                     "top_p": 0.9,
-                }
+                },
+                "params_to_remove": ["max_tokens"],
             },
-            "interceptors": ["caching"],
             "output_dir": "./results",
         }
 
         yaml_config = cmd._build_yaml_config(config)
 
-        interceptors = yaml_config["target"]["api_endpoint"]["adapter_config"]["interceptors"]
-        payload_modifier = next((i for i in interceptors if i["name"] == "payload_modifier"), None)
+        # Check flat adapter_config format
+        nemo_config = yaml_config["evaluation"]["nemo_evaluator_config"]
+        adapter_config = nemo_config["target"]["api_endpoint"]["adapter_config"]
 
-        assert payload_modifier is not None
-        assert payload_modifier["config"]["params_to_add"]["temperature"] == 0.7
-        assert payload_modifier["config"]["params_to_add"]["top_p"] == 0.9
+        assert adapter_config["params_to_add"]["temperature"] == 0.7
+        assert adapter_config["params_to_add"]["top_p"] == 0.9
+        assert adapter_config["params_to_remove"] == ["max_tokens"]
 
 
 class TestSaveConfig:
@@ -328,7 +403,6 @@ class TestSaveConfig:
             "deployment": "none",
             "model": "meta/llama-3.2-3b-instruct",
             "tasks": ["simple_evals.mmlu"],
-            "interceptors": ["caching", "response_stats"],
             "output_dir": "./results",
             "exporters": [],
         }
@@ -355,7 +429,6 @@ class TestSaveConfig:
             "deployment": "none",
             "model": "meta/llama-3.2-3b-instruct",
             "tasks": ["simple_evals.mmlu"],
-            "interceptors": [],
             "output_dir": "./results",
             "exporters": [
                 {"dest": "local", "format": "json"},
@@ -383,7 +456,6 @@ class TestShowSummary:
             "deployment": "none",
             "model": "meta/llama-3.2-3b-instruct",
             "tasks": ["simple_evals.mmlu", "ifeval"],
-            "interceptors": ["caching"],
             "output_dir": "./results",
         }
 
@@ -402,7 +474,6 @@ class TestShowSummary:
             "deployment": "none",
             "model": "meta/llama-3.2-3b-instruct",
             "tasks": ["task1", "task2", "task3", "task4", "task5"],
-            "interceptors": [],
             "output_dir": "./results",
         }
 
@@ -410,6 +481,24 @@ class TestShowSummary:
 
         captured = capsys.readouterr()
         assert "+2 more" in captured.out
+
+    def test_show_summary_with_image(self, capsys):
+        """Test summary displays image for vLLM deployment."""
+        cmd = Cmd()
+        config = {
+            "executor": "local",
+            "deployment": "vllm",
+            "hf_model": "meta-llama/Llama-3.2-3B-Instruct",
+            "model_name": "llama-3.2-3b",
+            "image": "vllm/vllm-openai:v0.10.2",
+            "tasks": ["simple_evals.mmlu"],
+            "output_dir": "./results",
+        }
+
+        cmd._show_summary(config)
+
+        captured = capsys.readouterr()
+        assert "vllm/vllm-openai:v0.10.2" in captured.out
 
 
 class TestCLIIntegration:
@@ -446,11 +535,6 @@ class TestWizardNewFeatures:
         cmd = Cmd(no_fun=True)
         assert cmd.no_fun is True
 
-    def test_reasoning_interceptor_in_interceptors(self):
-        """Test reasoning interceptor is in INTERCEPTORS dict."""
-        assert "reasoning" in INTERCEPTORS
-        assert "reasoning" in INTERCEPTORS["reasoning"].lower() or "think" in INTERCEPTORS["reasoning"].lower()
-
     def test_supports_emoji_method(self):
         """Test _supports_emoji method exists and returns bool."""
         cmd = Cmd()
@@ -469,16 +553,17 @@ class TestWizardNewFeatures:
         # With no_fun=True, nothing should be printed
         assert "local" not in captured.out or "Great choice" not in captured.out
 
-    def test_build_yaml_config_with_reasoning_interceptor(self):
-        """Test reasoning interceptor config is included in YAML."""
+    def test_build_yaml_config_with_reasoning_flat_format(self):
+        """Test reasoning config is included in flat adapter_config format."""
         cmd = Cmd()
         config = {
             "executor": "local",
-            "deployment": "none",
-            "model": "meta/llama-3.2-3b-instruct",
+            "deployment": "vllm",  # Test with vLLM to ensure adapter_config works for all deployments
+            "hf_model": "meta-llama/Llama-3.2-3B-Instruct",
+            "model_name": "llama-3.2-3b",
             "tasks": ["simple_evals.mmlu"],
-            "interceptors": ["reasoning", "caching"],
-            "reasoning_interceptor_config": {
+            "reasoning": {
+                "use_reasoning": True,
                 "start_reasoning_token": "<think>",
                 "end_reasoning_token": "</think>",
             },
@@ -487,13 +572,13 @@ class TestWizardNewFeatures:
 
         yaml_config = cmd._build_yaml_config(config)
 
-        interceptors = yaml_config["target"]["api_endpoint"]["adapter_config"]["interceptors"]
-        reasoning = next((i for i in interceptors if i["name"] == "reasoning"), None)
+        # Check flat adapter_config format in evaluation.nemo_evaluator_config
+        nemo_config = yaml_config["evaluation"]["nemo_evaluator_config"]
+        adapter_config = nemo_config["target"]["api_endpoint"]["adapter_config"]
 
-        assert reasoning is not None
-        assert reasoning["enabled"] is True
-        assert reasoning["config"]["start_reasoning_token"] == "<think>"
-        assert reasoning["config"]["end_reasoning_token"] == "</think>"
+        assert adapter_config["use_reasoning"] is True
+        assert adapter_config["start_reasoning_token"] == "<think>"
+        assert adapter_config["end_reasoning_token"] == "</think>"
 
     def test_yaml_formatting_has_empty_lines(self, tmp_path):
         """Test that saved YAML has empty lines between top-level sections."""
@@ -503,7 +588,6 @@ class TestWizardNewFeatures:
             "deployment": "none",
             "model": "meta/llama-3.2-3b-instruct",
             "tasks": ["simple_evals.mmlu"],
-            "interceptors": ["caching"],
             "output_dir": "./results",
             "exporters": [],
         }
@@ -529,18 +613,19 @@ class TestWizardNewFeatures:
         assert found_empty_before_execution, "No empty line before execution section"
         assert found_empty_before_evaluation, "No empty line before evaluation section"
 
-    def test_show_summary_with_reasoning_interceptor(self, capsys):
-        """Test summary displays reasoning interceptor config."""
+    def test_show_summary_with_reasoning_config(self, capsys):
+        """Test summary displays reasoning config with tokens."""
         cmd = Cmd()
         config = {
             "executor": "local",
             "deployment": "none",
             "model": "meta/llama-3.2-3b-instruct",
             "tasks": ["simple_evals.mmlu"],
-            "interceptors": ["reasoning"],
-            "reasoning_interceptor_config": {
+            "reasoning": {
+                "use_reasoning": True,
                 "start_reasoning_token": "<think>",
                 "end_reasoning_token": "</think>",
+                "custom_system_prompt": "/think",
             },
             "output_dir": "./results",
         }
@@ -548,7 +633,7 @@ class TestWizardNewFeatures:
         cmd._show_summary(config)
 
         captured = capsys.readouterr()
-        assert "<think>" in captured.out or "Reasoning Tags" in captured.out
+        assert "<think>" in captured.out or "/think" in captured.out
 
 
 class TestWizardMessages:
@@ -658,7 +743,6 @@ class TestGenerationParams:
             "deployment": "none",
             "model": "meta/llama-3.2-3b-instruct",
             "tasks": ["simple_evals.mmlu"],
-            "interceptors": ["caching"],
             "output_dir": "./results",
             "generation_params": {
                 "temperature": 0.7,
@@ -682,7 +766,6 @@ class TestGenerationParams:
             "deployment": "none",
             "model": "meta/llama-3.2-3b-instruct",
             "tasks": ["simple_evals.mmlu"],
-            "interceptors": ["caching"],
             "output_dir": "./results",
             "generation_params": {
                 "temperature": 0.7,
@@ -708,7 +791,6 @@ class TestGenerationParams:
             "deployment": "none",
             "model": "meta/llama-3.2-3b-instruct",
             "tasks": ["simple_evals.mmlu"],
-            "interceptors": ["caching"],
             "output_dir": "./results",
             "generation_params": {},
         }
@@ -723,3 +805,34 @@ class TestGenerationParams:
         cmd = Cmd()
         assert hasattr(cmd, "_prompt_generation_params")
         assert callable(cmd._prompt_generation_params)
+
+
+class TestCustomEnvVars:
+    """Tests for custom environment variables feature."""
+
+    def test_prompt_custom_env_vars_method_exists(self):
+        """Test _prompt_custom_env_vars method exists."""
+        cmd = Cmd()
+        assert hasattr(cmd, "_prompt_custom_env_vars")
+        assert callable(cmd._prompt_custom_env_vars)
+
+    def test_saved_env_vars_appear_in_suggestions(self):
+        """Test that saved env vars are included in suggestions."""
+        # This tests the logic that merges saved vars with predefined suggestions
+        # The actual _prompt_env_vars method would need mocking for interactive testing
+        predefined = ["NGC_API_KEY", "HF_TOKEN", "HF_HOME"]
+        saved = ["CUSTOM_VAR", "MY_API_KEY", "HF_TOKEN"]  # HF_TOKEN already in predefined
+
+        # Merge logic (same as in _prompt_env_vars)
+        suggestions = list(predefined)
+        for var in saved:
+            if var not in suggestions:
+                suggestions.append(var)
+
+        assert "NGC_API_KEY" in suggestions
+        assert "HF_TOKEN" in suggestions
+        assert "HF_HOME" in suggestions
+        assert "CUSTOM_VAR" in suggestions
+        assert "MY_API_KEY" in suggestions
+        # HF_TOKEN should only appear once
+        assert suggestions.count("HF_TOKEN") == 1
