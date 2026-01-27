@@ -476,3 +476,102 @@ def test_get_eval_factory_config_overrides_deprecated(global_config):
         match="`overrides` field is no longer supported. Use `nemo_evaluator_config` field instead",
     ):
         _ = get_eval_factory_config(cfg, user_task_config)
+
+
+def test_get_eval_factory_command_unlisted_task_uses_full_harness_task():
+    """For unlisted tasks, config.type should be harness.task format."""
+    from nemo_evaluator_launcher.common.helpers import get_eval_factory_command
+
+    cfg = _cfg(
+        {
+            "deployment": {"type": "none"},
+            "target": {"api_endpoint": {"url": "http://example/v1", "model_id": "m"}},
+            "evaluation": {},
+        }
+    )
+    user_task_config = _cfg({"name": "lm-evaluation-harness.polemo2"})
+    task_definition = {
+        "endpoint_type": "chat",
+        "task": "polemo2",
+        "harness": "lm-evaluation-harness",
+        "is_unlisted": True,
+    }
+
+    cmd_and_dbg = get_eval_factory_command(cfg, user_task_config, task_definition)
+
+    # The config type should be harness.task format for unlisted tasks
+    assert "type: lm-evaluation-harness.polemo2" in cmd_and_dbg.debug
+
+
+def test_get_eval_factory_command_listed_task_uses_task_name_only():
+    """For listed tasks, config.type should be just the task name."""
+    from nemo_evaluator_launcher.common.helpers import get_eval_factory_command
+
+    cfg = _cfg(
+        {
+            "deployment": {"type": "none"},
+            "target": {"api_endpoint": {"url": "http://example/v1", "model_id": "m"}},
+            "evaluation": {},
+        }
+    )
+    user_task_config = _cfg({"name": "lm-evaluation-harness.mmlu"})
+    task_definition = {
+        "endpoint_type": "chat",
+        "task": "mmlu",
+        "harness": "lm-evaluation-harness",
+        "is_unlisted": False,
+    }
+
+    cmd_and_dbg = get_eval_factory_command(cfg, user_task_config, task_definition)
+
+    # The config type should be just the task name for listed tasks
+    assert "type: mmlu" in cmd_and_dbg.debug
+    # Should not contain the full harness.task format
+    assert "type: lm-evaluation-harness.mmlu" not in cmd_and_dbg.debug
+
+
+class TestCheckUnlistedTasksSafeguard:
+    """Tests for check_unlisted_tasks_safeguard function."""
+
+    def test_empty_list_does_nothing(self, capsys):
+        from nemo_evaluator_launcher.common.helpers import check_unlisted_tasks_safeguard
+
+        # Should not raise, should not print
+        check_unlisted_tasks_safeguard([], dry_run=True)
+        check_unlisted_tasks_safeguard([], dry_run=False)
+
+        captured = capsys.readouterr()
+        assert captured.out == ""
+
+    def test_dry_run_prints_warning(self, capsys):
+        from nemo_evaluator_launcher.common.helpers import check_unlisted_tasks_safeguard
+
+        unlisted = ["harness.task1", "harness.task2"]
+        check_unlisted_tasks_safeguard(unlisted, dry_run=True)
+
+        captured = capsys.readouterr()
+        assert "2 unlisted task(s)" in captured.out
+        assert "harness.task1" in captured.out
+        assert "NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1" in captured.out
+
+    def test_non_dry_run_without_flag_raises(self, monkeypatch):
+        from nemo_evaluator_launcher.common.helpers import check_unlisted_tasks_safeguard
+
+        # Ensure env var is not set
+        monkeypatch.delenv("NEMO_EVALUATOR_TRUST_UNLISTED_TASKS", raising=False)
+
+        unlisted = ["harness.task1"]
+        with pytest.raises(AttributeError, match="Unlisted tasks found"):
+            check_unlisted_tasks_safeguard(unlisted, dry_run=False)
+
+    def test_non_dry_run_with_flag_proceeds(self, monkeypatch, caplog):
+        from nemo_evaluator_launcher.common.helpers import check_unlisted_tasks_safeguard
+
+        monkeypatch.setenv("NEMO_EVALUATOR_TRUST_UNLISTED_TASKS", "1")
+
+        unlisted = ["harness.task1"]
+        # Should not raise
+        check_unlisted_tasks_safeguard(unlisted, dry_run=False)
+
+        # Should log warning
+        assert "NEMO_EVALUATOR_TRUST_UNLISTED_TASKS is set" in caplog.text
