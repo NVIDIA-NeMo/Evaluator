@@ -416,12 +416,19 @@ def ssh_download_artifacts(
                 if scp_file(remote_file, local_file):
                     exported_files.append(str(local_file))
         else:
-            # Copy known files individually to avoid subfolders and satisfy tests
-            for artifact in get_available_artifacts(paths.get("artifacts_dir", Path())):
-                remote_file = f"{paths['remote_path']}/artifacts/{artifact}"
-                local_file = art_dir / artifact
-                if scp_file(remote_file, local_file):
-                    exported_files.append(str(local_file))
+            # Copy all artifacts recursively when only_required=False
+            cmd = (
+                ["scp", "-r"]
+                + ssh_opts
+                + [
+                    f"{paths['username']}@{paths['hostname']}:{paths['remote_path']}/artifacts/.",
+                    str(art_dir),
+                ]
+            )
+            if subprocess.run(cmd, capture_output=True).returncode == 0:
+                exported_files.extend(
+                    [str(f) for f in art_dir.rglob("*") if f.is_file()]
+                )
 
     # Logs (top-level only)
     if copy_logs:
@@ -584,6 +591,60 @@ def _safe_update_metrics(
     """Update target from source safely, raising on collisions with detailed values."""
     for k, v in source.items():
         _safe_set_metric(target, k, v, context)
+
+
+# =============================================================================
+# CONFIG FLATTENING
+# =============================================================================
+
+
+def flatten_config(
+    config: Any,
+    parent_key: str = "",
+    sep: str = ".",
+    max_depth: int = 10,
+) -> Dict[str, str]:
+    """
+    Flatten a nested config dict into dot-notation keys.
+
+    Args:
+        config: Nested configuration (dict, list, or scalar)
+        parent_key: Prefix for keys (used in recursion)
+        sep: Separator between nested keys
+        max_depth: Maximum recursion depth to prevent infinite loops
+
+    Returns:
+        Flattened dictionary with string values
+
+    Examples:
+        >>> flatten_config({"a": {"b": 1}})
+        {"a.b": "1"}
+        >>> flatten_config({"tasks": [{"name": "foo"}, {"name": "bar"}]})
+        {"tasks.0.name": "foo", "tasks.1.name": "bar"}
+    """
+    if max_depth <= 0:
+        return {parent_key: str(config)} if parent_key else {}
+
+    if isinstance(config, dict):
+        items: Dict[str, str] = {}
+        for key, value in config.items():
+            new_key = f"{parent_key}{sep}{key}" if parent_key else key
+            items.update(flatten_config(value, new_key, sep, max_depth - 1))
+        return items
+
+    if isinstance(config, list):
+        items: Dict[str, str] = {}
+        for idx, item in enumerate(config):
+            item_key = f"{parent_key}{sep}{idx}" if parent_key else str(idx)
+            items.update(flatten_config(item, item_key, sep, max_depth - 1))
+        return items
+
+    # Scalar value
+    if not parent_key:
+        return {}
+    if config is None:
+        return {parent_key: "null"}
+    return {parent_key: str(config)}
 
 
 # =============================================================================
