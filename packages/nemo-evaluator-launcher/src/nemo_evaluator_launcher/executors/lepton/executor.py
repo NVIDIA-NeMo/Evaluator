@@ -31,7 +31,10 @@ from nemo_evaluator_launcher.common.execdb import (
     generate_invocation_id,
     generate_job_id,
 )
-from nemo_evaluator_launcher.common.helpers import get_eval_factory_command
+from nemo_evaluator_launcher.common.helpers import (
+    check_unlisted_tasks_safeguard,
+    get_eval_factory_command,
+)
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.common.mapping import (
     get_task_definition_for_job,
@@ -96,11 +99,20 @@ class LeptonExecutor(BaseExecutor):
         # populated.
         # Refactor the whole thing.
         is_potentially_unsafe = False
+        unlisted_task_names: list[str] = []
         for idx, task in enumerate(cfg.evaluation.tasks):
             pre_cmd: str = task.get("pre_cmd") or cfg.evaluation.get("pre_cmd") or ""
             if pre_cmd:
                 is_potentially_unsafe = True
-                break
+
+            # Track unlisted tasks for safeguard check
+            task_definition = get_task_definition_for_job(
+                task_query=task.name,
+                base_mapping=tasks_mapping,
+                container=task.get("container"),
+            )
+            if task_definition.get("is_unlisted", False):
+                unlisted_task_names.append(task.name)
 
         # Check for deployment pre_cmd
         deployment_pre_cmd: str = cfg.deployment.get("pre_cmd") or ""
@@ -129,7 +141,13 @@ class LeptonExecutor(BaseExecutor):
                     )
                 )
 
+            # Check unlisted tasks safeguard (prints warning in dry-run)
+            check_unlisted_tasks_safeguard(unlisted_task_names, dry_run=True)
+
             return invocation_id
+
+        # Check unlisted tasks safeguard (raises error if flag not set)
+        check_unlisted_tasks_safeguard(unlisted_task_names, dry_run=False)
 
         if is_potentially_unsafe:
             if os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":
