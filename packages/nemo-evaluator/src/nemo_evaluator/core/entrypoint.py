@@ -144,6 +144,7 @@ def show_available_tasks() -> None:
             include_internal=include_internal,
         )
         for ind_pkg in framework_eval_mapping.keys():
+            # Empty task mapping means harness has no public tasks.
             if not framework_eval_mapping[ind_pkg]:
                 continue
             print(f"{ind_pkg}: ")
