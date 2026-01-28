@@ -27,8 +27,24 @@ import requests
 
 from nemo_evaluator_launcher.common.logging_utils import logger
 
-# Docker credentials file location for falling back if public and PAT auth failed
-_DOCKER_CONFIG_PATH = pathlib.Path.home() / ".docker" / "config.json"
+def _get_docker_config_path() -> pathlib.Path:
+    """Return the effective Docker `config.json` path.
+
+    Respects `DOCKER_CONFIG` if set; otherwise defaults to `~/.docker/config.json`.
+    """
+    docker_config_dir = os.getenv("DOCKER_CONFIG")
+    if docker_config_dir:
+        return pathlib.Path(docker_config_dir) / "config.json"
+    return pathlib.Path.home() / ".docker" / "config.json"
+
+
+def _first_env_set(*names: str) -> tuple[Optional[str], Optional[str]]:
+    """Return (value, name) for the first set env var in names."""
+    for n in names:
+        v = os.getenv(n)
+        if v:
+            return v, n
+    return None, None
 
 # Docker Registry API v2 manifest Accept header.
 # IMPORTANT: include *manifest list* / *OCI index* types so multi-arch tags return
@@ -93,8 +109,8 @@ def _find_auth_in_config(
     for key in auths.keys():
         key_host = key.split("://")[-1].split(":")[0].split("/")[0]
         if key_host == registry_host:
-            logger.info(
-                "Found credentials using hostname match",
+            logger.debug(
+                "Matched docker auth entry by hostname",
                 registry_url=registry_url,
                 matched_key=key,
             )
@@ -151,14 +167,15 @@ def _read_docker_credentials(registry_url: str) -> Optional[Tuple[str, str]]:
     Returns:
         Tuple of (username, password) if found, None otherwise
     """
-    if not _DOCKER_CONFIG_PATH.exists():
+    docker_config_path = _get_docker_config_path()
+    if not docker_config_path.exists():
         logger.debug(
-            "Docker config file not found", config_path=str(_DOCKER_CONFIG_PATH)
+            "Docker config file not found", config_path=str(docker_config_path)
         )
         return None
 
     try:
-        with open(_DOCKER_CONFIG_PATH, "r", encoding="utf-8") as f:
+        with open(docker_config_path, "r", encoding="utf-8") as f:
             config = json.load(f)
 
         auths = config.get("auths", {})
@@ -185,6 +202,18 @@ def _read_docker_credentials(registry_url: str) -> Optional[Tuple[str, str]]:
 
         auth_string = registry_auth.get("auth")
         if not auth_string:
+            # Important: many docker setups use `credsStore`/`credHelpers` and keep
+            # `auths` entries empty (no inline `auth` field). This code currently
+            # does not invoke docker credential helpers.
+            if config.get("credsStore") or config.get("credHelpers"):
+                logger.debug(
+                    "Docker config uses credential helpers; inline auth missing",
+                    registry_url=registry_url,
+                    matched_key=matched_key or registry_url,
+                    creds_store=config.get("credsStore"),
+                    has_cred_helpers=bool(config.get("credHelpers")),
+                    config_path=str(docker_config_path),
+                )
             logger.debug(
                 "No auth field in Docker config for registry", registry_url=registry_url
             )
@@ -193,8 +222,8 @@ def _read_docker_credentials(registry_url: str) -> Optional[Tuple[str, str]]:
         result = _decode_auth_string(auth_string, registry_url)
         if result:
             username, password = result
-            logger.info(
-                "Found credentials in Docker config",
+            logger.debug(
+                "Found credentials in Docker config (inline auth)",
                 registry_url=registry_url,
                 username=username,
                 matched_key=matched_key or registry_url,
@@ -204,14 +233,14 @@ def _read_docker_credentials(registry_url: str) -> Optional[Tuple[str, str]]:
     except json.JSONDecodeError as e:
         logger.warning(
             "Failed to parse Docker config file",
-            config_path=str(_DOCKER_CONFIG_PATH),
+            config_path=str(docker_config_path),
             error=str(e),
         )
         return None
     except Exception as e:
         logger.warning(
             "Error reading Docker config file",
-            config_path=str(_DOCKER_CONFIG_PATH),
+            config_path=str(docker_config_path),
             error=str(e),
         )
         return None
@@ -727,24 +756,64 @@ def _resolve_gitlab_credentials(
     Returns:
         Tuple of (username, password)
     """
-    username = os.getenv("DOCKER_USERNAME")
-    password = os.getenv("GITLAB_TOKEN")
+    username, password, _meta = _resolve_gitlab_credentials_with_sources(registry_url)
+    return username, password
+
+
+def _resolve_gitlab_credentials_with_sources(
+    registry_url: str,
+) -> tuple[Optional[str], Optional[str], dict]:
+    """Resolve GitLab credentials and provide a structured source summary."""
+    username, username_env = _first_env_set(
+        "GITLAB_USERNAME", "CI_REGISTRY_USER", "DOCKER_USERNAME"
+    )
+    password, password_env = _first_env_set(
+        "GITLAB_TOKEN", "CI_REGISTRY_PASSWORD", "CI_JOB_TOKEN"
+    )
+
+    username_source = f"env:{username_env}" if username_env else None
+    password_source = f"env:{password_env}" if password_env else None
 
     # If password from env but no username, try Docker config for username
     if password and not username:
         docker_creds = _read_docker_credentials(registry_url)
         if docker_creds:
             username, _ = docker_creds
+            username_source = "docker_config:inline_auth"
         else:
-            username = "gitlab-ci-token"
+            # Default username depends on the token type.
+            # - CI_JOB_TOKEN expects username "gitlab-ci-token"
+            # - Personal access tokens commonly work with username "oauth2" (or the actual GitLab username)
+            if password_env == "CI_JOB_TOKEN":
+                username = "gitlab-ci-token"
+                username_source = "default:gitlab-ci-token"
+            else:
+                username = "oauth2"
+                username_source = "default:oauth2"
 
     # If no password from env, try Docker config
     if not password:
         docker_creds = _read_docker_credentials(registry_url)
         if docker_creds:
             username, password = docker_creds
+            username_source = "docker_config:inline_auth"
+            password_source = "docker_config:inline_auth"
 
-    return username, password
+    meta = {
+        "username_source": username_source,
+        "password_source": password_source,
+        "docker_config_path": str(_get_docker_config_path()),
+    }
+    logger.debug(
+        "Resolved GitLab credentials",
+        registry_url=registry_url,
+        username=username,
+        has_password=bool(password),
+        username_source=username_source,
+        password_source=password_source,
+        docker_config_path=meta["docker_config_path"],
+    )
+    return username, password, meta
 
 
 def _resolve_nvcr_credentials(registry_url: str) -> tuple[Optional[str], Optional[str]]:
@@ -793,13 +862,26 @@ def create_authenticator(
         Registry authenticator instance
     """
     if registry_type == "gitlab":
-        username, password = _resolve_gitlab_credentials(registry_url)
-        logger.debug(
-            "Creating GitLab authenticator",
-            registry_url=registry_url,
-            repository=repository,
-            has_credentials=bool(username and password),
+        username, password, meta = _resolve_gitlab_credentials_with_sources(
+            registry_url
         )
+        if username and password:
+            logger.info(
+                "Using GitLab registry credentials",
+                registry_url=registry_url,
+                username=username,
+                username_source=meta.get("username_source"),
+                password_source=meta.get("password_source"),
+            )
+        else:
+            logger.debug(
+                "Using anonymous GitLab registry access (no credentials resolved)",
+                registry_url=registry_url,
+                repository=repository,
+                username=username,
+                username_source=meta.get("username_source"),
+                password_source=meta.get("password_source"),
+            )
         return GitlabDockerRegistryHandler(
             registry_url=registry_url,
             username=username,
