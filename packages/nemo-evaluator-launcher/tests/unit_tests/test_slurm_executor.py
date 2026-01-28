@@ -436,6 +436,11 @@ class TestSlurmExecutorFeatures:
         assert "evaluation client" in script
         assert "--container-env EVAL_VAR" in script
 
+        # PRIMARY_NODE should be resolved even without deployment
+        assert "Resolve PRIMARY_NODE for single-node sruns" in script
+        assert 'export PRIMARY_NODE="${nodes_array[0]}"' in script
+        assert '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 ' in script
+
     def test_complex_configuration_integration(
         self, base_config, mock_task, mock_dependencies
     ):
