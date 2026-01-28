@@ -97,17 +97,17 @@ class TestFindAuthInConfig:
 class TestReadDockerCredentials:
     """Test reading Docker credentials from config file."""
 
-    @patch(
-        "nemo_evaluator_launcher.common.container_metadata.registries._DOCKER_CONFIG_PATH"
-    )
-    def test_read_docker_credentials_not_found(self, mock_path):
+    def test_read_docker_credentials_not_found(self, tmp_path, monkeypatch):
         """Test when Docker config file doesn't exist."""
-        mock_path.exists.return_value = False
+        # Point DOCKER_CONFIG at an empty temp dir (no config.json).
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path))
         result = _read_docker_credentials("test-registry")
         assert result is None
 
     def test_read_docker_credentials_found(self, tmp_path, monkeypatch):
         """Test reading credentials from Docker config."""
+        # Docker looks for ${DOCKER_CONFIG}/config.json when DOCKER_CONFIG is set.
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path))
         config_file = tmp_path / "config.json"
         username = "testuser"
         password = "testpass"
@@ -120,11 +120,6 @@ class TestReadDockerCredentials:
         }
         config_file.write_text(json.dumps(config_data))
 
-        # Patch _DOCKER_CONFIG_PATH to point to our test file
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.common.container_metadata.registries._DOCKER_CONFIG_PATH",
-            config_file,
-        )
         result = _read_docker_credentials("test-registry")
         assert result is not None
         assert result[0] == username

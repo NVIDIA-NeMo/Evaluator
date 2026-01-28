@@ -27,6 +27,7 @@ import requests
 
 from nemo_evaluator_launcher.common.logging_utils import logger
 
+
 def _get_docker_config_path() -> pathlib.Path:
     """Return the effective Docker `config.json` path.
 
@@ -45,6 +46,7 @@ def _first_env_set(*names: str) -> tuple[Optional[str], Optional[str]]:
         if v:
             return v, n
     return None, None
+
 
 # Docker Registry API v2 manifest Accept header.
 # IMPORTANT: include *manifest list* / *OCI index* types so multi-arch tags return

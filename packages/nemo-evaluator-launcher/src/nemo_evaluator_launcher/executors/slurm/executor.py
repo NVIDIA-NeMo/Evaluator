@@ -622,6 +622,25 @@ def _create_slurm_sbatch_script(
     s += "set -x  # print commands and their arguments as they are executed\n"
     s += "\n"
 
+    # Resolve a primary node for single-node sruns (client/proxy/export).
+    # This must be safe under `set -u` and work for deployment.type == "none".
+    # Prefer SLURM_JOB_NODELIST but fall back to SLURM_NODELIST; if neither exists,
+    # fall back to the local hostname.
+    s += "# Resolve PRIMARY_NODE for single-node sruns\n"
+    s += 'NODELIST="${SLURM_JOB_NODELIST:-${SLURM_NODELIST:-}}"\n'
+    s += 'if command -v scontrol >/dev/null 2>&1 && [[ -n "${NODELIST}" ]]; then\n'
+    s += '  nodes=( $(scontrol show hostnames "${NODELIST}") )\n'
+    s += "else\n"
+    s += '  nodes=( "$(hostname)" )\n'
+    s += "fi\n"
+    s += 'nodes_array=("${nodes[@]}")\n'
+    s += "if [[ ${#nodes_array[@]} -eq 0 ]]; then\n"
+    s += '  nodes_array=( "$(hostname)" )\n'
+    s += "fi\n"
+    s += 'export PRIMARY_NODE="${nodes_array[0]}"\n'
+    s += 'echo "PRIMARY_NODE: ${PRIMARY_NODE}"\n'
+    s += "\n"
+
     # prepare deployment mounts
     deployment_mounts_list = []
     deployment_is_unsafe = False
@@ -710,7 +729,7 @@ def _create_slurm_sbatch_script(
 
     s += "# evaluation client\n"
     s += "srun --mpi pmix --overlap "
-    s += "--nodelist ${nodes_array[0]} --nodes 1 --ntasks 1 "
+    s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
     s += "--container-image {} ".format(eval_image)
     evaluation_env_var_names = list(
         cfg.execution.get("env_vars", {}).get("evaluation", {})
@@ -835,7 +854,7 @@ def _generate_auto_export_section(
 
     s += "    # export\n"
     s += "    srun --mpi pmix --overlap "
-    s += "--nodelist ${nodes_array[0]} --nodes 1 --ntasks 1 "
+    s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
     s += "--container-image {} ".format(export_image)
     if export_env:
         s += "--container-env {} ".format(",".join(export_env))
@@ -1456,9 +1475,15 @@ def _generate_deployment_srun_command(
         debug_comment += create_pre_script_cmd.debug + "\n\n"
 
     s += "# Get node IPs\n"
-    s += "nodes=( $(scontrol show hostnames $SLURM_JOB_NODELIST) )\n"
+    s += 'NODELIST="${SLURM_JOB_NODELIST:-${SLURM_NODELIST:-}}"\n'
+    s += 'if command -v scontrol >/dev/null 2>&1 && [[ -n "${NODELIST}" ]]; then\n'
+    s += '  nodes=( $(scontrol show hostnames "${NODELIST}") )\n'
+    s += "else\n"
+    s += '  nodes=( "$(hostname)" )\n'
+    s += "fi\n"
     s += 'nodes_array=("${nodes[@]}")  # Ensure nodes are stored properly\n'
-    s += 'export NODES_IPS_ARRAY=($(for node in "${nodes_array[@]}"; do srun --nodelist=$node --ntasks=1 --nodes=1 hostname --ip-address; done))\n'
+    s += 'if [[ ${#nodes_array[@]} -eq 0 ]]; then nodes_array=( "$(hostname)" ); fi\n'
+    s += 'export NODES_IPS_ARRAY=($(for node in "${nodes_array[@]}"; do srun --nodelist="$node" --ntasks=1 --nodes=1 hostname --ip-address; done))\n'
     s += 'echo "Node IPs: ${NODES_IPS_ARRAY[@]}"\n'
     s += "# Export MASTER_IP as the first node IP\n"
     s += "export MASTER_IP=${NODES_IPS_ARRAY[0]}\n"
@@ -1577,7 +1602,7 @@ def _generate_haproxy_srun_command(cfg, remote_task_subdir):
     s += "done\n"
     s += "\n"
     s += "srun --mpi pmix --overlap "
-    s += "--nodelist ${nodes_array[0]} --nodes 1 --ntasks 1 "
+    s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
     s += f"--container-image {cfg.execution.get('proxy', {}).get('image', 'haproxy:latest')} "
     s += f"--container-mounts {remote_task_subdir}/proxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro "
     s += f"--output {remote_task_subdir}/logs/proxy-%A.log "
