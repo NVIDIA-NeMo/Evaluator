@@ -192,3 +192,43 @@ def test_run_framework_nonexistent(monkeypatch, tmp_path, task_name, matching_ms
     with pytest.raises(MisconfigurationError, match=matching_msg):
         run_eval()
     assert not results_path.exists()
+
+
+def test_run_framework_not_listed_eval(monkeypatch, tmp_path):
+    """Test that framework.task invocation works for tasks not explicitly listed in framework.yml."""
+    import sys
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "prog",
+            "run_eval",
+            "--eval_type",
+            "dummy-framework.not_listed_eval",
+            "--model_id",
+            "dummy-provider/dummy-endpoint",
+            "--model_url",
+            "https://nonexistent.com",
+            "--model_type",
+            "chat",
+            "--output_dir",
+            str(tmp_path),
+        ],
+    )
+    run_eval()
+    results_path = tmp_path / "results.yml"
+    assert results_path.exists()
+    with open(results_path, "r") as f:
+        results = yaml.safe_load(f)
+
+    # Verify score is 123 (the default score from framework defaults)
+    assert (
+        results["results"]["tasks"]["dummy_task"]["metrics"]["dummy_metric"]["scores"][
+            "dummy_score"
+        ]["value"]
+        == 123
+    )
+
+    # Verify config.type maintains the "framework.task" structure
+    assert results["config"]["type"] == "dummy-framework.not_listed_eval"
