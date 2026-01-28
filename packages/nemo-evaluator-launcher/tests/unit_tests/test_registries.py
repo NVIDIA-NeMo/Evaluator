@@ -18,6 +18,7 @@
 import base64
 import json
 from unittest.mock import Mock, patch
+from types import SimpleNamespace
 
 import pytest
 
@@ -124,6 +125,60 @@ class TestReadDockerCredentials:
         assert result is not None
         assert result[0] == username
         assert result[1] == password
+
+    @patch(
+        "nemo_evaluator_launcher.common.container_metadata.registries.subprocess.run"
+    )
+    def test_read_docker_credentials_creds_store(self, mock_run, tmp_path, monkeypatch):
+        """Test reading credentials via credsStore helper when auths entry is empty."""
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path))
+        config_file = tmp_path / "config.json"
+        config_data = {
+            "auths": {
+                "gitlab-master.nvidia.com": {},
+                "gitlab-master.nvidia.com:5005": {},
+            },
+            "credsStore": "osxkeychain",
+        }
+        config_file.write_text(json.dumps(config_data))
+
+        mock_run.return_value = SimpleNamespace(
+            returncode=0,
+            stdout='{"Username":"u","Secret":"s"}',
+            stderr="",
+        )
+
+        result = _read_docker_credentials("gitlab-master.nvidia.com:5005")
+        assert result == ("u", "s")
+
+        assert mock_run.call_count == 1
+        args, kwargs = mock_run.call_args
+        assert args[0] == ["docker-credential-osxkeychain", "get"]
+        assert kwargs["text"] is True
+        assert kwargs["capture_output"] is True
+        assert kwargs["check"] is False
+        # First tried server should be the exact matched key.
+        assert kwargs["input"] == "gitlab-master.nvidia.com:5005\n"
+
+    @patch(
+        "nemo_evaluator_launcher.common.container_metadata.registries.subprocess.run"
+    )
+    def test_read_docker_credentials_creds_store_helper_missing(
+        self, mock_run, tmp_path, monkeypatch
+    ):
+        """Test credsStore helper missing returns None."""
+        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path))
+        config_file = tmp_path / "config.json"
+        config_data = {
+            "auths": {"gitlab-master.nvidia.com:5005": {}},
+            "credsStore": "osxkeychain",
+        }
+        config_file.write_text(json.dumps(config_data))
+
+        mock_run.side_effect = FileNotFoundError()
+
+        result = _read_docker_credentials("gitlab-master.nvidia.com:5005")
+        assert result is None
 
 
 class TestResolveCredentials:
@@ -297,11 +352,11 @@ class TestCreateAuthenticator:
     """Test authenticator factory function."""
 
     @patch(
-        "nemo_evaluator_launcher.common.container_metadata.registries._resolve_gitlab_credentials"
+        "nemo_evaluator_launcher.common.container_metadata.registries._resolve_gitlab_credentials_with_sources"
     )
     def test_create_authenticator_gitlab(self, mock_resolve):
         """Test creating GitLab authenticator."""
-        mock_resolve.return_value = ("user", "pass")
+        mock_resolve.return_value = ("user", "pass", {"username_source": "env:GITLAB_TOKEN"})
         auth = create_authenticator("gitlab", "gitlab.example.com:5005", "test/repo")
         assert isinstance(auth, GitlabDockerRegistryHandler)
 
