@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import pathlib
+import subprocess
 from abc import ABC, abstractmethod
 from typing import Dict, Optional, Tuple
 
@@ -151,6 +152,182 @@ def _decode_auth_string(
         return None
 
 
+def _read_docker_credentials_from_creds_store(
+    creds_store: str, server: str
+) -> Optional[Tuple[str, str]]:
+    """Read credentials from Docker credential helper.
+
+    Minimal implementation for `credsStore`-based setups (e.g. macOS osxkeychain).
+
+    Docker credential helper protocol:
+    - binary: docker-credential-<store>
+    - command: `get`
+    - stdin: server URL (as a single line)
+    - stdout: JSON with keys `Username` and `Secret`
+    """
+    helper = f"docker-credential-{creds_store}"
+    try:
+        # Ensure newline, matching docker helper expectations.
+        proc = subprocess.run(
+            [helper, "get"],
+            input=f"{server}\n",
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        logger.debug(
+            "Docker credential helper not found",
+            helper=helper,
+            creds_store=creds_store,
+        )
+        return None
+    except Exception as e:
+        logger.debug(
+            "Failed invoking docker credential helper",
+            helper=helper,
+            creds_store=creds_store,
+            error_type=type(e).__name__,
+            error=str(e),
+        )
+        return None
+
+    if proc.returncode != 0:
+        logger.debug(
+            "Docker credential helper returned non-zero",
+            helper=helper,
+            creds_store=creds_store,
+            returncode=proc.returncode,
+            stderr_preview=(proc.stderr or "")[:200],
+        )
+        return None
+
+    try:
+        data = json.loads(proc.stdout or "{}")
+    except Exception as e:
+        logger.debug(
+            "Failed to parse docker credential helper output",
+            helper=helper,
+            creds_store=creds_store,
+            error_type=type(e).__name__,
+            error=str(e),
+            stdout_preview=(proc.stdout or "")[:200],
+        )
+        return None
+
+    username = data.get("Username")
+    secret = data.get("Secret")
+    if not (isinstance(username, str) and username) or not (
+        isinstance(secret, str) and secret
+    ):
+        logger.debug(
+            "Docker credential helper returned incomplete credentials",
+            helper=helper,
+            creds_store=creds_store,
+            has_username=bool(username),
+            has_secret=bool(secret),
+        )
+        return None
+
+    return username, secret
+
+
+def _read_docker_credentials_detailed(
+    registry_url: str,
+) -> tuple[Optional[Tuple[str, str]], Optional[str]]:
+    """Read Docker credentials and return (creds, source_label).
+
+    The `source_label` is one of:
+    - `docker_config:inline_auth`
+    - `docker_config:credsStore:<store>`
+    - None (not found / unknown)
+    """
+    docker_config_path = _get_docker_config_path()
+    if not docker_config_path.exists():
+        logger.debug(
+            "Docker config file not found", config_path=str(docker_config_path)
+        )
+        return None, None
+
+    try:
+        with open(docker_config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+
+        auths = config.get("auths", {})
+        if not auths:
+            logger.debug("No auths section in Docker config file")
+            return None, None
+
+        registry_auth, matched_key = _find_auth_in_config(auths, registry_url)
+        if not registry_auth:
+            return None, None
+
+        auth_string = registry_auth.get("auth")
+        if auth_string:
+            result = _decode_auth_string(auth_string, registry_url)
+            if result:
+                username, _password = result
+                logger.debug(
+                    "Found credentials in Docker config (inline auth)",
+                    registry_url=registry_url,
+                    username=username,
+                    matched_key=matched_key or registry_url,
+                )
+                return result, "docker_config:inline_auth"
+            return None, None
+
+        # Minimal credsStore support (ignore per-registry credHelpers for now).
+        creds_store = config.get("credsStore")
+        if isinstance(creds_store, str) and creds_store:
+            candidates: list[str] = []
+            if matched_key:
+                candidates.append(matched_key)
+            if registry_url not in candidates:
+                candidates.append(registry_url)
+            expanded: list[str] = []
+            for s in candidates:
+                expanded.append(s)
+                if s.startswith("https://"):
+                    expanded.append(s.removeprefix("https://"))
+                else:
+                    expanded.append(f"https://{s}")
+            seen: set[str] = set()
+            servers = [s for s in expanded if not (s in seen or seen.add(s))]
+
+            for server in servers:
+                helper_creds = _read_docker_credentials_from_creds_store(
+                    creds_store=creds_store, server=server
+                )
+                if helper_creds:
+                    u, _s = helper_creds
+                    logger.debug(
+                        "Found credentials via docker credsStore helper",
+                        registry_url=registry_url,
+                        username=u,
+                        creds_store=creds_store,
+                        server=server,
+                        matched_key=matched_key or registry_url,
+                    )
+                    return helper_creds, f"docker_config:credsStore:{creds_store}"
+
+        return None, None
+
+    except json.JSONDecodeError as e:
+        logger.warning(
+            "Failed to parse Docker config file",
+            config_path=str(docker_config_path),
+            error=str(e),
+        )
+        return None, None
+    except Exception as e:
+        logger.warning(
+            "Error reading Docker config file",
+            config_path=str(docker_config_path),
+            error=str(e),
+        )
+        return None, None
+
+
 def _read_docker_credentials(registry_url: str) -> Optional[Tuple[str, str]]:
     """Read Docker credentials from Docker config file.
 
@@ -169,83 +346,8 @@ def _read_docker_credentials(registry_url: str) -> Optional[Tuple[str, str]]:
     Returns:
         Tuple of (username, password) if found, None otherwise
     """
-    docker_config_path = _get_docker_config_path()
-    if not docker_config_path.exists():
-        logger.debug(
-            "Docker config file not found", config_path=str(docker_config_path)
-        )
-        return None
-
-    try:
-        with open(docker_config_path, "r", encoding="utf-8") as f:
-            config = json.load(f)
-
-        auths = config.get("auths", {})
-        if not auths:
-            logger.debug("No auths section in Docker config file")
-            return None
-
-        logger.debug(
-            "Looking up Docker credentials",
-            registry_url=registry_url,
-            available_keys=list(auths.keys()),
-        )
-
-        registry_auth, matched_key = _find_auth_in_config(auths, registry_url)
-        if not registry_auth:
-            registry_host = registry_url.split(":")[0]
-            logger.debug(
-                "No credentials found for registry in Docker config",
-                registry_url=registry_url,
-                registry_host=registry_host,
-                available_registries=list(auths.keys()),
-            )
-            return None
-
-        auth_string = registry_auth.get("auth")
-        if not auth_string:
-            # Important: many docker setups use `credsStore`/`credHelpers` and keep
-            # `auths` entries empty (no inline `auth` field). This code currently
-            # does not invoke docker credential helpers.
-            if config.get("credsStore") or config.get("credHelpers"):
-                logger.debug(
-                    "Docker config uses credential helpers; inline auth missing",
-                    registry_url=registry_url,
-                    matched_key=matched_key or registry_url,
-                    creds_store=config.get("credsStore"),
-                    has_cred_helpers=bool(config.get("credHelpers")),
-                    config_path=str(docker_config_path),
-                )
-            logger.debug(
-                "No auth field in Docker config for registry", registry_url=registry_url
-            )
-            return None
-
-        result = _decode_auth_string(auth_string, registry_url)
-        if result:
-            username, password = result
-            logger.debug(
-                "Found credentials in Docker config (inline auth)",
-                registry_url=registry_url,
-                username=username,
-                matched_key=matched_key or registry_url,
-            )
-        return result
-
-    except json.JSONDecodeError as e:
-        logger.warning(
-            "Failed to parse Docker config file",
-            config_path=str(docker_config_path),
-            error=str(e),
-        )
-        return None
-    except Exception as e:
-        logger.warning(
-            "Error reading Docker config file",
-            config_path=str(docker_config_path),
-            error=str(e),
-        )
-        return None
+    creds, _source = _read_docker_credentials_detailed(registry_url)
+    return creds
 
 
 def _retry_without_auth(
@@ -778,10 +880,10 @@ def _resolve_gitlab_credentials_with_sources(
 
     # If password from env but no username, try Docker config for username
     if password and not username:
-        docker_creds = _read_docker_credentials(registry_url)
+        docker_creds, docker_source = _read_docker_credentials_detailed(registry_url)
         if docker_creds:
             username, _ = docker_creds
-            username_source = "docker_config:inline_auth"
+            username_source = docker_source
         else:
             # Default username depends on the token type.
             # - CI_JOB_TOKEN expects username "gitlab-ci-token"
@@ -795,11 +897,11 @@ def _resolve_gitlab_credentials_with_sources(
 
     # If no password from env, try Docker config
     if not password:
-        docker_creds = _read_docker_credentials(registry_url)
+        docker_creds, docker_source = _read_docker_credentials_detailed(registry_url)
         if docker_creds:
             username, password = docker_creds
-            username_source = "docker_config:inline_auth"
-            password_source = "docker_config:inline_auth"
+            username_source = docker_source
+            password_source = docker_source
 
     meta = {
         "username_source": username_source,
