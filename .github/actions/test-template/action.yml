@@ -65,6 +65,12 @@ inputs:
     description: "Azure subscription ID"
     required: false
     default: "false"
+  test-data-path:
+    description: "Path to the test data"
+    required: true
+  runner:
+    description: "Runner to use for the test"
+    required: true
 
 runs:
   using: "composite"
@@ -120,7 +126,7 @@ runs:
         subscription-id: ${{ inputs.azure-subscription-id }}
 
     - name: Azure Fileshare
-      if: ${{ inputs.has-azure-credentials == 'true' && inputs.type_of_test != 'unit-tests' }}
+      if: ${{ inputs.has-azure-credentials == 'true' && inputs.type_of_test != 'unit-tests' && !contains(inputs.runner, 'aws') }}
       shell: bash
       id: azure-fileshare
       run: |
@@ -172,14 +178,23 @@ runs:
         ls -al $MNT_PATH/TestData
         echo "::endgroup::"
 
+    - name: Install uuidgen
+      shell: bash -x -e -u -o pipefail {0}
+      if: ${{ contains(inputs.runner, 'aws') }}
+      run: |
+        apt-get update
+        apt-get install -y uuid-runtime
+
     - name: Start container
       shell: bash
       env:
+        AWS_RUNNER: ${{ contains(inputs.runner, 'aws') }}
         MOUNT_FS: ${{ inputs.type_of_test == 'integration_tests' || inputs.type_of_test == 'functional_tests' }}
       run: |
         echo "::group::Start test container"
-        if [[ "$MOUNT_FS" == "true" ]]; then
-          ls -al /mnt/datadrive/TestData
+        if [[ "$MOUNT_FS" == "true" && "$AWS_RUNNER" == "true" ]]; then
+          VOLUME_ARGS="--volume ${{ inputs.test-data-path }}:/home/TestData"
+        elif [[ "$MOUNT_FS" == "true" && "$AWS_RUNNER" == "false" ]]; then
           VOLUME_ARGS="--volume /mnt/datadrive/TestData:/home/TestData"
         else
           VOLUME_ARGS=""
