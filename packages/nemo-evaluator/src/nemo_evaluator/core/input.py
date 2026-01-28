@@ -368,7 +368,6 @@ def get_evaluation(
             ]
         except KeyError:
             default_evaluation = Evaluation(**raw_framework_defaults)
-            evaluation_config.type = evaluation_name
             default_evaluation.config.params.task = evaluation_name
     else:
         if isinstance(all_eval_name_mapping[evaluation_name], list):
