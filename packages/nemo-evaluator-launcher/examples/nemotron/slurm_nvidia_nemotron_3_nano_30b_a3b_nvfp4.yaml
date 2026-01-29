@@ -32,7 +32,7 @@ deployment:
   checkpoint_path: null
   hf_model_handle: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4
   served_model_name: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4
-  tensor_parallel_size: 8
+  tensor_parallel_size: 2
   data_parallel_size: 1
   extra_args: "--max-model-len 262144 --gpu-memory-utilization 0.90 --enable-log-requests --no-enable-prefix-caching --trust-remote-code --mamba_ssm_cache_dtype float32 --enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser deepseek_r1"
 
@@ -74,29 +74,6 @@ evaluation:
         params:
           extra:
             num_repeats: 8
-  - name: ns_bfcl_v3
-    nemo_evaluator_config:
-      config:
-        params:
-          temperature: 0.6
-          top_p: 0.95
-          extra:
-            num_repeats: 1
-            args: ++use_client_parsing=False
-      target:
-        api_endpoint:
-          adapter_config:
-            use_caching: false
-  - name: ns_bfcl_v4
-    nemo_evaluator_config:
-      config:
-        params:
-          max_new_tokens: 8192
-          temperature: 0.6
-          top_p: 0.95
-          extra:
-            num_repeats: 1
-            args: ++use_client_parsing=False
   - name: ns_livecodebench
     nemo_evaluator_config:
       config:
