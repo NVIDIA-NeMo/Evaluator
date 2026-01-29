@@ -39,13 +39,12 @@ deployment:
 
 target:
   api_endpoint:
-    api_key_name: API_KEY
+    api_key_name: API_KEY # FIXME: needed for NeMo Skills container as it requires some api key to be set
 
 evaluation:
   env_vars:
     HF_TOKEN: HF_TOKEN
     JUDGE_API_KEY: JUDGE_API_KEY # API Key with access to gpt-4o for HLE
-    HF_HOME: HF_HOME
   nemo_evaluator_config:
     config:
       params:
