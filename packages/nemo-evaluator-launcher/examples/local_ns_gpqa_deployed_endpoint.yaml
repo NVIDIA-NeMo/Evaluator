@@ -72,4 +72,5 @@ evaluation:
         params:
           extra:
             num_repeats: 8 # 1 for quick testing, set to 8 for full reproduction
+            args: "++prompt_config=eval/aai/mcq-4choices"
 
