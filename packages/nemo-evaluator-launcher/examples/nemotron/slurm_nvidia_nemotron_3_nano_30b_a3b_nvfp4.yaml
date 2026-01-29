@@ -19,12 +19,13 @@ defaults:
   - _self_
 
 execution:
-  output_dir: ./results_nvidia_nemotron_3_nano_30b_a3b_nvfp4
   mounts:
     evaluation:
       ./hf_cache: /root/.cache/huggingface
-  env_vars:
-    evaluation: {}
+  hostname: ??? # SLURM headnode (login) hostname (required)
+  username: ${oc.env:USER} # Cluster username; defaults to $USER.
+  account: ??? # SLURM account allocation (required)
+  output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
 
 deployment:
   image: vllm/vllm-openai:v0.13.0
