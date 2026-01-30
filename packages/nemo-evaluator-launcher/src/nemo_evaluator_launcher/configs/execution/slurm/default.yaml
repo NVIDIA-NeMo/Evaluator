@@ -24,6 +24,7 @@ num_nodes: 1
 ntasks_per_node: 1
 gres: gpu:8
 walltime: 01:00:00
+max_walltime: "120:00:00" # Maximum total runtime across all resumes. Set to null for unlimited.
 subproject: nemo-evaluator-launcher
 sbatch_comment: null  # Optional comment for SLURM job (translates to #SBATCH --comment='...')
 
