@@ -245,18 +245,30 @@ def _minimal_task_definition(task_query: str, *, container: str) -> dict[str, An
 
     Returns:
         A minimal task definition dict with:
+        - 'task': Task name
+        - 'harness': Harness name
+        - 'endpoint_type': 'chat' (default)
+        - 'container': Container image
         - 'is_unlisted': True (task not in FDF)
-        - 'task_query': Original query for use in EF command
     """
-    if task_query.count(".") == 1:
+    num_dots = task_query.count(".")
+    if num_dots == 1:
         harness, task = task_query.split(".")
-    else:
+    elif num_dots == 0:
         harness, task = "", task_query
+    else:
+        raise ValueError(
+            f"invalid query={repr(task_query)} for task mapping,"
+            " it must contain exactly zero or one occurrence of '.' character."
+            " Use 'task_name' or 'harness_name.task_name' format."
+        )
 
     # Default to chat; most configs and endpoints use chat unless explicitly known.
     return {
         "task": task,
         "harness": harness,
+        # FIXME(martas): we should use user-provided value from
+        # `supported_endpoint_types` instead of defaulting to 'chat'
         "endpoint_type": "chat",
         "container": container,
         "is_unlisted": True,
