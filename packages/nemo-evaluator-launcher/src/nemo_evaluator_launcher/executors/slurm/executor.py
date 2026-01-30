@@ -621,7 +621,7 @@ def _create_slurm_sbatch_script(
         s += "\n"
 
     # auto resume after timeout (with optional max_walltime enforcement)
-    max_walltime = cfg.execution.get("max_walltime", None)
+    max_walltime = cfg.execution.get("max_walltime", "120:00:00")
     s += _generate_autoresume_handler(remote_task_subdir, max_walltime)
     s += "\n\n"
 
