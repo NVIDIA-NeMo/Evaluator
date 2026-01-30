@@ -17,8 +17,8 @@
 
 import base64
 import json
-from unittest.mock import Mock, patch
 from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -356,7 +356,11 @@ class TestCreateAuthenticator:
     )
     def test_create_authenticator_gitlab(self, mock_resolve):
         """Test creating GitLab authenticator."""
-        mock_resolve.return_value = ("user", "pass", {"username_source": "env:GITLAB_TOKEN"})
+        mock_resolve.return_value = (
+            "user",
+            "pass",
+            {"username_source": "env:GITLAB_TOKEN"},
+        )
         auth = create_authenticator("gitlab", "gitlab.example.com:5005", "test/repo")
         assert isinstance(auth, GitlabDockerRegistryHandler)
 
