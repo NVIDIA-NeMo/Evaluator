@@ -20,5 +20,6 @@ import pytest
 @pytest.fixture(autouse=True)
 def mock_datasets_file_lock():
     """Prevent the HF datasets library from writing a lock file in the read-only test data directory."""
+    print("Mocking datasets.builder.FileLock")
     with patch("datasets.builder.FileLock", return_value=MagicMock()):
         yield
