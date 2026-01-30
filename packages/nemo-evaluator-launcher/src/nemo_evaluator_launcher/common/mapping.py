@@ -260,7 +260,6 @@ def _minimal_task_definition(task_query: str, *, container: str) -> dict[str, An
         "endpoint_type": "chat",
         "container": container,
         "is_unlisted": True,
-        "task_query": task_query,  # Preserve original query for EF command
     }
 
 
