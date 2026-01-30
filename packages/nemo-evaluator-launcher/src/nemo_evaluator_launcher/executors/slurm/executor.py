@@ -42,6 +42,7 @@ from nemo_evaluator_launcher.common.execdb import (
 from nemo_evaluator_launcher.common.helpers import (
     CmdAndReadableComment,
     _str_to_echo_command,
+    check_unlisted_tasks_safeguard,
     get_api_key_name,
     get_eval_factory_command,
     get_eval_factory_dataset_size_from_run_config,
@@ -95,6 +96,7 @@ class SlurmExecutor(BaseExecutor):
             # Preload mapping for image resolution
             tasks_mapping = load_tasks_mapping()
             eval_images: list[str] = []
+            unlisted_task_names: list[str] = []
 
             is_potentially_unsafe = False
             for idx, task in enumerate(cfg.evaluation.tasks):
@@ -113,12 +115,17 @@ class SlurmExecutor(BaseExecutor):
                     task_query=task.name,
                     base_mapping=tasks_mapping,
                     container=task.get("container"),
+                    endpoint_type=task.get("endpoint_type"),
                 )
                 eval_image = task_definition["container"]
                 if "container" in task:
                     eval_image = task["container"]
 
                 eval_images.append(eval_image)
+
+                # Track unlisted tasks for safeguard check
+                if task_definition.get("is_unlisted", False):
+                    unlisted_task_names.append(task.name)
 
                 # generate and write down sbatch script
                 sbatch_script_content_struct = _create_slurm_sbatch_script(
@@ -179,7 +186,13 @@ class SlurmExecutor(BaseExecutor):
                         )
                     )
 
+                # Check unlisted tasks safeguard (prints warning in dry-run)
+                check_unlisted_tasks_safeguard(unlisted_task_names, dry_run=True)
+
                 return invocation_id
+
+            # Check unlisted tasks safeguard (raises error if flag not set)
+            check_unlisted_tasks_safeguard(unlisted_task_names, dry_run=False)
 
             if is_potentially_unsafe:
                 if os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":
@@ -531,6 +544,7 @@ def _create_slurm_sbatch_script(
         task_query=task.name,
         base_mapping=tasks_mapping,
         container=task.get("container"),
+        endpoint_type=task.get("endpoint_type"),
     )
 
     # TODO(public release): convert to template

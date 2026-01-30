@@ -236,19 +236,45 @@ def get_task_from_mapping(query: str, mapping: dict[Any, Any]) -> dict[Any, Any]
         )
 
 
-def _minimal_task_definition(task_query: str, *, container: str) -> dict[str, Any]:
-    """Create a minimal task definition when task is not known in any mapping."""
-    if task_query.count(".") == 1:
-        harness, task = task_query.split(".")
-    else:
-        harness, task = "", task_query
+def _minimal_task_definition(
+    task_query: str,
+    *,
+    container: str,
+    endpoint_type: str | None = None,
+) -> dict[str, Any]:
+    """Create a minimal task definition when task is not known in any mapping.
 
-    # Default to chat; most configs and endpoints use chat unless explicitly known.
+    Args:
+        task_query: The original query string (e.g., "lm-evaluation-harness.polemo2").
+        container: The container image to use.
+        endpoint_type: The endpoint type to use (defaults to 'chat' if not provided).
+
+    Returns:
+        A minimal task definition dict with:
+        - 'task': Task name
+        - 'harness': Harness name
+        - 'endpoint_type': user-provided endpoint type or default 'chat'
+        - 'container': Container image
+        - 'is_unlisted': True (task not in FDF)
+    """
+    num_dots = task_query.count(".")
+    if num_dots == 1:
+        harness, task = task_query.split(".")
+    elif num_dots == 0:
+        harness, task = "", task_query
+    else:
+        raise ValueError(
+            f"invalid query={repr(task_query)} for task mapping,"
+            " it must contain exactly zero or one occurrence of '.' character."
+            " Use 'task_name' or 'harness_name.task_name' format."
+        )
+
     return {
         "task": task,
         "harness": harness,
-        "endpoint_type": "chat",
+        "endpoint_type": endpoint_type or "chat",
         "container": container,
+        "is_unlisted": True,
     }
 
 
@@ -257,28 +283,95 @@ def get_task_definition_for_job(
     task_query: str,
     base_mapping: dict[Any, Any],
     container: str | None = None,
+    endpoint_type: str | None = None,
 ) -> dict[str, Any]:
     """Resolve task definition for a job.
 
-    If a container is provided, tasks are loaded from that container (using
-    container-metadata) and we attempt to resolve the task from that mapping.
-    If the task isn't found in the container, we warn and return a minimal
-    task definition so submission can proceed.
+    Supports two workflows:
+    1. With explicit container: Check harness matches, validate task exists
+    2. Without container: Use harness name to look up default container
+
+    Returns a task definition dict with:
+    - 'is_unlisted': True if task not in FDF
+    - 'task_query': Original query for use in EF command (when unlisted)
     """
-    if not container:
-        return get_task_from_mapping(task_query, base_mapping)
+    # Parse harness.task format
+    if task_query.count(".") == 1:
+        harness_name, _ = task_query.split(".")
+    else:
+        harness_name = ""
 
-    # `load_tasks_mapping(from_container=...)` uses container-metadata extraction,
-    # which already has its own caching (e.g., caching extracted framework.yml).
-    container_mapping = load_tasks_mapping(from_container=container)
+    # Workflow 1: Explicit container provided
+    if container:
+        # Load tasks from container to check if task exists
+        container_mapping = load_tasks_mapping(from_container=container)
 
+        # Validate harness matches if specified in query
+        if harness_name:
+            container_harnesses = {key[0] for key in container_mapping.keys()}
+            if container_harnesses and harness_name not in container_harnesses:
+                raise ValueError(
+                    f"Harness '{harness_name}' does not match container. "
+                    f"Container supports: {sorted(container_harnesses)}"
+                )
+
+        try:
+            result = get_task_from_mapping(task_query, container_mapping)
+            result.setdefault("is_unlisted", False)
+            if endpoint_type:
+                result["endpoint_type"] = endpoint_type
+            return result
+        except ValueError as e:
+            logger.warning(
+                "Task not found in provided container; proceeding with minimal task definition",
+                task=task_query,
+                container=container,
+                error=str(e),
+            )
+            return _minimal_task_definition(
+                task_query, container=container, endpoint_type=endpoint_type
+            )
+
+    # Workflow 2: No container provided
+    # First try to find task in base mapping
     try:
-        return get_task_from_mapping(task_query, container_mapping)
-    except ValueError as e:
-        logger.warning(
-            "Task not found in provided container; proceeding with minimal task definition",
-            task=task_query,
-            container=container,
-            error=str(e),
+        result = get_task_from_mapping(task_query, base_mapping)
+        result.setdefault("is_unlisted", False)
+        if endpoint_type:
+            result["endpoint_type"] = endpoint_type
+        return result
+    except ValueError:
+        pass  # Task not in base mapping, try harness lookup
+
+    # If harness specified, try to get default container from harness
+    if harness_name:
+        from nemo_evaluator_launcher.common.container_metadata import (
+            load_harnesses_and_tasks_from_tasks_file,
         )
-        return _minimal_task_definition(task_query, container=container)
+
+        harnesses, _, _ = load_harnesses_and_tasks_from_tasks_file()
+        harness_ir = harnesses.get(harness_name)
+
+        if harness_ir and harness_ir.container:
+            logger.info(
+                "Using default container for harness",
+                harness=harness_name,
+                container=harness_ir.container,
+            )
+            # Recursive call with the derived container
+            return get_task_definition_for_job(
+                task_query=task_query,
+                base_mapping=base_mapping,
+                container=harness_ir.container,
+                endpoint_type=endpoint_type,
+            )
+        else:
+            raise ValueError(
+                f"Harness '{harness_name}' not found in supported harnesses. "
+                f"Either use a supported harness or provide an explicit container."
+            )
+
+    # No harness specified and task not in mapping - error
+    raise ValueError(
+        f"Task '{task_query}' not found. Use <harness>.<task> format or provide an explicit container."
+    )
