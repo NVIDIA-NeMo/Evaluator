@@ -164,12 +164,14 @@ def test_get_task_definition_for_job_unlisted_task_sets_flag(monkeypatch, caplog
         task_query="lm-evaluation-harness.polemo2",
         base_mapping=base_mapping,
         container=container,
+        endpoint_type="completions",
     )
 
     assert td["is_unlisted"] is True
     assert td["harness"] == "lm-evaluation-harness"
     assert td["task"] == "polemo2"
     assert td["container"] == container
+    assert td["endpoint_type"] == "completions"
 
 
 def test_get_task_definition_for_job_listed_task_not_unlisted(monkeypatch):
@@ -285,12 +287,14 @@ def test_get_task_definition_for_job_default_container_from_harness(monkeypatch)
         task_query="lm-evaluation-harness.polemo2",
         base_mapping=base_mapping,
         container=None,
+        endpoint_type="completions",
     )
 
     assert td["task"] == "polemo2"
     assert td["harness"] == "lm-evaluation-harness"
     assert td["container"] == harness_container
     assert td["is_unlisted"] is False
+    assert td["endpoint_type"] == "completions"
 
 
 def test_get_task_definition_for_job_unknown_harness_raises(monkeypatch):

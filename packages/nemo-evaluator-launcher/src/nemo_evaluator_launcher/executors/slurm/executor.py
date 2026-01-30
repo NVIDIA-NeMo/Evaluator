@@ -115,6 +115,7 @@ class SlurmExecutor(BaseExecutor):
                     task_query=task.name,
                     base_mapping=tasks_mapping,
                     container=task.get("container"),
+                    endpoint_type=task.get("endpoint_type"),
                 )
                 eval_image = task_definition["container"]
                 if "container" in task:
@@ -543,6 +544,7 @@ def _create_slurm_sbatch_script(
         task_query=task.name,
         base_mapping=tasks_mapping,
         container=task.get("container"),
+        endpoint_type=task.get("endpoint_type"),
     )
 
     # TODO(public release): convert to template

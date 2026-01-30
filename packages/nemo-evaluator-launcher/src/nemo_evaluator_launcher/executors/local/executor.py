@@ -129,6 +129,7 @@ class LocalExecutor(BaseExecutor):
                 task_query=task.name,
                 base_mapping=tasks_mapping,
                 container=task.get("container"),
+                endpoint_type=task.get("endpoint_type"),
             )
 
             # Track unlisted tasks for safeguard check

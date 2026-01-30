@@ -110,6 +110,7 @@ class LeptonExecutor(BaseExecutor):
                 task_query=task.name,
                 base_mapping=tasks_mapping,
                 container=task.get("container"),
+                endpoint_type=task.get("endpoint_type"),
             )
             if task_definition.get("is_unlisted", False):
                 unlisted_task_names.append(task.name)

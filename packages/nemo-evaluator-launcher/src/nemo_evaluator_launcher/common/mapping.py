@@ -236,18 +236,24 @@ def get_task_from_mapping(query: str, mapping: dict[Any, Any]) -> dict[Any, Any]
         )
 
 
-def _minimal_task_definition(task_query: str, *, container: str) -> dict[str, Any]:
+def _minimal_task_definition(
+    task_query: str,
+    *,
+    container: str,
+    endpoint_type: str | None = None,
+) -> dict[str, Any]:
     """Create a minimal task definition when task is not known in any mapping.
 
     Args:
         task_query: The original query string (e.g., "lm-evaluation-harness.polemo2").
         container: The container image to use.
+        endpoint_type: The endpoint type to use (defaults to 'chat' if not provided).
 
     Returns:
         A minimal task definition dict with:
         - 'task': Task name
         - 'harness': Harness name
-        - 'endpoint_type': 'chat' (default)
+        - 'endpoint_type': user-provided endpoint type or default 'chat'
         - 'container': Container image
         - 'is_unlisted': True (task not in FDF)
     """
@@ -263,13 +269,10 @@ def _minimal_task_definition(task_query: str, *, container: str) -> dict[str, An
             " Use 'task_name' or 'harness_name.task_name' format."
         )
 
-    # Default to chat; most configs and endpoints use chat unless explicitly known.
     return {
         "task": task,
         "harness": harness,
-        # FIXME(martas): we should use user-provided value from
-        # `supported_endpoint_types` instead of defaulting to 'chat'
-        "endpoint_type": "chat",
+        "endpoint_type": endpoint_type or "chat",
         "container": container,
         "is_unlisted": True,
     }
@@ -280,6 +283,7 @@ def get_task_definition_for_job(
     task_query: str,
     base_mapping: dict[Any, Any],
     container: str | None = None,
+    endpoint_type: str | None = None,
 ) -> dict[str, Any]:
     """Resolve task definition for a job.
 
@@ -314,6 +318,8 @@ def get_task_definition_for_job(
         try:
             result = get_task_from_mapping(task_query, container_mapping)
             result.setdefault("is_unlisted", False)
+            if endpoint_type:
+                result["endpoint_type"] = endpoint_type
             return result
         except ValueError as e:
             logger.warning(
@@ -322,13 +328,17 @@ def get_task_definition_for_job(
                 container=container,
                 error=str(e),
             )
-            return _minimal_task_definition(task_query, container=container)
+            return _minimal_task_definition(
+                task_query, container=container, endpoint_type=endpoint_type
+            )
 
     # Workflow 2: No container provided
     # First try to find task in base mapping
     try:
         result = get_task_from_mapping(task_query, base_mapping)
         result.setdefault("is_unlisted", False)
+        if endpoint_type:
+            result["endpoint_type"] = endpoint_type
         return result
     except ValueError:
         pass  # Task not in base mapping, try harness lookup
@@ -353,6 +363,7 @@ def get_task_definition_for_job(
                 task_query=task_query,
                 base_mapping=base_mapping,
                 container=harness_ir.container,
+                endpoint_type=endpoint_type,
             )
         else:
             raise ValueError(
