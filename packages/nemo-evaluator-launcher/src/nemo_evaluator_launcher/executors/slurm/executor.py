@@ -1422,8 +1422,8 @@ _walltime_to_seconds() {{
 
 _max_walltime_seconds=$(_walltime_to_seconds "$_max_walltime")
 
-# Initialize accumulated walltime file on first run
-if [[ ! -f "$_accumulated_walltime_file" ]]; then
+# Initialize accumulated walltime file on first run or on manual resume
+if [[ ! -f "$_accumulated_walltime_file" || ! -n "$_prev_slurm_job_id" ]]; then
     echo "0" > "$_accumulated_walltime_file"
     echo "Job chain started at $(date). Max total walltime: $_max_walltime"
 fi
