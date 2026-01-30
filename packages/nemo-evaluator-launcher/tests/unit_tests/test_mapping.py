@@ -305,16 +305,20 @@ def test_get_task_definition_for_job_unknown_harness_raises(monkeypatch):
 
     def fake_load_harnesses(*args, **kwargs):
         # Return harnesses that don't include the one we're looking for
-        return {
-            "other-harness": HarnessIntermediateRepresentation(
-                name="other-harness",
-                description="Other",
-                full_name="other/harness",
-                url="https://example.com",
-                container="other:latest",
-                container_digest="sha256:def456",
-            )
-        }, [], []
+        return (
+            {
+                "other-harness": HarnessIntermediateRepresentation(
+                    name="other-harness",
+                    description="Other",
+                    full_name="other/harness",
+                    url="https://example.com",
+                    container="other:latest",
+                    container_digest="sha256:def456",
+                )
+            },
+            [],
+            [],
+        )
 
     monkeypatch.setattr(
         "nemo_evaluator_launcher.common.container_metadata.load_harnesses_and_tasks_from_tasks_file",

@@ -534,7 +534,9 @@ class TestCheckUnlistedTasksSafeguard:
     """Tests for check_unlisted_tasks_safeguard function."""
 
     def test_empty_list_does_nothing(self, capsys):
-        from nemo_evaluator_launcher.common.helpers import check_unlisted_tasks_safeguard
+        from nemo_evaluator_launcher.common.helpers import (
+            check_unlisted_tasks_safeguard,
+        )
 
         # Should not raise, should not print
         check_unlisted_tasks_safeguard([], dry_run=True)
@@ -544,7 +546,9 @@ class TestCheckUnlistedTasksSafeguard:
         assert captured.out == ""
 
     def test_dry_run_prints_warning(self, capsys):
-        from nemo_evaluator_launcher.common.helpers import check_unlisted_tasks_safeguard
+        from nemo_evaluator_launcher.common.helpers import (
+            check_unlisted_tasks_safeguard,
+        )
 
         unlisted = ["harness.task1", "harness.task2"]
         check_unlisted_tasks_safeguard(unlisted, dry_run=True)
@@ -555,7 +559,9 @@ class TestCheckUnlistedTasksSafeguard:
         assert "NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1" in captured.out
 
     def test_non_dry_run_without_flag_raises(self, monkeypatch):
-        from nemo_evaluator_launcher.common.helpers import check_unlisted_tasks_safeguard
+        from nemo_evaluator_launcher.common.helpers import (
+            check_unlisted_tasks_safeguard,
+        )
 
         # Ensure env var is not set
         monkeypatch.delenv("NEMO_EVALUATOR_TRUST_UNLISTED_TASKS", raising=False)
@@ -565,7 +571,9 @@ class TestCheckUnlistedTasksSafeguard:
             check_unlisted_tasks_safeguard(unlisted, dry_run=False)
 
     def test_non_dry_run_with_flag_proceeds(self, monkeypatch, caplog):
-        from nemo_evaluator_launcher.common.helpers import check_unlisted_tasks_safeguard
+        from nemo_evaluator_launcher.common.helpers import (
+            check_unlisted_tasks_safeguard,
+        )
 
         monkeypatch.setenv("NEMO_EVALUATOR_TRUST_UNLISTED_TASKS", "1")
 

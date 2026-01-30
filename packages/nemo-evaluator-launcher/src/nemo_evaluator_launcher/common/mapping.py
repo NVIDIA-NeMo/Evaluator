@@ -282,9 +282,9 @@ def get_task_definition_for_job(
     """
     # Parse harness.task format
     if task_query.count(".") == 1:
-        harness_name, task_name = task_query.split(".")
+        harness_name, _ = task_query.split(".")
     else:
-        harness_name, task_name = "", task_query
+        harness_name = ""
 
     # Workflow 1: Explicit container provided
     if container:
