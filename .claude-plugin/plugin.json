@@ -1,0 +1,21 @@
+{
+  "name": "nemo-evaluator-skills",
+  "description": "Agent Skills for NeMo Evaluator SDK",
+  "version": "1.0.0",
+  "author": {
+    "name": "NVIDIA"
+  },
+  "homepage": "https://github.com/NVIDIA/NeMo-Evaluator",
+  "repository": "https://github.com/NVIDIA/NeMo-Evaluator",
+  "license": "Apache-2.0",
+  "keywords": [
+    "nvidia",
+    "nemo",
+    "evaluator",
+    "llm",
+    "benchmarks",
+    "evaluation",
+    "vllm",
+    "slurm"
+  ]
+}
