@@ -161,6 +161,25 @@ Results, logs, and run configurations are saved locally. Inspect the status of t
 nemo-evaluator-launcher status <job_id_or_invocation_id>
 ```
 
+## Agentic Skills
+
+NeMo Evaluator provides [Agent skills](https://agentskills.io/) for interactive assistance.
+
+| Skill | Description |
+|-------|-------------|
+| `nel-config-generator` | Interactive workflow to generate evaluation YAML configs |
+
+### Claude Code (CLI)
+
+```bash
+/plugin marketplace add NVIDIA/NeMo-Evaluator
+/plugin install nel-config-generator@NVIDIA/NeMo-Evaluator
+```
+
+### Cursor IDE
+
+Clone or open this repository in Cursor. Skills are auto-discovered from `.claude-plugin/`.
+
 ## 🤝 Contribution Guide
 
 We welcome community contributions. Please see our [Contribution Guide](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/CONTRIBUTING.md) for instructions on submitting pull requests, reporting issues, and suggesting features.
