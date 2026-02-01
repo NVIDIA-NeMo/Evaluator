@@ -19,6 +19,7 @@ import json
 import os
 import signal
 import sys
+import time
 from typing import Optional
 
 import psutil
@@ -39,6 +40,7 @@ from nemo_evaluator.core.resources import (
 )
 from nemo_evaluator.core.utils import run_command
 from nemo_evaluator.logging import get_logger
+from nemo_evaluator.package_info import __version__
 
 logger = get_logger(__name__)
 
@@ -68,218 +70,277 @@ def evaluate(
     Returns:
         EvaluationResult: Evaluation results and metadata
     """
-    run_config = {
-        "config": eval_cfg.model_dump(),
-        "target": target_cfg.model_dump(),
-    }
-    evaluation = validate_configuration(run_config)
-    prepare_output_directory(evaluation)
-
-    metadata_block = _persist_metadata_and_build_results_block(
-        evaluation.config.output_dir, metadata
+    from nemo_evaluator.telemetry import (
+        EvaluationTaskEvent,
+        TaskStatusEnum,
+        TelemetryHandler,
+        get_session_id,
+        is_telemetry_enabled,
+        show_telemetry_notification,
     )
 
-    # Check if adapter is in client mode (no server needed)
-    use_client_mode = (
-        target_cfg.api_endpoint
-        and target_cfg.api_endpoint.adapter_config
-        and target_cfg.api_endpoint.adapter_config.mode == "client"
-    )
+    start_time = time.time()
+    telemetry_handler = None
+    task_status = TaskStatusEnum.FAILURE
 
-    # Track if graceful cleanup has been performed
-    cleanup_performed = False
+    if is_telemetry_enabled():
+        show_telemetry_notification()
+        telemetry_handler = TelemetryHandler(
+            source_client_version=__version__,
+            session_id=get_session_id(),
+        )
+        telemetry_handler.start()
 
-    def run_client_mode_cleanup():
-        """Run post-eval hooks for client mode during graceful shutdown."""
-        nonlocal cleanup_performed
-        if cleanup_performed:
-            return
+        # Emit STARTED event immediately
+        model_name = "unknown"
+        if target_cfg.api_endpoint and target_cfg.api_endpoint.model_id:
+            model_name = target_cfg.api_endpoint.model_id
+        telemetry_handler.enqueue(
+            EvaluationTaskEvent(
+                task=eval_cfg.type,
+                eval_harness="unknown",  # Will be determined after validation
+                model=model_name,
+                task_status=TaskStatusEnum.STARTED,
+            )
+        )
 
-        cleanup_performed = True
-        if (
-            use_client_mode
-            and target_cfg.api_endpoint
+    # Initialize evaluation state used for telemetry
+    evaluation = None
+    try:
+        run_config = {
+            "config": eval_cfg.model_dump(),
+            "target": target_cfg.model_dump(),
+        }
+        evaluation = validate_configuration(run_config)
+        prepare_output_directory(evaluation)
+
+        metadata_block = _persist_metadata_and_build_results_block(
+            evaluation.config.output_dir, metadata
+        )
+
+        # Check if adapter is in client mode (no server needed)
+        use_client_mode = (
+            target_cfg.api_endpoint
             and target_cfg.api_endpoint.adapter_config
-        ):
-            try:
-                from nemo_evaluator.adapters.pipeline import AdapterPipeline
+            and target_cfg.api_endpoint.adapter_config.mode == "client"
+        )
 
-                pipeline = AdapterPipeline(
-                    target_cfg.api_endpoint.adapter_config,
-                    evaluation.config.output_dir,
-                    target_cfg.api_endpoint.model_id,
-                )
-                pipeline.run_post_eval_hooks(url=target_cfg.api_endpoint.url or "")
-                logger.info("Post-eval hooks executed during shutdown")
-            except Exception as e:
-                logger.error(f"Failed to run post-eval hooks during shutdown: {e}")
+        # Track if graceful cleanup has been performed
+        cleanup_performed = False
 
-    def kill_all(signum=None, frame=None):
-        """Kill all processes and exit."""
-        logger.critical("FATAL: Terminating all processes...")
+        def run_client_mode_cleanup():
+            """Run post-eval hooks for client mode during graceful shutdown."""
+            nonlocal cleanup_performed
+            if cleanup_performed:
+                return
 
-        # For SIGTERM (graceful shutdown), run client mode cleanup first
-        if signum == signal.SIGTERM:
-            run_client_mode_cleanup()
+            cleanup_performed = True
+            if (
+                use_client_mode
+                and target_cfg.api_endpoint
+                and target_cfg.api_endpoint.adapter_config
+            ):
+                try:
+                    from nemo_evaluator.adapters.pipeline import AdapterPipeline
 
-        parent = psutil.Process(os.getpid())  # current process
-        children = parent.children(recursive=True)
-        for child in children:
-            if signum == signal.SIGINT:
-                # Send SIGINT to children for immediate termination (skip post-eval hooks)
-                child.send_signal(signal.SIGINT)
-            else:
-                # Send SIGTERM to children for graceful termination (run post-eval hooks)
-                child.terminate()
+                    pipeline = AdapterPipeline(
+                        target_cfg.api_endpoint.adapter_config,
+                        evaluation.config.output_dir,
+                        target_cfg.api_endpoint.model_id,
+                    )
+                    pipeline.run_post_eval_hooks(url=target_cfg.api_endpoint.url or "")
+                    logger.info("Post-eval hooks executed during shutdown")
+                except Exception as e:
+                    logger.error(f"Failed to run post-eval hooks during shutdown: {e}")
 
-        # Use faster timeout for keyboard interrupt (SIGINT)
-        timeout = 1 if signum == signal.SIGINT else 5
-        gone, alive = psutil.wait_procs(children, timeout=timeout)
-        for child in alive:
-            logger.warning(f"Force killing child process {child.pid}")
-            child.kill()
+        def kill_all(signum=None, frame=None):
+            """Kill all processes and exit."""
+            logger.critical("FATAL: Terminating all processes...")
 
-        sys.exit(1)
-
-    # Set up signal handlers
-    signal.signal(signal.SIGTERM, kill_all)
-    signal.signal(signal.SIGINT, kill_all)
-
-    def run_evaluation_core():
-        # NOTE: if we use NeMoEvaluatorClient on the benchmark side, there's no need to
-        # run adapter server for evaluation and we can use client model here
-        if use_client_mode:
-            logger.info("Using client mode - skipping adapter server")
-            cmd = evaluation.render_command()
-            run_command(cmd, verbose=True, propagate_errors=True)
-            evaluation_result = parse_output(evaluation)
-
-            # In client mode, explicitly run post-eval hooks after command completes
-            # This ensures hooks run reliably from the parent process rather than
-            # depending on finalizers in the subprocess during interpreter shutdown
-            # Note: cleanup_performed flag prevents double execution if SIGTERM was received
-            if not cleanup_performed:
+            # For SIGTERM (graceful shutdown), run client mode cleanup first
+            if signum == signal.SIGTERM:
                 run_client_mode_cleanup()
 
-            return evaluation_result
-        else:
-            with AdapterServerProcess(evaluation):
+            parent = psutil.Process(os.getpid())  # current process
+            children = parent.children(recursive=True)
+            for child in children:
+                if signum == signal.SIGINT:
+                    # Send SIGINT to children for immediate termination (skip post-eval hooks)
+                    child.send_signal(signal.SIGINT)
+                else:
+                    # Send SIGTERM to children for graceful termination (run post-eval hooks)
+                    child.terminate()
+
+            # Use faster timeout for keyboard interrupt (SIGINT)
+            timeout = 1 if signum == signal.SIGINT else 5
+            gone, alive = psutil.wait_procs(children, timeout=timeout)
+            for child in alive:
+                logger.warning(f"Force killing child process {child.pid}")
+                child.kill()
+
+            sys.exit(1)
+
+        # Set up signal handlers
+        signal.signal(signal.SIGTERM, kill_all)
+        signal.signal(signal.SIGINT, kill_all)
+
+        def run_evaluation_core():
+            # NOTE: if we use NeMoEvaluatorClient on the benchmark side, there's no need to
+            # run adapter server for evaluation and we can use client model here
+            if use_client_mode:
+                logger.info("Using client mode - skipping adapter server")
                 cmd = evaluation.render_command()
                 run_command(cmd, verbose=True, propagate_errors=True)
                 evaluation_result = parse_output(evaluation)
+
+                # In client mode, explicitly run post-eval hooks after command completes
+                # This ensures hooks run reliably from the parent process rather than
+                # depending on finalizers in the subprocess during interpreter shutdown
+                # Note: cleanup_performed flag prevents double execution if SIGTERM was received
+                if not cleanup_performed:
+                    run_client_mode_cleanup()
+
                 return evaluation_result
+            else:
+                with AdapterServerProcess(evaluation):
+                    cmd = evaluation.render_command()
+                    run_command(cmd, verbose=True, propagate_errors=True)
+                    evaluation_result = parse_output(evaluation)
+                    return evaluation_result
 
-    # Get cache directory from caching interceptor configuration
-    cache_dir = None
-    if (
-        target_cfg.api_endpoint
-        and target_cfg.api_endpoint.adapter_config
-        and target_cfg.api_endpoint.adapter_config.interceptors
-    ):
-        for interceptor in target_cfg.api_endpoint.adapter_config.interceptors:
-            if (
-                interceptor.name == "caching"
-                and interceptor.enabled
-                and interceptor.config
-                and interceptor.config.get("cache_dir")
-            ):
-                cache_dir = interceptor.config["cache_dir"]
-                logger.info(f"Using caching interceptor cache_dir: {cache_dir}")
-                break
+        # Get cache directory from caching interceptor configuration
+        cache_dir = None
+        if (
+            target_cfg.api_endpoint
+            and target_cfg.api_endpoint.adapter_config
+            and target_cfg.api_endpoint.adapter_config.interceptors
+        ):
+            for interceptor in target_cfg.api_endpoint.adapter_config.interceptors:
+                if (
+                    interceptor.name == "caching"
+                    and interceptor.enabled
+                    and interceptor.config
+                    and interceptor.config.get("cache_dir")
+                ):
+                    cache_dir = interceptor.config["cache_dir"]
+                    logger.info(f"Using caching interceptor cache_dir: {cache_dir}")
+                    break
 
-    if not cache_dir:
-        logger.info("No cache directory configured, token usage will not be collected")
+        if not cache_dir:
+            logger.info("No cache directory configured, token usage will not be collected")
 
-    evaluation_result, metrics = monitor_memory_usage(
-        run_evaluation_core,
-        interval_ms=100,
-        cache_dir=cache_dir,
-        output_dir=evaluation.config.output_dir,
-    )
-
-    metrics_path = os.path.join(
-        evaluation.config.output_dir, "eval_factory_metrics.json"
-    )
-
-    # Read existing metrics if file exists
-    existing_metrics = {}
-    if os.path.exists(metrics_path):
-        try:
-            with open(metrics_path, "r") as f:
-                existing_metrics = json.load(f)
-        except (json.JSONDecodeError, IOError):
-            pass  # Start fresh if file is corrupted
-
-    # Aggregate all run data from run_times directory
-    aggregated_metrics = aggregate_runtime_metrics(evaluation.config.output_dir)
-
-    if aggregated_metrics:
-        runtime = aggregated_metrics.get("runtime_seconds", 0)
-        inference_time = aggregated_metrics.get("inference_time_seconds", 0)
-        scoring_time = aggregated_metrics.get("scoring_time_seconds", 0)
-        logger.info(
-            "Aggregated metrics",
-            runtime_seconds=runtime,
-            inference_time_seconds=inference_time,
-            scoring_time_seconds=scoring_time,
-            peak_memory_bytes=aggregated_metrics.get("peak_memory_bytes", 0),
-            total_runs=aggregated_metrics.get("total_runs", 0),
+        evaluation_result, metrics = monitor_memory_usage(
+            run_evaluation_core,
+            interval_ms=100,
+            cache_dir=cache_dir,
+            output_dir=evaluation.config.output_dir,
         )
 
-    # Use aggregated metrics if available, otherwise use current metrics
-    final_metrics = aggregated_metrics if aggregated_metrics else metrics
+        metrics_path = os.path.join(
+            evaluation.config.output_dir, "eval_factory_metrics.json"
+        )
 
-    # Merge with existing metrics, using "evaluation" as the key
-    # If evaluation key already exists, merge the metrics instead of overwriting
-    if "evaluation" in existing_metrics:
-        # Aggregate existing evaluation metrics with new ones
-        existing_eval = existing_metrics["evaluation"]
-        if isinstance(existing_eval, dict) and isinstance(final_metrics, dict):
-            # Merge dictionaries with appropriate aggregation strategy
-            merged_eval = existing_eval.copy()
-            for key, value in final_metrics.items():
-                if (
-                    key in merged_eval
-                    and isinstance(merged_eval[key], (int, float))
-                    and isinstance(value, (int, float))
-                ):
-                    if key in ["runtime_seconds"]:
-                        merged_eval[key] += value
-                    elif key in ["peak_memory_bytes", "peak_tree_memory_bytes"]:
-                        merged_eval[key] = max(merged_eval[key], value)
+        # Read existing metrics if file exists
+        existing_metrics = {}
+        if os.path.exists(metrics_path):
+            try:
+                with open(metrics_path, "r") as f:
+                    existing_metrics = json.load(f)
+            except (json.JSONDecodeError, IOError):
+                pass  # Start fresh if file is corrupted
+
+        # Aggregate all run data from run_times directory
+        aggregated_metrics = aggregate_runtime_metrics(evaluation.config.output_dir)
+
+        if aggregated_metrics:
+            runtime = aggregated_metrics.get("runtime_seconds", 0)
+            inference_time = aggregated_metrics.get("inference_time_seconds", 0)
+            scoring_time = aggregated_metrics.get("scoring_time_seconds", 0)
+            logger.info(
+                "Aggregated metrics",
+                runtime_seconds=runtime,
+                inference_time_seconds=inference_time,
+                scoring_time_seconds=scoring_time,
+                peak_memory_bytes=aggregated_metrics.get("peak_memory_bytes", 0),
+                total_runs=aggregated_metrics.get("total_runs", 0),
+            )
+
+        # Use aggregated metrics if available, otherwise use current metrics
+        final_metrics = aggregated_metrics if aggregated_metrics else metrics
+
+        # Merge with existing metrics, using "evaluation" as the key
+        # If evaluation key already exists, merge the metrics instead of overwriting
+        if "evaluation" in existing_metrics:
+            # Aggregate existing evaluation metrics with new ones
+            existing_eval = existing_metrics["evaluation"]
+            if isinstance(existing_eval, dict) and isinstance(final_metrics, dict):
+                # Merge dictionaries with appropriate aggregation strategy
+                merged_eval = existing_eval.copy()
+                for key, value in final_metrics.items():
+                    if (
+                        key in merged_eval
+                        and isinstance(merged_eval[key], (int, float))
+                        and isinstance(value, (int, float))
+                    ):
+                        if key in ["runtime_seconds"]:
+                            merged_eval[key] += value
+                        elif key in ["peak_memory_bytes", "peak_tree_memory_bytes"]:
+                            merged_eval[key] = max(merged_eval[key], value)
+                        else:
+                            merged_eval[key] += value
+                    elif key == "end_time":
+                        merged_eval[key] = value
+                    elif key == "start_time":
+                        merged_eval[key] = value
                     else:
-                        merged_eval[key] += value
-                elif key == "end_time":
-                    merged_eval[key] = value
-                elif key == "start_time":
-                    merged_eval[key] = value
-                else:
-                    merged_eval[key] = value
-            merged_metrics = {**existing_metrics, "evaluation": merged_eval}
+                        merged_eval[key] = value
+                merged_metrics = {**existing_metrics, "evaluation": merged_eval}
+            else:
+                merged_metrics = {**existing_metrics, "evaluation": final_metrics}
         else:
             merged_metrics = {**existing_metrics, "evaluation": final_metrics}
-    else:
-        merged_metrics = {**existing_metrics, "evaluation": final_metrics}
 
-    # Write merged metrics to file
-    with open(metrics_path, "w") as f:
-        json.dump(merged_metrics, f, indent=2)
+        # Write merged metrics to file
+        with open(metrics_path, "w") as f:
+            json.dump(merged_metrics, f, indent=2)
 
-    evaluation_result_dict = {
-        "git_hash": os.getenv("CORE_EVALS_GIT_HASH"),
-        "command": evaluation.render_command(),
-        "config": evaluation.config.model_dump(exclude_none=True),
-        "target": evaluation.target.model_dump(exclude_none=True),
-        "results": evaluation_result.model_dump(exclude_none=True),
-        **metadata_block,
-    }
+        evaluation_result_dict = {
+            "git_hash": os.getenv("CORE_EVALS_GIT_HASH"),
+            "command": evaluation.render_command(),
+            "config": evaluation.config.model_dump(exclude_none=True),
+            "target": evaluation.target.model_dump(exclude_none=True),
+            "results": evaluation_result.model_dump(exclude_none=True),
+            **metadata_block,
+        }
 
-    logger.info(yaml.dump(evaluation_result_dict))
+        logger.info(yaml.dump(evaluation_result_dict))
 
-    with open(os.path.join(evaluation.config.output_dir, "results.yml"), "w") as f:
-        yaml.dump(evaluation_result_dict, f)
+        with open(os.path.join(evaluation.config.output_dir, "results.yml"), "w") as f:
+            yaml.dump(evaluation_result_dict, f)
 
-    return evaluation_result
+        # Mark evaluation as successful for telemetry
+        task_status = TaskStatusEnum.SUCCESS
+
+        return evaluation_result
+    finally:
+        # Send telemetry event (success or failure)
+        if telemetry_handler:
+            duration = time.time() - start_time
+            model_name = "unknown"
+            if target_cfg.api_endpoint and target_cfg.api_endpoint.model_id:
+                model_name = target_cfg.api_endpoint.model_id
+            # Get harness name safely (evaluation may not be set if validation failed)
+            harness_name = evaluation.harness if evaluation else "unknown"
+            telemetry_handler.enqueue(
+                EvaluationTaskEvent(
+                    task=eval_cfg.type,
+                    eval_harness=harness_name,
+                    model=model_name,
+                    execution_duration_seconds=duration,
+                    task_status=task_status,
+                )
+            )
+            telemetry_handler.stop()
 
 
 def _write_with_versioning_header(
