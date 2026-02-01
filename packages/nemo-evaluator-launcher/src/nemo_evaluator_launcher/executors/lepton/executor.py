@@ -579,6 +579,16 @@ class LeptonExecutor(BaseExecutor):
                     # Add NEMO_EVALUATOR_DATASET_DIR environment variable
                     job_env_vars["NEMO_EVALUATOR_DATASET_DIR"] = dataset_mount_container
 
+                # Add telemetry env vars for propagation to containers
+                if os.getenv("NEMO_TELEMETRY_SESSION_ID"):
+                    job_env_vars["NEMO_TELEMETRY_SESSION_ID"] = os.getenv(
+                        "NEMO_TELEMETRY_SESSION_ID"
+                    )
+                if os.getenv("NEMO_TELEMETRY_ENABLED"):
+                    job_env_vars["NEMO_TELEMETRY_ENABLED"] = os.getenv(
+                        "NEMO_TELEMETRY_ENABLED"
+                    )
+
                 print(
                     f"   - Storage: {len(job_mounts)} mount(s) with evaluation ID isolation"
                 )
