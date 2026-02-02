@@ -697,7 +697,7 @@ class TestMaxWalltimeFeature:
     def test_create_sbatch_script_without_max_walltime(
         self, base_config, mock_task, mock_dependencies
     ):
-        """Test sbatch script generation without max_walltime."""
+        """Test sbatch script generation without explicit max_walltime uses default."""
         cfg = OmegaConf.create(base_config)
 
         script = _create_slurm_sbatch_script(
@@ -709,10 +709,12 @@ class TestMaxWalltimeFeature:
             job_id="test123.0",
         ).cmd
 
-        # Should have autoresume logic but NOT max_walltime checks
+        # Should have autoresume logic WITH default max_walltime (120:00:00 = 5 days)
         assert "_this_script=$0" in script
         assert "sbatch --dependency=afternotok:$SLURM_JOB_ID" in script
-        assert "_max_walltime=" not in script
+        assert '_max_walltime="120:00:00"' in script
+        assert "_accumulated_walltime_file" in script
+        assert "Maximum total walltime" in script
 
     def test_create_sbatch_script_with_max_walltime(
         self, base_config, mock_task, mock_dependencies
@@ -742,7 +744,7 @@ class TestMaxWalltimeFeature:
     def test_create_sbatch_script_max_walltime_null(
         self, base_config, mock_task, mock_dependencies
     ):
-        """Test sbatch script generation with max_walltime set to null."""
+        """Test sbatch script generation with max_walltime explicitly set to null for unlimited."""
         base_config["execution"]["max_walltime"] = None
         cfg = OmegaConf.create(base_config)
 
@@ -755,9 +757,11 @@ class TestMaxWalltimeFeature:
             job_id="test123.0",
         ).cmd
 
-        # Should have autoresume logic but NOT max_walltime checks
+        # When explicitly set to None, should have autoresume logic but NO max_walltime checks
         assert "_this_script=$0" in script
+        assert "sbatch --dependency=afternotok:$SLURM_JOB_ID" in script
         assert "_max_walltime=" not in script
+        assert "_accumulated_walltime_file" not in script
 
     def test_autoresume_handler_creates_start_time_file(self):
         """Test that autoresume handler creates accumulated walltime file on first run."""
@@ -765,8 +769,8 @@ class TestMaxWalltimeFeature:
             Path("/test/remote"), max_walltime="08:00:00"
         )
 
-        # Should create accumulated walltime file on first run
-        assert 'if [[ ! -f "$_accumulated_walltime_file" ]]' in handler
+        # Should create accumulated walltime file on first run or manual resume
+        assert "_accumulated_walltime_file" in handler
         assert 'echo "0" > "$_accumulated_walltime_file"' in handler
         assert "Job chain started at" in handler
         # Should still write start time for current job
