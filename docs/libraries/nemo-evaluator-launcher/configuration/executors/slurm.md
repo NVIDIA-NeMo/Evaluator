@@ -217,7 +217,7 @@ execution:
 
 **Configuration:**
 - `max_walltime`: Maximum total runtime in `HH:MM:SS` format (e.g., `"24:00:00"` for 24 hours)
-- Defaults to `"72:00:00"` (72 hours). Set to `null` for unlimited resuming
+- Defaults to `"120:00:00"` (120 hours). Set to `null` for unlimited resuming
 
 :::{note}
 The `max_walltime` tracks **actual job execution time only**, excluding time spent waiting in the queue. This ensures accurate runtime accounting even when jobs are repeatedly preempted or must wait for resources.
