@@ -50,7 +50,10 @@ Master custom evaluation workflows by running WikiText benchmark with advanced c
 
 1. Start NeMo Framework Container:
    ```bash
+   # set your Hugging Face token for access to gated datasets and checkpoints
+   export HF_TOKEN=hf_...
    docker run --rm -it -w /workdir -v $(pwd):/workdir \
+     -e HF_TOKEN \
      --entrypoint bash --gpus all \
      nvcr.io/nvidia/nemo:${TAG}
    ```
