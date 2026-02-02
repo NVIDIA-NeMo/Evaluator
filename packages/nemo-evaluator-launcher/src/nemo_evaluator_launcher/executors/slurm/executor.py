@@ -620,8 +620,9 @@ def _create_slurm_sbatch_script(
     if env_vars:
         s += "\n"
 
-    # auto resume after timeout
-    s += _AUTORESUME_HANDLER
+    # auto resume after timeout (with optional max_walltime enforcement)
+    max_walltime = cfg.execution.get("max_walltime", "120:00:00")
+    s += _generate_autoresume_handler(remote_task_subdir, max_walltime)
     s += "\n\n"
 
     # echo the current SLURM_JOB_ID
@@ -1369,9 +1370,100 @@ def _get_progress(
     return progress_list
 
 
-_AUTORESUME_HANDLER = """
+def _generate_autoresume_handler(
+    remote_task_subdir: Path, max_walltime: Optional[str] = None
+) -> str:
+    """Generate the autoresume handler script with optional max walltime enforcement.
+
+    Args:
+        remote_task_subdir: The remote directory path for storing timing files.
+        max_walltime: Maximum total wall-clock time (e.g., "24:00:00"). None means unlimited.
+
+    Returns:
+        The autoresume handler script as a string.
+    """
+    start_time_file = remote_task_subdir / ".job_start_time"
+
+    accumulated_walltime_file = remote_task_subdir / ".accumulated_walltime"
+
+    # Generate max walltime check logic if max_walltime is specified
+    if max_walltime:
+        max_walltime_check = f'''
+# Check if max_walltime has been exceeded
+_max_walltime="{max_walltime}"
+_start_time_file="{start_time_file}"
+_accumulated_walltime_file="{accumulated_walltime_file}"
+
+# Convert HH:MM:SS or D-HH:MM:SS to seconds
+_walltime_to_seconds() {{
+    local time_str=$1
+    local days=0 hours=0 minutes=0 seconds=0
+
+    # Handle format with days: D-HH:MM:SS (sacct output format)
+    if [[ "$time_str" =~ ^([0-9]+)-([0-9]+):([0-9]+):([0-9]+)$ ]]; then
+        days=${{BASH_REMATCH[1]}}
+        hours=${{BASH_REMATCH[2]}}
+        minutes=${{BASH_REMATCH[3]}}
+        seconds=${{BASH_REMATCH[4]}}
+    # Handle different formats: HH:MM:SS, MM:SS, or just seconds
+    elif [[ "$time_str" =~ ^([0-9]+):([0-9]+):([0-9]+)$ ]]; then
+        hours=${{BASH_REMATCH[1]}}
+        minutes=${{BASH_REMATCH[2]}}
+        seconds=${{BASH_REMATCH[3]}}
+    elif [[ "$time_str" =~ ^([0-9]+):([0-9]+)$ ]]; then
+        minutes=${{BASH_REMATCH[1]}}
+        seconds=${{BASH_REMATCH[2]}}
+    elif [[ "$time_str" =~ ^([0-9]+)$ ]]; then
+        seconds=${{BASH_REMATCH[1]}}
+    fi
+
+    echo $((days * 86400 + hours * 3600 + minutes * 60 + seconds))
+}}
+
+_max_walltime_seconds=$(_walltime_to_seconds "$_max_walltime")
+
+# Initialize accumulated walltime file on first run or on manual resume
+if [[ ! -f "$_accumulated_walltime_file" || ! -n "$_prev_slurm_job_id" ]]; then
+    echo "0" > "$_accumulated_walltime_file"
+    echo "Job chain started at $(date). Max total walltime: $_max_walltime"
+fi
+
+# Read accumulated walltime from previous jobs
+_accumulated_seconds=$(cat "$_accumulated_walltime_file")
+
+# If there's a previous job, add its actual elapsed time (from sacct) to the accumulated walltime
+# This must happen BEFORE the max walltime check to ensure accurate tracking
+if [[ -n "$_prev_slurm_job_id" ]]; then
+    _prev_elapsed=$(sacct -j $_prev_slurm_job_id -P -n -o Elapsed | head -n 1)
+    if [[ -n "$_prev_elapsed" ]]; then
+        _prev_elapsed_seconds=$(_walltime_to_seconds "$_prev_elapsed")
+        _accumulated_seconds=$((_accumulated_seconds + _prev_elapsed_seconds))
+        echo "$_accumulated_seconds" > "$_accumulated_walltime_file"
+        echo "Previous job $_prev_slurm_job_id ran for $_prev_elapsed"
+    fi
+fi
+
+_elapsed_formatted=$(printf '%02d:%02d:%02d' $((_accumulated_seconds/3600)) $(((_accumulated_seconds%3600)/60)) $((_accumulated_seconds%60)))
+
+echo "Total accumulated walltime: $_elapsed_formatted (max: $_max_walltime)"
+
+# Check if we've exceeded max walltime - if so, don't schedule next job and exit
+if [[ $_accumulated_seconds -ge $_max_walltime_seconds ]]; then
+    echo "ERROR: Maximum total walltime ($_max_walltime) exceeded. Accumulated: $_elapsed_formatted"
+    echo "Stopping job chain to prevent infinite resuming."
+    exit 1
+fi
+
+# Record job start time for this job (for debugging/logging purposes)
+date +%s > "$_start_time_file"
+'''
+    else:
+        max_walltime_check = ""
+
+    handler = f"""
 _this_script=$0
 _prev_slurm_job_id=$1
+{max_walltime_check}
 # Handle automatic resumption after some failed state.
 if [[ "$_prev_slurm_job_id" != "" ]]; then
     _prev_state=`sacct -j $_prev_slurm_job_id -P -n -o State | head -n 1`
@@ -1390,7 +1482,8 @@ fi
 # Schedule next execution of this script  with the current $SLURM_JOB_ID as an argument.
 # "afternotok" means next execution will be invoked only if the current execution terminates in some failed state.
 sbatch --dependency=afternotok:$SLURM_JOB_ID $_this_script $SLURM_JOB_ID
-""".strip()
+"""
+    return handler.strip()
 
 
 def _generate_haproxy_config_with_placeholders(cfg):
