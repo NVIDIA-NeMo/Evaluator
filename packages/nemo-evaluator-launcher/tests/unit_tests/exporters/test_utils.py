@@ -32,6 +32,7 @@ from nemo_evaluator_launcher.api.functional import (
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.exporters import utils as U
 from nemo_evaluator_launcher.exporters.utils import (
+    EXCLUDED_PATTERNS,
     OPTIONAL_ARTIFACTS,
     REQUIRED_ARTIFACTS,
     MetricConflictError,
@@ -41,11 +42,99 @@ from nemo_evaluator_launcher.exporters.utils import (
     get_available_artifacts,
     get_benchmark_info,
     get_container_from_mapping,
+    get_copytree_ignore,
     get_model_name,
     get_pipeline_id,
     get_relevant_artifacts,
+    should_exclude_artifact,
     validate_artifacts,
 )
+
+
+class TestArtifactExclusions:
+    """Tests for artifact exclusion patterns (should_exclude_artifact, get_copytree_ignore)."""
+
+    def test_excluded_patterns_defined(self):
+        """Verify EXCLUDED_PATTERNS contains expected patterns."""
+        assert "*cache*" in EXCLUDED_PATTERNS
+        assert "*.db" in EXCLUDED_PATTERNS
+        assert "*.lock" in EXCLUDED_PATTERNS
+        assert "synthetic" in EXCLUDED_PATTERNS
+
+    def test_should_exclude_cache_patterns(self):
+        """Test that *cache* pattern matches various cache directories."""
+        # Should match
+        assert should_exclude_artifact("cache") is True
+        assert should_exclude_artifact("Cache") is True  # case insensitive
+        assert should_exclude_artifact("response_stats_cache") is True
+        assert should_exclude_artifact("lm_cache_rank0") is True
+        # Should not match
+        assert should_exclude_artifact("results.yml") is False
+        assert should_exclude_artifact("my_data") is False
+
+    def test_should_exclude_db_pattern(self):
+        """Test that *.db pattern matches database files/dirs."""
+        # Should match
+        assert should_exclude_artifact("cache.db") is True
+        assert should_exclude_artifact("lm_cache_rank0.db") is True
+        assert should_exclude_artifact("DATA.DB") is True  # case insensitive
+        # Should not match
+        assert should_exclude_artifact("database") is False
+        assert should_exclude_artifact("db_config.yml") is False
+
+    def test_should_exclude_lock_pattern(self):
+        """Test that *.lock pattern matches lock files."""
+        # Should match
+        assert should_exclude_artifact("tb.lock") is True
+        assert should_exclude_artifact("process.lock") is True
+        assert should_exclude_artifact("FILE.LOCK") is True  # case insensitive
+        # Should not match
+        assert should_exclude_artifact("lockfile") is False
+        assert should_exclude_artifact("lock_manager.py") is False
+
+    def test_should_exclude_synthetic_pattern(self):
+        """Test that synthetic pattern matches synthetic dirs exactly."""
+        # Should match (rsync pattern is normalized to exact match)
+        assert should_exclude_artifact("synthetic") is True
+        assert should_exclude_artifact("Synthetic") is True  # case insensitive
+        # Should not match
+        assert should_exclude_artifact("synthetic_data") is False
+        assert should_exclude_artifact("my_synthetic") is False
+
+    def test_should_exclude_debug_json(self):
+        """Test that debug.json files are excluded (LiteLLM traces)."""
+        # Should match exact filename
+        assert should_exclude_artifact("debug.json") is True
+        assert should_exclude_artifact("DEBUG.JSON") is True  # case insensitive
+        # Should not match similar names
+        assert should_exclude_artifact("debug.json.bak") is False
+        assert should_exclude_artifact("my_debug.json") is False
+        assert should_exclude_artifact("debug.jsonl") is False
+
+    def test_get_copytree_ignore_filters_correctly(self):
+        """Test that get_copytree_ignore returns proper ignore function."""
+        ignore_func = get_copytree_ignore()
+        contents = [
+            "results.yml",
+            "cache",
+            "response_stats_cache",
+            "data.db",
+            "tb.lock",
+            "synthetic",
+            "task_output",
+            "report.json",
+        ]
+        excluded = ignore_func("/some/dir", contents)
+        # Should exclude
+        assert "cache" in excluded
+        assert "response_stats_cache" in excluded
+        assert "data.db" in excluded
+        assert "tb.lock" in excluded
+        assert "synthetic" in excluded
+        # Should not exclude
+        assert "results.yml" not in excluded
+        assert "task_output" not in excluded
+        assert "report.json" not in excluded
 
 
 class TestArtifactUtils:
@@ -324,22 +413,37 @@ class TestSSHHelpers:
         }
         assert set(out).issuperset(expected_artifacts)
 
-    def test_download_artifacts_only_required_false_uses_scp_recursive(
+    def test_download_artifacts_only_required_false_uses_tar_with_exclusions(
         self, tmp_path: Path
     ):
-        """Test only_required=False uses scp -r to copy all artifacts recursively."""
+        """Test only_required=False uses tar+ssh with --exclude to filter artifacts."""
         paths = {
             "username": "user",
             "hostname": "host",
             "remote_path": "/remote",
         }
-        scp_calls = []
+        ssh_commands = []
 
-        # Mock scp -r to simulate creating files in the target directory
-        def fake_run(cmd, capture_output=True):
-            scp_calls.append(cmd)
-            if "-r" in cmd:
-                # Simulate scp -r by creating files including nested dirs
+        # Mock Popen for SSH tar streaming
+        class FakePopen:
+            def __init__(self, cmd, stdout=None, stderr=None):
+                ssh_commands.append(cmd)
+                self.returncode = 0
+                self.stdout = None
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+            def wait(self):
+                pass
+
+        # Mock subprocess.run for tar extraction - simulate creating files
+        def fake_run(cmd, stdin=None, capture_output=True):
+            if "tar" in cmd and "-xzf" in cmd:
+                # Simulate tar extraction by creating files
                 art_dir = tmp_path / "artifacts"
                 art_dir.mkdir(parents=True, exist_ok=True)
                 (art_dir / "results.yml").write_text("x")
@@ -348,13 +452,24 @@ class TestSSHHelpers:
                 (art_dir / "subdir" / "nested.txt").write_text("nested")
             return SimpleNamespace(returncode=0)
 
-        with patch("subprocess.run", side_effect=fake_run):
-            out = U.ssh_download_artifacts(
-                paths, tmp_path, config={"only_required": False}, control_paths=None
-            )
+        with patch("subprocess.Popen", FakePopen):
+            with patch("subprocess.run", side_effect=fake_run):
+                out = U.ssh_download_artifacts(
+                    paths, tmp_path, config={"only_required": False}, control_paths=None
+                )
 
-        # Verify scp -r was called
-        assert any("-r" in c for c in scp_calls)
+        # Verify SSH command was called with tar and exclusion patterns
+        assert len(ssh_commands) > 0
+        ssh_cmd = ssh_commands[0]
+        # The remote tar command should be in the SSH args
+        remote_cmd = ssh_cmd[-1]  # Last arg is the remote command
+        assert "tar -czf -" in remote_cmd
+        # Verify exclusion patterns are included (rsync patterns converted to tar format)
+        assert "--exclude=*cache*" in remote_cmd
+        assert "--exclude=*.db" in remote_cmd
+        assert "--exclude=*.lock" in remote_cmd
+        assert "--exclude=synthetic" in remote_cmd
+        assert "--exclude=debug.json" in remote_cmd
         # Verify all files including nested are listed
         assert str(tmp_path / "artifacts" / "results.yml") in out
         assert str(tmp_path / "artifacts" / "extra.json") in out

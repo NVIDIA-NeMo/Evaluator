@@ -41,6 +41,7 @@ from nemo_evaluator_launcher.exporters.utils import (
     get_artifact_root,
     get_available_artifacts,
     get_benchmark_info,
+    get_copytree_ignore,
     get_task_name,
 )
 
@@ -258,21 +259,30 @@ class WandBExporter(BaseExporter):
                     os.unlink(cfg_path)
                     logged_names.append("config.yaml")
 
-            files_to_upload: list[Path] = []
             if wandb_config.get("only_required", True):
+                # Upload only specific required files
                 for fname in get_available_artifacts(artifacts_dir):
                     p = artifacts_dir / fname
                     if p.exists():
-                        files_to_upload.append(p)
+                        artifact.add_file(
+                            str(p), name=f"{artifact_root}/artifacts/{fname}"
+                        )
+                        logged_names.append(fname)
             else:
-                for p in artifacts_dir.iterdir():
-                    if p.is_file():
-                        files_to_upload.append(p)
-
-            for fpath in files_to_upload:
-                rel = fpath.relative_to(artifacts_dir).as_posix()
-                artifact.add_file(str(fpath), name=f"{artifact_root}/artifacts/{rel}")
-                logged_names.append(rel)
+                # Upload all artifacts with recursive exclusion
+                # Stage to temp dir with exclusions, then add to artifact
+                with tempfile.TemporaryDirectory() as tmp:
+                    staged = Path(tmp) / "artifacts"
+                    shutil.copytree(
+                        artifacts_dir,
+                        staged,
+                        ignore=get_copytree_ignore(),
+                        dirs_exist_ok=True,
+                    )
+                    # Add entire staged directory to artifact
+                    artifact.add_dir(str(staged), name=f"{artifact_root}/artifacts")
+                    # Count items for logging
+                    logged_names.extend([p.name for p in staged.iterdir()])
 
             if wandb_config.get("log_logs", False) and logs_dir.exists():
                 for p in logs_dir.rglob("*"):
