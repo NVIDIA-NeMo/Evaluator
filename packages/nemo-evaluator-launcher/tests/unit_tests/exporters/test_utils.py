@@ -101,6 +101,16 @@ class TestArtifactExclusions:
         assert should_exclude_artifact("synthetic_data") is False
         assert should_exclude_artifact("my_synthetic") is False
 
+    def test_should_exclude_debug_json(self):
+        """Test that debug.json files are excluded (LiteLLM traces)."""
+        # Should match exact filename
+        assert should_exclude_artifact("debug.json") is True
+        assert should_exclude_artifact("DEBUG.JSON") is True  # case insensitive
+        # Should not match similar names
+        assert should_exclude_artifact("debug.json.bak") is False
+        assert should_exclude_artifact("my_debug.json") is False
+        assert should_exclude_artifact("debug.jsonl") is False
+
     def test_get_copytree_ignore_filters_correctly(self):
         """Test that get_copytree_ignore returns proper ignore function."""
         ignore_func = get_copytree_ignore()

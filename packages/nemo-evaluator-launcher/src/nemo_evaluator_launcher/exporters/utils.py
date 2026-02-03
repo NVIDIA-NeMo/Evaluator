@@ -40,7 +40,7 @@ OPTIONAL_ARTIFACTS = ["omni-info.json"]
 
 # Rsync-style patterns to exclude when only_required=false (applied recursively)
 # Matches: cache/, response_stats_cache/, lm_cache_rank0.db/, *.lock, synthetic/, etc.
-EXCLUDED_PATTERNS = ["*cache*", "*.db", "*.lock", "*/synthetic/"]
+EXCLUDED_PATTERNS = ["*cache*", "*.db", "*.lock", "*/synthetic/", "debug.json"]
 
 
 def get_relevant_artifacts() -> List[str]:
