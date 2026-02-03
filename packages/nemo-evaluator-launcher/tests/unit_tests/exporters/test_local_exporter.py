@@ -149,3 +149,58 @@ def test_copy_all_tree(tmp_path: Path):
     assert (out_dir / "artifacts" / "extra.json").exists()
     assert (out_dir / "logs" / "log.txt").exists()
     assert str(out_dir / "artifacts" / "extra.json") in files
+
+
+def test_copy_all_tree_excludes_caches(tmp_path: Path):
+    """Test that only_required=False excludes cache directories and files."""
+    artifacts_dir = tmp_path / "in" / "artifacts"
+    logs_dir = tmp_path / "in" / "logs"
+
+    # Create normal files that should be copied
+    (artifacts_dir / "task_output").mkdir(parents=True, exist_ok=True)
+    (artifacts_dir / "task_output" / "result.json").write_text("{}")
+    (artifacts_dir / "results.yml").write_text("x")
+    (artifacts_dir / "report.json").write_text("{}")
+
+    # Create files/dirs that should be EXCLUDED
+    (artifacts_dir / "cache").mkdir(parents=True, exist_ok=True)
+    (artifacts_dir / "cache" / "data.txt").write_text("cached")
+    (artifacts_dir / "response_stats_cache").mkdir(parents=True, exist_ok=True)
+    (artifacts_dir / "response_stats_cache" / "stats.txt").write_text("stats")
+    (artifacts_dir / "data.db").write_text("db")
+    (artifacts_dir / "tb.lock").write_text("lock")
+    (artifacts_dir / "synthetic").mkdir(parents=True, exist_ok=True)
+    (artifacts_dir / "synthetic" / "generated.txt").write_text("generated")
+    # Nested exclusions
+    (artifacts_dir / "task_output" / "cache").mkdir(parents=True, exist_ok=True)
+    (artifacts_dir / "task_output" / "cache" / "nested.txt").write_text("nested cache")
+
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    (logs_dir / "log.txt").write_text("l")
+
+    exporter = LocalExporter({"only_required": False, "copy_logs": True})
+    out_dir = tmp_path / "out"
+    exporter._copy_local_artifacts(
+        {
+            "artifacts_dir": artifacts_dir,
+            "logs_dir": logs_dir,
+            "storage_type": "local_filesystem",
+        },
+        out_dir,
+        exporter.config,
+    )
+
+    # Should exist (not excluded)
+    assert (out_dir / "artifacts" / "task_output" / "result.json").exists()
+    assert (out_dir / "artifacts" / "results.yml").exists()
+    assert (out_dir / "artifacts" / "report.json").exists()
+    assert (out_dir / "logs" / "log.txt").exists()
+
+    # Should NOT exist (excluded by patterns)
+    assert not (out_dir / "artifacts" / "cache").exists()
+    assert not (out_dir / "artifacts" / "response_stats_cache").exists()
+    assert not (out_dir / "artifacts" / "data.db").exists()
+    assert not (out_dir / "artifacts" / "tb.lock").exists()
+    assert not (out_dir / "artifacts" / "synthetic").exists()
+    # Nested cache should also be excluded
+    assert not (out_dir / "artifacts" / "task_output" / "cache").exists()

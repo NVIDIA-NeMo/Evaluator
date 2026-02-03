@@ -38,10 +38,52 @@ from nemo_evaluator_launcher.common.mapping import (
 REQUIRED_ARTIFACTS = ["results.yml", "eval_factory_metrics.json"]
 OPTIONAL_ARTIFACTS = ["omni-info.json"]
 
+# Rsync-style patterns to exclude when only_required=false (applied recursively)
+# Matches: cache/, response_stats_cache/, lm_cache_rank0.db/, *.lock, synthetic/, etc.
+EXCLUDED_PATTERNS = ["*cache*", "*.db", "*.lock", "*/synthetic/"]
+
 
 def get_relevant_artifacts() -> List[str]:
     """Get relevant artifacts (required + optional)."""
     return REQUIRED_ARTIFACTS + OPTIONAL_ARTIFACTS
+
+
+def should_exclude_artifact(name: str) -> bool:
+    """Check if artifact should be excluded. Parses rsync-style patterns for shutil use."""
+    name_lower = name.lower()
+    for pattern in EXCLUDED_PATTERNS:
+        p = pattern.lower()
+
+        # Handle rsync directory pattern: */synthetic/ -> exact match "synthetic"
+        if p.startswith("*/") and p.endswith("/"):
+            # Extract the directory name (e.g., "synthetic" from "*/synthetic/")
+            dir_name = p[2:-1]
+            if name_lower == dir_name:
+                return True
+        elif p.startswith("*") and p.endswith("*"):
+            # *cache* - contains match
+            substr = p[1:-1]
+            if substr in name_lower:
+                return True
+        elif p.startswith("*"):
+            # *.db, *.lock - suffix match
+            suffix = p[1:]
+            if name_lower.endswith(suffix):
+                return True
+        else:
+            # exact match
+            if name_lower == p:
+                return True
+    return False
+
+
+def get_copytree_ignore() -> Callable[[str, List[str]], List[str]]:
+    """Return ignore function for shutil.copytree() that excludes artifacts recursively."""
+
+    def ignore_func(directory: str, contents: List[str]) -> List[str]:
+        return [name for name in contents if should_exclude_artifact(name)]
+
+    return ignore_func
 
 
 def validate_artifacts(artifacts_dir: Path) -> Dict[str, Any]:
@@ -416,15 +458,27 @@ def ssh_download_artifacts(
                 if scp_file(remote_file, local_file):
                     exported_files.append(str(local_file))
         else:
-            # Copy all artifacts recursively when only_required=False
-            cmd = (
-                ["scp", "-r"]
-                + ssh_opts
-                + [
-                    f"{paths['username']}@{paths['hostname']}:{paths['remote_path']}/artifacts/.",
-                    str(art_dir),
-                ]
-            )
+            # Use rsync with --exclude to filter BEFORE transfer (no wasted bandwidth)
+            # EXCLUDED_PATTERNS are in rsync format, use directly
+            exclude_args = []
+            for pattern in EXCLUDED_PATTERNS:
+                exclude_args.extend(["--exclude", pattern])
+
+            # Build SSH options for rsync -e
+            ssh_cmd_parts = ["ssh"]
+            if control_path:
+                ssh_cmd_parts.extend(["-o", f"ControlPath={control_path}"])
+            ssh_e_arg = " ".join(ssh_cmd_parts)
+
+            cmd = [
+                "rsync",
+                "-az",
+                *exclude_args,
+                "-e",
+                ssh_e_arg,
+                f"{paths['username']}@{paths['hostname']}:{paths['remote_path']}/artifacts/",
+                str(art_dir) + "/",
+            ]
             if subprocess.run(cmd, capture_output=True).returncode == 0:
                 exported_files.extend(
                     [str(f) for f in art_dir.rglob("*") if f.is_file()]
