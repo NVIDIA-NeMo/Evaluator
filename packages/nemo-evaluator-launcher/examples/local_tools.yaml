@@ -1,0 +1,60 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# How to use:
+#
+# 1. copy this file locally or clone the repository
+# 2. (optional) uncomment limit_samples in the config file to run with 10 samples for quick testing
+# 3. run `nemo-evaluator-launcher run --config path/to/local_tools.yaml`
+#
+# This example demonstrates how to run evaluations with tool usage (e.g., Python code execution).
+# The model can use tools like a Python interpreter to solve math problems step by step.
+#
+# ⚠️  WARNING:
+#     Always run full evaluations (without limit_samples) for actual benchmark results.
+#     Using a subset of samples is solely for testing configuration and setup.
+#     Results from such test runs should NEVER be used to compare models or
+#     report benchmark performance.
+
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: nel-results
+
+target:
+  api_endpoint:
+    model_id: nvidia/llama-3.1-nemotron-70b-instruct
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    api_key_name: NGC_API_KEY
+
+evaluation:
+  nemo_evaluator_config:
+    config:
+      params:
+        request_timeout: 3600
+        parallelism: 1
+        # limit_samples: 10 # uncomment to limit number of samples for quick testing
+
+  tasks:
+    - name: ns_aime2025
+      nemo_evaluator_config:
+        config:
+          params:
+            extra:
+              use_sandbox: true  # enables safe code execution environment
+              tool_modules: "[nemo_skills.mcp.servers.python_tool::PythonTool]"  # Python interpreter tool
