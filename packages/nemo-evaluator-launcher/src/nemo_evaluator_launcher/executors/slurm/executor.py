@@ -617,6 +617,13 @@ def _create_slurm_sbatch_script(
         all_env_vars.update(cfg.deployment["env_vars"])
     for env_var_dst, env_var_value in all_env_vars.items():
         s += f"export {env_var_dst}={env_var_value}\n"
+
+    # Add telemetry env vars for propagation to containers
+    if os.getenv("NEMO_TELEMETRY_SESSION_ID"):
+        s += f"export NEMO_TELEMETRY_SESSION_ID={os.getenv('NEMO_TELEMETRY_SESSION_ID')}\n"
+    if os.getenv("NEMO_TELEMETRY_ENABLED"):
+        s += f"export NEMO_TELEMETRY_ENABLED={os.getenv('NEMO_TELEMETRY_ENABLED')}\n"
+
     if env_vars:
         s += "\n"
 
@@ -749,6 +756,11 @@ def _create_slurm_sbatch_script(
     evaluation_env_var_names = list(
         cfg.execution.get("env_vars", {}).get("evaluation", {})
     )
+    # Add telemetry env vars to container env list
+    if os.getenv("NEMO_TELEMETRY_SESSION_ID"):
+        evaluation_env_var_names.append("NEMO_TELEMETRY_SESSION_ID")
+    if os.getenv("NEMO_TELEMETRY_ENABLED"):
+        evaluation_env_var_names.append("NEMO_TELEMETRY_ENABLED")
     if evaluation_env_var_names:
         s += "--container-env {} ".format(",".join(evaluation_env_var_names))
     if not cfg.execution.get("mounts", {}).get("mount_home", True):
