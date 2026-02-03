@@ -38,9 +38,9 @@ from nemo_evaluator_launcher.common.mapping import (
 REQUIRED_ARTIFACTS = ["results.yml", "eval_factory_metrics.json"]
 OPTIONAL_ARTIFACTS = ["omni-info.json"]
 
-# Rsync-style patterns to exclude when only_required=false (applied recursively)
+# Glob-style patterns to exclude when only_required=false (applied recursively)
 # Matches: cache/, response_stats_cache/, lm_cache_rank0.db/, *.lock, synthetic/, etc.
-EXCLUDED_PATTERNS = ["*cache*", "*.db", "*.lock", "*/synthetic/", "debug.json"]
+EXCLUDED_PATTERNS = ["*cache*", "*.db", "*.lock", "synthetic", "debug.json"]
 
 
 def get_relevant_artifacts() -> List[str]:
@@ -49,31 +49,21 @@ def get_relevant_artifacts() -> List[str]:
 
 
 def should_exclude_artifact(name: str) -> bool:
-    """Check if artifact should be excluded. Parses rsync-style patterns for shutil use."""
+    """Check if artifact should be excluded based on glob patterns."""
     name_lower = name.lower()
     for pattern in EXCLUDED_PATTERNS:
         p = pattern.lower()
-
-        # Handle rsync directory pattern: */synthetic/ -> exact match "synthetic"
-        if p.startswith("*/") and p.endswith("/"):
-            # Extract the directory name (e.g., "synthetic" from "*/synthetic/")
-            dir_name = p[2:-1]
-            if name_lower == dir_name:
-                return True
-        elif p.startswith("*") and p.endswith("*"):
+        if p.startswith("*") and p.endswith("*"):
             # *cache* - contains match
-            substr = p[1:-1]
-            if substr in name_lower:
+            if p[1:-1] in name_lower:
                 return True
         elif p.startswith("*"):
             # *.db, *.lock - suffix match
-            suffix = p[1:]
-            if name_lower.endswith(suffix):
+            if name_lower.endswith(p[1:]):
                 return True
-        else:
-            # exact match
-            if name_lower == p:
-                return True
+        elif name_lower == p:
+            # exact match at any depth (synthetic, debug.json)
+            return True
     return False
 
 
@@ -458,31 +448,34 @@ def ssh_download_artifacts(
                 if scp_file(remote_file, local_file):
                     exported_files.append(str(local_file))
         else:
-            # Use rsync with --exclude to filter BEFORE transfer (no wasted bandwidth)
-            # EXCLUDED_PATTERNS are in rsync format, use directly
-            exclude_args = []
-            for pattern in EXCLUDED_PATTERNS:
-                exclude_args.extend(["--exclude", pattern])
+            # Use tar+ssh to bundle many small files into one transfer
+            # This is much faster than rsync for directories with thousands of files
+            exclude_args = " ".join(f"--exclude={p}" for p in EXCLUDED_PATTERNS)
 
-            # Build SSH options for rsync -e
-            ssh_cmd_parts = ["ssh"]
-            if control_path:
-                ssh_cmd_parts.extend(["-o", f"ControlPath={control_path}"])
-            ssh_e_arg = " ".join(ssh_cmd_parts)
+            # Build SSH command
+            ssh_cmd = ["ssh"] + ssh_opts
+            remote_tar_cmd = (
+                f"cd {paths['remote_path']} && tar -czf - {exclude_args} artifacts/"
+            )
 
-            cmd = [
-                "rsync",
-                "-az",
-                *exclude_args,
-                "-e",
-                ssh_e_arg,
-                f"{paths['username']}@{paths['hostname']}:{paths['remote_path']}/artifacts/",
-                str(art_dir) + "/",
+            # Stream tar from remote, extract locally
+            ssh_full = ssh_cmd + [
+                f"{paths['username']}@{paths['hostname']}",
+                remote_tar_cmd,
             ]
-            if subprocess.run(cmd, capture_output=True).returncode == 0:
-                exported_files.extend(
-                    [str(f) for f in art_dir.rglob("*") if f.is_file()]
+            with subprocess.Popen(
+                ssh_full, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            ) as ssh_proc:
+                tar_extract = subprocess.run(
+                    ["tar", "-xzf", "-", "-C", str(export_dir)],
+                    stdin=ssh_proc.stdout,
+                    capture_output=True,
                 )
+                ssh_proc.wait()
+                if ssh_proc.returncode == 0 and tar_extract.returncode == 0:
+                    exported_files.extend(
+                        [str(f) for f in art_dir.rglob("*") if f.is_file()]
+                    )
 
     # Logs (top-level only)
     if copy_logs:

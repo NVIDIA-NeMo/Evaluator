@@ -59,7 +59,7 @@ class TestArtifactExclusions:
         assert "*cache*" in EXCLUDED_PATTERNS
         assert "*.db" in EXCLUDED_PATTERNS
         assert "*.lock" in EXCLUDED_PATTERNS
-        assert "*/synthetic/" in EXCLUDED_PATTERNS
+        assert "synthetic" in EXCLUDED_PATTERNS
 
     def test_should_exclude_cache_patterns(self):
         """Test that *cache* pattern matches various cache directories."""
@@ -93,7 +93,7 @@ class TestArtifactExclusions:
         assert should_exclude_artifact("lock_manager.py") is False
 
     def test_should_exclude_synthetic_pattern(self):
-        """Test that */synthetic/ pattern matches synthetic dirs."""
+        """Test that synthetic pattern matches synthetic dirs exactly."""
         # Should match (rsync pattern is normalized to exact match)
         assert should_exclude_artifact("synthetic") is True
         assert should_exclude_artifact("Synthetic") is True  # case insensitive
@@ -413,46 +413,63 @@ class TestSSHHelpers:
         }
         assert set(out).issuperset(expected_artifacts)
 
-    def test_download_artifacts_only_required_false_uses_rsync_with_exclusions(
+    def test_download_artifacts_only_required_false_uses_tar_with_exclusions(
         self, tmp_path: Path
     ):
-        """Test only_required=False uses rsync with --exclude to filter artifacts."""
+        """Test only_required=False uses tar+ssh with --exclude to filter artifacts."""
         paths = {
             "username": "user",
             "hostname": "host",
             "remote_path": "/remote",
         }
-        rsync_calls = []
+        ssh_commands = []
 
-        # Mock rsync to simulate creating files in the target directory
-        def fake_run(cmd, capture_output=True):
-            rsync_calls.append(cmd)
-            if "rsync" in cmd:
-                # Simulate rsync by creating files (excluding cache/synthetic)
+        # Mock Popen for SSH tar streaming
+        class FakePopen:
+            def __init__(self, cmd, stdout=None, stderr=None):
+                ssh_commands.append(cmd)
+                self.returncode = 0
+                self.stdout = None
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+            def wait(self):
+                pass
+
+        # Mock subprocess.run for tar extraction - simulate creating files
+        def fake_run(cmd, stdin=None, capture_output=True):
+            if "tar" in cmd and "-xzf" in cmd:
+                # Simulate tar extraction by creating files
                 art_dir = tmp_path / "artifacts"
                 art_dir.mkdir(parents=True, exist_ok=True)
                 (art_dir / "results.yml").write_text("x")
                 (art_dir / "extra.json").write_text("{}")
                 (art_dir / "subdir").mkdir(exist_ok=True)
                 (art_dir / "subdir" / "nested.txt").write_text("nested")
-                # Note: cache and synthetic would NOT be created due to exclusions
             return SimpleNamespace(returncode=0)
 
-        with patch("subprocess.run", side_effect=fake_run):
-            out = U.ssh_download_artifacts(
-                paths, tmp_path, config={"only_required": False}, control_paths=None
-            )
+        with patch("subprocess.Popen", FakePopen):
+            with patch("subprocess.run", side_effect=fake_run):
+                out = U.ssh_download_artifacts(
+                    paths, tmp_path, config={"only_required": False}, control_paths=None
+                )
 
-        # Verify rsync was called with exclusion patterns
-        assert len(rsync_calls) > 0
-        rsync_cmd = rsync_calls[0]
-        assert "rsync" in rsync_cmd
-        assert "--exclude" in rsync_cmd
-        # Verify exclusion patterns are included
-        assert "*cache*" in rsync_cmd
-        assert "*.db" in rsync_cmd
-        assert "*.lock" in rsync_cmd
-        assert "*/synthetic/" in rsync_cmd
+        # Verify SSH command was called with tar and exclusion patterns
+        assert len(ssh_commands) > 0
+        ssh_cmd = ssh_commands[0]
+        # The remote tar command should be in the SSH args
+        remote_cmd = ssh_cmd[-1]  # Last arg is the remote command
+        assert "tar -czf -" in remote_cmd
+        # Verify exclusion patterns are included (rsync patterns converted to tar format)
+        assert "--exclude=*cache*" in remote_cmd
+        assert "--exclude=*.db" in remote_cmd
+        assert "--exclude=*.lock" in remote_cmd
+        assert "--exclude=synthetic" in remote_cmd
+        assert "--exclude=debug.json" in remote_cmd
         # Verify all files including nested are listed
         assert str(tmp_path / "artifacts" / "results.yml") in out
         assert str(tmp_path / "artifacts" / "extra.json") in out
