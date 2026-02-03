@@ -37,6 +37,11 @@ execution:
   # Auto-export destinations
   auto_export:
     destinations: ["mlflow"]
+    # Optional: custom command to install nemo-evaluator-launcher in the export container.
+    # Useful for installing from a git branch or specific version. Supports multi-line.
+    # launcher_install_cmd: |
+    #   apt-get update -qq && apt-get install -qq -y git
+    #   pip install "nemo-evaluator-launcher[all] @ git+https://github.com/NVIDIA-NeMo/Evaluator.git@main#subdirectory=packages/nemo-evaluator-launcher"
 
 target:
   api_endpoint:
