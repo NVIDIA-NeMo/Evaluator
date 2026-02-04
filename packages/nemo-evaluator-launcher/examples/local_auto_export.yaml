@@ -74,6 +74,7 @@ export:
     description: "nemo-evaluator-launcher Evaluation test run with auto-export"
     log_metrics: ["gpqa_diamond_score_micro"]  # subset of metrics to log (others will be skipped)
     log_logs: true
+    log_config_params: true  # log flattened config as MLflow params
     only_required: false
 
     # MLflow tags (key-value pairs)
