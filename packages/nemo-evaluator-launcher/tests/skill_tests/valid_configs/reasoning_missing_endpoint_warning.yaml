@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Valid but warns: interceptor list without 'endpoint'
+# This config will work but won't make any API calls because the endpoint interceptor is missing
+defaults:
+  - execution: local
+  - deployment: none
+  - _self_
+
+execution:
+  output_dir: nel-results
+
+target:
+  api_endpoint:
+    model_id: test/model
+    url: https://example.com/v1/chat/completions
+    api_key_name: TEST_KEY
+    adapter_config:
+      interceptors:
+        - name: system_message
+          config:
+            system_message: "/think"
+        - name: reasoning
+        # NOTE: 'endpoint' interceptor is intentionally missing to test the warning
+
+evaluation:
+  tasks:
+    - name: ifeval
