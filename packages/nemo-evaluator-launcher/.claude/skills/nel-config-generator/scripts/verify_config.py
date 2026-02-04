@@ -58,6 +58,12 @@ class FlexibleModel(BaseModel):
 # =============================================================================
 
 
+# Valid destinations for auto_export (must push to external services).
+# Note: 'local' is excluded because in auto_export context (running on remote node),
+# it would just copy files to another location on the same node, which is not useful.
+VALID_AUTO_EXPORT_DESTINATIONS = {"mlflow", "wandb"}
+
+
 class AutoExportConfig(StrictModel):
     """Auto-export configuration for execution."""
 
@@ -68,6 +74,18 @@ class AutoExportConfig(StrictModel):
     launcher_install_cmd: Optional[str] = Field(
         default=None, description="Custom command to install nemo-evaluator-launcher"
     )
+
+    @field_validator("destinations", mode="after")
+    @classmethod
+    def validate_destinations(cls, v: list[str]) -> list[str]:
+        """Validate that destinations only contain valid exporter names."""
+        invalid = [d for d in v if d not in VALID_AUTO_EXPORT_DESTINATIONS]
+        if invalid:
+            raise ValueError(
+                f"Invalid auto_export destination(s): {invalid}. "
+                f"Valid options: {sorted(VALID_AUTO_EXPORT_DESTINATIONS)}"
+            )
+        return v
 
 
 # =============================================================================
@@ -93,7 +111,6 @@ class LocalExecutionConfig(StrictModel):
     mounts: Optional[dict[str, Any]] = Field(
         default=None, description="Volume mounts for containers"
     )
-    pre_cmd: Optional[str] = Field(default=None, description="Pre-command to run")
 
 
 class SlurmDeploymentSettings(StrictModel):
@@ -191,7 +208,6 @@ class SlurmExecutionConfig(StrictModel):
     auto_export: Optional[AutoExportConfig] = Field(
         default=None, description="Auto-export configuration"
     )
-    pre_cmd: Optional[str] = Field(default=None, description="Pre-command to run")
 
 
 class LeptonEvaluationTasks(FlexibleModel):
@@ -330,7 +346,6 @@ class LeptonExecutionConfig(StrictModel):
     lepton_platform: Optional[LeptonPlatformConfig] = Field(
         default=None, description="Lepton platform settings"
     )
-    pre_cmd: Optional[str] = Field(default=None, description="Pre-command to run")
 
 
 # Discriminated union for execution config
@@ -361,7 +376,6 @@ class NoneDeploymentConfig(StrictModel):
     """No deployment - use external endpoint."""
 
     type: Literal["none"] = Field(description="Deployment type: none (external API)")
-    pre_cmd: Optional[str] = Field(default=None, description="Pre-command to run")
 
 
 class LeptonMountsConfig(FlexibleModel):
@@ -485,14 +499,16 @@ class SGLangDeploymentConfig(StrictModel):
 
 
 class NIMDeploymentConfig(StrictModel):
-    """NIM deployment configuration."""
+    """NIM deployment configuration.
+
+    Note: pre_cmd is not supported for NIM deployments.
+    """
 
     type: Literal["nim"] = Field(description="Deployment type: nim")
     image: str = Field(description="NIM container image")
     served_model_name: str = Field(description="Model name for serving")
     port: int = Field(default=8000, description="Server port")
     command: Optional[str] = Field(default=None, description="Custom command")
-    pre_cmd: Optional[str] = Field(default=None, description="Pre-command to run")
     endpoints: Optional[EndpointsConfig] = Field(
         default=None, description="API endpoints configuration"
     )
