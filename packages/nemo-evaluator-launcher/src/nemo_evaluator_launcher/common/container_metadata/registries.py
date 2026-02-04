@@ -259,7 +259,11 @@ def _read_docker_credentials_detailed(
             return None, None
 
         registry_auth, matched_key = _find_auth_in_config(auths, registry_url)
-        if not registry_auth:
+        # NOTE: Docker config may have an empty auth entry `{}` for registries
+        # when credentials are stored in an external helper (`credsStore`).
+        # In that case `registry_auth` is an empty dict (falsy) but the match is
+        # still meaningful and should not short-circuit credsStore lookup.
+        if registry_auth is None:
             return None, None
 
         auth_string = registry_auth.get("auth")
