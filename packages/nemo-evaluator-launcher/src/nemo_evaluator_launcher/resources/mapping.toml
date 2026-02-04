@@ -22,55 +22,55 @@
 
 [lm-evaluation-harness]
 container = "nvcr.io/nvidia/eval-factory/lm-evaluation-harness:26.01"
-# container-digest:sha256:4405ea93535f0d5067313b4f78fabead639be31fa3b9b700d72150872e2b78c9
+# container-digest:sha256:f5e5b59b2893e48ce113c4e163b0f9baadadf80824384bcfc84591e0664aba26
 
 [mtbench]
 container = "nvcr.io/nvidia/eval-factory/mtbench:26.01"
-# container-digest:sha256:285561e1d52d61876ab9b4620f9ed033460bf44458ca692df4467bf2c325d236
+# container-digest:sha256:69c930de81fdc8d3a55824fc7ebee9632c858ba56234f43ad9d1590e7fc861b1
 
 [ifbench]
 container = "nvcr.io/nvidia/eval-factory/ifbench:26.01"
-# container-digest:sha256:6263f213cce6cbc7468260b53f308ee77a9aa8e39652d51903a96668ea4badf8
+# container-digest:sha256:e99059d2e334ef97826629a004c888f7daed1adb9d724ca73274e1b93c743ac1
 
 [simple_evals]
 container = "nvcr.io/nvidia/eval-factory/simple-evals:26.01"
-# container-digest:sha256:6e0ffeaa93376852112fedc777800676fb4ae69260563e99b5a85dff7846d6f3
+# container-digest:sha256:5e59e6e34ac55bb7d2b7a17466c039a5a663a9961bce70751e5a4f3f09026158
 
 [bigcode-evaluation-harness]
 container = "nvcr.io/nvidia/eval-factory/bigcode-evaluation-harness:26.01"
-# container-digest:sha256:8263687c042abd46fb23dab8c3aa831bd048497cdb4bde196e1e9ecf9d06cf0b
+# container-digest:sha256:4efb7706a525e248347773d7368c8305ca311cbed2fdafc837a9315164170acd
 
 [livecodebench]
 container = "nvcr.io/nvidia/eval-factory/livecodebench:26.01"
-# container-digest:sha256:0ce84b69b79fb2815dfe2d8487efbc098a9e131662cad0fd3d61040d0354d571
+# container-digest:sha256:76b4ce10b3e0f839bb5f86d11319d62dfc94fc49ac72c2cb126c27c021f7f69e
 
 [scicode]
 container = "nvcr.io/nvidia/eval-factory/scicode:26.01"
-# container-digest:sha256:b04e8250f28479b2ea0f2c2b19187e1fad8bca0ad326b1b09dc569289152411d
+# container-digest:sha256:f5c12499db7d8b415321c4242e5625ed69affdc1632056326790e5d55a4656e0
 
 [hle]
 container = "nvcr.io/nvidia/eval-factory/hle:26.01"
-# container-digest:sha256:114e878ede1fd77d3e67bb046ae62a10e498cdc4a297f375d031880d220d63c4
+# container-digest:sha256:59fa69e20bbaaa251effa5f9d440d60920bc601cfb26f9e03866f1b6aff6dc33
 
 [bfcl]
 container = "nvcr.io/nvidia/eval-factory/bfcl:26.01"
-# container-digest:sha256:3926e91f1b2a0a1a639d44c6a93c05c6808ad121b79c1cd1131812e8984c44f2
+# container-digest:sha256:5016e1f2b9984f5d348ac3806974d7b5d6ff6f550605f3220a3f08318e0c60c9
 
 [profbench]
 container = "nvcr.io/nvidia/eval-factory/profbench:26.01"
-# container-digest:sha256:ce5455f06538b3408dbc7513e7c977a095521e35611020388252dee9527d83d5
+# container-digest:sha256:7b2766affe4c2070ec803a893f7bf1ff2fc735df562aa520ec910c9ef58d3598
 
 [vlmevalkit]
 container = "nvcr.io/nvidia/eval-factory/vlmevalkit:26.01"
-# container-digest:sha256:dee182f7052e17fe90ef1303c4c9ab6f0f67d2a9e159400555c74a9cc2bf8dfb
+# container-digest:sha256:24c650c547cfd666bcc5ec822c996eb90e89e4964a1d4ec29e4d01d8bd3a22dc
 
 [garak]
 container = "nvcr.io/nvidia/eval-factory/garak:26.01"
-# container-digest:sha256:a8d69f5582303921d0310a31ce8ed95d317a8d7750da32c35867f903315f0653
+# container-digest:sha256:72514ac2c35f76fdb139b02f1c1d4159103969946a121592e50b129087dd455e
 
 [nemo_skills]
 container = "nvcr.io/nvidia/eval-factory/nemo-skills:26.01"
-# container-digest:sha256:36de6ac02d56ccda90ca8fd2bbf7c2dfd8a3318377273fdd5c9089d4a31fcec1
+# container-digest:sha256:43e2c4d6e197744f7fd0a874d06c5600a8b46b54e16d333c0ebf057b6d54635a
 # NeMo Skills container name has changed from nemo_skills to nemo-skills in 26.01
 
 [safety_eval]
@@ -79,32 +79,32 @@ container = "nvcr.io/nvidia/eval-factory/safety-harness:26.01"
 
 [helm]
 container = "nvcr.io/nvidia/eval-factory/helm:26.01"
-# container-digest:sha256:8147c9eaf4ef717b2de6390c264cb217e87206658fec4a1c730adb232b7a735c
+# container-digest:sha256:58be32aed07b94d104b9b72130bf94ee03dc16b16ded14416e21c97b62970589
 
 [tooltalk]
 container = "nvcr.io/nvidia/eval-factory/tooltalk:26.01"
-# container-digest:sha256:d829280eb563106a29a45020e20a9859db9f7e5f9e7988ec7a7d99277fb135ba
+# container-digest:sha256:2c032e8274fd3a825b3c2774d33d0caddfa198fe24980dd99b8e3ae77c8aadee
 
 [genai_perf_eval]
 container = "nvcr.io/nvidia/eval-factory/genai-perf:26.01"
-# container-digest:sha256:b6a3f60bc1762b2f2a216a5bdb73f84588e12c9914adcbdf0ecaa12d58acebe6
+# container-digest:sha256:ab3f8b34a6cb63f7e48e8847fb069be71a3b73eb4f924bcf274cb02c6cc975b6
 
 [mmath]
 container = "nvcr.io/nvidia/eval-factory/mmath:26.01"
-# container-digest:sha256:4e30f8c40a7ff8f200734cf1251072b49888841bf0513fe2d5725ae81ab8b428
+# container-digest:sha256:da033bf95efd05af58d2ab06feb2344dbca60678f3075a4bf7f53899901c5efc
 
 [tau2_bench]
 container = "nvcr.io/nvidia/eval-factory/tau2-bench:26.01"
-# container-digest:sha256:4e30f8c40a7ff8f200734cf1251072b49888841bf0513fe2d5725ae81ab8b428
+# container-digest:sha256:24aae1ed0eb955810a597382b1cbbfd8da64f9f74e1e64a4afd6a271d1b98be3
 
 [long_context_eval]
 container = "nvcr.io/nvidia/eval-factory/long-context-eval:26.01"
-# container-digest:sha256:4e30f8c40a7ff8f200734cf1251072b49888841bf0513fe2d5725ae81ab8b428
+# container-digest:sha256:461a74e48403c66058797cbfb6f42b1cc769b33f92dbd0503706586b2eb84689
 
 [codec]
 container = "nvcr.io/nvidia/eval-factory/contamination-detection:26.01"
-# container-digest:sha256:4e30f8c40a7ff8f200734cf1251072b49888841bf0513fe2d5725ae81ab8b428
+# container-digest:sha256:e16f56f78f4b36b3b1b6ce6da3d6bef7937ea578b1b0ba4595a1c71f927550e2
 
 [mteb]
 container = "nvcr.io/nvidia/eval-factory/mteb:26.01"
-# container-digest:sha256:4e30f8c40a7ff8f200734cf1251072b49888841bf0513fe2d5725ae81ab8b428
+# container-digest:sha256:fb0ea5360bec880d4ecbfc63015d775dc3d22601e5ab17d760a992402646cbbb
