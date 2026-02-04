@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "nel-config-generator",
-      "source": "./packages/nemo-evaluator-launcher/.claude/skills/nel-config-generator",
+      "source": "./.claude/skills/nel-config-generator",
       "skills": "./",
       "description": "Interactive config generator for NeMo Evaluator Launcher. Creates YAML configs for running model evaluations with support for SLURM and Local executors, all deployment types (vLLM, SGLang, NIM, TRT-LLM), and multiple exporters (MLflow, W&B, GSheets, Local)."
     }
