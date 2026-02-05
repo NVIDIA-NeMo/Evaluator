@@ -68,7 +68,7 @@ evaluation:
                 "/think"
 
     # run simpler tasks with reasoning off
-    - name: ifeval
+    - name: lm-evaluation-harness.ifeval
       nemo_evaluator_config:
         config:
           params:

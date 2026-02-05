@@ -142,4 +142,4 @@ deployment:
 evaluation:
   # Evaluation tasks to run
   tasks:
-    - name: ifeval
+    - name: lm-evaluation-harness.ifeval
