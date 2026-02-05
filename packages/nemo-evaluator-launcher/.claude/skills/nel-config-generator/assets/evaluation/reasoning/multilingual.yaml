@@ -3,14 +3,14 @@
 evaluation:
   tasks:
     # Math benchmarks with reasoning ON
-    - name: mmath_en
-    - name: mmath_zh
-    - name: mmath_ja
-    - name: mmath_ko
+    - name: mmath.mmath_en
+    - name: mmath.mmath_zh
+    - name: mmath.mmath_ja
+    - name: mmath.mmath_ko
     # MGSM with reasoning ON
-    - name: mgsm_cot
+    - name: simple_evals.mgsm
     # MMLU-Prox with reasoning OFF (factual recall)
-    - name: mmlu_prox
+    - name: lm-evaluation-harness.mmlu_prox
       nemo_evaluator_config:
         config:
           params:

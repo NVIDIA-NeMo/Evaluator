@@ -2,11 +2,8 @@
 # These tasks use log-probabilities to assess model confidence on answer choices
 evaluation:
   tasks:
-    - name: mmlu # Log-prob based multiple choice
-    - name: gpqa # Log-prob based (completions version)
-    - name: arc_challenge # Log-prob based
-    - name: hellaswag # Log-prob based
-    - name: winogrande # Log-prob based
-    - name: piqa # Log-prob based
-    - name: openbookqa # Log-prob based
-    - name: commonsense_qa # Log-prob based
+    - name: lm-evaluation-harness.mmlu # Log-prob based multiple choice
+    - name: lm-evaluation-harness.gpqa # Log-prob based (completions version)
+    - name: lm-evaluation-harness.arc_challenge # Log-prob based
+    - name: lm-evaluation-harness.hellaswag # Log-prob based
+    - name: lm-evaluation-harness.commonsense_qa # Log-prob based

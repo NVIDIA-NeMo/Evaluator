@@ -2,7 +2,7 @@
 # Note: Code tasks use text generation, not log-probabilities
 evaluation:
   tasks:
-    - name: humaneval # completions version - text generation
+    - name: bigcode-evaluation-harness.humaneval # completions version - text generation
       nemo_evaluator_config:
         config:
           params:
@@ -11,7 +11,7 @@ evaluation:
             max_new_tokens: 2048
             extra:
               n_samples: 5 # Sample multiple predictions for pass@k
-    - name: mbpp # completions version - text generation
+    - name: bigcode-evaluation-harness.mbpp # completions version - text generation
       nemo_evaluator_config:
         config:
           params:

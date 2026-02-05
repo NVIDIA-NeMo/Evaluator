@@ -1,8 +1,8 @@
 # Code Evaluation for reasoning models
 evaluation:
   tasks:
-    - name: mbppplus
-    - name: livecodebench_0824_0225
+    - name: bigcode-evaluation-harness.mbppplus_nemo # chat version (EvalPlus)
+    - name: nemo_skills.ns_livecodebench
       nemo_evaluator_config:
         config:
           params:

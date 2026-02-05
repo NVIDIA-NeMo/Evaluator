@@ -306,7 +306,15 @@ def build_config(
     deployment_path = ASSETS_DIR / "deployment" / f"{deployment}.yaml"
     config = deep_merge(config, load_yaml(deployment_path))
 
-    # 6. Write output if specified
+    # 6. Ensure _self_ is at the very end of defaults list (required by Hydra)
+    if "defaults" in config:
+        # Remove any existing _self_ entries
+        config["defaults"] = [d for d in config["defaults"] if d != "_self_"]
+        config["defaults"].append("_self_")
+    else:
+        config["defaults"] = ["_self_"]
+
+    # 7. Write output if specified
     if output:
         with open(output, "w") as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)

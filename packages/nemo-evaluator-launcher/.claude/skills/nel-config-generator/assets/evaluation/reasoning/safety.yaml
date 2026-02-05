@@ -2,7 +2,7 @@
 # Consider running safety evals with reasoning OFF
 evaluation:
   tasks:
-    - name: garak
+    - name: garak.garak
       nemo_evaluator_config:
         config:
           params:
@@ -12,7 +12,7 @@ evaluation:
             adapter_config:
               use_system_prompt: true
               custom_system_prompt: "/no_think" # Disable reasoning for safety
-    - name: aegis_v2
+    - name: safety_eval.aegis_v2
       nemo_evaluator_config:
         config:
           params:

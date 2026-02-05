@@ -4,7 +4,7 @@ defaults:
 execution:
   env_vars:
     deployment:
-      HF_TOKEN: ${oc.env:HF_TOKEN} # Required for gated HuggingFace models
+      HF_TOKEN: $HF_TOKEN # Required for gated HuggingFace models
 
 deployment:
   checkpoint_path: null # Set to path if using local checkpoint

@@ -5,6 +5,6 @@ execution:
 export:
   wandb:
     project: ??? # W&B project name (required)
-    entity: ??? # W&B entity/team name (optional, defaults to user)
+    entity: ??? # W&B entity/team name (required)
     log_logs: true
     tags: [] # Optional list of string tags
