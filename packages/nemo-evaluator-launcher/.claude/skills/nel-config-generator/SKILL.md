@@ -124,7 +124,7 @@ YOU MUST VERIFY THE CONFIG BEFORE GOING TO THE NEXT STEP. RESOLVE ANY ISSUES WIT
 Show tasks in the current config. Loop until the user confirms the task list is final:
 
 1. Tell the user: "Run `nel ls tasks` to see all available tasks".
-2. Ask if they want to add/remove tasks or add/remove/modify task-specific parameter overrides.  
+2. Ask if they want to add/remove tasks or add/remove/modify task-specific parameter overrides.
    To add per-task `nemo_evaluator_config` as specified by the user, e.g.:
    ```yaml
    tasks:
@@ -139,6 +139,16 @@ Show tasks in the current config. Loop until the user confirms the task list is 
 3. Apply changes.
 4. **Verify**: `python <SKILL_DIR>/scripts/verify_config.py <config_path>`.
 5. Show updated list and ask: "Is the task list final, or do you want to make more changes?"
+
+**Known Issues**
+
+- NeMo-Skills workaround (self-deployment only): If using `nemo_skills.*` tasks with self-deployment (vLLM/SGLang/NIM), add at top level:
+  ```yaml
+  target:
+    api_endpoint:
+      api_key_name: DUMMY_API_KEY
+  ```
+  For the None (External) deployment the `api_key_name` should be already defined. The `DUMMY_API_KEY` export is handled in Step 8.
 
 YOU MUST VERIFY THE CONFIG BEFORE GOING TO THE NEXT STEP. RESOLVE ANY ISSUES WITH THE CONFIG BEFORE GOING TO THE NEXT STEP. RUN: `python <SKILL_DIR>/scripts/verify_config.py <config_path>`
 
@@ -170,17 +180,25 @@ YOU MUST VERIFY THE CONFIG BEFORE GOING TO THE NEXT STEP. RESOLVE ANY ISSUES WIT
 
 - Tell the user they should see: https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator/interceptors/index.html .
 - DON'T provide any general information about what interceptors typically do in API frameworks without reading the docs. If the user asks about interceptors, only then read the webpage to provide precise information.
-- If the user asks you to configure some interceptor, then read the webpage of this interceptor and configure it according to the `--overrides` syntax (just put the values in the YAML config instead of using CLI overrides).  
+- If the user asks you to configure some interceptor, then read the webpage of this interceptor and configure it according to the `--overrides` syntax (just put the values in the YAML config instead of using CLI overrides).
   By defining `interceptors` list you'd override the full chain of interceptors which can have unintended consequences like disabling default interceptors. That's why use the fields specified in the `CLI Configuration` section after the `--overrides` keyword to configure interceptors in the YAML config.
+
+**Documentation Errata**
+
+- The docs may show incorrect parameter names for logging. Use `max_logged_requests` and `max_logged_responses` (NOT `max_saved_*` or `max_*`).
 
 **Step 8: Run the evaluation**
 
 Print the following commands to the user. Propose to execute them in order to confirm the config works as expected before the full run.
 
-**Important**: If the config uses `deployment.pre_cmd` or `evaluation.pre_cmd`, prepend `NEMO_EVALUATOR_TRUST_PRE_CMD=1` to all commands below for security:
+**Important**: Export required environment variables based on your config:
 
 ```bash
+# If using pre_cmd:
 export NEMO_EVALUATOR_TRUST_PRE_CMD=1
+
+# If using nemo_skills.* tasks with self-deployment:
+export DUMMY_API_KEY=dummy
 ```
 
 1. **Dry-run** (validates config without running):
