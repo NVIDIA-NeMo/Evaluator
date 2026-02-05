@@ -15,11 +15,11 @@
 #
 """Shared utilities for metrics and configuration handling."""
 
-import json
 import re
 import subprocess
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -41,6 +41,37 @@ OPTIONAL_ARTIFACTS = ["omni-info.json"]
 # Glob-style patterns to exclude when only_required=false (applied recursively)
 # Matches: cache/, response_stats_cache/, lm_cache_rank0.db/, *.lock, synthetic/, etc.
 EXCLUDED_PATTERNS = ["*cache*", "*.db", "*.lock", "synthetic", "debug.json"]
+
+
+@dataclass
+class ExportResult:
+    """Result of an export operation."""
+
+    successful_jobs: List[str]
+    failed_jobs: List[str]
+    skipped_jobs: List[str]
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class DataForExport:
+    artifacts_dir: Path
+    logs_dir: Optional[Path]
+
+    config: Dict[str, Any]
+    model_id: str
+    metrics: Dict[str, float]
+
+    harness: Optional[str]
+    task: str
+    container: str
+
+    executor: str
+    invocation_id: str
+    job_id: str
+    timestamp: float
+
+    job_data: Optional[Dict[str, Any]] = None
 
 
 def get_relevant_artifacts() -> List[str]:
@@ -130,44 +161,78 @@ class MetricConflictError(Exception):
     """Raised when attempting to set the same metric key with a different value."""
 
 
+RESULTS_FILE = "results.yml"
+METADATA_FILE = "metadata.yaml"
+METADATA_CONFIG_KEY = "launcher_resolved_config"
+NE_CONFIG_FILE = "run_config.yml"
+
+
 def extract_accuracy_metrics(
-    job_data: JobData, get_job_paths_func: Callable, log_metrics: List[str] = None
+    artifacts_dir: Path, log_metrics: List[str] = None
 ) -> Dict[str, float]:
-    """Extract accuracy metrics from job results."""
-    try:
-        paths = get_job_paths_func(job_data)
-        artifacts_dir = _get_artifacts_dir(paths)
+    """Extract accuracy metrics from job results.
+    artifacts_dir: Path to the artifacts directory
+    log_metrics: List of metrics to log. If None, all metrics are logged.
+    Returns:
+        Dict[str, float]: Dictionary of metrics
+    """
 
-        if not artifacts_dir or not artifacts_dir.exists():
-            logger.warning(f"Artifacts directory not found for job {job_data.job_id}")
-            return {}
+    if not artifacts_dir or not artifacts_dir.exists():
+        raise RuntimeError(f"Artifacts directory {artifacts_dir} not found")
 
-        # Prefer results.yml, but also merge JSON metrics to avoid missing values
-        metrics: Dict[str, float] = {}
-        results_yml = artifacts_dir / "results.yml"
-        if results_yml.exists():
-            yml_metrics = _extract_from_results_yml(results_yml)
-            if yml_metrics:
-                metrics.update(yml_metrics)
-
-        # Merge in JSON metrics (handles tasks that only emit JSON or extra fields)
-        json_metrics = _extract_from_json_files(artifacts_dir)
-        for k, v in json_metrics.items():
-            metrics.setdefault(k, v)
-
-        # Filter metrics if specified
-        if log_metrics:
-            filtered_metrics = {}
-            for metric_name, metric_value in metrics.items():
-                if any(filter_key in metric_name.lower() for filter_key in log_metrics):
-                    filtered_metrics[metric_name] = metric_value
-            return filtered_metrics
-
+    metrics = _extract_from_results_yml(artifacts_dir / RESULTS_FILE)
+    if not log_metrics:
         return metrics
 
-    except Exception as e:
-        logger.error(f"Failed to extract metrics for job {job_data.job_id}: {e}")
-        return {}
+    # Filter metrics if specified
+    filtered_metrics = {}
+    for metric_name, metric_value in metrics.items():
+        if any(filter_key in metric_name.lower() for filter_key in log_metrics):
+            filtered_metrics[metric_name] = metric_value
+    return filtered_metrics
+
+
+def get_model_id(artifacts_dir: Path) -> str:
+    """Get model name from ne config file."""
+    config_file = artifacts_dir / NE_CONFIG_FILE
+    with open(config_file, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    if not isinstance(data, dict):
+        raise ValueError(f"Failed to parse {config_file} - it should be a dictionary")
+    if (
+        "target" not in data
+        or "api_endpoint" not in data["target"]
+        or "model_id" not in data["target"]["api_endpoint"]
+    ):
+        raise ValueError(
+            f"Failed to parse {config_file} - no target.api_endpoint.model_id found"
+        )
+    return data["target"]["api_endpoint"]["model_id"]
+
+
+def load_config_from_metadata(artifacts_dir: Path) -> Dict[str, Any]:
+    """Load nel config from artifacts directory."""
+    with open(artifacts_dir / METADATA_FILE, "r", encoding="utf-8") as f:
+        metadata = yaml.safe_load(f)
+    if not isinstance(metadata, dict):
+        raise ValueError(f"Failed to parse {METADATA_FILE} - it should be a dictionary")
+    if METADATA_CONFIG_KEY not in metadata:
+        raise ValueError(
+            f"Failed to parse {METADATA_FILE} - no {METADATA_CONFIG_KEY} section found"
+        )
+    return metadata[METADATA_CONFIG_KEY]
+
+
+def load_benchmark_info(artifacts_dir: Path) -> Tuple[str, str]:
+    """Load benchmark info from ne config file."""
+    config_file = artifacts_dir / NE_CONFIG_FILE
+    with open(config_file, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    if not isinstance(data, dict):
+        raise ValueError(f"Failed to parse {config_file} - it should be a dictionary")
+    harness = data.get("framework_name", None)
+    benchmark = data.get("config", {}).get("type", None)
+    return harness, benchmark
 
 
 # =============================================================================
@@ -176,21 +241,19 @@ def extract_accuracy_metrics(
 
 
 def extract_exporter_config(
-    job_data: JobData, exporter_name: str, constructor_config: Dict[str, Any] = None
+    data_for_export: DataForExport,
+    exporter_name: str,
+    constructor_config: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
     """Extract and merge exporter configuration from multiple sources."""
     config = {}
 
     # root-level `export.<exporter-name>`
-    if job_data.config:
-        export_block = (job_data.config or {}).get("export", {})
-        yaml_config = (export_block or {}).get(exporter_name, {})
-        if yaml_config:
-            config.update(yaml_config)
+    config = (data_for_export.config or {}).get("export", {}).get(exporter_name, {})
 
     # From webhook metadata (if triggered by webhook)
-    if "webhook_metadata" in job_data.data:
-        webhook_data = job_data.data["webhook_metadata"]
+    if "webhook_metadata" in data_for_export.job_data:
+        webhook_data = data_for_export.job_data["webhook_metadata"]
         webhook_config = {
             "triggered_by_webhook": True,
             "webhook_source": webhook_data.get("webhook_source", "unknown"),
@@ -334,33 +397,19 @@ def download_gitlab_artifacts(
 CONNECTIONS_DIR = Path.home() / ".nemo-evaluator" / "connections"
 
 
-def ssh_setup_masters(jobs: Dict[str, JobData]) -> Dict[Tuple[str, str], str]:
-    """Start SSH master connections for remote jobs, returns control_paths."""
-    remote_pairs: set[tuple[str, str]] = set()
-    for jd in jobs.values():
-        try:
-            # Preferred: explicit 'paths' from job data
-            p = (jd.data or {}).get("paths") or {}
-            if (
-                p.get("storage_type") == "remote_ssh"
-                and p.get("username")
-                and p.get("hostname")
-            ):
-                remote_pairs.add((p["username"], p["hostname"]))
-                continue
-            # Fallback: common slurm fields (works with BaseExporter.get_job_paths)
-            d = jd.data or {}
-            if jd.executor == "slurm" and d.get("username") and d.get("hostname"):
-                remote_pairs.add((d["username"], d["hostname"]))
-        except Exception:
-            pass
-
-    if not remote_pairs:
+def ssh_setup_masters(remotes: List[Tuple[str, str]]) -> Dict[Tuple[str, str], str]:
+    """Start SSH master connections for remote jobs, returns control_paths.
+    Args:
+        remotes: List of tuples containing username and hostname
+    Returns:
+        Dictionary mapping username and hostname to socket path
+    """
+    if not remotes:
         return {}
 
     CONNECTIONS_DIR.mkdir(parents=True, exist_ok=True)
     control_paths: Dict[Tuple[str, str], str] = {}
-    for username, hostname in remote_pairs:
+    for username, hostname in remotes:
         socket_path = CONNECTIONS_DIR / f"{username}_{hostname}.sock"
         try:
             cmd = [
@@ -406,20 +455,22 @@ def ssh_cleanup_masters(control_paths: Dict[Tuple[str, str], str]) -> None:
 
 
 def ssh_download_artifacts(
-    paths: Dict[str, Any],
+    username: str,
+    hostname: str,
+    remote_path: str,
     export_dir: Path,
-    config: Dict[str, Any] | None = None,
+    *,
+    copy_logs: bool = False,
+    copy_artifacts: bool = True,
+    only_required: bool = True,
     control_paths: Dict[Tuple[str, str], str] | None = None,
 ) -> List[str]:
     """Download artifacts/logs via SSH with optional connection reuse."""
     exported_files: List[str] = []
-    copy_logs = bool((config or {}).get("copy_logs", False))
-    copy_artifacts = bool((config or {}).get("copy_artifacts", True))
-    only_required = bool((config or {}).get("only_required", True))
 
     control_path = None
     if control_paths:
-        control_path = control_paths.get((paths["username"], paths["hostname"]))
+        control_path = control_paths.get((username, hostname))
     ssh_opts = ["-o", f"ControlPath={control_path}"] if control_path else []
 
     def scp_file(remote_path: str, local_path: Path) -> bool:
@@ -427,7 +478,7 @@ def ssh_download_artifacts(
             ["scp"]
             + ssh_opts
             + [
-                f"{paths['username']}@{paths['hostname']}:{remote_path}",
+                f"{username}@{hostname}:{remote_path}",
                 str(local_path),
             ]
         )
@@ -442,7 +493,7 @@ def ssh_download_artifacts(
 
         if only_required:
             for artifact in get_relevant_artifacts():
-                remote_file = f"{paths['remote_path']}/artifacts/{artifact}"
+                remote_file = f"{remote_path}/artifacts/{artifact}"
                 local_file = art_dir / artifact
                 local_file.parent.mkdir(parents=True, exist_ok=True)
                 if scp_file(remote_file, local_file):
@@ -454,13 +505,11 @@ def ssh_download_artifacts(
 
             # Build SSH command
             ssh_cmd = ["ssh"] + ssh_opts
-            remote_tar_cmd = (
-                f"cd {paths['remote_path']} && tar -czf - {exclude_args} artifacts/"
-            )
+            remote_tar_cmd = f"cd {remote_path} && tar -czf - {exclude_args} artifacts/"
 
             # Stream tar from remote, extract locally
             ssh_full = ssh_cmd + [
-                f"{paths['username']}@{paths['hostname']}",
+                f"{username}@{hostname}",
                 remote_tar_cmd,
             ]
             with subprocess.Popen(
@@ -480,12 +529,12 @@ def ssh_download_artifacts(
     # Logs (top-level only)
     if copy_logs:
         local_logs = export_dir / "logs"
-        remote_logs = f"{paths['remote_path']}/logs"
+        remote_logs = f"{remote_path}/logs"
         cmd = (
             ["scp", "-r"]
             + ssh_opts
             + [
-                f"{paths['username']}@{paths['hostname']}:{remote_logs}/.",
+                f"{username}@{hostname}:{remote_logs}/.",
                 str(local_logs),
             ]
         )
@@ -534,39 +583,22 @@ def _extract_metrics_from_results(results: dict) -> Dict[str, float]:
     return metrics
 
 
-def _extract_from_results_yml(results_yml: Path) -> Dict[str, float]:
-    """Extract metrics from results.yml file."""
-    try:
-        with open(results_yml, "r", encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-        if not isinstance(data, dict) or "results" not in data:
-            return {}
-        return _extract_metrics_from_results(data.get("results"))
-    except Exception as e:
-        logger.warning(f"Failed to parse results.yml: {e}")
-        return {}
+def _extract_from_results_yml(
+    results_yml: Path,
+) -> Tuple[Dict[str, float], Dict[str, Any]]:
+    """Extract metrics and config from results.yml file."""
+    with open(results_yml, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
 
-
-def _extract_from_json_files(artifacts_dir: Path) -> Dict[str, float]:
-    """Extract metrics from individual JSON result files."""
-    metrics = {}
-
-    for json_file in artifacts_dir.glob("*.json"):
-        if json_file.name in get_relevant_artifacts():
-            continue  # Skip known artifact files, focus on task result files
-
-        try:
-            with open(json_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            if isinstance(data, dict) and "score" in data:
-                task_name = json_file.stem
-                metrics[f"{task_name}_score"] = float(data["score"])
-
-        except Exception as e:
-            logger.warning(f"Failed to parse {json_file}: {e}")
-
-    return metrics
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"Failed to parse {results_yml} - it should be a dictionary with 'results' and 'config' sections"
+        )
+    if "results" not in data:
+        raise ValueError(f"Failed to parse {results_yml} - no results section found")
+    if "config" not in data:
+        raise ValueError(f"Failed to parse {results_yml} - no config section found")
+    return _extract_metrics_from_results(data["results"]), data["config"]
 
 
 def _extract_task_metrics(task_name: str, task_data: dict) -> Dict[str, float]:
