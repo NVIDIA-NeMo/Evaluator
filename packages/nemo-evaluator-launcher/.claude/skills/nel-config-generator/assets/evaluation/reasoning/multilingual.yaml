@@ -1,0 +1,23 @@
+# Multilingual Benchmarks for reasoning models
+# Math benchmarks benefit from reasoning; others run with reasoning off
+evaluation:
+  tasks:
+    # Math benchmarks with reasoning ON
+    - name: mmath_en
+    - name: mmath_zh
+    - name: mmath_ja
+    - name: mmath_ko
+    # MGSM with reasoning ON
+    - name: mgsm_cot
+    # MMLU-Prox with reasoning OFF (factual recall)
+    - name: mmlu_prox
+      nemo_evaluator_config:
+        config:
+          params:
+            temperature: 0
+            max_new_tokens: 4096
+        target:
+          api_endpoint:
+            adapter_config:
+              use_system_prompt: true
+              custom_system_prompt: "/no_think"

@@ -1,0 +1,14 @@
+defaults:
+  - deployment: nim
+
+execution:
+  env_vars:
+    deployment:
+      NGC_API_KEY: ${oc.env:NGC_API_KEY} # Required for NIM container authentication
+  mounts:
+    deployment:
+      /path/to/nim/cache: /opt/nim/.cache # Replace with absolute path to NIM cache directory
+
+deployment:
+  image: ??? # NIM image (e.g., nvcr.io/nim/meta/llama-3.2-1b-instruct:latest)
+  served_model_name: ??? # Model name (e.g., meta/llama-3.2-1b-instruct)

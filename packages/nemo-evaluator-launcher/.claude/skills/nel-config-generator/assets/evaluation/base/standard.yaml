@@ -1,0 +1,12 @@
+# Standard LLM Benchmarks for base models (completions endpoint, log-probability based)
+# These tasks use log-probabilities to assess model confidence on answer choices
+evaluation:
+  tasks:
+    - name: mmlu # Log-prob based multiple choice
+    - name: gpqa # Log-prob based (completions version)
+    - name: arc_challenge # Log-prob based
+    - name: hellaswag # Log-prob based
+    - name: winogrande # Log-prob based
+    - name: piqa # Log-prob based
+    - name: openbookqa # Log-prob based
+    - name: commonsense_qa # Log-prob based

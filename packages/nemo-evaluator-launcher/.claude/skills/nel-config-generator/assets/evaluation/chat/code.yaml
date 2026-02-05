@@ -1,0 +1,22 @@
+# Code Evaluation for chat models (chat endpoint)
+evaluation:
+  tasks:
+    - name: humaneval_instruct # chat version
+      nemo_evaluator_config:
+        config:
+          params:
+            temperature: 0.2
+            top_p: 0.95
+            max_new_tokens: 2048
+            extra:
+              n_samples: 5
+    - name: mbpp_plus # chat version (EvalPlus)
+      nemo_evaluator_config:
+        config:
+          params:
+            temperature: 0.2
+            top_p: 0.95
+            max_new_tokens: 2048
+            extra:
+              n_samples: 5
+    - name: livecodebench_0824_0225

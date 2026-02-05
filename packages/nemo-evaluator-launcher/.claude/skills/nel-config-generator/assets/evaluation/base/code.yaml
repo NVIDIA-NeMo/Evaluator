@@ -1,0 +1,22 @@
+# Code Evaluation for base models (completions endpoint)
+# Note: Code tasks use text generation, not log-probabilities
+evaluation:
+  tasks:
+    - name: humaneval # completions version - text generation
+      nemo_evaluator_config:
+        config:
+          params:
+            temperature: 0.2
+            top_p: 0.95
+            max_new_tokens: 2048
+            extra:
+              n_samples: 5 # Sample multiple predictions for pass@k
+    - name: mbpp # completions version - text generation
+      nemo_evaluator_config:
+        config:
+          params:
+            temperature: 0.2
+            top_p: 0.95
+            max_new_tokens: 2048
+            extra:
+              n_samples: 5
