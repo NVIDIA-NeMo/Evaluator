@@ -85,8 +85,8 @@ It never overwrites existing files.
 
 Ask for model path. Determine type:
 
-- Checkpoint path (starts with `/` or `./`) → set `deployment.checkpoint_path`
-- HF handle (e.g., `org/model-name`) → set `deployment.hf_model_handle`
+- Checkpoint path (starts with `/` or `./`) → set `deployment.checkpoint_path: <path>` and `deployment.hf_model_handle: null`
+- HF handle (e.g., `org/model-name`) → set `deployment.hf_model_handle: <handle>` and `deployment.checkpoint_path: null`
 
 Use WebSearch to find model card (HuggingFace, build.nvidia.com). Read it carefully, the FULL text, the devil is in the details. Extract ALL relevant configurations:
 
