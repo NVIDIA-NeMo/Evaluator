@@ -60,11 +60,11 @@ For evaluation, you must specify the path to the `tokenizer` and set the `tokeni
 :start-after: "## Run the evaluation"
 ```
 
-## Evaluate Automodel Checkpoints on Chat benchmarks
+## Evaluate Automodel Checkpoints on Chat Benchmarks
 
-To evaluate Automodel checkpoints on chat benchmarks we need the chat endpoint (`/v1/chat/completions/`). The deployment command provided in [Deploy Automodel Checkpoints](#deploy-automodel-checkpoints) also exposes the chat endpoint and the same command can be used for evaluating on chat benchmarks.
+To evaluate Automodel checkpoints on chat benchmarks you need the chat endpoint (`/v1/chat/completions/`). The deployment command provided in [Deploy Automodel Checkpoints](#deploy-automodel-checkpoints) also exposes the chat endpoint, and the same command can be used for evaluating on chat benchmarks.
 
-For evaluation, update the url by replacing `/v1/completions/` with `/v1/chat/completions/` as shown below. Additionally, set the `type` field to `"chat"` to indicate a chat benchmark.
+For evaluation, update the URL by replacing `/v1/completions/` with `/v1/chat/completions/` as shown below. Additionally, set the `type` field to `"chat"` to indicate a chat benchmark.
 
 ```{literalinclude} _snippets/ifeval.py
 :language: python
