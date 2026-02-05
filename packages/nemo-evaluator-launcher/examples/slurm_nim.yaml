@@ -56,6 +56,6 @@ deployment:
 # Specify the benchmarks to evaluate
 evaluation:
   tasks:
-    - name: ifeval
+    - name: lm-evaluation-harness.ifeval
     - name: gsm8k
 

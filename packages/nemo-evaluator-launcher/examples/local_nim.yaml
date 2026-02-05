@@ -57,6 +57,6 @@ evaluation:
         parallelism: 4
         limit_samples: 10  # TEST ONLY: remove for full evaluation
   tasks:
-    - name: ifeval
+    - name: lm-evaluation-harness.ifeval
     - name: gsm8k
 

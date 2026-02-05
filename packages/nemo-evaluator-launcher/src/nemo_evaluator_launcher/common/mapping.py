@@ -340,8 +340,12 @@ def get_task_definition_for_job(
         if endpoint_type:
             result["endpoint_type"] = endpoint_type
         return result
-    except ValueError:
-        pass  # Task not in base mapping, try harness lookup
+    except ValueError as e:
+        # If error is about multiple matches, re-raise it
+        if "multiple tasks" in str(e):
+            raise
+        # Otherwise task not in base mapping, try harness lookup
+        pass
 
     # If harness specified, try to get default container from harness
     if harness_name:
