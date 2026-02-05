@@ -11,6 +11,16 @@
 [![nemo-evaluator-launcher PyPI downloads](https://img.shields.io/pypi/dm/nemo-evaluator-launcher.svg)](https://pypi.org/project/nemo-evaluator-launcher/)
 [![Project Status](https://img.shields.io/badge/Status-Production%20Ready-green)](#)
 
+## 🆕 What's New in 26.01 Release
+
+### New Evaluation Harnesses
+- **TAU2-Bench** (`tau2-bench`): Conversational agents in dual-control environments (telecom, airline, retail)
+- **RULER** (`long-context-eval`): Long-context evaluation with configurable sequence lengths (4K to 1M tokens)
+- **CoDec** (`contamination-detection`): Contamination detection - practical and accurate method to detect and quantify training data contamination in large language models
+- **MTEB** (`mteb`): Massive Text Embedding Benchmark
+
+---
+
 ## [📖 Documentation](https://docs.nvidia.com/nemo/evaluator/latest/)
 
 NeMo Evaluator SDK is an open-source platform for robust, reproducible, and scalable evaluation of Large Language Models. It enables you to run hundreds of benchmarks across popular evaluation harnesses against any OpenAI-compatible model API. Evaluations execute in open-source Docker containers for auditable and trustworthy results. The platform's containerized architecture allows for the rapid integration of public benchmarks and private datasets.
