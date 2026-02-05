@@ -51,8 +51,8 @@ evaluation:
         parallelism: 1  # 1 parallel request to avoid overloading the server
         limit_samples: 10 # TEST ONLY: Limits all benchmarks to 10 samples for quick testing
   tasks:
-    - name: ifeval
-    - name: gpqa_diamond
+    - name: lm-evaluation-harness.ifeval
+    - name: simple_evals.gpqa_diamond
       env_vars:
         HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
-    - name: mbpp
+    - name: bigcode-evaluation-harness.mbpp-chat

@@ -67,7 +67,7 @@ evaluation:
               max_tokens: 512
       env_vars:
         JUDGE_API_KEY: NGC_API_KEY
-    - name: mbpp
+    - name: bigcode-evaluation-harness.mbpp-chat
       nemo_evaluator_config: # task-specific configuration for mbpp
         config:
           params:
