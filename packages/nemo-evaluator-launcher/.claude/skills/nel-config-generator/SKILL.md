@@ -200,6 +200,56 @@ export NEMO_EVALUATOR_TRUST_PRE_CMD=1
 
 After the dry-run, check the output from `nel` for any problems with the config. If there are no problems, propose to first execute the test run with limited samples and then execute the full evaluation. If there are problems, resolve them before executing the full evaluation.
 
+**Monitoring Progress**
+
+After job submission, you can monitor progress using:
+
+1. **Check job status:**
+   ```bash
+   nel status <invocation_id>
+   nel info <invocation_id>
+   ```
+
+2. **Stream logs** (Local execution only):
+   ```bash
+   nel logs <invocation_id>
+   ```
+   Note: `nel logs` is not supported for SLURM execution.
+
+3. **Inspect logs via SSH** (SLURM workaround):
+
+   When `nel logs` is unavailable (SLURM), use SSH to inspect logs directly:
+
+   First, get log locations:
+   ```bash
+   nel info <invocation_id> --logs
+   ```
+
+   Then use SSH to view logs:
+
+   **Check server deployment logs:**
+   ```bash
+   ssh <username>@<hostname> "tail -100 <log_path>/server-<slurm_job_id>-*.log"
+   ```
+   Shows vLLM server startup, model loading, and deployment errors (e.g., missing wget/curl).
+
+   **Check evaluation client logs:**
+   ```bash
+   ssh <username>@<hostname> "tail -100 <log_path>/client-<slurm_job_id>.log"
+   ```
+   Shows evaluation progress, task execution, and results.
+
+   **Check SLURM scheduler logs:**
+   ```bash
+   ssh <username>@<hostname> "tail -100 <log_path>/slurm-<slurm_job_id>.log"
+   ```
+   Shows job scheduling, health checks, and overall execution flow.
+
+   **Search for errors:**
+   ```bash
+   ssh <username>@<hostname> "grep -i 'error\|warning\|failed' <log_path>/*.log"
+   ```
+
 ---
 
 Direct users with issues to:
