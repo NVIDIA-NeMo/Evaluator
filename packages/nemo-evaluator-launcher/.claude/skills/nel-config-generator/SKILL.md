@@ -138,12 +138,25 @@ YOU MUST VERIFY THE CONFIG BEFORE GOING TO THE NEXT STEP. RESOLVE ANY ISSUES WIT
 
 **Step 6: Advanced - Multi-node (Data Parallel)**
 
-If model >100B, suggest multi-node. Explain: "This is DP multi-node - the weights are copied (not distributed) across nodes. One deployment instance per node will be run with HAProxy load-balancing requests."
+If model >120B, suggest multi-node. Explain: "This is DP multi-node - the weights are copied (not distributed) across nodes. One deployment instance per node will be run with HAProxy load-balancing requests."
 
 Ask if user wants multi-node. If yes, ask for node count and configure:
-- `execution.num_nodes: <count>`
-- `execution.deployment.n_tasks: ${execution.num_nodes}`
-- `deployment.multiple_instances: true`
+
+```yaml
+execution:
+    num_nodes: 4  # 4 nodes = 4 independent deployment instances = 4x throughput
+    deployment:
+        n_tasks: ${execution.num_nodes}  # Must match num_nodes for multi-instance deployment
+
+deployment:
+    multiple_instances: true
+```
+
+Common confusion:
+
+- **This is different from `data_parallel_size`**, which controls DP replicas *within* a single node/deployment instance.
+- Global data parallelism is `num_nodes x data_parallel_size` (e.g., 2 nodes x 4 DP each = 8 replicas for max throughput).
+- With multi-node, `parallelism` in task config is the total concurrent requests across all instances, not per-instance.
 
 YOU MUST VERIFY THE CONFIG BEFORE GOING TO THE NEXT STEP. RESOLVE ANY ISSUES WITH THE CONFIG BEFORE GOING TO THE NEXT STEP. RUN: `python <SKILL_DIR>/scripts/verify_config.py <config_path>`
 
