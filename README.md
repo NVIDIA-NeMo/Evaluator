@@ -174,8 +174,8 @@ We recommend using the skills with Claude Sonnet or better for the best experien
 ### Claude Code (CLI)
 
 ```bash
-/plugin marketplace add NVIDIA/NeMo-Evaluator
-/plugin install nel-config-generator@NVIDIA/NeMo-Evaluator
+/plugin marketplace add NVIDIA-NeMo/Evaluator
+/plugin install nel-config-generator@NVIDIA-NeMo/Evaluator
 ```
 
 ### Cursor IDE
