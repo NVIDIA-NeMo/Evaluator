@@ -1,0 +1,6 @@
+defaults:
+  - execution: local
+  - _self_
+
+execution:
+  output_dir: nel-results

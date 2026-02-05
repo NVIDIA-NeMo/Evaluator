@@ -1,0 +1,31 @@
+# Safety & Security for reasoning models
+# Consider running safety evals with reasoning OFF
+evaluation:
+  tasks:
+    - name: garak
+      nemo_evaluator_config:
+        config:
+          params:
+            max_new_tokens: 4096 # Safety evals don't need extended reasoning
+        target:
+          api_endpoint:
+            adapter_config:
+              use_system_prompt: true
+              custom_system_prompt: "/no_think" # Disable reasoning for safety
+    - name: aegis_v2
+      nemo_evaluator_config:
+        config:
+          params:
+            max_new_tokens: 4096
+            extra:
+              judge:
+                model_id: "llama-3.1-nemoguard-8b-content-safety"
+                url: ??? # Set to your judge endpoint URL
+        target:
+          api_endpoint:
+            adapter_config:
+              use_system_prompt: true
+              custom_system_prompt: "/no_think"
+      env_vars:
+        HF_TOKEN: HF_TOKEN_FOR_AEGIS_V2
+        JUDGE_API_KEY: JUDGE_API_KEY

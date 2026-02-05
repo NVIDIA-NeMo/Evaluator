@@ -1,0 +1,15 @@
+defaults:
+  - execution: slurm/default
+  - _self_
+
+execution:
+  hostname: ??? # SLURM headnode (login) hostname (required)
+  username: ${oc.env:USER} # Cluster username; defaults to $USER
+  account: ??? # SLURM account allocation (required)
+  output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
+  mounts:
+    mount_home: false # Recommended: don't mount home directory on cluster
+  # Optional SLURM settings (uncomment to use):
+  # walltime: "04:00:00" # Job time limit (HH:MM:SS)
+  # partition: "batch" # SLURM partition name
+  # gres: "gpu:1" # Generic resources (e.g., GPUs)

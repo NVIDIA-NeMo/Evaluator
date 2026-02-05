@@ -835,6 +835,30 @@ class EvaluationSectionConfig(FlexibleModel):
     )
     pre_cmd: Optional[str] = Field(default=None, description="Pre-command to run")
 
+    @field_validator("tasks", mode="after")
+    @classmethod
+    def validate_tasks_not_empty(cls, v):
+        """Validate that tasks list is not empty."""
+        if not v:
+            raise ValueError(
+                "tasks list cannot be empty - at least one task is required"
+            )
+        return v
+
+    @field_validator("tasks", mode="after")
+    @classmethod
+    def validate_no_duplicate_tasks(cls, v):
+        """Validate that there are no duplicate task names."""
+        task_names = [task.name for task in v]
+        duplicates = [name for name in task_names if task_names.count(name) > 1]
+        if duplicates:
+            unique_duplicates = sorted(set(duplicates))
+            raise ValueError(
+                f"Duplicate task names found: {unique_duplicates}. "
+                "Each task name must be unique in the tasks list."
+            )
+        return v
+
 
 # =============================================================================
 # Export Configs

@@ -1,0 +1,9 @@
+# Code Evaluation for reasoning models
+evaluation:
+  tasks:
+    - name: mbppplus
+    - name: livecodebench_0824_0225
+      nemo_evaluator_config:
+        config:
+          params:
+            max_new_tokens: 65536 # Extended for complex code reasoning

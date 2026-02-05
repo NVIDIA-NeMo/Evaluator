@@ -1,0 +1,9 @@
+# Standard LLM Benchmarks for chat models (chat endpoint)
+evaluation:
+  tasks:
+    - name: ifeval
+    - name: gpqa_diamond # chat version with CoT
+      env_vars:
+        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Request access: https://huggingface.co/datasets/Idavidrein/gpqa
+    - name: gsm8k_cot_instruct # chat version with CoT
+    - name: mmlu_pro # chat version

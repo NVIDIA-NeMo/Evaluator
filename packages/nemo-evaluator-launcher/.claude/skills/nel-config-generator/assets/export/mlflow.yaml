@@ -1,0 +1,16 @@
+execution:
+  auto_export:
+    destinations: ["mlflow"]
+
+export:
+  mlflow:
+    tracking_uri: ??? # MLflow server URL (http://hostname:port) (required)
+    experiment_name: "nemo-evaluator-launcher" # Optional
+    description: "" # Optional
+    log_logs: true
+    log_config_params: true
+    tags: {} # Optional key-value pairs
+    # Optional MLflow settings (uncomment to use):
+    # log_metrics: true # Log metrics to MLflow
+    # only_required: false # Only log required fields
+    # extra_metadata: {} # Additional metadata key-value pairs

@@ -1,0 +1,23 @@
+# Standard LLM Benchmarks for reasoning models
+# Uses reasoning-enabled config from default.yaml
+# Note: gpqa_diamond is in math_reasoning.yaml to avoid duplicates when combining benchmarks
+evaluation:
+  tasks:
+    - name: mmlu_pro
+      nemo_evaluator_config:
+        config:
+          params:
+            max_new_tokens: 32768 # Extended for reasoning
+    # IFEval should run with reasoning OFF for accuracy
+    - name: ifeval
+      nemo_evaluator_config:
+        config:
+          params:
+            temperature: 0
+            top_p: 1e-5
+            max_new_tokens: 4096
+        target:
+          api_endpoint:
+            adapter_config:
+              use_system_prompt: true
+              custom_system_prompt: "/no_think" # Disable reasoning for IFEval

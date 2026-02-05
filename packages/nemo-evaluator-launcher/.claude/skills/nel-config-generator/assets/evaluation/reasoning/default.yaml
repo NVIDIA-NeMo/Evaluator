@@ -1,0 +1,18 @@
+# Reasoning model evaluation configuration (chat endpoint + reasoning)
+# See docs: https://docs.nvidia.com/nemo/evaluator/latest/evaluation/run-evals/reasoning.html
+evaluation:
+  nemo_evaluator_config:
+    config:
+      params:
+        request_timeout: 3600
+        parallelism: 32 # Lower parallelism for longer generations
+        temperature: 0.6 # Recommended for reasoning models
+        top_p: 0.95
+        max_new_tokens: 32768 # Extended for reasoning + final answer
+    target:
+      api_endpoint:
+        adapter_config:
+          process_reasoning_traces: true # Strip reasoning tokens and collect stats
+          use_system_prompt: true
+          # Set to match your model (e.g., "/think" for Llama, "detailed thinking on" for Nemotron)
+          custom_system_prompt: ???
