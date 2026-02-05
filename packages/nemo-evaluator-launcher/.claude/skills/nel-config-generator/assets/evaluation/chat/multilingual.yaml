@@ -1,11 +1,11 @@
 # Multilingual Benchmarks for chat models (chat endpoint)
 evaluation:
   tasks:
-    - name: mgsm_cot # Multilingual GSM8K with CoT (chat)
-    - name: mmlu_prox # MMLU-Prox multilingual (6 languages)
-    - name: mmath_en # Multilingual MATH - English
-    - name: mmath_zh # Multilingual MATH - Chinese
-    - name: mmath_ja # Multilingual MATH - Japanese
-    - name: mmath_ko # Multilingual MATH - Korean
-    - name: mmath_es # Multilingual MATH - Spanish
-    - name: mmath_fr # Multilingual MATH - French
+    - name: simple_evals.mgsm # Multilingual GSM8K with CoT (chat)
+    - name: lm-evaluation-harness.mmlu_prox # MMLU-Prox multilingual (6 languages)
+    - name: mmath.mmath_en # Multilingual MATH - English
+    - name: mmath.mmath_zh # Multilingual MATH - Chinese
+    - name: mmath.mmath_ja # Multilingual MATH - Japanese
+    - name: mmath.mmath_ko # Multilingual MATH - Korean
+    - name: mmath.mmath_es # Multilingual MATH - Spanish
+    - name: mmath.mmath_fr # Multilingual MATH - French

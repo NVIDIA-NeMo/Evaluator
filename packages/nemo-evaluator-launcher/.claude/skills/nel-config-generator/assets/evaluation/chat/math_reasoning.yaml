@@ -2,9 +2,9 @@
 # Note: For reasoning models, use evaluation/reasoning/ configs instead
 evaluation:
   tasks:
-    - name: gpqa_diamond
+    - name: nemo_skills.ns_gpqa # GPQA Diamond
       env_vars:
         HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND
-    - name: math_test_500
-    - name: AIME_2024
-    - name: AIME_2025
+    - name: simple_evals.math_test_500
+    - name: nemo_skills.ns_aime2024
+    - name: nemo_skills.ns_aime2025

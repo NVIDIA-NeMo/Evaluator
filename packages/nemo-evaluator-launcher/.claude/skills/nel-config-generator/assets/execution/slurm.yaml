@@ -1,6 +1,5 @@
 defaults:
   - execution: slurm/default
-  - _self_
 
 execution:
   hostname: ??? # SLURM headnode (login) hostname (required)

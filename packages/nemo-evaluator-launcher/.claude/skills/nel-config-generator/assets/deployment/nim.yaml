@@ -4,7 +4,7 @@ defaults:
 execution:
   env_vars:
     deployment:
-      NGC_API_KEY: ${oc.env:NGC_API_KEY} # Required for NIM container authentication
+      NGC_API_KEY: $NGC_API_KEY # Required for NIM container authentication
   mounts:
     deployment:
       /path/to/nim/cache: /opt/nim/.cache # Replace with absolute path to NIM cache directory

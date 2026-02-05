@@ -1,14 +1,14 @@
 # Safety & Security for chat models (chat endpoint)
 evaluation:
   tasks:
-    - name: garak
+    - name: garak.garak
       # Uncomment for quick testing:
       # nemo_evaluator_config:
       #   config:
       #     params:
       #       extra:
       #         probes: "test.Test"
-    - name: aegis_v2
+    - name: safety_eval.aegis_v2
       nemo_evaluator_config:
         config:
           params:

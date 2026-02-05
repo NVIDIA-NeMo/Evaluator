@@ -3,13 +3,13 @@
 # Note: gpqa_diamond is in math_reasoning.yaml to avoid duplicates when combining benchmarks
 evaluation:
   tasks:
-    - name: mmlu_pro
+    - name: nemo_skills.ns_mmlu_pro
       nemo_evaluator_config:
         config:
           params:
             max_new_tokens: 32768 # Extended for reasoning
     # IFEval should run with reasoning OFF for accuracy
-    - name: ifeval
+    - name: lm-evaluation-harness.ifeval
       nemo_evaluator_config:
         config:
           params:
