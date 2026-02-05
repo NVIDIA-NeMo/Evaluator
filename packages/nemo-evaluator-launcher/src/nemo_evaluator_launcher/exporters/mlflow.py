@@ -89,7 +89,9 @@ class MLflowExporter(BaseExporter):
     ) -> Tuple[List[str], List[str], List[str]]:
         """Export job to MLflow."""
         if not self.is_available():
-            logger.error("mlflow package not installed")
+            logger.error(
+                "MLflow package not installed. Install via: pip install nemo-evaluator-launcher[mlflow]"
+            )
             return [], [data.job_id for data in data_for_export], []
 
         successful_jobs = []
@@ -106,7 +108,9 @@ class MLflowExporter(BaseExporter):
 
         if not tracking_uri:
             logger.error(
-                "tracking_uri is not set (set export.mlflow.tracking_uri or MLFLOW_TRACKING_URI)"
+                "MLflow requires 'tracking_uri' to be configured. "
+                "Set export.mlflow.tracking_uri field in the config "
+                "or MLFLOW_TRACKING_URI environment variable."
             )
             return [], [data.job_id for data in data_for_export], []
 
