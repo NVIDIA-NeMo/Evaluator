@@ -6,7 +6,7 @@
 Before starting the tutorials, ensure you have:
 
 - **NeMo Framework Container**: Running the latest [NeMo Framework container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo)
-- **Model Checkpoint**: Access to a NeMo 2.0 checkpoint (tutorials use Llama 3.2 1B Instruct)
+- **Model Checkpoint**: Access to a Megatron Bridge checkpoint (tutorials use Llama 3.2 1B Instruct converted from a Hugging Face format). 
 - **GPU Resources**: CUDA-compatible GPU with sufficient memory
 - **Jupyter Environment**: Ability to run Jupyter notebooks
 
@@ -50,7 +50,10 @@ Master custom evaluation workflows by running WikiText benchmark with advanced c
 
 1. Start NeMo Framework Container:
    ```bash
+   # set your Hugging Face token for access to gated datasets and checkpoints
+   export HF_TOKEN=hf_...
    docker run --rm -it -w /workdir -v $(pwd):/workdir \
+     -e HF_TOKEN \
      --entrypoint bash --gpus all \
      nvcr.io/nvidia/nemo:${TAG}
    ```
