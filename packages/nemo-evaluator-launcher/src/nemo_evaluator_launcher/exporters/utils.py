@@ -35,7 +35,12 @@ from nemo_evaluator_launcher.common.mapping import (
 # =============================================================================
 
 # Artifacts to be logged by default
-REQUIRED_ARTIFACTS = ["results.yml", "eval_factory_metrics.json"]
+REQUIRED_ARTIFACTS = [
+    "results.yml",
+    "eval_factory_metrics.json",
+    "run_config.yml",
+    "metadata.yaml",
+]
 OPTIONAL_ARTIFACTS = ["omni-info.json"]
 
 # Glob-style patterns to exclude when only_required=false (applied recursively)
@@ -487,44 +492,48 @@ def ssh_download_artifacts(
     export_dir.mkdir(parents=True, exist_ok=True)
 
     # Artifacts
-    if copy_artifacts:
-        art_dir = export_dir / "artifacts"
-        art_dir.mkdir(parents=True, exist_ok=True)
 
-        if only_required:
-            for artifact in get_relevant_artifacts():
-                remote_file = f"{remote_path}/artifacts/{artifact}"
-                local_file = art_dir / artifact
-                local_file.parent.mkdir(parents=True, exist_ok=True)
-                if scp_file(remote_file, local_file):
-                    exported_files.append(str(local_file))
-        else:
-            # Use tar+ssh to bundle many small files into one transfer
-            # This is much faster than rsync for directories with thousands of files
-            exclude_args = " ".join(f"--exclude={p}" for p in EXCLUDED_PATTERNS)
+    art_dir = export_dir / "artifacts"
+    art_dir.mkdir(parents=True, exist_ok=True)
 
-            # Build SSH command
-            ssh_cmd = ["ssh"] + ssh_opts
-            remote_tar_cmd = f"cd {remote_path} && tar -czf - {exclude_args} artifacts/"
-
-            # Stream tar from remote, extract locally
-            ssh_full = ssh_cmd + [
-                f"{username}@{hostname}",
-                remote_tar_cmd,
-            ]
-            with subprocess.Popen(
-                ssh_full, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-            ) as ssh_proc:
-                tar_extract = subprocess.run(
-                    ["tar", "-xzf", "-", "-C", str(export_dir)],
-                    stdin=ssh_proc.stdout,
-                    capture_output=True,
+    if only_required:
+        for artifact in get_relevant_artifacts():
+            remote_file = f"{remote_path}/artifacts/{artifact}"
+            local_file = art_dir / artifact
+            local_file.parent.mkdir(parents=True, exist_ok=True)
+            if scp_file(remote_file, local_file):
+                exported_files.append(str(local_file))
+            else:
+                logger.error(
+                    f"Failed to copy required artifact {artifact} from {remote_file} to {local_file}"
                 )
-                ssh_proc.wait()
-                if ssh_proc.returncode == 0 and tar_extract.returncode == 0:
-                    exported_files.extend(
-                        [str(f) for f in art_dir.rglob("*") if f.is_file()]
-                    )
+    else:
+        # Use tar+ssh to bundle many small files into one transfer
+        # This is much faster than rsync for directories with thousands of files
+        exclude_args = " ".join(f"--exclude={p}" for p in EXCLUDED_PATTERNS)
+
+        # Build SSH command
+        ssh_cmd = ["ssh"] + ssh_opts
+        remote_tar_cmd = f"cd {remote_path} && tar -czf - {exclude_args} artifacts/"
+
+        # Stream tar from remote, extract locally
+        ssh_full = ssh_cmd + [
+            f"{username}@{hostname}",
+            remote_tar_cmd,
+        ]
+        with subprocess.Popen(
+            ssh_full, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        ) as ssh_proc:
+            tar_extract = subprocess.run(
+                ["tar", "-xzf", "-", "-C", str(export_dir)],
+                stdin=ssh_proc.stdout,
+                capture_output=True,
+            )
+            ssh_proc.wait()
+            if ssh_proc.returncode == 0 and tar_extract.returncode == 0:
+                exported_files.extend(
+                    [str(f) for f in art_dir.rglob("*") if f.is_file()]
+                )
 
     # Logs (top-level files only, streamed via tar+ssh with compression)
     if copy_logs:
@@ -592,20 +601,19 @@ def _extract_metrics_from_results(results: dict) -> Dict[str, float]:
 
 def _extract_from_results_yml(
     results_yml: Path,
-) -> Tuple[Dict[str, float], Dict[str, Any]]:
+) -> Dict[str, float]:
     """Extract metrics and config from results.yml file."""
     with open(results_yml, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
     if not isinstance(data, dict):
         raise ValueError(
-            f"Failed to parse {results_yml} - it should be a dictionary with 'results' and 'config' sections"
+            f"Failed to parse {results_yml} - it should be a dictionary with 'results' section"
         )
     if "results" not in data:
         raise ValueError(f"Failed to parse {results_yml} - no results section found")
-    if "config" not in data:
-        raise ValueError(f"Failed to parse {results_yml} - no config section found")
-    return _extract_metrics_from_results(data["results"]), data["config"]
+
+    return _extract_metrics_from_results(data["results"])
 
 
 def _extract_task_metrics(task_name: str, task_data: dict) -> Dict[str, float]:

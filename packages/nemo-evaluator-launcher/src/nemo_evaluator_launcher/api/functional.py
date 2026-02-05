@@ -589,7 +589,7 @@ def export_results(
         export_result = exporter.export(invocation_ids)
 
         return {
-            "success": len(export_result.successful_jobs) > 0,
+            "success": len(export_result.failed_jobs) == 0,
             "metadata": {
                 "successful_jobs": len(export_result.successful_jobs),
                 "failed_jobs": len(export_result.failed_jobs),

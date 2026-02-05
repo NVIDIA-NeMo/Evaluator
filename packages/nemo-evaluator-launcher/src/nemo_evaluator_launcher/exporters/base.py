@@ -81,6 +81,9 @@ class BaseExporter(ABC):
             failed_jobs.extend(export_failed_jobs)
 
         # return result
+        logger.info(
+            f"Export result: successful_jobs={successful_jobs}, failed_jobs={failed_jobs}, skipped_jobs={skipped_jobs}"
+        )
         return ExportResult(
             successful_jobs=successful_jobs,
             failed_jobs=failed_jobs,
@@ -283,6 +286,7 @@ class BaseExporter(ABC):
                     only_required=self.only_required,
                     control_paths=cp,
                 )
+                logger.debug(f"Exported files: {exported_files}")
                 if len(exported_files) == 0:
                     logger.warning(
                         f"No artifacts copied for remote job {job_data.job_id}. Could not export job."
@@ -334,23 +338,29 @@ class BaseExporter(ABC):
             )
             return None
 
-        metrics = extract_accuracy_metrics(artifacts_dir)
-        harness, task = load_benchmark_info(artifacts_dir)
-        container = job_data.data.get("eval_image", None)
-        model_id = get_model_id(artifacts_dir)
+        try:
+            metrics = extract_accuracy_metrics(artifacts_dir)
+            harness, task = load_benchmark_info(artifacts_dir)
+            container = job_data.data.get("eval_image", None)
+            model_id = get_model_id(artifacts_dir)
 
-        return DataForExport(
-            artifacts_dir=artifacts_dir,
-            logs_dir=logs_dir,
-            config=job_data.config,
-            model_id=model_id,
-            metrics=metrics,
-            harness=harness,
-            task=task,
-            container=container,
-            executor=job_data.executor,
-            invocation_id=job_data.invocation_id,
-            job_id=job_data.job_id,
-            timestamp=job_data.timestamp,
-            job_data=job_data.data,
-        )
+            return DataForExport(
+                artifacts_dir=artifacts_dir,
+                logs_dir=logs_dir,
+                config=job_data.config,
+                model_id=model_id,
+                metrics=metrics,
+                harness=harness,
+                task=task,
+                container=container,
+                executor=job_data.executor,
+                invocation_id=job_data.invocation_id,
+                job_id=job_data.job_id,
+                timestamp=job_data.timestamp,
+                job_data=job_data.data,
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to prepare data for export for job {job_data.job_id}: {e}"
+            )
+            return None

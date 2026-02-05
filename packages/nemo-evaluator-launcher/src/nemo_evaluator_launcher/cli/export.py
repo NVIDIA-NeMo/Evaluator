@@ -186,73 +186,11 @@ class ExportCmd:
 
         result = export_results(self.invocation_ids, self.dest, config)
 
-        if not result.get("success", False):
-            err = result.get("error", "Unknown error")
-            print(f"\nExport failed: {err}")
-            # Provide actionable guidance for common configuration issues
-            if self.dest == "mlflow":
-                if "tracking_uri" in str(err).lower():
-                    print("\nMLflow requires 'tracking_uri' to be configured.")
-                    print(
-                        "Set it via: -o export.mlflow.tracking_uri=http://mlflow-server:5000"
-                    )
-                elif "not installed" in str(err).lower():
-                    print("\nMLflow package not installed.")
-                    print("Install via: pip install nemo-evaluator-launcher[mlflow]")
-            elif self.dest == "wandb":
-                if "entity" in str(err).lower() or "project" in str(err).lower():
-                    print("\nW&B requires 'entity' and 'project' to be configured.")
-                    print(
-                        "Set via: -o export.wandb.entity=my-org -o export.wandb.project=my-proj"
-                    )
-                elif "not installed" in str(err).lower():
-                    print("\nW&B package not installed.")
-                    print("Install via: pip install nemo-evaluator-launcher[wandb]")
-            elif self.dest == "gsheets":
-                if "not installed" in str(err).lower():
-                    print("\nGoogle Sheets package not installed.")
-                    print("Install via: pip install nemo-evaluator-launcher[gsheets]")
-            return
-
         # Success path
-        # FIXME(martas): we shouldn't need if-else here and just loop over the results
-        if len(self.invocation_ids) == 1:
-            # Single invocation
-            invocation_id = self.invocation_ids[0]
-            print(f"Export completed for {invocation_id}")
-
-            for job_id, job_result in result["jobs"].items():
-                if job_result.get("success"):
-                    print(f"  {job_id}: {job_result.get('message', '')}")
-                    metadata = job_result.get("metadata", {})
-                    if metadata.get("run_url"):
-                        print(f"    URL: {metadata['run_url']}")
-                    if metadata.get("summary_path"):
-                        print(f"    Summary: {metadata['summary_path']}")
-                    path_hint = job_result.get("dest") or metadata.get("output_dir")
-                    if self.dest == "local" and path_hint:
-                        print(f"    Path: {path_hint}")
-                else:
-                    print(f"  {job_id} failed: {job_result.get('message', '')}")
-        else:
-            # Multiple invocations
-            metadata = result.get("metadata", {})
-            print(
-                f"Export completed: {metadata.get('successful_invocations', 0)}/{metadata.get('total_invocations', 0)} successful"
-            )
-
-            # Show summary path if available
-            if metadata.get("summary_path"):
-                print(f"Summary: {metadata['summary_path']}")
-            # Show per-invocation status
-            for invocation_id, inv_result in result["invocations"].items():
-                if inv_result.get("success"):
-                    job_count = len(inv_result.get("jobs", {}))
-                    print(f"  {invocation_id}: {job_count} jobs")
-                else:
-                    print(
-                        f"  {invocation_id}: failed, {inv_result.get('error', 'Unknown error')}"
-                    )
+        print(f"Export completed: {result['metadata']}")
+        if not result.get("success", False):
+            print("Some jobs failed to export. See logs above for more details.")
+            return
 
     def _validate_overrides(self, overrides: List[str], dest: str) -> None:
         """Validate override list for destination consistency.

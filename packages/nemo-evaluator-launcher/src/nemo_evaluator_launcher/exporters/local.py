@@ -58,14 +58,16 @@ class LocalExporter(BaseExporter):
 
             try:
                 per_job_skipped_jobs = self._write_summary([data], job_export_dir)
-                skipped_jobs.extend(per_job_skipped_jobs)
+                if per_job_skipped_jobs:
+                    skipped_jobs.extend(per_job_skipped_jobs)
+                else:
+                    success_jobs.append(data.job_id)
 
             except Exception as e:
                 logger.error(f"Failed to export job {data.job_id}: {e}")
                 failed_jobs.append(data.job_id)
                 continue
-            else:
-                success_jobs.append(data.job_id)
+
         if len(data_for_export) > 1:
             # for muliple jobs, write a file with all results
             # TODO(martas): what should we do about skipped jobs when writing all results?
@@ -76,13 +78,13 @@ class LocalExporter(BaseExporter):
     # Summary JSON/CSV helpers
     def _write_summary(
         self, data_for_export: List[DataForExport], output_dir: Path
-    ) -> Path:
+    ) -> List[str]:
         """Read per-job artifacts, extract metrics, and update invocation-level summary."""
 
         fmt = self.config.get("format")
         filename = self.config.get(
             "output_filename",
-            f"processed_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{fmt}",
+            f"processed_results.{fmt}",
         )
         out_path = (output_dir / filename).resolve()
 
@@ -93,7 +95,7 @@ class LocalExporter(BaseExporter):
         else:
             raise ValueError(f"Unsupported format: {fmt}")
 
-        return out_path, skipped_jobs
+        return skipped_jobs
 
     def _json_upsert(
         self,
@@ -191,6 +193,7 @@ class LocalExporter(BaseExporter):
                 )
                 skipped_jobs.append(data.job_id)
                 continue
+            # FIXME(martas): this structure makes litle sense - we shouldn't add all metrics as commns
             new_results.append(
                 {
                     "Model Name": data.model_id,
