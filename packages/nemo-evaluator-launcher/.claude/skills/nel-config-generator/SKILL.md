@@ -88,18 +88,23 @@ Ask for model path. Determine type:
 - Checkpoint path (starts with `/` or `./`) → set `deployment.checkpoint_path`
 - HF handle (e.g., `org/model-name`) → set `deployment.hf_model_handle`
 
-Use WebSearch to find model card (HuggingFace, build.nvidia.com). Extract ANY relevant configuration:
+Use WebSearch to find model card (HuggingFace, build.nvidia.com). Read it carefully, the FULL text, the devil is in the details. Extract ALL relevant configurations:
 
 - Sampling params (`temperature`, `top_p`)
-- Context length → `deployment.extra_args: "--max-model-len <value>"`
+- Context length (`deployment.extra_args: "--max-model-len <value>"`)
 - TP/DP settings (to set them appropriately, AskUserQuestion on how many GPUs the model will be deployed)
 - Reasoning config (if applicable):
   - custom system prompts (`/think`, `/no_think`)
   - `params_to_add` for payload modifier (like `"chat_template_kwargs": {"thinking": true}`),
-  - reasoning effort (if it's configurable, AskUserQuestion what reasoning effort they want)
+  - reasoning effort/budget (if it's configurable, AskUserQuestion what reasoning effort they want)
   - higher `max_new_tokens`
   - etc.
-- Deployment-specific `extra_args` for vLLM/SGLang
+- Deployment-specific `extra_args` for vLLM/SGLang (look for the vLLM/SGLang deployment command)
+- Deployment-specific vLLM/SGLang versions (by default we use latest docker images, but you can control it with `deployment.image` e.g. vLLM above `vllm/vllm-openai:v0.11.0` stopped supporting `rope-scaling` arg used by Qwen models)
+- Any preparation requirements (e.g., downloading reasoning parsers, custom plugins):
+  - If the model card mentions downloading files (like reasoning parsers, custom plugins) before deployment, add `deployment.pre_cmd` with the download command
+  - Use `curl` instead of `wget` as it's more widely available in Docker containers
+  - Example: `pre_cmd: curl -L -o reasoning_parser.py https://huggingface.co/.../reasoning_parser.py`
 - Any other model-specific requirements
 
 Present findings, explain each setting, ask user to confirm or adjust. If no model card found, ask user directly for the above configurations.
@@ -109,7 +114,8 @@ Skip verification here - missing values will be filled in Step 4.
 **Step 4: Fill in remaining missing values**
 
 - Find all remaining `???` missing values in the config.
-- Ask the user only for values that couldn't be auto-discovered from the model card (e.g., SLURM hostname, account, output directory, MLflow/wandb tracking URI and tags).
+- Ask the user only for values that couldn't be auto-discovered from the model card (e.g., SLURM hostname, account, output directory, MLflow/wandb tracking URI). Don't propose any defaults here. Let the user give you the values in plain text.
+- Ask the user if they want to change any other defaults e.g. execution partition or walltime (if running on SLURM) or add MLflow/wandb tags (if auto-export enabled).
 
 YOU MUST VERIFY THE CONFIG BEFORE GOING TO THE NEXT STEP. RESOLVE ANY ISSUES WITH THE CONFIG BEFORE GOING TO THE NEXT STEP. RUN: `python <SKILL_DIR>/scripts/verify_config.py <config_path>`
 
@@ -117,28 +123,28 @@ YOU MUST VERIFY THE CONFIG BEFORE GOING TO THE NEXT STEP. RESOLVE ANY ISSUES WIT
 
 Show tasks in the current config. Loop until the user confirms the task list is final:
 
-1. Tell the user: "Run `nel ls tasks` to see all available tasks" and ask if they want to add/remove tasks.
-2. Apply changes.
-3. **Verify**: `python <SKILL_DIR>/scripts/verify_config.py <config_path>`.
-4. Show updated list and ask: "Is the task list final, or do you want to make more changes?"
-
-After task list is confirmed, ask if user wants task-specific parameter overrides. If yes, add per-task `nemo_evaluator_config` as specified by the user, e.g.:
-
-```yaml
-tasks:
-  - name: <task>
-    nemo_evaluator_config:
-      config:
-        params:
-          temperature: <value>
-          max_new_tokens: <value>
-```
+1. Tell the user: "Run `nel ls tasks` to see all available tasks".
+2. Ask if they want to add/remove tasks or add/remove/modify task-specific parameter overrides.  
+   To add per-task `nemo_evaluator_config` as specified by the user, e.g.:
+   ```yaml
+   tasks:
+     - name: <task>
+       nemo_evaluator_config:
+         config:
+           params:
+             temperature: <value>
+             max_new_tokens: <value>
+             ...
+   ```
+3. Apply changes.
+4. **Verify**: `python <SKILL_DIR>/scripts/verify_config.py <config_path>`.
+5. Show updated list and ask: "Is the task list final, or do you want to make more changes?"
 
 YOU MUST VERIFY THE CONFIG BEFORE GOING TO THE NEXT STEP. RESOLVE ANY ISSUES WITH THE CONFIG BEFORE GOING TO THE NEXT STEP. RUN: `python <SKILL_DIR>/scripts/verify_config.py <config_path>`
 
 **Step 6: Advanced - Multi-node (Data Parallel)**
 
-If model >120B, suggest multi-node. Explain: "This is DP multi-node - the weights are copied (not distributed) across nodes. One deployment instance per node will be run with HAProxy load-balancing requests."
+Only if model >120B parameters, suggest multi-node. Explain: "This is DP multi-node - the weights are copied (not distributed) across nodes. One deployment instance per node will be run with HAProxy load-balancing requests."
 
 Ask if user wants multi-node. If yes, ask for node count and configure:
 
@@ -152,7 +158,7 @@ deployment:
     multiple_instances: true
 ```
 
-Common confusion:
+**Common Confusions**
 
 - **This is different from `data_parallel_size`**, which controls DP replicas *within* a single node/deployment instance.
 - Global data parallelism is `num_nodes x data_parallel_size` (e.g., 2 nodes x 4 DP each = 8 replicas for max throughput).
@@ -162,11 +168,20 @@ YOU MUST VERIFY THE CONFIG BEFORE GOING TO THE NEXT STEP. RESOLVE ANY ISSUES WIT
 
 **Step 7: Advanced - Interceptors**
 
-Tell the user they should see: https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator/interceptors/index.html and continue.
+- Tell the user they should see: https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator/interceptors/index.html .
+- DON'T provide any general information about what interceptors typically do in API frameworks without reading the docs. If the user asks about interceptors, only then read the webpage to provide precise information.
+- If the user asks you to configure some interceptor, then read the webpage of this interceptor and configure it according to the `--overrides` syntax (just put the values in the YAML config instead of using CLI overrides).  
+  By defining `interceptors` list you'd override the full chain of interceptors which can have unintended consequences like disabling default interceptors. That's why use the fields specified in the `CLI Configuration` section after the `--overrides` keyword to configure interceptors in the YAML config.
 
 **Step 8: Run the evaluation**
 
-Print the following three commands to the user. Propose to execute them in order to confirm the config works as expected before the full run.
+Print the following commands to the user. Propose to execute them in order to confirm the config works as expected before the full run.
+
+**Important**: If the config uses `deployment.pre_cmd` or `evaluation.pre_cmd`, prepend `NEMO_EVALUATOR_TRUST_PRE_CMD=1` to all commands below for security:
+
+```bash
+export NEMO_EVALUATOR_TRUST_PRE_CMD=1
+```
 
 1. **Dry-run** (validates config without running):
    ```
