@@ -50,9 +50,6 @@ from nemo_evaluator_launcher.exporters.utils import (
 class WandBExporter(BaseExporter):
     """Export accuracy metrics to W&B."""
 
-    def supports_executor(self, executor_type: str) -> bool:
-        return True
-
     def is_available(self) -> bool:
         return WANDB_AVAILABLE
 

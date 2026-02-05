@@ -17,8 +17,6 @@
 
 import os
 import shutil
-import tempfile
-from pathlib import Path
 from typing import Any, Dict, List
 
 try:
@@ -31,7 +29,6 @@ except ImportError:
 from nemo_evaluator_launcher.common.execdb import JobData
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.exporters.base import BaseExporter, ExportResult
-from nemo_evaluator_launcher.exporters.local import LocalExporter
 from nemo_evaluator_launcher.exporters.registry import register_exporter
 from nemo_evaluator_launcher.exporters.utils import (
     extract_accuracy_metrics,
@@ -45,37 +42,8 @@ from nemo_evaluator_launcher.exporters.utils import (
 class GSheetsExporter(BaseExporter):
     """Export accuracy metrics to Google Sheets with multi-invocation support."""
 
-    def supports_executor(self, executor_type: str) -> bool:
-        return True
-
     def is_available(self) -> bool:
         return GSPREAD_AVAILABLE
-
-    def _get_artifacts_locally(self, job_data: JobData) -> tuple[Path, str]:
-        """Get artifacts locally using LocalExporter."""
-        try:
-            temp_dir = tempfile.mkdtemp(prefix="gsheets_")
-            local_exporter = LocalExporter({"output_dir": temp_dir})
-            local_result = local_exporter.export_job(job_data)
-
-            if not local_result.success:
-                logger.warning(f"LocalExporter failed: {local_result.message}")
-                shutil.rmtree(temp_dir)
-                return None, None
-
-            artifacts_dir = Path(local_result.dest) / "artifacts"
-            if not artifacts_dir.exists():
-                logger.warning(f"No artifacts directory found in {local_result.dest}")
-                shutil.rmtree(temp_dir)
-                return None, None
-
-            return artifacts_dir, temp_dir
-
-        except Exception as e:
-            logger.error(f"Failed to get artifacts locally: {e}")
-            if "temp_dir" in locals() and temp_dir:
-                shutil.rmtree(temp_dir)
-            return None, None
 
     def export_invocation(self, invocation_id: str) -> Dict[str, Any]:
         """Export all jobs in an invocation to Google Sheets."""

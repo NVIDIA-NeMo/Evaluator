@@ -81,6 +81,16 @@ class ExportCmd:
         help="Copy only required+optional artifacts (default: True). Set to False to copy all available artifacts.",
     )
 
+    job_dirs: Optional[List[str]] = field(
+        default=None,
+        alias=["--job-dirs"],
+        help="Directories used to search for job artifacts and logs. Allows to export results for jobs not stored in the "
+        "local database (e.g. during auto-export on a remote machine or executed by a different user). "
+        "If privided, it is used to search for sub-directories with results for specified invocation ID "
+        "and the jobs information is inferred from the metadata stored in the job artifacts directories. "
+        "Can be specified multiple times to search in multiple directories.",
+    )
+
     def execute(self) -> None:
         """Execute export."""
         # Import heavy dependencies only when needed
@@ -116,8 +126,13 @@ class ExportCmd:
         if self.only_required is not None:
             config["only_required"] = self.only_required
 
+        # Add job_dirs if explicitly passed via CLI
+        if self.job_dirs:
+            config["job_dirs"] = self.job_dirs
+
         # Parse and validate overrides
         if self.override:
+            # FIXME(martas): this looks over-complicated.
             # Flatten possible list-of-lists from parser
             flat_overrides: list[str] = []
             for item in self.override:
@@ -161,6 +176,7 @@ class ExportCmd:
                 "Note: --format is only used by --dest local. It will be ignored for other destinations."
             )
 
+        # FIXME(martas): why is this needed? why we added it to the config?
         if "only_required" in config and self.only_required is True:
             config.pop("only_required", None)
 
@@ -199,6 +215,7 @@ class ExportCmd:
             return
 
         # Success path
+        # FIXME(martas): we shouldn't need if-else here and just loop over the results
         if len(self.invocation_ids) == 1:
             # Single invocation
             invocation_id = self.invocation_ids[0]
@@ -243,6 +260,7 @@ class ExportCmd:
         Raises:
             ValueError: If overrides specify wrong destination or have other issues.
         """
+        # FIXME(martas): we should just let hydra handle this
         if not overrides:
             return  # nothing to validate
 
