@@ -17,6 +17,7 @@
 
 import hashlib
 import json
+import re
 import threading
 from typing import Any, final
 
@@ -119,6 +120,70 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
         )
 
     @staticmethod
+    def sanitize_request_data_for_logging(data: Any) -> Any:
+        """
+        Sanitize request data for logging by replacing image content with brief descriptions.
+
+        Args:
+            data: Request data to sanitize (can be dict, list, or any other type)
+
+        Returns:
+            Sanitized version of the data with images replaced by brief descriptions
+        """
+        if isinstance(data, dict):
+            sanitized = {}
+            for key, value in data.items():
+                # Check if this is an image_url field
+                if key == "image_url" and isinstance(value, dict):
+                    url = value.get("url", "")
+                    if isinstance(url, str) and url.startswith("data:image/"):
+                        # Extract image format and calculate approximate size
+                        match = re.match(r"data:image/([^;]+);base64,(.+)", url)
+                        if match:
+                            image_format = match.group(1)
+                            base64_data = match.group(2)
+                            size_bytes = (
+                                len(base64_data) * 3 // 4
+                            )  # Approximate decoded size
+                            sanitized[key] = {
+                                "url": f"<image: format={image_format}, size≈{size_bytes} bytes>"
+                            }
+                        else:
+                            sanitized[key] = {"url": "<image data>"}
+                    else:
+                        sanitized[key] = (
+                            CachingInterceptor.sanitize_request_data_for_logging(value)
+                        )
+                # Check if this is a url field with base64 image data
+                elif (
+                    key == "url"
+                    and isinstance(value, str)
+                    and value.startswith("data:image/")
+                ):
+                    match = re.match(r"data:image/([^;]+);base64,(.+)", value)
+                    if match:
+                        image_format = match.group(1)
+                        base64_data = match.group(2)
+                        size_bytes = len(base64_data) * 3 // 4
+                        sanitized[key] = (
+                            f"<image: format={image_format}, size≈{size_bytes} bytes>"
+                        )
+                    else:
+                        sanitized[key] = "<image data>"
+                else:
+                    sanitized[key] = (
+                        CachingInterceptor.sanitize_request_data_for_logging(value)
+                    )
+            return sanitized
+        elif isinstance(data, list):
+            return [
+                CachingInterceptor.sanitize_request_data_for_logging(item)
+                for item in data
+            ]
+        else:
+            return data
+
+    @staticmethod
     def _generate_cache_key(data: Any) -> str:
         """
         Generate a hash for the request data to be used as the cache key.
@@ -201,7 +266,10 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
 
         # Check cache. Create cache key that will be used everywhere (also if no cache hit)
         req.rctx.cache_key = self._generate_cache_key(request_data)
-        self.logger.debug("Request", request_data=request_data)
+
+        # Sanitize request data for logging (replace images with brief descriptions)
+        sanitized_request_data = self.sanitize_request_data_for_logging(request_data)
+        self.logger.debug("Intercepted request", request_data=sanitized_request_data)
         self.logger.debug(
             "Processing request for caching",
             cache_key=req.rctx.cache_key[:8] + "...",
