@@ -75,7 +75,7 @@ The `ResponseReasoningInterceptor` is by default configured for the `...</think>
 
 ### 2. Returned as `reasoning_content` field in messages output
 
-If your model is deployed with e.g. vLLM, sglang or NIM, the reasoning part of the model's output is likely returned in the separate `reasoning_content` field in messages output (see [vLLM documentation](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) and [sglang documentation](https://docs.sglang.ai/backend/separate_reasoning.html)).
+If your model is deployed with e.g. vLLM, sglang or NIM, the reasoning part of the model's output is likely returned in the separate `reasoning_content` field in messages output (see [vLLM documentation](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) and [sglang documentation](https://sgl-project.github.io/advanced_features/separate_reasoning.html)).
 
 In the messages returned by the endpoint, there are:
 
