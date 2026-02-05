@@ -163,11 +163,13 @@ nemo-evaluator-launcher status <job_id_or_invocation_id>
 
 ## Agentic Skills
 
-NeMo Evaluator provides [Agent skills](https://agentskills.io/) for interactive assistance.
+NeMo Evaluator provides [Agent Skills](https://agentskills.io/) for interactive assistance.
 
 | Skill | Description |
 |-------|-------------|
 | `nel-config-generator` | Interactive workflow to generate evaluation YAML configs |
+
+We recommend using the skills with Claude Sonnet or better for the best experience.
 
 ### Claude Code (CLI)
 
