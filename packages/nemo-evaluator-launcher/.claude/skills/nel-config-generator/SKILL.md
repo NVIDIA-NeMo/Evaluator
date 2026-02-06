@@ -242,29 +242,29 @@ After job submission, you can monitor progress using:
    nel info <invocation_id> --logs
    ```
 
-   Then use SSH to view logs:
+   Then, use SSH to view logs:
 
    **Check server deployment logs:**
    ```bash
-   ssh <username>@<hostname> "tail -100 <log_path>/server-<slurm_job_id>-*.log"
+   ssh <username>@<hostname> "tail -100 <log path from `nel info <invocation_id> --logs`>/server-<slurm_job_id>-*.log"
    ```
    Shows vLLM server startup, model loading, and deployment errors (e.g., missing wget/curl).
 
    **Check evaluation client logs:**
    ```bash
-   ssh <username>@<hostname> "tail -100 <log_path>/client-<slurm_job_id>.log"
+   ssh <username>@<hostname> "tail -100 <log path from `nel info <invocation_id> --logs`>/client-<slurm_job_id>.log"
    ```
    Shows evaluation progress, task execution, and results.
 
    **Check SLURM scheduler logs:**
    ```bash
-   ssh <username>@<hostname> "tail -100 <log_path>/slurm-<slurm_job_id>.log"
+   ssh <username>@<hostname> "tail -100 <log path from `nel info <invocation_id> --logs`>/slurm-<slurm_job_id>.log"
    ```
    Shows job scheduling, health checks, and overall execution flow.
 
    **Search for errors:**
    ```bash
-   ssh <username>@<hostname> "grep -i 'error\|warning\|failed' <log_path>/*.log"
+   ssh <username>@<hostname> "grep -i 'error\|warning\|failed' <log path from `nel info <invocation_id> --logs`>/*.log"
    ```
 
 ---
