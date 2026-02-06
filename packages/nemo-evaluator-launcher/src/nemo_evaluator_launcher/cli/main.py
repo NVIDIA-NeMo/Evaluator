@@ -27,6 +27,7 @@ import nemo_evaluator_launcher.cli.ls_runs as ls_runs
 import nemo_evaluator_launcher.cli.ls_task as ls_task
 import nemo_evaluator_launcher.cli.ls_tasks as ls_tasks
 import nemo_evaluator_launcher.cli.run as run
+import nemo_evaluator_launcher.cli.skills as skills
 import nemo_evaluator_launcher.cli.status as status
 import nemo_evaluator_launcher.cli.version as version
 from nemo_evaluator_launcher.common.logging_utils import logger
@@ -169,6 +170,22 @@ def create_parser() -> ArgumentParser:
     )
     ls_task_parser.add_arguments(ls_task.Cmd, dest="task")
 
+    # Skills subcommand (with nested subcommands)
+    skills_parser = subparsers.add_parser(
+        "skills",
+        help="Manage NEL agent skills",
+        description="Manage NEL agent skills for AI coding assistants",
+    )
+    skills_sub = skills_parser.add_subparsers(dest="skills_command", required=False)
+    skills_install_parser = skills_sub.add_parser(
+        "install",
+        help="Install NEL agent skills",
+        description="Install NEL agent skills for AI coding assistants",
+    )
+    skills_install_parser.add_arguments(skills.InstallCmd, dest="skills_install")
+    # Stash reference so we can print help when no subcommand is given
+    parser._skills_parser = skills_parser  # type: ignore[attr-defined]
+
     # Export subcommand
     export_parser = subparsers.add_parser(
         "export",
@@ -243,6 +260,11 @@ def main() -> None:
             args.task.execute()
         elif args.ls_command == "runs":
             args.runs.execute()
+    elif args.command == "skills":
+        if args.skills_command == "install":
+            args.skills_install.execute()
+        else:
+            parser._skills_parser.print_help()  # type: ignore[attr-defined]
     elif args.command == "export":
         args.export.execute()
     elif args.command == "info":
