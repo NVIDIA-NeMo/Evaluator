@@ -214,7 +214,13 @@ export DUMMY_API_KEY=dummy
    nel run --config <config_path> -o ++evaluation.nemo_evaluator_config.config.params.limit_samples=10
    ```
 
-3. **Full evaluation** (production run):
+3. **Re-run a single task** (useful for debugging or re-testing after config changes):
+   ```
+   nel run --config <config_path> -t <task_name>
+   ```
+   Combine with `-o` for limited samples: `nel run --config <config_path> -t <task_name> -o ++evaluation.nemo_evaluator_config.config.params.limit_samples=10`
+
+4. **Full evaluation** (production run):
    ```
    nel run --config <config_path>
    ```
