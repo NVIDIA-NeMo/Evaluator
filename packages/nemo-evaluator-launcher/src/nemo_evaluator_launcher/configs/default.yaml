@@ -18,6 +18,11 @@ defaults:
   - deployment: none
   - _self_
 
+# Top-level env vars applied to all jobs (deployment + evaluation).
+# Values use explicit prefixes: "!host:VAR_NAME", "!lit:value", "!runtime:VAR_NAME".
+# Section-level and task-level env_vars override these.
+env_vars: {}
+
 # NOTE(dfridman): If deployment is used, `target` parameters will be automatically populated.
 target:
   api_endpoint:
