@@ -131,21 +131,26 @@ class TestSlurmExecutorFeatures:
 
         cfg = OmegaConf.create(base_config)
 
-        script = _create_slurm_sbatch_script(
+        result = _create_slurm_sbatch_script(
             cfg=cfg,
             task=mock_task,
             eval_image="test-eval-container:latest",
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        ).cmd
+        )
 
-        # Check that deployment environment variables are exported
-        assert "export DEPLOY_VAR1=deploy_value1" in script
-        assert "export DEPLOY_VAR2=deploy_value2" in script
+        # Env vars are now in .secrets.env, not inline in script
+        assert result.secrets_env_content is not None
+        assert "=deploy_value1" in result.secrets_env_content
+        assert "=deploy_value2" in result.secrets_env_content
+
+        # Script sources secrets file and re-exports
+        assert 'source "' in result.cmd
+        assert ".secrets.env" in result.cmd
 
         # Check that deployment env vars are passed to deployment container
-        assert "--container-env DEPLOY_VAR1,DEPLOY_VAR2" in script
+        assert "--container-env DEPLOY_VAR1,DEPLOY_VAR2" in result.cmd
 
     def test_new_execution_env_vars_evaluation(
         self, base_config, mock_task, mock_dependencies
@@ -162,21 +167,26 @@ class TestSlurmExecutorFeatures:
 
         cfg = OmegaConf.create(base_config)
 
-        script = _create_slurm_sbatch_script(
+        result = _create_slurm_sbatch_script(
             cfg=cfg,
             task=mock_task,
             eval_image="test-eval-container:latest",
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        ).cmd
+        )
 
-        # Check that evaluation environment variables are exported
-        assert "export EVAL_VAR1=eval_value1" in script
-        assert "export EVAL_VAR2=eval_value2" in script
+        # Env vars are now in .secrets.env, not inline in script
+        assert result.secrets_env_content is not None
+        assert "=eval_value1" in result.secrets_env_content
+        assert "=eval_value2" in result.secrets_env_content
+
+        # Script sources secrets file
+        assert 'source "' in result.cmd
+        assert ".secrets.env" in result.cmd
 
         # Check that evaluation env vars are passed to evaluation container
-        assert "--container-env EVAL_VAR1,EVAL_VAR2" in script
+        assert "--container-env EVAL_VAR1,EVAL_VAR2" in result.cmd
 
     def test_new_execution_mounts_deployment(
         self, base_config, mock_task, mock_dependencies
@@ -314,14 +324,15 @@ class TestSlurmExecutorFeatures:
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
 
-            script = _create_slurm_sbatch_script(
+            result = _create_slurm_sbatch_script(
                 cfg=cfg,
                 task=mock_task,
                 eval_image="test-eval-container:latest",
                 remote_task_subdir=Path("/test/remote"),
                 invocation_id="test123",
                 job_id="test123.0",
-            ).cmd
+            )
+            script = result.cmd
 
             # Check that deprecation warnings were issued
             deprecation_warnings = [
@@ -335,9 +346,13 @@ class TestSlurmExecutorFeatures:
                 for warning in deprecation_warnings
             )
 
-        # Old env vars should still work
-        assert "export OLD_VAR1=old_value1" in script
-        assert "export OLD_VAR2=old_value2" in script
+        # Old env vars should still work — values are in secrets file, re-exports in script
+        assert result.secrets_env_content is not None
+        assert "old_value1" in result.secrets_env_content
+        assert "old_value2" in result.secrets_env_content
+        assert "source" in script
+        assert "export OLD_VAR1=$OLD_VAR1_" in script
+        assert "export OLD_VAR2=$OLD_VAR2_" in script
 
     def test_backward_compatibility_mixed_env_vars(
         self, base_config, mock_task, mock_dependencies
@@ -361,19 +376,27 @@ class TestSlurmExecutorFeatures:
         with warnings.catch_warnings(record=True):
             warnings.simplefilter("always")
 
-            script = _create_slurm_sbatch_script(
+            result = _create_slurm_sbatch_script(
                 cfg=cfg,
                 task=mock_task,
                 eval_image="test-eval-container:latest",
                 remote_task_subdir=Path("/test/remote"),
                 invocation_id="test123",
                 job_id="test123.0",
-            ).cmd
+            )
+            script = result.cmd
 
-        # Both old and new env vars should be present
-        assert "export OLD_VAR=old_value" in script
-        assert "export NEW_VAR=new_value" in script
-        assert "export EVAL_VAR=eval_value" in script
+        # Both old and new env vars should be present in secrets file
+        assert result.secrets_env_content is not None
+        assert "old_value" in result.secrets_env_content
+        assert "new_value" in result.secrets_env_content
+        assert "eval_value" in result.secrets_env_content
+
+        # Script should source secrets and re-export
+        assert "source" in script
+        assert "export OLD_VAR=$OLD_VAR_" in script
+        assert "export NEW_VAR=$NEW_VAR_" in script
+        assert "export EVAL_VAR=$EVAL_VAR_" in script
 
         # Check that both old and new deployment vars are passed to deployment container
         assert (
@@ -418,18 +441,25 @@ class TestSlurmExecutorFeatures:
 
         cfg = OmegaConf.create(base_config)
 
-        script = _create_slurm_sbatch_script(
+        result = _create_slurm_sbatch_script(
             cfg=cfg,
             task=mock_task,
             eval_image="test-eval-container:latest",
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        ).cmd
+        )
+        script = result.cmd
 
-        # Environment variables should still be exported
-        assert "export DEPLOY_VAR=deploy_value" in script
-        assert "export EVAL_VAR=eval_value" in script
+        # Environment variables should be in secrets file
+        assert result.secrets_env_content is not None
+        assert "deploy_value" in result.secrets_env_content
+        assert "eval_value" in result.secrets_env_content
+
+        # Script should source secrets and re-export
+        assert "source" in script
+        assert "export DEPLOY_VAR=$DEPLOY_VAR_" in script
+        assert "export EVAL_VAR=$EVAL_VAR_" in script
 
         # Should not have deployment server section when type is 'none'
 
@@ -475,21 +505,31 @@ class TestSlurmExecutorFeatures:
         with warnings.catch_warnings(record=True):
             warnings.simplefilter("always")
 
-            script = _create_slurm_sbatch_script(
+            result = _create_slurm_sbatch_script(
                 cfg=cfg,
                 task=mock_task,
                 eval_image="test-eval-container:latest",
                 remote_task_subdir=Path("/test/remote"),
                 invocation_id="test123",
                 job_id="test123.0",
-            ).cmd
+            )
+            script = result.cmd
 
-        # All environment variables should be exported
-        assert "export DEPLOY_VAR1=deploy_value1" in script
-        assert "export DEPLOY_VAR2=deploy_value2" in script
-        assert "export EVAL_VAR1=eval_value1" in script
-        assert "export EVAL_VAR2=eval_value2" in script
-        assert "export OLD_DEPLOY_VAR=old_deploy_value" in script
+        # All environment variables should be in secrets file
+        assert result.secrets_env_content is not None
+        assert "deploy_value1" in result.secrets_env_content
+        assert "deploy_value2" in result.secrets_env_content
+        assert "eval_value1" in result.secrets_env_content
+        assert "eval_value2" in result.secrets_env_content
+        assert "old_deploy_value" in result.secrets_env_content
+
+        # Script should source secrets and re-export
+        assert "source" in script
+        assert "export DEPLOY_VAR1=$DEPLOY_VAR1_" in script
+        assert "export DEPLOY_VAR2=$DEPLOY_VAR2_" in script
+        assert "export EVAL_VAR1=$EVAL_VAR1_" in script
+        assert "export EVAL_VAR2=$EVAL_VAR2_" in script
+        assert "export OLD_DEPLOY_VAR=$OLD_DEPLOY_VAR_" in script
 
         # All mounts should be present
         assert "/host/deploy1:/container/deploy1" in script
@@ -1115,9 +1155,7 @@ class TestSlurmExecutorDryRun:
             mock_get_task_def.side_effect = mock_get_task_def_side_effect
 
             # Should raise ValueError for missing API key
-            with pytest.raises(
-                ValueError, match="Trying to pass an unset environment variable"
-            ):
+            with pytest.raises(ValueError, match="is not set"):
                 SlurmExecutor.execute_eval(sample_config, dry_run=True)
 
     def test_execute_eval_dry_run_required_task_env_vars(
@@ -1154,7 +1192,7 @@ class TestSlurmExecutorDryRun:
                 # (which is the value of TASK_ENV in the configuration)
                 with pytest.raises(
                     ValueError,
-                    match="Trying to pass an unset environment variable TASK_VALUE",
+                    match="TASK_VALUE.*is not set",
                 ):
                     SlurmExecutor.execute_eval(sample_config, dry_run=True)
 

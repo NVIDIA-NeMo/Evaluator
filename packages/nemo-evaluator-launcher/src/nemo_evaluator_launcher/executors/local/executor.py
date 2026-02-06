@@ -18,7 +18,6 @@
 Handles running evaluation jobs locally using shell scripts and Docker containers.
 """
 
-import copy
 import os
 import pathlib
 import platform
@@ -26,13 +25,17 @@ import shlex
 import shutil
 import subprocess
 import time
-import warnings
 from typing import Iterator, List, Optional, Tuple, Union
 
 import jinja2
 import yaml
 from omegaconf import DictConfig, OmegaConf
 
+from nemo_evaluator_launcher.common.env_vars import (
+    collect_deployment_env_vars,
+    collect_eval_env_vars,
+    resolve_env_var,
+)
 from nemo_evaluator_launcher.common.execdb import (
     ExecutionDB,
     JobData,
@@ -156,19 +159,13 @@ class LocalExecutor(BaseExecutor):
                 ):
                     deployment_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
-                # env vars
-                deployment_env_vars = cfg.execution.get("env_vars", {}).get(
-                    "deployment", {}
-                )
-
-                if cfg.deployment.get("env_vars"):
-                    warnings.warn(
-                        "cfg.deployment.env_vars will be deprecated in future versions. "
-                        "Use cfg.execution.env_vars.deployment instead.",
-                        category=DeprecationWarning,
-                        stacklevel=2,
-                    )
-                    deployment_env_vars.update(cfg.deployment["env_vars"])
+                # env vars — use unified pipeline
+                deployment_env_parsed = collect_deployment_env_vars(cfg)
+                deployment_env_resolved = []
+                for target_name, val in deployment_env_parsed.items():
+                    _, resolved = resolve_env_var(target_name, val)
+                    if resolved is not None:
+                        deployment_env_resolved.append(f"{target_name}={resolved}")
 
                 command = cfg.deployment.command
                 deployment_extra_docker_args = cfg.execution.get(
@@ -180,7 +177,7 @@ class LocalExecutor(BaseExecutor):
                     "image": cfg.deployment.image,
                     "command": command,
                     "mounts": deployment_mounts_list,
-                    "env_vars": [f"{k}={v}" for k, v in deployment_env_vars.items()],
+                    "env_vars": deployment_env_resolved,
                     "health_url": health_url,
                     "port": cfg.deployment.port,
                     "extra_docker_args": deployment_extra_docker_args,
@@ -191,31 +188,11 @@ class LocalExecutor(BaseExecutor):
             job_ids.append(job_id)
             client_container_name = f"client-{task.name}-{timestamp}"
 
-            # collect all env vars
-            env_vars = copy.deepcopy(dict(cfg.evaluation.get("env_vars", {})))
-            env_vars.update(task.get("env_vars", {}))
-            if api_key_name := get_api_key_name(cfg):
-                assert "API_KEY" not in env_vars
-                env_vars["API_KEY"] = api_key_name
-
-            # check if the environment variables are set
-            for env_var in env_vars.values():
-                if os.getenv(env_var) is None:
-                    raise ValueError(
-                        f"Trying to pass an unset environment variable {env_var}."
-                    )
-
-            # check if required env vars are defined (excluding NEMO_EVALUATOR_DATASET_DIR which is handled separately):
-            for required_env_var in task_definition.get("required_env_vars", []):
-                # Skip NEMO_EVALUATOR_DATASET_DIR as it's handled by dataset mounting logic below
-                if required_env_var == "NEMO_EVALUATOR_DATASET_DIR":
-                    continue
-                if required_env_var not in env_vars.keys():
-                    raise ValueError(
-                        f"{task.name} task requires environment variable {required_env_var}."
-                        " Specify it in the task subconfig in the 'env_vars' dict as the following"
-                        f" pair {required_env_var}: YOUR_ENV_VAR_NAME"
-                    )
+            # Collect eval env vars using unified pipeline
+            api_key_name = get_api_key_name(cfg)
+            eval_env_parsed = collect_eval_env_vars(
+                cfg, task, task_definition, api_key_name
+            )
 
             # Handle dataset directory mounting if NEMO_EVALUATOR_DATASET_DIR is required
             dataset_mount_host = None
@@ -237,11 +214,12 @@ class LocalExecutor(BaseExecutor):
                 # Set NEMO_EVALUATOR_DATASET_DIR to the container mount path
                 dataset_env_var_value = dataset_mount_container
 
-            # format env_vars for a template
-            env_vars_list = [
-                f"{env_var_dst}=${env_var_src}"
-                for env_var_dst, env_var_src in env_vars.items()
-            ]
+            # Resolve eval env vars to KEY=VALUE list for Docker -e flags
+            env_vars_list = []
+            for target_name, val in eval_env_parsed.items():
+                _, resolved = resolve_env_var(target_name, val)
+                if resolved is not None:
+                    env_vars_list.append(f"{target_name}={resolved}")
 
             # Add dataset env var if needed (directly with value, not from host env)
             if dataset_env_var_value:
