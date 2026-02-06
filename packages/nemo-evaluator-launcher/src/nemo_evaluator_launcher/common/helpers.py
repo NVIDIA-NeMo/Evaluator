@@ -42,6 +42,10 @@ class CmdAndReadableComment:
     # downstream callers who want to raise exceptions e.g. when a script was
     # saved that would execute this command.
     is_potentially_unsafe: bool = False
+    # Optional .secrets.env file content to be written alongside the script.
+    # When set, the caller should write this to a .secrets.env file in the same
+    # directory as the script, and it will be sourced at runtime.
+    secrets_env_content: str | None = None
 
 
 def _str_to_echo_command(str_to_save: str, filename: str) -> CmdAndReadableComment:
