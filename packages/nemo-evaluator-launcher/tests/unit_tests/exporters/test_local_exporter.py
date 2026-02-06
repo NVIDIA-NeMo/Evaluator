@@ -16,6 +16,7 @@
 """Tests for local functionality."""
 
 from pathlib import Path
+from typing import List, Tuple
 from unittest.mock import patch
 
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
@@ -302,50 +303,49 @@ class TestLocalExporterManualScenarios:
             jobs.append(jd)
             ExecutionDB().write_job(jd)
 
-        # Mock SSH operations
-        def mock_ssh_setup_masters(remotes):
-            return {
-                remote: f"/tmp/control_{remote[0]}_{remote[1]}" for remote in remotes
-            }
-
-        def mock_ssh_cleanup_masters(control_paths):
-            pass
-
-        def mock_ssh_download_artifacts(
-            username, hostname, remote_path, export_dir, **kwargs
-        ):
+        def mock_copy_artifacts(
+            jobs_data: List[JobData],
+            export_dir: Path,
+            copy_local: bool = False,
+            only_required: bool = True,
+            copy_logs: bool = False,
+            copy_artifacts: bool = True,
+        ) -> Tuple[List[JobData], List[str]]:
             # Simulate successful copy for jobs 0, 1, 3, 4
             # Job 2 will fail (no artifacts copied)
-            job_num = int(remote_path.split("job")[-1])
+            prepared_jobs_data = []
+            failed_job_ids = []
 
-            if job_num == 2:
-                return []  # No files copied - simulates failure
+            for job_data in jobs_data:
+                job_num = int(job_data.job_id.split(".")[-1])
 
-            # Create artifacts for successful jobs
-            artifacts_dir = export_dir / "artifacts"
-            artifacts_dir.mkdir(parents=True, exist_ok=True)
+                if job_num == 2:
+                    # Job 2 fails - no artifacts copied
+                    failed_job_ids.append(job_data.job_id)
+                    continue
 
-            (artifacts_dir / "run_config.yml").write_text(
-                "framework_name: test-harness\nconfig:\n  type: test_task\ntarget:\n  api_endpoint:\n    model_id: test-model\n"
-            )
-            (artifacts_dir / "results.yml").write_text(
-                "results:\n  tasks:\n    test_task:\n      metrics:\n        accuracy:\n          scores:\n            accuracy:\n              value: 0.9\nconfig: {}\n"
-            )
-            (artifacts_dir / "eval_factory_metrics.json").write_text("{}")
+                # Create artifacts for successful jobs
+                job_local_dir = export_dir / job_data.job_id
+                artifacts_dir = job_local_dir / "artifacts"
+                artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-            return ["results.yml", "run_config.yml", "eval_factory_metrics.json"]
+                (artifacts_dir / "run_config.yml").write_text(
+                    "framework_name: test-harness\nconfig:\n  type: test_task\ntarget:\n  api_endpoint:\n    model_id: test-model\n"
+                )
+                (artifacts_dir / "results.yml").write_text(
+                    "results:\n  tasks:\n    test_task:\n      metrics:\n        accuracy:\n          scores:\n            accuracy:\n              value: 0.9\nconfig: {}\n"
+                )
+                (artifacts_dir / "eval_factory_metrics.json").write_text("{}")
+
+                # Update job data with output_dir
+                job_data.data["output_dir"] = str(job_local_dir)
+                prepared_jobs_data.append(job_data)
+
+            return prepared_jobs_data, failed_job_ids
 
         monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.base.ssh_setup_masters",
-            mock_ssh_setup_masters,
-        )
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.base.ssh_cleanup_masters",
-            mock_ssh_cleanup_masters,
-        )
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.base.ssh_download_artifacts",
-            mock_ssh_download_artifacts,
+            "nemo_evaluator_launcher.exporters.base.copy_artifacts",
+            mock_copy_artifacts,
         )
 
         output_dir = tmp_path / "test-export-local-from-slurm"
