@@ -160,7 +160,7 @@ class LocalExporter(BaseExporter):
         out_path: Path,
         data_for_export: List[DataForExport],
     ) -> List[str]:
-        import pandas as pd
+        import csv
 
         base_cols = [
             "Model Name",
@@ -173,40 +173,61 @@ class LocalExporter(BaseExporter):
         ]
 
         skipped_jobs = []
+        existing_rows = []
+        existing_job_ids = set()
+        existing_fieldnames = set(base_cols)
+        # Read old results if exists
         if out_path.exists():
-            old_results = pd.read_csv(out_path)
-            missing_cols = set(base_cols) - set(old_results.columns)
+            with out_path.open("r", encoding="utf-8", newline="") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    existing_rows.append(row)
+                    existing_job_ids.add(row.get("Job ID"))
+                    existing_fieldnames.update(row.keys())
+            missing_cols = set(base_cols) - existing_fieldnames
             if missing_cols:
                 logger.warning(
                     f"Columns {missing_cols} not found in old results, "
                     "which might indicate merging with results from a different format"
                 )
-        else:
-            old_results = pd.DataFrame(columns=base_cols)
 
-        new_results = []
+        # Build new results
+        new_rows = []
+        metric_fieldnames = set()
         for data in data_for_export:
-            if data.job_id in old_results["Job ID"].values:
-                # TODO(martas): consider adding validation if metrics are the same
+            if data.job_id in existing_job_ids:
                 logger.debug(
                     f"Job {data.job_id} already exists in old results. Skipping."
                 )
                 skipped_jobs.append(data.job_id)
                 continue
-            # FIXME(martas): this structure makes litle sense - we shouldn't add all metrics as commns
-            new_results.append(
-                {
-                    "Model Name": data.model_id,
-                    "Harness": data.harness,
-                    "Task Name": data.task,
-                    "Executor": data.executor,
-                    "Container": data.container,
-                    "Invocation ID": data.invocation_id,
-                    "Job ID": data.job_id,
-                    **data.metrics,
-                }
-            )
-        df = pd.DataFrame(new_results)
-        df = pd.concat([old_results, df])
-        df.to_csv(out_path, index=False)
+            # Flatten data for CSV
+            row = {
+                "Model Name": data.model_id,
+                "Harness": data.harness,
+                "Task Name": data.task,
+                "Executor": data.executor,
+                "Container": data.container,
+                "Invocation ID": data.invocation_id,
+                "Job ID": data.job_id,
+            }
+            # Add metrics (as columns)
+            for k, v in (data.metrics or {}).items():
+                row[k] = v
+                metric_fieldnames.add(k)
+            new_rows.append(row)
+
+        # All columns established
+        all_fieldnames = base_cols + sorted(
+            (set(existing_fieldnames) | metric_fieldnames) - set(base_cols)
+        )
+
+        with out_path.open("w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=all_fieldnames, extrasaction="ignore")
+            writer.writeheader()
+            for row in existing_rows:
+                writer.writerow(row)
+            for row in new_rows:
+                writer.writerow(row)
+
         return skipped_jobs
