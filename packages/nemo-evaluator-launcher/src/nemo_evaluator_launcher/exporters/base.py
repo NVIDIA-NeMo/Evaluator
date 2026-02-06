@@ -66,10 +66,10 @@ class BaseExporter(ABC):
 
             # prepare data for export
             data_for_export_jobs = []
-            for job_id, job_data in jobs_data.items():
+            for job_data in jobs_data:
                 data_for_export = self.prepare_data_for_export(job_data)
                 if data_for_export is None:
-                    failed_jobs.append(job_id)
+                    failed_jobs.append(job_data.job_id)
                     continue
                 else:
                     data_for_export_jobs.append(data_for_export)
@@ -92,7 +92,7 @@ class BaseExporter(ABC):
 
     def _get_jobs_data(
         self, invocation_or_job_ids: List[str]
-    ) -> Tuple[Dict[str, JobData], List[str]]:
+    ) -> Tuple[List[JobData], List[str]]:
         # TODO(martas): add test verifying that all ids are in the result,
         # including the ones not found in the db nor in job_dirs
         jobs_data = {}
@@ -155,7 +155,7 @@ class BaseExporter(ABC):
                 else:
                     jobs_data.update(job_data_from_dirs[id])
 
-        return jobs_data, failed_jobs
+        return list(jobs_data.values()), failed_jobs
 
     def _get_jobs_in_dir(self, invocation_dir: Path) -> Dict[str, JobData]:
         """Extract job data from an invocation directory.
@@ -239,14 +239,14 @@ class BaseExporter(ABC):
         return jobs_data
 
     def _copy_remote_artifacts(
-        self, jobs_data: Dict[str, JobData], export_dir: Path
-    ) -> Tuple[Dict[str, JobData], List[str]]:
+        self, jobs_data: List[JobData], export_dir: Path
+    ) -> Tuple[List[JobData], List[str]]:
         """Copy artifacts to local filesystem. Returns list of failed jobs."""
         jobs_to_copy = []
-        failed_jobs = []
-        prepared_jobs = {}
+        failed_job_ids = []
+        prepared_jobs_data = []
 
-        for job_id, job_data in jobs_data.items():
+        for job_data in jobs_data:
             if "output_dir" not in job_data.data:
                 if "remote_rundir_path" in job_data.data:
                     if (
@@ -254,19 +254,19 @@ class BaseExporter(ABC):
                         or "hostname" not in job_data.data
                     ):
                         raise ValueError(
-                            f"Username or hostname not found for remote job: {job_id}"
+                            f"Username or hostname not found for remote job: {job_data.job_id}"
                         )
                     jobs_to_copy.append(job_data)
                 else:
                     logger.warning(
-                        f"Job {job_id} has no output directory and is not remote. Could not export job."
+                        f"Job {job_data.job_id} has no output directory and is not remote. Could not export job."
                     )
                     continue
             else:
-                prepared_jobs[job_id] = job_data
+                prepared_jobs_data.append(job_data)
 
         if not jobs_to_copy:
-            return jobs_data, failed_jobs
+            return prepared_jobs_data, failed_job_ids
 
         remotes = {
             (job_data.data["username"], job_data.data["hostname"])
@@ -291,13 +291,13 @@ class BaseExporter(ABC):
                     logger.warning(
                         f"No artifacts copied for remote job {job_data.job_id}. Could not export job."
                     )
-                    failed_jobs.append(job_data.job_id)
+                    failed_job_ids.append(job_data.job_id)
                     continue
                 job_data.data["output_dir"] = str(job_local_dir)
-                prepared_jobs[job_data.job_id] = job_data
+                prepared_jobs_data.append(job_data)
         finally:
             ssh_cleanup_masters(cp)
-        return prepared_jobs, failed_jobs
+        return prepared_jobs_data, failed_job_ids
 
     @abstractmethod
     def export_jobs(
