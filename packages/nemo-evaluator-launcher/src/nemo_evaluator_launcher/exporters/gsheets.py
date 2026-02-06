@@ -15,6 +15,7 @@
 #
 """Google Sheets evaluation results exporter."""
 
+import logging
 import os
 import shutil
 from typing import Any, Dict, List
@@ -45,10 +46,17 @@ class GSheetsExporter(BaseExporter):
     def is_available(self) -> bool:
         return GSPREAD_AVAILABLE
 
+    def export_jobs(self, jobs: List[JobData]) -> Dict[str, Any]:
+        """Export jobs to Google Sheets."""
+        pass
+
     def export_invocation(self, invocation_id: str) -> Dict[str, Any]:
         """Export all jobs in an invocation to Google Sheets."""
         if not self.is_available():
-            return {"success": False, "error": "gspread package not installed"}
+            logging.error(
+                "\nGoogle Sheets package not installed. "
+                "Install via: pip install nemo-evaluator-launcher[gsheets]"
+            )
 
         jobs = self.db.get_jobs(invocation_id)
         if not jobs:
