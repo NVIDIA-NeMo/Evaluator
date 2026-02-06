@@ -18,6 +18,7 @@ import time
 from dataclasses import dataclass
 from typing import Literal
 
+from dotenv import load_dotenv
 from simple_parsing import field
 
 from nemo_evaluator_launcher.common.logging_utils import logger
@@ -78,6 +79,14 @@ class Cmd:
             "help": "Directory to save the complete run config. Defaults to ~/.nemo-evaluator/run_configs/"
         },
     )
+    env_file: str | None = field(
+        default=None,
+        alias=["--env-file"],
+        metadata={
+            "help": "Path to .env file to load environment variables from. "
+            "If not specified, loads $PWD/.env if it exists."
+        },
+    )
 
     def _parse_requested_tasks(self) -> list[str]:
         """Parse -t arguments into a list of task names.
@@ -94,7 +103,31 @@ class Cmd:
                 requested_tasks.append(task_name)
         return requested_tasks
 
+    def _load_env_file(self) -> None:
+        """Load environment variables from a .env file.
+
+        Uses --env-file path if specified, otherwise loads $PWD/.env if it exists.
+        """
+        if self.env_file:
+            env_path = pathlib.Path(self.env_file)
+            if not env_path.is_file():
+                raise FileNotFoundError(
+                    f"Specified --env-file '{self.env_file}' does not exist."
+                )
+            load_dotenv(env_path, override=False)
+            logger.info("Loaded env file", path=str(env_path))
+            return
+
+        # Defaulting to CWD/.env
+        default_env = pathlib.Path.cwd() / ".env"
+        if default_env.is_file():
+            load_dotenv(default_env, override=False)
+            logger.info("Loaded default .env file", path=str(default_env))
+
     def execute(self) -> None:
+        # Load .env file before anything else
+        self._load_env_file()
+
         # Import heavy dependencies only when needed
         import yaml
         from omegaconf import OmegaConf
