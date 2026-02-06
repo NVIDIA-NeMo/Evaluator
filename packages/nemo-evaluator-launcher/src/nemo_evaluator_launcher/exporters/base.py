@@ -25,13 +25,11 @@ from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.exporters.utils import (
     DataForExport,
     ExportResult,
+    copy_artifacts,
     extract_accuracy_metrics,
     get_model_id,
     load_benchmark_info,
     load_config_from_metadata,
-    ssh_cleanup_masters,
-    ssh_download_artifacts,
-    ssh_setup_masters,
 )
 
 
@@ -56,14 +54,21 @@ class BaseExporter(ABC):
         jobs_data, retrieved_failed_jobs = self._get_jobs_data(invocation_or_job_ids)
         failed_jobs.extend(retrieved_failed_jobs)
 
-        # copy remote artifacts to temporary directory
+        # copy artifacts to temporary directory
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_dir = Path(temp_dir)
-            jobs_data, copy_failed_jobs = self._copy_remote_artifacts(
-                jobs_data, export_dir=temp_dir
+            # here we don't respect copy_artifacts flag - we need to copy at least required artifacts to the temporary directory
+            # to extract metrics and other information. later we'll use this flag to decide whether artifacts should be
+            # copied to the final destination.
+            jobs_data, copy_failed_jobs = copy_artifacts(
+                jobs_data,
+                export_dir=temp_dir,
+                copy_local=False,
+                copy_artifacts=True,
+                copy_logs=self.copy_logs,
+                only_required=self.only_required,
             )
             failed_jobs.extend(copy_failed_jobs)
-
             # prepare data for export
             data_for_export_jobs = []
             for job_data in jobs_data:
@@ -237,67 +242,6 @@ class BaseExporter(ABC):
             jobs_data[job_id] = job_data
 
         return jobs_data
-
-    def _copy_remote_artifacts(
-        self, jobs_data: List[JobData], export_dir: Path
-    ) -> Tuple[List[JobData], List[str]]:
-        """Copy artifacts to local filesystem. Returns list of failed jobs."""
-        jobs_to_copy = []
-        failed_job_ids = []
-        prepared_jobs_data = []
-
-        for job_data in jobs_data:
-            if "output_dir" not in job_data.data:
-                if "remote_rundir_path" in job_data.data:
-                    if (
-                        "username" not in job_data.data
-                        or "hostname" not in job_data.data
-                    ):
-                        raise ValueError(
-                            f"Username or hostname not found for remote job: {job_data.job_id}"
-                        )
-                    jobs_to_copy.append(job_data)
-                else:
-                    logger.warning(
-                        f"Job {job_data.job_id} has no output directory and is not remote. Could not export job."
-                    )
-                    continue
-            else:
-                prepared_jobs_data.append(job_data)
-
-        if not jobs_to_copy:
-            return prepared_jobs_data, failed_job_ids
-
-        remotes = {
-            (job_data.data["username"], job_data.data["hostname"])
-            for job_data in jobs_to_copy
-        }
-        cp = ssh_setup_masters(list(remotes))
-        try:
-            for job_data in jobs_to_copy:
-                job_local_dir = export_dir / job_data.job_id
-                exported_files = ssh_download_artifacts(
-                    job_data.data["username"],
-                    job_data.data["hostname"],
-                    job_data.data["remote_rundir_path"],
-                    job_local_dir,
-                    copy_logs=self.copy_logs,
-                    copy_artifacts=self.copy_artifacts,
-                    only_required=self.only_required,
-                    control_paths=cp,
-                )
-                logger.debug(f"Exported files: {exported_files}")
-                if len(exported_files) == 0:
-                    logger.warning(
-                        f"No artifacts copied for remote job {job_data.job_id}. Could not export job."
-                    )
-                    failed_job_ids.append(job_data.job_id)
-                    continue
-                job_data.data["output_dir"] = str(job_local_dir)
-                prepared_jobs_data.append(job_data)
-        finally:
-            ssh_cleanup_masters(cp)
-        return prepared_jobs_data, failed_job_ids
 
     @abstractmethod
     def export_jobs(
