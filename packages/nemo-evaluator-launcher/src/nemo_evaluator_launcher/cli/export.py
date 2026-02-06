@@ -30,6 +30,7 @@ class ExportCmd:
     #   nemo-evaluator-launcher export 8abcd123 --dest local --format json --out .
     #   nemo-evaluator-launcher export 8abcd123.0 9ef01234 --dest local --format csv --out results/ -fname processed_results.csv
     #   nemo-evaluator-launcher export 8abcd123 --dest jet
+    #   nemo-evaluator-launcher export 8abcd123 --config export_config.yaml --dest wandb
 
     invocation_ids: List[str] = field(
         positional=True,
@@ -41,6 +42,13 @@ class ExportCmd:
         choices=["local", "wandb", "mlflow", "gsheets", "jet"],
         help="Export destination.",
     )
+    config: Optional[str] = field(
+        default=None,
+        alias=["--config"],
+        help="Path to export config file. The config should contain exporter settings (e.g., output_dir, format, copy_logs). "
+        "CLI arguments override config file values.",
+    )
+
     # overrides for exporter config; use -o similar to run command
     override: List[str] = field(
         default_factory=list,
@@ -94,6 +102,8 @@ class ExportCmd:
     def execute(self) -> None:
         """Execute export."""
         # Import heavy dependencies only when needed
+        import os
+
         from omegaconf import OmegaConf
 
         from nemo_evaluator_launcher.api.functional import export_results
@@ -106,9 +116,14 @@ class ExportCmd:
             )
             return
 
-        config: dict[str, Any] = {
-            "copy_logs": self.copy_logs,
-        }
+        # Load configuration from file if provided
+        config: dict[str, Any] = {}
+        if self.config:
+            config = self._load_config_from_file(self.config)
+
+        # CLI arguments override config file values
+        # Always set copy_logs from CLI
+        config["copy_logs"] = self.copy_logs
 
         # Output handling
         if self.output_dir:
@@ -191,6 +206,50 @@ class ExportCmd:
         if not result.get("success", False):
             print("Some jobs failed to export. See logs above for more details.")
             return
+
+    def _load_config_from_file(self, config_path: str) -> dict[str, Any]:
+        """Load export configuration from a file.
+
+        Args:
+            config_path: Path to the config file
+
+        Returns:
+            Dictionary containing the export configuration
+        """
+        import yaml
+
+        # Load config file directly
+        with open(config_path, "r") as f:
+            config_dict = yaml.safe_load(f)
+
+        if not isinstance(config_dict, dict):
+            raise ValueError(
+                f"Config file {config_path} must contain a dictionary at the root level"
+            )
+
+        # If config has an 'export.<dest>' structure, extract the relevant section
+        if "export" in config_dict and isinstance(config_dict["export"], dict):
+            if self.dest in config_dict["export"]:
+                # Use destination-specific config
+                dest_config = config_dict["export"][self.dest] or {}
+                # Also merge in any top-level export keys (as fallback)
+                result = {
+                    k: v
+                    for k, v in config_dict.items()
+                    if k != "export" and not k.startswith("_")
+                }
+                result.update(dest_config)
+                return result
+            else:
+                # No destination-specific config, use top-level
+                return {
+                    k: v
+                    for k, v in config_dict.items()
+                    if k != "export" and not k.startswith("_")
+                }
+        else:
+            # Flat config structure
+            return config_dict
 
     def _validate_overrides(self, overrides: List[str], dest: str) -> None:
         """Validate override list for destination consistency.
