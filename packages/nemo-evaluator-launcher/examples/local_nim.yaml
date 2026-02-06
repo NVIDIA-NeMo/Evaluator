@@ -36,7 +36,7 @@ execution:
   output_dir: nel-results-nim
   env_vars:
     deployment:
-      NGC_API_KEY: $NGC_API_KEY # Required for NIM container authentication
+      NGC_API_KEY: "!host:NGC_API_KEY" # Required for NIM container authentication
   mounts:
     deployment:
       # Replace /path/to/nim/cache with the absolute path to the NIM cache directory on your machine
@@ -55,8 +55,7 @@ evaluation:
       params:
         request_timeout: 3600
         parallelism: 4
-        limit_samples: 10  # TEST ONLY: remove for full evaluation
+        limit_samples: 10 # TEST ONLY: remove for full evaluation
   tasks:
     - name: lm-evaluation-harness.ifeval
     - name: gsm8k
-
