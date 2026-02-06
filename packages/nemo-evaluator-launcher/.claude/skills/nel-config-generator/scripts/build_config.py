@@ -154,7 +154,7 @@ def get_mock_overrides(
         )
     elif model_type == "reasoning":
         overrides.append(
-            "evaluation.nemo_evaluator_config.target.api_endpoint.adapter_config.custom_system_prompt=/think"
+            "+evaluation.nemo_evaluator_config.target.api_endpoint.adapter_config.params_to_add.chat_template_kwargs.enable_thinking=true"
         )
 
     # Safety benchmark mocks (need judge URL)

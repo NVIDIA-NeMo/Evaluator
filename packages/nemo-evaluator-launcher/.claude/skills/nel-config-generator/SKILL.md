@@ -94,8 +94,7 @@ Use WebSearch to find model card (HuggingFace, build.nvidia.com). Read it carefu
 - Context length (`deployment.extra_args: "--max-model-len <value>"`)
 - TP/DP settings (to set them appropriately, AskUserQuestion on how many GPUs the model will be deployed)
 - Reasoning config (if applicable):
-  - custom system prompts (`/think`, `/no_think`)
-  - `params_to_add` for payload modifier (like `"chat_template_kwargs": {"thinking": true}`),
+  - reasoning on/off: use either `adapter_config.custom_system_prompt` (like `/think`, `/no_think`) or `adapter_config.params_to_add` for payload modifier (like `"chat_template_kwargs": {"enable_thinking": true}` or `"extra_body": {"chat_template_kwargs": {"thinking": True}}`),
   - reasoning effort/budget (if it's configurable, AskUserQuestion what reasoning effort they want)
   - higher `max_new_tokens`
   - etc.
@@ -191,7 +190,7 @@ YOU MUST VERIFY THE CONFIG BEFORE GOING TO THE NEXT STEP. RESOLVE ANY ISSUES WIT
 
 Print the following commands to the user. Propose to execute them in order to confirm the config works as expected before the full run.
 
-**Important**: Export required environment variables based on your config:
+**Important**: Export required environment variables based on your config. If any tokens or keys are missing (e.g. `HF_TOKEN`, `NGC_API_KEY`, `api_key_name` from the config), ask the user to put them in a `.env` file in the project root so you can run `set -a && source .env && set +a` (or equivalent) before executing `nel run` commands.
 
 ```bash
 # If using pre_cmd:
