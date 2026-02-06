@@ -1,0 +1,565 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+"""Tests for build_config.py NEL config builder."""
+
+from __future__ import annotations
+
+import pathlib
+import sys
+
+import pytest
+import yaml
+
+# =============================================================================
+# Path Setup
+# =============================================================================
+
+LAUNCHER_ROOT = pathlib.Path(__file__).resolve().parents[2]
+SCRIPTS_DIR = (
+    LAUNCHER_ROOT / ".claude" / "skills" / "nel-config-generator" / "scripts"
+).resolve()
+ASSETS_DIR = (
+    LAUNCHER_ROOT / ".claude" / "skills" / "nel-config-generator" / "assets"
+).resolve()
+
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+from build_config import (  # noqa: E402
+    build_config,
+    deep_merge,
+    generate_config_filename,
+    get_mock_overrides,
+    get_unique_filepath,
+    mock_env_vars,
+    resolve_output_path,
+)
+
+# =============================================================================
+# Unit Tests: deep_merge
+# =============================================================================
+
+
+class TestDeepMerge:
+    """Unit tests for the deep_merge helper."""
+
+    def test_flat_dicts(self) -> None:
+        assert deep_merge({"a": 1}, {"b": 2}) == {"a": 1, "b": 2}
+
+    def test_override_value(self) -> None:
+        assert deep_merge({"a": 1}, {"a": 2}) == {"a": 2}
+
+    def test_nested_merge(self) -> None:
+        base = {"x": {"a": 1, "b": 2}}
+        override = {"x": {"b": 3, "c": 4}}
+        assert deep_merge(base, override) == {"x": {"a": 1, "b": 3, "c": 4}}
+
+    def test_list_extension(self) -> None:
+        base = {"tasks": [{"name": "a"}]}
+        override = {"tasks": [{"name": "b"}]}
+        result = deep_merge(base, override)
+        assert result["tasks"] == [{"name": "a"}, {"name": "b"}]
+
+    def test_empty_base(self) -> None:
+        assert deep_merge({}, {"a": 1}) == {"a": 1}
+
+    def test_empty_override(self) -> None:
+        assert deep_merge({"a": 1}, {}) == {"a": 1}
+
+    def test_does_not_mutate_base(self) -> None:
+        base = {"a": {"b": 1}}
+        deep_merge(base, {"a": {"b": 2}})
+        assert base == {"a": {"b": 1}}
+
+
+# =============================================================================
+# Unit Tests: generate_config_filename
+# =============================================================================
+
+
+class TestGenerateConfigFilename:
+    def test_single_benchmark(self) -> None:
+        name = generate_config_filename("local", "vllm", "chat", ["standard"])
+        assert name == "local_vllm_chat_standard.yaml"
+
+    def test_multiple_benchmarks_sorted(self) -> None:
+        name = generate_config_filename(
+            "slurm", "nim", "reasoning", ["code", "standard"]
+        )
+        assert name == "slurm_nim_reasoning_code_standard.yaml"
+
+    def test_all_benchmarks(self) -> None:
+        name = generate_config_filename(
+            "local",
+            "vllm",
+            "chat",
+            ["standard", "code", "math_reasoning", "safety", "multilingual"],
+        )
+        assert (
+            name
+            == "local_vllm_chat_code_math_reasoning_multilingual_safety_standard.yaml"
+        )
+
+
+# =============================================================================
+# Unit Tests: get_unique_filepath
+# =============================================================================
+
+
+class TestGetUniqueFilepath:
+    def test_nonexistent_returns_same(self, tmp_path: pathlib.Path) -> None:
+        fp = tmp_path / "config.yaml"
+        assert get_unique_filepath(fp) == fp
+
+    def test_existing_gets_suffix(self, tmp_path: pathlib.Path) -> None:
+        fp = tmp_path / "config.yaml"
+        fp.touch()
+        result = get_unique_filepath(fp)
+        assert result == tmp_path / "config_1.yaml"
+
+    def test_multiple_existing(self, tmp_path: pathlib.Path) -> None:
+        for name in ("config.yaml", "config_1.yaml", "config_2.yaml"):
+            (tmp_path / name).touch()
+        result = get_unique_filepath(tmp_path / "config.yaml")
+        assert result == tmp_path / "config_3.yaml"
+
+
+# =============================================================================
+# Unit Tests: resolve_output_path
+# =============================================================================
+
+
+class TestResolveOutputPath:
+    def test_explicit_yaml_file(self, tmp_path: pathlib.Path) -> None:
+        out = tmp_path / "my_config.yaml"
+        result = resolve_output_path(out, "local", "vllm", "chat", ["standard"])
+        assert result == out
+
+    def test_directory_auto_generates_name(self, tmp_path: pathlib.Path) -> None:
+        result = resolve_output_path(tmp_path, "slurm", "nim", "base", ["code"])
+        assert result.parent == tmp_path
+        assert result.name == "slurm_nim_base_code.yaml"
+
+    def test_none_uses_cwd(self, tmp_path: pathlib.Path, monkeypatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        result = resolve_output_path(None, "local", "vllm", "chat", ["standard"])
+        assert result.parent == tmp_path
+        assert result.name == "local_vllm_chat_standard.yaml"
+
+    def test_creates_parent_dir(self, tmp_path: pathlib.Path) -> None:
+        new_dir = tmp_path / "sub" / "dir"
+        result = resolve_output_path(new_dir, "local", "vllm", "chat", ["standard"])
+        assert new_dir.is_dir()
+        assert result.parent == new_dir
+
+
+# =============================================================================
+# Unit Tests: get_mock_overrides
+# =============================================================================
+
+
+class TestGetMockOverrides:
+    def test_local_vllm_none_chat(self) -> None:
+        overrides = get_mock_overrides("local", "vllm", "none", "chat", ["standard"])
+        override_str = " ".join(overrides)
+        assert "output_dir" in override_str
+        assert "hf_model_handle" in override_str
+        assert "served_model_name" in override_str
+        # Should NOT contain slurm-specific overrides
+        assert "hostname" not in override_str
+        assert "account" not in override_str
+
+    def test_slurm_adds_hostname_and_account(self) -> None:
+        overrides = get_mock_overrides("slurm", "vllm", "none", "chat", ["standard"])
+        override_str = " ".join(overrides)
+        assert "hostname" in override_str
+        assert "account" in override_str
+
+    def test_deployment_none_adds_target(self) -> None:
+        overrides = get_mock_overrides("local", "none", "none", "chat", ["standard"])
+        override_str = " ".join(overrides)
+        assert "target.api_endpoint.model_id" in override_str
+        assert "target.api_endpoint.url" in override_str
+        assert "target.api_endpoint.api_key_name" in override_str
+
+    def test_deployment_nim_adds_image(self) -> None:
+        overrides = get_mock_overrides("local", "nim", "none", "chat", ["standard"])
+        override_str = " ".join(overrides)
+        assert "deployment.image" in override_str
+
+    def test_deployment_trtllm_adds_checkpoint(self) -> None:
+        overrides = get_mock_overrides("local", "trtllm", "none", "chat", ["standard"])
+        override_str = " ".join(overrides)
+        assert "deployment.checkpoint_path" in override_str
+
+    def test_deployment_sglang_adds_model_handle(self) -> None:
+        overrides = get_mock_overrides("local", "sglang", "none", "chat", ["standard"])
+        override_str = " ".join(overrides)
+        assert "deployment.hf_model_handle" in override_str
+
+    def test_export_mlflow(self) -> None:
+        overrides = get_mock_overrides("local", "vllm", "mlflow", "chat", ["standard"])
+        override_str = " ".join(overrides)
+        assert "mlflow.tracking_uri" in override_str
+
+    def test_export_wandb(self) -> None:
+        overrides = get_mock_overrides("local", "vllm", "wandb", "chat", ["standard"])
+        override_str = " ".join(overrides)
+        assert "wandb.project" in override_str
+
+    def test_model_type_base_adds_tokenizer(self) -> None:
+        overrides = get_mock_overrides("local", "vllm", "none", "base", ["standard"])
+        override_str = " ".join(overrides)
+        assert "tokenizer" in override_str
+
+    def test_model_type_reasoning_adds_params_to_add(self) -> None:
+        overrides = get_mock_overrides(
+            "local", "vllm", "none", "reasoning", ["standard"]
+        )
+        override_str = " ".join(overrides)
+        assert "params_to_add" in override_str
+
+    def test_safety_benchmark_adds_judge_url(self) -> None:
+        # chat has safety benchmark
+        overrides = get_mock_overrides("local", "vllm", "none", "chat", ["safety"])
+        override_str = " ".join(overrides)
+        assert "judge.url" in override_str
+
+    def test_safety_benchmark_ignored_for_base(self) -> None:
+        # base does NOT have safety benchmark file
+        overrides = get_mock_overrides("local", "vllm", "none", "base", ["safety"])
+        override_str = " ".join(overrides)
+        assert "judge.url" not in override_str
+
+
+# =============================================================================
+# Integration Tests: build_config structure
+# =============================================================================
+
+# Each tuple: (execution, deployment, export, model_type, benchmarks, test_id)
+# Designed so every possible value appears at least once.
+BUILD_CONFIG_CASES = [
+    # 1. local, vllm, none, chat, [standard]
+    ("local", "vllm", "none", "chat", ["standard"], "local_vllm_none_chat_standard"),
+    # 2. slurm, nim, mlflow, reasoning, [code]
+    (
+        "slurm",
+        "nim",
+        "mlflow",
+        "reasoning",
+        ["code"],
+        "slurm_nim_mlflow_reasoning_code",
+    ),
+    # 3. local, sglang, wandb, base, [multilingual]
+    (
+        "local",
+        "sglang",
+        "wandb",
+        "base",
+        ["multilingual"],
+        "local_sglang_wandb_base_multilingual",
+    ),
+    # 4. local, none, none, chat, [safety]
+    ("local", "none", "none", "chat", ["safety"], "local_none_none_chat_safety"),
+    # 5. slurm, trtllm, none, reasoning, [math_reasoning]
+    (
+        "slurm",
+        "trtllm",
+        "none",
+        "reasoning",
+        ["math_reasoning"],
+        "slurm_trtllm_none_reasoning_math_reasoning",
+    ),
+    # 6. local, vllm, mlflow, chat, [standard, code, math_reasoning]
+    (
+        "local",
+        "vllm",
+        "mlflow",
+        "chat",
+        ["standard", "code", "math_reasoning"],
+        "local_vllm_mlflow_chat_multi",
+    ),
+    # 7. local, vllm, none, reasoning, [standard, safety]
+    (
+        "local",
+        "vllm",
+        "none",
+        "reasoning",
+        ["standard", "safety"],
+        "local_vllm_none_reasoning_std_safety",
+    ),
+    # 8. slurm, sglang, wandb, chat, [standard, multilingual, safety]
+    (
+        "slurm",
+        "sglang",
+        "wandb",
+        "chat",
+        ["standard", "multilingual", "safety"],
+        "slurm_sglang_wandb_chat_multi",
+    ),
+    # 9. local, nim, none, base, [standard, code]
+    (
+        "local",
+        "nim",
+        "none",
+        "base",
+        ["standard", "code"],
+        "local_nim_none_base_std_code",
+    ),
+    # 10. local, trtllm, mlflow, chat, [standard, code, math_reasoning, safety, multilingual]
+    (
+        "local",
+        "trtllm",
+        "mlflow",
+        "chat",
+        ["standard", "code", "math_reasoning", "safety", "multilingual"],
+        "local_trtllm_mlflow_chat_all",
+    ),
+]
+
+
+class TestBuildConfigStructure:
+    """Test that build_config produces valid config dicts with expected structure."""
+
+    @pytest.mark.parametrize(
+        "execution,deployment,export,model_type,benchmarks",
+        [c[:5] for c in BUILD_CONFIG_CASES],
+        ids=[c[5] for c in BUILD_CONFIG_CASES],
+    )
+    def test_returns_dict_with_required_keys(
+        self,
+        execution: str,
+        deployment: str,
+        export: str,
+        model_type: str,
+        benchmarks: list[str],
+    ) -> None:
+        """build_config must return a dict with defaults, execution, and deployment."""
+        config = build_config(
+            execution=execution,
+            deployment=deployment,
+            export=export,
+            model_type=model_type,
+            benchmarks=benchmarks,
+        )
+        assert isinstance(config, dict)
+        assert "defaults" in config
+        assert "_self_" in config["defaults"], "defaults must end with _self_"
+        assert config["defaults"][-1] == "_self_", "_self_ must be last"
+
+    @pytest.mark.parametrize(
+        "execution,deployment,export,model_type,benchmarks",
+        [c[:5] for c in BUILD_CONFIG_CASES],
+        ids=[c[5] for c in BUILD_CONFIG_CASES],
+    )
+    def test_has_evaluation_with_tasks(
+        self,
+        execution: str,
+        deployment: str,
+        export: str,
+        model_type: str,
+        benchmarks: list[str],
+    ) -> None:
+        """Config must have evaluation section with at least one task."""
+        config = build_config(
+            execution=execution,
+            deployment=deployment,
+            export=export,
+            model_type=model_type,
+            benchmarks=benchmarks,
+        )
+        assert "evaluation" in config
+        assert "tasks" in config["evaluation"]
+        assert len(config["evaluation"]["tasks"]) >= 1
+
+    @pytest.mark.parametrize(
+        "execution,deployment,export,model_type,benchmarks",
+        [c[:5] for c in BUILD_CONFIG_CASES],
+        ids=[c[5] for c in BUILD_CONFIG_CASES],
+    )
+    def test_writes_valid_yaml(
+        self,
+        execution: str,
+        deployment: str,
+        export: str,
+        model_type: str,
+        benchmarks: list[str],
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Config written to disk must be parseable YAML matching the returned dict."""
+        output = tmp_path / "config.yaml"
+        config = build_config(
+            execution=execution,
+            deployment=deployment,
+            export=export,
+            model_type=model_type,
+            benchmarks=benchmarks,
+            output=output,
+        )
+        assert output.exists()
+        with open(output) as f:
+            loaded = yaml.safe_load(f)
+        assert loaded == config
+
+
+# =============================================================================
+# Integration Tests: build_config + verify_config validation
+# =============================================================================
+
+
+class TestBuildConfigValidation:
+    """Generated configs must pass verify_config validation with mock overrides."""
+
+    @pytest.mark.parametrize(
+        "execution,deployment,export,model_type,benchmarks",
+        [c[:5] for c in BUILD_CONFIG_CASES],
+        ids=[c[5] for c in BUILD_CONFIG_CASES],
+    )
+    def test_generated_config_passes_validation(
+        self,
+        execution: str,
+        deployment: str,
+        export: str,
+        model_type: str,
+        benchmarks: list[str],
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Build config, write to disk, resolve via Hydra, validate with Pydantic."""
+        import verify_config
+
+        output = tmp_path / "config.yaml"
+        build_config(
+            execution=execution,
+            deployment=deployment,
+            export=export,
+            model_type=model_type,
+            benchmarks=benchmarks,
+            output=output,
+        )
+
+        overrides = get_mock_overrides(
+            execution=execution,
+            deployment=deployment,
+            export=export,
+            model_type=model_type,
+            benchmarks=benchmarks,
+        )
+
+        with mock_env_vars():
+            cfg = verify_config.resolve_config(str(output), overrides)
+            valid, errors, warnings = verify_config.validate_config(cfg)
+
+        assert valid, f"Config should be valid but got errors: {errors}"
+
+
+# =============================================================================
+# Edge-case Tests: specific option behaviour
+# =============================================================================
+
+
+class TestBuildConfigEdgeCases:
+    def test_export_none_has_no_export_section(self) -> None:
+        """export='none' asset is a comment-only file, so no export key expected."""
+        config = build_config("local", "vllm", "none", "chat", ["standard"])
+        # With none export, there should be no mlflow/wandb config
+        export = config.get("export")
+        if export is not None:
+            assert "mlflow" not in export
+            assert "wandb" not in export
+
+    def test_export_mlflow_has_tracking_uri(self) -> None:
+        config = build_config("local", "vllm", "mlflow", "chat", ["standard"])
+        assert "export" in config
+        assert "mlflow" in config["export"]
+        assert "tracking_uri" in config["export"]["mlflow"]
+
+    def test_export_wandb_has_project(self) -> None:
+        config = build_config("local", "vllm", "wandb", "chat", ["standard"])
+        assert "export" in config
+        assert "wandb" in config["export"]
+        assert "project" in config["export"]["wandb"]
+
+    def test_slurm_has_hostname_placeholder(self) -> None:
+        config = build_config("slurm", "vllm", "none", "chat", ["standard"])
+        assert config["execution"]["hostname"] == "???"
+
+    def test_local_has_output_dir(self) -> None:
+        config = build_config("local", "vllm", "none", "chat", ["standard"])
+        assert "output_dir" in config["execution"]
+
+    def test_deployment_none_has_target(self) -> None:
+        config = build_config("local", "none", "none", "chat", ["standard"])
+        assert "target" in config
+        assert "api_endpoint" in config["target"]
+
+    def test_deployment_vllm_has_deployment(self) -> None:
+        config = build_config("local", "vllm", "none", "chat", ["standard"])
+        assert "deployment" in config
+        assert "hf_model_handle" in config["deployment"]
+
+    def test_deployment_nim_has_image(self) -> None:
+        config = build_config("local", "nim", "none", "chat", ["standard"])
+        assert "deployment" in config
+        assert "image" in config["deployment"]
+
+    def test_deployment_trtllm_has_checkpoint_path(self) -> None:
+        config = build_config("local", "trtllm", "none", "chat", ["standard"])
+        assert "deployment" in config
+        assert "checkpoint_path" in config["deployment"]
+
+    def test_deployment_sglang_has_hf_model_handle(self) -> None:
+        config = build_config("local", "sglang", "none", "chat", ["standard"])
+        assert "deployment" in config
+        assert "hf_model_handle" in config["deployment"]
+
+    def test_base_model_has_tokenizer(self) -> None:
+        config = build_config("local", "vllm", "none", "base", ["standard"])
+        params = config["evaluation"]["nemo_evaluator_config"]["config"]["params"]
+        assert "extra" in params
+        assert "tokenizer" in params["extra"]
+
+    def test_reasoning_model_has_adapter_config(self) -> None:
+        config = build_config("local", "vllm", "none", "reasoning", ["standard"])
+        target = config["evaluation"]["nemo_evaluator_config"]["target"]
+        assert "api_endpoint" in target
+        assert "adapter_config" in target["api_endpoint"]
+        assert (
+            target["api_endpoint"]["adapter_config"]["process_reasoning_traces"] is True
+        )
+
+    def test_missing_benchmark_file_does_not_raise(self) -> None:
+        """base model has no safety benchmark; build_config should warn, not crash."""
+        config = build_config("local", "vllm", "none", "base", ["safety"])
+        # Should still return a valid config (just without safety tasks)
+        assert isinstance(config, dict)
+
+    def test_multiple_benchmarks_accumulate_tasks(self) -> None:
+        single = build_config("local", "vllm", "none", "chat", ["standard"])
+        double = build_config("local", "vllm", "none", "chat", ["standard", "code"])
+        assert len(double["evaluation"]["tasks"]) > len(single["evaluation"]["tasks"])
+
+    def test_no_duplicate_self_in_defaults(self) -> None:
+        """_self_ should appear exactly once and be last."""
+        config = build_config(
+            "local",
+            "vllm",
+            "mlflow",
+            "chat",
+            ["standard", "code", "math_reasoning", "safety", "multilingual"],
+        )
+        self_count = config["defaults"].count("_self_")
+        assert self_count == 1
+        assert config["defaults"][-1] == "_self_"
