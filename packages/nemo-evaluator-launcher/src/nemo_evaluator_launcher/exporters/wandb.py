@@ -15,6 +15,7 @@
 #
 """Weights & Biases results exporter."""
 
+import logging
 import os
 import shutil
 import tempfile
@@ -53,9 +54,17 @@ class WandBExporter(BaseExporter):
     def is_available(self) -> bool:
         return WANDB_AVAILABLE
 
+    def export_jobs(self, jobs: List[JobData]) -> Dict[str, Any]:
+        """Export jobs to W&B."""
+        pass
+
     def export_job(self, job_data: JobData) -> ExportResult:
         """Export single job - same logic as invocation but for one job."""
         if not self.is_available():
+            logging.error(
+                "\nW&B package not installed. "
+                "Install via: pip install nemo-evaluator-launcher[wandb]"
+            )
             return ExportResult(
                 success=False, dest="wandb", message="wandb package not installed"
             )
@@ -304,6 +313,10 @@ class WandBExporter(BaseExporter):
             entity = config.get("entity")
             project = config.get("project")
             if not (entity and project):
+                logging.error(
+                    "W&B requires 'entity' and 'project' to be configured. "
+                    "Set export.wandb.entity and export.wandb.project fields in the config."
+                )
                 return False, None
 
             # Check webhook metadata for run_id first
