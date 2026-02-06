@@ -15,11 +15,10 @@ evaluation:
           process_reasoning_traces: true # Strip reasoning tokens and collect stats
           # Older models use the system prompt to control reasoning.
           # use_system_prompt: true
-          # Set to match your model, e.g. "/think" for Llama or "detailed thinking on" for Nemotron
+          # Set to match your model, e.g. "/think" for Llama and Nemotron 2 or "detailed thinking on" for Nemotron 1
           # custom_system_prompt: ???
           # For newer models, use payload modifier instead
-          # Set to match your model e.g. `"chat_template_kwargs": {"enable_thinking": true}` for Nemotron or
-          #   `"extra_body": {"chat_template_kwargs": {"thinking": True}}` for DeepSeek
+          # Set to match your model e.g. `"chat_template_kwargs": {"enable_thinking": true}` for Nemotron 3
           # CONFIRM IT WITH THE MODEL CARD
           params_to_add: ???
 

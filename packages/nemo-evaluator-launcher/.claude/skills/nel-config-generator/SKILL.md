@@ -94,7 +94,9 @@ Use WebSearch to find model card (HuggingFace, build.nvidia.com). Read it carefu
 - Context length (`deployment.extra_args: "--max-model-len <value>"`)
 - TP/DP settings (to set them appropriately, AskUserQuestion on how many GPUs the model will be deployed)
 - Reasoning config (if applicable):
-  - reasoning on/off: use either `adapter_config.custom_system_prompt` (like `/think`, `/no_think`) or `adapter_config.params_to_add` for payload modifier (like `"chat_template_kwargs": {"enable_thinking": true}` or `"extra_body": {"chat_template_kwargs": {"thinking": True}}`),
+  - reasoning on/off: use either:
+    - `adapter_config.custom_system_prompt` (like `/think`, `/no_think`) and no `adapter_config.params_to_add` (leave `params_to_add` unrelated to reasoning untouched)
+    - `adapter_config.params_to_add` for payload modifier (like `"chat_template_kwargs": {"enable_thinking": true/false}`) and no `adapter_config.custom_system_prompt` and `adapter_config.use_system_prompt: false` (leave `custom_system_prompt` and `use_system_prompt` unrelated to reasoning untouched).
   - reasoning effort/budget (if it's configurable, AskUserQuestion what reasoning effort they want)
   - higher `max_new_tokens`
   - etc.
@@ -105,6 +107,8 @@ Use WebSearch to find model card (HuggingFace, build.nvidia.com). Read it carefu
   - Use `curl` instead of `wget` as it's more widely available in Docker containers
   - Example: `pre_cmd: curl -L -o reasoning_parser.py https://huggingface.co/.../reasoning_parser.py`
 - Any other model-specific requirements
+
+Remember to check `evaluation.nemo_evaluator_config` and `evaluation.tasks.*.nemo_evaluator_config` overrides too for parameters to adjust (e.g. disabling reasoning)!
 
 Present findings, explain each setting, ask user to confirm or adjust. If no model card found, ask user directly for the above configurations.
 
@@ -179,7 +183,7 @@ YOU MUST VERIFY THE CONFIG BEFORE GOING TO THE NEXT STEP. RESOLVE ANY ISSUES WIT
 
 - Tell the user they should see: https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator/interceptors/index.html .
 - DON'T provide any general information about what interceptors typically do in API frameworks without reading the docs. If the user asks about interceptors, only then read the webpage to provide precise information.
-- If the user asks you to configure some interceptor, then read the webpage of this interceptor and configure it according to the `--overrides` syntax (just put the values in the YAML config instead of using CLI overrides).
+- If the user asks you to configure some interceptor, then read the webpage of this interceptor and configure it according to the `--overrides` syntax but put the values in the YAML config under `evaluation.nemo_evaluator_config.config.target.api_endpoint.adapter_config` (NOT under `target.api_endpoint.adapter_config`) instead of using CLI overrides.
   By defining `interceptors` list you'd override the full chain of interceptors which can have unintended consequences like disabling default interceptors. That's why use the fields specified in the `CLI Configuration` section after the `--overrides` keyword to configure interceptors in the YAML config.
 
 **Documentation Errata**
