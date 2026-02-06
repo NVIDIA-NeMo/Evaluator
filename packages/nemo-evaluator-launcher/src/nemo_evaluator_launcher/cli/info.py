@@ -16,7 +16,7 @@
 
 """Job information helper functionalities for nemo-evaluator-launcher."""
 
-import sys
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -27,11 +27,53 @@ from simple_parsing import field
 from nemo_evaluator_launcher.cli.version import Cmd as VersionCmd
 from nemo_evaluator_launcher.common.execdb import EXEC_DB_FILE, ExecutionDB, JobData
 from nemo_evaluator_launcher.common.logging_utils import logger
-from nemo_evaluator_launcher.exporters.local import LocalExporter
+from nemo_evaluator_launcher.exporters.utils import copy_artifacts as copy_artifacts_fn
 from nemo_evaluator_launcher.exporters.utils import get_task_name
 
-# Local exporter helper to copy logs and artifacts
-_EXPORT_HELPER = LocalExporter({})
+
+def get_job_paths(job_data: JobData) -> Dict[str, Any]:
+    """Get result paths based on executor type from job metadata."""
+
+    if job_data.executor == "local":
+        output_dir = Path(job_data.data["output_dir"])
+        return {
+            "artifacts_dir": output_dir / "artifacts",
+            "logs_dir": output_dir / "logs",
+            "storage_type": "local_filesystem",
+        }
+
+    elif job_data.executor == "slurm":
+        return {
+            "remote_path": job_data.data["remote_rundir_path"],
+            "hostname": job_data.data["hostname"],
+            "username": job_data.data["username"],
+            "storage_type": "remote_ssh",
+        }
+
+    elif job_data.executor == "gitlab":
+        pipeline_id = job_data.data.get("pipeline_id")
+        if pipeline_id and os.getenv("CI"):
+            return {
+                "artifacts_dir": Path(f"artifacts/{pipeline_id}"),
+                "storage_type": "gitlab_ci_local",
+            }
+        else:
+            return {
+                "pipeline_id": pipeline_id,
+                "project_id": job_data.data.get("project_id", 155749),
+                "storage_type": "gitlab_remote",
+            }
+
+    elif job_data.executor == "lepton":
+        output_dir = Path(job_data.data["output_dir"])
+        return {
+            "artifacts_dir": output_dir / "artifacts",
+            "logs_dir": output_dir / "logs",
+            "storage_type": "local_filesystem",
+        }
+
+    else:
+        raise ValueError(f"Unknown executor: {job_data.executor}")
 
 
 @dataclass
@@ -98,7 +140,6 @@ class InfoCmd:
             valid_jobs=len(jobs),
             job_ids=[jid for jid, _ in jobs],
         )
-
         if not jobs:
             logger.info(
                 "No valid jobs found (jobs may have been deleted or IDs may be incorrect)."
@@ -116,34 +157,25 @@ class InfoCmd:
         if self.artifacts:
             self._show_artifacts_info(jobs)
 
-        # copy ops
-        args = sys.argv[1:]
-        copy_logs_flag = "--copy-logs" in args
-        copy_artifacts_flag = "--copy-artifacts" in args
-
-        if copy_logs_flag:
-            if self.copy_logs is None:
-                raise ValueError("--copy-logs requires a directory path")
-            if not self.copy_logs.strip():
-                raise ValueError("--copy-logs requires a directory path")
+        # TODO(martas): why do we need to check this? we should just use args values
+        if self.copy_logs:
             logger.info(
                 "Copying logs to local directory",
                 dest_dir=self.copy_logs,
                 job_count=len(jobs),
             )
-            self._copy_logs(jobs, self.copy_logs)
-
-        if copy_artifacts_flag:
-            if self.copy_artifacts is None:
-                raise ValueError("--copy-artifacts requires a directory path")
-            if not self.copy_artifacts.strip():
-                raise ValueError("--copy-artifacts requires a directory path")
+            self._copy_content(
+                jobs, dest_dir=self.copy_logs, copy_logs=True, copy_artifacts=False
+            )
+        if self.copy_artifacts:
             logger.info(
                 "Copying artifacts to local directory",
                 dest_dir=self.copy_artifacts,
                 job_count=len(jobs),
             )
-            self._copy_artifacts(jobs, self.copy_artifacts)
+            self._copy_content(
+                jobs, dest_dir=self.copy_artifacts, copy_logs=False, copy_artifacts=True
+            )
 
         # default view when no flags
         if not any(
@@ -240,7 +272,7 @@ class InfoCmd:
         exec_type = (job_data.executor or cfg_exec_type or "").lower()
 
         # locations via exporter helper
-        paths = _EXPORT_HELPER.get_job_paths(job_data)
+        paths = get_job_paths(job_data)
 
         # Artifacts with file descriptions
         artifacts_list = _get_artifacts_file_list()
@@ -314,7 +346,7 @@ class InfoCmd:
         logger.info("Log locations")
         print("Log locations:\n")
         for job_id, job_data in jobs:
-            paths = _EXPORT_HELPER.get_job_paths(job_data)
+            paths = get_job_paths(job_data)
             cfg_exec_type = ((job_data.config or {}).get("execution") or {}).get("type")
             exec_type = (job_data.executor or cfg_exec_type or "").lower()
             logs_list = _get_log_file_list(exec_type)
@@ -342,7 +374,7 @@ class InfoCmd:
         logger.info("Artifact locations")
         print("Artifact locations:\n")
         for job_id, job_data in jobs:
-            paths = _EXPORT_HELPER.get_job_paths(job_data)
+            paths = get_job_paths(job_data)
             artifacts_list = _get_artifacts_file_list()
 
             if paths.get("storage_type") == "remote_ssh":
@@ -386,14 +418,6 @@ class InfoCmd:
                 print("  No configuration stored for this job.")
             print()
 
-    def _copy_logs(self, jobs: List[Tuple[str, JobData]], dest_dir: str) -> None:
-        """Copy logs using export functionality."""
-        self._copy_content(jobs, dest_dir, copy_logs=True, copy_artifacts=False)
-
-    def _copy_artifacts(self, jobs: List[Tuple[str, JobData]], dest_dir: str) -> None:
-        """Copy artifacts using export functionality."""
-        self._copy_content(jobs, dest_dir, copy_logs=False, copy_artifacts=True)
-
     def _copy_content(
         self,
         jobs: List[Tuple[str, JobData]],
@@ -402,56 +426,41 @@ class InfoCmd:
         copy_artifacts: bool,
     ) -> None:
         logger.debug(
-            "Preparing export call",
+            "Preparing for content copy",
             dest_dir=dest_dir,
             copy_logs=copy_logs,
             copy_artifacts=copy_artifacts,
             job_ids=[jid for jid, _ in jobs],
         )
 
-        from nemo_evaluator_launcher.api.functional import export_results
-
-        config = {
-            "output_dir": dest_dir,
-            "only_required": True,
-            "copy_logs": bool(copy_logs) and not bool(copy_artifacts),
-            "copy_artifacts": bool(copy_artifacts) and not bool(copy_logs),
-        }
-        # skip artifact validation
-        if copy_logs and not copy_artifacts:
-            config["skip_validation"] = True
-
-        job_ids = [job_id for job_id, _ in jobs]
-        kind = "logs" if copy_logs else "artifacts"
         logger.info(
-            "Copying content", kind=kind, job_count=len(job_ids), dest_dir=dest_dir
+            "Copying content",
+            copy_logs=copy_logs,
+            copy_artifacts=copy_artifacts,
+            job_count=len(jobs),
+            dest_dir=dest_dir,
         )
-        print(f"Copying {kind} for {len(job_ids)} job(s) to {dest_dir}...")
 
-        result = export_results(job_ids, "local", config)
-        logger.debug("Export API call completed", success=result.get("success"))
-
-        if result.get("success"):
+        _, failed_jobs = copy_artifacts_fn(
+            [job for id, job in jobs],
+            Path(dest_dir),
+            copy_local=True,
+            only_required=False,
+            copy_logs=copy_logs,
+            copy_artifacts=copy_artifacts,
+        )
+        if len(failed_jobs) == 0:
             logger.info(
                 "Content copy completed successfully",
                 dest_dir=dest_dir,
                 job_count=len(jobs),
             )
-            if "jobs" in result:
-                for jid, job_result in result["jobs"].items():
-                    if job_result.get("success"):
-                        print(f"{jid}: Success")
-                    else:
-                        print(
-                            f"{jid}: Failed - {job_result.get('message', 'Unknown error')}"
-                        )
-            # Show full destination path
-            full_dest_path = Path(dest_dir).resolve()
-            print(f"Copied to: {full_dest_path}")
         else:
-            err = result.get("error", "Unknown error")
-            logger.warning("Content copy failed", error=err, dest_dir=dest_dir)
-            print(f"Failed to copy {kind}: {err}")
+            logger.warning(
+                "Content copy for some of the jobs failed",
+                failed_jobs=failed_jobs,
+                dest_dir=dest_dir,
+            )
 
     def _check_path_exists(self, paths: Dict[str, Any], path_type: str) -> str:
         """Check if a path exists and return indicator."""
@@ -482,7 +491,11 @@ def _get_artifacts_file_list() -> list[tuple[str, str]]:
             "eval_factory_metrics.json",
             "Response + runtime stats (latency, tokens count, memory)",
         ),
-        ("metrics.json", "Harness/benchmark metric and configuration"),
+        ("metadata.yaml", "Metadata about the evaluation run"),
+        (
+            "run_config.yml",
+            "Nemo-Evaluator run configuration used inside the evaluation container",
+        ),
         ("report.html", "Request-Response Pairs samples in HTML format (if enabled)"),
         ("report.json", "Report data in json format, if enabled"),
     ]
@@ -493,9 +506,9 @@ def _get_log_file_list(executor_type: str) -> list[tuple[str, str]]:
     et = (executor_type or "local").lower()
     if et == "slurm":
         return [
-            ("client-{SLURM_JOB_ID}.out", "Evaluation container/process output"),
+            ("client-{SLURM_JOB_ID}.log", "Evaluation container/process output"),
             (
-                "slurm-{SLURM_JOB_ID}.out",
+                "slurm-{SLURM_JOB_ID}.log",
                 "SLURM scheduler stdout/stderr (batch submission, export steps).",
             ),
             (
@@ -507,6 +520,8 @@ def _get_log_file_list(executor_type: str) -> list[tuple[str, str]]:
     return [
         (
             "stdout.log",
-            "Complete evaluation output (timestamps, resolved config, run/export messages).",
+            "Global log file for the evaluation run.",
         ),
+        ("client_stdout.log", "Evaluation container/process output"),
+        ("server_stdout.log", "Model server logs when a deployment is used."),
     ]
