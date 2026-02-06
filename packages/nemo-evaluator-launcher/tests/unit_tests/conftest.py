@@ -358,11 +358,24 @@ def make_job_fs(tmp_path):
         # Required artifacts
         if with_required:
             (artifacts / "results.yml").write_text(
-                "results: {tasks: {demo: {metrics: {accuracy: {value: 0.9}}}}}",
+                "results: {tasks: {demo: {metrics: {accuracy: {scores: {accuracy: {value: 0.9}}}}}}}",
                 encoding="utf-8",
             )
             (artifacts / "eval_factory_metrics.json").write_text(
                 json.dumps({"total_time": 1.23}), encoding="utf-8"
+            )
+            (artifacts / "run_config.yml").write_text(
+                "command: dummy\n"
+                "config: {output_dir: /results, params: {}, supported_endpoint_types: [completions], type: demo}\n"
+                "framework_name: demo-harness\n"
+                "pkg_name: demo_harness\n"
+                "target: {api_endpoint: {api_key: null, model_id: test-model, type: completions, url: http://127.0.0.1:8000/v1/completions}}",
+                encoding="utf-8",
+            )
+            (artifacts / "metadata.yaml").write_text(
+                "versioning: {nemo_evaluator: 0.1.0, git-hash: abc123, nemo_evaluator_launcher: 0.1.0}\n"
+                "launcher_resolved_config: {}",
+                encoding="utf-8",
             )
 
         # Optional artifacts
