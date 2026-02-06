@@ -318,11 +318,6 @@ def get_model_name(job_data: JobData, config: Dict[str, Any] = None) -> str:
     return f"unknown_model_{job_data.job_id}"
 
 
-def get_pipeline_id(job_data: JobData) -> str:
-    """Get pipeline ID for GitLab jobs."""
-    return job_data.data.get("pipeline_id") if job_data.executor == "gitlab" else None
-
-
 def get_benchmark_info(job_data: JobData) -> Dict[str, str]:
     """Get harness and benchmark info from mapping."""
     try:
@@ -348,49 +343,12 @@ def get_benchmark_info(job_data: JobData) -> Dict[str, str]:
         return {"harness": "unknown", "benchmark": get_task_name(job_data)}
 
 
-def get_container_from_mapping(job_data: JobData) -> str:
-    """Get container from mapping."""
-    try:
-        task_name = get_task_name(job_data)
-        if task_name in ["all_tasks", f"job_{job_data.job_id}"]:
-            return None
-
-        mapping = load_tasks_mapping()
-        task_definition = get_task_from_mapping(task_name, mapping)
-        return task_definition.get("container")
-
-    except Exception as e:
-        logger.warning(f"Failed to get container from mapping: {e}")
-        return None
-
-
 def get_artifact_root(job_data: JobData) -> str:
     """Get artifact root from job data."""
     bench = get_benchmark_info(job_data)
     h = bench.get("harness", "unknown")
     b = bench.get("benchmark", get_task_name(job_data))
     return f"{h}.{b}"
-
-
-# =============================================================================
-# GITLAB DOWNLOAD
-# =============================================================================
-
-
-def download_gitlab_artifacts(
-    paths: Dict[str, Any], export_dir: Path, extract_specific: bool = False
-) -> Dict[str, Path]:
-    """Download artifacts from GitLab API.
-
-    Args:
-        paths: Dictionary containing pipeline_id and project_id
-        export_dir: Local directory to save artifacts
-        extract_specific: If True, extract individual files; if False, keep as ZIP files
-
-    Returns:
-        Dictionary mapping artifact names to local file paths
-    """
-    raise NotImplementedError("Downloading from gitlab is not implemented")
 
 
 # =============================================================================
@@ -727,19 +685,6 @@ def copy_artifacts(
 # =============================================================================
 # PRIVATE HELPER FUNCTIONS
 # =============================================================================
-
-
-def _get_artifacts_dir(paths: Dict[str, Any]) -> Path:
-    """Get artifacts directory from paths."""
-    storage_type = paths.get("storage_type")
-
-    # For SSH-based remote access, artifacts aren't available locally yet
-    if storage_type == "remote_ssh":
-        return None
-
-    # For all local access (local_filesystem, remote_local, gitlab_ci_local)
-    # return the artifacts_dir from paths
-    return paths.get("artifacts_dir")
 
 
 def _extract_metrics_from_results(results: dict) -> Dict[str, float]:
