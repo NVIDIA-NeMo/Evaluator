@@ -15,12 +15,13 @@ All paths require:
 | Task | Command |
 |------|---------|
 | List benchmarks | `nemo-evaluator-launcher ls tasks` |
-| Run evaluation | `nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/<config>.yaml` |
+| Run evaluation (quick) | `nemo-evaluator-launcher run --model meta/llama-3.2-3b-instruct --task ifeval` |
+| Run evaluation (config) | `nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/<config>.yaml` |
 | Check status | `nemo-evaluator-launcher status <invocation_id>` |
 | Job info | `nemo-evaluator-launcher info <invocation_id>` |
 | Export results | `nemo-evaluator-launcher export <invocation_id> --dest local --format json` |
 | Dry run | Add `--dry-run` to any run command |
-| Test with limited samples | Add `-o +config.params.limit_samples=3` |
+| Test with limited samples | `--limit-samples 10` or `-o +config.params.limit_samples=3` |
 
 
 ## Choose Your Path
