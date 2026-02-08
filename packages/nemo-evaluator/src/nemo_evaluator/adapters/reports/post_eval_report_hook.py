@@ -16,11 +16,13 @@
 """Post-evaluation report generation hook."""
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, List, Literal
+from typing import Any, Iterable, List, Literal, Optional
 
 from jinja2 import Environment, StrictUndefined, select_autoescape
 from pydantic import BaseModel, Field
+import yaml
 
 from nemo_evaluator.adapters.caching.diskcaching import Cache
 from nemo_evaluator.adapters.decorators import register_for_adapter
@@ -120,7 +122,7 @@ class PostEvalReportHook(PostEvalHook):
         except Exception:
             return str(response_data)
 
-    def _collect_entries(self, cache_dir: Path, api_url: str) -> list:
+    def _collect_entries(self, cache_dir: Path, api_url: str) -> tuple[list, int]:
         """Collect all request-response entries from cache."""
         entries = []
 
@@ -151,7 +153,7 @@ class PostEvalReportHook(PostEvalHook):
         )
 
         if not cache_keys:
-            return []
+            return [], 0
 
         # Collect all cache entries
         for cache_key in cache_keys:
@@ -171,6 +173,22 @@ class PostEvalReportHook(PostEvalHook):
                     response_content = self._get_response_content(response_data)
 
                 # Add entry data
+                request_blob = self._safe_json_dumps(request_content)
+                response_blob = self._safe_json_dumps(response_content)
+                search_blob = f"{cache_key} {request_blob} {response_blob}".lower()
+
+                model = (
+                    request_content.get("model")
+                    if isinstance(request_content, dict)
+                    else None
+                )
+                request_type = self._detect_request_type(request_content)
+                prompt_preview = self._extract_prompt_preview(request_content)
+                finish_reasons = self._extract_finish_reasons(response_content)
+                usage = self._extract_usage(response_content)
+                has_error = self._has_error(response_content)
+                has_tool_calls = self._has_tool_calls(response_content)
+
                 entries.append(
                     {
                         "request_data": request_content,
@@ -178,6 +196,16 @@ class PostEvalReportHook(PostEvalHook):
                         "response": response_content,
                         "endpoint": api_url,
                         "cache_key": cache_key,
+                        "search_blob": search_blob,
+                        "model": model or "unknown",
+                        "request_type": request_type,
+                        "prompt_preview": prompt_preview,
+                        "finish_reasons": finish_reasons,
+                        "usage": usage,
+                        "has_error": has_error,
+                        "has_tool_calls": has_tool_calls,
+                        "request_chars": len(request_blob),
+                        "response_chars": len(response_blob),
                     }
                 )
             except Exception:
@@ -196,11 +224,195 @@ class PostEvalReportHook(PostEvalHook):
                 limited_to=self.html_report_size,
             )
 
-        return entries
+        return entries, len(cache_keys)
 
-    def _generate_html_report(self, entries: list, output_path: Path) -> None:
+    def _load_json(self, path: Path) -> Any:
+        if not path.exists():
+            return None
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+    def _load_yaml(self, path: Path) -> dict[str, Any]:
+        if not path.exists():
+            return {}
+        try:
+            return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except Exception:
+            return {}
+
+    def _get_nested(self, data: dict[str, Any], keys: Iterable[str]) -> Any:
+        current: Any = data
+        for key in keys:
+            if not isinstance(current, dict) or key not in current:
+                return None
+            current = current[key]
+        return current
+
+    def _flatten_metrics(self, data: Any, prefix: str = "") -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        if isinstance(data, dict):
+            if "value" in data and isinstance(data["value"], (int, float, str)):
+                rows.append(
+                    {
+                        "path": prefix.rstrip("."),
+                        "value": data.get("value"),
+                        "stats": data.get("stats"),
+                    }
+                )
+            for key, value in data.items():
+                next_prefix = f"{prefix}{key}."
+                rows.extend(self._flatten_metrics(value, next_prefix))
+        elif isinstance(data, list):
+            for idx, value in enumerate(data):
+                next_prefix = f"{prefix}{idx}."
+                rows.extend(self._flatten_metrics(value, next_prefix))
+        return rows
+
+    def _flatten_numeric(self, data: Any, prefix: str = "") -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        if isinstance(data, dict):
+            for key, value in data.items():
+                next_prefix = f"{prefix}{key}."
+                if isinstance(value, (int, float)):
+                    rows.append({"path": next_prefix.rstrip("."), "value": value})
+                else:
+                    rows.extend(self._flatten_numeric(value, next_prefix))
+        elif isinstance(data, list):
+            for idx, value in enumerate(data):
+                next_prefix = f"{prefix}{idx}."
+                rows.extend(self._flatten_numeric(value, next_prefix))
+        return rows
+
+    def _safe_json_dumps(self, data: Any) -> str:
+        try:
+            return json.dumps(data, ensure_ascii=False)
+        except Exception:
+            return str(data)
+
+    def _detect_request_type(self, request_content: Any) -> str:
+        if isinstance(request_content, dict):
+            if "messages" in request_content:
+                return "chat"
+            if "prompt" in request_content:
+                return "completion"
+        return "unknown"
+
+    def _normalize_content(self, content: Any) -> str:
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts: list[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, dict):
+                    if item.get("type") == "text":
+                        parts.append(str(item.get("text", "")))
+                    elif "text" in item:
+                        parts.append(str(item.get("text", "")))
+            return " ".join(p for p in parts if p).strip()
+        if isinstance(content, dict) and "text" in content:
+            return str(content.get("text", ""))
+        return str(content)
+
+    def _extract_prompt_preview(self, request_content: Any) -> str:
+        if not isinstance(request_content, dict):
+            return ""
+        if "messages" in request_content:
+            messages = request_content.get("messages") or []
+            for msg in messages:
+                if isinstance(msg, dict) and msg.get("role") == "user":
+                    content = self._normalize_content(msg.get("content"))
+                    if content:
+                        return content[:160]
+        if "prompt" in request_content:
+            prompt = self._normalize_content(request_content.get("prompt"))
+            return prompt[:160]
+        return ""
+
+    def _extract_finish_reasons(self, response_content: Any) -> list[str]:
+        reasons: list[str] = []
+        if isinstance(response_content, dict):
+            choices = response_content.get("choices") or []
+            for choice in choices:
+                if isinstance(choice, dict):
+                    reason = choice.get("finish_reason")
+                    if reason:
+                        reasons.append(str(reason))
+        return reasons
+
+    def _extract_usage(self, response_content: Any) -> Optional[dict[str, Any]]:
+        if isinstance(response_content, dict):
+            usage = response_content.get("usage")
+            if isinstance(usage, dict):
+                return {
+                    "prompt_tokens": usage.get("prompt_tokens"),
+                    "completion_tokens": usage.get("completion_tokens"),
+                    "total_tokens": usage.get("total_tokens"),
+                }
+        return None
+
+    def _has_error(self, response_content: Any) -> bool:
+        if isinstance(response_content, dict):
+            if "error" in response_content or "errors" in response_content:
+                return True
+        return False
+
+    def _has_tool_calls(self, response_content: Any) -> bool:
+        if not isinstance(response_content, dict):
+            return False
+        choices = response_content.get("choices") or []
+        for choice in choices:
+            if not isinstance(choice, dict):
+                continue
+            if choice.get("tool_calls") or choice.get("function_call"):
+                return True
+            message = choice.get("message")
+            if isinstance(message, dict):
+                if message.get("tool_calls") or message.get("function_call"):
+                    return True
+        return False
+
+    def _format_bytes(self, size: int) -> str:
+        for unit in ["B", "KB", "MB", "GB"]:
+            if size < 1024:
+                return f"{size:.0f} {unit}"
+            size = size / 1024
+        return f"{size:.0f} TB"
+
+    def _summarize_artifacts(self, output_dir: Path) -> list[dict[str, str]]:
+        rows: list[dict[str, str]] = []
+        if not output_dir.exists():
+            return rows
+        for child in sorted(output_dir.iterdir()):
+            if child.is_file():
+                size = child.stat().st_size
+                rows.append(
+                    {
+                        "name": child.name,
+                        "detail": self._format_bytes(size),
+                    }
+                )
+            elif child.is_dir():
+                try:
+                    count = sum(1 for _ in child.iterdir())
+                except Exception:
+                    count = 0
+                rows.append(
+                    {
+                        "name": f"{child.name}/",
+                        "detail": f"{count} items",
+                    }
+                )
+        return rows
+
+    def _generate_html_report(
+        self, entries: list, output_path: Path, meta: dict[str, Any]
+    ) -> None:
         """Generate HTML report."""
-        html_content = self.template.render(entries=entries)
+        html_content = self.template.render(entries=entries, meta=meta)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(html_content)
@@ -215,18 +427,136 @@ class PostEvalReportHook(PostEvalHook):
         """Generate reports of cached requests and responses."""
         # Derive cache_dir from output_dir
         cache_dir = Path(context.output_dir) / "cache"
+        output_dir = Path(context.output_dir)
 
         # Collect entries from cache
-        entries = self._collect_entries(cache_dir, context.url)
+        entries, total_available = self._collect_entries(cache_dir, context.url)
 
         if not entries:
             return
 
         # Generate reports based on configured types
+        # Load additional artifacts for richer HTML report.
+        results_path = output_dir / "results.yml"
+        run_config_path = output_dir / "run_config.yml"
+        eval_metrics_path = output_dir / "eval_factory_metrics.json"
+
+        results = self._load_yaml(results_path)
+        run_config = self._load_yaml(run_config_path)
+        eval_metrics = self._load_json(eval_metrics_path) or {}
+
+        error_count = sum(1 for entry in entries if entry.get("has_error"))
+        tool_count = sum(1 for entry in entries if entry.get("has_tool_calls"))
+        avg_request_chars = (
+            sum(entry.get("request_chars", 0) for entry in entries) / len(entries)
+        )
+        avg_response_chars = (
+            sum(entry.get("response_chars", 0) for entry in entries) / len(entries)
+        )
+        model_set = sorted(
+            {entry.get("model") for entry in entries if entry.get("model")}
+        )
+        request_type_counts: dict[str, int] = {}
+        finish_reason_counts: dict[str, int] = {}
+        usage_totals = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        for entry in entries:
+            request_type = entry.get("request_type") or "unknown"
+            request_type_counts[request_type] = request_type_counts.get(request_type, 0) + 1
+            for reason in entry.get("finish_reasons") or []:
+                finish_reason_counts[reason] = finish_reason_counts.get(reason, 0) + 1
+            usage = entry.get("usage") or {}
+            for key in usage_totals:
+                value = usage.get(key)
+                if isinstance(value, (int, float)):
+                    usage_totals[key] += value
+
+        generated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+        summary_items: list[dict[str, str]] = []
+        summary_items.append({"label": "Endpoint", "value": context.url})
+        summary_items.append({"label": "Generated At (UTC)", "value": generated_at})
+        summary_items.append({"label": "Shown Entries", "value": str(len(entries))})
+        summary_items.append({"label": "Total Cached", "value": str(total_available)})
+        summary_items.append({"label": "Output Dir", "value": str(output_dir)})
+
+        git_hash = self._get_nested(results, ["git_hash"])
+        if git_hash:
+            summary_items.append({"label": "Git Hash", "value": str(git_hash)})
+
+        model_id = self._get_nested(results, ["target", "api_endpoint", "model_id"])
+        if not model_id:
+            model_id = self._get_nested(run_config, ["target", "api_endpoint", "model_id"])
+        if model_id:
+            summary_items.append({"label": "Model ID", "value": str(model_id)})
+
+        task_name = self._get_nested(run_config, ["task", "name"])
+        if not task_name:
+            task_name = self._get_nested(run_config, ["task", "task_name"])
+        if task_name:
+            summary_items.append({"label": "Task", "value": str(task_name)})
+
+        command = self._get_nested(results, ["command"])
+        if command:
+            summary_items.append({"label": "Command", "value": str(command)})
+        if model_set:
+            summary_items.append({"label": "Models", "value": ", ".join(model_set)})
+
+        metrics_rows: list[dict[str, Any]] = []
+        results_metrics = self._get_nested(results, ["results"])
+        if isinstance(results_metrics, dict):
+            metrics_rows = self._flatten_metrics(results_metrics)
+
+        perf_rows: list[dict[str, Any]] = []
+        if isinstance(eval_metrics, dict):
+            perf_rows = self._flatten_numeric(eval_metrics)
+
+        artifacts_rows = self._summarize_artifacts(output_dir)
+
+        raw_results = results_path.read_text(encoding="utf-8") if results_path.exists() else ""
+        raw_run_config = (
+            run_config_path.read_text(encoding="utf-8") if run_config_path.exists() else ""
+        )
+        raw_eval_metrics = ""
+        if eval_metrics_path.exists():
+            try:
+                raw_eval_metrics = json.dumps(eval_metrics, indent=2, ensure_ascii=False)
+            except Exception:
+                raw_eval_metrics = eval_metrics_path.read_text(encoding="utf-8")
+
+        meta = {
+            "endpoint": context.url,
+            "generated_at": generated_at,
+            "shown_entries": len(entries),
+            "total_entries": total_available,
+            "limited": total_available > len(entries),
+            "summary_items": summary_items,
+            "metrics_rows": metrics_rows,
+            "perf_rows": perf_rows,
+            "artifacts_rows": artifacts_rows,
+            "raw_results": raw_results,
+            "raw_run_config": raw_run_config,
+            "raw_eval_metrics": raw_eval_metrics,
+            "stats": {
+                "error_count": error_count,
+                "tool_count": tool_count,
+                "error_rate": (error_count / len(entries)) if entries else 0,
+                "avg_request_chars": avg_request_chars,
+                "avg_response_chars": avg_response_chars,
+                "usage_totals": usage_totals,
+                "request_type_counts": request_type_counts,
+                "finish_reason_counts": finish_reason_counts,
+            },
+            "filters": {
+                "models": model_set,
+                "request_types": sorted(request_type_counts.keys()),
+                "finish_reasons": sorted(finish_reason_counts.keys()),
+            },
+        }
+
         for report_type in self.report_types:
             if report_type == "html":
                 output_path = Path(context.output_dir) / "report.html"
-                self._generate_html_report(entries, output_path)
+                self._generate_html_report(entries, output_path, meta)
                 get_logger().info("Generated HTML report", path=output_path)
             elif report_type == "json":
                 output_path = Path(context.output_dir) / "report.json"

@@ -19,6 +19,7 @@ import os
 
 from simple_parsing import ArgumentParser
 
+import nemo_evaluator_launcher.cli.analyze as analyze
 import nemo_evaluator_launcher.cli.export as export
 import nemo_evaluator_launcher.cli.info as info
 import nemo_evaluator_launcher.cli.kill as kill
@@ -52,6 +53,7 @@ def is_verbose_enabled(args) -> bool:
         "runs",
         "task",
         "export",
+        "analyze",
     ]
     for subcmd in subcommands:
         if hasattr(args, subcmd) and hasattr(getattr(args, subcmd), "verbose"):
@@ -183,6 +185,14 @@ def create_parser() -> ArgumentParser:
     )
     export_parser.add_arguments(export.ExportCmd, dest="export")
 
+    # Analyze subcommand
+    analyze_parser = subparsers.add_parser(
+        "analyze",
+        help="Generate an HTML analysis report from artifacts",
+        description="Generate a post-evaluation analysis report from a task artifacts directory",
+    )
+    analyze_parser.add_arguments(analyze.Cmd, dest="analyze")
+
     # Info subcommand
     info_parser = subparsers.add_parser(
         "info",
@@ -245,6 +255,8 @@ def main() -> None:
             args.runs.execute()
     elif args.command == "export":
         args.export.execute()
+    elif args.command == "analyze":
+        args.analyze.execute()
     elif args.command == "info":
         args.info.execute()
 
