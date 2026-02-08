@@ -57,7 +57,7 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
             margin: 0 auto;
         }
         h1 {
-            font-size: 2.4rem;
+            font-size: 1.9rem;
             margin: 0 0 8px;
         }
         .subtitle {
@@ -72,6 +72,145 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
             border-radius: 14px;
             box-shadow: var(--shadow);
             margin-bottom: 18px;
+        }
+        .brand-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .brand-left {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .brand-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+        }
+        .brand-logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .nvidia-logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .nvidia-eye {
+            width: 38px;
+            height: 26px;
+            flex: 0 0 auto;
+        }
+        .nvidia-word {
+            font-weight: 800;
+            letter-spacing: 0.16em;
+            font-size: 0.9rem;
+            color: #76b900;
+            text-transform: uppercase;
+        }
+        .brand-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+        .brand-sub {
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin-top: 2px;
+        }
+        .hero-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 10px 0 6px;
+        }
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(118, 185, 0, 0.12);
+            box-shadow: inset 0 0 0 1px rgba(118, 185, 0, 0.12);
+            font-size: 0.82rem;
+        }
+        .pill-label {
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 0.62rem;
+            color: var(--muted);
+        }
+        .pill-value {
+            color: var(--text);
+            font-weight: 600;
+        }
+        .pill-link {
+            color: var(--text);
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .pill-link:hover {
+            text-decoration: underline;
+        }
+        .pill-model {
+            background: rgba(111, 155, 255, 0.14);
+            border-color: rgba(111, 155, 255, 0.35);
+            box-shadow: inset 0 0 0 1px rgba(111, 155, 255, 0.16);
+        }
+        .pill-model .pill-label {
+            color: rgba(208, 223, 255, 0.9);
+        }
+        .pill-benchmark {
+            background: rgba(118, 185, 0, 0.14);
+            border-color: rgba(118, 185, 0, 0.38);
+            box-shadow: inset 0 0 0 1px rgba(118, 185, 0, 0.14);
+        }
+        .pill-benchmark .pill-label {
+            color: rgba(204, 232, 190, 0.92);
+        }
+        .pill-container {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.15);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+        }
+        .brand-link {
+            color: var(--accent-2);
+            text-decoration: none;
+            font-size: 0.85rem;
+            border: 1px solid rgba(111, 155, 255, 0.35);
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: rgba(111, 155, 255, 0.08);
+        }
+        .brand-link:hover {
+            filter: brightness(1.1);
+        }
+        .brand-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .meta-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.04);
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+        .meta-pill strong {
+            color: var(--text);
         }
         .hero strong {
             color: var(--accent);
@@ -146,8 +285,9 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
             text-align: left;
         }
         .sample-table .idx-col { width: 56px; }
-        .sample-table .target-col { width: 140px; min-width: 140px; }
+        .sample-table .target-col { width: 180px; min-width: 180px; }
         .sample-table .score-col { width: 120px; min-width: 120px; text-align: center; }
+        .sample-table .details-col { width: 90px; min-width: 90px; text-align: center; }
         .sample-table .answer-col { width: 35%; }
         .sample-table .input-col { width: auto; }
         .score-badge {
@@ -171,12 +311,36 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
             border-color: rgba(255, 154, 154, 0.35);
         }
         .score-badge.unknown {
-            background: rgba(199, 199, 199, 0.12);
-            color: #c7c7c7;
-            border-color: rgba(199, 199, 199, 0.3);
+            background: rgba(246, 211, 101, 0.18);
+            color: #f6d365;
+            border-color: rgba(246, 211, 101, 0.45);
         }
         .sample-row:hover {
             background: rgba(111, 155, 255, 0.08);
+        }
+        .sample-row.grade-correct {
+            background: rgba(126, 224, 129, 0.06);
+        }
+        .sample-row.grade-incorrect {
+            background: rgba(255, 154, 154, 0.06);
+        }
+        .sample-row.grade-unknown {
+            background: rgba(246, 211, 101, 0.08);
+        }
+        .sample-table td {
+            border-right: 1px solid rgba(255, 255, 255, 0.04);
+        }
+        .sample-table td:last-child,
+        .sample-table th:last-child {
+            border-right: none;
+        }
+        .details-link {
+            color: var(--accent-2);
+            text-decoration: none;
+            font-size: 0.78rem;
+        }
+        .details-link:hover {
+            text-decoration: underline;
         }
         .metric-path {
             max-width: 420px;
@@ -193,10 +357,16 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
         }
         .sample-table td.score-col,
         .sample-table th.score-col,
-        .sample-table td.target-col,
-        .sample-table th.target-col {
+        .sample-table td.details-col,
+        .sample-table th.details-col {
             white-space: nowrap;
             word-break: normal;
+        }
+        .sample-table td.target-col,
+        .sample-table th.target-col {
+            white-space: normal;
+            word-break: break-word;
+            overflow-wrap: anywhere;
         }
         .sample-row.grade-correct td:first-child {
             border-left: 3px solid rgba(126, 224, 129, 0.7);
@@ -285,13 +455,40 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
             background: var(--panel);
             border: 1px solid var(--border);
             border-radius: 14px;
-            padding: 18px 20px;
+            padding: 0;
             margin-bottom: 18px;
             box-shadow: var(--shadow);
+            overflow: hidden;
         }
         .section h2 {
-            margin: 0 0 12px;
+            margin: 0;
             font-size: 1.15rem;
+        }
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 16px 20px;
+            cursor: pointer;
+        }
+        .section-toggle {
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--muted);
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            cursor: pointer;
+        }
+        .section-toggle:hover {
+            color: var(--text);
+        }
+        .section-body {
+            padding: 0 20px 18px;
+        }
+        .section.collapsed .section-body {
+            display: none;
         }
         table {
             width: 100%;
@@ -331,28 +528,114 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
             border: 1px solid var(--border);
             border-radius: 14px;
             box-shadow: var(--shadow);
+            scroll-margin-top: 24px;
+            position: relative;
+            overflow: hidden;
+        }
+        .entry::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 4px;
+            background: rgba(199, 199, 199, 0.4);
+        }
+        .entry.grade-correct {
+            border-color: rgba(126, 224, 129, 0.4);
+            box-shadow: 0 0 0 1px rgba(126, 224, 129, 0.08), var(--shadow);
+            background: linear-gradient(90deg, rgba(126, 224, 129, 0.06), rgba(20, 24, 36, 0) 45%), var(--panel);
+        }
+        .entry.grade-incorrect {
+            border-color: rgba(255, 154, 154, 0.4);
+            box-shadow: 0 0 0 1px rgba(255, 154, 154, 0.08), var(--shadow);
+            background: linear-gradient(90deg, rgba(255, 154, 154, 0.06), rgba(20, 24, 36, 0) 45%), var(--panel);
+        }
+        .entry.grade-unknown {
+            border-color: rgba(246, 211, 101, 0.35);
+            background: linear-gradient(90deg, rgba(246, 211, 101, 0.07), rgba(20, 24, 36, 0) 45%), var(--panel);
+        }
+        .entry.grade-correct::before {
+            background: rgba(126, 224, 129, 0.9);
+        }
+        .entry.grade-incorrect::before {
+            background: rgba(255, 154, 154, 0.9);
+        }
+        .entry.grade-unknown::before {
+            background: rgba(246, 211, 101, 0.9);
+        }
+        .entry[data-graded="correct"] {
+            border-color: rgba(126, 224, 129, 0.4);
+            box-shadow: 0 0 0 1px rgba(126, 224, 129, 0.08), var(--shadow);
+            background: linear-gradient(90deg, rgba(126, 224, 129, 0.06), rgba(20, 24, 36, 0) 45%), var(--panel);
+        }
+        .entry[data-graded="incorrect"] {
+            border-color: rgba(255, 154, 154, 0.4);
+            box-shadow: 0 0 0 1px rgba(255, 154, 154, 0.08), var(--shadow);
+            background: linear-gradient(90deg, rgba(255, 154, 154, 0.06), rgba(20, 24, 36, 0) 45%), var(--panel);
+        }
+        .entry[data-graded="unknown"] {
+            border-color: rgba(246, 211, 101, 0.35);
+            background: linear-gradient(90deg, rgba(246, 211, 101, 0.07), rgba(20, 24, 36, 0) 45%), var(--panel);
+        }
+        .entry[data-graded="correct"]::before {
+            background: rgba(126, 224, 129, 0.9);
+        }
+        .entry[data-graded="incorrect"]::before {
+            background: rgba(255, 154, 154, 0.9);
+        }
+        .entry[data-graded="unknown"]::before {
+            background: rgba(246, 211, 101, 0.9);
+        }
+        .entry.highlight {
+            outline: 2px solid rgba(111, 155, 255, 0.5);
+            outline-offset: 2px;
         }
         .entry-header {
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: column;
             gap: 10px;
-            justify-content: space-between;
-            align-items: center;
             margin-bottom: 12px;
         }
-        .entry-meta {
-            font-size: 0.9rem;
-            color: var(--muted);
-        }
-        .entry-meta.secondary {
-            margin-top: 6px;
+        .entry-top {
             display: flex;
             flex-wrap: wrap;
-            gap: 12px;
-            font-size: 0.85rem;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
         }
-        .entry-meta strong {
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 10px 12px;
+        }
+        .meta-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 8px 12px;
+            min-width: 0;
+        }
+        .meta-card.span-2 {
+            grid-column: 1 / -1;
+        }
+        .meta-label {
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 0.68rem;
+            color: var(--muted);
+        }
+        .meta-value {
+            margin-top: 4px;
             color: var(--text);
+            word-break: break-word;
+            overflow-wrap: anywhere;
         }
         .badge {
             padding: 2px 8px;
@@ -381,9 +664,34 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
             background: rgba(255, 154, 154, 0.12);
         }
         .badge.unknown {
-            color: #c7c7c7;
-            border-color: rgba(199, 199, 199, 0.3);
-            background: rgba(199, 199, 199, 0.08);
+            color: #f6d365;
+            border-color: rgba(246, 211, 101, 0.45);
+            background: rgba(246, 211, 101, 0.16);
+        }
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            border: 1px solid var(--border);
+            background: var(--panel-2);
+        }
+        .status-pill.correct {
+            color: #7ee081;
+            border-color: rgba(126, 224, 129, 0.4);
+            background: rgba(126, 224, 129, 0.12);
+        }
+        .status-pill.incorrect {
+            color: #ff9a9a;
+            border-color: rgba(255, 154, 154, 0.4);
+            background: rgba(255, 154, 154, 0.12);
+        }
+        .status-pill.unknown {
+            color: #f6d365;
+            border-color: rgba(246, 211, 101, 0.45);
+            background: rgba(246, 211, 101, 0.16);
         }
         .prompt-preview {
             margin-top: 10px;
@@ -394,16 +702,16 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
             color: var(--text);
             font-size: 0.88rem;
         }
-        .pill {
+        .sample-pill {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            background: rgba(96, 211, 148, 0.12);
-            color: var(--accent);
+            background: rgba(111, 155, 255, 0.14);
+            color: #bcd2ff;
             padding: 4px 10px;
             border-radius: 999px;
             font-size: 0.78rem;
-            border: 1px solid rgba(96, 211, 148, 0.2);
+            border: 1px solid rgba(111, 155, 255, 0.35);
         }
         .block {
             background: #0c0f16;
@@ -466,7 +774,7 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
                 padding: 20px;
             }
             h1 {
-                font-size: 1.9rem;
+                font-size: 1.6rem;
             }
         }
     </style>
@@ -474,10 +782,55 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
 <body>
     <div class="container">
         {% if entries %}
+            <div class="brand-bar">
+                <div class="brand-left">
+                    <div class="brand-logo">
+                        <span class="nvidia-logo">
+                            <svg class="nvidia-eye" viewBox="0 0 64 40" role="img" aria-label="NVIDIA logo">
+                                <defs>
+                                    <linearGradient id="nvidiaGreen" x1="0" x2="1" y1="0" y2="1">
+                                        <stop offset="0%" stop-color="#76b900"/>
+                                        <stop offset="100%" stop-color="#8cd63f"/>
+                                    </linearGradient>
+                                </defs>
+                                <rect x="1" y="1" width="62" height="38" rx="9" fill="url(#nvidiaGreen)" />
+                                <path d="M10 20c8-8 16-12 22-12 6 0 14 4 22 12-8 8-16 12-22 12-6 0-14-4-22-12z" fill="rgba(8, 18, 8, 0.2)" />
+                                <circle cx="32" cy="20" r="7" fill="#0b1a0d" />
+                                <circle cx="32" cy="20" r="3.2" fill="#76b900" />
+                            </svg>
+                            <span class="nvidia-word">NVIDIA</span>
+                        </span>
+                    </div>
+                    <div class="brand-header">
+                        <div class="brand-title">NeMo Evaluator</div>
+                        <a class="brand-link" href="https://github.com/NVIDIA-NeMo/Evaluator" target="_blank" rel="noopener">GitHub Repo</a>
+                    </div>
+                    <div class="brand-sub">Evaluation Report</div>
+                </div>
+            </div>
             <div class="hero">
                 <h1>Evaluation Report</h1>
+                {% if meta.model_id or meta.task_name or meta.benchmark_container %}
+                    <div class="hero-pills">
+                        {% if meta.task_name %}
+                            <span class="pill pill-benchmark"><span class="pill-label">Benchmark</span><span class="pill-value">{{ meta.task_name }}</span></span>
+                        {% endif %}
+                        {% if meta.model_id %}
+                            <span class="pill pill-model"><span class="pill-label">Model</span><span class="pill-value">{{ meta.model_id }}</span></span>
+                        {% endif %}
+                        {% if meta.benchmark_container %}
+                            <span class="pill pill-container">
+                                <span class="pill-label">Container</span>
+                                {% if meta.benchmark_container_url %}
+                                    <a class="pill-link" href="{{ meta.benchmark_container_url }}" target="_blank" rel="noopener">{{ meta.benchmark_container }}</a>
+                                {% else %}
+                                    <span class="pill-value">{{ meta.benchmark_container }}</span>
+                                {% endif %}
+                            </span>
+                        {% endif %}
+                    </div>
+                {% endif %}
                 <p class="subtitle">Curated request and response samples captured during evaluation. Built for quick review, sharing, and debugging.</p>
-                <div class="note"><strong>Note:</strong> Responses can vary due to generation parameters and randomness.</div>
             </div>
 
             {% if meta.limited %}
@@ -485,7 +838,7 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
             {% endif %}
 
             <div class="toolbar">
-                <input class="search" id="searchBox" type="search" placeholder="Search cache keys, requests, responses..." />
+                
                 <select id="modelFilter" class="select">
                     <option value="">All models</option>
                     {% for model in meta.filters.models %}
@@ -545,12 +898,22 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
                     <h2>Sample Stats</h2>
                     <div class="summary-grid">
                         <div class="summary-card">
-                            <div class="label">Accuracy</div>
-                            <div class="value">{{ (meta.stats.accuracy * 100) | round(2) }}%</div>
+                            <div class="label">Report Accuracy (Graded)</div>
+                            <div class="value">
+                                {% if meta.stats.graded_count %}
+                                    {{ (meta.stats.accuracy * 100) | round(2) }}% ({{ meta.stats.correct_count }}/{{ meta.stats.graded_count }})
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </div>
                         </div>
                         <div class="summary-card">
                             <div class="label">Correct / Incorrect / Unknown</div>
                             <div class="value">{{ meta.stats.correct_count }} / {{ meta.stats.incorrect_count }} / {{ meta.stats.unknown_count }}</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="label">Report Samples</div>
+                            <div class="value">{{ meta.stats.report_count }} shown / {{ meta.total_entries }} cached</div>
                         </div>
                         <div class="summary-card">
                             <div class="label">Error Rate</div>
@@ -579,17 +942,26 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
                     {% if meta.stats.request_type_counts %}
                         <div class="chips">
                             {% for key, value in meta.stats.request_type_counts.items() %}
-                                <div class="chip">{{ key }}: {{ value }}</div>
+                                {% if key != 'unknown' %}
+                                    <div class="chip">{{ key }}: {{ value }}</div>
+                                {% endif %}
                             {% endfor %}
                         </div>
                     {% endif %}
                     {% if meta.stats.finish_reason_counts %}
                         <div class="chips">
                             {% for key, value in meta.stats.finish_reason_counts.items() %}
-                                <div class="chip">{{ key }}: {{ value }}</div>
+                                {% if key != 'unknown' %}
+                                    <div class="chip">{{ key }}: {{ value }}</div>
+                                {% endif %}
                             {% endfor %}
                         </div>
                     {% endif %}
+                    <div class="note">
+                        <strong>Note:</strong> Report accuracy uses graded log samples shown above (correct / incorrect).
+                        Results rollups below come from results.yml and may use task-specific definitions (inst-level vs prompt-level)
+                        and the full eval set.
+                    </div>
                 </div>
             {% endif %}
 
@@ -609,6 +981,7 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
                                     <th class="target-col">Target</th>
                                     <th class="answer-col">Answer</th>
                                     <th class="score-col">Score</th>
+                                    <th class="details-col">Details</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -624,9 +997,11 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
                                         data-graded="{{ entry.graded_label | e }}"
                                         data-request-chars="{{ entry.request_chars }}"
                                         data-response-chars="{{ entry.response_chars }}">
-                                        <td class="idx-col"><a href="#sample-{{ entry.cache_key }}">{{ loop.index }}</a></td>
+                                        <td class="idx-col">
+                                            <a class="details-link" data-detail-link="true" href="#sample-{{ entry.cache_key }}">{{ loop.index }}</a>
+                                        </td>
                                         <td class="input-col">{{ (entry.graded_input or entry.prompt_preview or '—') | truncate(160, True, '...') }}</td>
-                                        <td class="target-col">{{ (entry.graded_target or entry.graded_expected or '—') | truncate(80, True, '...') }}</td>
+                                        <td class="target-col">{{ (entry.target_display or entry.graded_target or entry.graded_expected or '—') | truncate(80, True, '...') }}</td>
                                         <td class="answer-col">{{ (entry.graded_response or entry.graded_predicted or '—') | truncate(120, True, '...') }}</td>
                                         <td class="score-col">
                                             {% if entry.graded_label == 'correct' %}
@@ -636,6 +1011,9 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
                                             {% else %}
                                                 <span class="score-badge unknown">Ungraded</span>
                                             {% endif %}
+                                        </td>
+                                        <td class="details-col">
+                                            <a class="details-link" data-detail-link="true" href="#sample-{{ entry.cache_key }}">View</a>
                                         </td>
                                     </tr>
                                 {% endfor %}
@@ -659,52 +1037,88 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
                                  data-request-chars="{{ entry.request_chars }}"
                                  data-response-chars="{{ entry.response_chars }}">
                                 <div class="entry-header">
-                                    <div class="entry-meta">
-                                        <span class="pill">Sample {{ loop.index }}</span>
-                                        <span>Cache Key: <strong>{{ entry.cache_key }}</strong></span>
-                                        <span>Model: <strong>{{ entry.model }}</strong></span>
-                                        <span>Type: <strong>{{ entry.request_type }}</strong></span>
+                                    <div class="entry-top">
+                                        <div class="meta-row">
+                                            <span class="sample-pill">Sample {{ loop.index }}</span>
+                                            {% if entry.graded_label == 'correct' %}
+                                                <span class="status-pill correct">Correct</span>
+                                            {% elif entry.graded_label == 'incorrect' %}
+                                                <span class="status-pill incorrect">Incorrect</span>
+                                            {% else %}
+                                                <span class="status-pill unknown">Ungraded</span>
+                                            {% endif %}
+                                            {% if entry.has_error %}
+                                                <span class="badge error">Error</span>
+                                            {% endif %}
+                                            {% if entry.has_tool_calls %}
+                                                <span class="badge info">Tool calls</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="buttons">
+                                            <button class="button" onclick="copyBlock('req-{{ entry.cache_key }}')">Copy Request</button>
+                                            <button class="button" onclick="copyBlock('res-{{ entry.cache_key }}')">Copy Response</button>
+                                            <button class="button primary" onclick="toggleRaw('curl-{{ entry.cache_key }}')">Toggle Curl</button>
+                                        </div>
+                                    </div>
+                                    <div class="meta-grid">
+                                        <div class="meta-card span-2">
+                                            <div class="meta-label">Cache Key</div>
+                                            <div class="meta-value">{{ entry.cache_key }}</div>
+                                        </div>
+                                        <div class="meta-card">
+                                            <div class="meta-label">Model</div>
+                                            <div class="meta-value">{{ entry.model }}</div>
+                                        </div>
+                                        <div class="meta-card">
+                                            <div class="meta-label">Type</div>
+                                            <div class="meta-value">{{ entry.request_type }}</div>
+                                        </div>
                                         {% if entry.finish_reasons %}
-                                            <span>Finish: <strong>{{ entry.finish_reasons | join(', ') }}</strong></span>
+                                            <div class="meta-card">
+                                                <div class="meta-label">Finish</div>
+                                                <div class="meta-value">{{ entry.finish_reasons | join(', ') }}</div>
+                                            </div>
+                                        {% endif %}
+                                        <div class="meta-card">
+                                            <div class="meta-label">Req chars</div>
+                                            <div class="meta-value">{{ entry.request_chars }}</div>
+                                        </div>
+                                        <div class="meta-card">
+                                            <div class="meta-label">Resp chars</div>
+                                            <div class="meta-value">{{ entry.response_chars }}</div>
+                                        </div>
+                                        {% if entry.usage %}
+                                            <div class="meta-card">
+                                                <div class="meta-label">Tokens</div>
+                                                <div class="meta-value">{{ entry.usage.prompt_tokens }} / {{ entry.usage.completion_tokens }} / {{ entry.usage.total_tokens }}</div>
+                                            </div>
+                                        {% endif %}
+                                        {% if entry.target_display %}
+                                            <div class="meta-card span-2">
+                                                <div class="meta-label">Target</div>
+                                                <div class="meta-value">{{ entry.target_display }}</div>
+                                            </div>
+                                        {% elif entry.graded_expected %}
+                                            <div class="meta-card span-2">
+                                                <div class="meta-label">Expected</div>
+                                                <div class="meta-value">{{ entry.graded_expected }}</div>
+                                            </div>
+                                        {% endif %}
+                                        {% if entry.graded_predicted %}
+                                            <div class="meta-card span-2">
+                                                <div class="meta-label">Predicted</div>
+                                                <div class="meta-value">{{ entry.graded_predicted }}</div>
+                                            </div>
                                         {% endif %}
                                     </div>
-                                    <div class="buttons">
-                                        <button class="button" onclick="copyBlock('req-{{ entry.cache_key }}')">Copy Request</button>
-                                        <button class="button" onclick="copyBlock('res-{{ entry.cache_key }}')">Copy Response</button>
-                                        <button class="button primary" onclick="toggleRaw('curl-{{ entry.cache_key }}')">Toggle Curl</button>
-                                    </div>
                                 </div>
-                                <div class="entry-meta secondary">
-                                    <span>Req chars: <strong>{{ entry.request_chars }}</strong></span>
-                                    <span>Resp chars: <strong>{{ entry.response_chars }}</strong></span>
-                                    {% if entry.usage %}
-                                        <span>Tokens: <strong>{{ entry.usage.prompt_tokens }} / {{ entry.usage.completion_tokens }} / {{ entry.usage.total_tokens }}</strong></span>
-                                    {% endif %}
-                                    {% if entry.has_error %}
-                                        <span class="badge error">Error</span>
-                                    {% endif %}
-                                    {% if entry.has_tool_calls %}
-                                        <span class="badge info">Tool calls</span>
-                                    {% endif %}
-                                    {% if entry.graded_label == 'correct' %}
-                                        <span class="badge correct">Correct</span>
-                                    {% elif entry.graded_label == 'incorrect' %}
-                                        <span class="badge incorrect">Incorrect</span>
-                                    {% elif entry.graded_label == 'unknown' %}
-                                        <span class="badge unknown">Ungraded</span>
-                                    {% endif %}
-                                    {% if entry.graded_expected %}
-                                        <span>Expected: <strong>{{ entry.graded_expected }}</strong></span>
-                                    {% endif %}
-                                    {% if entry.graded_predicted %}
-                                        <span>Predicted: <strong>{{ entry.graded_predicted }}</strong></span>
-                                    {% endif %}
-                                </div>
-                                {% if entry.prompt_preview %}
-                                    <div class="prompt-preview">{{ entry.prompt_preview }}</div>
-                                {% endif %}
-                                {% if entry.graded_input and entry.graded_input != entry.prompt_preview %}
-                                    <div class="prompt-preview">{{ entry.graded_input }}</div>
+                                {% if entry.prompt_sections %}
+                                    {% for section in entry.prompt_sections %}
+                                        <div class="prompt-preview">
+                                            <div class="block-title">{{ section.label }}</div>
+                                            <div>{{ section.text }}</div>
+                                        </div>
+                                    {% endfor %}
                                 {% endif %}
                                 <div class="block request-block" data-section="request">
                                     <div class="block-title">Request</div>
@@ -718,6 +1132,12 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
                                     <div class="block graded-block" data-section="graded">
                                         <div class="block-title">Graded Response</div>
                                         <pre id="graded-{{ entry.cache_key }}">{{ entry.graded_response | e }}</pre>
+                                    </div>
+                                {% endif %}
+                                {% if entry.target_display %}
+                                    <div class="block graded-block" data-section="graded">
+                                        <div class="block-title">Target (Ground Truth)</div>
+                                        <pre>{{ entry.target_display | e }}</pre>
                                     </div>
                                 {% endif %}
                                 <div id="curl-{{ entry.cache_key }}" class="block hidden" data-section="curl">
@@ -738,7 +1158,63 @@ curl "{{ entry.endpoint }}" \
             </div>
 
             <div class="section">
-                <h2>Score Metrics</h2>
+                <h2>Results Rollup (Groups)</h2>
+                {% if meta.rollup_rows %}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Group</th>
+                                <th>Metric</th>
+                                <th>Value</th>
+                                <th>Stats</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in meta.rollup_rows %}
+                                <tr>
+                                    <td>{{ row.scope }}</td>
+                                    <td class="metric-path" title="{{ row.path }}">{{ row.path_display }}</td>
+                                    <td class="metric-value">{{ row.value_display or '—' }}</td>
+                                    <td>{{ row.stats_display or '—' }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <div class="note">No rollup metrics were found in results.yml.</div>
+                {% endif %}
+            </div>
+
+            <div class="section">
+                <h2>Results (Tasks)</h2>
+                {% if meta.task_rows %}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Task</th>
+                                <th>Metric</th>
+                                <th>Value</th>
+                                <th>Stats</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in meta.task_rows %}
+                                <tr>
+                                    <td>{{ row.scope }}</td>
+                                    <td class="metric-path" title="{{ row.path }}">{{ row.path_display }}</td>
+                                    <td class="metric-value">{{ row.value_display or '—' }}</td>
+                                    <td>{{ row.stats_display or '—' }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <div class="note">No task metrics were found in results.yml.</div>
+                {% endif %}
+            </div>
+
+            <div class="section">
+                <h2>All Metrics (Flattened)</h2>
                 {% if meta.metrics_rows %}
                     <table>
                         <thead>
@@ -866,7 +1342,7 @@ curl "{{ entry.endpoint }}" \
             });
         });
 
-        const searchBox = document.getElementById('searchBox');
+        const searchBox = null;
         const modelFilter = document.getElementById('modelFilter');
         const typeFilter = document.getElementById('typeFilter');
         const finishFilter = document.getElementById('finishFilter');
@@ -881,7 +1357,7 @@ curl "{{ entry.endpoint }}" \
         const tabContents = document.querySelectorAll('.tab-content');
 
         function matchesFilters(element) {
-            const query = (searchBox?.value || "").toLowerCase();
+            const query = "";
             const model = modelFilter?.value || "";
             const type = typeFilter?.value || "";
             const finish = finishFilter?.value || "";
@@ -911,23 +1387,52 @@ curl "{{ entry.endpoint }}" \
         function applyFilters() {
             const entries = entriesContainer ? entriesContainer.querySelectorAll('.entry') : document.querySelectorAll('.entry');
             const rows = document.querySelectorAll('.sample-row');
-            let count = 0;
-            const total = entries.length;
+            let visibleEntries = 0;
+            let visibleRows = 0;
+            const total = rows.length || entries.length;
 
             entries.forEach((entry) => {
                 const visible = matchesFilters(entry);
                 entry.style.display = visible ? 'block' : 'none';
-                if (visible) count += 1;
+                if (visible) visibleEntries += 1;
             });
 
             rows.forEach((row) => {
                 const visible = matchesFilters(row);
                 row.style.display = visible ? '' : 'none';
+                if (visible) visibleRows += 1;
             });
 
             if (visibleCount) {
+                const count = rows.length ? visibleRows : visibleEntries;
                 visibleCount.textContent = `Visible: ${count} / ${total}`;
             }
+        }
+
+        function normalizeGradeClasses() {
+            document.querySelectorAll('.entry').forEach((entry) => {
+                const grade = entry.getAttribute('data-graded') || 'unknown';
+                entry.classList.remove('grade-correct', 'grade-incorrect', 'grade-unknown');
+                entry.classList.add(`grade-${grade || 'unknown'}`);
+            });
+            document.querySelectorAll('.sample-row').forEach((row) => {
+                const grade = row.getAttribute('data-graded') || 'unknown';
+                row.classList.remove('grade-correct', 'grade-incorrect', 'grade-unknown');
+                row.classList.add(`grade-${grade || 'unknown'}`);
+            });
+        }
+
+        function syncEntryCounts() {
+            if (!entriesContainer || !tableBody) return;
+            const rows = Array.from(tableBody.querySelectorAll('.sample-row'));
+            const entries = Array.from(entriesContainer.querySelectorAll('.entry'));
+            if (!rows.length || !entries.length) return;
+            if (entries.length <= rows.length) return;
+            entries.forEach((entry, idx) => {
+                if (idx >= rows.length) {
+                    entry.style.display = 'none';
+                }
+            });
         }
 
         function sortEntries() {
@@ -974,7 +1479,7 @@ curl "{{ entry.endpoint }}" \
             }
         }
 
-        [searchBox, modelFilter, typeFilter, finishFilter, gradingFilter, errorOnly, toolOnly].forEach((el) => {
+        [modelFilter, typeFilter, finishFilter, gradingFilter, errorOnly, toolOnly].forEach((el) => {
             if (!el) return;
             el.addEventListener('input', applyFilters);
             el.addEventListener('change', applyFilters);
@@ -1002,6 +1507,127 @@ curl "{{ entry.endpoint }}" \
             });
         });
 
+        function openDetailById(targetId) {
+            if (!targetId) return;
+            const targetTab = document.querySelector('.tab[data-tab="detailView"]');
+            if (targetTab) targetTab.click();
+            const el = document.getElementById(targetId);
+            if (!el) return;
+            el.classList.add('highlight');
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setTimeout(() => el.classList.remove('highlight'), 1600);
+        }
+
+        document.querySelectorAll('a[data-detail-link="true"]').forEach((link) => {
+            link.addEventListener('click', (event) => {
+                event.preventDefault();
+                const href = link.getAttribute('href') || '';
+                const targetId = href.startsWith('#') ? href.slice(1) : href;
+                openDetailById(targetId);
+                history.replaceState(null, '', `#${targetId}`);
+            });
+        });
+
+        if (window.location.hash) {
+            const targetId = window.location.hash.slice(1);
+            if (targetId.startsWith('sample-')) {
+                openDetailById(targetId);
+            }
+        }
+
+        document.querySelectorAll('.entry').forEach((entry) => {
+            const previews = Array.from(entry.querySelectorAll('.prompt-preview'));
+            const texts = previews.map((preview) =>
+                (preview.textContent || '').replace(/\s+/g, ' ').trim()
+            );
+
+            previews.forEach((preview, idx) => {
+                const text = texts[idx];
+                if (!text) {
+                    preview.remove();
+                }
+            });
+
+            for (let i = 0; i < previews.length; i += 1) {
+                if (!previews[i] || !texts[i]) continue;
+                for (let j = 0; j < previews.length; j += 1) {
+                    if (i === j || !previews[j] || !texts[j]) continue;
+                    if (texts[j].includes(texts[i])) {
+                        previews[i].remove();
+                        texts[i] = '';
+                        previews[i] = null;
+                        break;
+                    }
+                }
+            }
+
+            const seen = new Set();
+            previews.forEach((preview, idx) => {
+                if (!preview) return;
+                const text = texts[idx];
+                if (!text) return;
+                if (seen.has(text)) {
+                    preview.remove();
+                } else {
+                    seen.add(text);
+                }
+            });
+        });
+
+        function setupCollapsibles() {
+            document.querySelectorAll('.section').forEach((section) => {
+                const header = section.querySelector('h2');
+                if (!header) return;
+                if (!header.classList.contains('section-header')) {
+                    header.classList.add('section-header');
+                }
+
+                let body = section.querySelector('.section-body');
+                if (!body) {
+                    body = document.createElement('div');
+                    body.className = 'section-body';
+                    const siblings = [];
+                    let node = header.nextSibling;
+                    while (node) {
+                        const next = node.nextSibling;
+                        siblings.push(node);
+                        node = next;
+                    }
+                    siblings.forEach((node) => body.appendChild(node));
+                    section.appendChild(body);
+                }
+
+                if (!header.querySelector('.section-toggle')) {
+                    const toggle = document.createElement('button');
+                    toggle.type = 'button';
+                    toggle.className = 'section-toggle';
+                    toggle.textContent = 'Collapse';
+                    toggle.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                        section.classList.toggle('collapsed');
+                        toggle.textContent = section.classList.contains('collapsed')
+                            ? 'Expand'
+                            : 'Collapse';
+                    });
+                    header.appendChild(toggle);
+                }
+
+                header.addEventListener('click', (event) => {
+                    if (event.target && event.target.closest('.section-toggle')) return;
+                    const toggle = header.querySelector('.section-toggle');
+                    section.classList.toggle('collapsed');
+                    if (toggle) {
+                        toggle.textContent = section.classList.contains('collapsed')
+                            ? 'Expand'
+                            : 'Collapse';
+                    }
+                });
+            });
+        }
+
+        setupCollapsibles();
+        normalizeGradeClasses();
+        syncEntryCounts();
         sortEntries();
         applyFilters();
     </script>
