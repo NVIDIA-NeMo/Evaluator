@@ -588,6 +588,10 @@ class LeptonExecutor(BaseExecutor):
                     job_env_vars["NEMO_TELEMETRY_ENABLED"] = os.getenv(
                         "NEMO_TELEMETRY_ENABLED"
                     )
+                if os.getenv("NEMO_TELEMETRY_ENDPOINT"):
+                    job_env_vars["NEMO_TELEMETRY_ENDPOINT"] = os.getenv(
+                        "NEMO_TELEMETRY_ENDPOINT"
+                    )
 
                 print(
                     f"   - Storage: {len(job_mounts)} mount(s) with evaluation ID isolation"

@@ -227,6 +227,10 @@ class LocalExecutor(BaseExecutor):
                 env_vars_list.append(
                     f"NEMO_TELEMETRY_ENABLED={os.getenv('NEMO_TELEMETRY_ENABLED')}"
                 )
+            if os.getenv("NEMO_TELEMETRY_ENDPOINT"):
+                env_vars_list.append(
+                    f"NEMO_TELEMETRY_ENDPOINT={os.getenv('NEMO_TELEMETRY_ENDPOINT')}"
+                )
 
             eval_image = task_definition["container"]
             if "container" in task:

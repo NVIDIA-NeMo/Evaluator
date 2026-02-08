@@ -256,7 +256,7 @@ class TestBuildPayload:
         assert payload["clientVer"] == "1.0.0"
         assert payload["sessionId"] == "test-session"
         assert len(payload["events"]) == 1
-        assert payload["events"][0]["name"] == "evaluation_task"
+        assert payload["events"][0]["name"] == "EvaluationTaskEvent"
         assert payload["eventSchemaVer"] == "1.0"
 
     def test_build_payload_event_parameters(self):

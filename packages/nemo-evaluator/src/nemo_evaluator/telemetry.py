@@ -40,7 +40,7 @@ from pydantic import BaseModel, Field
 SESSION_ID_ENV_VAR = "NEMO_TELEMETRY_SESSION_ID"
 
 # Telemetry configuration
-CLIENT_ID = "14399890258381784"  # Staging ID for Evaluator SDK
+CLIENT_ID = "14399890258381784"
 NEMO_TELEMETRY_VERSION = "nemo-telemetry/1.0"
 MAX_RETRIES = 3
 NEMO_TELEMETRY_ENDPOINT = os.getenv(
@@ -112,7 +112,7 @@ class EvaluationTaskEvent(TelemetryEvent):
     All fields are collected anonymously for understanding usage patterns.
     """
 
-    _event_name: ClassVar[str] = "evaluation_task"
+    _event_name: ClassVar[str] = "EvaluationTaskEvent"
 
     task: str = Field(
         ...,
