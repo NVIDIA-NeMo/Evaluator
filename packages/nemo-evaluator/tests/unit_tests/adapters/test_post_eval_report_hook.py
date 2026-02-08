@@ -16,6 +16,7 @@
 """Tests for PostEvalReportHook functionality."""
 
 import json
+import re
 
 from nemo_evaluator.adapters.caching.diskcaching import Cache
 from nemo_evaluator.adapters.reports.post_eval_report_hook import PostEvalReportHook
@@ -198,6 +199,128 @@ def test_post_eval_report_hook_html_only(tmpdir):
     # Verify HTML report was created
     html_file = tmpdir / "report.html"
     assert html_file.exists()
+
+
+def _seed_cache(tmpdir, prompts: list[str]) -> None:
+    cache_dir = tmpdir / "cache"
+    cache_dir.mkdir()
+    responses_dir = cache_dir / "responses"
+    requests_dir = cache_dir / "requests"
+    headers_dir = cache_dir / "headers"
+    responses_dir.mkdir()
+    requests_dir.mkdir()
+    headers_dir.mkdir()
+
+    responses_cache = Cache(directory=str(responses_dir))
+    requests_cache = Cache(directory=str(requests_dir))
+
+    for idx, prompt in enumerate(prompts):
+        cache_key = f"key_{idx:03d}"
+        test_request = {
+            "model": "test-model",
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        test_response = {
+            "choices": [{"message": {"content": f"response {idx}"}}],
+        }
+        requests_cache[cache_key] = test_request
+        responses_cache[cache_key] = json.dumps(test_response).encode("utf-8")
+
+
+def _write_jsonl(path, records):
+    with open(path, "w", encoding="utf-8") as f:
+        for record in records:
+            f.write(json.dumps(record))
+            f.write("\n")
+
+
+def test_report_counts_and_target_for_ifeval(tmpdir):
+    prompts = [f"ifeval prompt {i}" for i in range(6)]
+    _seed_cache(tmpdir, prompts)
+
+    # create grading records (instruction-following)
+    records = []
+    for idx, prompt in enumerate(prompts):
+        record = {
+            "doc": {"prompt": prompt, "instruction_id_list": [1, 2]},
+            "resps": [f"graded response {idx}"],
+        }
+        if idx % 2 == 0:
+            record["inst_level_strict_acc"] = 1
+        elif idx % 3 == 0:
+            record["inst_level_strict_acc"] = 0
+        records.append(record)
+
+    _write_jsonl(tmpdir / "output.jsonl", records)
+
+    params = PostEvalReportHook.Params(report_types=["html"], html_report_size=5)
+    hook = PostEvalReportHook(params)
+    context = AdapterGlobalContext(
+        output_dir=str(tmpdir), url="http://test.example.com/api"
+    )
+    hook.post_eval_hook(context)
+
+    html_content = (tmpdir / "report.html").read()
+    row_count = len(re.findall(r'class=\"sample-row', html_content))
+    entry_count = len(re.findall(r'id=\"sample-', html_content))
+
+    assert row_count == 5
+    assert entry_count == 5
+    assert "N/A (instruction-following)" in html_content
+    assert "grade-correct" in html_content or "Correct" in html_content
+
+
+def test_report_counts_and_target_for_ns_mmlu_pro(tmpdir):
+    base_problem = (
+        "Managers are entrusted to run the company in the best interest of ________."
+    )
+    options = (
+        "A) Shareholders, Diligence, Self-interest\n"
+        "B) Shareholders, Self-interest, Care and Skill\n"
+        "C) Stakeholders, Care and skill, Self-interest\n"
+        "D) Stakeholders, Diligence, Care and Skill\n"
+        "E) Customers, Care and Skill, Diligence\n"
+        "F) Shareholders, Care and Skill, Diligence\n"
+        "G) Shareholders, Self-interest, Diligence\n"
+        "H) Employees, Care and Skill, Diligence\n"
+        "I) Stakeholders, Self-interest, Diligence\n"
+        "J) Stakeholder, Care and Skill, Diligence"
+    )
+    prompts = [
+        f"Answer the following multiple choice question.\n\n{base_problem}\n\n{options}"
+        for _ in range(5)
+    ]
+    _seed_cache(tmpdir, prompts)
+
+    records = []
+    for idx, prompt in enumerate(prompts):
+        record = {
+            "problem": base_problem,
+            "options": options,
+            "expected_answer": "F",
+            "predicted_answer": "F" if idx % 2 == 0 else "B",
+            "symbolic_correct": True if idx % 2 == 0 else False,
+            "resps": [f"graded response {idx}"],
+        }
+        records.append(record)
+
+    _write_jsonl(tmpdir / "output.jsonl", records)
+
+    params = PostEvalReportHook.Params(report_types=["html"], html_report_size=5)
+    hook = PostEvalReportHook(params)
+    context = AdapterGlobalContext(
+        output_dir=str(tmpdir), url="http://test.example.com/api"
+    )
+    hook.post_eval_hook(context)
+
+    html_content = (tmpdir / "report.html").read()
+    row_count = len(re.findall(r'class=\"sample-row', html_content))
+    entry_count = len(re.findall(r'id=\"sample-', html_content))
+
+    assert row_count == 5
+    assert entry_count == 5
+    assert "F) Shareholders, Care and Skill, Diligence" in html_content
+    assert "grade-correct" in html_content
 
     # Verify JSON report was NOT created
     json_file = tmpdir / "report.json"
