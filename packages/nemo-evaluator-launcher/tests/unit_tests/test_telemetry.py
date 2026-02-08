@@ -245,7 +245,7 @@ class TestBuildPayload:
         assert payload["clientVer"] == "1.0.0"
         assert payload["sessionId"] == "test-session"
         assert len(payload["events"]) == 1
-        assert payload["events"][0]["name"] == "launcher_job"
+        assert payload["events"][0]["name"] == "LauncherJobEvent"
         assert payload["eventSchemaVer"] == "1.0"
 
 

@@ -77,7 +77,7 @@ class LauncherJobEvent(TelemetryEvent):
     All fields are collected anonymously for understanding usage patterns.
     """
 
-    _event_name: ClassVar[str] = "launcher_job"
+    _event_name: ClassVar[str] = "LauncherJobEvent"
 
     executor_type: str = Field(
         ...,
