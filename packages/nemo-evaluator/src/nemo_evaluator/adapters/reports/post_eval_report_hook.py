@@ -270,6 +270,35 @@ class PostEvalReportHook(PostEvalHook):
                 rows.extend(self._flatten_metrics(value, next_prefix))
         return rows
 
+    def _normalize_ws(self, value: str) -> str:
+        return " ".join(value.split()).strip()
+
+    def _format_value(self, value: Any) -> str:
+        if value is None:
+            return "-"
+        if isinstance(value, float):
+            return f"{value:.4f}"
+        return str(value)
+
+    def _format_stats(self, stats: Any) -> str:
+        if not stats:
+            return "-"
+        if isinstance(stats, dict):
+            parts = []
+            for key in sorted(stats.keys()):
+                val = stats.get(key)
+                if isinstance(val, float):
+                    parts.append(f"{key}={val:.4f}")
+                else:
+                    parts.append(f"{key}={val}")
+            return ", ".join(parts) if parts else "-"
+        return str(stats)
+
+    def _display_metric_path(self, path: str) -> str:
+        if ".metrics." in path:
+            return path.split(".metrics.", 1)[1]
+        return path
+
     def _flatten_numeric(self, data: Any, prefix: str = "") -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
         if isinstance(data, dict):
@@ -316,6 +345,23 @@ class PostEvalReportHook(PostEvalHook):
         if isinstance(content, dict) and "text" in content:
             return str(content.get("text", ""))
         return str(content)
+
+    def _extract_user_prompt(self, request_content: Any) -> str:
+        if not isinstance(request_content, dict):
+            return ""
+        if "messages" in request_content:
+            messages = request_content.get("messages") or []
+            parts: list[str] = []
+            for msg in messages:
+                if isinstance(msg, dict) and msg.get("role") == "user":
+                    content = self._normalize_content(msg.get("content"))
+                    if content:
+                        parts.append(content)
+            if parts:
+                return "\n\n".join(parts)
+        if "prompt" in request_content:
+            return self._normalize_content(request_content.get("prompt"))
+        return ""
 
     def _extract_prompt_preview(self, request_content: Any) -> str:
         if not isinstance(request_content, dict):
@@ -374,6 +420,194 @@ class PostEvalReportHook(PostEvalHook):
                 if message.get("tool_calls") or message.get("function_call"):
                     return True
         return False
+
+    def _derive_correctness(self, record: dict[str, Any]) -> Optional[bool]:
+        if "symbolic_correct" in record and isinstance(record["symbolic_correct"], bool):
+            return record["symbolic_correct"]
+        if "correct" in record and isinstance(record["correct"], bool):
+            return record["correct"]
+        for key in (
+            "prompt_level_strict_acc",
+            "prompt_level_loose_acc",
+            "acc",
+            "accuracy",
+            "exact_match",
+            "is_correct",
+        ):
+            if key in record:
+                value = record[key]
+                if isinstance(value, bool):
+                    return value
+                if isinstance(value, (int, float)):
+                    return value > 0
+        for key in ("inst_level_strict_acc", "inst_level_loose_acc"):
+            if key in record:
+                value = record[key]
+                if isinstance(value, bool):
+                    return value
+                if isinstance(value, list) and value:
+                    return all(bool(v) for v in value)
+        return None
+
+    def _extract_graded_response(self, record: dict[str, Any]) -> str:
+        filtered = record.get("filtered_resps")
+        if isinstance(filtered, list) and filtered:
+            if isinstance(filtered[0], str):
+                return filtered[0]
+            if isinstance(filtered[0], list) and filtered[0]:
+                return str(filtered[0][0])
+        resps = record.get("resps")
+        if isinstance(resps, list) and resps:
+            if isinstance(resps[0], str):
+                return resps[0]
+            if isinstance(resps[0], list) and resps[0]:
+                return str(resps[0][0])
+        if isinstance(record.get("generation"), str):
+            return record.get("generation")
+        serialized = record.get("serialized_output")
+        if isinstance(serialized, list) and serialized:
+            first = serialized[0]
+            if isinstance(first, dict) and isinstance(first.get("content"), str):
+                return first.get("content")
+        return ""
+
+    def _extract_prompt_variants(self, record: dict[str, Any]) -> list[str]:
+        variants: list[str] = []
+        doc = record.get("doc")
+        if isinstance(doc, dict) and isinstance(doc.get("prompt"), str):
+            variants.append(doc.get("prompt"))
+        if isinstance(record.get("prompt"), str):
+            variants.append(record.get("prompt"))
+        problem = record.get("problem")
+        options = record.get("options")
+        if isinstance(problem, str):
+            variants.append(problem)
+            if isinstance(options, str):
+                variants.append(f"{problem}\n\n{options}")
+        arguments = record.get("arguments") or {}
+        if isinstance(arguments, dict):
+            gen_args = arguments.get("gen_args_0") or {}
+            if isinstance(gen_args, dict):
+                arg_0 = gen_args.get("arg_0") or []
+                if isinstance(arg_0, list) and arg_0:
+                    first = arg_0[0]
+                    if isinstance(first, str):
+                        try:
+                            parsed = json.loads(first)
+                            if isinstance(parsed, list):
+                                for msg in parsed:
+                                    if isinstance(msg, dict) and msg.get("role") == "user":
+                                        content = self._normalize_content(msg.get("content"))
+                                        if content:
+                                            variants.append(content)
+                        except Exception:
+                            pass
+        return [v for v in variants if v]
+
+    def _extract_primary_input(self, record: dict[str, Any]) -> str:
+        doc = record.get("doc")
+        if isinstance(doc, dict) and isinstance(doc.get("prompt"), str):
+            return doc.get("prompt")
+        problem = record.get("problem")
+        options = record.get("options")
+        if isinstance(problem, str):
+            if isinstance(options, str):
+                return f"{problem}\n\n{options}"
+            return problem
+        arguments = record.get("arguments") or {}
+        if isinstance(arguments, dict):
+            gen_args = arguments.get("gen_args_0") or {}
+            if isinstance(gen_args, dict):
+                arg_0 = gen_args.get("arg_0") or []
+                if isinstance(arg_0, list) and arg_0:
+                    first = arg_0[0]
+                    if isinstance(first, str):
+                        try:
+                            parsed = json.loads(first)
+                            if isinstance(parsed, list):
+                                parts: list[str] = []
+                                for msg in parsed:
+                                    if isinstance(msg, dict) and msg.get("role") == "user":
+                                        content = self._normalize_content(msg.get("content"))
+                                        if content:
+                                            parts.append(content)
+                                if parts:
+                                    return "\n\n".join(parts)
+                        except Exception:
+                            pass
+        return ""
+
+    def _extract_target(self, record: dict[str, Any]) -> str:
+        expected = record.get("expected_answer")
+        if expected is not None:
+            return str(expected)
+        target = record.get("target")
+        if isinstance(target, str) and target and not target.isdigit():
+            return target
+        doc = record.get("doc")
+        if isinstance(doc, dict):
+            doc_target = doc.get("target")
+            if isinstance(doc_target, str) and doc_target:
+                return doc_target
+        return ""
+
+    def _collect_grading_records(self, output_dir: Path) -> list[dict[str, Any]]:
+        records: list[dict[str, Any]] = []
+        for path in output_dir.rglob("*.jsonl"):
+            name = path.name
+            if not (name.startswith("samples_") or name == "output.jsonl"):
+                continue
+            try:
+                with path.open("r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            record = json.loads(line)
+                        except Exception:
+                            continue
+                        if not isinstance(record, dict):
+                            continue
+                        variants = self._extract_prompt_variants(record)
+                        if not variants:
+                            continue
+                        graded_response = self._extract_graded_response(record)
+                        correctness = self._derive_correctness(record)
+                        records.append(
+                            {
+                                "variants": variants,
+                                "input": self._extract_primary_input(record),
+                                "target": self._extract_target(record),
+                                "graded_response": graded_response,
+                                "correct": correctness,
+                                "expected": record.get("expected_answer"),
+                                "predicted": record.get("predicted_answer"),
+                                "score": 1 if correctness is True else 0 if correctness is False else None,
+                                "label": (
+                                    "correct"
+                                    if correctness is True
+                                    else "incorrect"
+                                    if correctness is False
+                                    else "unknown"
+                                ),
+                                "metrics": {
+                                    k: record.get(k)
+                                    for k in [
+                                        "prompt_level_strict_acc",
+                                        "prompt_level_loose_acc",
+                                        "inst_level_strict_acc",
+                                        "inst_level_loose_acc",
+                                        "symbolic_correct",
+                                    ]
+                                    if k in record
+                                },
+                                "source": str(path),
+                            }
+                        )
+            except Exception:
+                continue
+        return records
 
     def _format_bytes(self, size: int) -> str:
         for unit in ["B", "KB", "MB", "GB"]:
@@ -445,8 +679,74 @@ class PostEvalReportHook(PostEvalHook):
         run_config = self._load_yaml(run_config_path)
         eval_metrics = self._load_json(eval_metrics_path) or {}
 
+        grading_records = self._collect_grading_records(output_dir)
+        grading_exact: dict[str, dict[str, Any]] = {}
+        for record in grading_records:
+            for variant in record.get("variants", []):
+                if variant and variant not in grading_exact:
+                    grading_exact[variant] = record
+
+        def find_grading(prompt: str) -> Optional[dict[str, Any]]:
+            if not prompt:
+                return None
+            if prompt in grading_exact:
+                return grading_exact[prompt]
+            normalized_prompt = self._normalize_ws(prompt)
+            if normalized_prompt in grading_exact:
+                return grading_exact[normalized_prompt]
+            best_match: Optional[dict[str, Any]] = None
+            best_len = 0
+            for record in grading_records:
+                for variant in record.get("variants", []):
+                    if not variant:
+                        continue
+                    normalized_variant = self._normalize_ws(variant)
+                    if (
+                        normalized_variant in normalized_prompt
+                        or normalized_prompt in normalized_variant
+                    ):
+                        if len(normalized_variant) > best_len:
+                            best_match = record
+                            best_len = len(normalized_variant)
+            return best_match
+
+        for entry in entries:
+            entry.setdefault("graded_label", "unknown")
+            entry.setdefault("graded_response", None)
+            entry.setdefault("graded_input", None)
+            entry.setdefault("graded_target", None)
+            entry.setdefault("graded_expected", None)
+            entry.setdefault("graded_predicted", None)
+            entry.setdefault("graded_score", None)
+            entry.setdefault("graded_metrics", None)
+            entry.setdefault("graded_source", None)
+            prompt = self._extract_user_prompt(entry.get("request_data"))
+            match = find_grading(prompt)
+            if match:
+                entry["graded_response"] = match.get("graded_response")
+                entry["graded_expected"] = match.get("expected")
+                entry["graded_predicted"] = match.get("predicted")
+                entry["graded_correct"] = match.get("correct")
+                entry["graded_input"] = match.get("input")
+                entry["graded_target"] = match.get("target")
+                entry["graded_score"] = match.get("score")
+                entry["graded_metrics"] = match.get("metrics")
+                entry["graded_source"] = match.get("source")
+                entry["graded_label"] = match.get("label") or "unknown"
+                graded_blob = self._safe_json_dumps(match.get("graded_response"))
+                graded_input = self._safe_json_dumps(match.get("input"))
+                graded_target = self._safe_json_dumps(match.get("target"))
+                entry["search_blob"] = (
+                    f"{entry.get('search_blob', '')} {graded_blob} {graded_input} {graded_target}".lower()
+                )
+
         error_count = sum(1 for entry in entries if entry.get("has_error"))
         tool_count = sum(1 for entry in entries if entry.get("has_tool_calls"))
+        correct_count = sum(1 for entry in entries if entry.get("graded_label") == "correct")
+        incorrect_count = sum(
+            1 for entry in entries if entry.get("graded_label") == "incorrect"
+        )
+        unknown_count = sum(1 for entry in entries if entry.get("graded_label") == "unknown")
         avg_request_chars = (
             sum(entry.get("request_chars", 0) for entry in entries) / len(entries)
         )
@@ -504,11 +804,31 @@ class PostEvalReportHook(PostEvalHook):
         metrics_rows: list[dict[str, Any]] = []
         results_metrics = self._get_nested(results, ["results"])
         if isinstance(results_metrics, dict):
-            metrics_rows = self._flatten_metrics(results_metrics)
+            raw_metrics = self._flatten_metrics(results_metrics)
+            metrics_rows = [
+                {
+                    "path": row.get("path"),
+                    "path_display": self._display_metric_path(row.get("path", "")),
+                    "value": row.get("value"),
+                    "value_display": self._format_value(row.get("value")),
+                    "stats": row.get("stats"),
+                    "stats_display": self._format_stats(row.get("stats")),
+                }
+                for row in raw_metrics
+            ]
 
         perf_rows: list[dict[str, Any]] = []
         if isinstance(eval_metrics, dict):
-            perf_rows = self._flatten_numeric(eval_metrics)
+            raw_perf = self._flatten_numeric(eval_metrics)
+            perf_rows = [
+                {
+                    "path": row.get("path"),
+                    "path_display": row.get("path"),
+                    "value": row.get("value"),
+                    "value_display": self._format_value(row.get("value")),
+                }
+                for row in raw_perf
+            ]
 
         artifacts_rows = self._summarize_artifacts(output_dir)
 
@@ -539,6 +859,14 @@ class PostEvalReportHook(PostEvalHook):
             "stats": {
                 "error_count": error_count,
                 "tool_count": tool_count,
+                "correct_count": correct_count,
+                "incorrect_count": incorrect_count,
+                "unknown_count": unknown_count,
+                "accuracy": (
+                    (correct_count / (correct_count + incorrect_count))
+                    if (correct_count + incorrect_count)
+                    else 0
+                ),
                 "error_rate": (error_count / len(entries)) if entries else 0,
                 "avg_request_chars": avg_request_chars,
                 "avg_response_chars": avg_response_chars,
@@ -550,6 +878,7 @@ class PostEvalReportHook(PostEvalHook):
                 "models": model_set,
                 "request_types": sorted(request_type_counts.keys()),
                 "finish_reasons": sorted(finish_reason_counts.keys()),
+                "grading": ["correct", "incorrect", "unknown"],
             },
         }
 

@@ -223,11 +223,23 @@ def _render_samples(samples: list[dict[str, Any]]) -> str:
         cache_key = escape(str(entry.get("cache_key", "-")))
         request = escape(_pretty(entry.get("request_data")))
         response = escape(_pretty(entry.get("response")))
+        graded_response = escape(_pretty(entry.get("graded_response"))) if entry.get("graded_response") else ""
+        graded_label = entry.get("graded_label") or "unknown"
+        graded_expected = escape(str(entry.get("graded_expected"))) if entry.get("graded_expected") else ""
+        graded_predicted = escape(str(entry.get("graded_predicted"))) if entry.get("graded_predicted") else ""
+        badge_class = {
+            "correct": "badge-correct",
+            "incorrect": "badge-incorrect",
+            "unknown": "badge-unknown",
+        }.get(graded_label, "badge-unknown")
         entries_html += f"""
         <div class="entry">
             <div class="entry-head">
                 <span class="pill">Sample {idx}</span>
                 <span class="muted">Cache Key: <strong>{cache_key}</strong></span>
+                <span class="{badge_class}">{escape(graded_label)}</span>
+                {f'<span class=\"muted\">Expected: <strong>{graded_expected}</strong></span>' if graded_expected else ''}
+                {f'<span class=\"muted\">Predicted: <strong>{graded_predicted}</strong></span>' if graded_predicted else ''}
             </div>
             <div class="block">
                 <div class="block-title">Request</div>
@@ -237,6 +249,7 @@ def _render_samples(samples: list[dict[str, Any]]) -> str:
                 <div class="block-title">Response</div>
                 <pre>{response}</pre>
             </div>
+            {f'''<div class="block"><div class="block-title">Graded Response</div><pre>{graded_response}</pre></div>''' if graded_response else ''}
         </div>
         """
     return entries_html
@@ -382,6 +395,30 @@ def render_analysis_html(payload: dict[str, Any]) -> str:
       padding: 4px 10px;
       border-radius: 999px;
       font-size: 0.78rem;
+    }}
+    .badge-correct {{
+      background: rgba(126, 224, 129, 0.16);
+      color: #7ee081;
+      border: 1px solid rgba(126, 224, 129, 0.35);
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+    }}
+    .badge-incorrect {{
+      background: rgba(255, 154, 154, 0.16);
+      color: #ff9a9a;
+      border: 1px solid rgba(255, 154, 154, 0.35);
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+    }}
+    .badge-unknown {{
+      background: rgba(199, 199, 199, 0.12);
+      color: #c7c7c7;
+      border: 1px solid rgba(199, 199, 199, 0.3);
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
     }}
     .muted {{
       color: var(--muted);
@@ -535,6 +572,15 @@ class Cmd:
         sample_count = len(report_entries)
         error_count = sum(1 for entry in report_entries if _has_error(entry))
         tool_count = sum(1 for entry in report_entries if _has_tool_calls(entry))
+        correct_count = sum(
+            1 for entry in report_entries if entry.get("graded_label") == "correct"
+        )
+        incorrect_count = sum(
+            1 for entry in report_entries if entry.get("graded_label") == "incorrect"
+        )
+        unknown_count = sum(
+            1 for entry in report_entries if entry.get("graded_label") == "unknown"
+        )
         model_set = sorted(
             {entry.get("model") for entry in report_entries if entry.get("model")}
         )
@@ -636,6 +682,15 @@ class Cmd:
 
         stats_items: list[tuple[str, str]] = []
         stats_items.append(("Samples", str(sample_count)))
+        if correct_count or incorrect_count:
+            accuracy = correct_count / (correct_count + incorrect_count)
+            stats_items.append(("Accuracy", f"{accuracy * 100:.1f}%"))
+            stats_items.append(
+                (
+                    "Correct / Incorrect / Unknown",
+                    f"{correct_count} / {incorrect_count} / {unknown_count}",
+                )
+            )
         stats_items.append(
             ("Errors", f"{error_count} ({(error_count / sample_count * 100):.1f}%)")
             if sample_count
