@@ -18,8 +18,6 @@
 import json
 from pathlib import Path
 
-import pytest
-
 from nemo_evaluator_launcher.api.functional import export_results
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 
@@ -185,32 +183,3 @@ class TestExportResultsFunctional:
                         seen.add(jid)
         assert {j11.job_id, j12.job_id, j21.job_id}.issubset(seen)
         assert r["metadata"]["successful_jobs"] == 3
-
-    @pytest.mark.skip(reason="gitlab_ci_local not supported")
-    def test_single_pipeline_id_gitlab_ci_local(
-        self, tmp_path: Path, mock_execdb, monkeypatch
-    ):
-        pipeline_id = 123456
-        inv = "qq77rr88"
-        j = _make_job(inv, 0, "simple_evals.mmlu", executor="gitlab")
-        j.data["pipeline_id"] = pipeline_id
-        _register_jobs(j)
-
-        # Isolate working dir for gitlab_ci_local path
-        monkeypatch.chdir(tmp_path)
-        (Path("artifacts") / str(pipeline_id)).mkdir(parents=True, exist_ok=True)
-        (Path("artifacts") / str(pipeline_id) / "results.yml").write_text(
-            "results: {tasks: {demo: {metrics: {accuracy: {value: 0.9}}}}}",
-            encoding="utf-8",
-        )
-        (Path("artifacts") / str(pipeline_id) / "eval_factory_metrics.json").write_text(
-            json.dumps({"total_time": 1.23}), encoding="utf-8"
-        )
-        monkeypatch.setenv("CI", "true")
-
-        r = export_results(
-            str(pipeline_id),
-            dest="local",
-            config={"output_dir": str(tmp_path), "format": "json"},
-        )
-        assert r["success"] is True

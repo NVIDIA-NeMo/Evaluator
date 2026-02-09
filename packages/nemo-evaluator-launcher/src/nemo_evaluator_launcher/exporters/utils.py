@@ -25,10 +25,6 @@ import yaml
 
 from nemo_evaluator_launcher.common.execdb import JobData
 from nemo_evaluator_launcher.common.logging_utils import logger
-from nemo_evaluator_launcher.common.mapping import (
-    get_task_from_mapping,
-    load_tasks_mapping,
-)
 
 # =============================================================================
 # ARTIFACTS
@@ -112,44 +108,8 @@ def get_copytree_ignore() -> Callable[[str, List[str]], List[str]]:
     return ignore_func
 
 
-def validate_artifacts(artifacts_dir: Path) -> Dict[str, Any]:
-    """Check which artifacts are available."""
-    if not artifacts_dir or not artifacts_dir.exists():
-        return {
-            "can_export": False,
-            "missing_required": REQUIRED_ARTIFACTS.copy(),
-            "missing_optional": OPTIONAL_ARTIFACTS.copy(),
-            "message": "Artifacts directory not found",
-        }
-
-    missing_required = [
-        f for f in REQUIRED_ARTIFACTS if not (artifacts_dir / f).exists()
-    ]
-    missing_optional = [
-        f for f in OPTIONAL_ARTIFACTS if not (artifacts_dir / f).exists()
-    ]
-    can_export = len(missing_required) == 0
-
-    message_parts = []
-    if missing_required:
-        message_parts.append(f"Missing required: {', '.join(missing_required)}")
-    if missing_optional:
-        message_parts.append(f"Missing optional: {', '.join(missing_optional)}")
-
-    return {
-        "can_export": can_export,
-        "missing_required": missing_required,
-        "missing_optional": missing_optional,
-        "message": (
-            ". ".join(message_parts) if message_parts else "All artifacts available"
-        ),
-    }
-
-
 def get_available_artifacts(artifacts_dir: Path) -> List[str]:
     """Get list of artifacts available in artifacts directory."""
-    if not artifacts_dir or not artifacts_dir.exists():
-        return []
     return [
         filename
         for filename in get_relevant_artifacts()
@@ -238,117 +198,6 @@ def load_benchmark_info(artifacts_dir: Path) -> Tuple[str, str]:
     harness = data.get("framework_name", None)
     benchmark = data.get("config", {}).get("type", None)
     return harness, benchmark
-
-
-# =============================================================================
-# CONFIG EXTRACTION
-# =============================================================================
-
-
-def extract_exporter_config(
-    data_for_export: DataForExport,
-    exporter_name: str,
-    constructor_config: Dict[str, Any] = None,
-) -> Dict[str, Any]:
-    """Extract and merge exporter configuration from multiple sources."""
-    config = {}
-
-    # root-level `export.<exporter-name>`
-    config = (data_for_export.config or {}).get("export", {}).get(exporter_name, {})
-
-    # From webhook metadata (if triggered by webhook)
-    if "webhook_metadata" in data_for_export.job_data:
-        webhook_data = data_for_export.job_data["webhook_metadata"]
-        webhook_config = {
-            "triggered_by_webhook": True,
-            "webhook_source": webhook_data.get("webhook_source", "unknown"),
-            "source_artifact": f"{webhook_data.get('artifact_name', 'unknown')}:{webhook_data.get('artifact_version', 'unknown')}",
-            "config_source": webhook_data.get("config_file", "unknown"),
-        }
-        if exporter_name == "wandb" and webhook_data.get("webhook_source") == "wandb":
-            wandb_specific = {
-                "entity": webhook_data.get("entity"),
-                "project": webhook_data.get("project"),
-                "run_id": webhook_data.get("run_id"),
-            }
-            webhook_config.update({k: v for k, v in wandb_specific.items() if v})
-        config.update(webhook_config)
-
-    # allows CLI overrides
-    if constructor_config:
-        config.update(constructor_config)
-
-    return config
-
-
-# =============================================================================
-# JOB DATA EXTRACTION
-# =============================================================================
-
-
-def get_task_name(job_data: JobData) -> str:
-    """Get task name from job data."""
-    if "." in job_data.job_id:
-        try:
-            idx = int(job_data.job_id.split(".")[-1])
-            return job_data.config["evaluation"]["tasks"][idx]["name"]
-        except Exception:
-            return f"job_{job_data.job_id}"
-    return "all_tasks"
-
-
-def get_model_name(job_data: JobData, config: Dict[str, Any] = None) -> str:
-    """Extract model name from config or job data."""
-    if config and "model_name" in config:
-        return config["model_name"]
-
-    job_config = job_data.config or {}
-    model_sources = [
-        job_config.get("target", {}).get("api_endpoint", {}).get("model_id"),
-        job_config.get("deployment", {}).get("served_model_name"),
-        job_data.data.get("served_model_name"),
-        job_data.data.get("model_name"),
-        job_data.data.get("model_id"),
-    ]
-
-    for source in model_sources:
-        if source:
-            return str(source)
-
-    return f"unknown_model_{job_data.job_id}"
-
-
-def get_benchmark_info(job_data: JobData) -> Dict[str, str]:
-    """Get harness and benchmark info from mapping."""
-    try:
-        task_name = get_task_name(job_data)
-        if task_name in ["all_tasks", f"job_{job_data.job_id}"]:
-            return {"harness": "unknown", "benchmark": task_name}
-
-        # Use mapping to get harness info
-        mapping = load_tasks_mapping()
-        task_definition = get_task_from_mapping(task_name, mapping)
-        harness = task_definition.get("harness", "unknown")
-
-        # Extract benchmark name (remove harness prefix)
-        if "." in task_name:
-            benchmark = ".".join(task_name.split(".")[1:])
-        else:
-            benchmark = task_name
-
-        return {"harness": harness, "benchmark": benchmark}
-
-    except Exception as e:
-        logger.warning(f"Failed to get benchmark info: {e}")
-        return {"harness": "unknown", "benchmark": get_task_name(job_data)}
-
-
-def get_artifact_root(job_data: JobData) -> str:
-    """Get artifact root from job data."""
-    bench = get_benchmark_info(job_data)
-    h = bench.get("harness", "unknown")
-    b = bench.get("benchmark", get_task_name(job_data))
-    return f"{h}.{b}"
 
 
 # =============================================================================
@@ -530,6 +379,8 @@ def copy_local_artifacts(
     copy_artifacts: bool = True,
     copy_logs: bool = False,
 ):
+    """Copy artifacts between local directories."""
+
     if not copy_artifacts and not copy_logs:
         logger.warning("Both copy_artifacts and copy_logs are False, nothing to copy")
         return
@@ -605,7 +456,7 @@ def copy_artifacts(
     only_required: bool = True,
     copy_logs: bool = False,
 ) -> Tuple[List[JobData], List[str]]:
-    """Copy artifacts to local filesystem. Returns list of failed jobs."""
+    """Copy artifacts to local filesystem. Returns list of failed jobs. Works both for local and remote jobs."""
     if not copy_artifacts and not copy_logs:
         logger.warning("Both copy_artifacts and copy_logs are False, nothing to copy")
         return jobs_data, []
