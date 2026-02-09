@@ -327,6 +327,7 @@ class TestLocalExecutorTelemetryPropagation:
         os.environ["TEST_API_KEY"] = "test_key_value"
         os.environ["NEMO_TELEMETRY_SESSION_ID"] = "test-session-12345"
         os.environ["NEMO_TELEMETRY_ENABLED"] = "true"
+        os.environ["NEMO_TELEMETRY_ENDPOINT"] = "https://staging.example.com/v1.1/events/json"
 
         try:
             with (
@@ -376,12 +377,14 @@ class TestLocalExecutorTelemetryPropagation:
                 script_content = run_script.read_text()
                 assert "NEMO_TELEMETRY_SESSION_ID=test-session-12345" in script_content
                 assert "NEMO_TELEMETRY_ENABLED=true" in script_content
+                assert "NEMO_TELEMETRY_ENDPOINT=https://staging.example.com/v1.1/events/json" in script_content
 
         finally:
             for env_var in [
                 "TEST_API_KEY",
                 "NEMO_TELEMETRY_SESSION_ID",
                 "NEMO_TELEMETRY_ENABLED",
+                "NEMO_TELEMETRY_ENDPOINT",
             ]:
                 os.environ.pop(env_var, None)
 
@@ -393,6 +396,7 @@ class TestLocalExecutorTelemetryPropagation:
         # Explicitly remove telemetry env vars
         os.environ.pop("NEMO_TELEMETRY_SESSION_ID", None)
         os.environ.pop("NEMO_TELEMETRY_ENABLED", None)
+        os.environ.pop("NEMO_TELEMETRY_ENDPOINT", None)
 
         try:
             with (
@@ -442,6 +446,7 @@ class TestLocalExecutorTelemetryPropagation:
                 script_content = run_script.read_text()
                 assert "NEMO_TELEMETRY_SESSION_ID" not in script_content
                 assert "NEMO_TELEMETRY_ENABLED" not in script_content
+                assert "NEMO_TELEMETRY_ENDPOINT" not in script_content
 
         finally:
             os.environ.pop("TEST_API_KEY", None)
@@ -503,6 +508,7 @@ class TestSlurmExecutorTelemetryPropagation:
 
         os.environ["NEMO_TELEMETRY_SESSION_ID"] = "slurm-session-67890"
         os.environ["NEMO_TELEMETRY_ENABLED"] = "false"
+        os.environ["NEMO_TELEMETRY_ENDPOINT"] = "https://staging.example.com/v1.1/events/json"
 
         try:
             with (
@@ -549,10 +555,12 @@ class TestSlurmExecutorTelemetryPropagation:
                 # Verify telemetry env vars are exported in the script
                 assert "export NEMO_TELEMETRY_SESSION_ID=slurm-session-67890" in script
                 assert "export NEMO_TELEMETRY_ENABLED=false" in script
+                assert "export NEMO_TELEMETRY_ENDPOINT=https://staging.example.com/v1.1/events/json" in script
 
         finally:
             os.environ.pop("NEMO_TELEMETRY_SESSION_ID", None)
             os.environ.pop("NEMO_TELEMETRY_ENABLED", None)
+            os.environ.pop("NEMO_TELEMETRY_ENDPOINT", None)
 
     def test_sbatch_script_excludes_telemetry_env_vars_when_not_set(self, slurm_base_config):
         """Test that sbatch script does NOT include telemetry env vars when not set."""
@@ -570,6 +578,7 @@ class TestSlurmExecutorTelemetryPropagation:
         # Ensure env vars are not set
         os.environ.pop("NEMO_TELEMETRY_SESSION_ID", None)
         os.environ.pop("NEMO_TELEMETRY_ENABLED", None)
+        os.environ.pop("NEMO_TELEMETRY_ENDPOINT", None)
 
         with (
             patch(
@@ -615,6 +624,7 @@ class TestSlurmExecutorTelemetryPropagation:
             # Verify telemetry env vars are NOT in the script
             assert "NEMO_TELEMETRY_SESSION_ID" not in script
             assert "NEMO_TELEMETRY_ENABLED" not in script
+            assert "NEMO_TELEMETRY_ENDPOINT" not in script
 
 
 class TestLeptonExecutorTelemetryPropagation:
@@ -657,6 +667,7 @@ class TestLeptonExecutorTelemetryPropagation:
 
         os.environ["NEMO_TELEMETRY_SESSION_ID"] = "lepton-session-abc123"
         os.environ["NEMO_TELEMETRY_ENABLED"] = "true"
+        os.environ["NEMO_TELEMETRY_ENDPOINT"] = "https://staging.example.com/v1.1/events/json"
 
         captured_env_vars = {}
 
@@ -703,10 +714,12 @@ class TestLeptonExecutorTelemetryPropagation:
                 # Verify telemetry env vars were passed to create_lepton_job
                 assert captured_env_vars.get("NEMO_TELEMETRY_SESSION_ID") == "lepton-session-abc123"
                 assert captured_env_vars.get("NEMO_TELEMETRY_ENABLED") == "true"
+                assert captured_env_vars.get("NEMO_TELEMETRY_ENDPOINT") == "https://staging.example.com/v1.1/events/json"
 
         finally:
             os.environ.pop("NEMO_TELEMETRY_SESSION_ID", None)
             os.environ.pop("NEMO_TELEMETRY_ENABLED", None)
+            os.environ.pop("NEMO_TELEMETRY_ENDPOINT", None)
 
     def test_lepton_job_env_vars_exclude_telemetry_when_not_set(self, tmpdir):
         """Test that Lepton job env vars exclude telemetry when not set."""
@@ -746,6 +759,7 @@ class TestLeptonExecutorTelemetryPropagation:
         # Ensure env vars are not set
         os.environ.pop("NEMO_TELEMETRY_SESSION_ID", None)
         os.environ.pop("NEMO_TELEMETRY_ENABLED", None)
+        os.environ.pop("NEMO_TELEMETRY_ENDPOINT", None)
 
         captured_env_vars = {}
 
@@ -791,3 +805,4 @@ class TestLeptonExecutorTelemetryPropagation:
             # Verify telemetry env vars were NOT passed to create_lepton_job
             assert "NEMO_TELEMETRY_SESSION_ID" not in captured_env_vars
             assert "NEMO_TELEMETRY_ENABLED" not in captured_env_vars
+            assert "NEMO_TELEMETRY_ENDPOINT" not in captured_env_vars
