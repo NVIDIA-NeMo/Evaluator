@@ -867,6 +867,23 @@ def _generate_auto_export_section(
             esc = str(v).replace('"', '\\"')
             s += f'    export {k}="{esc}"\n'
 
+    # Get launcher install command - allows full customization of how to install the launcher.
+    # Supports multi-line YAML strings. Example config:
+    #
+    #   auto_export:
+    #     destinations: ["mlflow"]
+    #     launcher_install_cmd: |
+    #       apt-get update -qq && apt-get install -qq -y git
+    #       pip install "nemo-evaluator-launcher[all] @ git+https://github.com/NVIDIA-NeMo/Evaluator.git@branch#subdirectory=packages/nemo-evaluator-launcher"
+    #
+    auto_export_cfg = cfg.execution.get("auto_export", {}) or {}
+    launcher_install_cmd = None
+    if isinstance(auto_export_cfg, dict) or OmegaConf.is_config(auto_export_cfg):
+        launcher_install_cmd = auto_export_cfg.get("launcher_install_cmd")
+
+    if not launcher_install_cmd:
+        launcher_install_cmd = "pip install nemo-evaluator-launcher[all]"
+
     s += "    # export\n"
     s += "    srun --mpi pmix --overlap "
     s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
@@ -879,8 +896,7 @@ def _generate_auto_export_section(
     s += f"--container-mounts {remote_task_subdir}/artifacts:{remote_task_subdir}/artifacts,{remote_task_subdir}/logs:{remote_task_subdir}/logs "
     s += "--output {} ".format(remote_task_subdir / "logs" / "export-%A.log")
     s += "    bash -c '\n"
-    # FIXME(martas): would be good to install specific version
-    s += "        pip install nemo-evaluator-launcher[all]\n"
+    s += f"        {launcher_install_cmd}\n"
     s += f"        cd {remote_task_subdir}/artifacts\n"
     for dest in destinations:
         s += f'        echo "Exporting to {dest}..."\n'

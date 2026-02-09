@@ -32,6 +32,7 @@ from nemo_evaluator_launcher.exporters.utils import (
     extract_exporter_config,
     get_benchmark_info,
     get_container_from_mapping,
+    get_copytree_ignore,
     get_model_name,
     get_relevant_artifacts,
     get_task_name,
@@ -297,9 +298,12 @@ class LocalExporter(BaseExporter):
                     shutil.copy2(src, dst)
                     exported_files.append(str(dst))
             else:
-                # Restore recursive copy (test_copy_all_tree expects nested files)
+                # Copy everything with recursive exclusion of caches/synthetic/etc.
                 shutil.copytree(
-                    paths["artifacts_dir"], export_dir / "artifacts", dirs_exist_ok=True
+                    paths["artifacts_dir"],
+                    export_dir / "artifacts",
+                    ignore=get_copytree_ignore(),
+                    dirs_exist_ok=True,
                 )
                 exported_files.extend(
                     [
