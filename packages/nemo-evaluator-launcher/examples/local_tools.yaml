@@ -56,5 +56,5 @@ evaluation:
         config:
           params:
             extra:
-              use_sandbox: true  # enables safe code execution environment
-              tool_modules: "[nemo_skills.mcp.servers.python_tool::PythonTool]"  # Python interpreter tool
+              use_sandbox: true
+              args: "++inference.tokens_to_generate=null ++tool_modules=[nemo_skills.mcp.servers.python_tool::PythonTool]"
