@@ -126,23 +126,20 @@ class InfoCmd:
 
     def execute(self) -> None:
         VersionCmd().execute()
-        logger.info("Info command started", invocation_ids=self.invocation_ids)
+        logger.debug("Info command started", invocation_ids=self.invocation_ids)
 
         if not self.invocation_ids:
             logger.error("No job or invocation IDs provided.")
             raise ValueError("No job or invocation IDs provided.")
 
         jobs = self._resolve_jobs()
-        logger.info(
+        logger.debug(
             "Resolved jobs",
             total_ids=len(self.invocation_ids),
             valid_jobs=len(jobs),
             job_ids=[jid for jid, _ in jobs],
         )
         if not jobs:
-            logger.info(
-                "No valid jobs found (jobs may have been deleted or IDs may be incorrect)."
-            )
             print(
                 "No valid jobs found (jobs may have been deleted or IDs may be incorrect)."
             )
@@ -186,11 +183,6 @@ class InfoCmd:
                 self.copy_artifacts,
             ]
         ):
-            logger.info(
-                "Job metadata details",
-                invocation_id=jobs[0][1].invocation_id if jobs else None,
-                jobs=len(jobs),
-            )
             self._show_invocation_info(jobs)
 
     def _resolve_jobs(self) -> List[Tuple[str, JobData]]:
@@ -216,7 +208,6 @@ class InfoCmd:
 
     def _show_invocation_info(self, jobs: List[Tuple[str, JobData]]) -> None:
         inv = jobs[0][1].invocation_id if jobs else None
-        logger.info("Job information", jobs=len(jobs), invocation=inv)
         print(
             f"Job information for {len(jobs)} job(s){f' under invocation {inv}' if inv else ''}:\n"
         )
@@ -246,7 +237,6 @@ class InfoCmd:
         )
 
     def _show_job_info(self, job_id: str, job_data: JobData) -> None:
-        logger.info("Job", job_id=job_id)
         print(f"Job {job_id}")
 
         # metadata
@@ -256,8 +246,6 @@ class InfoCmd:
             )
         except Exception:
             when = str(job_data.timestamp)
-        logger.info("Executor", job_id=job_id, executor=job_data.executor)
-        logger.info("Created", job_id=job_id, created=when)
         print(f"├── Executor: {job_data.executor}")
         print(f"├── Created: {when}")
 
@@ -270,7 +258,6 @@ class InfoCmd:
         else:
             task_name = tasks[idx].get("name")
             if task_name:
-                logger.info("Task", job_id=job_id, name=task_name)
                 print(f"├── Task: {task_name}")
 
         # Determine executor type for file descriptions
@@ -284,7 +271,6 @@ class InfoCmd:
         artifacts_list = _get_artifacts_file_list()
         if paths.get("storage_type") == "remote_ssh":
             artifacts_path = f"{paths['username']}@{paths['hostname']}:{paths['remote_path']}/artifacts"
-            logger.info("Artifacts", job_id=job_id, path=artifacts_path, remote=True)
             print(f"├── Artifacts: {artifacts_path} (remote)")
             print("│   └── Key files:")
             for filename, desc in artifacts_list:
@@ -293,9 +279,6 @@ class InfoCmd:
             ap = paths.get("artifacts_dir")
             if ap:
                 exists = self._check_path_exists(paths, "artifacts")
-                logger.info(
-                    "Artifacts", job_id=job_id, path=str(ap), exists_indicator=exists
-                )
                 print(f"├── Artifacts: {ap} {exists} (local)")
                 print("│   └── Key files:")
                 for filename, desc in artifacts_list:
@@ -307,7 +290,6 @@ class InfoCmd:
             logs_path = (
                 f"{paths['username']}@{paths['hostname']}:{paths['remote_path']}/logs"
             )
-            logger.info("Logs", job_id=job_id, path=logs_path, remote=True)
             print(f"├── Logs: {logs_path} (remote)")
             print("│   └── Key files:")
             for filename, desc in logs_list:
@@ -316,9 +298,6 @@ class InfoCmd:
             lp = paths.get("logs_dir")
             if lp:
                 exists = self._check_path_exists(paths, "logs")
-                logger.info(
-                    "Logs", job_id=job_id, path=str(lp), exists_indicator=exists
-                )
                 print(f"├── Logs: {lp} {exists} (local)")
                 print("│   └── Key files:")
                 for filename, desc in logs_list:
@@ -349,7 +328,6 @@ class InfoCmd:
                 print(f"├── Endpoint URL: {eu}")
 
     def _show_logs_info(self, jobs: List[Tuple[str, JobData]]) -> None:
-        logger.info("Log locations")
         print("Log locations:\n")
         for job_id, job_data in jobs:
             paths = get_job_paths(job_data)
@@ -359,7 +337,6 @@ class InfoCmd:
 
             if paths.get("storage_type") == "remote_ssh":
                 logs_path = f"ssh://{paths['username']}@{paths['hostname']}{paths['remote_path']}/logs"
-                logger.info("Logs", job_id=job_id, path=logs_path, remote=True)
                 print(f"{job_id}: {logs_path} (remote)")
                 print("  └── Key files:")
                 for filename, desc in logs_list:
@@ -368,16 +345,12 @@ class InfoCmd:
                 lp = paths.get("logs_dir")
                 if lp:
                     exists = self._check_path_exists(paths, "logs")
-                    logger.info(
-                        "Logs", job_id=job_id, path=str(lp), exists_indicator=exists
-                    )
                     print(f"{job_id}: {lp} {exists} (local)")
                     print("  └── Key files:")
                     for filename, desc in logs_list:
                         print(f"      ├── {filename} - {desc}")
 
     def _show_artifacts_info(self, jobs: List[Tuple[str, JobData]]) -> None:
-        logger.info("Artifact locations")
         print("Artifact locations:\n")
         for job_id, job_data in jobs:
             paths = get_job_paths(job_data)
@@ -385,9 +358,6 @@ class InfoCmd:
 
             if paths.get("storage_type") == "remote_ssh":
                 artifacts_path = f"ssh://{paths['username']}@{paths['hostname']}{paths['remote_path']}/artifacts"
-                logger.info(
-                    "Artifacts", job_id=job_id, path=artifacts_path, remote=True
-                )
                 print(f"{job_id}: {artifacts_path} (remote)")
                 print("  └── Key files:")
                 for filename, desc in artifacts_list:
@@ -396,12 +366,6 @@ class InfoCmd:
                 ap = paths.get("artifacts_dir")
                 if ap:
                     exists = self._check_path_exists(paths, "artifacts")
-                    logger.info(
-                        "Artifacts",
-                        job_id=job_id,
-                        path=str(ap),
-                        exists_indicator=exists,
-                    )
                     print(f"{job_id}: {ap} {exists} (local)")
                     print("  └── Key files:")
                     for filename, desc in artifacts_list:
@@ -409,7 +373,6 @@ class InfoCmd:
 
     def _show_config_info(self, jobs: List[Tuple[str, JobData]]) -> None:
         for job_id, job_data in jobs:
-            logger.info("Configuration for job", job_id=job_id)
             print(f"Configuration for {job_id}:")
             if job_data.config:
                 import yaml
@@ -417,10 +380,8 @@ class InfoCmd:
                 config_yaml = yaml.dump(
                     job_data.config, default_flow_style=False, indent=2
                 )
-                logger.info("Configuration YAML", job_id=job_id, config=config_yaml)
                 print(config_yaml)
             else:
-                logger.info("No configuration stored for this job", job_id=job_id)
                 print("  No configuration stored for this job.")
             print()
 
@@ -431,22 +392,6 @@ class InfoCmd:
         copy_logs: bool,
         copy_artifacts: bool,
     ) -> None:
-        logger.debug(
-            "Preparing for content copy",
-            dest_dir=dest_dir,
-            copy_logs=copy_logs,
-            copy_artifacts=copy_artifacts,
-            job_ids=[jid for jid, _ in jobs],
-        )
-
-        logger.info(
-            "Copying content",
-            copy_logs=copy_logs,
-            copy_artifacts=copy_artifacts,
-            job_count=len(jobs),
-            dest_dir=dest_dir,
-        )
-
         _, failed_jobs = copy_artifacts_fn(
             [job for id, job in jobs],
             Path(dest_dir),
