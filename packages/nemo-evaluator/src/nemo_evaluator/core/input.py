@@ -236,6 +236,8 @@ def get_available_evaluations() -> tuple[
     all_framework_eval_mappings = {}
     all_framework_defaults = {}
     all_eval_name_mapping = {}
+
+    # Discover core_evals (legacy internal pattern)
     try:
         import core_evals
 
@@ -254,6 +256,52 @@ def get_available_evaluations() -> tuple[
         all_framework_eval_mappings.update(framework_eval_mapping)
         all_framework_defaults.update(framework_defaults)
         all_eval_name_mapping = merge_dicts(all_eval_name_mapping, eval_name_mapping)
+
+    # Discover .nemo_evaluator (new OSS pattern) via entry points
+    try:
+        from importlib.metadata import entry_points
+    except ImportError:
+        from importlib_metadata import entry_points
+
+    try:
+        # Get entry points for nemo_evaluator.frameworks
+        eps = entry_points()
+
+        # Handle both Python 3.10+ (dict/select interface) and older versions
+        if hasattr(eps, 'select'):
+            framework_eps = eps.select(group='nemo_evaluator.frameworks')
+        else:
+            framework_eps = eps.get('nemo_evaluator.frameworks', [])
+
+        for entry_point in framework_eps:
+            try:
+                # Load the entry point module
+                module = entry_point.load()
+                # Get the module's path
+                module_path = os.path.dirname(module.__file__)
+                # Look for .nemo_evaluator directory
+                nemo_eval_path = os.path.join(module_path, '.nemo_evaluator')
+
+                if os.path.isdir(nemo_eval_path):
+                    for harness in os.listdir(nemo_eval_path):
+                        harness_path = os.path.join(nemo_eval_path, harness)
+                        if os.path.isdir(harness_path):
+                            framework_yml_path = os.path.join(harness_path, 'framework.yml')
+                            if os.path.exists(framework_yml_path):
+                                (
+                                    framework_eval_mapping,
+                                    framework_defaults,
+                                    eval_name_mapping,
+                                ) = _get_framework_evaluations(framework_yml_path)
+                                all_framework_eval_mappings.update(framework_eval_mapping)
+                                all_framework_defaults.update(framework_defaults)
+                                all_eval_name_mapping = merge_dicts(all_eval_name_mapping, eval_name_mapping)
+            except Exception:
+                # Skip entry points that fail to load
+                continue
+    except Exception:
+        # No entry points found or importlib.metadata not available
+        pass
 
     return (
         all_framework_eval_mappings,
