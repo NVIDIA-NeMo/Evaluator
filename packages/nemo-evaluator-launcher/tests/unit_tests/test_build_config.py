@@ -13,39 +13,146 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Tests for build_config.py NEL config builder."""
+"""Tests for build_config NEL config builder."""
 
 from __future__ import annotations
 
+import contextlib
+import os
 import pathlib
-import sys
+from typing import List
 
 import pytest
 import yaml
 
-# =============================================================================
-# Path Setup
-# =============================================================================
-
-LAUNCHER_ROOT = pathlib.Path(__file__).resolve().parents[2]
-SCRIPTS_DIR = (
-    LAUNCHER_ROOT / ".claude" / "skills" / "nel-assistant" / "scripts"
-).resolve()
-ASSETS_DIR = (
-    LAUNCHER_ROOT / ".claude" / "skills" / "nel-assistant" / "assets"
-).resolve()
-
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
-
-from build_config import (  # noqa: E402
+from nemo_evaluator_launcher.common.build_config import (
+    _template_exists,
     build_config,
     deep_merge,
     generate_config_filename,
-    get_mock_overrides,
     get_unique_filepath,
     resolve_output_path,
 )
+
+# =============================================================================
+# Test-only utilities (moved from build_config.py)
+# =============================================================================
+
+MOCK_ENV_VARS = {
+    "HF_TOKEN": "mock-hf-token",
+    "NGC_API_KEY": "mock-ngc-api-key",
+    "OPENAI_API_KEY": "mock-openai-api-key",
+    "JUDGE_API_KEY": "mock-judge-api-key",
+    "WANDB_API_KEY": "mock-wandb-api-key",
+    "API_KEY": "mock-api-key",
+    "TEST_KEY": "mock-test-key",
+    "HF_TOKEN_FOR_GPQA_DIAMOND": "mock-hf-token-gpqa",
+    "HF_TOKEN_FOR_AEGIS_V2": "mock-hf-token-aegis",
+}
+
+
+@contextlib.contextmanager
+def mock_env_vars():
+    """Context manager to set up and restore mock environment variables."""
+    original_values = {}
+    try:
+        for key, value in MOCK_ENV_VARS.items():
+            original_values[key] = os.environ.get(key)
+            if original_values[key] is None:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, value in original_values.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def get_mock_overrides(
+    execution: str,
+    deployment: str,
+    export: str,
+    model_type: str,
+    benchmarks: List[str],
+) -> List[str]:
+    """Generate mock overrides for required (???) fields based on config choices."""
+    overrides = [
+        "execution.output_dir=/tmp/nel-test-results",
+    ]
+
+    # SLURM configs need additional mocks
+    if execution == "slurm":
+        overrides.extend(
+            [
+                "execution.hostname=test-slurm-host.example.com",
+                "execution.account=test-account",
+            ]
+        )
+
+    # Deployment-specific mocks
+    if deployment == "none":
+        overrides.extend(
+            [
+                "target.api_endpoint.model_id=test/model",
+                "target.api_endpoint.url=https://test-api.example.com/v1/chat/completions",
+                "target.api_endpoint.api_key_name=TEST_KEY",
+            ]
+        )
+    elif deployment == "vllm":
+        overrides.extend(
+            [
+                "deployment.hf_model_handle=test/model",
+                "deployment.served_model_name=test/model",
+            ]
+        )
+    elif deployment == "sglang":
+        overrides.extend(
+            [
+                "deployment.hf_model_handle=test/model",
+                "deployment.served_model_name=test/model",
+            ]
+        )
+    elif deployment == "nim":
+        overrides.extend(
+            [
+                "deployment.image=nvcr.io/nim/test/model:latest",
+                "deployment.served_model_name=test/model",
+            ]
+        )
+    elif deployment == "trtllm":
+        overrides.extend(
+            [
+                "deployment.checkpoint_path=/path/to/checkpoint",
+                "deployment.served_model_name=test/model",
+            ]
+        )
+
+    # Export-specific mocks
+    if export == "mlflow":
+        overrides.append("export.mlflow.tracking_uri=http://test-mlflow:5000")
+    elif export == "wandb":
+        overrides.append("export.wandb.project=test-project")
+
+    # Model type specific mocks
+    if model_type == "base":
+        overrides.append(
+            "evaluation.nemo_evaluator_config.config.params.extra.tokenizer=test/tokenizer"
+        )
+    elif model_type == "reasoning":
+        overrides.append(
+            "+evaluation.nemo_evaluator_config.target.api_endpoint.adapter_config.params_to_add.chat_template_kwargs.enable_thinking=true"
+        )
+
+    # Safety benchmark mocks (need judge URL)
+    safety_template = f"evaluation/{model_type}/safety.yaml"
+    if "safety" in benchmarks and _template_exists(safety_template):
+        overrides.append(
+            "++evaluation.tasks.1.nemo_evaluator_config.config.params.extra.judge.url=https://test-judge.example.com/v1"
+        )
+
+    return overrides
+
 
 # =============================================================================
 # Unit Tests: deep_merge

@@ -5,7 +5,7 @@
   "expected_behavior": [
     "Verifies nel is installed by running 'nel --version'",
     "Asks all 5 base config questions (execution, deployment, auto-export, model type, benchmarks) before generating the config",
-    "Runs build_config.py with correct flags matching user answers: --execution slurm --deployment vllm --model-type reasoning --benchmarks standard code math_reasoning --export mlflow",
+    "Runs 'nel skills build-config' with correct flags matching user answers: --execution slurm --deployment vllm --model-type reasoning --benchmarks standard code math_reasoning --export mlflow",
     "Searches the web for the model card on HuggingFace and extracts model-specific settings",
     "Sets correct HF handle: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
     "Sets reasoning sampling params from model card: temperature=1.0, top_p=1.0",

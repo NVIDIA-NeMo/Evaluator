@@ -183,6 +183,14 @@ def create_parser() -> ArgumentParser:
         description="Install NEL agent skills for AI coding assistants",
     )
     skills_install_parser.add_arguments(skills.InstallCmd, dest="skills_install")
+    skills_build_config_parser = skills_sub.add_parser(
+        "build-config",
+        help="Build evaluation config from templates",
+        description="Build a complete NEL evaluation config by combining template excerpts",
+    )
+    skills_build_config_parser.add_arguments(
+        skills.BuildConfigCmd, dest="skills_build_config"
+    )
     # Stash reference so we can print help when no subcommand is given
     parser._skills_parser = skills_parser  # type: ignore[attr-defined]
 
@@ -263,6 +271,8 @@ def main() -> None:
     elif args.command == "skills":
         if args.skills_command == "install":
             args.skills_install.execute()
+        elif args.skills_command == "build-config":
+            args.skills_build_config.execute()
         else:
             parser._skills_parser.print_help()  # type: ignore[attr-defined]
     elif args.command == "export":

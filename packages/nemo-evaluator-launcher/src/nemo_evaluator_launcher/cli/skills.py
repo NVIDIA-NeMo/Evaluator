@@ -19,11 +19,15 @@ import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import requests
 from simple_parsing import field
 
+from nemo_evaluator_launcher.common.build_config import (
+    build_config,
+    resolve_output_path,
+)
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.package_info import __version__
 
@@ -186,3 +190,65 @@ class InstallCmd:
                 dest.mkdir(parents=True, exist_ok=True)
                 _download_skill(skill_name, ref, dest)
                 print(f"Installed {skill_name} -> {dest} (ref: {ref})")
+
+
+@dataclass
+class BuildConfigCmd:
+    """Build evaluation config from templates.
+
+    Examples:
+      nel skills build-config -e local -d vllm -m chat -b standard
+      nel skills build-config -e slurm -d nim -m reasoning -b standard code -x mlflow
+      nel skills build-config -e local -d vllm -m chat -b standard -o my_config.yaml
+    """
+
+    execution: str = field(
+        alias=["-e"],
+        choices=["local", "slurm"],
+        help="Execution type",
+    )
+    deployment: str = field(
+        alias=["-d"],
+        choices=["none", "vllm", "sglang", "nim", "trtllm"],
+        help="Deployment type",
+    )
+    model_type: str = field(
+        alias=["-m"],
+        choices=["base", "chat", "reasoning"],
+        help="Model type",
+    )
+    benchmarks: List[str] = field(
+        alias=["-b"],
+        nargs="+",
+        choices=["standard", "code", "math_reasoning", "safety", "multilingual"],
+        help="Benchmark types to include",
+    )
+    export: str = field(
+        alias=["-x"],
+        default="none",
+        choices=["none", "mlflow", "wandb"],
+        help="Export type (default: none)",
+    )
+    output: Optional[Path] = field(
+        alias=["-o"],
+        default=None,
+        help="Output path: file (*.yaml), directory, or omit for current dir. "
+        "Auto-generates filename from config choices. Never overwrites existing files.",
+    )
+
+    def execute(self) -> None:
+        output_path = resolve_output_path(
+            output=self.output,
+            execution=self.execution,
+            deployment=self.deployment,
+            model_type=self.model_type,
+            benchmarks=self.benchmarks,
+        )
+        build_config(
+            execution=self.execution,
+            deployment=self.deployment,
+            export=self.export,
+            model_type=self.model_type,
+            benchmarks=self.benchmarks,
+            output=output_path,
+        )

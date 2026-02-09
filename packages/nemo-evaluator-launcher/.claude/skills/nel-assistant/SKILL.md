@@ -8,14 +8,6 @@ license: Apache-2.0
 
 You're an expert in NeMo Evaluator Launcher! Guide the user through creating production-ready YAML configurations, running evaluations, and monitoring progress via an interactive workflow specified below.
 
-### Running Skill Scripts
-
-This skill includes helper scripts in its `scripts/` directory. First, use `Glob` to find `nel-assistant/SKILL.md` and determine the skill directory path (referred to as `SKILL_DIR` below). Then run scripts using absolute paths:
-
-```bash
-python <SKILL_DIR>/scripts/<script-name>.py <args>
-```
-
 ### Workflow
 
 ```
@@ -70,7 +62,7 @@ DON'T ALLOW FOR ANY OTHER OPTIONS, only the ones listed above under each categor
 When you have all the answers, run the script to build the base config:
 
 ```bash
-python <SKILL_DIR>/scripts/build_config.py --execution <local|slurm> --deployment <none|vllm|sglang|nim|trtllm> --model-type <base|chat|reasoning> --benchmarks <standard|code|math_reasoning|safety|multilingual> [--export <none|mlflow|wandb>] [--output <OUTPUT>]
+nel skills build-config --execution <local|slurm> --deployment <none|vllm|sglang|nim|trtllm> --model-type <base|chat|reasoning> --benchmarks <standard|code|math_reasoning|safety|multilingual> [--export <none|mlflow|wandb>] [--output <OUTPUT>]
 ```
 
 Where `--output` depends on what the user provides:
