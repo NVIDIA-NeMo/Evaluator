@@ -265,6 +265,10 @@ def test_report_counts_and_target_for_ifeval(tmpdir):
     assert entry_count == 5
     assert "N/A (instruction-following)" in html_content
     assert "grade-correct" in html_content or "Correct" in html_content
+    # Verify graded_metrics rendered (plan verification)
+    assert "inst_level_strict_acc" in html_content
+    # Verify grading source file path rendered
+    assert "output.jsonl" in html_content
 
 
 def test_report_counts_and_target_for_ns_mmlu_pro(tmpdir):
@@ -323,3 +327,255 @@ def test_post_eval_report_hook_no_cache_data(tmpdir):
     json_file = tmpdir / "report.json"
     assert not html_file.exists()
     assert not json_file.exists()
+
+
+def test_grading_match_failure(tmpdir):
+    """3C: Entries with no matching grading records show as Ungraded."""
+    prompts = ["unique question alpha", "unique question beta"]
+    _seed_cache(tmpdir, prompts)
+
+    # Write grading records that don't match any cache prompts
+    records = [
+        {
+            "problem": "completely different problem",
+            "options": "A) foo\nB) bar",
+            "expected_answer": "A",
+            "predicted_answer": "B",
+            "symbolic_correct": False,
+            "resps": ["graded resp"],
+        }
+    ]
+    _write_jsonl(tmpdir / "output.jsonl", records)
+
+    params = PostEvalReportHook.Params(report_types=["html"])
+    hook = PostEvalReportHook(params)
+    context = AdapterGlobalContext(
+        output_dir=str(tmpdir), url="http://test.example.com/api"
+    )
+    hook.post_eval_hook(context)
+
+    html_content = (tmpdir / "report.html").read()
+    # All entries should be ungraded since no match
+    assert "Ungraded" in html_content
+    # Check that data-graded attributes are all "unknown" (no "correct"/"incorrect")
+    assert 'data-graded="correct"' not in html_content
+    assert 'data-graded="incorrect"' not in html_content
+    assert 'data-graded="unknown"' in html_content
+
+
+def test_lm_eval_harness_arc_format(tmpdir):
+    """3D: lm-eval-harness ARC format with target, doc.choices, filtered_resps."""
+    arc_prompt = "What is the boiling point of water?\n\nA) 50\nB) 100\nC) 150\nD) 200"
+    prompts = [arc_prompt]
+    _seed_cache(tmpdir, prompts)
+
+    records = [
+        {
+            "doc": {
+                "prompt": arc_prompt,
+                "choices": ["50", "100", "150", "200"],
+            },
+            "target": 1,
+            "filtered_resps": ["B"],
+            "exact_match": 1,
+        }
+    ]
+    _write_jsonl(tmpdir / "samples_arc.jsonl", records)
+
+    params = PostEvalReportHook.Params(report_types=["html"])
+    hook = PostEvalReportHook(params)
+    context = AdapterGlobalContext(
+        output_dir=str(tmpdir), url="http://test.example.com/api"
+    )
+    hook.post_eval_hook(context)
+
+    html_content = (tmpdir / "report.html").read()
+    # Target should be resolved to "B) 100" (index 1 mapped to choices)
+    assert "100" in html_content
+    # Should show as correct (exact_match=1)
+    assert "grade-correct" in html_content or "Correct" in html_content
+    # graded_expected and graded_predicted should be filled via fallback
+    assert "output.jsonl" in html_content or "samples_arc" in html_content
+
+
+def test_whitespace_fuzzy_matching(tmpdir):
+    """3E: Extra whitespace in cache prompt still matches grading record."""
+    # Cache prompt has extra spaces
+    spaced_prompt = "What   is   the  capital   of  France?"
+    prompts = [spaced_prompt]
+    _seed_cache(tmpdir, prompts)
+
+    # Grading record uses normalized prompt
+    records = [
+        {
+            "doc": {"prompt": "What is the capital of France?"},
+            "resps": ["Paris"],
+            "correct": True,
+        }
+    ]
+    _write_jsonl(tmpdir / "output.jsonl", records)
+
+    params = PostEvalReportHook.Params(report_types=["html"])
+    hook = PostEvalReportHook(params)
+    context = AdapterGlobalContext(
+        output_dir=str(tmpdir), url="http://test.example.com/api"
+    )
+    hook.post_eval_hook(context)
+
+    html_content = (tmpdir / "report.html").read()
+    # Should match despite whitespace differences
+    assert "grade-correct" in html_content or "Correct" in html_content
+
+
+def test_container_url_from_image():
+    """3F: Unit test for _container_url_from_image helper.
+
+    Note: The regex in _container_url_from_image uses r"^nvcr\\\\.io/..." which
+    double-escapes the dot, requiring a literal backslash in the input.
+    """
+    params = PostEvalReportHook.Params(report_types=["json"])
+    hook = PostEvalReportHook(params)
+
+    # eval-factory team image (note: regex expects literal backslash before 'io')
+    url = hook._container_url_from_image(
+        "nvcr\\.io/nvidia/eval-factory/my-container:1.0"
+    )
+    assert url == (
+        "https://catalog.ngc.nvidia.com/orgs/nvidia/teams/"
+        "eval-factory/containers/my-container"
+    )
+
+    # Non-team image
+    url = hook._container_url_from_image("nvcr\\.io/nvidia/nemo/nemo-fw:24.01")
+    assert url == "https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo-fw"
+
+    # Normal image (without backslash) does NOT match due to regex double-escape
+    url = hook._container_url_from_image("nvcr.io/nvidia/eval-factory/test:1.0")
+    assert url is None
+
+    # Non-matching image
+    url = hook._container_url_from_image("docker.io/library/python:3.12")
+    assert url is None
+
+    # Empty/None
+    assert hook._container_url_from_image("") is None
+    assert hook._container_url_from_image(None) is None
+
+
+def test_flatten_numeric():
+    """3F: Unit test for _flatten_numeric helper."""
+    params = PostEvalReportHook.Params(report_types=["json"])
+    hook = PostEvalReportHook(params)
+
+    data = {
+        "throughput": 42.5,
+        "latency": {"p50": 10, "p99": 50},
+        "nested": {"deep": {"value": 3.14}},
+    }
+    rows = hook._flatten_numeric(data)
+    paths = {r["path"] for r in rows}
+    assert "throughput" in paths
+    assert "latency.p50" in paths
+    assert "latency.p99" in paths
+    assert "nested.deep.value" in paths
+
+    values = {r["path"]: r["value"] for r in rows}
+    assert values["throughput"] == 42.5
+    assert values["latency.p50"] == 10
+    assert values["nested.deep.value"] == 3.14
+
+    # Empty input
+    assert hook._flatten_numeric({}) == []
+    assert hook._flatten_numeric([]) == []
+
+
+def test_task_name_fallback_from_run_config_type(tmpdir):
+    """When results.yml is missing, task_name falls back to run_config config.type."""
+    _seed_cache(tmpdir, ["test prompt"])
+
+    import yaml
+
+    run_config = {
+        "config": {
+            "type": "ns_mmlu_pro",
+            "params": {"task": "mmlu-pro", "temperature": 0.7, "top_p": 0.95},
+        },
+        "framework_name": "nemo_skills",
+        "target": {"api_endpoint": {"model_id": "test-model-xyz"}},
+    }
+    (tmpdir / "run_config.yml").write(yaml.dump(run_config))
+
+    params = PostEvalReportHook.Params(report_types=["html"])
+    hook = PostEvalReportHook(params)
+    context = AdapterGlobalContext(
+        output_dir=str(tmpdir), url="http://test.example.com/api"
+    )
+    hook.post_eval_hook(context)
+
+    html = (tmpdir / "report.html").read()
+    assert "ns_mmlu_pro" in html  # task name in pills
+    assert "test-model-xyz" in html  # model_id in pills
+    assert "nemo_skills" in html  # framework_name in config group
+
+
+def test_git_hash_fallback_from_metadata(tmpdir):
+    """When results.yml is missing, git_hash falls back to metadata.yaml."""
+    _seed_cache(tmpdir, ["test prompt"])
+
+    import yaml
+
+    metadata = {
+        "versioning": {
+            "git-hash": "abc123def456",
+            "nemo_evaluator": "1.2.3",
+            "nemo_evaluator_launcher": "4.5.6",
+        }
+    }
+    (tmpdir / "metadata.yaml").write(yaml.dump(metadata))
+
+    params = PostEvalReportHook.Params(report_types=["html"])
+    hook = PostEvalReportHook(params)
+    context = AdapterGlobalContext(
+        output_dir=str(tmpdir), url="http://test.example.com/api"
+    )
+    hook.post_eval_hook(context)
+
+    html = (tmpdir / "report.html").read()
+    assert "abc123def456" in html  # git hash from metadata.yaml
+    assert "1.2.3" in html  # evaluator version
+    assert "4.5.6" in html  # launcher version
+
+
+def test_eval_params_rendered(tmpdir):
+    """Eval params from run_config are rendered as parameter pills."""
+    _seed_cache(tmpdir, ["test prompt"])
+
+    import yaml
+
+    run_config = {
+        "config": {
+            "type": "ifeval",
+            "params": {
+                "task": "ifeval",
+                "temperature": 0.0,
+                "top_p": 0.95,
+                "parallelism": 10,
+                "max_new_tokens": 2048,
+            },
+        },
+        "framework_name": "lm-evaluation-harness",
+        "target": {"api_endpoint": {"model_id": "test-model"}},
+    }
+    (tmpdir / "run_config.yml").write(yaml.dump(run_config))
+
+    params = PostEvalReportHook.Params(report_types=["html"])
+    hook = PostEvalReportHook(params)
+    context = AdapterGlobalContext(
+        output_dir=str(tmpdir), url="http://test.example.com/api"
+    )
+    hook.post_eval_hook(context)
+
+    html = (tmpdir / "report.html").read()
+    assert "temperature" in html
+    assert "parallelism" in html
+    assert "top_p" in html

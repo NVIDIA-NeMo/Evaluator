@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, List, Literal, Optional
 
-from jinja2 import Environment, StrictUndefined, select_autoescape
+from jinja2 import Environment, StrictUndefined
 from pydantic import BaseModel, Field
 import yaml
 
@@ -76,7 +76,7 @@ class PostEvalReportHook(PostEvalHook):
         if "html" in self.report_types:
             self.env = Environment(
                 undefined=StrictUndefined,
-                autoescape=select_autoescape(["html", "xml"]),
+                autoescape=True,
             )
             self.env.filters["tojson_utf8"] = self._tojson_utf8
             self.template = self.env.from_string(SIMPLE_TEMPLATE)
@@ -866,10 +866,24 @@ class PostEvalReportHook(PostEvalHook):
                                     if k in record
                                 },
                                 "source": str(path),
+                                "instruction_ids": (
+                                    record.get("doc", {}).get("instruction_id_list")
+                                    if isinstance(record.get("doc"), dict)
+                                    else None
+                                ),
                             }
                         )
             except Exception:
                 continue
+        # Pre-normalize for fuzzy matching (avoids repeated _normalize_ws calls)
+        for rec in records:
+            problem = rec.get("problem") or rec.get("input")
+            rec["_norm_problem"] = self._normalize_ws(problem) if isinstance(problem, str) else None
+            options = rec.get("options")
+            rec["_norm_options"] = self._normalize_ws(options) if isinstance(options, str) else None
+            rec["_norm_variants"] = [
+                self._normalize_ws(v) for v in rec.get("variants", []) if v
+            ]
         return records
 
     def _format_bytes(self, size: int) -> str:
@@ -920,29 +934,24 @@ class PostEvalReportHook(PostEvalHook):
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(entries, f, indent=2, ensure_ascii=False)
 
-    def post_eval_hook(self, context: AdapterGlobalContext) -> None:
-        """Generate reports of cached requests and responses."""
-        # Derive cache_dir from output_dir
-        cache_dir = Path(context.output_dir) / "cache"
-        output_dir = Path(context.output_dir)
-
-        # Collect entries from cache
-        entries, total_available = self._collect_entries(cache_dir, context.url)
-
-        if not entries:
-            return
-
-        # Generate reports based on configured types
-        # Load additional artifacts for richer HTML report.
+    def _load_auxiliary_data(
+        self, output_dir: Path
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any], Path, Path, Path]:
+        """Load results.yml, run_config.yml, metadata.yaml, and eval_factory_metrics.json."""
         results_path = output_dir / "results.yml"
         run_config_path = output_dir / "run_config.yml"
+        metadata_path = output_dir / "metadata.yaml"
         eval_metrics_path = output_dir / "eval_factory_metrics.json"
-
         results = self._load_yaml(results_path)
         run_config = self._load_yaml(run_config_path)
+        metadata = self._load_yaml(metadata_path)
         eval_metrics = self._load_json(eval_metrics_path) or {}
+        return results, run_config, metadata, eval_metrics, results_path, run_config_path, eval_metrics_path
 
-        grading_records = self._collect_grading_records(output_dir)
+    def _build_grading_index(
+        self, grading_records: list[dict[str, Any]]
+    ) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+        """Build exact and whitespace-normalized lookup indexes."""
         grading_exact: dict[str, dict[str, Any]] = {}
         grading_exact_norm: dict[str, dict[str, Any]] = {}
         for record in grading_records:
@@ -954,59 +963,75 @@ class PostEvalReportHook(PostEvalHook):
                 normalized_variant = self._normalize_ws(variant)
                 if normalized_variant and normalized_variant not in grading_exact_norm:
                     grading_exact_norm[normalized_variant] = record
+        return grading_exact, grading_exact_norm
 
-        def find_grading(prompt: str) -> Optional[dict[str, Any]]:
-            if not prompt:
-                return None
-            if prompt in grading_exact:
-                return grading_exact[prompt]
-            normalized_prompt = self._normalize_ws(prompt)
-            if normalized_prompt in grading_exact_norm:
-                return grading_exact_norm[normalized_prompt]
+    def _find_grading(
+        self,
+        prompt: str,
+        grading_exact: dict[str, dict[str, Any]],
+        grading_exact_norm: dict[str, dict[str, Any]],
+        grading_records: list[dict[str, Any]],
+    ) -> Optional[dict[str, Any]]:
+        """Find the best grading record match for a prompt."""
+        if not prompt:
+            return None
+        if prompt in grading_exact:
+            return grading_exact[prompt]
+        normalized_prompt = self._normalize_ws(prompt)
+        if normalized_prompt in grading_exact_norm:
+            return grading_exact_norm[normalized_prompt]
 
-            best_match: Optional[dict[str, Any]] = None
-            best_score = 0
-            best_len = 0
-            for record in grading_records:
-                score = 0
-                record_len = 0
-                problem = record.get("problem") or record.get("input")
-                if isinstance(problem, str):
-                    normalized_problem = self._normalize_ws(problem)
-                    if normalized_problem and normalized_problem in normalized_prompt:
-                        score += 3
-                        record_len = max(record_len, len(normalized_problem))
-                options = record.get("options")
-                if isinstance(options, str):
-                    normalized_options = self._normalize_ws(options)
-                    if normalized_options and normalized_options in normalized_prompt:
-                        score += 3
-                        record_len = max(record_len, len(normalized_options))
+        best_match: Optional[dict[str, Any]] = None
+        best_score = 0
+        best_len = 0
+        for record in grading_records:
+            score = 0
+            record_len = 0
+            normalized_problem = record.get("_norm_problem")
+            if normalized_problem and normalized_problem in normalized_prompt:
+                score += 3
+                record_len = max(record_len, len(normalized_problem))
+            normalized_options = record.get("_norm_options")
+            if normalized_options and normalized_options in normalized_prompt:
+                score += 3
+                record_len = max(record_len, len(normalized_options))
 
-                for variant in record.get("variants", []):
-                    if not variant:
-                        continue
-                    normalized_variant = self._normalize_ws(variant)
-                    if not normalized_variant:
-                        continue
-                    if (
-                        normalized_variant in normalized_prompt
-                        or normalized_prompt in normalized_variant
-                    ):
-                        score += 1
-                        record_len = max(record_len, len(normalized_variant))
-
-                if score > best_score or (
-                    score == best_score and record_len > best_len
+            for normalized_variant in record.get("_norm_variants", []):
+                if not normalized_variant:
+                    continue
+                if (
+                    normalized_variant in normalized_prompt
+                    or normalized_prompt in normalized_variant
                 ):
-                    best_match = record
-                    best_score = score
-                    best_len = record_len
+                    score += 1
+                    record_len = max(record_len, len(normalized_variant))
 
-            if best_score == 0:
-                return None
-            return best_match
+            if score > best_score or (
+                score == best_score and record_len > best_len
+            ):
+                best_match = record
+                best_score = score
+                best_len = record_len
 
+        if best_score == 0:
+            get_logger().debug(
+                "Grading match not found",
+                prompt_preview=prompt[:120],
+                grading_record_count=len(grading_records),
+            )
+            return None
+        return best_match
+
+    def _match_entries_to_grades(
+        self,
+        entries: list[dict[str, Any]],
+        grading_records: list[dict[str, Any]],
+        grading_exact: dict[str, dict[str, Any]],
+        grading_exact_norm: dict[str, dict[str, Any]],
+    ) -> None:
+        """Enrich entries with grading data from matched records."""
+        matched_count = 0
+        unmatched_count = 0
         for entry in entries:
             entry.setdefault("graded_label", "unknown")
             entry.setdefault("graded_response", None)
@@ -1019,12 +1044,17 @@ class PostEvalReportHook(PostEvalHook):
             entry.setdefault("graded_score", None)
             entry.setdefault("graded_metrics", None)
             entry.setdefault("graded_source", None)
+            entry.setdefault("graded_problem_only", None)
+            entry.setdefault("graded_instruction_ids", None)
             prompt = self._extract_user_prompt(entry.get("request_data"))
-            match = find_grading(prompt)
+            match = self._find_grading(
+                prompt, grading_exact, grading_exact_norm, grading_records
+            )
             if match:
+                matched_count += 1
                 entry["graded_response"] = match.get("graded_response")
-                entry["graded_expected"] = match.get("expected")
-                entry["graded_predicted"] = match.get("predicted")
+                entry["graded_expected"] = match.get("expected") or match.get("target_display")
+                entry["graded_predicted"] = match.get("predicted") or match.get("graded_response")
                 entry["graded_correct"] = match.get("correct")
                 entry["graded_input"] = match.get("input")
                 entry["graded_target"] = match.get("target")
@@ -1033,40 +1063,52 @@ class PostEvalReportHook(PostEvalHook):
                 entry["graded_metrics"] = match.get("metrics")
                 entry["graded_source"] = match.get("source")
                 entry["graded_label"] = match.get("label") or "unknown"
+                entry["graded_problem_only"] = match.get("problem")
+                entry["graded_instruction_ids"] = match.get("instruction_ids")
                 graded_blob = self._safe_json_dumps(match.get("graded_response"))
-                graded_input = self._safe_json_dumps(match.get("input"))
-                graded_target = self._safe_json_dumps(match.get("target"))
+                graded_input_blob = self._safe_json_dumps(match.get("input"))
+                graded_target_blob = self._safe_json_dumps(match.get("target"))
                 entry["search_blob"] = (
-                    f"{entry.get('search_blob', '')} {graded_blob} {graded_input} {graded_target}".lower()
+                    f"{entry.get('search_blob', '')} {graded_blob} {graded_input_blob} {graded_target_blob}".lower()
                 )
+            else:
+                unmatched_count += 1
 
             prompt_sections: list[dict[str, str]] = []
             seen_prompts: set[str] = set()
             graded_input = entry.get("graded_input")
             prompt_preview = entry.get("prompt_preview")
 
-            def add_prompt(label: str, text: str | None) -> None:
+            def _add_prompt(
+                label: str,
+                text: str | None,
+                _seen: set[str] = seen_prompts,
+                _sections: list[dict[str, str]] = prompt_sections,
+            ) -> None:
                 if not text:
                     return
                 normalized = self._normalize_ws(text)
-                if not normalized or normalized in seen_prompts:
+                if not normalized or normalized in _seen:
                     return
-                seen_prompts.add(normalized)
-                prompt_sections.append({"label": label, "text": text})
+                _seen.add(normalized)
+                _sections.append({"label": label, "text": text})
 
-            add_prompt("Prompt", graded_input or prompt_preview)
+            _add_prompt("Prompt", graded_input or prompt_preview)
             entry["prompt_sections"] = prompt_sections
 
-        for entry in entries:
-            if entry.get("request_chars") is None:
-                entry["request_chars"] = len(
-                    self._safe_json_dumps(entry.get("request_data"))
-                )
-            if entry.get("response_chars") is None:
-                entry["response_chars"] = len(
-                    self._safe_json_dumps(entry.get("response"))
-                )
+        if grading_records:
+            get_logger().info(
+                "Grading enrichment complete",
+                matched=matched_count,
+                unmatched=unmatched_count,
+                total_entries=len(entries),
+                grading_records=len(grading_records),
+            )
 
+    def _compute_report_stats(
+        self, entries: list[dict[str, Any]]
+    ) -> tuple[dict[str, Any], list[str]]:
+        """Compute aggregate statistics from entries."""
         error_count = sum(1 for entry in entries if entry.get("has_error"))
         tool_count = sum(1 for entry in entries if entry.get("has_tool_calls"))
         correct_count = sum(
@@ -1081,7 +1123,6 @@ class PostEvalReportHook(PostEvalHook):
             1 for entry in entries if (entry.get("graded_label") or "unknown") == "unknown"
         )
         graded_count = correct_count + incorrect_count
-        report_count = len(entries)
         avg_request_chars = (
             sum(entry.get("request_chars", 0) for entry in entries) / len(entries)
         )
@@ -1105,6 +1146,44 @@ class PostEvalReportHook(PostEvalHook):
                 if isinstance(value, (int, float)):
                     usage_totals[key] += value
 
+        stats = {
+            "error_count": error_count,
+            "tool_count": tool_count,
+            "correct_count": correct_count,
+            "incorrect_count": incorrect_count,
+            "unknown_count": unknown_count,
+            "graded_count": graded_count,
+            "report_count": len(entries),
+            "accuracy": (
+                (correct_count / (correct_count + incorrect_count))
+                if (correct_count + incorrect_count)
+                else 0
+            ),
+            "error_rate": (error_count / len(entries)) if entries else 0,
+            "avg_request_chars": avg_request_chars,
+            "avg_response_chars": avg_response_chars,
+            "usage_totals": usage_totals,
+            "request_type_counts": request_type_counts,
+            "finish_reason_counts": finish_reason_counts,
+        }
+        return stats, model_set
+
+    def _build_report_meta(
+        self,
+        context: AdapterGlobalContext,
+        entries: list[dict[str, Any]],
+        total_available: int,
+        results: dict[str, Any],
+        run_config: dict[str, Any],
+        metadata: dict[str, Any],
+        eval_metrics: dict[str, Any],
+        results_path: Path,
+        run_config_path: Path,
+        eval_metrics_path: Path,
+        output_dir: Path,
+    ) -> dict[str, Any]:
+        """Build the metadata dict passed to the HTML template."""
+        stats, model_set = self._compute_report_stats(entries)
         generated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
         summary_items: list[dict[str, str]] = []
@@ -1115,8 +1194,13 @@ class PostEvalReportHook(PostEvalHook):
         summary_items.append({"label": "Output Dir", "value": str(output_dir)})
 
         git_hash = self._get_nested(results, ["git_hash"])
+        if not git_hash:
+            git_hash = self._get_nested(metadata, ["versioning", "git-hash"])
         if git_hash:
             summary_items.append({"label": "Git Hash", "value": str(git_hash)})
+
+        evaluator_version = self._get_nested(metadata, ["versioning", "nemo_evaluator"])
+        launcher_version = self._get_nested(metadata, ["versioning", "nemo_evaluator_launcher"])
 
         model_id = self._get_nested(results, ["target", "api_endpoint", "model_id"])
         if not model_id:
@@ -1131,7 +1215,16 @@ class PostEvalReportHook(PostEvalHook):
             task_name = self._get_nested(results, ["config", "params", "task"])
         if not task_name:
             task_name = self._get_nested(results, ["config", "type"])
-        container_info = self._resolve_container_info(task_name)
+        if not task_name:
+            task_name = self._get_nested(run_config, ["config", "type"])
+        if not task_name:
+            task_name = self._get_nested(run_config, ["config", "params", "task"])
+
+        framework_name = self._get_nested(run_config, ["framework_name"])
+        qualified_task_name = task_name
+        if framework_name and task_name and "." not in str(task_name):
+            qualified_task_name = f"{framework_name}.{task_name}"
+        container_info = self._resolve_container_info(qualified_task_name or task_name)
 
         if task_name:
             summary_items.append({"label": "Task", "value": str(task_name)})
@@ -1149,6 +1242,15 @@ class PostEvalReportHook(PostEvalHook):
             summary_items.append({"label": "Command", "value": str(command)})
         if model_set:
             summary_items.append({"label": "Models", "value": ", ".join(model_set)})
+
+        eval_params: dict[str, Any] = {}
+        config_params = self._get_nested(run_config, ["config", "params"])
+        if isinstance(config_params, dict):
+            for key in ("temperature", "top_p", "max_new_tokens", "parallelism",
+                        "request_timeout", "limit_samples", "max_retries"):
+                val = config_params.get(key)
+                if val is not None:
+                    eval_params[key] = val
 
         rollup_rows = self._collect_scoped_metrics(results, "groups")
         task_rows = self._collect_scoped_metrics(results, "tasks")
@@ -1195,7 +1297,10 @@ class PostEvalReportHook(PostEvalHook):
             except Exception:
                 raw_eval_metrics = eval_metrics_path.read_text(encoding="utf-8")
 
-        meta = {
+        metadata_path = output_dir / "metadata.yaml"
+        raw_metadata = metadata_path.read_text(encoding="utf-8") if metadata_path.exists() else ""
+
+        return {
             "endpoint": context.url,
             "generated_at": generated_at,
             "shown_entries": len(entries),
@@ -1207,6 +1312,12 @@ class PostEvalReportHook(PostEvalHook):
             "benchmark_container_url": container_info.get("benchmark_container_url"),
             "benchmark_harness": container_info.get("benchmark_harness"),
             "benchmark_harness_url": container_info.get("benchmark_harness_url"),
+            "framework_name": framework_name,
+            "eval_params": eval_params,
+            "git_hash": git_hash,
+            "evaluator_version": evaluator_version,
+            "launcher_version": launcher_version,
+            "output_dir_path": str(output_dir),
             "summary_items": summary_items,
             "rollup_rows": rollup_rows,
             "task_rows": task_rows,
@@ -1216,33 +1327,40 @@ class PostEvalReportHook(PostEvalHook):
             "raw_results": raw_results,
             "raw_run_config": raw_run_config,
             "raw_eval_metrics": raw_eval_metrics,
-            "stats": {
-                "error_count": error_count,
-                "tool_count": tool_count,
-                "correct_count": correct_count,
-                "incorrect_count": incorrect_count,
-                "unknown_count": unknown_count,
-                "graded_count": graded_count,
-                "report_count": report_count,
-                "accuracy": (
-                    (correct_count / (correct_count + incorrect_count))
-                    if (correct_count + incorrect_count)
-                    else 0
-                ),
-                "error_rate": (error_count / len(entries)) if entries else 0,
-                "avg_request_chars": avg_request_chars,
-                "avg_response_chars": avg_response_chars,
-                "usage_totals": usage_totals,
-                "request_type_counts": request_type_counts,
-                "finish_reason_counts": finish_reason_counts,
-            },
+            "raw_metadata": raw_metadata,
+            "stats": stats,
             "filters": {
                 "models": model_set,
-                "request_types": sorted(request_type_counts.keys()),
-                "finish_reasons": sorted(finish_reason_counts.keys()),
+                "request_types": sorted(stats["request_type_counts"].keys()),
+                "finish_reasons": sorted(stats["finish_reason_counts"].keys()),
                 "grading": ["correct", "incorrect", "unknown"],
             },
         }
+
+    def post_eval_hook(self, context: AdapterGlobalContext) -> None:
+        """Generate reports of cached requests and responses."""
+        cache_dir = Path(context.output_dir) / "cache"
+        output_dir = Path(context.output_dir)
+
+        entries, total_available = self._collect_entries(cache_dir, context.url)
+        if not entries:
+            return
+
+        (results, run_config, metadata, eval_metrics,
+         results_path, run_config_path, eval_metrics_path) = self._load_auxiliary_data(output_dir)
+
+        grading_records = self._collect_grading_records(output_dir)
+        grading_exact, grading_exact_norm = self._build_grading_index(grading_records)
+        self._match_entries_to_grades(
+            entries, grading_records, grading_exact, grading_exact_norm
+        )
+
+        meta = self._build_report_meta(
+            context, entries, total_available,
+            results, run_config, metadata, eval_metrics,
+            results_path, run_config_path, eval_metrics_path,
+            output_dir,
+        )
 
         for report_type in self.report_types:
             if report_type == "html":

@@ -22,7 +22,7 @@ and distributed with the rest of the code.
 """
 
 SIMPLE_TEMPLATE = """<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -192,26 +192,6 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
         .brand-link:hover {
             filter: brightness(1.1);
         }
-        .brand-meta {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 10px;
-        }
-        .meta-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            border-radius: 999px;
-            border: 1px solid var(--border);
-            background: rgba(255, 255, 255, 0.04);
-            font-size: 0.85rem;
-            color: var(--muted);
-        }
-        .meta-pill strong {
-            color: var(--text);
-        }
         .hero strong {
             color: var(--accent);
         }
@@ -238,6 +218,152 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
             margin-top: 6px;
             word-break: break-word;
         }
+
+        /* ---- Hero Stats Banner ---- */
+        .hero-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 20px;
+            padding: 20px 24px;
+            background: linear-gradient(135deg, rgba(96, 211, 148, 0.06), rgba(111, 155, 255, 0.06));
+            border: 1px solid var(--border);
+            border-radius: 14px;
+        }
+        .hero-stat {
+            flex: 1;
+            min-width: 140px;
+            text-align: center;
+            padding: 12px 16px;
+        }
+        .hero-stat .stat-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+            line-height: 1.2;
+            color: var(--accent);
+        }
+        .hero-stat .stat-value.accent-blue { color: var(--accent-2); }
+        .hero-stat .stat-value.accent-warn { color: var(--warn); }
+        .hero-stat .stat-value.accent-muted { color: var(--muted); }
+        .hero-stat .stat-label {
+            color: var(--muted);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-top: 4px;
+        }
+        .hero-stat .accuracy-bar-lg {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 154, 154, 0.25);
+            border-radius: 4px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        .hero-stat .accuracy-fill-lg {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 4px;
+            transition: width 0.4s ease;
+        }
+
+        /* ---- Category Groups ---- */
+        .category-group { margin-bottom: 18px; }
+        .category-group:last-child { margin-bottom: 0; }
+        .category-title {
+            color: var(--muted);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 10px;
+            padding-left: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .category-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        /* ---- Enhanced Summary Cards ---- */
+        .summary-grid-v2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        .summary-card-v2 {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            padding: 12px 14px;
+            border-radius: 10px;
+            border-left: 3px solid var(--border);
+            transition: border-color 0.2s;
+        }
+        .summary-card-v2:hover { border-color: rgba(255,255,255,0.15); }
+        .summary-card-v2.cat-config { border-left-color: var(--accent-2); }
+        .summary-card-v2.cat-eval   { border-left-color: var(--accent); }
+        .summary-card-v2.cat-perf   { border-left-color: var(--warn); }
+        .summary-card-v2.cat-system { border-left-color: rgba(155,208,255,0.5); }
+        .summary-card-v2 .label {
+            color: var(--muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .summary-card-v2 .value {
+            font-size: 1.05rem;
+            margin-top: 4px;
+            word-break: break-word;
+        }
+        .summary-card-v2 .value.large {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        /* ---- Eval Params Pills ---- */
+        .params-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .param-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(111,155,255,0.08);
+            font-size: 0.78rem;
+        }
+        .param-pill .param-key {
+            color: var(--muted);
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .param-pill .param-val {
+            color: var(--text);
+            font-weight: 500;
+        }
+
+        /* ---- Grade Distribution Bar ---- */
+        .grade-bar {
+            display: flex;
+            height: 6px;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 8px;
+            gap: 2px;
+        }
+        .grade-bar .bar-correct   { background: rgba(126,224,129,0.8); }
+        .grade-bar .bar-incorrect { background: rgba(255,154,154,0.8); }
+        .grade-bar .bar-unknown   { background: rgba(246,211,101,0.6); }
+
         .toolbar {
             display: flex;
             flex-wrap: wrap;
@@ -564,29 +690,6 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
         .entry.grade-unknown::before {
             background: rgba(246, 211, 101, 0.9);
         }
-        .entry[data-graded="correct"] {
-            border-color: rgba(126, 224, 129, 0.4);
-            box-shadow: 0 0 0 1px rgba(126, 224, 129, 0.08), var(--shadow);
-            background: linear-gradient(90deg, rgba(126, 224, 129, 0.06), rgba(20, 24, 36, 0) 45%), var(--panel);
-        }
-        .entry[data-graded="incorrect"] {
-            border-color: rgba(255, 154, 154, 0.4);
-            box-shadow: 0 0 0 1px rgba(255, 154, 154, 0.08), var(--shadow);
-            background: linear-gradient(90deg, rgba(255, 154, 154, 0.06), rgba(20, 24, 36, 0) 45%), var(--panel);
-        }
-        .entry[data-graded="unknown"] {
-            border-color: rgba(246, 211, 101, 0.35);
-            background: linear-gradient(90deg, rgba(246, 211, 101, 0.07), rgba(20, 24, 36, 0) 45%), var(--panel);
-        }
-        .entry[data-graded="correct"]::before {
-            background: rgba(126, 224, 129, 0.9);
-        }
-        .entry[data-graded="incorrect"]::before {
-            background: rgba(255, 154, 154, 0.9);
-        }
-        .entry[data-graded="unknown"]::before {
-            background: rgba(246, 211, 101, 0.9);
-        }
         .entry.highlight {
             outline: 2px solid rgba(111, 155, 255, 0.5);
             outline-offset: 2px;
@@ -796,6 +899,10 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
                 font-size: 1.6rem;
             }
         }
+        button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
+            outline: 2px solid var(--accent-2);
+            outline-offset: 2px;
+        }
     </style>
 </head>
 <body>
@@ -898,92 +1005,217 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
                     <button class="toggle active" data-target="graded">Graded</button>
                     <button class="toggle" data-target="curl">Curl</button>
                 </div>
+                <button class="button" id="exportCsv">Export CSV</button>
+                <button class="button" id="exportJson">Export JSON</button>
             </div>
 
-            {% if meta.summary_items %}
+            {% if meta.summary_items or meta.stats %}
                 <div class="section">
                     <h2>Run Summary</h2>
-                    <div class="summary-grid">
-                        {% for item in meta.summary_items %}
-                            <div class="summary-card">
-                                <div class="label">{{ item.label }}</div>
-                                <div class="value">{{ item.value }}</div>
-                            </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            {% endif %}
 
-            {% if meta.stats %}
-                <div class="section">
-                    <h2>Sample Stats</h2>
-                    <div class="summary-grid">
-                        <div class="summary-card">
-                            <div class="label">Report Accuracy (Graded)</div>
-                            <div class="value">
+                    {# ---- Hero Stats Banner ---- #}
+                    {% if meta.stats %}
+                        <div class="hero-stats">
+                            <div class="hero-stat">
                                 {% if meta.stats.graded_count %}
-                                    {{ (meta.stats.accuracy * 100) | round(2) }}% ({{ meta.stats.correct_count }}/{{ meta.stats.graded_count }})
-                                    <div class="accuracy-bar"><div class="accuracy-fill" style="width: {{ (meta.stats.accuracy * 100) | round(1) }}%"></div></div>
+                                    <div class="stat-value">{{ (meta.stats.accuracy * 100) | round(1) }}%</div>
+                                    <div class="stat-label">Accuracy ({{ meta.stats.correct_count }}/{{ meta.stats.graded_count }})</div>
+                                    <div class="accuracy-bar-lg"><div class="accuracy-fill-lg" style="width: {{ (meta.stats.accuracy * 100) | round(1) }}%"></div></div>
                                 {% else %}
-                                    —
+                                    <div class="stat-value accent-muted">&mdash;</div>
+                                    <div class="stat-label">Accuracy</div>
                                 {% endif %}
                             </div>
+                            <div class="hero-stat">
+                                <div class="stat-value accent-blue">{{ meta.stats.report_count }}</div>
+                                <div class="stat-label">Total Samples</div>
+                            </div>
+                            <div class="hero-stat">
+                                <div class="stat-value">{{ meta.stats.correct_count }}</div>
+                                <div class="stat-label">Correct</div>
+                            </div>
+                            <div class="hero-stat">
+                                <div class="stat-value accent-warn">{{ (meta.stats.error_rate * 100) | round(1) }}%</div>
+                                <div class="stat-label">Error Rate ({{ meta.stats.error_count }})</div>
+                            </div>
                         </div>
-                        <div class="summary-card">
-                            <div class="label">Correct / Incorrect / Unknown</div>
-                            <div class="value">{{ meta.stats.correct_count }} / {{ meta.stats.incorrect_count }} / {{ meta.stats.unknown_count }}</div>
+                    {% endif %}
+
+                    {# ---- Configuration Group ---- #}
+                    <div class="category-group">
+                        <div class="category-title">Configuration</div>
+                        <div class="summary-grid-v2">
+                            <div class="summary-card-v2 cat-config">
+                                <div class="label">Endpoint</div>
+                                <div class="value">{{ meta.endpoint }}</div>
+                            </div>
+                            {% if meta.model_id %}
+                                <div class="summary-card-v2 cat-config">
+                                    <div class="label">Model</div>
+                                    <div class="value">{{ meta.model_id }}</div>
+                                </div>
+                            {% endif %}
+                            {% if meta.task_name %}
+                                <div class="summary-card-v2 cat-config">
+                                    <div class="label">Task</div>
+                                    <div class="value">{{ meta.task_name }}</div>
+                                </div>
+                            {% endif %}
+                            {% if meta.framework_name %}
+                                <div class="summary-card-v2 cat-config">
+                                    <div class="label">Framework</div>
+                                    <div class="value">{{ meta.framework_name }}</div>
+                                </div>
+                            {% endif %}
+                            {% if meta.benchmark_harness %}
+                                <div class="summary-card-v2 cat-config">
+                                    <div class="label">Harness</div>
+                                    <div class="value">{{ meta.benchmark_harness }}</div>
+                                </div>
+                            {% endif %}
+                            {% if meta.benchmark_container %}
+                                <div class="summary-card-v2 cat-config">
+                                    <div class="label">Container</div>
+                                    <div class="value">
+                                        {% if meta.benchmark_container_url %}
+                                            <a style="color: var(--accent-2); text-decoration: none;" href="{{ meta.benchmark_container_url }}" target="_blank" rel="noopener">{{ meta.benchmark_container }}</a>
+                                        {% else %}
+                                            {{ meta.benchmark_container }}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endif %}
                         </div>
-                        <div class="summary-card">
-                            <div class="label">Report Samples</div>
-                            <div class="value">{{ meta.stats.report_count }} shown / {{ meta.total_entries }} cached</div>
-                        </div>
-                        <div class="summary-card">
-                            <div class="label">Error Rate</div>
-                            <div class="value">{{ (meta.stats.error_rate * 100) | round(2) }}% ({{ meta.stats.error_count }})</div>
-                        </div>
-                        <div class="summary-card">
-                            <div class="label">Tool Calls</div>
-                            <div class="value">{{ meta.stats.tool_count }}</div>
-                        </div>
-                        <div class="summary-card">
-                            <div class="label">Avg Request Chars</div>
-                            <div class="value">{{ meta.stats.avg_request_chars | round(0) }}</div>
-                        </div>
-                        <div class="summary-card">
-                            <div class="label">Avg Response Chars</div>
-                            <div class="value">{{ meta.stats.avg_response_chars | round(0) }}</div>
-                        </div>
-                        {% if meta.stats.usage_totals.prompt_tokens or meta.stats.usage_totals.completion_tokens or meta.stats.usage_totals.total_tokens %}
-                            <div class="summary-card">
-                                <div class="label">Tokens (Prompt / Completion / Total)</div>
-                                <div class="value">{{ meta.stats.usage_totals.prompt_tokens }} / {{ meta.stats.usage_totals.completion_tokens }} / {{ meta.stats.usage_totals.total_tokens }}</div>
+                        {% if meta.eval_params %}
+                            <div class="params-row">
+                                {% for key, val in meta.eval_params.items() %}
+                                    <span class="param-pill">
+                                        <span class="param-key">{{ key }}</span>
+                                        <span class="param-val">{{ val }}</span>
+                                    </span>
+                                {% endfor %}
                             </div>
                         {% endif %}
                     </div>
 
-                    {% if meta.stats.request_type_counts %}
-                        <div class="chips">
-                            {% for key, value in meta.stats.request_type_counts.items() %}
-                                {% if key != 'unknown' %}
-                                    <div class="chip">{{ key }}: {{ value }}</div>
+                    {# ---- Evaluation Results Group ---- #}
+                    {% if meta.stats %}
+                        <div class="category-group">
+                            <div class="category-title">Evaluation Results</div>
+                            <div class="summary-grid-v2">
+                                <div class="summary-card-v2 cat-eval">
+                                    <div class="label">Correct / Incorrect / Unknown</div>
+                                    <div class="value large">{{ meta.stats.correct_count }} / {{ meta.stats.incorrect_count }} / {{ meta.stats.unknown_count }}</div>
+                                    {% if meta.stats.graded_count %}
+                                        <div class="grade-bar">
+                                            <div class="bar-correct" style="width: {{ (meta.stats.correct_count / (meta.stats.correct_count + meta.stats.incorrect_count + meta.stats.unknown_count) * 100) | round(1) }}%"></div>
+                                            <div class="bar-incorrect" style="width: {{ (meta.stats.incorrect_count / (meta.stats.correct_count + meta.stats.incorrect_count + meta.stats.unknown_count) * 100) | round(1) }}%"></div>
+                                            <div class="bar-unknown" style="width: {{ (meta.stats.unknown_count / (meta.stats.correct_count + meta.stats.incorrect_count + meta.stats.unknown_count) * 100) | round(1) }}%"></div>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="summary-card-v2 cat-eval">
+                                    <div class="label">Report Samples</div>
+                                    <div class="value">{{ meta.stats.report_count }} shown / {{ meta.total_entries }} cached</div>
+                                </div>
+                                {% if meta.stats.tool_count %}
+                                    <div class="summary-card-v2 cat-eval">
+                                        <div class="label">Tool Calls</div>
+                                        <div class="value">{{ meta.stats.tool_count }}</div>
+                                    </div>
                                 {% endif %}
-                            {% endfor %}
+                            </div>
+                            {% if meta.stats.request_type_counts or meta.stats.finish_reason_counts %}
+                                <div class="params-row">
+                                    {% if meta.stats.request_type_counts %}
+                                        {% for key, value in meta.stats.request_type_counts.items() %}
+                                            {% if key != 'unknown' %}
+                                                <span class="param-pill">
+                                                    <span class="param-key">{{ key }}</span>
+                                                    <span class="param-val">{{ value }}</span>
+                                                </span>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                    {% if meta.stats.finish_reason_counts %}
+                                        {% for key, value in meta.stats.finish_reason_counts.items() %}
+                                            {% if key != 'unknown' %}
+                                                <span class="param-pill">
+                                                    <span class="param-key">{{ key }}</span>
+                                                    <span class="param-val">{{ value }}</span>
+                                                </span>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                            <div class="note">
+                                <strong>Note:</strong> Report accuracy uses graded log samples shown above.
+                                Results rollups below come from results.yml and may use task-specific definitions and the full eval set.
+                            </div>
                         </div>
                     {% endif %}
-                    {% if meta.stats.finish_reason_counts %}
-                        <div class="chips">
-                            {% for key, value in meta.stats.finish_reason_counts.items() %}
-                                {% if key != 'unknown' %}
-                                    <div class="chip">{{ key }}: {{ value }}</div>
+
+                    {# ---- Performance Group ---- #}
+                    {% if meta.stats %}
+                        <div class="category-group">
+                            <div class="category-title">Performance</div>
+                            <div class="summary-grid-v2">
+                                <div class="summary-card-v2 cat-perf">
+                                    <div class="label">Avg Request Chars</div>
+                                    <div class="value">{{ meta.stats.avg_request_chars | round(0) }}</div>
+                                </div>
+                                <div class="summary-card-v2 cat-perf">
+                                    <div class="label">Avg Response Chars</div>
+                                    <div class="value">{{ meta.stats.avg_response_chars | round(0) }}</div>
+                                </div>
+                                {% if meta.stats.usage_totals.prompt_tokens or meta.stats.usage_totals.completion_tokens or meta.stats.usage_totals.total_tokens %}
+                                    <div class="summary-card-v2 cat-perf">
+                                        <div class="label">Tokens (Prompt / Completion / Total)</div>
+                                        <div class="value">{{ meta.stats.usage_totals.prompt_tokens }} / {{ meta.stats.usage_totals.completion_tokens }} / {{ meta.stats.usage_totals.total_tokens }}</div>
+                                    </div>
                                 {% endif %}
-                            {% endfor %}
+                            </div>
                         </div>
                     {% endif %}
-                    <div class="note">
-                        <strong>Note:</strong> Report accuracy uses graded log samples shown above (correct / incorrect).
-                        Results rollups below come from results.yml and may use task-specific definitions (inst-level vs prompt-level)
-                        and the full eval set.
+
+                    {# ---- System Group ---- #}
+                    <div class="category-group">
+                        <div class="category-title">System</div>
+                        <div class="summary-grid-v2">
+                            <div class="summary-card-v2 cat-system">
+                                <div class="label">Generated At (UTC)</div>
+                                <div class="value">{{ meta.generated_at }}</div>
+                            </div>
+                            <div class="summary-card-v2 cat-system">
+                                <div class="label">Shown / Cached</div>
+                                <div class="value">{{ meta.shown_entries }} / {{ meta.total_entries }}</div>
+                            </div>
+                            <div class="summary-card-v2 cat-system">
+                                <div class="label">Output Dir</div>
+                                <div class="value" style="font-size: 0.85rem;">{{ meta.output_dir_path }}</div>
+                            </div>
+                            {% if meta.git_hash %}
+                                <div class="summary-card-v2 cat-system">
+                                    <div class="label">Git Hash</div>
+                                    <div class="value" style="font-size: 0.85rem; font-family: monospace;">{{ meta.git_hash }}</div>
+                                </div>
+                            {% endif %}
+                            {% if meta.evaluator_version %}
+                                <div class="summary-card-v2 cat-system">
+                                    <div class="label">Evaluator Version</div>
+                                    <div class="value">{{ meta.evaluator_version }}</div>
+                                </div>
+                            {% endif %}
+                            {% if meta.launcher_version %}
+                                <div class="summary-card-v2 cat-system">
+                                    <div class="label">Launcher Version</div>
+                                    <div class="value">{{ meta.launcher_version }}</div>
+                                </div>
+                            {% endif %}
+                        </div>
                     </div>
+
                 </div>
             {% endif %}
 
@@ -1022,7 +1254,7 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
                                         <td class="idx-col">
                                             <a class="details-link" data-detail-link="true" href="#sample-{{ entry.cache_key }}">{{ loop.index }}</a>
                                         </td>
-                                        <td class="input-col">{{ (entry.graded_input or entry.prompt_preview or '—') | truncate(160, True, '...') }}</td>
+                                        <td class="input-col">{{ (entry.graded_problem_only or entry.graded_input or entry.prompt_preview or '—') | truncate(160, True, '...') }}</td>
                                         <td class="target-col">{{ (entry.target_display or entry.graded_target or entry.graded_expected or '—') | truncate(80, True, '...') }}</td>
                                         <td class="answer-col">{% if entry.graded_predicted %}<span class="predicted-letter">{{ entry.graded_predicted }}</span> {% endif %}{{ (entry.graded_response or '—') | truncate(100, True, '...') }}</td>
                                         <td class="score-col">
@@ -1132,6 +1364,38 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
                                                 <div class="meta-value">{{ entry.graded_predicted }}</div>
                                             </div>
                                         {% endif %}
+                                        {% if entry.graded_metrics %}
+                                            <div class="meta-card span-2">
+                                                <div class="meta-label">Grading Metrics</div>
+                                                <div class="meta-value">
+                                                    {% for key, val in entry.graded_metrics.items() %}
+                                                        <span class="chip">{{ key }}: {{ val }}</span>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                        {% if entry.graded_instruction_ids %}
+                                            <div class="meta-card span-2">
+                                                <div class="meta-label">Instruction IDs</div>
+                                                <div class="meta-value">
+                                                    {% set inst_metrics = entry.graded_metrics or {} %}
+                                                    {% set strict_arr = inst_metrics.get('inst_level_strict_acc') %}
+                                                    {% for iid in entry.graded_instruction_ids %}
+                                                        {% if strict_arr is iterable and strict_arr is not string and loop.index0 < strict_arr|length %}
+                                                            <span class="badge {{ 'correct' if strict_arr[loop.index0] else 'incorrect' }}">{{ iid }}</span>
+                                                        {% else %}
+                                                            <span class="chip">{{ iid }}</span>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                        {% if entry.graded_source %}
+                                            <div class="meta-card span-2">
+                                                <div class="meta-label">Grading Source</div>
+                                                <div class="meta-value" style="font-size: 0.82rem; color: var(--muted);">{{ entry.graded_source }}</div>
+                                            </div>
+                                        {% endif %}
                                     </div>
                                 </div>
                                 {% if entry.prompt_sections %}
@@ -1165,7 +1429,9 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
                                 <div id="curl-{{ entry.cache_key }}" class="block hidden" data-section="curl">
                                     <div class="block-title">Repro Curl</div>
                                     <pre># Save payload to file first:
-echo '{{ entry.request_data|tojson }}' > request.json
+cat &lt;&lt;'PAYLOAD_EOF' > request.json
+{{ entry.request_data|tojson_utf8|safe }}
+PAYLOAD_EOF
 
 curl "{{ entry.endpoint }}" \
   -H "Content-Type: application/json" \
@@ -1326,6 +1592,12 @@ curl "{{ entry.endpoint }}" \
                         <pre>{{ meta.raw_eval_metrics|e }}</pre>
                     </details>
                 {% endif %}
+                {% if meta.raw_metadata %}
+                    <details>
+                        <summary>Raw metadata.yaml</summary>
+                        <pre>{{ meta.raw_metadata|e }}</pre>
+                    </details>
+                {% endif %}
             </div>
 
 
@@ -1422,26 +1694,17 @@ curl "{{ entry.endpoint }}" \
             rows.forEach((row) => {
                 const visible = matchesFilters(row);
                 row.style.display = visible ? '' : 'none';
-                if (visible) visibleRows += 1;
+                if (visible) {
+                    visibleRows += 1;
+                    const idxCell = row.querySelector('.idx-col a');
+                    if (idxCell) idxCell.textContent = visibleRows;
+                }
             });
 
             if (visibleCount) {
                 const count = rows.length ? visibleRows : visibleEntries;
                 visibleCount.textContent = `Visible: ${count} / ${total}`;
             }
-        }
-
-        function normalizeGradeClasses() {
-            document.querySelectorAll('.entry').forEach((entry) => {
-                const grade = entry.getAttribute('data-graded') || 'unknown';
-                entry.classList.remove('grade-correct', 'grade-incorrect', 'grade-unknown');
-                entry.classList.add(`grade-${grade || 'unknown'}`);
-            });
-            document.querySelectorAll('.sample-row').forEach((row) => {
-                const grade = row.getAttribute('data-graded') || 'unknown';
-                row.classList.remove('grade-correct', 'grade-incorrect', 'grade-unknown');
-                row.classList.add(`grade-${grade || 'unknown'}`);
-            });
         }
 
         function syncEntryCounts() {
@@ -1517,7 +1780,14 @@ curl "{{ entry.endpoint }}" \
             }
         }
 
-        [searchBox, modelFilter, typeFilter, finishFilter, gradingFilter, errorOnly, toolOnly].forEach((el) => {
+        let searchTimeout = null;
+        if (searchBox) {
+            searchBox.addEventListener('input', () => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(applyFilters, 200);
+            });
+        }
+        [modelFilter, typeFilter, finishFilter, gradingFilter, errorOnly, toolOnly].forEach((el) => {
             if (!el) return;
             el.addEventListener('input', applyFilters);
             el.addEventListener('change', applyFilters);
@@ -1674,10 +1944,62 @@ curl "{{ entry.endpoint }}" \
                 if (toggle) toggle.textContent = 'Expand';
             }
         });
-        normalizeGradeClasses();
         syncEntryCounts();
         sortEntries();
         applyFilters();
+
+        function getVisibleTableData() {
+            const rows = Array.from(document.querySelectorAll('.sample-row'));
+            const headers = ['#', 'Input', 'Target', 'Answer', 'Score', 'Cache Key'];
+            const data = [];
+            rows.forEach((row) => {
+                if (row.style.display === 'none') return;
+                const cells = row.querySelectorAll('td');
+                if (cells.length < 5) return;
+                data.push({
+                    '#': (cells[0].textContent || '').trim(),
+                    'Input': (cells[1].textContent || '').trim(),
+                    'Target': (cells[2].textContent || '').trim(),
+                    'Answer': (cells[3].textContent || '').trim(),
+                    'Score': (cells[4].textContent || '').trim(),
+                    'Cache Key': row.getAttribute('data-cache') || '',
+                });
+            });
+            return { headers, data };
+        }
+
+        function downloadBlob(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        const exportCsvBtn = document.getElementById('exportCsv');
+        if (exportCsvBtn) {
+            exportCsvBtn.addEventListener('click', () => {
+                const { headers, data } = getVisibleTableData();
+                const escape = (v) => '"' + String(v).replace(/"/g, '""') + '"';
+                const lines = [headers.map(escape).join(',')];
+                data.forEach((row) => {
+                    lines.push(headers.map((h) => escape(row[h] || '')).join(','));
+                });
+                downloadBlob(lines.join('\\n'), 'eval_report.csv', 'text/csv;charset=utf-8;');
+            });
+        }
+
+        const exportJsonBtn = document.getElementById('exportJson');
+        if (exportJsonBtn) {
+            exportJsonBtn.addEventListener('click', () => {
+                const { data } = getVisibleTableData();
+                downloadBlob(JSON.stringify(data, null, 2), 'eval_report.json', 'application/json;charset=utf-8;');
+            });
+        }
     </script>
 </body>
 </html>"""
