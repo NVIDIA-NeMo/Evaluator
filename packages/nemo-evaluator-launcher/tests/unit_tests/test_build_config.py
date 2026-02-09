@@ -26,11 +26,9 @@ import pytest
 import yaml
 
 from nemo_evaluator_launcher.common.build_config import (
-    _template_exists,
+    _load_template,
     build_config,
     deep_merge,
-    generate_config_filename,
-    get_unique_filepath,
     resolve_output_path,
 )
 
@@ -145,11 +143,15 @@ def get_mock_overrides(
         )
 
     # Safety benchmark mocks (need judge URL)
-    safety_template = f"evaluation/{model_type}/safety.yaml"
-    if "safety" in benchmarks and _template_exists(safety_template):
-        overrides.append(
-            "++evaluation.tasks.1.nemo_evaluator_config.config.params.extra.judge.url=https://test-judge.example.com/v1"
-        )
+    if "safety" in benchmarks:
+        try:
+            _load_template(f"evaluation/{model_type}/safety.yaml")
+        except FileNotFoundError:
+            pass
+        else:
+            overrides.append(
+                "++evaluation.tasks.1.nemo_evaluator_config.config.params.extra.judge.url=https://test-judge.example.com/v1"
+            )
 
     return overrides
 
@@ -192,58 +194,6 @@ class TestDeepMerge:
 
 
 # =============================================================================
-# Unit Tests: generate_config_filename
-# =============================================================================
-
-
-class TestGenerateConfigFilename:
-    def test_single_benchmark(self) -> None:
-        name = generate_config_filename("local", "vllm", "chat", ["standard"])
-        assert name == "local_vllm_chat_standard.yaml"
-
-    def test_multiple_benchmarks_sorted(self) -> None:
-        name = generate_config_filename(
-            "slurm", "nim", "reasoning", ["code", "standard"]
-        )
-        assert name == "slurm_nim_reasoning_code_standard.yaml"
-
-    def test_all_benchmarks(self) -> None:
-        name = generate_config_filename(
-            "local",
-            "vllm",
-            "chat",
-            ["standard", "code", "math_reasoning", "safety", "multilingual"],
-        )
-        assert (
-            name
-            == "local_vllm_chat_code_math_reasoning_multilingual_safety_standard.yaml"
-        )
-
-
-# =============================================================================
-# Unit Tests: get_unique_filepath
-# =============================================================================
-
-
-class TestGetUniqueFilepath:
-    def test_nonexistent_returns_same(self, tmp_path: pathlib.Path) -> None:
-        fp = tmp_path / "config.yaml"
-        assert get_unique_filepath(fp) == fp
-
-    def test_existing_gets_suffix(self, tmp_path: pathlib.Path) -> None:
-        fp = tmp_path / "config.yaml"
-        fp.touch()
-        result = get_unique_filepath(fp)
-        assert result == tmp_path / "config_1.yaml"
-
-    def test_multiple_existing(self, tmp_path: pathlib.Path) -> None:
-        for name in ("config.yaml", "config_1.yaml", "config_2.yaml"):
-            (tmp_path / name).touch()
-        result = get_unique_filepath(tmp_path / "config.yaml")
-        assert result == tmp_path / "config_3.yaml"
-
-
-# =============================================================================
 # Unit Tests: resolve_output_path
 # =============================================================================
 
@@ -259,6 +209,12 @@ class TestResolveOutputPath:
         assert result.parent == tmp_path
         assert result.name == "slurm_nim_base_code.yaml"
 
+    def test_benchmarks_sorted_in_filename(self, tmp_path: pathlib.Path) -> None:
+        result = resolve_output_path(
+            tmp_path, "local", "vllm", "chat", ["code", "standard"]
+        )
+        assert result.name == "local_vllm_chat_code_standard.yaml"
+
     def test_none_uses_cwd(self, tmp_path: pathlib.Path, monkeypatch) -> None:
         monkeypatch.chdir(tmp_path)
         result = resolve_output_path(None, "local", "vllm", "chat", ["standard"])
@@ -270,6 +226,21 @@ class TestResolveOutputPath:
         result = resolve_output_path(new_dir, "local", "vllm", "chat", ["standard"])
         assert new_dir.is_dir()
         assert result.parent == new_dir
+
+    def test_existing_file_gets_suffix(self, tmp_path: pathlib.Path) -> None:
+        (tmp_path / "local_vllm_chat_standard.yaml").touch()
+        result = resolve_output_path(tmp_path, "local", "vllm", "chat", ["standard"])
+        assert result.name == "local_vllm_chat_standard_1.yaml"
+
+    def test_multiple_existing_increments(self, tmp_path: pathlib.Path) -> None:
+        for name in (
+            "local_vllm_chat_standard.yaml",
+            "local_vllm_chat_standard_1.yaml",
+            "local_vllm_chat_standard_2.yaml",
+        ):
+            (tmp_path / name).touch()
+        result = resolve_output_path(tmp_path, "local", "vllm", "chat", ["standard"])
+        assert result.name == "local_vllm_chat_standard_3.yaml"
 
 
 # =============================================================================

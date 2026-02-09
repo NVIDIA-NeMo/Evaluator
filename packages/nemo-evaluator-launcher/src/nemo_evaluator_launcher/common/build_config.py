@@ -34,46 +34,6 @@ def _load_template(relative_path: str) -> dict:
     return yaml.safe_load(content) or {}
 
 
-def _template_exists(relative_path: str) -> bool:
-    """Check whether a config template exists in package resources."""
-    resource = importlib.resources.files("nemo_evaluator_launcher.resources").joinpath(
-        "config_templates", relative_path
-    )
-    try:
-        resource.read_text(encoding="utf-8")
-        return True
-    except (FileNotFoundError, TypeError):
-        return False
-
-
-def generate_config_filename(
-    execution: str,
-    deployment: str,
-    model_type: str,
-    benchmarks: List[str],
-) -> str:
-    """Generate a config filename from the combination of choices."""
-    bench_str = "_".join(sorted(benchmarks))
-    return f"{execution}_{deployment}_{model_type}_{bench_str}.yaml"
-
-
-def get_unique_filepath(filepath: Path) -> Path:
-    """Return a unique filepath by adding numeric suffix if file exists."""
-    if not filepath.exists():
-        return filepath
-
-    stem = filepath.stem
-    suffix = filepath.suffix
-    parent = filepath.parent
-    counter = 1
-
-    while True:
-        new_path = parent / f"{stem}_{counter}{suffix}"
-        if not new_path.exists():
-            return new_path
-        counter += 1
-
-
 def resolve_output_path(
     output: Optional[Path],
     execution: str,
@@ -81,33 +41,28 @@ def resolve_output_path(
     model_type: str,
     benchmarks: List[str],
 ) -> Path:
+    """Resolve the output file path, auto-generating a name if needed.
+
+    Never overwrites — appends _1, _2, … when the file already exists.
     """
-    Resolve the output path based on what was provided.
+    filename = (
+        f"{execution}_{deployment}_{model_type}_{'_'.join(sorted(benchmarks))}.yaml"
+    )
 
-    Args:
-        output: User-provided output path (file, directory, or None)
-        execution, deployment, model_type, benchmarks: Config choices for filename
-
-    Returns:
-        Resolved output file path (unique, won't overwrite existing)
-    """
-    filename = generate_config_filename(execution, deployment, model_type, benchmarks)
-
-    if output is None:
-        # No output specified: use current directory with auto-generated filename
-        filepath = Path.cwd() / filename
-    elif output.suffix in (".yaml", ".yml"):
-        # Looks like a file path: use as-is
+    if output is not None and output.suffix in (".yaml", ".yml"):
         filepath = output
-    elif output.is_dir() or not output.suffix:
-        # Directory path: auto-generate filename in that directory
-        output.mkdir(parents=True, exist_ok=True)
-        filepath = output / filename
     else:
-        # Assume it's a file path
-        filepath = output
+        directory = output or Path.cwd()
+        directory.mkdir(parents=True, exist_ok=True)
+        filepath = directory / filename
 
-    return get_unique_filepath(filepath)
+    # Find a path that doesn't already exist
+    candidate = filepath
+    counter = 1
+    while candidate.exists():
+        candidate = filepath.with_stem(f"{filepath.stem}_{counter}")
+        counter += 1
+    return candidate
 
 
 def deep_merge(base: dict, override: dict) -> dict:
@@ -162,9 +117,9 @@ def build_config(
     # 4. Load benchmark configs
     for benchmark in benchmarks:
         template_path = f"evaluation/{model_type}/{benchmark}.yaml"
-        if _template_exists(template_path):
+        try:
             config = deep_merge(config, _load_template(template_path))
-        else:
+        except FileNotFoundError:
             print(f"Warning: Benchmark config not found: {template_path}")
 
     # 5. Load deployment config (applied last so deployment-specific overrides take effect)
