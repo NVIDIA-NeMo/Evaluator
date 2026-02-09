@@ -18,6 +18,7 @@ import os
 import pkgutil
 import sys
 
+import pkg_resources
 import yaml
 
 # Import logging to ensure centralized logging is configured
@@ -126,24 +127,59 @@ def show_available_tasks() -> None:
 
     .. important:: Only evaluations from installed wheels are being displayed.
     """
+    all_frameworks = {}
+
+    # Discover core_evals (legacy internal pattern)
     try:
         import core_evals
 
         core_evals_pkg = list(pkgutil.iter_modules(core_evals.__path__))
+
+        for pkg in core_evals_pkg:
+            framework_yml_path = os.path.join(pkg.module_finder.path, pkg.name, "framework.yml")
+            if os.path.exists(framework_yml_path):
+                framework_eval_mapping, *_ = _get_framework_evaluations(framework_yml_path)
+                all_frameworks.update(framework_eval_mapping)
     except ImportError:
-        core_evals_pkg = []
+        pass
 
-    if not core_evals_pkg:
+    # Discover .nemo_evaluator (new OSS pattern) via entry points
+    try:
+        for entry_point in pkg_resources.iter_entry_points('nemo_evaluator.frameworks'):
+            try:
+                # Load the entry point module
+                module = entry_point.load()
+                # Get the module's path
+                module_path = os.path.dirname(module.__file__)
+                # Look for .nemo_evaluator directory
+                nemo_eval_path = os.path.join(module_path, '.nemo_evaluator')
+
+                if os.path.isdir(nemo_eval_path):
+                    for harness in os.listdir(nemo_eval_path):
+                        harness_path = os.path.join(nemo_eval_path, harness)
+                        if os.path.isdir(harness_path):
+                            framework_yml_path = os.path.join(harness_path, 'framework.yml')
+                            if os.path.exists(framework_yml_path):
+                                framework_eval_mapping, *_ = _get_framework_evaluations(
+                                    framework_yml_path
+                                )
+                                all_frameworks.update(framework_eval_mapping)
+            except Exception as e:
+                print(f"Warning: Failed to load entry point {entry_point.name}: {e}", file=sys.stderr)
+                continue
+    except Exception:
+        # No entry points found or pkg_resources not available
+        pass
+
+    # Display all discovered frameworks
+    if not all_frameworks:
         print("NO evaluation packages are installed.")
+        return
 
-    for pkg in core_evals_pkg:
-        framework_eval_mapping, *_ = _get_framework_evaluations(
-            os.path.join(pkg.module_finder.path, pkg.name, "framework.yml")
-        )
-        for ind_pkg in framework_eval_mapping.keys():
-            print(f"{ind_pkg}: ")
-            for task in framework_eval_mapping[ind_pkg].keys():
-                print(f"  * {task}")
+    for framework_name in all_frameworks.keys():
+        print(f"{framework_name}: ")
+        for task in all_frameworks[framework_name].keys():
+            print(f"  * {task}")
 
 
 def run(args) -> None:
