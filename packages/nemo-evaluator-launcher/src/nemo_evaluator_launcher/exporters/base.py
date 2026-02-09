@@ -39,7 +39,10 @@ class BaseExporter(ABC):
     def __init__(self, config: Dict[str, Any] = None):
         self.config = config or {}
         self.job_dirs = [Path(dir) for dir in self.config.get("job_dirs", [])]
-        self.copy_logs = self.config.get("copy_logs", False)
+        # FIXME(martas): unify copy_logs and log_logs flags
+        self.copy_logs = self.config.get("copy_logs", False) or self.config.get(
+            "log_logs", False
+        )
         self.copy_artifacts = self.config.get("copy_artifacts", True)
         self.only_required = self.config.get("only_required", True)
         for job_dir in self.job_dirs:
