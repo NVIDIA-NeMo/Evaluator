@@ -77,6 +77,11 @@ class WandBExporter(BaseExporter):
 
         # Get log_mode from config
         log_mode = self.config.get("log_mode", "per_task")
+        if log_mode not in ["per_task", "multi_task"]:
+            logger.error(
+                f"Invalid log_mode: {log_mode}. Valid modes are: per_task, multi_task"
+            )
+            return [], [data.job_id for data in data_for_export], []
 
         try:
             if log_mode == "per_task":

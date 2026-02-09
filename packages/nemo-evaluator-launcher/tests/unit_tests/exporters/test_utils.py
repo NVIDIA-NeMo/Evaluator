@@ -32,6 +32,9 @@ from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.exporters import utils as U
 from nemo_evaluator_launcher.exporters.utils import (
     EXCLUDED_PATTERNS,
+    METADATA_CONFIG_KEY,
+    METADATA_FILE,
+    NE_CONFIG_FILE,
     OPTIONAL_ARTIFACTS,
     REQUIRED_ARTIFACTS,
     MetricConflictError,
@@ -40,12 +43,12 @@ from nemo_evaluator_launcher.exporters.utils import (
     extract_accuracy_metrics,
     flatten_config,
     get_available_artifacts,
-    get_benchmark_info,
     get_copytree_ignore,
-    get_model_name,
+    get_model_id,
     get_relevant_artifacts,
+    load_benchmark_info,
+    load_config_from_metadata,
     should_exclude_artifact,
-    validate_artifacts,
 )
 
 
@@ -143,24 +146,6 @@ class TestArtifactUtils:
         assert "results.yml" in all_artifacts
         assert "eval_factory_metrics.json" in all_artifacts
         assert "omni-info.json" in all_artifacts
-
-    def test_validate_artifacts_missing_dir(self):
-        result = validate_artifacts(Path("/nonexistent"))
-        assert result["can_export"] is False
-        assert result["missing_required"] == REQUIRED_ARTIFACTS
-        assert result["missing_optional"] == OPTIONAL_ARTIFACTS
-        assert "not found" in result["message"]
-
-    def test_validate_artifacts_all_present(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            artifacts_dir = Path(tmpdir)
-            for artifact in get_relevant_artifacts():
-                (artifacts_dir / artifact).touch()
-            result = validate_artifacts(artifacts_dir)
-            assert result["can_export"] is True
-            assert result["missing_required"] == []
-            assert result["missing_optional"] == []
-            assert "All artifacts available" in result["message"]
 
     def test_get_available_artifacts(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -353,37 +338,6 @@ results:
 
         with pytest.raises(RuntimeError, match="Artifacts directory .* not found"):
             extract_accuracy_metrics(artifacts_dir)
-
-
-class TestMappingHelpers:
-    def test_mapping_lookups(self, monkeypatch):
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.utils.load_tasks_mapping",
-            lambda: {
-                ("lm-eval", "mmlu"): {"harness": "lm-eval", "container": "cont:tag"}
-            },
-            raising=True,
-        )
-
-        jd = JobData(
-            "abcd1234",
-            "abcd1234.0",
-            0.0,
-            "local",
-            {"model_id": "foo/bar"},
-            {"evaluation": {"tasks": [{"name": "lm-eval.mmlu"}]}},
-        )
-
-        bench = get_benchmark_info(jd)
-        model = get_model_name(jd, {})
-
-        assert bench["harness"] == "lm-eval"
-        assert bench["benchmark"] == "mmlu"
-        assert model in ("foo/bar", f"unknown_model_{jd.job_id}")
-
-    def test_model_name_helper(self):
-        jd = JobData("xx", "xx", 0.0, "local", {"model_name": "x"}, None)
-        assert get_model_name(jd) == "x"
 
 
 class TestSSHHelpers:
@@ -797,3 +751,165 @@ class TestFlattenConfig:
         config = {"a": {"b": 1}}
         result = flatten_config(config, sep="/")
         assert result == {"a/b": "1"}
+
+
+class TestConfigLoadingErrorHandling:
+    """Tests for error handling in get_model_id, load_config_from_metadata, and load_benchmark_info."""
+
+    def test_get_model_id_file_not_found(self, tmp_path: Path):
+        """Test get_model_id raises FileNotFoundError when config file doesn't exist."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+
+        with pytest.raises(FileNotFoundError):
+            get_model_id(artifacts_dir)
+
+    def test_get_model_id_not_a_dict(self, tmp_path: Path):
+        """Test get_model_id raises ValueError when YAML is not a dictionary."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        config_file = artifacts_dir / NE_CONFIG_FILE
+        config_file.write_text("[1, 2, 3]", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="it should be a dictionary"):
+            get_model_id(artifacts_dir)
+
+    def test_get_model_id_missing_target(self, tmp_path: Path):
+        """Test get_model_id raises ValueError when 'target' key is missing."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        config_file = artifacts_dir / NE_CONFIG_FILE
+        config_file.write_text("other_key: value", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="no target.api_endpoint.model_id found"):
+            get_model_id(artifacts_dir)
+
+    def test_get_model_id_missing_api_endpoint(self, tmp_path: Path):
+        """Test get_model_id raises ValueError when 'api_endpoint' key is missing."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        config_file = artifacts_dir / NE_CONFIG_FILE
+        config_file.write_text("target:\n  other: value", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="no target.api_endpoint.model_id found"):
+            get_model_id(artifacts_dir)
+
+    def test_get_model_id_missing_model_id(self, tmp_path: Path):
+        """Test get_model_id raises ValueError when 'model_id' key is missing."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        config_file = artifacts_dir / NE_CONFIG_FILE
+        config_file.write_text(
+            "target:\n  api_endpoint:\n    other_key: value", encoding="utf-8"
+        )
+
+        with pytest.raises(ValueError, match="no target.api_endpoint.model_id found"):
+            get_model_id(artifacts_dir)
+
+    def test_get_model_id_success(self, tmp_path: Path):
+        """Test get_model_id returns model_id when config is valid."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        config_file = artifacts_dir / NE_CONFIG_FILE
+        config_file.write_text(
+            "target:\n  api_endpoint:\n    model_id: test-model-123", encoding="utf-8"
+        )
+
+        result = get_model_id(artifacts_dir)
+        assert result == "test-model-123"
+
+    def test_load_config_from_metadata_file_not_found(self, tmp_path: Path):
+        """Test load_config_from_metadata raises FileNotFoundError when metadata file doesn't exist."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+
+        with pytest.raises(FileNotFoundError):
+            load_config_from_metadata(artifacts_dir)
+
+    def test_load_config_from_metadata_not_a_dict(self, tmp_path: Path):
+        """Test load_config_from_metadata raises ValueError when YAML is not a dictionary."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        metadata_file = artifacts_dir / METADATA_FILE
+        metadata_file.write_text("- item1\n- item2", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="it should be a dictionary"):
+            load_config_from_metadata(artifacts_dir)
+
+    def test_load_config_from_metadata_missing_config_key(self, tmp_path: Path):
+        """Test load_config_from_metadata raises ValueError when METADATA_CONFIG_KEY is missing."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        metadata_file = artifacts_dir / METADATA_FILE
+        metadata_file.write_text("other_key: value", encoding="utf-8")
+
+        with pytest.raises(ValueError, match=f"no {METADATA_CONFIG_KEY} section found"):
+            load_config_from_metadata(artifacts_dir)
+
+    def test_load_config_from_metadata_success(self, tmp_path: Path):
+        """Test load_config_from_metadata returns config when metadata is valid."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        metadata_file = artifacts_dir / METADATA_FILE
+        expected_config = {"model": "test", "param": 42}
+        metadata_file.write_text(
+            f"{METADATA_CONFIG_KEY}:\n  model: test\n  param: 42", encoding="utf-8"
+        )
+
+        result = load_config_from_metadata(artifacts_dir)
+        assert result == expected_config
+
+    def test_load_benchmark_info_file_not_found(self, tmp_path: Path):
+        """Test load_benchmark_info raises FileNotFoundError when config file doesn't exist."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+
+        with pytest.raises(FileNotFoundError):
+            load_benchmark_info(artifacts_dir)
+
+    def test_load_benchmark_info_not_a_dict(self, tmp_path: Path):
+        """Test load_benchmark_info raises ValueError when YAML is not a dictionary."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        config_file = artifacts_dir / NE_CONFIG_FILE
+        config_file.write_text("[1, 2, 3]", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="it should be a dictionary"):
+            load_benchmark_info(artifacts_dir)
+
+    def test_load_benchmark_info_missing_keys_returns_none(self, tmp_path: Path):
+        """Test load_benchmark_info returns None for missing keys instead of raising."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        config_file = artifacts_dir / NE_CONFIG_FILE
+        config_file.write_text("other_key: value", encoding="utf-8")
+
+        harness, benchmark = load_benchmark_info(artifacts_dir)
+        assert harness is None
+        assert benchmark is None
+
+    def test_load_benchmark_info_partial_keys(self, tmp_path: Path):
+        """Test load_benchmark_info handles partial keys correctly."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        config_file = artifacts_dir / NE_CONFIG_FILE
+        config_file.write_text(
+            "framework_name: test-framework\nconfig: {}", encoding="utf-8"
+        )
+
+        harness, benchmark = load_benchmark_info(artifacts_dir)
+        assert harness == "test-framework"
+        assert benchmark is None
+
+    def test_load_benchmark_info_success(self, tmp_path: Path):
+        """Test load_benchmark_info returns values when config is valid."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        config_file = artifacts_dir / NE_CONFIG_FILE
+        config_file.write_text(
+            "framework_name: lm-eval\nconfig:\n  type: mmlu", encoding="utf-8"
+        )
+
+        harness, benchmark = load_benchmark_info(artifacts_dir)
+        assert harness == "lm-eval"
+        assert benchmark == "mmlu"

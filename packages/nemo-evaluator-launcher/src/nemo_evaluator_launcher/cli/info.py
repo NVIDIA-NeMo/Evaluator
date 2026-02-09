@@ -28,7 +28,6 @@ from nemo_evaluator_launcher.cli.version import Cmd as VersionCmd
 from nemo_evaluator_launcher.common.execdb import EXEC_DB_FILE, ExecutionDB, JobData
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.exporters.utils import copy_artifacts as copy_artifacts_fn
-from nemo_evaluator_launcher.exporters.utils import get_task_name
 
 
 def get_job_paths(job_data: JobData) -> Dict[str, Any]:
@@ -262,10 +261,17 @@ class InfoCmd:
         print(f"├── Executor: {job_data.executor}")
         print(f"├── Created: {when}")
 
-        task_name = get_task_name(job_data)
-        if task_name:
-            logger.info("Task", job_id=job_id, name=task_name)
-            print(f"├── Task: {task_name}")
+        idx = int(job_id.split(".")[-1])
+        tasks = (job_data.config or {}).get("evaluation", {}).get("tasks", [])
+        if idx >= len(tasks):
+            logger.error(
+                f"Job task index {job_id} is larger than number of tasks {len(tasks)} in invocation"
+            )
+        else:
+            task_name = tasks[idx].get("name")
+            if task_name:
+                logger.info("Task", job_id=job_id, name=task_name)
+                print(f"├── Task: {task_name}")
 
         # Determine executor type for file descriptions
         cfg_exec_type = ((job_data.config or {}).get("execution") or {}).get("type")
