@@ -836,44 +836,19 @@ def _generate_auto_export_section(
     s += "    echo 'Evaluation completed successfully. Starting auto-export...'\n"
     s += f'    cd "{remote_task_subdir}/artifacts"\n'
 
-    # Work with DictConfig; convert only for YAML at the end
-    exec_type = (
-        cfg.execution.type
-        if hasattr(cfg.execution, "type")
-        else cfg.execution.get("type", "slurm")
-    )
-    eval_tasks = (
-        list(cfg.evaluation.tasks)
-        if hasattr(cfg, "evaluation") and hasattr(cfg.evaluation, "tasks")
-        else list((cfg.get("evaluation", {}) or {}).get("tasks", []) or [])
-    )
-    export_block = cfg.get("export", {}) or {}
-
-    payload = {
-        "execution": {
-            "auto_export": {
-                "destinations": list(destinations),
-                **({"env_vars": dict(export_env)} if export_env else {}),
-            },
-            "type": exec_type,
-        },
-        "evaluation": {"tasks": eval_tasks},
-    }
-    if export_block:
-        # Convert just this block to plain for YAML
-        payload["export"] = (
-            OmegaConf.to_object(export_block)
-            if OmegaConf.is_config(export_block)
-            else dict(export_block)
-        )
+    # TODO(martas): what happens if there's no config?
+    export_config = {"export": cfg.get("export", {})}
 
     # Final YAML (single conversion at the end)
-    payload_clean = OmegaConf.to_container(OmegaConf.create(payload), resolve=True)
+    payload_clean = OmegaConf.to_container(
+        OmegaConf.create(export_config), resolve=True
+    )
     yaml_str = yaml.safe_dump(payload_clean, sort_keys=False)
     s += "    cat > export_config.yml << 'EOF'\n"
     s += yaml_str
     s += "EOF\n"
 
+    # TODO(martas): do we need this?
     # write launcher config as config.yml for exporters (no core command)
     submitted_yaml = yaml.safe_dump(
         OmegaConf.to_container(cfg, resolve=True), sort_keys=False
@@ -923,7 +898,7 @@ def _generate_auto_export_section(
     s += f"        cd {remote_task_subdir}/artifacts\n"
     for dest in destinations:
         s += f'        echo "Exporting to {dest}..."\n'
-        s += f'        nemo-evaluator-launcher export {job_id} --dest {dest} || echo "Export to {dest} failed"\n'
+        s += f'        nemo-evaluator-launcher export {job_id} --dest {dest} --config export_config.yml --job-dirs {remote_task_subdir} || echo "Export to {dest} failed"\n'
     s += "'\n"
     s += "    echo 'Auto-export completed.'\n"
     s += "else\n"
