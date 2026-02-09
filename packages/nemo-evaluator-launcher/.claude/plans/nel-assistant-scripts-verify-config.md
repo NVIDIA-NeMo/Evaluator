@@ -8,7 +8,7 @@ Create a Pydantic-based config validation script for NeMo Evaluator Launcher (NE
 4. Passes validation for all example configs
 
 ## File to Create
-`.claude/skills/nel-config-generator/scripts/verify_config.py`
+`.claude/skills/nel-assistant/scripts/verify_config.py`
 
 ## Pydantic Model Architecture
 
@@ -287,7 +287,7 @@ Example error outputs:
 ```bash
 cd packages/nemo-evaluator-launcher/examples
 for config in *.yaml; do
-    uv run python ../../../.claude/skills/nel-config-generator/scripts/verify_config.py "$config" --mock-required
+    uv run python ../../../.claude/skills/nel-assistant/scripts/verify_config.py "$config" --mock-required
 done
 ```
 
@@ -300,8 +300,8 @@ done
 
 ## Files to Create
 
-1. `.claude/skills/nel-config-generator/scripts/verify_config.py` - Main script
-2. `.claude/skills/nel-config-generator/scripts/models.py` - Pydantic models (or inline in verify_config.py)
+1. `.claude/skills/nel-assistant/scripts/verify_config.py` - Main script
+2. `.claude/skills/nel-assistant/scripts/models.py` - Pydantic models (or inline in verify_config.py)
 
 ## Dependencies
 - pydantic (already in project)

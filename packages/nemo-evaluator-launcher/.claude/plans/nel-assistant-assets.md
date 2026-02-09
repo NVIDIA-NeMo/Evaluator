@@ -1,7 +1,7 @@
 # Plan: Create NEL Config Generator Asset Files
 
 ## Overview
-Create configuration snippet files in `.claude/skills/nel-config-generator/assets/` that will be used as building blocks for generating full NEL configs based on user choices in Step 2 of the SKILL.md workflow.
+Create configuration snippet files in `.claude/skills/nel-assistant/assets/` that will be used as building blocks for generating full NEL configs based on user choices in Step 2 of the SKILL.md workflow.
 
 ## Directory Structure (already exists)
 ```
@@ -531,7 +531,7 @@ evaluation:
 
 ### 6. Config Builder Script
 
-#### `.claude/skills/nel-config-generator/scripts/build_config.py`
+#### `.claude/skills/nel-assistant/scripts/build_config.py`
 
 Python script that combines selected config excerpts into a single YAML file.
 
@@ -783,7 +783,7 @@ python build_config.py \
 26. Create `evaluation/reasoning/multilingual.yaml`
 
 ### Config Builder Script (1 file)
-27. Create `.claude/skills/nel-config-generator/scripts/build_config.py`
+27. Create `.claude/skills/nel-assistant/scripts/build_config.py`
 
 **Total: 27 files (26 YAML configs + 1 Python script)**
 
@@ -793,7 +793,7 @@ python build_config.py \
 - Ensure task names use correct endpoint type (completions vs chat)
 - **Validate generated configs** with existing `verify_config.py`:
   ```bash
-  python .claude/skills/nel-config-generator/scripts/verify_config.py <generated_config.yaml>
+  python .claude/skills/nel-assistant/scripts/verify_config.py <generated_config.yaml>
   ```
 - Test with `nel run --config <file> --dry-run`
 

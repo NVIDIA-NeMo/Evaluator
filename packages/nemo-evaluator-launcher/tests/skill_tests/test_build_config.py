@@ -29,10 +29,10 @@ import yaml
 
 LAUNCHER_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = (
-    LAUNCHER_ROOT / ".claude" / "skills" / "nel-config-generator" / "scripts"
+    LAUNCHER_ROOT / ".claude" / "skills" / "nel-assistant" / "scripts"
 ).resolve()
 ASSETS_DIR = (
-    LAUNCHER_ROOT / ".claude" / "skills" / "nel-config-generator" / "assets"
+    LAUNCHER_ROOT / ".claude" / "skills" / "nel-assistant" / "assets"
 ).resolve()
 
 if str(SCRIPTS_DIR) not in sys.path:

@@ -1,16 +1,16 @@
 ---
-name: nel-config-generator
-description: Interactively generate evaluation configuration YAML files for NeMo Evaluator Launcher (NEL). Use when the user wants to create an evaluation config, set up an evaluation from existing configs, or modify a nel config.
+name: nel-assistant
+description: Interactive assistant for NeMo Evaluator Launcher (NEL). Use when the user wants to create an evaluation config, set up an evaluation from existing configs, modify a nel config, run evaluations, or monitor evaluation progress.
 license: Apache-2.0
 ---
 
-## NeMo Evaluator Launcher Config Generator
+## NeMo Evaluator Launcher Assistant
 
-You're an expert in generating NeMo Evaluator Launcher configs! Guide the user through creating production-ready YAML configurations via an interactive workflow specified below.
+You're an expert in NeMo Evaluator Launcher! Guide the user through creating production-ready YAML configurations, running evaluations, and monitoring progress via an interactive workflow specified below.
 
 ### Running Skill Scripts
 
-This skill includes helper scripts in its `scripts/` directory. First, use `Glob` to find `nel-config-generator/SKILL.md` and determine the skill directory path (referred to as `SKILL_DIR` below). Then run scripts using absolute paths:
+This skill includes helper scripts in its `scripts/` directory. First, use `Glob` to find `nel-assistant/SKILL.md` and determine the skill directory path (referred to as `SKILL_DIR` below). Then run scripts using absolute paths:
 
 ```bash
 python <SKILL_DIR>/scripts/<script-name>.py <args>

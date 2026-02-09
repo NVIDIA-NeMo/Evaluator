@@ -32,7 +32,7 @@ import pytest
 LAUNCHER_ROOT = pathlib.Path(__file__).resolve().parents[2]
 REPO_ROOT = LAUNCHER_ROOT.parents[1]
 SCRIPTS_DIR = (
-    LAUNCHER_ROOT / ".claude" / "skills" / "nel-config-generator" / "scripts"
+    LAUNCHER_ROOT / ".claude" / "skills" / "nel-assistant" / "scripts"
 ).resolve()
 
 # Config directories

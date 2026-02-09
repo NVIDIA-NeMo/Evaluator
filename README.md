@@ -167,7 +167,7 @@ NeMo Evaluator provides [Agent Skills](https://agentskills.io/) for interactive 
 
 | Skill | Description |
 |-------|-------------|
-| `nel-config-generator` | Interactive workflow to generate evaluation YAML configs |
+| `nel-assistant` | Interactive assistant for configuring, running, and monitoring evaluations |
 
 We recommend using the skills with Claude Sonnet or better for the best experience.
 
@@ -175,7 +175,7 @@ We recommend using the skills with Claude Sonnet or better for the best experien
 
 ```bash
 /plugin marketplace add NVIDIA-NeMo/Evaluator
-/plugin install nel-config-generator@NVIDIA-NeMo/Evaluator
+/plugin install nel-assistant@NVIDIA-NeMo/Evaluator
 ```
 
 ### Cursor IDE

@@ -1,5 +1,5 @@
 {
-  "skills": ["nel-config-generator"],
+  "skills": ["nel-assistant"],
   "query": "Help me evaluate Nemotron 3 Nano BF16 from NVIDIA",
   "files": [],
   "expected_behavior": [
