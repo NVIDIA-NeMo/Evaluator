@@ -18,7 +18,11 @@ import os
 import pkgutil
 import sys
 
-import pkg_resources
+try:
+    from importlib.metadata import entry_points
+except ImportError:
+    from importlib_metadata import entry_points
+
 import yaml
 
 # Import logging to ensure centralized logging is configured
@@ -145,7 +149,16 @@ def show_available_tasks() -> None:
 
     # Discover .nemo_evaluator (new OSS pattern) via entry points
     try:
-        for entry_point in pkg_resources.iter_entry_points('nemo_evaluator.frameworks'):
+        # Get entry points for nemo_evaluator.frameworks
+        eps = entry_points()
+
+        # Handle both Python 3.10+ (dict/select interface) and older versions
+        if hasattr(eps, 'select'):
+            framework_eps = eps.select(group='nemo_evaluator.frameworks')
+        else:
+            framework_eps = eps.get('nemo_evaluator.frameworks', [])
+
+        for entry_point in framework_eps:
             try:
                 # Load the entry point module
                 module = entry_point.load()
@@ -168,7 +181,7 @@ def show_available_tasks() -> None:
                 print(f"Warning: Failed to load entry point {entry_point.name}: {e}", file=sys.stderr)
                 continue
     except Exception:
-        # No entry points found or pkg_resources not available
+        # No entry points found or importlib.metadata not available
         pass
 
     # Display all discovered frameworks
