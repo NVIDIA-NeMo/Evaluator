@@ -236,11 +236,11 @@ class TestResolveOutputPath:
         for name in (
             "local_vllm_chat_standard.yaml",
             "local_vllm_chat_standard_1.yaml",
-            "local_vllm_chat_standard_2.yaml",
+            "local_vllm_chat_standard_3.yaml",
         ):
             (tmp_path / name).touch()
         result = resolve_output_path(tmp_path, "local", "vllm", "chat", ["standard"])
-        assert result.name == "local_vllm_chat_standard_3.yaml"
+        assert result.name == "local_vllm_chat_standard_2.yaml"
 
 
 # =============================================================================
