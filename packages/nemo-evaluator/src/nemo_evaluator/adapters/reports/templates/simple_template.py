@@ -758,6 +758,25 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
         .button:hover {
             filter: brightness(1.1);
         }
+        .accuracy-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 154, 154, 0.3);
+            border-radius: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .accuracy-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 3px;
+        }
+        .predicted-letter {
+            display: inline-block;
+            font-weight: 700;
+            color: var(--accent-2);
+            margin-right: 4px;
+        }
         .hidden {
             display: none !important;
         }
@@ -838,7 +857,7 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
             {% endif %}
 
             <div class="toolbar">
-                
+                <input type="text" id="searchBox" class="search" placeholder="Search prompts, responses, targets...">
                 <select id="modelFilter" class="select">
                     <option value="">All models</option>
                     {% for model in meta.filters.models %}
@@ -867,6 +886,8 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
                 <label class="check"><input type="checkbox" id="toolOnly" /> Tool calls</label>
                 <select id="sortSelect" class="select">
                     <option value="cache">Sort: cache key</option>
+                    <option value="grade-asc">Sort: incorrect first</option>
+                    <option value="grade-desc">Sort: correct first</option>
                     <option value="request">Sort: request length</option>
                     <option value="response">Sort: response length</option>
                 </select>
@@ -874,7 +895,7 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
                 <div class="toggle-group">
                     <button class="toggle active" data-target="request">Requests</button>
                     <button class="toggle active" data-target="response">Responses</button>
-                    <button class="toggle" data-target="graded">Graded</button>
+                    <button class="toggle active" data-target="graded">Graded</button>
                     <button class="toggle" data-target="curl">Curl</button>
                 </div>
             </div>
@@ -902,6 +923,7 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
                             <div class="value">
                                 {% if meta.stats.graded_count %}
                                     {{ (meta.stats.accuracy * 100) | round(2) }}% ({{ meta.stats.correct_count }}/{{ meta.stats.graded_count }})
+                                    <div class="accuracy-bar"><div class="accuracy-fill" style="width: {{ (meta.stats.accuracy * 100) | round(1) }}%"></div></div>
                                 {% else %}
                                     —
                                 {% endif %}
@@ -1002,7 +1024,7 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
                                         </td>
                                         <td class="input-col">{{ (entry.graded_input or entry.prompt_preview or '—') | truncate(160, True, '...') }}</td>
                                         <td class="target-col">{{ (entry.target_display or entry.graded_target or entry.graded_expected or '—') | truncate(80, True, '...') }}</td>
-                                        <td class="answer-col">{{ (entry.graded_response or entry.graded_predicted or '—') | truncate(120, True, '...') }}</td>
+                                        <td class="answer-col">{% if entry.graded_predicted %}<span class="predicted-letter">{{ entry.graded_predicted }}</span> {% endif %}{{ (entry.graded_response or '—') | truncate(100, True, '...') }}</td>
                                         <td class="score-col">
                                             {% if entry.graded_label == 'correct' %}
                                                 <span class="score-badge correct">Correct</span>
@@ -1342,7 +1364,7 @@ curl "{{ entry.endpoint }}" \
             });
         });
 
-        const searchBox = null;
+        const searchBox = document.getElementById('searchBox');
         const modelFilter = document.getElementById('modelFilter');
         const typeFilter = document.getElementById('typeFilter');
         const finishFilter = document.getElementById('finishFilter');
@@ -1357,7 +1379,7 @@ curl "{{ entry.endpoint }}" \
         const tabContents = document.querySelectorAll('.tab-content');
 
         function matchesFilters(element) {
-            const query = "";
+            const query = (searchBox?.value || "").toLowerCase();
             const model = modelFilter?.value || "";
             const type = typeFilter?.value || "";
             const finish = finishFilter?.value || "";
@@ -1453,6 +1475,14 @@ curl "{{ entry.endpoint }}" \
                     return (parseInt(a.getAttribute('data-response-chars') || '0', 10) -
                         parseInt(b.getAttribute('data-response-chars') || '0', 10));
                 }
+                if (sortBy === 'grade-asc' || sortBy === 'grade-desc') {
+                    const order = sortBy === 'grade-asc'
+                        ? {'incorrect': 0, 'unknown': 1, 'correct': 2}
+                        : {'correct': 0, 'unknown': 1, 'incorrect': 2};
+                    const ga = order[a.getAttribute('data-graded') || 'unknown'] ?? 1;
+                    const gb = order[b.getAttribute('data-graded') || 'unknown'] ?? 1;
+                    return ga - gb;
+                }
                 return 0;
             });
             entries.forEach((entry) => entriesContainer.appendChild(entry));
@@ -1473,13 +1503,21 @@ curl "{{ entry.endpoint }}" \
                         return (parseInt(a.getAttribute('data-response-chars') || '0', 10) -
                             parseInt(b.getAttribute('data-response-chars') || '0', 10));
                     }
+                    if (sortBy === 'grade-asc' || sortBy === 'grade-desc') {
+                        const order = sortBy === 'grade-asc'
+                            ? {'incorrect': 0, 'unknown': 1, 'correct': 2}
+                            : {'correct': 0, 'unknown': 1, 'incorrect': 2};
+                        const ga = order[a.getAttribute('data-graded') || 'unknown'] ?? 1;
+                        const gb = order[b.getAttribute('data-graded') || 'unknown'] ?? 1;
+                        return ga - gb;
+                    }
                     return 0;
                 });
                 rows.forEach((row) => tableBody.appendChild(row));
             }
         }
 
-        [modelFilter, typeFilter, finishFilter, gradingFilter, errorOnly, toolOnly].forEach((el) => {
+        [searchBox, modelFilter, typeFilter, finishFilter, gradingFilter, errorOnly, toolOnly].forEach((el) => {
             if (!el) return;
             el.addEventListener('input', applyFilters);
             el.addEventListener('change', applyFilters);
@@ -1626,6 +1664,16 @@ curl "{{ entry.endpoint }}" \
         }
 
         setupCollapsibles();
+        document.querySelectorAll('.section').forEach((section) => {
+            const h2 = section.querySelector('h2');
+            if (!h2) return;
+            const text = h2.textContent.replace(/Collapse|Expand/g, '').trim();
+            if (['Results Rollup (Groups)', 'Results (Tasks)', 'All Metrics (Flattened)', 'Performance Metrics', 'Artifacts'].includes(text)) {
+                section.classList.add('collapsed');
+                const toggle = h2.querySelector('.section-toggle');
+                if (toggle) toggle.textContent = 'Expand';
+            }
+        });
         normalizeGradeClasses();
         syncEntryCounts();
         sortEntries();

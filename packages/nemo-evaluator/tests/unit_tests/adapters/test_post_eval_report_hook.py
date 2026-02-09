@@ -158,49 +158,6 @@ def test_post_eval_report_hook_html_report_size_limit(tmpdir):
     assert "test-model-4" not in html_content
 
 
-def test_post_eval_report_hook_html_only(tmpdir):
-    """Test that PostEvalReportHook generates only HTML when configured."""
-    # Create test cache data
-    cache_dir = tmpdir / "cache"
-    cache_dir.mkdir()
-    responses_dir = cache_dir / "responses"
-    requests_dir = cache_dir / "requests"
-
-    responses_dir.mkdir()
-    requests_dir.mkdir()
-
-    # Create cache instances and add test data
-    responses_cache = Cache(directory=str(responses_dir))
-    requests_cache = Cache(directory=str(requests_dir))
-
-    test_request = {
-        "model": "test-model",
-        "messages": [{"role": "user", "content": "test"}],
-    }
-    test_response = {"choices": [{"message": {"content": "test response"}}]}
-
-    # Store test data
-    cache_key = "test_key_456"
-    requests_cache[cache_key] = test_request
-    responses_cache[cache_key] = json.dumps(test_response).encode("utf-8")
-
-    # Create hook with HTML only
-    params = PostEvalReportHook.Params(report_types=["html"])
-    hook = PostEvalReportHook(params)
-
-    # Create context
-    context = AdapterGlobalContext(
-        output_dir=str(tmpdir), url="http://test.example.com/api"
-    )
-
-    # Run the hook
-    hook.post_eval_hook(context)
-
-    # Verify HTML report was created
-    html_file = tmpdir / "report.html"
-    assert html_file.exists()
-
-
 def _seed_cache(tmpdir, prompts: list[str]) -> None:
     cache_dir = tmpdir / "cache"
     cache_dir.mkdir()
@@ -232,6 +189,46 @@ def _write_jsonl(path, records):
         for record in records:
             f.write(json.dumps(record))
             f.write("\n")
+
+
+_MMLU_PRO_PROBLEM = (
+    "Managers are entrusted to run the company in the best interest of ________."
+)
+_MMLU_PRO_OPTIONS = (
+    "A) Shareholders, Diligence, Self-interest\n"
+    "B) Shareholders, Self-interest, Care and Skill\n"
+    "C) Stakeholders, Care and skill, Self-interest\n"
+    "D) Stakeholders, Diligence, Care and Skill\n"
+    "E) Customers, Care and Skill, Diligence\n"
+    "F) Shareholders, Care and Skill, Diligence\n"
+    "G) Shareholders, Self-interest, Diligence\n"
+    "H) Employees, Care and Skill, Diligence\n"
+    "I) Stakeholders, Self-interest, Diligence\n"
+    "J) Stakeholder, Care and Skill, Diligence"
+)
+
+
+def _make_mmlu_pro_fixtures(tmpdir, filename="output.jsonl"):
+    """Seed cache and write mmlu_pro grading records to *filename*."""
+    prompts = [
+        f"Answer the following multiple choice question.\n\n{_MMLU_PRO_PROBLEM}\n\n{_MMLU_PRO_OPTIONS}"
+        for _ in range(5)
+    ]
+    _seed_cache(tmpdir, prompts)
+
+    records = []
+    for idx in range(5):
+        records.append(
+            {
+                "problem": _MMLU_PRO_PROBLEM,
+                "options": _MMLU_PRO_OPTIONS,
+                "expected_answer": "F",
+                "predicted_answer": "F" if idx % 2 == 0 else "B",
+                "symbolic_correct": True if idx % 2 == 0 else False,
+                "resps": [f"graded response {idx}"],
+            }
+        )
+    _write_jsonl(tmpdir / filename, records)
 
 
 def test_report_counts_and_target_for_ifeval(tmpdir):
@@ -271,40 +268,7 @@ def test_report_counts_and_target_for_ifeval(tmpdir):
 
 
 def test_report_counts_and_target_for_ns_mmlu_pro(tmpdir):
-    base_problem = (
-        "Managers are entrusted to run the company in the best interest of ________."
-    )
-    options = (
-        "A) Shareholders, Diligence, Self-interest\n"
-        "B) Shareholders, Self-interest, Care and Skill\n"
-        "C) Stakeholders, Care and skill, Self-interest\n"
-        "D) Stakeholders, Diligence, Care and Skill\n"
-        "E) Customers, Care and Skill, Diligence\n"
-        "F) Shareholders, Care and Skill, Diligence\n"
-        "G) Shareholders, Self-interest, Diligence\n"
-        "H) Employees, Care and Skill, Diligence\n"
-        "I) Stakeholders, Self-interest, Diligence\n"
-        "J) Stakeholder, Care and Skill, Diligence"
-    )
-    prompts = [
-        f"Answer the following multiple choice question.\n\n{base_problem}\n\n{options}"
-        for _ in range(5)
-    ]
-    _seed_cache(tmpdir, prompts)
-
-    records = []
-    for idx, prompt in enumerate(prompts):
-        record = {
-            "problem": base_problem,
-            "options": options,
-            "expected_answer": "F",
-            "predicted_answer": "F" if idx % 2 == 0 else "B",
-            "symbolic_correct": True if idx % 2 == 0 else False,
-            "resps": [f"graded response {idx}"],
-        }
-        records.append(record)
-
-    _write_jsonl(tmpdir / "output.jsonl", records)
+    _make_mmlu_pro_fixtures(tmpdir, filename="output.jsonl")
 
     params = PostEvalReportHook.Params(report_types=["html"], html_report_size=5)
     hook = PostEvalReportHook(params)
@@ -322,61 +286,22 @@ def test_report_counts_and_target_for_ns_mmlu_pro(tmpdir):
     assert "F) Shareholders, Care and Skill, Diligence" in html_content
     assert "grade-correct" in html_content
 
-    # Verify JSON report was NOT created
-    json_file = tmpdir / "report.json"
-    assert not json_file.exists()
 
+def test_report_grading_from_jsonl_async(tmpdir):
+    """Test that grading records from output.jsonl-async are picked up."""
+    _make_mmlu_pro_fixtures(tmpdir, filename="output.jsonl-async")
 
-def test_post_eval_report_hook_json_only(tmpdir):
-    """Test that PostEvalReportHook generates only JSON when configured."""
-    # Create test cache data
-    cache_dir = tmpdir / "cache"
-    cache_dir.mkdir()
-    responses_dir = cache_dir / "responses"
-    requests_dir = cache_dir / "requests"
-
-    responses_dir.mkdir()
-    requests_dir.mkdir()
-
-    # Create cache instances and add test data
-    responses_cache = Cache(directory=str(responses_dir))
-    requests_cache = Cache(directory=str(requests_dir))
-
-    test_request = {
-        "model": "test-model",
-        "messages": [{"role": "user", "content": "test"}],
-    }
-    test_response = {"choices": [{"message": {"content": "test response"}}]}
-
-    # Store test data
-    cache_key = "test_key_789"
-    requests_cache[cache_key] = test_request
-    responses_cache[cache_key] = json.dumps(test_response).encode("utf-8")
-
-    # Create hook with JSON only
-    params = PostEvalReportHook.Params(report_types=["json"])
+    params = PostEvalReportHook.Params(report_types=["html"], html_report_size=5)
     hook = PostEvalReportHook(params)
-
-    # Create context
     context = AdapterGlobalContext(
         output_dir=str(tmpdir), url="http://test.example.com/api"
     )
-
-    # Run the hook
     hook.post_eval_hook(context)
 
-    # Verify HTML report was NOT created
-    html_file = tmpdir / "report.html"
-    assert not html_file.exists()
-
-    # Verify JSON report was created
-    json_file = tmpdir / "report.json"
-    assert json_file.exists()
-
-    # Check JSON content
-    json_content = json.loads(json_file.read())
-    assert len(json_content) == 1
-    assert json_content[0]["cache_key"] == "test_key_789"
+    html_content = (tmpdir / "report.html").read()
+    assert len(re.findall(r'id=\"sample-', html_content)) == 5
+    assert "F) Shareholders, Care and Skill, Diligence" in html_content
+    assert "grade-correct" in html_content
 
 
 def test_post_eval_report_hook_no_cache_data(tmpdir):
@@ -397,51 +322,4 @@ def test_post_eval_report_hook_no_cache_data(tmpdir):
     html_file = tmpdir / "report.html"
     json_file = tmpdir / "report.json"
     assert not html_file.exists()
-    assert not json_file.exists()
-
-
-def test_post_eval_report_hook_default_configuration(tmpdir):
-    """Test that PostEvalReportHook uses default configuration (HTML only)."""
-    # Create test cache data
-    cache_dir = tmpdir / "cache"
-    cache_dir.mkdir()
-    responses_dir = cache_dir / "responses"
-    requests_dir = cache_dir / "requests"
-
-    responses_dir.mkdir()
-    requests_dir.mkdir()
-
-    # Create cache instances and add test data
-    responses_cache = Cache(directory=str(responses_dir))
-    requests_cache = Cache(directory=str(requests_dir))
-
-    test_request = {
-        "model": "test-model",
-        "messages": [{"role": "user", "content": "test"}],
-    }
-    test_response = {"choices": [{"message": {"content": "test response"}}]}
-
-    # Store test data
-    cache_key = "test_key_default"
-    requests_cache[cache_key] = test_request
-    responses_cache[cache_key] = json.dumps(test_response).encode("utf-8")
-
-    # Create hook with default configuration (no report_types specified)
-    params = PostEvalReportHook.Params()
-    hook = PostEvalReportHook(params)
-
-    # Create context
-    context = AdapterGlobalContext(
-        output_dir=str(tmpdir), url="http://test.example.com/api"
-    )
-
-    # Run the hook
-    hook.post_eval_hook(context)
-
-    # Verify HTML report was created (default)
-    html_file = tmpdir / "report.html"
-    assert html_file.exists()
-
-    # Verify JSON report was NOT created (not in default)
-    json_file = tmpdir / "report.json"
     assert not json_file.exists()

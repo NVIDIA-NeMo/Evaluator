@@ -583,6 +583,11 @@ class PostEvalReportHook(PostEvalHook):
                     return value > 0
                 if isinstance(value, list) and value:
                     return all(bool(v) for v in value)
+        # Fallback: compare expected_answer vs predicted_answer when both present
+        expected = record.get("expected_answer")
+        predicted = record.get("predicted_answer")
+        if expected is not None and predicted is not None:
+            return str(expected).strip().lower() == str(predicted).strip().lower()
         return None
 
     def _extract_graded_response(self, record: dict[str, Any]) -> str:
@@ -801,9 +806,11 @@ class PostEvalReportHook(PostEvalHook):
 
     def _collect_grading_records(self, output_dir: Path) -> list[dict[str, Any]]:
         records: list[dict[str, Any]] = []
-        for path in output_dir.rglob("*.jsonl"):
+        for path in output_dir.rglob("*.jsonl*"):
             name = path.name
-            if not (name.startswith("samples_") or name == "output.jsonl"):
+            if not (name.startswith("samples_") or name.startswith("output.jsonl")):
+                continue
+            if name.endswith(".done"):
                 continue
             try:
                 with path.open("r", encoding="utf-8") as f:
