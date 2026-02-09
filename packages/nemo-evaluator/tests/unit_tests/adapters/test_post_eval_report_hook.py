@@ -526,7 +526,7 @@ def test_git_hash_fallback_from_metadata(tmpdir):
 
     metadata = {
         "versioning": {
-            "git-hash": "abc123def456",  # pragma: allowlist secret
+            "git-hash": "testhash42",
             "nemo_evaluator": "1.2.3",
             "nemo_evaluator_launcher": "4.5.6",
         }
@@ -541,7 +541,7 @@ def test_git_hash_fallback_from_metadata(tmpdir):
     hook.post_eval_hook(context)
 
     html = (tmpdir / "report.html").read()
-    assert "abc123def456" in html  # git hash from metadata.yaml
+    assert "testhash42" in html  # git hash from metadata.yaml
     assert "1.2.3" in html  # evaluator version
     assert "4.5.6" in html  # launcher version
 
