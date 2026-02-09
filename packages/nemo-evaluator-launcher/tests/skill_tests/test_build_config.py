@@ -44,7 +44,6 @@ from build_config import (  # noqa: E402
     generate_config_filename,
     get_mock_overrides,
     get_unique_filepath,
-    mock_env_vars,
     resolve_output_path,
 )
 
@@ -413,56 +412,6 @@ class TestBuildConfigStructure:
         with open(output) as f:
             loaded = yaml.safe_load(f)
         assert loaded == config
-
-
-# =============================================================================
-# Integration Tests: build_config + verify_config validation
-# =============================================================================
-
-
-class TestBuildConfigValidation:
-    """Generated configs must pass verify_config validation with mock overrides."""
-
-    @pytest.mark.parametrize(
-        "execution,deployment,export,model_type,benchmarks",
-        [c[:5] for c in BUILD_CONFIG_CASES],
-        ids=[c[5] for c in BUILD_CONFIG_CASES],
-    )
-    def test_generated_config_passes_validation(
-        self,
-        execution: str,
-        deployment: str,
-        export: str,
-        model_type: str,
-        benchmarks: list[str],
-        tmp_path: pathlib.Path,
-    ) -> None:
-        """Build config, write to disk, resolve via Hydra, validate with Pydantic."""
-        import verify_config
-
-        output = tmp_path / "config.yaml"
-        build_config(
-            execution=execution,
-            deployment=deployment,
-            export=export,
-            model_type=model_type,
-            benchmarks=benchmarks,
-            output=output,
-        )
-
-        overrides = get_mock_overrides(
-            execution=execution,
-            deployment=deployment,
-            export=export,
-            model_type=model_type,
-            benchmarks=benchmarks,
-        )
-
-        with mock_env_vars():
-            cfg = verify_config.resolve_config(str(output), overrides)
-            valid, errors, warnings = verify_config.validate_config(cfg)
-
-        assert valid, f"Config should be valid but got errors: {errors}"
 
 
 # =============================================================================

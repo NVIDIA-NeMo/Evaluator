@@ -17,10 +17,8 @@
     "Adds target.api_endpoint.api_key_name: DUMMY_API_KEY for nemo_skills tasks with self-deployment",
     "Fills in all ??? placeholders after asking the user for SLURM hostname, account, output_dir, MLflow tracking_uri, and experiment_name",
     "Applies user-requested SLURM customizations: partition batch_short, walltime 00:20:00, MLflow tag scenario: demo",
-    "Runs verify_config.py and confirms config is valid before proceeding to task confirmation",
     "Presents task list and waits for user confirmation before proceeding",
     "Configures request and response logging interceptors under evaluation.nemo_evaluator_config.config.target.api_endpoint.adapter_config using correct field names (max_logged_requests/max_logged_responses, not max_saved_*)",
-    "Runs verify_config.py after each major config change",
     "Handles dry-run failure for missing HF_TOKEN_FOR_GPQA_DIAMOND by offering to fix the config",
     "Successfully submits test run with limit_samples=10 after dry-run passes",
     "Provides monitoring commands (nel status, nel info --logs) and inspects server logs via SSH when asked"

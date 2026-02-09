@@ -369,13 +369,6 @@ def main():
         help="Output path: file (*.yaml), directory, or omit for current dir. "
         "Auto-generates filename from config choices. Never overwrites existing files.",
     )
-    parser.add_argument(
-        "--validate",
-        "-v",
-        action="store_true",
-        help="Validate the generated config using verify_config.py",
-    )
-
     args = parser.parse_args()
 
     # Resolve output path (handles file/dir/none cases, avoids overwrites)
@@ -395,34 +388,6 @@ def main():
         benchmarks=args.benchmarks,
         output=output_path,
     )
-
-    # Optionally validate the generated config
-    if args.validate:
-        from verify_config import resolve_config, validate_config
-
-        try:
-            # Generate mock overrides for ??? values
-            overrides = get_mock_overrides(
-                execution=args.execution,
-                deployment=args.deployment,
-                export=args.export,
-                model_type=args.model_type,
-                benchmarks=args.benchmarks,
-            )
-            # Use mock environment variables during validation
-            with mock_env_vars():
-                cfg = resolve_config(str(output_path), overrides)
-                valid, errors, warnings = validate_config(cfg)
-            if valid:
-                print("✓ Configuration is valid!")
-                for warn in warnings:
-                    print(f"  ⚠ Warning: {warn}")
-            else:
-                print("✗ Configuration has errors:")
-                for err in errors:
-                    print(f"  - {err}")
-        except Exception as e:
-            print(f"✗ Validation failed: {e}")
 
 
 if __name__ == "__main__":

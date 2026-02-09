@@ -70,7 +70,7 @@ DON'T ALLOW FOR ANY OTHER OPTIONS, only the ones listed above under each categor
 When you have all the answers, run the script to build the base config:
 
 ```bash
-python <SKILL_DIR>/scripts/build_config.py --execution <local|slurm> --deployment <none|vllm|sglang|nim|trtllm> --model-type <base|chat|reasoning> --benchmarks <standard|code|math_reasoning|safety|multilingual> [--export <none|mlflow|wandb>] [--output <OUTPUT>] --validate
+python <SKILL_DIR>/scripts/build_config.py --execution <local|slurm> --deployment <none|vllm|sglang|nim|trtllm> --model-type <base|chat|reasoning> --benchmarks <standard|code|math_reasoning|safety|multilingual> [--export <none|mlflow|wandb>] [--output <OUTPUT>]
 ```
 
 Where `--output` depends on what the user provides:
@@ -112,15 +112,11 @@ Remember to check `evaluation.nemo_evaluator_config` and `evaluation.tasks.*.nem
 
 Present findings, explain each setting, ask user to confirm or adjust. If no model card found, ask user directly for the above configurations.
 
-Skip verification here - missing values will be filled in Step 4.
-
 **Step 4: Fill in remaining missing values**
 
 - Find all remaining `???` missing values in the config.
 - Ask the user only for values that couldn't be auto-discovered from the model card (e.g., SLURM hostname, account, output directory, MLflow/wandb tracking URI). Don't propose any defaults here. Let the user give you the values in plain text.
 - Ask the user if they want to change any other defaults e.g. execution partition or walltime (if running on SLURM) or add MLflow/wandb tags (if auto-export enabled).
-
-YOU MUST VERIFY THE CONFIG BEFORE GOING TO THE NEXT STEP. RESOLVE ANY ISSUES WITH THE CONFIG BEFORE GOING TO THE NEXT STEP. RUN: `python <SKILL_DIR>/scripts/verify_config.py <config_path>`
 
 **Step 5: Confirm tasks (iterative)**
 
@@ -140,8 +136,7 @@ Show tasks in the current config. Loop until the user confirms the task list is 
              ...
    ```
 3. Apply changes.
-4. **Verify**: `python <SKILL_DIR>/scripts/verify_config.py <config_path>`.
-5. Show updated list and ask: "Is the task list final, or do you want to make more changes?"
+4. Show updated list and ask: "Is the task list final, or do you want to make more changes?"
 
 **Known Issues**
 
@@ -152,8 +147,6 @@ Show tasks in the current config. Loop until the user confirms the task list is 
       api_key_name: DUMMY_API_KEY
   ```
   For the None (External) deployment the `api_key_name` should be already defined. The `DUMMY_API_KEY` export is handled in Step 8.
-
-YOU MUST VERIFY THE CONFIG BEFORE GOING TO THE NEXT STEP. RESOLVE ANY ISSUES WITH THE CONFIG BEFORE GOING TO THE NEXT STEP. RUN: `python <SKILL_DIR>/scripts/verify_config.py <config_path>`
 
 **Step 6: Advanced - Multi-node (Data Parallel)**
 
@@ -176,8 +169,6 @@ deployment:
 - **This is different from `data_parallel_size`**, which controls DP replicas *within* a single node/deployment instance.
 - Global data parallelism is `num_nodes x data_parallel_size` (e.g., 2 nodes x 4 DP each = 8 replicas for max throughput).
 - With multi-node, `parallelism` in task config is the total concurrent requests across all instances, not per-instance.
-
-YOU MUST VERIFY THE CONFIG BEFORE GOING TO THE NEXT STEP. RESOLVE ANY ISSUES WITH THE CONFIG BEFORE GOING TO THE NEXT STEP. RUN: `python <SKILL_DIR>/scripts/verify_config.py <config_path>`
 
 **Step 7: Advanced - Interceptors**
 
