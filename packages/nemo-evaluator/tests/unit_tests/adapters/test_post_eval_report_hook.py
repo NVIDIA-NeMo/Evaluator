@@ -526,7 +526,7 @@ def test_git_hash_fallback_from_metadata(tmpdir):
 
     metadata = {
         "versioning": {
-            "git-hash": "abc123def456",
+            "git-hash": "abc123def456",  # pragma: allowlist secret
             "nemo_evaluator": "1.2.3",
             "nemo_evaluator_launcher": "4.5.6",
         }
