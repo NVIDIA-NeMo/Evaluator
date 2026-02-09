@@ -263,8 +263,9 @@ class LocalExecutor(BaseExecutor):
             # Check if auto-export is enabled by presence of destination(s)
             auto_export_config = cfg.execution.get("auto_export", {})
             auto_export_destinations = auto_export_config.get("destinations", [])
+            export_config = {"export": cfg.get("export", {})}
             export_payload_clean = OmegaConf.to_container(
-                OmegaConf.create(auto_export_config), resolve=True
+                OmegaConf.create(export_config), resolve=True
             )
             auto_export_config_str = yaml.safe_dump(
                 export_payload_clean, sort_keys=False
