@@ -171,16 +171,20 @@ NeMo Evaluator provides [Agent Skills](https://agentskills.io/) for interactive 
 
 We recommend using the skills with Claude Sonnet or better for the best experience.
 
-### Claude Code (CLI)
+### Install via `nel` CLI
+
+```bash
+nel skills install [--claude] [--cursor] [--codex] [--opencode]
+```
+
+Use `--project` to install into the current project directory instead of your home directory. See `nel skills install --help` for all options.
+
+### Claude Code Marketplace
 
 ```bash
 /plugin marketplace add NVIDIA-NeMo/Evaluator
 /plugin install nel-assistant@NVIDIA-NeMo/Evaluator
 ```
-
-### Cursor IDE
-
-Clone or open this repository in Cursor. Skills are auto-discovered from `.claude-plugin/`.
 
 ## 🤝 Contribution Guide
 
