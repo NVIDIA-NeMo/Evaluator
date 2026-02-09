@@ -422,6 +422,13 @@ class MLflowExporter(BaseExporter):
                         logged_names.append(f"logs/{rel}")
                         logger.debug(f"mlflow upload log: {rel}")
 
+            # Upload top-level task files (run.sub, etc.)
+            for p in base_dir.iterdir():
+                if p.is_file():
+                    mlflow.log_artifact(str(p), artifact_path=artifact_path)
+                    logged_names.append(p.name)
+                    logger.debug(f"mlflow upload top-level: {p.name}")
+
             logger.info(
                 f"MLflow upload summary: files={len(logged_names)}, only_required={mlflow_config.get('only_required', True)}, log_logs={mlflow_config.get('log_logs', False)}"
             )

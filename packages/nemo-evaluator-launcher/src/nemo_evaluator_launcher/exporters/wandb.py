@@ -291,6 +291,12 @@ class WandBExporter(BaseExporter):
                         artifact.add_file(str(p), name=f"{artifact_root}/logs/{rel}")
                         logged_names.append(f"logs/{rel}")
 
+            # Upload top-level task files (run.sub, etc.)
+            for p in base_dir.iterdir():
+                if p.is_file():
+                    artifact.add_file(str(p), name=f"{artifact_root}/{p.name}")
+                    logged_names.append(p.name)
+
             return logged_names
         except Exception as e:
             logger.error(f"Error logging artifacts: {e}")
