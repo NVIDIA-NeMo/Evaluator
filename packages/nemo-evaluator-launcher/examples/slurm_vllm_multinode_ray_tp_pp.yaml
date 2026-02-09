@@ -48,7 +48,7 @@
 # - deployment.tensor_parallel_size: GPU parallelism within a single node
 # - deployment.pipeline_parallel_size: Model parallelism across multiple nodes
 #
-# Custom deployment.command handles Ray cluster initialization automatically
+# Custom deployment.pre_cmd handles Ray cluster initialization automatically
 # ==============================================================================
 
 defaults:
@@ -73,9 +73,9 @@ execution:
     mount_home: false # Whether to mount home directory (default: true)
 
 # Override default deployment arguments
-# Note: This uses a custom command for multi-node Ray cluster setup
+# Note: This uses pre_cmd for multi-node Ray cluster setup before the default vllm serve command
 deployment:
-  image: vllm/vllm-openai:v0.10.2
+  image: vllm/vllm-openai:v0.15.1
   checkpoint_path: null
   hf_model_handle: deepseek-ai/DeepSeek-R1
   served_model_name: deepseek-ai/DeepSeek-R1
@@ -83,9 +83,47 @@ deployment:
   pipeline_parallel_size: 2
   data_parallel_size: 1
   port: 8000
-  extra_args: ""
-  command: >-
-    bash -c 'RAY_PORT=6379 && NODE_PORT=8266 && OBJ_PORT=8267 && if [ "$SLURM_PROCID" -eq 0 ]; then echo "Starting Ray HEAD on $(hostname)..." && ray start --head --port=$RAY_PORT --node-manager-port=$NODE_PORT --object-manager-port=$OBJ_PORT & echo "Waiting for Ray cluster to initialize..." && echo "=== Starting vLLM Deployment ===" && vllm serve ${deployment.hf_model_handle} --tensor-parallel-size=${deployment.tensor_parallel_size} --pipeline-parallel-size=${deployment.pipeline_parallel_size} --port ${deployment.port} --served-model-name ${deployment.served_model_name} ${deployment.extra_args}; else echo "Starting Ray WORKER on $(hostname)..." && echo "Connecting to $MASTER_IP:$RAY_PORT..." && ray start --address=$MASTER_IP:$RAY_PORT --node-manager-port=$NODE_PORT --object-manager-port=$OBJ_PORT --block; fi'
+  extra_args: "--disable-custom-all-reduce --distributed-executor-backend ray --enforce-eager"
+  env_vars:
+    VLLM_USE_RAY_COMPILED_DAG_CHANNEL_TYPE: 'shm'
+  pre_cmd: |
+      RAY_PORT=6379
+      NODE_PORT=8266
+      OBJ_PORT=8267
+      RAY_FIXED_PORTS="--node-manager-port=$NODE_PORT --object-manager-port=$OBJ_PORT --metrics-export-port=8269 --dashboard-agent-grpc-port=8270 --dashboard-agent-listen-port=8271 --runtime-env-agent-port=8272"
+
+      export VLLM_HOST_IP=$MASTER_IP
+
+      if [ "$SLURM_PROCID" -eq 0 ]; then
+          echo "VLLM_HOST_IP set to: $VLLM_HOST_IP (HEAD node)"
+          echo "Starting Ray HEAD on $(hostname) with IP $VLLM_HOST_IP..."
+          ray start --head --port=$RAY_PORT $RAY_FIXED_PORTS
+
+          export RAY_ADDRESS=$MASTER_IP:$RAY_PORT
+          echo "RAY_ADDRESS set to: $RAY_ADDRESS"
+
+          echo "Waiting 90 seconds for worker nodes to join Ray cluster..."
+          sleep 90
+
+          echo "=== Ray cluster status ==="
+          ray status || true
+
+          echo "=== Starting vLLM Deployment ==="
+          vllm serve ${deployment.hf_model_handle} \
+              --tensor-parallel-size=${deployment.tensor_parallel_size} \
+              --pipeline-parallel-size=${deployment.pipeline_parallel_size} \
+              --port ${deployment.port} \
+              --served-model-name ${deployment.served_model_name} \
+              ${deployment.extra_args}
+      else
+          export VLLM_HOST_IP=$(python3 -c "import socket; s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('8.8.8.8', 80)); print(s.getsockname()[0])")
+          echo "VLLM_HOST_IP set to: $VLLM_HOST_IP (WORKER node)"
+          echo "Worker node waiting 30 seconds for head node to start Ray..."
+          sleep 30
+          echo "Starting Ray WORKER on $(hostname) with IP $VLLM_HOST_IP..."
+          echo "Connecting to $MASTER_IP:$RAY_PORT..."
+          ray start --address=$MASTER_IP:$RAY_PORT $RAY_FIXED_PORTS --block
+      fi
 
 # Specify the benchmarks to evaluate
 evaluation:
