@@ -148,9 +148,12 @@ else
         # Log auto-export activity to task logs
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Job {{ task.job_id }} completed successfully. Starting auto-export..." >> "$logs_dir/stdout.log"
 
+        echo "cat > export_config.yml << 'EOF'\n"
+        echo "{{ auto_export_config_str | indent(4) }}"
+        echo "EOF\n"
         {% for dest in auto_export_destinations %}
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Exporting job {{ task.job_id }} to {{ dest }}..." >> "$logs_dir/stdout.log"
-        nemo-evaluator-launcher export {{ task.job_id }} --dest {{ dest }} >> "$logs_dir/stdout.log" 2>&1
+        nemo-evaluator-launcher export {{ task.job_id }} --dest {{ dest }} --config export_config.yml >> "$logs_dir/stdout.log" 2>&1
         if [ $? -eq 0 ]; then
             echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Export to {{ dest }} completed successfully" >> "$logs_dir/stdout.log"
         else
