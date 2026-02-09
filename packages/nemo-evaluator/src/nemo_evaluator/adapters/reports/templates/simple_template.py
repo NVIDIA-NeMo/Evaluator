@@ -1334,17 +1334,25 @@ SIMPLE_TEMPLATE = """<!DOCTYPE html>
                                             </div>
                                         {% endif %}
                                         <div class="meta-card">
-                                            <div class="meta-label">Req chars</div>
+                                            <div class="meta-label">Request Chars</div>
                                             <div class="meta-value">{{ entry.request_chars }}</div>
                                         </div>
                                         <div class="meta-card">
-                                            <div class="meta-label">Resp chars</div>
+                                            <div class="meta-label">Response Chars</div>
                                             <div class="meta-value">{{ entry.response_chars }}</div>
                                         </div>
                                         {% if entry.usage %}
                                             <div class="meta-card">
-                                                <div class="meta-label">Tokens</div>
-                                                <div class="meta-value">{{ entry.usage.prompt_tokens }} / {{ entry.usage.completion_tokens }} / {{ entry.usage.total_tokens }}</div>
+                                                <div class="meta-label">Prompt Tokens</div>
+                                                <div class="meta-value">{{ entry.usage.prompt_tokens }}</div>
+                                            </div>
+                                            <div class="meta-card">
+                                                <div class="meta-label">Completion Tokens</div>
+                                                <div class="meta-value">{{ entry.usage.completion_tokens }}</div>
+                                            </div>
+                                            <div class="meta-card">
+                                                <div class="meta-label">Total Tokens</div>
+                                                <div class="meta-value">{{ entry.usage.total_tokens }}</div>
                                             </div>
                                         {% endif %}
                                         {% if entry.target_display %}
