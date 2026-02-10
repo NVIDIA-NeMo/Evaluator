@@ -158,6 +158,8 @@ class TestGenerateSecretsEnv:
         assert result.secrets_content == ""
         assert len(result.runtime_vars["deployment"]) == 1
         assert result.runtime_vars["deployment"][0].original_name == "RUNTIME_VAR"
+        # Runtime vars reference the runtime_var_name directly, not a disambiguated suffix
+        assert result.runtime_vars["deployment"][0].disambiguated_name == "JOB_ID"
 
     def test_multiple_groups_disambiguation(self):
         with mock.patch.dict(os.environ, {"SRC_A": "val_a", "SRC_B": "val_b"}):
@@ -248,16 +250,18 @@ class TestBuildReexportCommands:
         assert cmd == ""
 
     def test_includes_runtime_vars(self):
+        # Runtime vars reference the runtime_var_name directly (e.g. NGC_API_TOKEN),
+        # not a disambiguated suffix, because the value comes from the environment.
         result = SecretsEnvResult(
             secrets_content="",
             group_remappings={
                 "task_a": [VarRemapping("HF_TOKEN", "HF_TOKEN_abc_TASK_A")]
             },
-            runtime_vars={"task_a": [VarRemapping("RT_VAR", "RT_VAR_abc_TASK_A")]},
+            runtime_vars={"task_a": [VarRemapping("API_KEY", "NGC_API_TOKEN")]},
         )
         cmd = build_reexport_commands("task_a", result)
         assert "export HF_TOKEN=$HF_TOKEN_abc_TASK_A" in cmd
-        assert "export RT_VAR=$RT_VAR_abc_TASK_A" in cmd
+        assert "export API_KEY=$NGC_API_TOKEN" in cmd
 
 
 # --- Config collection with hierarchical merging ---
