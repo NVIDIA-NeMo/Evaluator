@@ -122,17 +122,17 @@ class EvaluationTaskEvent(TelemetryEvent):
         ...,
         description="The task/benchmark name. Event is collected anonymously.",
     )
-    eval_harness: str = Field(
+    framework_name: str = Field(
         ...,
-        alias="evalHarness",
-        description="The evaluation harness name (lm-eval, helm, etc.). Event is collected anonymously.",
+        alias="frameworkName",
+        description="The evaluation framework name (lm-eval, helm, etc.). Event is collected anonymously.",
     )
     model: str = Field(
         ...,
         description="The model name being evaluated. Event is collected anonymously.",
     )
-    execution_duration_seconds: float | None = Field(
-        default=None,
+    execution_duration_seconds: float = Field(
+        default=0.0,
         alias="executionDurationSeconds",
         description="Duration of the evaluation in seconds. Event is collected anonymously.",
     )

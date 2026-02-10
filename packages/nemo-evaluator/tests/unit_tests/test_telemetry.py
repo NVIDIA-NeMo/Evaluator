@@ -117,18 +117,18 @@ class TestEventSerialization:
 
         event = EvaluationTaskEvent(
             task="mmlu",
-            eval_harness="lm-eval",
+            framework_name="lm-eval",
             model="llama-3.1-8b",
             execution_duration_seconds=123.45,
             task_status=TaskStatusEnum.SUCCESS,
         )
 
         serialized = event.model_dump(by_alias=True)
-        assert "evalHarness" in serialized
+        assert "frameworkName" in serialized
         assert "executionDurationSeconds" in serialized
         assert "taskStatus" in serialized
         assert serialized["task"] == "mmlu"
-        assert serialized["evalHarness"] == "lm-eval"
+        assert serialized["frameworkName"] == "lm-eval"
         assert serialized["model"] == "llama-3.1-8b"
         assert serialized["executionDurationSeconds"] == 123.45
         assert serialized["taskStatus"] == "success"
@@ -139,14 +139,14 @@ class TestEventSerialization:
 
         event = EvaluationTaskEvent(
             task="mmlu",
-            eval_harness="unknown",
+            framework_name="unknown",
             model="llama-3.1-8b",
             task_status=TaskStatusEnum.STARTED,
         )
 
         serialized = event.model_dump(by_alias=True)
         assert serialized["taskStatus"] == "started"
-        assert serialized["executionDurationSeconds"] is None
+        assert serialized["executionDurationSeconds"] == 0.0
 
     def test_task_status_values(self):
         """Test that TaskStatusEnum has expected values."""
@@ -185,7 +185,7 @@ class TestTelemetryHandler:
             handler = TelemetryHandler()
             event = EvaluationTaskEvent(
                 task="test",
-                eval_harness="lm-eval",
+                framework_name="lm-eval",
                 model="test-model",
                 execution_duration_seconds=1.0,
                 task_status=TaskStatusEnum.SUCCESS,
@@ -205,7 +205,7 @@ class TestTelemetryHandler:
             handler = TelemetryHandler()
             event = EvaluationTaskEvent(
                 task="test",
-                eval_harness="lm-eval",
+                framework_name="lm-eval",
                 model="test-model",
                 execution_duration_seconds=1.0,
                 task_status=TaskStatusEnum.SUCCESS,
@@ -240,7 +240,7 @@ class TestBuildPayload:
 
         event = EvaluationTaskEvent(
             task="mmlu",
-            eval_harness="lm-eval",
+            framework_name="lm-eval",
             model="test-model",
             execution_duration_seconds=60.5,
             task_status=TaskStatusEnum.SUCCESS,
@@ -272,7 +272,7 @@ class TestBuildPayload:
 
         event = EvaluationTaskEvent(
             task="ifeval",
-            eval_harness="helm",
+            framework_name="helm",
             model="gpt-4",
             execution_duration_seconds=120.0,
             task_status=TaskStatusEnum.FAILURE,
@@ -287,7 +287,7 @@ class TestBuildPayload:
 
         event_params = payload["events"][0]["parameters"]
         assert event_params["task"] == "ifeval"
-        assert event_params["evalHarness"] == "helm"
+        assert event_params["frameworkName"] == "helm"
         assert event_params["model"] == "gpt-4"
         assert event_params["executionDurationSeconds"] == 120.0
         assert event_params["taskStatus"] == "failure"
