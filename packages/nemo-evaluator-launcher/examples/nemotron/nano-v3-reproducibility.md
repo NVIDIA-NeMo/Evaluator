@@ -17,6 +17,8 @@ The Nemotron 3 Nano 30B A3B is a compact yet powerful reasoning model from NVIDI
 | **SciCode** | Scientific Coding | Scientific programming challenges |
 | **IFBench** | Instruction Following | Instruction following benchmark |
 | **HLE** | Humanity's Last Exam | Expert-level questions across domains |
+| **AIME 2025 (tools)** | Mathematics + Tools | AIME with Python code execution |
+| **GPQA (tools)** | Science + Tools | GPQA with Python code execution |
 
 The open source container on NeMo Skills packaged via NVIDIA's NeMo Evaluator SDK used for evaluations can be found [here](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/nemo_skills?version=25.11).
 
@@ -286,6 +288,58 @@ nemo-evaluator-launcher ls tasks
 After running the full evaluation suite, you should obtain results comparable to those reported in the NVIDIA Nemotron 3 Nano 30B A3B Model Card.
 
 > **Important:** Due to the stochastic nature of sampling (temperature > 0) and the use of `num_repeats` for consensus-based scoring, slight variations in results are expected between runs.
+
+---
+
+## Tool Usage Evaluation
+
+The Nemotron 3 Nano 30B A3B model supports tool usage, allowing it to call a Python interpreter to solve math and science problems step by step.
+
+### Tool Usage Config
+
+| Config File | Model |
+|-------------|-------|
+| `local_nvidia_nemotron_3_nano_30b_a3_tools.yaml` | nvidia/nemotron-3-nano-30b-a3b |
+
+### Tool Usage Benchmarks
+
+| Benchmark | Category | Description |
+|-----------|----------|-------------|
+| **AIME 2025** | Mathematics | American Invitational Mathematics Exam (with Python tool) |
+| **GPQA** | Science | Graduate-level science questions (with Python tool) |
+
+### Available Task Names (Tool Usage)
+
+| Task Name | Benchmark |
+|-----------|-----------|
+| `ns_aime2025` | AIME 2025 (with sandbox + Python tool) |
+| `ns_gpqa` | GPQA Diamond (with sandbox + Python tool) |
+
+### Running Tool Usage Evaluations
+
+```bash
+cd packages/nemo-evaluator-launcher/examples/nemotron
+
+nemo-evaluator-launcher run --config local_nvidia_nemotron_3_nano_30b_a3_tools.yaml
+
+# Run only AIME 2025 with tools
+nemo-evaluator-launcher run --config local_nvidia_nemotron_3_nano_30b_a3_tools.yaml -t ns_aime2025
+
+# Run only GPQA with tools
+nemo-evaluator-launcher run --config local_nvidia_nemotron_3_nano_30b_a3_tools.yaml -t ns_gpqa
+```
+
+### Tool Usage Configuration Details
+
+Tool usage is enabled per-task via these extra parameters:
+
+```yaml
+extra:
+  use_sandbox: true
+  args: "++inference.tokens_to_generate=null ++tool_modules=[nemo_skills.mcp.servers.python_tool::PythonTool]"
+```
+
+The model generates tool calls (Python code), which are executed in a sandboxed environment, and the results are fed back to the model for further reasoning.
 
 ---
 

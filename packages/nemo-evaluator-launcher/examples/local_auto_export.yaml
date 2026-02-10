@@ -59,7 +59,7 @@ evaluation:
         parallelism: 1  # 1 parallel request to avoid overloading the server
         # limit_samples: 10 # uncomment to limit number of samples for quick testing
   tasks:
-    - name: gpqa_diamond
+    - name: simple_evals.gpqa_diamond
       env_vars:
         HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
 
