@@ -364,7 +364,7 @@ def evaluate(
             if target_cfg.api_endpoint and target_cfg.api_endpoint.model_id:
                 model_name = target_cfg.api_endpoint.model_id
             # Get harness name safely (evaluation may not be set if validation failed)
-            harness_name = evaluation.harness if evaluation else "unknown"
+            harness_name = evaluation.framework_name if evaluation else "unknown"
             telemetry_handler.enqueue(
                 EvaluationTaskEvent(
                     task=eval_cfg.type,
