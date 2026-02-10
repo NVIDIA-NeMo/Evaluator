@@ -36,7 +36,7 @@ execution:
   output_dir: llama_local
   env_vars:
     deployment:
-      HF_TOKEN: "!host:HF_TOKEN"  # needed to access meta-llama/Llama-3.1-8B gated model
+      HF_TOKEN: "$host:HF_TOKEN"  # needed to access meta-llama/Llama-3.1-8B gated model
 
 # specify deployment arguments
 deployment:

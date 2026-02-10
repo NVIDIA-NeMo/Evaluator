@@ -36,6 +36,7 @@ from nemo_evaluator_launcher.common.env_vars import (
     collect_deployment_env_vars,
     collect_eval_env_vars,
     generate_secrets_env,
+    redact_secrets_env_content,
 )
 from nemo_evaluator_launcher.common.execdb import (
     ExecutionDB,
@@ -220,10 +221,12 @@ class LocalExecutor(BaseExecutor):
             secrets_env_content = None
             eval_reexport_cmd = ""
             deployment_reexport_cmd = ""
+            literal_disambiguated_names: set[str] = set()
             eval_env_var_names = list(eval_env_parsed.keys())
             if env_groups:
                 secrets_result = generate_secrets_env(env_groups)
                 secrets_env_content = secrets_result.secrets_content
+                literal_disambiguated_names = secrets_result.literal_disambiguated_names
                 eval_reexport_cmd = build_reexport_commands(task.name, secrets_result)
                 deployment_reexport_cmd = build_reexport_commands(
                     "deployment", secrets_result
@@ -257,6 +260,7 @@ class LocalExecutor(BaseExecutor):
                 "client_container_name": client_container_name,
                 "env_var_names": eval_env_var_names,
                 "secrets_env_content": secrets_env_content,
+                "literal_disambiguated_names": literal_disambiguated_names,
                 "eval_reexport_cmd": eval_reexport_cmd,
                 "deployment_reexport_cmd": deployment_reexport_cmd,
                 "output_dir": task_output_dir,
@@ -322,6 +326,24 @@ class LocalExecutor(BaseExecutor):
                     )
                     with open(task_output_dir / "run.sh", "r") as f:
                         print(grey(f.read()))
+
+            # Show redacted .secrets.env for each task
+            for evaluation_task in evaluation_tasks:
+                if evaluation_task["secrets_env_content"]:
+                    print(
+                        cyan(
+                            f"\n\n=========== Secrets (redacted) | {evaluation_task['name']}/.secrets.env =====================\n\n"
+                        )
+                    )
+                    print(
+                        grey(
+                            redact_secrets_env_content(
+                                evaluation_task["secrets_env_content"],
+                                evaluation_task["literal_disambiguated_names"],
+                            )
+                        )
+                    )
+
             print(bold("\nTo execute, run without --dry-run"))
 
             if is_potentially_unsafe:
