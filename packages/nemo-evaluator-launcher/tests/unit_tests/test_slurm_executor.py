@@ -456,10 +456,12 @@ class TestSlurmExecutorFeatures:
         assert "deploy_value" in result.secrets_env_content
         assert "eval_value" in result.secrets_env_content
 
-        # Script should source secrets and re-export
+        # Script should source secrets and re-export eval vars
         assert "source" in script
-        assert "export DEPLOY_VAR=$DEPLOY_VAR_" in script
         assert "export EVAL_VAR=$EVAL_VAR_" in script
+        # Deploy reexport only appears before the deployment srun;
+        # with deployment.type == "none" there's no deployment srun
+        assert "export DEPLOY_VAR=$DEPLOY_VAR_" not in script
 
         # Should not have deployment server section when type is 'none'
 

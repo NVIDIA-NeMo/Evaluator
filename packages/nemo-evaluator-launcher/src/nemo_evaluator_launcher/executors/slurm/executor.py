@@ -620,27 +620,26 @@ def _create_slurm_sbatch_script(
         env_groups[task.name] = eval_env_vars
     # Deployment vars (merged: top-level → exec deployment → deployment.env_vars)
     if deployment_env_vars:
-        env_groups["execution"] = deployment_env_vars
+        env_groups["deployment"] = deployment_env_vars
 
     secrets_env_content = None
     literal_disambiguated_names: set[str] = set()
+    eval_reexport_cmd = ""
+    deploy_reexport_cmd = ""
     if env_groups:
         secrets_result = generate_secrets_env(env_groups)
         secrets_env_content = secrets_result.secrets_content
         literal_disambiguated_names = secrets_result.literal_disambiguated_names
 
-        # Source .secrets.env at runtime (file lives alongside run.sub)
+        # Source .secrets.env at runtime (file lives alongside run.sub).
+        # Reexports are emitted later, right before each respective srun,
+        # so that eval and deployment vars don't overwrite each other.
         secrets_env_path = remote_task_subdir / ".secrets.env"
         s += f'source "{secrets_env_path}"\n'
-
-        # Re-export disambiguated vars back to original names for this task
-        reexport = build_reexport_commands(task.name, secrets_result)
-        if reexport:
-            s += f"{reexport}\n"
-        reexport_exec = build_reexport_commands("execution", secrets_result)
-        if reexport_exec:
-            s += f"{reexport_exec}\n"
         s += "\n"
+
+        eval_reexport_cmd = build_reexport_commands(task.name, secrets_result)
+        deploy_reexport_cmd = build_reexport_commands("deployment", secrets_result)
 
     # auto resume after timeout (with optional max_walltime enforcement)
     max_walltime = cfg.execution.get("max_walltime", "120:00:00")
@@ -690,6 +689,10 @@ def _create_slurm_sbatch_script(
             cfg.execution.get("mounts", {}).get("deployment", {}).items()
         ):
             deployment_mounts_list.append(f"{source_mnt}:{target_mnt}")
+
+        # Re-export deployment vars right before deployment srun
+        if deploy_reexport_cmd:
+            s += f"{deploy_reexport_cmd}\n"
 
         # add deployment srun command
         deployment_srun_cmd, deployment_is_unsafe, deployment_debug = (
@@ -763,6 +766,10 @@ def _create_slurm_sbatch_script(
     s += "# Debug contents of the eval factory command's config\n"
     s += eval_factory_command_debug_comment
     s += "\n\n"
+
+    # Re-export eval vars right before eval srun
+    if eval_reexport_cmd:
+        s += f"{eval_reexport_cmd}\n"
 
     s += "# evaluation client\n"
     s += "srun --mpi pmix --overlap "

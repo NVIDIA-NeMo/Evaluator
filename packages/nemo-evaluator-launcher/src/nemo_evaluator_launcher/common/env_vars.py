@@ -204,8 +204,8 @@ def generate_secrets_env(
 ) -> SecretsEnvResult:
     """Generate a .secrets.env file from grouped env var definitions.
 
-    Each group (e.g. "deployment", "eval_task_a") gets its vars disambiguated
-    with a suffix: VAR_<random_token>_<GROUP_NAME>.
+    Each group (e.g. "deployment", "task_a") gets its vars disambiguated
+    with a per-group suffix: VAR_<token>_<GROUP_NAME> (unique token per group).
 
     Args:
         env_groups: Mapping of group_name → {target_var_name: EnvVarValue}.
@@ -218,10 +218,9 @@ def generate_secrets_env(
     runtime_vars: dict[str, list[VarRemapping]] = {}
     literal_disambiguated_names: set[str] = set()
 
-    # One random token per generate call (shared across groups for this invocation)
-    token = secrets.token_hex(3)  # 6 hex chars, e.g. "a3f1b2"
-
     for group_name, env_vars in env_groups.items():
+        # Unique token per group so disambiguated names differ across groups
+        token = secrets.token_hex(2)  # 4 hex chars, e.g. "a3f1"
         group_remappings[group_name] = []
         runtime_vars[group_name] = []
 
@@ -235,12 +234,17 @@ def generate_secrets_env(
             )
 
             if resolved_value is None:
-                # Runtime var — no value to write, executor handles it
-                runtime_vars[group_name].append(remapping)
+                # Runtime var — no value to write; reexport references the
+                # runtime var name directly (not the disambiguated suffix).
+                runtime_remapping = VarRemapping(
+                    original_name=target_name,
+                    disambiguated_name=val.runtime_var_name,
+                )
+                runtime_vars[group_name].append(runtime_remapping)
                 logger.debug(
                     "Runtime env var (no value in secrets file)",
                     target=target_name,
-                    disambiguated=disambiguated,
+                    runtime_var=val.runtime_var_name,
                     group=group_name,
                 )
             else:
@@ -279,10 +283,13 @@ def build_reexport_commands(group_name: str, result: SecretsEnvResult) -> str:
         Shell command string (semicolon-separated exports), or empty string.
     """
     commands = []
+    # Resolved vars (literal + host) first — they source from .secrets.env
     for remapping in result.group_remappings.get(group_name, []):
         commands.append(
             f"export {remapping.original_name}=${remapping.disambiguated_name}"
         )
+    # Runtime vars second — they may reference vars re-exported above
+    # (e.g. API_KEY=$NGC_API_TOKEN where NGC_API_TOKEN was just re-exported)
     for remapping in result.runtime_vars.get(group_name, []):
         commands.append(
             f"export {remapping.original_name}=${remapping.disambiguated_name}"
@@ -361,19 +368,20 @@ def collect_eval_env_vars(
     # 3. task.env_vars (task-level overrides)
     raw_env_vars.update(task.get("env_vars", {}))
 
-    # 5. API key
+    # 5. API key — validate no conflict (injected as runtime var after parsing)
     if api_key_name:
         if "API_KEY" in raw_env_vars:
             raise ValueError(
                 "API_KEY is already defined in env_vars. "
                 "Remove it or remove target.api_endpoint.api_key_name."
             )
-        raw_env_vars["API_KEY"] = api_key_name
 
     # Check required env vars (excluding NEMO_EVALUATOR_DATASET_DIR)
     # Also check the deprecated exec eval vars for required var coverage
     exec_eval_vars = dict(cfg.execution.get("env_vars", {}).get("evaluation", {}))
     all_var_names = set(raw_env_vars.keys()) | set(exec_eval_vars.keys())
+    if api_key_name:
+        all_var_names.add("API_KEY")
     for required_env_var in task_definition.get("required_env_vars", []):
         if required_env_var == "NEMO_EVALUATOR_DATASET_DIR":
             continue
@@ -401,6 +409,12 @@ def collect_eval_env_vars(
             parsed[target_name] = parse_env_var_value(
                 str(raw_value), default_type="lit"
             )
+
+    # 5. API key — injected as a runtime reference to the named env var.
+    # The actual secret resolution happens through the user's env_vars declaration
+    # (e.g. NGC_API_TOKEN: $host:NGC_API_TOKEN). API_KEY just aliases it at runtime.
+    if api_key_name:
+        parsed["API_KEY"] = EnvVarRuntime(runtime_var_name=api_key_name)
 
     return parsed
 
