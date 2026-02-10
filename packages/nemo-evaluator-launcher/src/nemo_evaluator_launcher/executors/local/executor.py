@@ -32,9 +32,10 @@ import yaml
 from omegaconf import DictConfig, OmegaConf
 
 from nemo_evaluator_launcher.common.env_vars import (
+    build_reexport_commands,
     collect_deployment_env_vars,
     collect_eval_env_vars,
-    resolve_env_var,
+    generate_secrets_env,
 )
 from nemo_evaluator_launcher.common.execdb import (
     ExecutionDB,
@@ -161,11 +162,6 @@ class LocalExecutor(BaseExecutor):
 
                 # env vars — use unified pipeline
                 deployment_env_parsed = collect_deployment_env_vars(cfg)
-                deployment_env_resolved = []
-                for target_name, val in deployment_env_parsed.items():
-                    _, resolved = resolve_env_var(target_name, val)
-                    if resolved is not None:
-                        deployment_env_resolved.append(f"{target_name}={resolved}")
 
                 command = cfg.deployment.command
                 deployment_extra_docker_args = cfg.execution.get(
@@ -177,7 +173,7 @@ class LocalExecutor(BaseExecutor):
                     "image": cfg.deployment.image,
                     "command": command,
                     "mounts": deployment_mounts_list,
-                    "env_vars": deployment_env_resolved,
+                    "env_var_names": list(deployment_env_parsed.keys()),
                     "health_url": health_url,
                     "port": cfg.deployment.port,
                     "extra_docker_args": deployment_extra_docker_args,
@@ -214,17 +210,23 @@ class LocalExecutor(BaseExecutor):
                 # Set NEMO_EVALUATOR_DATASET_DIR to the container mount path
                 dataset_env_var_value = dataset_mount_container
 
-            # Resolve eval env vars to KEY=VALUE list for Docker -e flags
-            env_vars_list = []
-            for target_name, val in eval_env_parsed.items():
-                _, resolved = resolve_env_var(target_name, val)
-                if resolved is not None:
-                    env_vars_list.append(f"{target_name}={resolved}")
+            # Build env_groups for secrets file generation
+            env_groups = {}
+            if eval_env_parsed:
+                env_groups[task.name] = eval_env_parsed
+            if deployment and deployment_env_parsed:
+                env_groups["deployment"] = deployment_env_parsed
 
-            # Add dataset env var if needed (directly with value, not from host env)
-            if dataset_env_var_value:
-                env_vars_list.append(
-                    f"NEMO_EVALUATOR_DATASET_DIR={dataset_env_var_value}"
+            secrets_env_content = None
+            eval_reexport_cmd = ""
+            deployment_reexport_cmd = ""
+            eval_env_var_names = list(eval_env_parsed.keys())
+            if env_groups:
+                secrets_result = generate_secrets_env(env_groups)
+                secrets_env_content = secrets_result.secrets_content
+                eval_reexport_cmd = build_reexport_commands(task.name, secrets_result)
+                deployment_reexport_cmd = build_reexport_commands(
+                    "deployment", secrets_result
                 )
 
             eval_image = task_definition["container"]
@@ -253,12 +255,16 @@ class LocalExecutor(BaseExecutor):
                 "job_id": job_id,
                 "eval_image": eval_image,
                 "client_container_name": client_container_name,
-                "env_vars": env_vars_list,
+                "env_var_names": eval_env_var_names,
+                "secrets_env_content": secrets_env_content,
+                "eval_reexport_cmd": eval_reexport_cmd,
+                "deployment_reexport_cmd": deployment_reexport_cmd,
                 "output_dir": task_output_dir,
                 "eval_factory_command": eval_factory_command,
                 "eval_factory_command_debug_comment": eval_factory_command_debug_comment,
                 "dataset_mount_host": dataset_mount_host,
                 "dataset_mount_container": dataset_mount_container,
+                "dataset_env_var_value": dataset_env_var_value,
             }
             evaluation_tasks.append(evaluation_task)
 
@@ -278,6 +284,9 @@ class LocalExecutor(BaseExecutor):
             )
 
             (task_output_dir / "run.sh").write_text(run_sh_content)
+
+            if secrets_env_content:
+                (task_output_dir / ".secrets.env").write_text(secrets_env_content)
 
         run_all_sequentially_sh_content = (
             run_template.render(

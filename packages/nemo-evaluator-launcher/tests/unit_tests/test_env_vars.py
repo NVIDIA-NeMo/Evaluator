@@ -16,12 +16,11 @@
 """Tests for nemo_evaluator_launcher.common.env_vars module."""
 
 import os
+import warnings
 from unittest import mock
 
-import warnings
-
 import pytest
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from nemo_evaluator_launcher.common.env_vars import (
     EnvVarFromHost,
@@ -36,7 +35,6 @@ from nemo_evaluator_launcher.common.env_vars import (
     parse_env_var_value,
     resolve_env_var,
 )
-
 
 # --- parse_env_var_value ---
 
@@ -161,9 +159,7 @@ class TestGenerateSecretsEnv:
         assert result.runtime_vars["deployment"][0].original_name == "RUNTIME_VAR"
 
     def test_multiple_groups_disambiguation(self):
-        with mock.patch.dict(
-            os.environ, {"SRC_A": "val_a", "SRC_B": "val_b"}
-        ):
+        with mock.patch.dict(os.environ, {"SRC_A": "val_a", "SRC_B": "val_b"}):
             result = generate_secrets_env(
                 {
                     "task_a": {"HF_TOKEN": EnvVarFromHost(host_var_name="SRC_A")},
@@ -256,9 +252,7 @@ class TestBuildReexportCommands:
             group_remappings={
                 "task_a": [VarRemapping("HF_TOKEN", "HF_TOKEN_abc_TASK_A")]
             },
-            runtime_vars={
-                "task_a": [VarRemapping("RT_VAR", "RT_VAR_abc_TASK_A")]
-            },
+            runtime_vars={"task_a": [VarRemapping("RT_VAR", "RT_VAR_abc_TASK_A")]},
         )
         cmd = build_reexport_commands("task_a", result)
         assert "export HF_TOKEN=$HF_TOKEN_abc_TASK_A" in cmd
@@ -282,7 +276,11 @@ class TestCollectEvalEnvVars:
         if overrides:
             # Deep merge
             for key, val in overrides.items():
-                if isinstance(val, dict) and key in base and isinstance(base[key], dict):
+                if (
+                    isinstance(val, dict)
+                    and key in base
+                    and isinstance(base[key], dict)
+                ):
                     base[key].update(val)
                 else:
                     base[key] = val
@@ -300,10 +298,12 @@ class TestCollectEvalEnvVars:
 
     def test_eval_level_overrides_top_level(self):
         """evaluation.env_vars overrides top-level env_vars."""
-        cfg = self._make_cfg({
-            "env_vars": {"HF_TOKEN": "!host:GLOBAL_TOKEN"},
-            "evaluation": {"env_vars": {"HF_TOKEN": "!host:EVAL_TOKEN"}},
-        })
+        cfg = self._make_cfg(
+            {
+                "env_vars": {"HF_TOKEN": "!host:GLOBAL_TOKEN"},
+                "evaluation": {"env_vars": {"HF_TOKEN": "!host:EVAL_TOKEN"}},
+            }
+        )
         task = OmegaConf.create({"name": "test_task", "env_vars": {}})
         task_def = {}
 
@@ -312,13 +312,17 @@ class TestCollectEvalEnvVars:
 
     def test_task_level_overrides_eval_level(self):
         """task.env_vars overrides evaluation.env_vars."""
-        cfg = self._make_cfg({
-            "evaluation": {"env_vars": {"HF_TOKEN": "!host:EVAL_TOKEN"}},
-        })
-        task = OmegaConf.create({
-            "name": "test_task",
-            "env_vars": {"HF_TOKEN": "!host:TASK_TOKEN"},
-        })
+        cfg = self._make_cfg(
+            {
+                "evaluation": {"env_vars": {"HF_TOKEN": "!host:EVAL_TOKEN"}},
+            }
+        )
+        task = OmegaConf.create(
+            {
+                "name": "test_task",
+                "env_vars": {"HF_TOKEN": "!host:TASK_TOKEN"},
+            }
+        )
         task_def = {}
 
         result = collect_eval_env_vars(cfg, task, task_def)
@@ -326,22 +330,26 @@ class TestCollectEvalEnvVars:
 
     def test_full_hierarchy_last_wins(self):
         """Full hierarchy: top-level → eval → task (last wins)."""
-        cfg = self._make_cfg({
-            "env_vars": {
-                "SHARED": "!lit:top",
-                "TOP_ONLY": "!lit:top_only",
-            },
-            "evaluation": {
+        cfg = self._make_cfg(
+            {
                 "env_vars": {
-                    "SHARED": "!lit:eval",
-                    "EVAL_ONLY": "!lit:eval_only",
+                    "SHARED": "!lit:top",
+                    "TOP_ONLY": "!lit:top_only",
                 },
-            },
-        })
-        task = OmegaConf.create({
-            "name": "test_task",
-            "env_vars": {"SHARED": "!lit:task"},
-        })
+                "evaluation": {
+                    "env_vars": {
+                        "SHARED": "!lit:eval",
+                        "EVAL_ONLY": "!lit:eval_only",
+                    },
+                },
+            }
+        )
+        task = OmegaConf.create(
+            {
+                "name": "test_task",
+                "env_vars": {"SHARED": "!lit:task"},
+            }
+        )
         task_def = {}
 
         result = collect_eval_env_vars(cfg, task, task_def)
@@ -351,9 +359,13 @@ class TestCollectEvalEnvVars:
 
     def test_deprecated_execution_eval_env_vars_merged(self):
         """execution.env_vars.evaluation is merged with deprecation warning."""
-        cfg = self._make_cfg({
-            "execution": {"env_vars": {"evaluation": {"EXEC_VAR": "!lit:exec_val"}}},
-        })
+        cfg = self._make_cfg(
+            {
+                "execution": {
+                    "env_vars": {"evaluation": {"EXEC_VAR": "!lit:exec_val"}}
+                },
+            }
+        )
         task = OmegaConf.create({"name": "test_task", "env_vars": {}})
         task_def = {}
 
@@ -363,15 +375,19 @@ class TestCollectEvalEnvVars:
 
         assert result["EXEC_VAR"] == EnvVarLiteral(value="exec_val")
         dep_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
-        assert any("execution.env_vars.evaluation" in str(x.message) for x in dep_warnings)
+        assert any(
+            "execution.env_vars.evaluation" in str(x.message) for x in dep_warnings
+        )
 
     def test_deprecated_execution_eval_overrides_earlier(self):
         """execution.env_vars.evaluation (deprecated) overrides top-level and eval."""
-        cfg = self._make_cfg({
-            "env_vars": {"VAR": "!lit:top"},
-            "evaluation": {"env_vars": {"VAR": "!lit:eval"}},
-            "execution": {"env_vars": {"evaluation": {"VAR": "!lit:exec"}}},
-        })
+        cfg = self._make_cfg(
+            {
+                "env_vars": {"VAR": "!lit:top"},
+                "evaluation": {"env_vars": {"VAR": "!lit:eval"}},
+                "execution": {"env_vars": {"evaluation": {"VAR": "!lit:exec"}}},
+            }
+        )
         task = OmegaConf.create({"name": "test_task", "env_vars": {}})
         task_def = {}
 
@@ -395,7 +411,11 @@ class TestCollectDeploymentEnvVars:
         }
         if overrides:
             for key, val in overrides.items():
-                if isinstance(val, dict) and key in base and isinstance(base[key], dict):
+                if (
+                    isinstance(val, dict)
+                    and key in base
+                    and isinstance(base[key], dict)
+                ):
                     base[key].update(val)
                 else:
                     base[key] = val
@@ -410,10 +430,12 @@ class TestCollectDeploymentEnvVars:
 
     def test_deprecated_exec_deployment_overrides_top_level(self):
         """execution.env_vars.deployment overrides top-level."""
-        cfg = self._make_cfg({
-            "env_vars": {"VAR": "!lit:top"},
-            "execution": {"env_vars": {"deployment": {"VAR": "!lit:exec"}}},
-        })
+        cfg = self._make_cfg(
+            {
+                "env_vars": {"VAR": "!lit:top"},
+                "execution": {"env_vars": {"deployment": {"VAR": "!lit:exec"}}},
+            }
+        )
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -421,15 +443,19 @@ class TestCollectDeploymentEnvVars:
 
         assert result["VAR"] == EnvVarLiteral(value="exec")
         dep_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
-        assert any("execution.env_vars.deployment" in str(x.message) for x in dep_warnings)
+        assert any(
+            "execution.env_vars.deployment" in str(x.message) for x in dep_warnings
+        )
 
     def test_deprecated_deployment_env_vars_overrides_all(self):
         """cfg.deployment.env_vars overrides everything (last wins)."""
-        cfg = self._make_cfg({
-            "env_vars": {"VAR": "!lit:top"},
-            "execution": {"env_vars": {"deployment": {"VAR": "!lit:exec"}}},
-            "deployment": {"type": "none", "env_vars": {"VAR": "!lit:deploy"}},
-        })
+        cfg = self._make_cfg(
+            {
+                "env_vars": {"VAR": "!lit:top"},
+                "execution": {"env_vars": {"deployment": {"VAR": "!lit:exec"}}},
+                "deployment": {"type": "none", "env_vars": {"VAR": "!lit:deploy"}},
+            }
+        )
 
         with warnings.catch_warnings(record=True):
             warnings.simplefilter("always")
