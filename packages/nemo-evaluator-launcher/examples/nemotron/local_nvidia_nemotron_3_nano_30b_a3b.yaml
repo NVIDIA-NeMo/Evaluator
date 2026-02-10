@@ -128,3 +128,11 @@ evaluation:
               model_id: openai/gpt-4o
               url: ??? # Set your OpenAI-compatible API URL for the judge model
               api_key: JUDGE_API_KEY
+  - name: ns_aime2025
+    nemo_evaluator_config:
+      config:
+        params:
+          extra:
+            num_repeats: 64
+            args: '++prompt_config="/nemo_run/code/eval_factory_prompts/math-oai.yaml"'
+
