@@ -150,14 +150,16 @@ def run_eval(
     _check_api_endpoint_when_deployment_is_configured(cfg)
 
     # Set up telemetry
-    from nemo_evaluator_launcher.telemetry import (
-        JobStatusEnum,
-        LauncherJobEvent,
+    from nemo_evaluator.telemetry import (
+        SESSION_ID_ENV_VAR,
         TelemetryHandler,
         generate_session_id,
         is_telemetry_enabled,
         show_telemetry_notification,
-        SESSION_ID_ENV_VAR,
+    )
+    from nemo_evaluator_launcher.telemetry import (
+        JobStatusEnum,
+        LauncherJobEvent,
     )
 
     session_id = generate_session_id()

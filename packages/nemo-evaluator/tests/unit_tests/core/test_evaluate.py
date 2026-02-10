@@ -112,7 +112,7 @@ def test_evaluate_telemetry_uses_framework_name(tmp_path: Path):
         patch("nemo_evaluator.telemetry.is_telemetry_enabled", return_value=True),
         patch("nemo_evaluator.telemetry.show_telemetry_notification"),
         patch("nemo_evaluator.telemetry.TelemetryHandler", return_value=CapturingHandler()),
-        patch.dict(os.environ, {"NEMO_TELEMETRY_ENABLED": "true"}),
+        patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "true"}),
     ):
         evaluate(
             eval_cfg=EvaluationConfig(

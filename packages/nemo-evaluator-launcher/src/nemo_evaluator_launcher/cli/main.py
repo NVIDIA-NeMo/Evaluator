@@ -251,7 +251,7 @@ def main() -> None:
 
     # Handle --no-telemetry flag
     if hasattr(args, "no_telemetry") and args.no_telemetry:
-        os.environ["NEMO_TELEMETRY_ENABLED"] = "false"
+        os.environ["NEMO_EVALUATOR_TELEMETRY_ENABLED"] = "false"
 
     # Handle --version flag
     if hasattr(args, "version") and args.version:

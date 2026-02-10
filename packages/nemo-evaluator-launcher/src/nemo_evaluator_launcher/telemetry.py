@@ -14,15 +14,10 @@
 # limitations under the License.
 #
 """
-Telemetry handler for NeMo Evaluator Launcher.
+Telemetry event types for NeMo Evaluator Launcher.
 
-This module re-exports shared telemetry infrastructure from nemo_evaluator.telemetry
-and defines launcher-specific event types.
-
-Environment variables:
-- NEMO_TELEMETRY_ENABLED: Whether telemetry is enabled (default: true).
-- NEMO_TELEMETRY_SESSION_ID: Session ID for correlating events across components.
-- NEMO_TELEMETRY_ENDPOINT: The endpoint to send the telemetry events to.
+Defines launcher-specific telemetry events. Shared telemetry infrastructure
+(TelemetryHandler, is_telemetry_enabled, etc.) lives in nemo_evaluator.telemetry.
 """
 
 from __future__ import annotations
@@ -32,31 +27,9 @@ from typing import ClassVar, List
 
 from pydantic import Field
 
-# Re-export shared telemetry infrastructure from nemo_evaluator
-from nemo_evaluator.telemetry import (
-    SESSION_ID_ENV_VAR,
-    QueuedEvent,
-    TelemetryEvent,
-    TelemetryHandler,
-    build_payload,
-    generate_session_id,
-    get_session_id,
-    is_telemetry_enabled,
-    show_telemetry_notification,
-)
+from nemo_evaluator.telemetry import TelemetryEvent
 
 __all__ = [
-    # Re-exported from nemo_evaluator.telemetry
-    "SESSION_ID_ENV_VAR",
-    "QueuedEvent",
-    "TelemetryEvent",
-    "TelemetryHandler",
-    "build_payload",
-    "generate_session_id",
-    "get_session_id",
-    "is_telemetry_enabled",
-    "show_telemetry_notification",
-    # Launcher-specific
     "JobStatusEnum",
     "LauncherJobEvent",
 ]

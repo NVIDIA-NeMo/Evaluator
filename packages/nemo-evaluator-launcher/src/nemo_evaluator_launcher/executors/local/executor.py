@@ -219,17 +219,17 @@ class LocalExecutor(BaseExecutor):
                 )
 
             # Add telemetry env vars for propagation to containers
-            if os.getenv("NEMO_TELEMETRY_SESSION_ID"):
+            if os.getenv("NEMO_EVALUATOR_TELEMETRY_SESSION_ID"):
                 env_vars_list.append(
-                    f"NEMO_TELEMETRY_SESSION_ID={os.getenv('NEMO_TELEMETRY_SESSION_ID')}"
+                    f"NEMO_EVALUATOR_TELEMETRY_SESSION_ID={os.getenv('NEMO_EVALUATOR_TELEMETRY_SESSION_ID')}"
                 )
-            if os.getenv("NEMO_TELEMETRY_ENABLED"):
+            if os.getenv("NEMO_EVALUATOR_TELEMETRY_ENABLED"):
                 env_vars_list.append(
-                    f"NEMO_TELEMETRY_ENABLED={os.getenv('NEMO_TELEMETRY_ENABLED')}"
+                    f"NEMO_EVALUATOR_TELEMETRY_ENABLED={os.getenv('NEMO_EVALUATOR_TELEMETRY_ENABLED')}"
                 )
-            if os.getenv("NEMO_TELEMETRY_ENDPOINT"):
+            if os.getenv("NEMO_EVALUATOR_TELEMETRY_ENDPOINT"):
                 env_vars_list.append(
-                    f"NEMO_TELEMETRY_ENDPOINT={os.getenv('NEMO_TELEMETRY_ENDPOINT')}"
+                    f"NEMO_EVALUATOR_TELEMETRY_ENDPOINT={os.getenv('NEMO_EVALUATOR_TELEMETRY_ENDPOINT')}"
                 )
 
             eval_image = task_definition["container"]
