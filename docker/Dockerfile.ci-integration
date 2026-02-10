@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM nvcr.io/nvidian/nemo:nightly
+FROM nvcr.io/nvidian/nemo:26.02.rc4
 COPY . /opt/Evaluator/
 RUN cd /opt/Evaluator/packages/nemo-evaluator && uv pip install -e .
