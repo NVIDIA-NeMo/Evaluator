@@ -27,7 +27,6 @@ from __future__ import annotations
 import asyncio
 import os
 import platform
-import sys
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -83,10 +82,7 @@ def show_telemetry_notification() -> None:
     """Show telemetry notification to the user (only once per session)."""
     global _notification_shown
     if not _notification_shown:
-        print(
-            "Telemetry enabled. Set NEMO_EVALUATOR_TELEMETRY_ENABLED=false to disable.",
-            file=sys.stderr,
-        )
+        logger.info("Telemetry enabled. Set NEMO_EVALUATOR_TELEMETRY_ENABLED=false to disable.")
         _notification_shown = True
 
 
