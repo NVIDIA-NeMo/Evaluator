@@ -36,6 +36,10 @@ from typing import Any, ClassVar
 
 from pydantic import BaseModel, Field
 
+from nemo_evaluator.logging import get_logger
+
+logger = get_logger(__name__)
+
 # Environment variable for session ID propagation
 SESSION_ID_ENV_VAR = "NEMO_TELEMETRY_SESSION_ID"
 
@@ -259,10 +263,19 @@ class TelemetryHandler:
 
     def start(self) -> None:
         """Start the telemetry handler synchronously."""
+        logger.debug(
+            "Telemetry handler starting",
+            endpoint=NEMO_TELEMETRY_ENDPOINT, session_id=self._session_id,
+            client_id=CLIENT_ID, version=self._source_client_version,
+        )
         self._run_sync(self.astart())
 
     def stop(self) -> None:
         """Stop the telemetry handler synchronously."""
+        logger.debug(
+            "Telemetry handler stopping",
+            pending=len(self._events), dlq=len(self._dlq),
+        )
         self._run_sync(self.astop())
 
     def flush(self) -> None:
@@ -272,12 +285,14 @@ class TelemetryHandler:
     def enqueue(self, event: TelemetryEvent) -> None:
         """Add an event to the queue for sending."""
         if not is_telemetry_enabled():
+            logger.debug("Telemetry disabled, skipping event", event_type=type(event).__name__)
             return
         if not isinstance(event, TelemetryEvent):
-            # Silently fail to not disrupt upstream call sites
+            logger.debug("Ignoring non-TelemetryEvent object", event_type=type(event).__name__)
             return
         queued = QueuedEvent(event=event, timestamp=datetime.now(timezone.utc))
         self._events.append(queued)
+        logger.debug("Enqueued telemetry event", event_name=event._event_name, queue_size=len(self._events))
         if len(self._events) >= self._max_queue_size:
             self._flush_signal.set()
 
@@ -334,12 +349,16 @@ class TelemetryHandler:
 
     async def _send_events(self, events: list[QueuedEvent]) -> None:
         """Send events to the telemetry endpoint."""
+        logger.debug(
+            "Sending telemetry events",
+            count=len(events), endpoint=NEMO_TELEMETRY_ENDPOINT, session_id=self._session_id,
+        )
         try:
             httpx = _get_httpx()
             async with httpx.AsyncClient() as client:
                 await self._send_events_with_client(client, events)
-        except Exception:
-            # Silently fail - telemetry should never disrupt the main application
+        except Exception as e:
+            logger.debug("Telemetry send failed (events moved to DLQ)", error=str(e))
             self._add_to_dlq(events)
 
     async def _send_events_with_client(self, client: Any, events: list[QueuedEvent]) -> None:
@@ -354,10 +373,18 @@ class TelemetryHandler:
             response = await client.post(NEMO_TELEMETRY_ENDPOINT, json=payload)
             # 2xx, 400, 422 are all considered complete (no retry)
             # 400/422 indicate bad payload which retrying won't fix
-            if response.status_code in (400, 422) or response.is_success:
+            if response.is_success:
+                logger.debug("Telemetry events sent successfully", status=response.status_code)
+                return
+            if response.status_code in (400, 422):
+                logger.debug(
+                    "Telemetry endpoint rejected payload",
+                    status=response.status_code, response=response.text[:200],
+                )
                 return
             # 413 (payload too large) - split and retry
             if response.status_code == 413:
+                logger.debug("Telemetry payload too large (HTTP 413), splitting", count=len(events))
                 if len(events) == 1:
                     # Can't split further, drop the event
                     return
@@ -366,8 +393,13 @@ class TelemetryHandler:
                 await self._send_events_with_client(client, events[mid:])
                 return
             if response.status_code == 408 or response.status_code >= 500:
+                logger.debug(
+                    "Telemetry endpoint error, events moved to DLQ for retry",
+                    status=response.status_code,
+                )
                 self._add_to_dlq(events)
-        except Exception:
+        except Exception as e:
+            logger.debug("Telemetry HTTP request failed (events moved to DLQ)", error=str(e))
             self._add_to_dlq(events)
 
     def _add_to_dlq(self, events: list[QueuedEvent]) -> None:
@@ -375,5 +407,9 @@ class TelemetryHandler:
         for queued in events:
             queued.retry_count += 1
             if queued.retry_count > self._max_retries:
+                logger.debug(
+                    "Dropping telemetry event after max retries",
+                    event_name=queued.event._event_name, max_retries=self._max_retries,
+                )
                 continue
             self._dlq.append(queued)
