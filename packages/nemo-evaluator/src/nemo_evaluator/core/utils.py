@@ -252,6 +252,7 @@ def run_command(command, cwd=None, verbose=False, propagate_errors=False):
             cwd=cwd,
             shell=True,
             executable="/bin/bash",
+            env=os.environ.copy(),
         )
 
         if verbose:
