@@ -135,4 +135,57 @@ evaluation:
           extra:
             num_repeats: 64
             args: '++prompt_config="/nemo_run/code/eval_factory_prompts/math-oai.yaml"'
-
+  - name: ns_mmlu_prox
+    nemo_evaluator_config:
+      config:
+        params:
+          extra:
+            num_repeats: 1
+  - name: ns_wmt24pp
+  - name: tau2_bench_telecom
+    env_vars:
+      JUDGE_API_KEY: NGC_API_KEY
+      USER_API_KEY: NGC_API_KEY
+    nemo_evaluator_config:
+      config:
+        params:
+          temperature: 0.6
+          top_p: 0.95
+          extra:
+            n_samples: 8
+            skip_failed_samples: true
+            cache:
+              enabled: true
+              cache_dir: /results/native_cache
+  - name: ruler-128k-chat
+    nemo_evaluator_config:
+      config:
+        params:
+          limit_samples: 100
+          parallelism: 1
+          temperature: 0.00001
+          top_p: 0.99
+          extra:
+            tokenizer: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16
+            tokenizer_backend: hf
+      target:
+        api_endpoint:
+          adapter_config:
+            use_reasoning: false
+            params_to_add: {"chat_template_kwargs": {"enable_thinking": false}, "skip_special_tokens": false}
+  - name: ruler-64k-chat
+    nemo_evaluator_config:
+      config:
+        params:
+          limit_samples: 100
+          parallelism: 1
+          temperature: 0.00001
+          top_p: 0.99
+          extra:
+            tokenizer: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16
+            tokenizer_backend: hf
+      target:
+        api_endpoint:
+          adapter_config:
+            use_reasoning: false
+            params_to_add: {"chat_template_kwargs": {"enable_thinking": false}, "skip_special_tokens": false}

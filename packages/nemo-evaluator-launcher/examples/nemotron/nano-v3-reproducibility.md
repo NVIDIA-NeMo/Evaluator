@@ -19,6 +19,11 @@ The Nemotron 3 Nano 30B A3B is a compact yet powerful reasoning model from NVIDI
 | **HLE** | Humanity's Last Exam | Expert-level questions across domains |
 | **AIME 2025 (tools)** | Mathematics + Tools | AIME with Python code execution |
 | **GPQA (tools)** | Science + Tools | GPQA with Python code execution |
+| **Tau2 Bench Telecom** | Telecom / Tool Use | Tau2 benchmark (telecom domain) with judge; uses NGC API for model and judge |
+| **MMLU-Pro X** | Knowledge | MMLU-Pro extended multilingual variant |
+| **WMT24++** | Translation | WMT24 translation benchmark |
+| **RULER 128k (chat)** | Long-context | RULER long-context evaluation (128k), chat template |
+| **RULER 64k (chat)** | Long-context | RULER long-context evaluation (64k), chat template |
 
 The open source container on NeMo Skills packaged via NVIDIA's NeMo Evaluator SDK used for evaluations can be found [here](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/nemo_skills?version=25.11).
 
@@ -126,6 +131,11 @@ nemo-evaluator-launcher run --config local_nvidia_nemotron_3_nano_30b_a3b.yaml -
 | `ns_scicode` | SciCode |
 | `ns_ifbench` | IFBench |
 | `ns_hle` | Humanity's Last Exam |
+| `ns_mmlu_prox` | MMLU-Pro X |
+| `ns_wmt24pp` | WMT24++ |
+| `tau2_bench_telecom` | Tau2 Bench Telecom |
+| `ruler-128k-chat` | RULER 128k (chat) |
+| `ruler-64k-chat` | RULER 64k (chat) |
 
 ---
 
@@ -181,6 +191,16 @@ Different benchmarks use tailored parameters:
 - GPT-4o judge via OpenAI API
 - Judge parallelism: 16
 - Requires `JUDGE_API_KEY` and configuring the judge URL
+
+#### Tau2 Bench Telecom
+- Temperature: 0.6, top_p: 0.95
+- 8 samples per item; optional caching and skip_failed_samples
+- Uses `JUDGE_API_KEY` and `USER_API_KEY` (mapped from `NGC_API_KEY` in the config)
+
+#### RULER (128k / 64k chat)
+- Long-context evaluation with chat template; thinking disabled
+- Default: 100 samples, parallelism 1, low temperature (0.00001)
+- Uses Nemotron tokenizer via HuggingFace
 
 ---
 
