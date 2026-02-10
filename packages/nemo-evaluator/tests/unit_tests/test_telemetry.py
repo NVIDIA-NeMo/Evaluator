@@ -31,7 +31,7 @@ class TestTelemetryEnabled:
 
         with patch.dict(os.environ, {}, clear=True):
             # Remove the env var if it exists
-            os.environ.pop("NEMO_TELEMETRY_ENABLED", None)
+            os.environ.pop("NEMO_EVALUATOR_TELEMETRY_ENABLED", None)
             # Re-import to get fresh state
             import importlib
             import nemo_evaluator.telemetry as telemetry_module
@@ -42,26 +42,26 @@ class TestTelemetryEnabled:
         """Test that telemetry can be disabled via environment variable."""
         from nemo_evaluator.telemetry import is_telemetry_enabled
 
-        with patch.dict(os.environ, {"NEMO_TELEMETRY_ENABLED": "false"}):
+        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "false"}):
             assert is_telemetry_enabled() is False
 
-        with patch.dict(os.environ, {"NEMO_TELEMETRY_ENABLED": "0"}):
+        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "0"}):
             assert is_telemetry_enabled() is False
 
-        with patch.dict(os.environ, {"NEMO_TELEMETRY_ENABLED": "no"}):
+        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "no"}):
             assert is_telemetry_enabled() is False
 
     def test_telemetry_enabled_explicit(self):
         """Test that telemetry can be explicitly enabled."""
         from nemo_evaluator.telemetry import is_telemetry_enabled
 
-        with patch.dict(os.environ, {"NEMO_TELEMETRY_ENABLED": "true"}):
+        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "true"}):
             assert is_telemetry_enabled() is True
 
-        with patch.dict(os.environ, {"NEMO_TELEMETRY_ENABLED": "1"}):
+        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "1"}):
             assert is_telemetry_enabled() is True
 
-        with patch.dict(os.environ, {"NEMO_TELEMETRY_ENABLED": "yes"}):
+        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "yes"}):
             assert is_telemetry_enabled() is True
 
 
@@ -181,7 +181,7 @@ class TestTelemetryHandler:
             TelemetryHandler,
         )
 
-        with patch.dict(os.environ, {"NEMO_TELEMETRY_ENABLED": "false"}):
+        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "false"}):
             handler = TelemetryHandler()
             event = EvaluationTaskEvent(
                 task="test",
@@ -201,7 +201,7 @@ class TestTelemetryHandler:
             TelemetryHandler,
         )
 
-        with patch.dict(os.environ, {"NEMO_TELEMETRY_ENABLED": "true"}):
+        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "true"}):
             handler = TelemetryHandler()
             event = EvaluationTaskEvent(
                 task="test",
@@ -217,7 +217,7 @@ class TestTelemetryHandler:
         """Test that handler silently fails on invalid events."""
         from nemo_evaluator.telemetry import TelemetryHandler
 
-        with patch.dict(os.environ, {"NEMO_TELEMETRY_ENABLED": "true"}):
+        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "true"}):
             handler = TelemetryHandler()
             # Enqueue something that's not a TelemetryEvent
             handler.enqueue("not an event")  # type: ignore

@@ -619,12 +619,12 @@ def _create_slurm_sbatch_script(
         s += f"export {env_var_dst}={env_var_value}\n"
 
     # Add telemetry env vars for propagation to containers
-    if os.getenv("NEMO_TELEMETRY_SESSION_ID"):
-        s += f"export NEMO_TELEMETRY_SESSION_ID={os.getenv('NEMO_TELEMETRY_SESSION_ID')}\n"
-    if os.getenv("NEMO_TELEMETRY_ENABLED"):
-        s += f"export NEMO_TELEMETRY_ENABLED={os.getenv('NEMO_TELEMETRY_ENABLED')}\n"
-    if os.getenv("NEMO_TELEMETRY_ENDPOINT"):
-        s += f"export NEMO_TELEMETRY_ENDPOINT={os.getenv('NEMO_TELEMETRY_ENDPOINT')}\n"
+    if os.getenv("NEMO_EVALUATOR_TELEMETRY_SESSION_ID"):
+        s += f"export NEMO_EVALUATOR_TELEMETRY_SESSION_ID={os.getenv('NEMO_EVALUATOR_TELEMETRY_SESSION_ID')}\n"
+    if os.getenv("NEMO_EVALUATOR_TELEMETRY_ENABLED"):
+        s += f"export NEMO_EVALUATOR_TELEMETRY_ENABLED={os.getenv('NEMO_EVALUATOR_TELEMETRY_ENABLED')}\n"
+    if os.getenv("NEMO_EVALUATOR_TELEMETRY_ENDPOINT"):
+        s += f"export NEMO_EVALUATOR_TELEMETRY_ENDPOINT={os.getenv('NEMO_EVALUATOR_TELEMETRY_ENDPOINT')}\n"
 
     if env_vars:
         s += "\n"
@@ -759,12 +759,12 @@ def _create_slurm_sbatch_script(
         cfg.execution.get("env_vars", {}).get("evaluation", {})
     )
     # Add telemetry env vars to container env list
-    if os.getenv("NEMO_TELEMETRY_SESSION_ID"):
-        evaluation_env_var_names.append("NEMO_TELEMETRY_SESSION_ID")
-    if os.getenv("NEMO_TELEMETRY_ENABLED"):
-        evaluation_env_var_names.append("NEMO_TELEMETRY_ENABLED")
-    if os.getenv("NEMO_TELEMETRY_ENDPOINT"):
-        evaluation_env_var_names.append("NEMO_TELEMETRY_ENDPOINT")
+    if os.getenv("NEMO_EVALUATOR_TELEMETRY_SESSION_ID"):
+        evaluation_env_var_names.append("NEMO_EVALUATOR_TELEMETRY_SESSION_ID")
+    if os.getenv("NEMO_EVALUATOR_TELEMETRY_ENABLED"):
+        evaluation_env_var_names.append("NEMO_EVALUATOR_TELEMETRY_ENABLED")
+    if os.getenv("NEMO_EVALUATOR_TELEMETRY_ENDPOINT"):
+        evaluation_env_var_names.append("NEMO_EVALUATOR_TELEMETRY_ENDPOINT")
     if evaluation_env_var_names:
         s += "--container-env {} ".format(",".join(evaluation_env_var_names))
     if not cfg.execution.get("mounts", {}).get("mount_home", True):

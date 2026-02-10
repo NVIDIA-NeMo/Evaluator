@@ -17,9 +17,9 @@
 Telemetry handler for NeMo Evaluator.
 
 Environment variables:
-- NEMO_TELEMETRY_ENABLED: Whether telemetry is enabled (default: true).
-- NEMO_TELEMETRY_SESSION_ID: Session ID for correlating events across components.
-- NEMO_TELEMETRY_ENDPOINT: The endpoint to send the telemetry events to.
+- NEMO_EVALUATOR_TELEMETRY_ENABLED: Whether telemetry is enabled (default: true).
+- NEMO_EVALUATOR_TELEMETRY_SESSION_ID: Session ID for correlating events across components.
+- NEMO_EVALUATOR_TELEMETRY_ENDPOINT: The endpoint to send the telemetry events to.
 """
 
 from __future__ import annotations
@@ -41,14 +41,15 @@ from nemo_evaluator.logging import get_logger
 logger = get_logger(__name__)
 
 # Environment variable for session ID propagation
-SESSION_ID_ENV_VAR = "NEMO_TELEMETRY_SESSION_ID"
+SESSION_ID_ENV_VAR = "NEMO_EVALUATOR_TELEMETRY_SESSION_ID"
 
 # Telemetry configuration
 CLIENT_ID = "14399890258381784"
+# Maps to "eventSysVer" in the payload — identifies the telemetry client version.
 NEMO_TELEMETRY_VERSION = "nemo-telemetry/1.0"
 MAX_RETRIES = 3
 NEMO_TELEMETRY_ENDPOINT = os.getenv(
-    "NEMO_TELEMETRY_ENDPOINT", "https://events.telemetry.data.nvidia.com/v1.1/events/json"
+    "NEMO_EVALUATOR_TELEMETRY_ENDPOINT", "https://events.telemetry.data.nvidia.com/v1.1/events/json"
 )
 CPU_ARCHITECTURE = platform.uname().machine
 
@@ -65,7 +66,7 @@ def _get_httpx():
 
 def is_telemetry_enabled() -> bool:
     """Check if telemetry is enabled via environment variable."""
-    return os.getenv("NEMO_TELEMETRY_ENABLED", "true").lower() in ("1", "true", "yes")
+    return os.getenv("NEMO_EVALUATOR_TELEMETRY_ENABLED", "true").lower() in ("1", "true", "yes")
 
 
 def generate_session_id() -> str:
@@ -83,7 +84,7 @@ def show_telemetry_notification() -> None:
     global _notification_shown
     if not _notification_shown:
         print(
-            "Telemetry enabled. Set NEMO_TELEMETRY_ENABLED=false to disable.",
+            "Telemetry enabled. Set NEMO_EVALUATOR_TELEMETRY_ENABLED=false to disable.",
             file=sys.stderr,
         )
         _notification_shown = True
@@ -101,6 +102,7 @@ class TelemetryEvent(BaseModel):
     """Base class for telemetry events."""
 
     _event_name: ClassVar[str]  # Subclasses must define this
+    # Maps to "eventSchemaVer" in the payload — versioning for the event data structure.
     _schema_version: ClassVar[str] = "1.0"
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -237,14 +239,14 @@ class TelemetryHandler:
         self._source_client_version = source_client_version
         self._session_id = session_id
 
-    async def astart(self) -> None:
+    async def _astart(self) -> None:
         """Start the telemetry handler asynchronously."""
         if self._running:
             return
         self._running = True
         self._timer_task = asyncio.create_task(self._timer_loop())
 
-    async def astop(self) -> None:
+    async def _astop(self) -> None:
         """Stop the telemetry handler asynchronously."""
         self._running = False
         self._flush_signal.set()
@@ -257,10 +259,6 @@ class TelemetryHandler:
             self._timer_task = None
         await self._flush_events()
 
-    async def aflush(self) -> None:
-        """Trigger a flush asynchronously."""
-        self._flush_signal.set()
-
     def start(self) -> None:
         """Start the telemetry handler synchronously."""
         logger.debug(
@@ -268,7 +266,7 @@ class TelemetryHandler:
             endpoint=NEMO_TELEMETRY_ENDPOINT, session_id=self._session_id,
             client_id=CLIENT_ID, version=self._source_client_version,
         )
-        self._run_sync(self.astart())
+        self._run_sync(self._astart())
 
     def stop(self) -> None:
         """Stop the telemetry handler synchronously."""
@@ -276,7 +274,7 @@ class TelemetryHandler:
             "Telemetry handler stopping",
             pending=len(self._events), dlq=len(self._dlq),
         )
-        self._run_sync(self.astop())
+        self._run_sync(self._astop())
 
     def flush(self) -> None:
         """Trigger a flush synchronously."""
@@ -318,13 +316,6 @@ class TelemetryHandler:
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.stop()
-
-    async def __aenter__(self) -> TelemetryHandler:
-        await self.astart()
-        return self
-
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        await self.astop()
 
     async def _timer_loop(self) -> None:
         """Background loop that flushes events periodically."""

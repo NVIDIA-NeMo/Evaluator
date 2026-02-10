@@ -589,17 +589,17 @@ class LeptonExecutor(BaseExecutor):
                     job_env_vars["NEMO_EVALUATOR_DATASET_DIR"] = dataset_mount_container
 
                 # Add telemetry env vars for propagation to containers
-                if os.getenv("NEMO_TELEMETRY_SESSION_ID"):
-                    job_env_vars["NEMO_TELEMETRY_SESSION_ID"] = os.getenv(
-                        "NEMO_TELEMETRY_SESSION_ID"
+                if os.getenv("NEMO_EVALUATOR_TELEMETRY_SESSION_ID"):
+                    job_env_vars["NEMO_EVALUATOR_TELEMETRY_SESSION_ID"] = os.getenv(
+                        "NEMO_EVALUATOR_TELEMETRY_SESSION_ID"
                     )
-                if os.getenv("NEMO_TELEMETRY_ENABLED"):
-                    job_env_vars["NEMO_TELEMETRY_ENABLED"] = os.getenv(
-                        "NEMO_TELEMETRY_ENABLED"
+                if os.getenv("NEMO_EVALUATOR_TELEMETRY_ENABLED"):
+                    job_env_vars["NEMO_EVALUATOR_TELEMETRY_ENABLED"] = os.getenv(
+                        "NEMO_EVALUATOR_TELEMETRY_ENABLED"
                     )
-                if os.getenv("NEMO_TELEMETRY_ENDPOINT"):
-                    job_env_vars["NEMO_TELEMETRY_ENDPOINT"] = os.getenv(
-                        "NEMO_TELEMETRY_ENDPOINT"
+                if os.getenv("NEMO_EVALUATOR_TELEMETRY_ENDPOINT"):
+                    job_env_vars["NEMO_EVALUATOR_TELEMETRY_ENDPOINT"] = os.getenv(
+                        "NEMO_EVALUATOR_TELEMETRY_ENDPOINT"
                     )
 
                 print(
