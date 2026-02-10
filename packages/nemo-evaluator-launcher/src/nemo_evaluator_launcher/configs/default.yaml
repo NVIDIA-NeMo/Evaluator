@@ -19,7 +19,7 @@ defaults:
   - _self_
 
 # Top-level env vars applied to all jobs (deployment + evaluation).
-# Values use explicit prefixes: "!host:VAR_NAME", "!lit:value", "!runtime:VAR_NAME".
+# Values use explicit prefixes: "$host:VAR_NAME", "$lit:value", "$runtime:VAR_NAME".
 # Section-level and task-level env_vars override these.
 env_vars: {}
 

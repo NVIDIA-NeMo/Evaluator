@@ -33,6 +33,7 @@ from nemo_evaluator_launcher.common.env_vars import (
     collect_eval_env_vars,
     generate_secrets_env,
     parse_env_var_value,
+    redact_secrets_env_content,
     resolve_env_var,
 )
 
@@ -41,19 +42,19 @@ from nemo_evaluator_launcher.common.env_vars import (
 
 class TestParseEnvVarValue:
     def test_literal_prefix(self):
-        result = parse_env_var_value("!lit:some/path/here")
+        result = parse_env_var_value("$lit:some/path/here")
         assert result == EnvVarLiteral(value="some/path/here")
 
     def test_literal_empty_value(self):
-        result = parse_env_var_value("!lit:")
+        result = parse_env_var_value("$lit:")
         assert result == EnvVarLiteral(value="")
 
     def test_host_prefix(self):
-        result = parse_env_var_value("!host:HF_TOKEN")
+        result = parse_env_var_value("$host:HF_TOKEN")
         assert result == EnvVarFromHost(host_var_name="HF_TOKEN")
 
     def test_runtime_prefix(self):
-        result = parse_env_var_value("!runtime:SLURM_JOB_ID")
+        result = parse_env_var_value("$runtime:SLURM_JOB_ID")
         assert result == EnvVarRuntime(runtime_var_name="SLURM_JOB_ID")
 
     def test_hydra_resolver_raises_error(self):
@@ -65,27 +66,27 @@ class TestParseEnvVarValue:
             parse_env_var_value("${oc.decode:something}")
 
     def test_backward_compat_dollar_prefix(self):
-        with pytest.warns(DeprecationWarning, match="Use '!host:HF_TOKEN'"):
+        with pytest.warns(DeprecationWarning, match="Use '\\$host:HF_TOKEN'"):
             result = parse_env_var_value("$HF_TOKEN")
         assert result == EnvVarFromHost(host_var_name="HF_TOKEN")
 
     def test_backward_compat_bare_name(self):
-        with pytest.warns(DeprecationWarning, match="Use '!host:MY_VAR'"):
+        with pytest.warns(DeprecationWarning, match="Use '\\$host:MY_VAR'"):
             result = parse_env_var_value("MY_VAR")
         assert result == EnvVarFromHost(host_var_name="MY_VAR")
 
     def test_backward_compat_path_value(self):
-        with pytest.warns(DeprecationWarning, match="Use '!lit:/some/path'"):
+        with pytest.warns(DeprecationWarning, match="Use '\\$lit:/some/path'"):
             result = parse_env_var_value("/some/path")
         assert result == EnvVarLiteral(value="/some/path")
 
     def test_backward_compat_url_value(self):
-        with pytest.warns(DeprecationWarning, match="Use '!lit:"):
+        with pytest.warns(DeprecationWarning, match="Use '\\$lit:"):
             result = parse_env_var_value("http://example.com")
         assert result == EnvVarLiteral(value="http://example.com")
 
     def test_backward_compat_value_with_spaces(self):
-        with pytest.warns(DeprecationWarning, match="Use '!lit:"):
+        with pytest.warns(DeprecationWarning, match="Use '\\$lit:"):
             result = parse_env_var_value("hello world")
         assert result == EnvVarLiteral(value="hello world")
 
@@ -288,7 +289,7 @@ class TestCollectEvalEnvVars:
 
     def test_top_level_env_vars_flow_to_eval(self):
         """Top-level env_vars are included in eval collection."""
-        cfg = self._make_cfg({"env_vars": {"HF_TOKEN": "!host:HF_TOKEN"}})
+        cfg = self._make_cfg({"env_vars": {"HF_TOKEN": "$host:HF_TOKEN"}})
         task = OmegaConf.create({"name": "test_task", "env_vars": {}})
         task_def = {}
 
@@ -300,8 +301,8 @@ class TestCollectEvalEnvVars:
         """evaluation.env_vars overrides top-level env_vars."""
         cfg = self._make_cfg(
             {
-                "env_vars": {"HF_TOKEN": "!host:GLOBAL_TOKEN"},
-                "evaluation": {"env_vars": {"HF_TOKEN": "!host:EVAL_TOKEN"}},
+                "env_vars": {"HF_TOKEN": "$host:GLOBAL_TOKEN"},
+                "evaluation": {"env_vars": {"HF_TOKEN": "$host:EVAL_TOKEN"}},
             }
         )
         task = OmegaConf.create({"name": "test_task", "env_vars": {}})
@@ -314,13 +315,13 @@ class TestCollectEvalEnvVars:
         """task.env_vars overrides evaluation.env_vars."""
         cfg = self._make_cfg(
             {
-                "evaluation": {"env_vars": {"HF_TOKEN": "!host:EVAL_TOKEN"}},
+                "evaluation": {"env_vars": {"HF_TOKEN": "$host:EVAL_TOKEN"}},
             }
         )
         task = OmegaConf.create(
             {
                 "name": "test_task",
-                "env_vars": {"HF_TOKEN": "!host:TASK_TOKEN"},
+                "env_vars": {"HF_TOKEN": "$host:TASK_TOKEN"},
             }
         )
         task_def = {}
@@ -333,13 +334,13 @@ class TestCollectEvalEnvVars:
         cfg = self._make_cfg(
             {
                 "env_vars": {
-                    "SHARED": "!lit:top",
-                    "TOP_ONLY": "!lit:top_only",
+                    "SHARED": "$lit:top",
+                    "TOP_ONLY": "$lit:top_only",
                 },
                 "evaluation": {
                     "env_vars": {
-                        "SHARED": "!lit:eval",
-                        "EVAL_ONLY": "!lit:eval_only",
+                        "SHARED": "$lit:eval",
+                        "EVAL_ONLY": "$lit:eval_only",
                     },
                 },
             }
@@ -347,7 +348,7 @@ class TestCollectEvalEnvVars:
         task = OmegaConf.create(
             {
                 "name": "test_task",
-                "env_vars": {"SHARED": "!lit:task"},
+                "env_vars": {"SHARED": "$lit:task"},
             }
         )
         task_def = {}
@@ -362,7 +363,7 @@ class TestCollectEvalEnvVars:
         cfg = self._make_cfg(
             {
                 "execution": {
-                    "env_vars": {"evaluation": {"EXEC_VAR": "!lit:exec_val"}}
+                    "env_vars": {"evaluation": {"EXEC_VAR": "$lit:exec_val"}}
                 },
             }
         )
@@ -383,9 +384,9 @@ class TestCollectEvalEnvVars:
         """execution.env_vars.evaluation (deprecated) overrides top-level and eval."""
         cfg = self._make_cfg(
             {
-                "env_vars": {"VAR": "!lit:top"},
-                "evaluation": {"env_vars": {"VAR": "!lit:eval"}},
-                "execution": {"env_vars": {"evaluation": {"VAR": "!lit:exec"}}},
+                "env_vars": {"VAR": "$lit:top"},
+                "evaluation": {"env_vars": {"VAR": "$lit:eval"}},
+                "execution": {"env_vars": {"evaluation": {"VAR": "$lit:exec"}}},
             }
         )
         task = OmegaConf.create({"name": "test_task", "env_vars": {}})
@@ -423,7 +424,7 @@ class TestCollectDeploymentEnvVars:
 
     def test_top_level_env_vars_flow_to_deployment(self):
         """Top-level env_vars are included in deployment collection."""
-        cfg = self._make_cfg({"env_vars": {"SHARED_VAR": "!lit:shared"}})
+        cfg = self._make_cfg({"env_vars": {"SHARED_VAR": "$lit:shared"}})
 
         result = collect_deployment_env_vars(cfg)
         assert result["SHARED_VAR"] == EnvVarLiteral(value="shared")
@@ -432,8 +433,8 @@ class TestCollectDeploymentEnvVars:
         """execution.env_vars.deployment overrides top-level."""
         cfg = self._make_cfg(
             {
-                "env_vars": {"VAR": "!lit:top"},
-                "execution": {"env_vars": {"deployment": {"VAR": "!lit:exec"}}},
+                "env_vars": {"VAR": "$lit:top"},
+                "execution": {"env_vars": {"deployment": {"VAR": "$lit:exec"}}},
             }
         )
 
@@ -451,9 +452,9 @@ class TestCollectDeploymentEnvVars:
         """cfg.deployment.env_vars overrides everything (last wins)."""
         cfg = self._make_cfg(
             {
-                "env_vars": {"VAR": "!lit:top"},
-                "execution": {"env_vars": {"deployment": {"VAR": "!lit:exec"}}},
-                "deployment": {"type": "none", "env_vars": {"VAR": "!lit:deploy"}},
+                "env_vars": {"VAR": "$lit:top"},
+                "execution": {"env_vars": {"deployment": {"VAR": "$lit:exec"}}},
+                "deployment": {"type": "none", "env_vars": {"VAR": "$lit:deploy"}},
             }
         )
 
@@ -468,3 +469,70 @@ class TestCollectDeploymentEnvVars:
         cfg = self._make_cfg()
         result = collect_deployment_env_vars(cfg)
         assert result == {}
+
+
+# --- redact_secrets_env_content ---
+
+
+class TestRedactSecretsEnvContent:
+    def test_long_value_shows_last_four(self):
+        content = "export MY_KEY=super_secret_value\n"
+        result = redact_secrets_env_content(content)
+        assert result == "export MY_KEY=***alue\n"
+
+    def test_short_value_fully_masked(self):
+        content = "export KEY=abcd\n"
+        result = redact_secrets_env_content(content)
+        assert result == "export KEY=***\n"
+
+    def test_very_short_value_fully_masked(self):
+        content = "export KEY=ab\n"
+        result = redact_secrets_env_content(content)
+        assert result == "export KEY=***\n"
+
+    def test_empty_value(self):
+        content = "export KEY=\n"
+        result = redact_secrets_env_content(content)
+        assert result == "export KEY=***\n"
+
+    def test_multiple_lines(self):
+        content = "export A=long_secret_a\nexport B=long_secret_b\n"
+        result = redact_secrets_env_content(content)
+        assert "export A=***et_a" in result
+        assert "export B=***et_b" in result
+
+    def test_non_export_lines_pass_through(self):
+        content = "# comment\nexport KEY=secret_val\n"
+        result = redact_secrets_env_content(content)
+        assert result.startswith("# comment\n")
+        assert "export KEY=***_val" in result
+
+    def test_empty_content(self):
+        result = redact_secrets_env_content("")
+        assert result == ""
+
+    def test_value_with_equals_sign(self):
+        content = "export KEY=val=ue=with=equals\n"
+        result = redact_secrets_env_content(content)
+        assert result == "export KEY=***uals\n"
+
+    def test_literal_keys_shown_unredacted(self):
+        content = "export SECRET_abc_TASK=my_secret_key\nexport PATH_abc_TASK=/some/long/path\n"
+        result = redact_secrets_env_content(
+            content, literal_disambiguated_names={"PATH_abc_TASK"}
+        )
+        assert "export SECRET_abc_TASK=***_key" in result
+        assert "export PATH_abc_TASK=/some/long/path" in result
+
+    def test_all_literal_keys_unredacted(self):
+        content = "export A=value_a\nexport B=value_b\n"
+        result = redact_secrets_env_content(
+            content, literal_disambiguated_names={"A", "B"}
+        )
+        assert result == "export A=value_a\nexport B=value_b\n"
+
+    def test_no_literal_keys_all_redacted(self):
+        content = "export A=value_a\nexport B=value_b\n"
+        result = redact_secrets_env_content(content, literal_disambiguated_names=set())
+        assert "export A=***ue_a" in result
+        assert "export B=***ue_b" in result

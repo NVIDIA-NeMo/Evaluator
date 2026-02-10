@@ -46,6 +46,9 @@ class CmdAndReadableComment:
     # When set, the caller should write this to a .secrets.env file in the same
     # directory as the script, and it will be sourced at runtime.
     secrets_env_content: str | None = None
+    # Disambiguated names whose values came from EnvVarLiteral (not secrets).
+    # Used by dry-run display to show literal values unredacted.
+    literal_disambiguated_names: frozenset[str] = frozenset()
 
 
 def _str_to_echo_command(str_to_save: str, filename: str) -> CmdAndReadableComment:

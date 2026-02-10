@@ -16,9 +16,9 @@
 """Unified environment variable handling for NeMo Evaluator Launcher.
 
 Three value types are supported via explicit prefixes:
-    "!lit:some_value"       — literal value, written directly
-    "!host:HOST_VAR"        — resolved from host env at config-load time via os.getenv()
-    "!runtime:RUNTIME_VAR"  — late-bound, resolved by the execution environment at runtime
+    "$lit:some_value"       — literal value, written directly
+    "$host:HOST_VAR"        — resolved from host env at config-load time via os.getenv()
+    "$runtime:RUNTIME_VAR"  — late-bound, resolved by the execution environment at runtime
 """
 
 import copy
@@ -34,9 +34,9 @@ from nemo_evaluator_launcher.common.logging_utils import logger
 
 # --- Value types ---
 
-PREFIX_LIT = "!lit:"
-PREFIX_HOST = "!host:"
-PREFIX_RUNTIME = "!runtime:"
+PREFIX_LIT = "$lit:"
+PREFIX_HOST = "$host:"
+PREFIX_RUNTIME = "$runtime:"
 
 
 @dataclass(frozen=True)
@@ -69,7 +69,7 @@ _ENV_VAR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 def parse_env_var_value(raw: str, default_type: str = "host") -> EnvVarValue:
     """Parse a raw env var value string into a typed EnvVarValue.
 
-    Supports explicit prefixes (!lit:, !host:, !runtime:) and backward-compatible
+    Supports explicit prefixes ($lit:, $host:, $runtime:) and backward-compatible
     unprefixed values (with deprecation warnings).
 
     Args:
@@ -85,7 +85,7 @@ def parse_env_var_value(raw: str, default_type: str = "host") -> EnvVarValue:
         raise ValueError(
             f"Hydra resolver syntax '{raw}' is not allowed in env var fields. "
             "It resolves secrets into the config object, defeating secret isolation. "
-            "Use '!host:VAR_NAME' instead."
+            "Use '$host:VAR_NAME' instead."
         )
 
     # Explicit prefixes
@@ -96,11 +96,11 @@ def parse_env_var_value(raw: str, default_type: str = "host") -> EnvVarValue:
     if raw.startswith(PREFIX_RUNTIME):
         return EnvVarRuntime(runtime_var_name=raw[len(PREFIX_RUNTIME) :])
 
-    # Backward-compatible: $VAR_NAME → !host:VAR_NAME
+    # Backward-compatible: $VAR_NAME → $host:VAR_NAME (old syntax without prefix keyword)
     if raw.startswith("$") and _ENV_VAR_NAME_RE.match(raw[1:]):
         warnings.warn(
             f"Unprefixed env var value '{raw}' is deprecated. "
-            f"Use '!host:{raw[1:]}' instead.",
+            f"Use '$host:{raw[1:]}' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -111,7 +111,7 @@ def parse_env_var_value(raw: str, default_type: str = "host") -> EnvVarValue:
         if default_type == "host":
             warnings.warn(
                 f"Unprefixed env var value '{raw}' is deprecated. "
-                f"Use '!host:{raw}' instead.",
+                f"Use '$host:{raw}' instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -119,15 +119,15 @@ def parse_env_var_value(raw: str, default_type: str = "host") -> EnvVarValue:
         else:
             warnings.warn(
                 f"Unprefixed env var value '{raw}' is deprecated. "
-                f"Use '!lit:{raw}' instead.",
+                f"Use '$lit:{raw}' instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
             return EnvVarLiteral(value=raw)
 
-    # Backward-compatible: anything else (paths, URLs, etc.) → !lit:VALUE
+    # Backward-compatible: anything else (paths, URLs, etc.) → $lit:VALUE
     warnings.warn(
-        f"Unprefixed env var value '{raw}' is deprecated. Use '!lit:{raw}' instead.",
+        f"Unprefixed env var value '{raw}' is deprecated. Use '$lit:{raw}' instead.",
         DeprecationWarning,
         stacklevel=2,
     )
@@ -189,6 +189,9 @@ class SecretsEnvResult:
     runtime_vars: dict[str, list[VarRemapping]] = field(default_factory=dict)
     """Per group: runtime vars that have no value in the secrets file."""
 
+    literal_disambiguated_names: set[str] = field(default_factory=set)
+    """Disambiguated names whose values came from EnvVarLiteral (not secrets)."""
+
 
 def _make_disambiguated_name(original_name: str, group_name: str, token: str) -> str:
     """Create a disambiguated env var name: ORIGINAL_<token>_<SANITIZED_GROUP>."""
@@ -213,6 +216,7 @@ def generate_secrets_env(
     lines: list[str] = []
     group_remappings: dict[str, list[VarRemapping]] = {}
     runtime_vars: dict[str, list[VarRemapping]] = {}
+    literal_disambiguated_names: set[str] = set()
 
     # One random token per generate call (shared across groups for this invocation)
     token = secrets.token_hex(3)  # 6 hex chars, e.g. "a3f1b2"
@@ -242,6 +246,8 @@ def generate_secrets_env(
             else:
                 group_remappings[group_name].append(remapping)
                 lines.append(f"export {disambiguated}={resolved_value}")
+                if isinstance(val, EnvVarLiteral):
+                    literal_disambiguated_names.add(disambiguated)
                 logger.debug(
                     "Resolved env var for secrets file",
                     target=target_name,
@@ -255,6 +261,7 @@ def generate_secrets_env(
         secrets_content=secrets_content,
         group_remappings=group_remappings,
         runtime_vars=runtime_vars,
+        literal_disambiguated_names=literal_disambiguated_names,
     )
 
 
@@ -281,6 +288,33 @@ def build_reexport_commands(group_name: str, result: SecretsEnvResult) -> str:
             f"export {remapping.original_name}=${remapping.disambiguated_name}"
         )
     return " ; ".join(commands)
+
+
+def redact_secrets_env_content(
+    secrets_content: str,
+    literal_disambiguated_names: set[str] | None = None,
+) -> str:
+    """Redact resolved values in .secrets.env content for dry-run display.
+
+    Lines like ``export KEY=secret_value`` become ``export KEY=***alue``.
+    Values with 4 or fewer characters are fully masked as ``***``.
+    Literal values (keys in *literal_disambiguated_names*) are shown as-is.
+    Non-export lines are passed through unchanged.
+    """
+    literal_names = literal_disambiguated_names or set()
+    redacted_lines: list[str] = []
+    for line in secrets_content.splitlines():
+        if line.startswith("export ") and "=" in line[len("export "):]:
+            key, _, value = line[len("export "):].partition("=")
+            if key in literal_names:
+                redacted_lines.append(line)
+            elif len(value) > 4:
+                redacted_lines.append(f"export {key}=***{value[-4:]}")
+            else:
+                redacted_lines.append(f"export {key}=***")
+        else:
+            redacted_lines.append(line)
+    return "\n".join(redacted_lines) + ("\n" if secrets_content.endswith("\n") else "")
 
 
 # --- Config collection helpers ---
@@ -347,7 +381,7 @@ def collect_eval_env_vars(
             raise ValueError(
                 f"{task.name} task requires environment variable {required_env_var}. "
                 "Specify it in the task subconfig in the 'env_vars' dict as the following "
-                f"pair {required_env_var}: !host:YOUR_ENV_VAR_NAME"
+                f"pair {required_env_var}: $host:YOUR_ENV_VAR_NAME"
             )
 
     # Parse main env vars (evaluation context: bare names default to host)

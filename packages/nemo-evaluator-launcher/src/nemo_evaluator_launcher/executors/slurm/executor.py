@@ -37,6 +37,7 @@ from nemo_evaluator_launcher.common.env_vars import (
     collect_deployment_env_vars,
     collect_eval_env_vars,
     generate_secrets_env,
+    redact_secrets_env_content,
 )
 from nemo_evaluator_launcher.common.execdb import (
     ExecutionDB,
@@ -90,6 +91,7 @@ class SlurmExecutor(BaseExecutor):
 
         local_runsub_paths = []
         remote_runsub_paths = []
+        task_literal_names: list[frozenset[str]] = []
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             timestamp = get_timestamp_string(include_microseconds=False)
@@ -180,6 +182,9 @@ class SlurmExecutor(BaseExecutor):
 
                 local_runsub_paths.append(local_runsub_path)
                 remote_runsub_paths.append(remote_runsub_path)
+                task_literal_names.append(
+                    sbatch_script_content_struct.literal_disambiguated_names
+                )
 
             if dry_run:
                 print(bold("\n\n=============================================\n\n"))
@@ -188,6 +193,23 @@ class SlurmExecutor(BaseExecutor):
                     print(cyan(f"\n\n=========== Task {idx} =====================\n\n"))
                     with open(local_runsub_path, "r") as f:
                         print(grey(f.read()))
+
+                    secrets_env_path = local_runsub_path.parent / ".secrets.env"
+                    if secrets_env_path.exists():
+                        print(
+                            cyan(
+                                f"\n----------- Secrets (redacted) | Task {idx} / .secrets.env -----------\n"
+                            )
+                        )
+                        print(
+                            grey(
+                                redact_secrets_env_content(
+                                    secrets_env_path.read_text(),
+                                    task_literal_names[idx],
+                                )
+                            )
+                        )
+
                 print(bold("To submit jobs") + ", run the executor without --dry-run")
                 if is_potentially_unsafe:
                     print(
@@ -601,9 +623,11 @@ def _create_slurm_sbatch_script(
         env_groups["execution"] = deployment_env_vars
 
     secrets_env_content = None
+    literal_disambiguated_names: set[str] = set()
     if env_groups:
         secrets_result = generate_secrets_env(env_groups)
         secrets_env_content = secrets_result.secrets_content
+        literal_disambiguated_names = secrets_result.literal_disambiguated_names
 
         # Source .secrets.env at runtime (file lives alongside run.sub)
         secrets_env_path = remote_task_subdir / ".secrets.env"
@@ -791,6 +815,7 @@ def _create_slurm_sbatch_script(
         debug=debug_str,
         is_potentially_unsafe=is_potentially_unsafe,
         secrets_env_content=secrets_env_content,
+        literal_disambiguated_names=frozenset(literal_disambiguated_names),
     )
 
 
