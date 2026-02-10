@@ -125,19 +125,6 @@ def evaluate(
         )
         telemetry_handler.start()
 
-        # Emit STARTED event immediately
-        model_name = "unknown"
-        if target_cfg.api_endpoint and target_cfg.api_endpoint.model_id:
-            model_name = target_cfg.api_endpoint.model_id
-        telemetry_handler.enqueue(
-            EvaluationTaskEvent(
-                task=eval_cfg.type,
-                eval_harness="unknown",  # Will be determined after validation
-                model=model_name,
-                task_status=TaskStatusEnum.STARTED,
-            )
-        )
-
     # Initialize evaluation state used for telemetry
     evaluation = None
     try:
@@ -147,6 +134,20 @@ def evaluate(
         }
         evaluation = validate_configuration(run_config)
         prepare_output_directory(evaluation)
+
+        # Emit STARTED event after validation so we have the real framework_name
+        if telemetry_handler:
+            model_name = "unknown"
+            if target_cfg.api_endpoint and target_cfg.api_endpoint.model_id:
+                model_name = target_cfg.api_endpoint.model_id
+            telemetry_handler.enqueue(
+                EvaluationTaskEvent(
+                    task=eval_cfg.type or "unknown",
+                    framework_name=evaluation.framework_name,
+                    model=model_name,
+                    task_status=TaskStatusEnum.STARTED,
+                )
+            )
 
         metadata_block = _persist_metadata_and_build_results_block(
             evaluation.config.output_dir, metadata
@@ -363,12 +364,12 @@ def evaluate(
             model_name = "unknown"
             if target_cfg.api_endpoint and target_cfg.api_endpoint.model_id:
                 model_name = target_cfg.api_endpoint.model_id
-            # Get harness name safely (evaluation may not be set if validation failed)
-            harness_name = evaluation.framework_name if evaluation else "unknown"
+            # Get framework name safely (evaluation may not be set if validation failed)
+            fw_name = evaluation.framework_name if evaluation else "unknown"
             telemetry_handler.enqueue(
                 EvaluationTaskEvent(
-                    task=eval_cfg.type,
-                    eval_harness=harness_name,
+                    task=eval_cfg.type or "unknown",
+                    framework_name=fw_name,
                     model=model_name,
                     execution_duration_seconds=duration,
                     task_status=task_status,

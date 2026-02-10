@@ -76,7 +76,7 @@ def test_evaluate_result_config_matches_run_config(tmp_path: Path):
 
 
 def test_evaluate_telemetry_uses_framework_name(tmp_path: Path):
-    """Test that telemetry completion event uses Evaluation.framework_name for eval_harness."""
+    """Test that telemetry completion event uses Evaluation.framework_name."""
     captured_events = []
 
     class CapturingHandler:
@@ -125,5 +125,9 @@ def test_evaluate_telemetry_uses_framework_name(tmp_path: Path):
 
     # Should have STARTED + SUCCESS events
     assert len(captured_events) == 2
+    started_event = captured_events[0]
+    assert started_event.framework_name == "lm-eval"
+    assert started_event.task_status == "started"
     completion_event = captured_events[1]
-    assert completion_event.eval_harness == "lm-eval"
+    assert completion_event.framework_name == "lm-eval"
+    assert completion_event.task_status == "success"
