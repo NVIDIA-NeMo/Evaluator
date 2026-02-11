@@ -1,0 +1,21 @@
+# Safety & Security for chat models (chat endpoint)
+evaluation:
+  tasks:
+    - name: garak.garak
+      # Uncomment for quick testing:
+      # nemo_evaluator_config:
+      #   config:
+      #     params:
+      #       extra:
+      #         probes: "test.Test"
+    - name: safety_eval.aegis_v2
+      nemo_evaluator_config:
+        config:
+          params:
+            extra:
+              judge:
+                model_id: "llama-3.1-nemoguard-8b-content-safety"
+                url: ??? # Set to your judge endpoint URL (e.g., https://my-judge-endpoint.com/v1)
+      env_vars:
+        HF_TOKEN: HF_TOKEN_FOR_AEGIS_V2 # Access: https://huggingface.co/datasets/nvidia/Aegis-AI-Content-Safety-Dataset-2.0
+        JUDGE_API_KEY: JUDGE_API_KEY # API key for judge endpoint

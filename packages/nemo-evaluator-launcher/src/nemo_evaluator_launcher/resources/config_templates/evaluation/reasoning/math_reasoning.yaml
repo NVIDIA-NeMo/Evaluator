@@ -1,0 +1,9 @@
+# Math & Reasoning for reasoning models
+# These benchmarks benefit most from extended thinking
+evaluation:
+  tasks:
+    - name: nemo_skills.ns_gpqa # GPQA Diamond
+      env_vars:
+        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND
+    - name: nemo_skills.ns_aime2024
+    - name: nemo_skills.ns_aime2025
