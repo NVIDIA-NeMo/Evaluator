@@ -165,6 +165,47 @@ nemo-evaluator-launcher status <job_id_or_invocation_id>
 We welcome community contributions. Please see our [Contribution Guide](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/CONTRIBUTING.md) for instructions on submitting pull requests, reporting issues, and suggesting features.
 
 
+## 📡 Telemetry
+
+NeMo Evaluator collects telemetry to help improve the project.
+
+**All telemetry events are collected anonymously.**
+
+### Event: `EvaluationTaskEvent` (from `nemo-evaluator`)
+
+| Field | Description |
+|---|---|
+| `task` | Evaluated task/benchmark name. |
+| `frameworkName` | Evaluation framework name (for example `lm-eval`, `helm`). |
+| `model` | Model name used for evaluation. |
+| `executionDurationSeconds` | Evaluation duration in seconds. |
+| `status` | Task status: `started`, `success`, or `failure`. |
+
+### Event: `LauncherJobEvent` (from `nemo-evaluator-launcher`)
+
+| Field | Description |
+|---|---|
+| `executorType` | Launcher executor backend (`local`, `slurm`, `lepton`, etc.). |
+| `deploymentType` | Deployment type (`none`, `vllm`, `sglang`, `nim`, etc.). |
+| `model` | Model name for the launched run. |
+| `tasks` | List of requested evaluation tasks. |
+| `exporters` | List of configured exporters. |
+| `status` | Job status: `started`, `success`, or `failure`. |
+
+### Telemetry Controls
+
+| Control | Effect |
+|---|---|
+| `NEMO_EVALUATOR_TELEMETRY_ENABLED=false` | Disables telemetry globally. |
+| `NEMO_EVALUATOR_TELEMETRY_ENDPOINT=<url>` | Overrides telemetry endpoint. |
+| `NEMO_EVALUATOR_TELEMETRY_SESSION_ID=<id>` | Sets a custom session ID for event correlation. |
+| `nemo-evaluator-launcher --no-telemetry` (or `-T`) | Disables telemetry for that launcher invocation. |
+
+### Aggregate Reporting
+
+We may share aggregated telemetry trends with the community (for example, popularity of models, tasks, and execution backends). Aggregates are anonymous and are not used to track individual users.
+
+
 ## 📄 License
 
 This project is licensed under the Apache License 2.0. See the [LICENSE](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/LICENSE) file for details.
