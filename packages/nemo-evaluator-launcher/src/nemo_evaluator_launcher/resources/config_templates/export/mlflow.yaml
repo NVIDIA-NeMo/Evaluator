@@ -1,0 +1,13 @@
+execution:
+  auto_export:
+    destinations: ["mlflow"]
+
+export:
+  mlflow:
+    tracking_uri: ??? # MLflow server URL (http://hostname:port) (required)
+    experiment_name: ??? # MLflow experiment name (required)
+    description: "" # Optional
+    log_logs: true
+    log_config_params: true
+    # only_required: false # Uncomment to upload all artifacts
+    tags: {} # Optional key-value pairs

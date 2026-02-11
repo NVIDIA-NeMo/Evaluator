@@ -75,7 +75,7 @@ The `ResponseReasoningInterceptor` is by default configured for the `...</think>
 
 ### 2. Returned as `reasoning_content` field in messages output
 
-If your model is deployed with e.g. vLLM, sglang or NIM, reasoning part of the model's output will be returned in the `reasoning_content` field in messages output (see [vLLM documentation](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html)).
+If your model is deployed with e.g. vLLM, sglang or NIM, the reasoning part of the model's output is likely returned in the separate `reasoning_content` field in messages output (see [vLLM documentation](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) and [sglang documentation](https://sgl-project.github.io/advanced_features/separate_reasoning.html)).
 
 In the messages returned by the endpoint, there are:
 
@@ -84,6 +84,20 @@ In the messages returned by the endpoint, there are:
 
 Conversely to the first method, this setup does not require any extra response parsing.
 However, in some benchmarks, errors may appear if the reasoning has not finished and the benchmark does not support empty answers in `content`.
+
+#### Enabling reasoning parser in vLLM
+
+To enable the `reasoning_content` field in vLLM, you need to pass the `--reasoning-parser` argument to the vLLM server.
+In NeMo Evaluator Launcher, you can do this via `deployment.extra_args`:
+
+```yaml
+deployment:
+  hf_model_handle: Qwen/Qwen3-Next-80B-A3B-Thinking
+  extra_args: "--reasoning-parser deepseek_r1"
+```
+
+Available reasoning parsers depend on your vLLM version. Common options include `deepseek_r1` for models using `<think>...</think>` format.
+See the [vLLM reasoning outputs documentation](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) for details.
 
 ---
 
@@ -256,8 +270,3 @@ These statistics also enable cost analysis for reasoning operations.
 While the endpoint in this example does not return reasoning token usage statistics (the `*_tokens` fields are null or zero), you can still analyze computational cost using the word count metrics from the responses.
 
 For more information on available artifacts, see {ref}`evaluation-output`.
-
-## Additional resources
-
-- [Reasoning handling with vLLM](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html)
-- [Reasoning handling with sglang](https://docs.sglang.io/advanced_features/separate_reasoning.html)

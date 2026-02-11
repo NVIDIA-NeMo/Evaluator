@@ -161,6 +161,31 @@ Results, logs, and run configurations are saved locally. Inspect the status of t
 nemo-evaluator-launcher status <job_id_or_invocation_id>
 ```
 
+## Agentic Skills
+
+NeMo Evaluator provides [Agent Skills](https://agentskills.io/) for interactive assistance.
+
+| Skill | Description |
+|-------|-------------|
+| `nel-assistant` | Interactive assistant for configuring, running, and monitoring evaluations |
+
+We recommend using the skills with Claude Sonnet or better for the best experience.
+
+### Install via `nel` CLI
+
+```bash
+nel skills install [--claude] [--cursor] [--codex] [--opencode]
+```
+
+Use `--project` to install into the current project directory instead of your home directory. See `nel skills install --help` for all options.
+
+### Claude Code Marketplace
+
+```bash
+/plugin marketplace add NVIDIA-NeMo/Evaluator
+/plugin install nel-assistant@NVIDIA-NeMo/Evaluator
+```
+
 ## 🤝 Contribution Guide
 
 We welcome community contributions. Please see our [Contribution Guide](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/CONTRIBUTING.md) for instructions on submitting pull requests, reporting issues, and suggesting features.

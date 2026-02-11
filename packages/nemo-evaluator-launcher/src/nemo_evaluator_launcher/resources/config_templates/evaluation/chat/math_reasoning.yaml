@@ -1,0 +1,9 @@
+# Math & Reasoning for chat models (chat endpoint)
+# Note: For reasoning models, use evaluation/reasoning/ configs instead
+evaluation:
+  tasks:
+    - name: nemo_skills.ns_gpqa # GPQA Diamond
+      env_vars:
+        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND
+    - name: nemo_skills.ns_aime2024
+    - name: nemo_skills.ns_aime2025

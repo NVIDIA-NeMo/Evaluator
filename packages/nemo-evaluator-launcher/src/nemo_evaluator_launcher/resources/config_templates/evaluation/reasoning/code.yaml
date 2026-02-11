@@ -1,0 +1,9 @@
+# Code Evaluation for reasoning models
+evaluation:
+  tasks:
+    - name: bigcode-evaluation-harness.mbppplus_nemo # chat version (EvalPlus)
+    - name: nemo_skills.ns_livecodebench
+      nemo_evaluator_config:
+        config:
+          params:
+            max_new_tokens: 65536 # Extended for complex code reasoning
