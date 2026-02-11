@@ -46,6 +46,7 @@ def test_get_eval_factory_command_basic(monkeypatch):
                 "api_endpoint": {
                     "url": "https://example.test/api",
                     "model_id": "model-123",
+                    "api_key_name": "MY_API_KEY",
                 }
             },
         }
@@ -75,7 +76,7 @@ def test_get_eval_factory_command_basic(monkeypatch):
     assert merged["target"]["api_endpoint"]["url"] == "https://example.test/api"
     assert merged["target"]["api_endpoint"]["model_id"] == "model-123"
     assert merged["target"]["api_endpoint"]["type"] == "chat"
-    assert merged["target"]["api_endpoint"]["api_key"] == "API_KEY"
+    assert merged["target"]["api_endpoint"]["api_key_name"] == "MY_API_KEY"
 
     assert merged["config"]["type"] == "my_task"
     assert merged["config"]["output_dir"] == "/results"
