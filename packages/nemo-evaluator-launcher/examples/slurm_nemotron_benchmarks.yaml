@@ -83,7 +83,7 @@ evaluation:
 
     - name: livecodebench_0824_0225
 
-    - name: ifeval # evaluated in reasoning-off mode
+    - name: lm-evaluation-harness.ifeval # evaluated in reasoning-off mode
       nemo_evaluator_config: # task-specific configuration for ifeval
         config:
           params:

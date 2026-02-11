@@ -17,8 +17,12 @@ export CUDA_VISIBLE_DEVICES="0"
 export HF_HOME="/home/TestData/HF_HOME"
 export HF_DATASETS_OFFLINE="1"
 export TRANSFORMERS_OFFLINE="1"
-export HF_DATASETS_CACHE="${HF_HOME}/datasets"
+export HF_DATASETS_CACHE="/tmp/datasets"
 
+mkdir /tmp/datasets
+cp -r ${HF_HOME}/datasets/gsm8k /tmp/datasets
+cp -r ${HF_HOME}/datasets/google___if_eval /tmp/datasets
+ls -alh /tmp/datasets
 mkdir -p /checkpoints && \
 ln -s /home/TestData/nemo2_ckpt/llama-3_2-1b-instruct_v2.0 /checkpoints/llama-3_2-1b-instruct_v2.0
 

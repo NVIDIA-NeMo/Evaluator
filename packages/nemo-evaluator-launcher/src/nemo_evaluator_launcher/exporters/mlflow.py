@@ -16,6 +16,7 @@
 """Evaluation results exporter for MLflow tracking."""
 
 import os
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List
@@ -39,6 +40,7 @@ from nemo_evaluator_launcher.exporters.utils import (
     get_artifact_root,
     get_available_artifacts,
     get_benchmark_info,
+    get_copytree_ignore,
     get_task_name,
     mlflow_sanitize,
 )
@@ -378,27 +380,36 @@ class MLflowExporter(BaseExporter):
                     mlflow.log_artifact(str(cfg_file))
 
             # Choose files to upload
-            files_to_upload: list[Path] = []
             if mlflow_config.get("only_required", True):
+                # Upload only specific required files
                 for fname in get_available_artifacts(artifacts_dir):
                     p = artifacts_dir / fname
                     if p.exists():
-                        files_to_upload.append(p)
+                        mlflow.log_artifact(
+                            str(p),
+                            artifact_path=f"{artifact_path}/artifacts",
+                        )
+                        logged_names.append(fname)
+                        logger.debug(f"mlflow upload artifact: {fname}")
             else:
-                for p in artifacts_dir.iterdir():  # top-level files only
-                    if p.is_file():
-                        files_to_upload.append(p)
-
-            # Upload artifacts (with DEBUG per-file)
-            for fpath in files_to_upload:
-                rel = fpath.relative_to(artifacts_dir).as_posix()
-                parent = os.path.dirname(rel)
-                mlflow.log_artifact(
-                    str(fpath),
-                    artifact_path=f"{artifact_path}/artifacts/{parent}".rstrip("/"),
-                )
-                logged_names.append(rel)
-                logger.debug(f"mlflow upload artifact: {rel}")
+                # Upload all artifacts with recursive exclusion
+                # Stage to temp dir with exclusions, then upload
+                with tempfile.TemporaryDirectory() as tmp:
+                    staged = Path(tmp) / "artifacts"
+                    shutil.copytree(
+                        artifacts_dir,
+                        staged,
+                        ignore=get_copytree_ignore(),
+                        dirs_exist_ok=True,
+                    )
+                    # Upload entire staged directory
+                    mlflow.log_artifacts(
+                        str(staged), artifact_path=f"{artifact_path}/artifacts"
+                    )
+                    logged_names.extend([p.name for p in staged.iterdir()])
+                    logger.debug(
+                        f"mlflow upload artifacts: {len(logged_names)} items (with exclusions)"
+                    )
 
             # Optionally upload logs under "<harness.task>/logs"
             if mlflow_config.get("log_logs", False) and logs_dir.exists():
@@ -415,8 +426,6 @@ class MLflowExporter(BaseExporter):
                 f"MLflow upload summary: files={len(logged_names)}, only_required={mlflow_config.get('only_required', True)}, log_logs={mlflow_config.get('log_logs', False)}"
             )
             if should_cleanup:
-                import shutil
-
                 shutil.rmtree(base_dir, ignore_errors=True)
 
             return logged_names

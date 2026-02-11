@@ -40,6 +40,7 @@ from nemo_evaluator_launcher.common.execdb import (
     generate_job_id,
 )
 from nemo_evaluator_launcher.common.helpers import (
+    check_unlisted_tasks_safeguard,
     get_api_key_name,
     get_endpoint_url,
     get_eval_factory_command,
@@ -95,6 +96,7 @@ class LocalExecutor(BaseExecutor):
         tasks_mapping = load_tasks_mapping()
         evaluation_tasks = []
         job_ids = []
+        unlisted_task_names: list[str] = []
 
         run_template = jinja2.Template(
             open(pathlib.Path(__file__).parent / "run.template.sh", "r").read()
@@ -127,7 +129,12 @@ class LocalExecutor(BaseExecutor):
                 task_query=task.name,
                 base_mapping=tasks_mapping,
                 container=task.get("container"),
+                endpoint_type=task.get("endpoint_type"),
             )
+
+            # Track unlisted tasks for safeguard check
+            if task_definition.get("is_unlisted", False):
+                unlisted_task_names.append(task.name)
 
             if cfg.deployment.type != "none":
                 # container name
@@ -337,7 +344,14 @@ class LocalExecutor(BaseExecutor):
                         "make sure you trust the command and set NEMO_EVALUATOR_TRUST_PRE_CMD=1"
                     )
                 )
+
+            # Check unlisted tasks safeguard (prints warning in dry-run)
+            check_unlisted_tasks_safeguard(unlisted_task_names, dry_run=True)
+
             return invocation_id
+
+        # Check unlisted tasks safeguard (raises error if flag not set)
+        check_unlisted_tasks_safeguard(unlisted_task_names, dry_run=False)
 
         if is_potentially_unsafe:
             if os.environ.get("NEMO_EVALUATOR_TRUST_PRE_CMD", "") == "1":

@@ -15,6 +15,7 @@
 #
 import base64
 import datetime
+import os
 from dataclasses import dataclass
 from typing import Optional
 
@@ -189,10 +190,22 @@ def get_eval_factory_command(
         ["target", "api_endpoint", "type"],
         task_definition["endpoint_type"],
     )
+    # For unlisted tasks, use the full harness.task format
+    # For listed tasks, use just the task name (existing behavior)
+    if task_definition.get("is_unlisted"):
+        harness = task_definition.get("harness", "")
+        task = task_definition.get("task", "")
+        if harness:
+            task_type = f"{harness}.{task}"
+        else:
+            task_type = task
+    else:
+        task_type = task_definition["task"]
+
     _set_nested_optionally_overriding(
         merged_nemo_evaluator_config,
         ["config", "type"],
-        task_definition["task"],
+        task_type,
     )
     _set_nested_optionally_overriding(
         merged_nemo_evaluator_config,
@@ -405,3 +418,56 @@ def get_eval_factory_dataset_size_from_run_config(run_config: dict) -> Optional[
     n_samples = int(config["params"].get("extra", {}).get("n_samples", 1))
     dataset_size *= n_samples
     return dataset_size
+
+
+def check_unlisted_tasks_safeguard(
+    unlisted_task_names: list[str],
+    dry_run: bool,
+) -> None:
+    """Check and enforce safeguard for unlisted tasks.
+
+    Unlisted tasks are those not defined in the Framework Definition Files (FDF).
+    This follows the same pattern as the NEMO_EVALUATOR_TRUST_PRE_CMD safeguard.
+
+    Args:
+        unlisted_task_names: List of task names that are unlisted (not in FDF).
+        dry_run: Whether this is a dry-run execution.
+
+    Raises:
+        AttributeError: If unlisted tasks present and trust flag not set (non-dry-run only).
+    """
+    if not unlisted_task_names:
+        return
+
+    from nemo_evaluator_launcher.common.printing_utils import red
+
+    warning_msg = (
+        f"Found {len(unlisted_task_names)} unlisted task(s) not in FDF mapping: "
+        f"{', '.join(unlisted_task_names)}. "
+    )
+
+    if dry_run:
+        print(
+            red(
+                f"\n{warning_msg}"
+                "When running without --dry-run, set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1 "
+                "if you trust these tasks."
+            )
+        )
+        return
+
+    if os.environ.get("NEMO_EVALUATOR_TRUST_UNLISTED_TASKS", "") == "1":
+        logger.warning(
+            warning_msg
+            + "NEMO_EVALUATOR_TRUST_UNLISTED_TASKS is set, proceeding with caution.",
+            unlisted_tasks=unlisted_task_names,
+        )
+    else:
+        logger.error(
+            warning_msg + "Set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1 to proceed.",
+            unlisted_tasks=unlisted_task_names,
+        )
+        raise AttributeError(
+            f"Unlisted tasks found: {', '.join(unlisted_task_names)}. "
+            "Set NEMO_EVALUATOR_TRUST_UNLISTED_TASKS=1 to proceed."
+        )

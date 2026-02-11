@@ -37,6 +37,11 @@ execution:
   # Auto-export destinations
   auto_export:
     destinations: ["mlflow"]
+    # Optional: custom command to install nemo-evaluator-launcher in the export container.
+    # Useful for installing from a git branch or specific version. Supports multi-line.
+    # launcher_install_cmd: |
+    #   apt-get update -qq && apt-get install -qq -y git
+    #   pip install "nemo-evaluator-launcher[all] @ git+https://github.com/NVIDIA-NeMo/Evaluator.git@main#subdirectory=packages/nemo-evaluator-launcher"
 
 target:
   api_endpoint:
@@ -54,7 +59,7 @@ evaluation:
         parallelism: 1  # 1 parallel request to avoid overloading the server
         # limit_samples: 10 # uncomment to limit number of samples for quick testing
   tasks:
-    - name: gpqa_diamond
+    - name: simple_evals.gpqa_diamond
       env_vars:
         HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
 

@@ -56,7 +56,7 @@ It is recommended to use [`check_endpoint`](https://github.com/NVIDIA-NeMo/Evalu
 :start-after: "## Run the evaluation"
 ```
 
-To evaluate the chat endpoint, update the url by replacing `/v1/completions/` with `/v1/chat/completions/`. Additionally, set the `type` field to `"chat"` in both `ApiEndpoint` and `EvaluationConfig` to indicate a chat benchmark.
+To evaluate the chat endpoint, update the URL by replacing `/v1/completions/` with `/v1/chat/completions/`. Additionally, set the `type` field to `"chat"` to indicate a chat benchmark.
 
 To evaluate log-probability benchmarks (e.g., `arc_challenge`), run the following code snippet after deployment.
 <!-- For a comparison between generation benchmarks and log-probability benchmarks, refer to the ["Evaluate Checkpoints Trained by NeMo Framework"](index.md) section. -->
