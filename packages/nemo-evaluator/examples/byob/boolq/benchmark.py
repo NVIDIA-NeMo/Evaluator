@@ -20,12 +20,16 @@ BoolQ is a yes/no question answering dataset from Google/SuperGLUE.
 Usage:
   python -m nemo_evaluator.byob.cli examples/byob/boolq/benchmark.py
 """
+import os
+
 from nemo_evaluator.byob import benchmark, scorer
+
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 @benchmark(
     name="boolq",
-    dataset="examples/byob/boolq/data.jsonl",
+    dataset=os.path.join(_SCRIPT_DIR, "data.jsonl"),
     prompt=(
         "Read the passage and answer the question with 'yes' or 'no'.\n\n"
         "Passage: {passage}\n\n"

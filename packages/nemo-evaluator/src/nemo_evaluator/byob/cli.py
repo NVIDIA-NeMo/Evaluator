@@ -16,8 +16,21 @@
 """CLI for BYOB operations."""
 
 import argparse
+import glob
+import os
+import sys
+
+import yaml
 
 from nemo_evaluator.byob.compiler import compile_benchmark, install_benchmark
+
+
+def _get_version():
+    try:
+        from nemo_evaluator.package_info import __version__
+        return __version__
+    except ImportError:
+        return "unknown"
 
 
 def byob_compile(args=None):
@@ -25,29 +38,121 @@ def byob_compile(args=None):
     parser = argparse.ArgumentParser(
         description="Compile a BYOB benchmark into a NeMo Evaluator plugin"
     )
-    parser.add_argument("module", help="Path to Python file with @benchmark decorators")
+    parser.add_argument("module", nargs="?", help="Path to Python file with @benchmark decorators")
     parser.add_argument("--install-dir", default=None, help="Custom installation directory")
     parser.add_argument(
         "--native",
         action="store_true",
         default=False,
-        help="Generate native-mode package (in-process execution, no subprocess)",
+        help=(
+            "Run the benchmark directly in Python instead of as a separate process. "
+            "Faster startup, better error messages, and easier debugging. "
+            "Use this unless you need process isolation."
+        ),
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {_get_version()}",
+    )
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        default=False,
+        help="List installed BYOB benchmark packages",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Validate benchmark and show configuration without installing",
     )
     parsed = parser.parse_args(args)
 
-    print(f"Compiling benchmarks from: {parsed.module}")
+    # --list: show installed benchmarks
+    if parsed.list:
+        default_dir = os.path.expanduser("~/.nemo-evaluator/byob_packages/")
+        search_dir = parsed.install_dir or default_dir
+
+        if not os.path.exists(search_dir):
+            print(f"No BYOB packages found at: {search_dir}")
+            sys.exit(0)
+
+        packages = []
+        for fw_yml in glob.glob(os.path.join(search_dir, "*/core_evals/*/framework.yml")):
+            try:
+                with open(fw_yml) as f:
+                    fw = yaml.safe_load(f)
+                if fw:
+                    name = fw.get("framework", {}).get("name", "unknown")
+                    mode = fw.get("defaults", {}).get("execution_mode", "subprocess")
+                    evals = fw.get("evaluations", [])
+                    for ev in evals:
+                        eval_type = ev.get("defaults", {}).get("config", {}).get("type", "unknown")
+                        packages.append((name, eval_type, mode))
+            except Exception:
+                continue
+
+        if not packages:
+            print(f"No BYOB packages found at: {search_dir}")
+        else:
+            print(f"Installed BYOB benchmarks ({search_dir}):")
+            for name, eval_type, mode in packages:
+                print(f"  {eval_type}  [{mode}]")
+        sys.exit(0)
+
+    # module is required for compile and dry-run
+    if not parsed.module:
+        parser.error("the following arguments are required: module")
+
     execution_mode = "native" if parsed.native else "subprocess"
+
+    # --dry-run: validate without installing
+    if parsed.dry_run:
+        try:
+            compiled = compile_benchmark(parsed.module, execution_mode=execution_mode)
+        except Exception as e:
+            print(f"VALIDATION FAILED: {e}", file=sys.stderr)
+            sys.exit(1)
+
+        print("Validation passed. Benchmarks found:")
+        for name, fdf in compiled.items():
+            eval_entry = fdf["evaluations"][0]
+            print(f"  - {eval_entry['name']} (normalized: {name})")
+            ds = fdf["defaults"]["config"]["params"]["extra"]["dataset"]
+            print(f"    Dataset: {ds}")
+            if os.path.exists(ds):
+                with open(ds) as f:
+                    sample_count = sum(1 for line in f if line.strip())
+                print(f"    Samples: {sample_count}")
+            else:
+                print(f"    WARNING: Dataset not found: {ds}", file=sys.stderr)
+            print(f"    Mode: {execution_mode}")
+        sys.exit(0)
+
+    # Normal compile + install
+    print(f"Compiling benchmarks from: {parsed.module}")
     compiled = compile_benchmark(parsed.module, execution_mode=execution_mode)
 
     for name, fdf in compiled.items():
         pkg_name = f"byob_{name}"
-        print(f"  Installing {pkg_name}...")
+        print(f"\n  Benchmark: {fdf['evaluations'][0]['name']}")
+        print(f"  Package:   {pkg_name}")
+
         pkg_dir = install_benchmark(name, fdf, install_dir=parsed.install_dir)
         eval_type = f"{pkg_name}.{fdf['evaluations'][0]['name']}"
-        print(f"  Installed to: {pkg_dir}")
-        print(f"  Run with: nemo-evaluator run_eval --eval_type {eval_type}")
 
-    print(f"\nCompiled {len(compiled)} benchmark(s).")
+        print(f"  Mode:      {execution_mode}")
+        print(f"  Location:  {pkg_dir}")
+        print(f"")
+        print(f"  To run this benchmark:")
+        print(f"    export PYTHONPATH=\"{os.path.dirname(pkg_dir)}:$PYTHONPATH\"")
+        print(f"    nemo-evaluator run_eval \\")
+        print(f"      --eval_type {eval_type} \\")
+        print(f"      --model_url <YOUR_MODEL_URL> \\")
+        print(f"      --model_id <YOUR_MODEL_ID>")
+
+    print(f"\nCompiled {len(compiled)} benchmark(s) successfully.")
 
 
 if __name__ == "__main__":

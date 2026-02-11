@@ -17,6 +17,7 @@
 
 import argparse
 import json
+import logging
 import math
 import os
 import sys
@@ -58,6 +59,7 @@ def call_model_chat(
     temperature: float = 0,
     max_tokens: int = 4096,
     api_key: Optional[str] = None,
+    timeout: float = 120,
 ) -> str:
     """Call OpenAI-compatible chat completions endpoint.
 
@@ -68,6 +70,7 @@ def call_model_chat(
         temperature: Sampling temperature.
         max_tokens: Maximum tokens to generate.
         api_key: Optional Bearer token for Authorization header.
+        timeout: Request timeout in seconds.
 
     Returns:
         Generated response text.
@@ -88,7 +91,7 @@ def call_model_chat(
         "max_tokens": max_tokens,
     }
 
-    response = requests.post(endpoint, json=payload, headers=headers, timeout=120)
+    response = requests.post(endpoint, json=payload, headers=headers, timeout=timeout)
     response.raise_for_status()
 
     return response.json()["choices"][0]["message"]["content"]
@@ -101,6 +104,7 @@ def call_model_completions(
     temperature: float = 0,
     max_tokens: int = 4096,
     api_key: Optional[str] = None,
+    timeout: float = 120,
 ) -> str:
     """Call OpenAI-compatible completions endpoint.
 
@@ -111,6 +115,7 @@ def call_model_completions(
         temperature: Sampling temperature.
         max_tokens: Maximum tokens to generate.
         api_key: Optional Bearer token for Authorization header.
+        timeout: Request timeout in seconds.
 
     Returns:
         Generated response text.
@@ -131,7 +136,7 @@ def call_model_completions(
         "max_tokens": max_tokens,
     }
 
-    response = requests.post(endpoint, json=payload, headers=headers, timeout=120)
+    response = requests.post(endpoint, json=payload, headers=headers, timeout=timeout)
     response.raise_for_status()
 
     return response.json()["choices"][0]["text"]
@@ -144,7 +149,7 @@ def aggregate_scores(scores: List[Dict], benchmark_name: str) -> Dict:
     1. Collect all numeric keys (bool, int, float) across all sample dicts.
     2. For each key:
        - Convert booleans to 0.0/1.0.
-       - Compute: mean, variance (population, /n), stddev, stderr = stddev / sqrt(n).
+       - Compute: mean, sample variance (Bessel's correction, /(n-1)), stddev, stderr = stddev / sqrt(n).
        - If n <= 1: variance=0, stderr=0.
        - Detect binary: is_binary = all(v in (0.0, 1.0) for v in values).
        - Binary metrics: scale display values by 100 (percentage).
@@ -189,7 +194,7 @@ def aggregate_scores(scores: List[Dict], benchmark_name: str) -> Dict:
 
     # Compute statistics for each key
     aggregated_scores = {}
-    for key in all_keys:
+    for key in sorted(all_keys):
         # Extract values for this key, converting booleans to 0.0/1.0
         values = []
         for score_dict in scores:
@@ -206,13 +211,13 @@ def aggregate_scores(scores: List[Dict], benchmark_name: str) -> Dict:
         n = len(values)
         mean_val = sum(values) / n
 
-        # Population variance (divide by n, not n-1)
+        # Sample variance (Bessel's correction: divide by n-1)
         if n <= 1:
             variance = 0.0
             stddev = 0.0
             stderr = 0.0
         else:
-            variance = sum((v - mean_val) ** 2 for v in values) / n
+            variance = sum((v - mean_val) ** 2 for v in values) / (n - 1)
             stddev = math.sqrt(variance)
             stderr = stddev / math.sqrt(n)
 
@@ -317,8 +322,50 @@ def main():
         default=None,
         help="Environment variable name for Bearer token",
     )
+    parser.add_argument(
+        "--save-predictions",
+        action="store_true",
+        default=False,
+        help="Save per-sample predictions to byob_predictions.jsonl in output directory",
+    )
+    parser.add_argument(
+        "--timeout-per-sample",
+        type=float,
+        default=120,
+        help="Timeout in seconds for each model call (default: 120)",
+    )
+    parser.add_argument(
+        "--fail-on-skip",
+        action="store_true",
+        default=False,
+        help="Raise error on any skipped sample (missing field or model error)",
+    )
+    parser.add_argument(
+        "--log-format",
+        choices=["text", "json"],
+        default="text",
+        help="Log output format: text (default) or json",
+    )
 
     args = parser.parse_args()
+
+    # Configure JSON logging if requested
+    if args.log_format == "json":
+        class JsonFormatter(logging.Formatter):
+            def format(self, record):
+                log_entry = {
+                    "timestamp": self.formatTime(record),
+                    "level": record.levelname,
+                    "message": record.getMessage(),
+                    "logger": record.name,
+                }
+                return json.dumps(log_entry)
+
+        handler = logging.StreamHandler()
+        handler.setFormatter(JsonFormatter())
+        byob_logger = logging.getLogger("nemo_evaluator.byob")
+        byob_logger.addHandler(handler)
+        byob_logger.setLevel(logging.INFO)
 
     # Resolve API key from environment variable
     api_key = None
@@ -332,6 +379,8 @@ def main():
     dataset = load_dataset(args.dataset, limit=args.limit_samples)
 
     # Create model_call_fn that wraps the HTTP calls
+    timeout = args.timeout_per_sample
+
     def model_call_fn(prompt: str, endpoint_type: str) -> str:
         """Model call function that routes through subprocess HTTP calls."""
         if endpoint_type == "chat":
@@ -342,6 +391,7 @@ def main():
                 temperature=args.temperature,
                 max_tokens=args.max_tokens,
                 api_key=api_key,
+                timeout=timeout,
             )
         else:
             return call_model_completions(
@@ -351,14 +401,17 @@ def main():
                 temperature=args.temperature,
                 max_tokens=args.max_tokens,
                 api_key=api_key,
+                timeout=timeout,
             )
 
     # Run evaluation loop using shared logic
-    all_scores = run_eval_loop(
+    all_scores, all_predictions = run_eval_loop(
         bench=bench,
         dataset=dataset,
         model_call_fn=model_call_fn,
         endpoint_type=args.model_type,
+        save_predictions=args.save_predictions,
+        fail_on_skip=args.fail_on_skip,
     )
 
     # Aggregate scores
@@ -368,7 +421,16 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
     output_path = Path(args.output_dir) / "byob_results.json"
     with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=2)
+        json.dump(results, f, indent=2, sort_keys=True)
+
+    # Write predictions if requested
+    if args.save_predictions and all_predictions:
+        from dataclasses import asdict
+        predictions_path = Path(args.output_dir) / "byob_predictions.jsonl"
+        with open(predictions_path, "w", encoding="utf-8") as f:
+            for pred in all_predictions:
+                f.write(json.dumps(asdict(pred)) + "\n")
+        print(f"Predictions written to {predictions_path}")
 
     print(f"Results written to {output_path}")
     print(json.dumps(results, indent=2))

@@ -64,7 +64,9 @@ def simple_scorer(response, target, metadata):
     def mock_evaluation(self, temp_benchmark_file, temp_dataset_file):
         """Create a mock Evaluation object for native mode."""
         return Evaluation(
-            name="test_native",
+            execution_mode="native",
+            framework_name="byob_test",
+            pkg_name="byob_test",
             config=EvaluationConfig(
                 type="byob_test.test-native",
                 params=ConfigParams(
@@ -73,7 +75,7 @@ def simple_scorer(response, target, metadata):
                     temperature=0.0,
                     extra={
                         "benchmark_module": str(temp_benchmark_file),
-                        "benchmark_name": "test-native",
+                        "benchmark_name": "test_native",
                         "dataset": str(temp_dataset_file),
                     },
                 ),
@@ -105,10 +107,10 @@ def simple_scorer(response, target, metadata):
 
         assert isinstance(result, EvaluationResult), \
             f"Expected EvaluationResult, got {type(result)}"
-        assert "test-native" in result.tasks, \
+        assert "test_native" in result.tasks, \
             f"Expected 'test-native' in tasks, got {list(result.tasks.keys())}"
 
-        task = result.tasks["test-native"]
+        task = result.tasks["test_native"]
         assert "pass@1" in task.metrics, \
             f"Expected 'pass@1' in metrics, got {list(task.metrics.keys())}"
 
@@ -184,7 +186,9 @@ def simple_scorer(response, target, metadata):
         With limit_samples=2, only first 2 samples should be processed.
         """
         evaluation = Evaluation(
-            name="test_limit",
+            execution_mode="native",
+            framework_name="byob_test",
+            pkg_name="byob_test",
             config=EvaluationConfig(
                 type="byob_test.test-limit",
                 params=ConfigParams(
@@ -193,7 +197,7 @@ def simple_scorer(response, target, metadata):
                     temperature=0.0,
                     extra={
                         "benchmark_module": str(temp_benchmark_file),
-                        "benchmark_name": "test-native",
+                        "benchmark_name": "test_native",
                         "dataset": str(temp_dataset_file),
                     },
                 ),
@@ -204,7 +208,7 @@ def simple_scorer(response, target, metadata):
         harness = ByobNativeHarness()
         result = harness.execute(evaluation, mock_model_call_fn)
 
-        scores = result.tasks["test-native"].metrics["pass@1"].scores
+        scores = result.tasks["test_native"].metrics["pass@1"].scores
         assert scores["correct"].stats.count == 2, \
             f"Expected count=2 with limit_samples=2, got {scores['correct'].stats.count}"
 
@@ -230,7 +234,9 @@ def simple_scorer(response, target, metadata):
         dataset_file.write_text('\n'.join(lines))
 
         evaluation = Evaluation(
-            name="test_skip",
+            execution_mode="native",
+            framework_name="byob_test",
+            pkg_name="byob_test",
             config=EvaluationConfig(
                 type="byob_test.test-skip",
                 params=ConfigParams(
@@ -239,7 +245,7 @@ def simple_scorer(response, target, metadata):
                     temperature=0.0,
                     extra={
                         "benchmark_module": str(temp_benchmark_file),
-                        "benchmark_name": "test-native",
+                        "benchmark_name": "test_native",
                         "dataset": str(dataset_file),
                     },
                 ),
@@ -250,7 +256,7 @@ def simple_scorer(response, target, metadata):
         harness = ByobNativeHarness()
         result = harness.execute(evaluation, mock_model_call_fn)
 
-        scores = result.tasks["test-native"].metrics["pass@1"].scores
+        scores = result.tasks["test_native"].metrics["pass@1"].scores
         assert scores["correct"].stats.count == 2, \
             f"Expected count=2 (sample with missing field skipped), got {scores['correct'].stats.count}"
 
@@ -271,7 +277,7 @@ def simple_scorer(response, target, metadata):
         harness = ByobNativeHarness()
         result = harness.execute(mock_evaluation, mock_model_call_fn)
 
-        scores = result.tasks["test-native"].metrics["pass@1"].scores
+        scores = result.tasks["test_native"].metrics["pass@1"].scores
         assert scores["correct"].stats.count == 2, \
             f"Expected count=2 (HTTP error should skip sample), got {scores['correct'].stats.count}"
 
@@ -284,7 +290,9 @@ def simple_scorer(response, target, metadata):
         empty_dataset.write_text("")
 
         evaluation = Evaluation(
-            name="test_empty",
+            execution_mode="native",
+            framework_name="byob_test",
+            pkg_name="byob_test",
             config=EvaluationConfig(
                 type="byob_test.test-empty",
                 params=ConfigParams(
@@ -293,7 +301,7 @@ def simple_scorer(response, target, metadata):
                     temperature=0.0,
                     extra={
                         "benchmark_module": str(temp_benchmark_file),
-                        "benchmark_name": "test-native",
+                        "benchmark_name": "test_native",
                         "dataset": str(empty_dataset),
                     },
                 ),
@@ -338,7 +346,9 @@ def simple_scorer(response, target, metadata):
         mock_model_call_fn = MagicMock(side_effect=Exception("Connection refused"))
 
         evaluation = Evaluation(
-            name="test_error",
+            execution_mode="native",
+            framework_name="byob_test",
+            pkg_name="byob_test",
             config=EvaluationConfig(
                 type="byob_test.test-error",
                 params=ConfigParams(
@@ -347,7 +357,7 @@ def simple_scorer(response, target, metadata):
                     temperature=0.0,
                     extra={
                         "benchmark_module": str(temp_benchmark_file),
-                        "benchmark_name": "test-native",
+                        "benchmark_name": "test_native",
                         "dataset": str(temp_dataset_file),
                     },
                 ),
@@ -375,7 +385,9 @@ def simple_scorer(response, target, metadata):
         """Test that missing required config fields raise clear error."""
         # Evaluation missing benchmark_module
         evaluation = Evaluation(
-            name="test_missing",
+            execution_mode="native",
+            framework_name="byob_test",
+            pkg_name="byob_test",
             config=EvaluationConfig(
                 type="byob_test.test-missing",
                 params=ConfigParams(
@@ -383,7 +395,7 @@ def simple_scorer(response, target, metadata):
                     max_new_tokens=4096,
                     temperature=0.0,
                     extra={
-                        "benchmark_name": "test-native",
+                        "benchmark_name": "test_native",
                         "dataset": "/path/to/data.jsonl",
                         # Missing benchmark_module
                     },
@@ -425,7 +437,9 @@ def simple_scorer(response, target, metadata):
         For completions endpoints, endpoint_type should be "completions".
         """
         evaluation = Evaluation(
-            name="test_completions",
+            execution_mode="native",
+            framework_name="byob_test",
+            pkg_name="byob_test",
             config=EvaluationConfig(
                 type="byob_test.test-completions",
                 params=ConfigParams(
@@ -434,7 +448,7 @@ def simple_scorer(response, target, metadata):
                     temperature=0.0,
                     extra={
                         "benchmark_module": str(temp_benchmark_file),
-                        "benchmark_name": "test-native",
+                        "benchmark_name": "test_native",
                         "dataset": str(temp_dataset_file),
                     },
                 ),
@@ -461,7 +475,9 @@ def simple_scorer(response, target, metadata):
         Engine may provide limit_samples as float (e.g., from YAML parsing).
         """
         evaluation = Evaluation(
-            name="test_float_limit",
+            execution_mode="native",
+            framework_name="byob_test",
+            pkg_name="byob_test",
             config=EvaluationConfig(
                 type="byob_test.test-float-limit",
                 params=ConfigParams(
@@ -470,7 +486,7 @@ def simple_scorer(response, target, metadata):
                     temperature=0.0,
                     extra={
                         "benchmark_module": str(temp_benchmark_file),
-                        "benchmark_name": "test-native",
+                        "benchmark_name": "test_native",
                         "dataset": str(temp_dataset_file),
                     },
                 ),
@@ -481,6 +497,6 @@ def simple_scorer(response, target, metadata):
         harness = ByobNativeHarness()
         result = harness.execute(evaluation, mock_model_call_fn)
 
-        scores = result.tasks["test-native"].metrics["pass@1"].scores
+        scores = result.tasks["test_native"].metrics["pass@1"].scores
         assert scores["correct"].stats.count == 2, \
             f"Expected count=2 with limit_samples=2.0, got {scores['correct'].stats.count}"

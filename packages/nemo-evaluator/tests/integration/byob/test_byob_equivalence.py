@@ -31,7 +31,7 @@ from pathlib import Path
 
 import pytest
 
-from nemo_evaluator.api.api_dataclasses import Evaluation, EvaluationConfig, ConfigParams, EvaluationTarget, ApiEndpoint
+from nemo_evaluator.api.api_dataclasses import Evaluation, EvaluationConfig, ConfigParams, EvaluationTarget, ApiEndpoint, ExecutionMode
 from nemo_evaluator.byob.native_runner import ByobNativeHarness
 from nemo_evaluator.core.native_harness import make_model_call_fn_direct
 
@@ -124,8 +124,9 @@ def equiv_scorer(response, target, metadata):
         native_output_dir.mkdir()
 
         evaluation = Evaluation(
-            name="equiv-test",
-            description="Equivalence test",
+            framework_name="byob_equiv_test",
+            pkg_name="byob_equiv_test",
+            execution_mode=ExecutionMode.NATIVE,
             config=EvaluationConfig(
                 type="byob_equiv_test.equiv-test",
                 supported_endpoint_types=["chat"],
@@ -292,8 +293,9 @@ def binary_scorer(response, target, metadata):
 
         # Run native mode
         evaluation = Evaluation(
-            name="binary-test",
-            description="Binary test",
+            framework_name="byob_binary_test",
+            pkg_name="byob_binary_test",
+            execution_mode=ExecutionMode.NATIVE,
             config=EvaluationConfig(
                 type="byob_binary_test.binary-test",
                 supported_endpoint_types=["chat"],
@@ -409,8 +411,9 @@ def continuous_scorer(response, target, metadata):
 
         # Run native mode
         evaluation = Evaluation(
-            name="continuous-test",
-            description="Continuous test",
+            framework_name="byob_continuous_test",
+            pkg_name="byob_continuous_test",
+            execution_mode=ExecutionMode.NATIVE,
             config=EvaluationConfig(
                 type="byob_continuous_test.continuous-test",
                 supported_endpoint_types=["chat"],

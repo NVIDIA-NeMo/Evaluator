@@ -53,7 +53,7 @@ def test_scorer(response, target, metadata):
         - Benchmark is registered during import
         - Correct benchmark is returned
         """
-        bench = import_benchmark(str(temp_benchmark_file), "test-import")
+        bench = import_benchmark(str(temp_benchmark_file), "test_import")
 
         assert bench is not None, "Expected benchmark to be returned"
         assert bench.name == "test-import", \
@@ -71,9 +71,9 @@ def test_scorer(response, target, metadata):
         and repopulated on second import.
         """
         # First import
-        bench1 = import_benchmark(str(temp_benchmark_file), "test-import")
+        bench1 = import_benchmark(str(temp_benchmark_file), "test_import")
         benchmarks_after_first = get_registered_benchmarks()
-        assert "test-import" in benchmarks_after_first, \
+        assert "test_import" in benchmarks_after_first, \
             "Benchmark should be registered after import"
 
         # Manually register a different benchmark to simulate pollution
@@ -89,11 +89,11 @@ def test_scorer(response, target, metadata):
             "Should have 2 benchmarks after manual registration"
 
         # Second import - should clear first
-        bench2 = import_benchmark(str(temp_benchmark_file), "test-import")
+        bench2 = import_benchmark(str(temp_benchmark_file), "test_import")
         benchmarks_after_second = get_registered_benchmarks()
 
         # Only test-import should remain (polluted-bench cleared)
-        assert "test-import" in benchmarks_after_second, \
+        assert "test_import" in benchmarks_after_second, \
             "test-import should still be registered"
         assert "polluted-bench" not in benchmarks_after_second, \
             "import_benchmark should have cleared previous registry state"
@@ -119,7 +119,7 @@ def test_scorer(response, target, metadata):
             pytest.fail("Expected ValueError")
         except ValueError as e:
             error_msg = str(e)
-            assert "test-import" in error_msg, \
+            assert "test_import" in error_msg, \
                 f"Error message should list available benchmarks, got: {error_msg}"
 
 
@@ -136,6 +136,7 @@ class TestRunEvalLoop:
 
         return BenchmarkDefinition(
             name="test-loop",
+            normalized_name="test_loop",
             dataset="unused",
             prompt="Q: {question}\nA:",
             target_field="answer",
@@ -168,7 +169,7 @@ class TestRunEvalLoop:
         - Scorer is called with response, target, metadata
         - Returns list of score dicts
         """
-        scores = run_eval_loop(
+        scores, _predictions = run_eval_loop(
             bench=mock_benchmark,
             dataset=sample_dataset,
             model_call_fn=mock_model_call_fn,
@@ -210,7 +211,7 @@ class TestRunEvalLoop:
             {"question": "q3", "answer": "yes"},
         ]
 
-        scores = run_eval_loop(
+        scores, _preds = run_eval_loop(
             bench=mock_benchmark,
             dataset=dataset,
             model_call_fn=mock_model_call_fn,
@@ -237,7 +238,7 @@ class TestRunEvalLoop:
             "No",  # sample 2 succeeds
         ])
 
-        scores = run_eval_loop(
+        scores, _preds = run_eval_loop(
             bench=mock_benchmark,
             dataset=sample_dataset,
             model_call_fn=mock_model_call_fn,
@@ -251,7 +252,7 @@ class TestRunEvalLoop:
         self, mock_benchmark, mock_model_call_fn
     ):
         """Test that empty dataset returns empty score list."""
-        scores = run_eval_loop(
+        scores, _preds = run_eval_loop(
             bench=mock_benchmark,
             dataset=[],
             model_call_fn=mock_model_call_fn,
@@ -279,13 +280,14 @@ class TestRunEvalLoop:
         from nemo_evaluator.byob.decorators import BenchmarkDefinition
         mock_benchmark = BenchmarkDefinition(
             name="test-metadata",
+            normalized_name="test_metadata",
             dataset="unused",
             prompt="Q: {question}",
             target_field="answer",
             scorer_fn=capture_scorer,
         )
 
-        scores = run_eval_loop(
+        scores, _preds = run_eval_loop(
             bench=mock_benchmark,
             dataset=sample_dataset,
             model_call_fn=mock_model_call_fn,
