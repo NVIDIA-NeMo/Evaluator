@@ -368,20 +368,16 @@ def collect_eval_env_vars(
     # 3. task.env_vars (task-level overrides)
     raw_env_vars.update(task.get("env_vars", {}))
 
-    # 5. API key — validate no conflict (injected as runtime var after parsing)
-    if api_key_name:
-        if "API_KEY" in raw_env_vars:
-            raise ValueError(
-                "API_KEY is already defined in env_vars. "
-                "Remove it or remove target.api_endpoint.api_key_name."
-            )
+    # 5. API key — ensure the named env var is present in env_vars.
+    # If the user already declared it (e.g. NGC_API_TOKEN: $host:NGC_API_TOKEN),
+    # do nothing. Otherwise, add it as a host ref so it gets resolved from the host env.
+    if api_key_name and api_key_name not in raw_env_vars:
+        raw_env_vars[api_key_name] = api_key_name
 
     # Check required env vars (excluding NEMO_EVALUATOR_DATASET_DIR)
     # Also check the deprecated exec eval vars for required var coverage
     exec_eval_vars = dict(cfg.execution.get("env_vars", {}).get("evaluation", {}))
     all_var_names = set(raw_env_vars.keys()) | set(exec_eval_vars.keys())
-    if api_key_name:
-        all_var_names.add("API_KEY")
     for required_env_var in task_definition.get("required_env_vars", []):
         if required_env_var == "NEMO_EVALUATOR_DATASET_DIR":
             continue
@@ -410,11 +406,6 @@ def collect_eval_env_vars(
                 str(raw_value), default_type="lit"
             )
 
-    # 5. API key — injected as a runtime reference to the named env var.
-    # The actual secret resolution happens through the user's env_vars declaration
-    # (e.g. NGC_API_TOKEN: $host:NGC_API_TOKEN). API_KEY just aliases it at runtime.
-    if api_key_name:
-        parsed["API_KEY"] = EnvVarRuntime(runtime_var_name=api_key_name)
 
     return parsed
 
