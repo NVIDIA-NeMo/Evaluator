@@ -81,7 +81,7 @@ def evaluate(
 
     start_time = time.time()
     telemetry_handler = None
-    task_status = TaskStatusEnum.FAILURE
+    status = TaskStatusEnum.FAILURE
 
     if is_telemetry_enabled():
         show_telemetry_notification()
@@ -111,7 +111,7 @@ def evaluate(
                     task=eval_cfg.type or "unknown",
                     framework_name=evaluation.framework_name,
                     model=model_name,
-                    task_status=TaskStatusEnum.STARTED,
+                    status=TaskStatusEnum.STARTED,
                 )
             )
 
@@ -320,7 +320,7 @@ def evaluate(
             yaml.dump(evaluation_result_dict, f)
 
         # Mark evaluation as successful for telemetry
-        task_status = TaskStatusEnum.SUCCESS
+        status = TaskStatusEnum.SUCCESS
 
         return evaluation_result
     finally:
@@ -338,7 +338,7 @@ def evaluate(
                     framework_name=fw_name,
                     model=model_name,
                     execution_duration_seconds=duration,
-                    task_status=task_status,
+                    status=status,
                 )
             )
             telemetry_handler.stop()

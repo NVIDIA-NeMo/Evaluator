@@ -120,18 +120,18 @@ class TestEventSerialization:
             framework_name="lm-eval",
             model="llama-3.1-8b",
             execution_duration_seconds=123.45,
-            task_status=TaskStatusEnum.SUCCESS,
+            status=TaskStatusEnum.SUCCESS,
         )
 
         serialized = event.model_dump(by_alias=True)
         assert "frameworkName" in serialized
         assert "executionDurationSeconds" in serialized
-        assert "taskStatus" in serialized
+        assert "status" in serialized
         assert serialized["task"] == "mmlu"
         assert serialized["frameworkName"] == "lm-eval"
         assert serialized["model"] == "llama-3.1-8b"
         assert serialized["executionDurationSeconds"] == 123.45
-        assert serialized["taskStatus"] == "success"
+        assert serialized["status"] == "success"
 
     def test_evaluation_task_event_started_without_duration(self):
         """Test that STARTED events can be created without execution_duration_seconds."""
@@ -141,14 +141,14 @@ class TestEventSerialization:
             task="mmlu",
             framework_name="unknown",
             model="llama-3.1-8b",
-            task_status=TaskStatusEnum.STARTED,
+            status=TaskStatusEnum.STARTED,
         )
 
         serialized = event.model_dump(by_alias=True)
-        assert serialized["taskStatus"] == "started"
+        assert serialized["status"] == "started"
         assert serialized["executionDurationSeconds"] == 0.0
 
-    def test_task_status_values(self):
+    def test_status_values(self):
         """Test that TaskStatusEnum has expected values."""
         from nemo_evaluator.telemetry import TaskStatusEnum
 
@@ -188,7 +188,7 @@ class TestTelemetryHandler:
                 framework_name="lm-eval",
                 model="test-model",
                 execution_duration_seconds=1.0,
-                task_status=TaskStatusEnum.SUCCESS,
+                status=TaskStatusEnum.SUCCESS,
             )
             handler.enqueue(event)
             assert len(handler._events) == 0
@@ -208,7 +208,7 @@ class TestTelemetryHandler:
                 framework_name="lm-eval",
                 model="test-model",
                 execution_duration_seconds=1.0,
-                task_status=TaskStatusEnum.SUCCESS,
+                status=TaskStatusEnum.SUCCESS,
             )
             handler.enqueue(event)
             assert len(handler._events) == 1
@@ -243,7 +243,7 @@ class TestBuildPayload:
             framework_name="lm-eval",
             model="test-model",
             execution_duration_seconds=60.5,
-            task_status=TaskStatusEnum.SUCCESS,
+            status=TaskStatusEnum.SUCCESS,
         )
         queued = QueuedEvent(event=event, timestamp=datetime.now(timezone.utc))
 
@@ -275,7 +275,7 @@ class TestBuildPayload:
             framework_name="helm",
             model="gpt-4",
             execution_duration_seconds=120.0,
-            task_status=TaskStatusEnum.FAILURE,
+            status=TaskStatusEnum.FAILURE,
         )
         queued = QueuedEvent(event=event, timestamp=datetime.now(timezone.utc))
 
@@ -290,4 +290,4 @@ class TestBuildPayload:
         assert event_params["frameworkName"] == "helm"
         assert event_params["model"] == "gpt-4"
         assert event_params["executionDurationSeconds"] == 120.0
-        assert event_params["taskStatus"] == "failure"
+        assert event_params["status"] == "failure"
