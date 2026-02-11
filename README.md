@@ -197,8 +197,6 @@ NeMo Evaluator collects telemetry to help improve the project.
 | Control | Effect |
 |---|---|
 | `NEMO_EVALUATOR_TELEMETRY_ENABLED=false` | Disables telemetry globally. |
-| `NEMO_EVALUATOR_TELEMETRY_ENDPOINT=<url>` | Overrides telemetry endpoint. |
-| `NEMO_EVALUATOR_TELEMETRY_SESSION_ID=<id>` | Sets a custom session ID for event correlation. |
 | `nemo-evaluator-launcher --no-telemetry` (or `-T`) | Disables telemetry for that launcher invocation. |
 
 ### Aggregate Reporting
