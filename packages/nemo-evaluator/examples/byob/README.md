@@ -118,9 +118,17 @@ nemo-evaluator-byob my_benchmark.py --native
 | Unit testing with mocked models | Native | No subprocess overhead |
 | Long-running evaluations (>1000 samples) | Subprocess | Memory isolation |
 
-## Claude Code Skill
+## Coding Agent Integration
 
-If you use Claude Code, the `/byob` skill provides an interactive wizard that guides you through creating a benchmark. It reads your data, generates the benchmark file, smoke tests the scorer, and compiles -- all in under 5 minutes. The skill is defined in `.claude/commands/byob.md`.
+BYOB works with AI coding agents that can read files and run shell commands. Supported agents include Claude Code, Codex, and others.
+
+| Agent | Instruction file | How to start |
+|-------|-----------------|--------------|
+| **Claude Code** | `.claude/commands/byob.md` | Type `/byob` in any session within the repo |
+| **Codex** | `examples/byob/AGENTS.md` | Ask "create a BYOB benchmark" in the repo |
+| **Other agents** | `examples/byob/AGENTS.md` | Point the agent at the file or at a template |
+
+The agent walks you through 5 steps: understand the task, read data, generate prompt, pick scorer, compile and ship. See [SKILL_USAGE.md](./SKILL_USAGE.md) for the full walkthrough.
 
 ## Examples
 
