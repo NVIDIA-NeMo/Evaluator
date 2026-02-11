@@ -1,0 +1,3 @@
+{"prompt": "def add(a: int, b: int) -> int:\n    \"\"\"Return the sum of a and b.\"\"\"", "test": "assert add(2, 3) == 5\nassert add(-1, 1) == 0\nassert add(0, 0) == 0", "entry_point": "add"}
+{"prompt": "def is_palindrome(s: str) -> bool:\n    \"\"\"Return True if s is a palindrome, False otherwise.\"\"\"", "test": "assert is_palindrome('racecar') == True\nassert is_palindrome('hello') == False\nassert is_palindrome('') == True", "entry_point": "is_palindrome"}
+{"prompt": "def fibonacci(n: int) -> int:\n    \"\"\"Return the nth Fibonacci number (0-indexed).\"\"\"", "test": "assert fibonacci(0) == 0\nassert fibonacci(1) == 1\nassert fibonacci(10) == 55", "entry_point": "fibonacci"}

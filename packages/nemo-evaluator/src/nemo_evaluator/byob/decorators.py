@@ -13,7 +13,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""BYOB decorators and benchmark registry."""
+"""BYOB decorators and benchmark registry.
+
+The @benchmark and @scorer decorators are the user-facing API for defining
+custom evaluation benchmarks.
+
+Example::
+
+    from nemo_evaluator.byob import benchmark, scorer
+    from nemo_evaluator.byob.scorers import exact_match
+
+    @benchmark(
+        name="my-qa",
+        dataset="/path/to/data.jsonl",
+        prompt="Question: {question}\\nAnswer:",
+        target_field="answer",
+    )
+    @scorer
+    def my_scorer(response, target, metadata):
+        return exact_match(response, target, metadata)
+"""
 
 import re
 from dataclasses import dataclass, field
@@ -66,6 +85,11 @@ def benchmark(name: str, dataset: str, prompt: str,
     """
     def decorator(fn):
         normalized = _normalize_name(name)
+        if not normalized:
+            raise ValueError(
+                f"Benchmark name '{name}' normalizes to an empty string. "
+                f"Use a name containing at least one alphanumeric character."
+            )
         if normalized in _BENCHMARK_REGISTRY:
             raise ValueError(
                 f"Benchmark '{name}' (normalized: '{normalized}') is already registered."

@@ -29,7 +29,7 @@ from pathlib import Path
 
 import pytest
 
-from nemo_evaluator.api.api_dataclasses import Evaluation, EvaluationConfig, ConfigParams, EvaluationTarget, ApiEndpoint
+from nemo_evaluator.api.api_dataclasses import Evaluation, EvaluationConfig, ConfigParams, EvaluationTarget, ApiEndpoint, ExecutionMode
 from nemo_evaluator.byob.compiler import compile_benchmark, install_benchmark
 from nemo_evaluator.byob.native_runner import ByobNativeHarness
 from nemo_evaluator.core.native_harness import make_model_call_fn_direct
@@ -77,8 +77,9 @@ def simple_contains_scorer(response, target, metadata):
 
         # Build Evaluation config for native mode
         evaluation = Evaluation(
-            name="native-e2e-test",
-            description="Native mode E2E test",
+            framework_name="byob_native_e2e_test",
+            pkg_name="byob_native_e2e_test",
+            execution_mode=ExecutionMode.NATIVE,
             config=EvaluationConfig(
                 type="byob_native_e2e_test.native-e2e-test",
                 supported_endpoint_types=["chat"],
@@ -173,8 +174,9 @@ def contract_scorer(response, target, metadata):
 
         # Build evaluation config
         evaluation = Evaluation(
-            name="contract-test",
-            description="Contract test",
+            framework_name="byob_contract_test",
+            pkg_name="byob_contract_test",
+            execution_mode=ExecutionMode.NATIVE,
             config=EvaluationConfig(
                 type="byob_contract_test.contract-test",
                 supported_endpoint_types=["chat"],

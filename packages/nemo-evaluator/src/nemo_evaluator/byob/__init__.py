@@ -13,7 +13,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""BYOB (Bring Your Own Benchmark) framework for NeMo Evaluator."""
-from nemo_evaluator.byob.decorators import benchmark, scorer
+"""BYOB (Bring Your Own Benchmark) framework for NeMo Evaluator.
 
-__all__ = ["benchmark", "scorer"]
+Quick start::
+
+    from nemo_evaluator.byob import benchmark, scorer
+
+    @benchmark(name="my-qa", dataset="data.jsonl", prompt="Q: {q}\\nA:")
+    @scorer
+    def check(response, target, metadata):
+        return {"correct": target.lower() in response.lower()}
+
+Built-in scorers (import from nemo_evaluator.byob.scorers)::
+
+    contains(response, target, metadata) -> {"correct": bool}
+        Case-insensitive substring match.
+
+    exact_match(response, target, metadata) -> {"correct": bool}
+        Case-insensitive, whitespace-stripped equality.
+
+    f1_token(response, target, metadata) -> {"f1": float, "precision": float, "recall": float}
+        Token-level F1 score.
+
+    regex_match(response, target, metadata) -> {"correct": bool}
+        Regex pattern match (target is the pattern).
+
+Scorer composition::
+
+    from nemo_evaluator.byob import any_of, all_of
+    from nemo_evaluator.byob.scorers import contains
+
+    combined = any_of(contains, my_custom_scorer)
+"""
+from nemo_evaluator.byob.decorators import benchmark, scorer
+from nemo_evaluator.byob.scorers import any_of, all_of
+
+__all__ = ["benchmark", "scorer", "any_of", "all_of"]

@@ -15,6 +15,8 @@
 
 """BYOB native harness: runs BYOB evaluations in-process."""
 
+import sys
+
 from nemo_evaluator.api.api_dataclasses import Evaluation, EvaluationResult
 from nemo_evaluator.byob.decorators import clear_registry
 from nemo_evaluator.byob.eval_logic import (
@@ -34,6 +36,7 @@ class ByobNativeHarness:
 
     Invariants:
     - Registry is cleared before and after execution to prevent state pollution
+    - sys.path and sys.modules are restored after execution
     - config.params.extra must contain: benchmark_module, benchmark_name, dataset
     - Returns EvaluationResult directly (no JSON file intermediary)
     """
@@ -85,6 +88,10 @@ class ByobNativeHarness:
         if isinstance(limit_samples, float):
             limit_samples = int(limit_samples)
 
+        # Capture sys.path and sys.modules for restoration after execution
+        saved_path = sys.path[:]
+        saved_modules = set(sys.modules.keys())
+
         try:
             # Import benchmark (clears registry internally)
             bench = import_benchmark(benchmark_module, benchmark_name)
@@ -93,8 +100,8 @@ class ByobNativeHarness:
             from nemo_evaluator.byob.runner import load_dataset
             dataset = load_dataset(dataset_path, limit=limit_samples)
 
-            # Run evaluation loop
-            scores = run_eval_loop(
+            # Run evaluation loop (returns tuple: scores, predictions)
+            scores, _predictions = run_eval_loop(
                 bench=bench,
                 dataset=dataset,
                 model_call_fn=model_call_fn,
@@ -109,3 +116,12 @@ class ByobNativeHarness:
         finally:
             # Always clean up registry to prevent state leakage between evaluations
             clear_registry()
+
+            # Restore sys.path
+            sys.path[:] = saved_path
+
+            # Remove modules added during execution (but keep nemo_evaluator.*)
+            new_modules = set(sys.modules.keys()) - saved_modules
+            for mod_name in new_modules:
+                if not mod_name.startswith("nemo_evaluator."):
+                    sys.modules.pop(mod_name, None)

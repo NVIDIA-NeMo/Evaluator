@@ -58,6 +58,52 @@ def regex_match(response: str, target: str, metadata: dict) -> dict:
         return {"correct": False}
 
 
+def any_of(*scorer_fns):
+    """Combine scorers: correct if ANY scorer returns correct=True.
+
+    Example::
+
+        from nemo_evaluator.byob.scorers import contains, exact_match, any_of
+        combined = any_of(contains, exact_match)
+    """
+    def combined(response: str, target: str, metadata: dict) -> dict:
+        results = {}
+        any_correct = False
+        for fn in scorer_fns:
+            sub_result = fn(response, target, metadata)
+            for key, value in sub_result.items():
+                results[f"{fn.__name__}_{key}"] = value
+            if sub_result.get("correct"):
+                any_correct = True
+        results["correct"] = any_correct
+        return results
+    combined.__name__ = f"any_of({', '.join(f.__name__ for f in scorer_fns)})"
+    return combined
+
+
+def all_of(*scorer_fns):
+    """Combine scorers: correct if ALL scorers return correct=True.
+
+    Example::
+
+        from nemo_evaluator.byob.scorers import contains, exact_match, all_of
+        combined = all_of(contains, exact_match)
+    """
+    def combined(response: str, target: str, metadata: dict) -> dict:
+        results = {}
+        all_correct = True
+        for fn in scorer_fns:
+            sub_result = fn(response, target, metadata)
+            for key, value in sub_result.items():
+                results[f"{fn.__name__}_{key}"] = value
+            if not sub_result.get("correct"):
+                all_correct = False
+        results["correct"] = all_correct
+        return results
+    combined.__name__ = f"all_of({', '.join(f.__name__ for f in scorer_fns)})"
+    return combined
+
+
 BUILTIN_SCORERS = {
     "contains": contains,
     "exact_match": exact_match,

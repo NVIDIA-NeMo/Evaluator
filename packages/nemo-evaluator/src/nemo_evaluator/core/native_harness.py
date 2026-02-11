@@ -15,9 +15,20 @@
 
 """Native harness interface and registry for in-process evaluation execution."""
 
+from contextlib import contextmanager
 from typing import Callable, Dict, Optional, Protocol, TypeAlias, runtime_checkable
 
 from nemo_evaluator.api.api_dataclasses import Evaluation, EvaluationResult
+
+__all__ = [
+    "NativeHarness",
+    "ModelCallFn",
+    "register_native_harness",
+    "get_native_harness",
+    "make_model_call_fn_via_server",
+    "make_model_call_fn_direct",
+    "temp_native_harness",
+]
 
 # Type alias for the model call function injected into native harnesses
 # Signature: (prompt: str, endpoint_type: str) -> response_text: str
@@ -115,6 +126,24 @@ def _ensure_discovered() -> None:
         register_native_harness("byob_", ByobNativeHarness)
     except ImportError:
         pass  # BYOB not installed or not available -- fine
+
+
+@contextmanager
+def temp_native_harness(prefix: str, harness_class):
+    """Context manager for temporarily registering a native harness (for testing).
+
+    Example::
+
+        with temp_native_harness("test_", TestHarness):
+            harness = get_native_harness("test_benchmark")
+
+    The harness is automatically unregistered when the context exits.
+    """
+    register_native_harness(prefix, harness_class)
+    try:
+        yield
+    finally:
+        _NATIVE_HARNESS_REGISTRY.pop(prefix, None)
 
 
 # --- ModelCallFn constructors ---
