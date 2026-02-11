@@ -108,3 +108,7 @@ container = "nvcr.io/nvidia/eval-factory/contamination-detection:26.01"
 [mteb]
 container = "nvcr.io/nvidia/eval-factory/mteb:26.01"
 # container-digest:sha256:fb0ea5360bec880d4ecbfc63015d775dc3d22601e5ab17d760a992402646cbbb
+
+[aa-lcr]
+container = "nvcr.io/nvidia/eval-factory/aa-lcr:26.01"
+# container-digest:sha256:67dd35302ed15610afc9471a2ff4f515d95a235753f1b259db60748249366939
