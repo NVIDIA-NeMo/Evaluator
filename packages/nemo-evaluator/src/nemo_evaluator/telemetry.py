@@ -134,9 +134,8 @@ class EvaluationTaskEvent(TelemetryEvent):
         alias="executionDurationSeconds",
         description="Duration of the evaluation in seconds. Event is collected anonymously.",
     )
-    task_status: TaskStatusEnum = Field(
+    status: TaskStatusEnum = Field(
         ...,
-        alias="taskStatus",
         description="The status of the task (started/success/failure). Event is collected anonymously.",
     )
 
