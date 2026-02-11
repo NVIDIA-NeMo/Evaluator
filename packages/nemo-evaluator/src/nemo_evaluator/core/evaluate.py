@@ -56,29 +56,39 @@ def parse_output(evaluation: Evaluation) -> EvaluationResult:
         pass
 
     # Try .nemo_evaluator pattern (new OSS pattern)
+    output_module = None
     try:
         # Import the package module
         pkg_module = importlib.import_module(evaluation.pkg_name)
-        pkg_path = Path(pkg_module.__file__).parent
+        pkg_path = None
+        if getattr(pkg_module, "__file__", None):
+            pkg_path = Path(pkg_module.__file__).parent
+        elif getattr(pkg_module, "__path__", None):
+            pkg_path = Path(list(pkg_module.__path__)[0])
 
-        # Look for .nemo_evaluator directory
-        nemo_eval_dir = pkg_path / ".nemo_evaluator"
-        if nemo_eval_dir.exists():
-            # Find the harness directory (there should be only one for this package)
-            for harness_dir in nemo_eval_dir.iterdir():
-                if harness_dir.is_dir():
-                    output_file = harness_dir / "output.py"
-                    if output_file.exists():
-                        # Dynamically load the output module
-                        spec = importlib.util.spec_from_file_location(
-                            f"{evaluation.pkg_name}.nemo_evaluator.{harness_dir.name}.output",
-                            output_file
-                        )
-                        output_module = importlib.util.module_from_spec(spec)
-                        spec.loader.exec_module(output_module)
-                        return output_module.parse_output(evaluation.config.output_dir)
+        if pkg_path:
+            # Look for .nemo_evaluator directory
+            nemo_eval_dir = pkg_path / ".nemo_evaluator"
+            if nemo_eval_dir.exists():
+                # Find the harness directory (there should be only one for this package)
+                for harness_dir in nemo_eval_dir.iterdir():
+                    if harness_dir.is_dir():
+                        output_file = harness_dir / "output.py"
+                        if output_file.exists():
+                            # Dynamically load the output module
+                            spec = importlib.util.spec_from_file_location(
+                                f"{evaluation.pkg_name}.nemo_evaluator.{harness_dir.name}.output",
+                                output_file
+                            )
+                            output_module = importlib.util.module_from_spec(spec)
+                            spec.loader.exec_module(output_module)
+                            break
     except Exception as e:
         logger.warning(f"Failed to load .nemo_evaluator output parser: {e}")
+
+    if output_module is not None:
+        # Parser found - call it and let its errors propagate directly
+        return output_module.parse_output(evaluation.config.output_dir)
 
     raise ModuleNotFoundError(
         f"Could not find output parser for {evaluation.pkg_name}. "
