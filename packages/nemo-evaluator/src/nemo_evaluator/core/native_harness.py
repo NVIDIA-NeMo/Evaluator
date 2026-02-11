@@ -116,6 +116,13 @@ def _ensure_discovered() -> None:
     except ImportError:
         pass  # BYOB not installed or not available -- fine
 
+    # NeMo-Skills native harness
+    try:
+        from nemo_evaluator.plugins.nemo_skills.native_harness import SkillsNativeHarness
+        register_native_harness("nemo_skills", SkillsNativeHarness)
+    except ImportError:
+        pass  # NeMo-Skills not installed or not available -- fine
+
 
 # --- ModelCallFn constructors ---
 

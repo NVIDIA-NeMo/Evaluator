@@ -1,0 +1,10 @@
+{"problem": "What is 2+2?", "expected_answer": "4"}
+{"problem": "What is 3*5?", "expected_answer": "15"}
+{"problem": "What is 10/2?", "expected_answer": "5"}
+{"problem": "What is 7-3?", "expected_answer": "4"}
+{"problem": "What is 1+1?", "expected_answer": "2"}
+{"problem": "What is 100-1?", "expected_answer": "99"}
+{"problem": "What is 6*7?", "expected_answer": "42"}
+{"problem": "What is 9+3?", "expected_answer": "12"}
+{"problem": "What is 20/4?", "expected_answer": "5"}
+{"problem": "What is 8-2?", "expected_answer": "6"}
