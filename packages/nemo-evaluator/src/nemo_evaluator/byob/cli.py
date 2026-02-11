@@ -27,10 +27,17 @@ def byob_compile(args=None):
     )
     parser.add_argument("module", help="Path to Python file with @benchmark decorators")
     parser.add_argument("--install-dir", default=None, help="Custom installation directory")
+    parser.add_argument(
+        "--native",
+        action="store_true",
+        default=False,
+        help="Generate native-mode package (in-process execution, no subprocess)",
+    )
     parsed = parser.parse_args(args)
 
     print(f"Compiling benchmarks from: {parsed.module}")
-    compiled = compile_benchmark(parsed.module)
+    execution_mode = "native" if parsed.native else "subprocess"
+    compiled = compile_benchmark(parsed.module, execution_mode=execution_mode)
 
     for name, fdf in compiled.items():
         pkg_name = f"byob_{name}"

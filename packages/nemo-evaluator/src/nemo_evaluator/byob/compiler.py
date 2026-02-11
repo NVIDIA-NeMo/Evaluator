@@ -48,12 +48,13 @@ COMMAND_TEMPLATE = (
 )
 
 
-def compile_benchmark(module_path: str) -> Dict[str, dict]:
+def compile_benchmark(module_path: str, execution_mode: str = "subprocess") -> Dict[str, dict]:
     """
     Import a user's benchmark module and generate Framework Definition Format (FDF) dicts.
 
     Args:
         module_path: Path to .py file or Python module name
+        execution_mode: "subprocess" (default) or "native"
 
     Returns:
         Dict mapping normalized benchmark names to FDF dicts
@@ -109,40 +110,78 @@ def compile_benchmark(module_path: str) -> Dict[str, dict]:
         # Construct FDF dict
         # CRITICAL: Place benchmark_module, benchmark_name, dataset in FRAMEWORK-level defaults
         # to work around engine fallback lookup path (see architecture doc Section 4.1.4)
-        fdf = {
-            "framework": {
-                "name": f"byob_{normalized_name}",
-                "pkg_name": f"byob_{normalized_name}",
-            },
-            "defaults": {
-                "command": COMMAND_TEMPLATE,
-                "config": {
-                    "params": {
-                        "limit_samples": None,
-                        "max_new_tokens": 4096,
-                        "temperature": 0,
-                        "extra": {
-                            "benchmark_module": benchmark_module_ref,
-                            "benchmark_name": normalized_name,
-                            "dataset": dataset_path,
+        if execution_mode == "native":
+            fdf = {
+                "framework": {
+                    "name": f"byob_{normalized_name}",
+                    "pkg_name": f"byob_{normalized_name}",
+                },
+                "defaults": {
+                    "execution_mode": "native",
+                    # NOTE: No "command" field for native mode
+                    "config": {
+                        "params": {
+                            "limit_samples": None,
+                            "max_new_tokens": 4096,
+                            "temperature": 0,
+                            "extra": {
+                                "benchmark_module": benchmark_module_ref,
+                                "benchmark_name": normalized_name,
+                                "dataset": dataset_path,
+                            },
                         },
                     },
+                    "target": {"api_endpoint": {}},
                 },
-                "target": {"api_endpoint": {}},
-            },
-            "evaluations": [
-                {
-                    "name": bench.name,
-                    "description": f"BYOB benchmark: {bench.name}",
-                    "defaults": {
-                        "config": {
-                            "type": f"byob_{normalized_name}.{bench.name}",
-                            "supported_endpoint_types": [bench.endpoint_type],
-                        }
+                "evaluations": [
+                    {
+                        "name": bench.name,
+                        "description": f"BYOB benchmark: {bench.name}",
+                        "defaults": {
+                            "config": {
+                                "type": f"byob_{normalized_name}.{bench.name}",
+                                "supported_endpoint_types": [bench.endpoint_type],
+                            }
+                        },
+                    }
+                ],
+            }
+        else:
+            # Subprocess mode (default)
+            fdf = {
+                "framework": {
+                    "name": f"byob_{normalized_name}",
+                    "pkg_name": f"byob_{normalized_name}",
+                },
+                "defaults": {
+                    "command": COMMAND_TEMPLATE,
+                    "config": {
+                        "params": {
+                            "limit_samples": None,
+                            "max_new_tokens": 4096,
+                            "temperature": 0,
+                            "extra": {
+                                "benchmark_module": benchmark_module_ref,
+                                "benchmark_name": normalized_name,
+                                "dataset": dataset_path,
+                            },
+                        },
                     },
-                }
-            ],
-        }
+                    "target": {"api_endpoint": {}},
+                },
+                "evaluations": [
+                    {
+                        "name": bench.name,
+                        "description": f"BYOB benchmark: {bench.name}",
+                        "defaults": {
+                            "config": {
+                                "type": f"byob_{normalized_name}.{bench.name}",
+                                "supported_endpoint_types": [bench.endpoint_type],
+                            }
+                        },
+                    }
+                ],
+            }
 
         compiled[normalized_name] = fdf
 
@@ -201,10 +240,12 @@ def install_benchmark(
     with open(framework_yml, "w") as f:
         yaml.safe_dump(fdf, f, default_flow_style=False, sort_keys=False)
 
-    # Write output.py
-    output_py = os.path.join(benchmark_pkg_dir, "output.py")
-    with open(output_py, "w") as f:
-        f.write(_generate_output_py())
+    # Write output.py ONLY for subprocess mode
+    execution_mode = fdf.get("defaults", {}).get("execution_mode", "subprocess")
+    if execution_mode != "native":
+        output_py = os.path.join(benchmark_pkg_dir, "output.py")
+        with open(output_py, "w") as f:
+            f.write(_generate_output_py())
 
     return pkg_dir
 
