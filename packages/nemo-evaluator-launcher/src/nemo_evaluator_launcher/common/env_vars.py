@@ -311,8 +311,8 @@ def redact_secrets_env_content(
     literal_names = literal_disambiguated_names or set()
     redacted_lines: list[str] = []
     for line in secrets_content.splitlines():
-        if line.startswith("export ") and "=" in line[len("export "):]:
-            key, _, value = line[len("export "):].partition("=")
+        if line.startswith("export ") and "=" in line[len("export ") :]:
+            key, _, value = line[len("export ") :].partition("=")
             if key in literal_names:
                 redacted_lines.append(line)
             elif len(value) > 4:
@@ -405,7 +405,6 @@ def collect_eval_env_vars(
             parsed[target_name] = parse_env_var_value(
                 str(raw_value), default_type="lit"
             )
-
 
     return parsed
 
