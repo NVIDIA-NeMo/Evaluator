@@ -15,7 +15,7 @@
 # [snippet-start]
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_inframework_triton.py \
-  --nemo_checkpoint "/workspace/llama3_8b_nemo2" \
+  --megatron_checkpoint "/workspace/mbridge_llama3_8b/iter_0000000" \
   --triton_model_name "megatron_model" \
   --server_port 8080 \
   --num_gpus 1 \

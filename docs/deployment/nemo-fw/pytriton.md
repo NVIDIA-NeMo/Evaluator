@@ -19,7 +19,7 @@ It supports model parallelism across single-node and multi-node configurations, 
 ## Deploy Models Using PyTriton
 
 The deployment scripts are available inside [`/opt/Export-Deploy/scripts/deploy/nlp/`](https://github.com/NVIDIA-NeMo/Export-Deploy/tree/main/scripts/deploy/nlp) directory.
-The example command below uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to NeMo format. To evaluate a checkpoint saved during [pretraining](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#pretraining) or [fine-tuning](https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#fine-tuning), provide the path to the saved checkpoint using the `--nemo_checkpoint` flag in the command below.
+The example command below uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to Megatron Bridge format. To evaluate a checkpoint saved during [pretraining or finetuning](https://docs.nvidia.com/nemo/megatron-bridge/latest/recipe-usage.html), provide the path to the saved checkpoint using the `--megatron_checkpoint` flag in the command below.
 
 ```{literalinclude} _snippets/deploy_pytriton.sh
 :language: bash
@@ -28,12 +28,12 @@ The example command below uses a Hugging Face LLaMA 3 8B checkpoint that has bee
 ```
 
 When working with a larger model, you can use model parallelism to distribute the model across available devices.
-In the example below we deploy the [Llama-3_3-Nemotron-Super-49B-v1](https://huggingface.co/nvidia/Llama-3_3-Nemotron-Super-49B-v1) (converted to the NeMo format) with 8 devices and tensor parallelism:
+In the example below we deploy the [Llama-3_3-Nemotron-Super-49B-v1](https://huggingface.co/nvidia/Llama-3_3-Nemotron-Super-49B-v1) (converted to the Megatron Bridge format) with 8 devices and tensor parallelism:
 
 ```bash
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_inframework_triton.py \
-  --nemo_checkpoint "/workspace/Llama-3_3-Nemotron-Super-49B-v1" \
+  --megatron_checkpoint "/workspace/Llama-3_3-Nemotron-Super-49B-v1/iter_0000000" \
   --triton_model_name "megatron_model" \
   --server_port 8080 \
   --num_gpus 8 \
@@ -64,7 +64,7 @@ To evaluate log-probability benchmarks (e.g., `arc_challenge`), run the followin
 Make sure to open a new terminal within the same container to execute it.
 
 
-```{literalinclude} _snippets/arc_challenge.py
+```{literalinclude} _snippets/arc_challenge_mbridge.py
 :language: python
 :start-after: "## Run the evaluation"
 ```
@@ -73,7 +73,7 @@ Note that in the example above, you must provide a path to the tokenizer:
 
 ```python
         extra={
-            "tokenizer": "/workspace/llama3_8b_nemo2/context/nemo_tokenizer",
+            "tokenizer": "/workspace/mbridge_llama3_8b/iter_0000000/tokenizer",
             "tokenizer_backend": "huggingface",
         },
 ```
