@@ -31,6 +31,7 @@ from nemo_evaluator.api.api_dataclasses import (
     EvaluationMetadata,
     EvaluationResult,
     EvaluationTarget,
+    ExecutionMode,
 )
 from nemo_evaluator.core.input import prepare_output_directory, validate_configuration
 from nemo_evaluator.core.resources import (
@@ -179,7 +180,74 @@ def evaluate(
     signal.signal(signal.SIGTERM, kill_all)
     signal.signal(signal.SIGINT, kill_all)
 
+    def _resolve_api_key(evaluation):
+        """Resolve API key from environment variable."""
+        if (evaluation.target.api_endpoint
+                and evaluation.target.api_endpoint.api_key_name):
+            return os.environ.get(evaluation.target.api_endpoint.api_key_name)
+        return None
+
+    def _run_native_mode(evaluation, target_cfg, use_client_mode):
+        """Execute evaluation using native (in-process) mode."""
+        from nemo_evaluator.core.native_harness import (
+            get_native_harness,
+            make_model_call_fn_direct,
+            make_model_call_fn_via_server,
+        )
+
+        harness = get_native_harness(evaluation.pkg_name)
+
+        # Resolve common params
+        model_url = evaluation.target.api_endpoint.url if evaluation.target.api_endpoint else None
+        model_id = evaluation.target.api_endpoint.model_id if evaluation.target.api_endpoint else None
+        temperature = (evaluation.config.params.temperature or 0) if evaluation.config.params else 0
+        max_tokens = (evaluation.config.params.max_new_tokens or 4096) if evaluation.config.params else 4096
+        api_key = _resolve_api_key(evaluation)
+
+        # Determine adapter strategy
+        has_adapter = (
+            target_cfg.api_endpoint
+            and target_cfg.api_endpoint.adapter_config
+            and any(
+                ic.enabled
+                for ic in (target_cfg.api_endpoint.adapter_config.interceptors or [])
+            )
+        )
+
+        if use_client_mode:
+            # Client mode: adapter pipeline in-process via NeMoEvaluatorClient
+            # For now, fall back to direct calls. Full client-mode integration
+            # requires async-to-sync bridging that is deferred to a follow-up.
+            model_call_fn = make_model_call_fn_direct(
+                model_url=model_url, model_id=model_id,
+                temperature=temperature, max_tokens=max_tokens, api_key=api_key,
+            )
+            result = harness.execute(evaluation, model_call_fn)
+            return result
+
+        elif has_adapter:
+            # Adapter server mode: start proxy, route calls through it
+            with AdapterServerProcess(evaluation):
+                model_call_fn = make_model_call_fn_via_server(
+                    adapter_url=evaluation.target.api_endpoint.url,
+                    model_id=model_id,
+                    temperature=temperature, max_tokens=max_tokens, api_key=api_key,
+                )
+                return harness.execute(evaluation, model_call_fn)
+        else:
+            # No adapter: direct model calls
+            model_call_fn = make_model_call_fn_direct(
+                model_url=model_url, model_id=model_id,
+                temperature=temperature, max_tokens=max_tokens, api_key=api_key,
+            )
+            return harness.execute(evaluation, model_call_fn)
+
     def run_evaluation_core():
+        # NEW: Native mode branch
+        if evaluation.execution_mode == ExecutionMode.NATIVE:
+            return _run_native_mode(evaluation, target_cfg, use_client_mode)
+
+        # EXISTING: Subprocess branches (unchanged)
         # NOTE: if we use NeMoEvaluatorClient on the benchmark side, there's no need to
         # run adapter server for evaluation and we can use client model here
         if use_client_mode:
@@ -301,7 +369,8 @@ def evaluate(
 
     evaluation_result_dict = {
         "git_hash": os.getenv("CORE_EVALS_GIT_HASH"),
-        "command": evaluation.render_command(),
+        "command": evaluation.render_command() if evaluation.command else None,
+        "execution_mode": evaluation.execution_mode.value,
         "config": evaluation.config.model_dump(exclude_none=True),
         "target": evaluation.target.model_dump(exclude_none=True),
         "results": evaluation_result.model_dump(exclude_none=True),

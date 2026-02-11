@@ -16,7 +16,6 @@
 """BYOB runner: evaluation loop and CLI entrypoint."""
 
 import argparse
-import importlib
 import json
 import math
 import os
@@ -26,7 +25,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from nemo_evaluator.byob.decorators import get_registered_benchmarks
+from nemo_evaluator.byob.eval_logic import import_benchmark, run_eval_loop
 
 
 def load_dataset(path: str, limit: Optional[int] = None) -> List[Dict]:
@@ -326,61 +325,17 @@ def main():
     if args.api_key_name:
         api_key = os.environ.get(args.api_key_name)
 
-    # Import benchmark module
-    # If module path is a file, add parent directory to sys.path
-    module_path = Path(args.benchmark_module)
-    if module_path.exists() and module_path.is_file():
-        parent_dir = str(module_path.parent.absolute())
-        if parent_dir not in sys.path:
-            sys.path.insert(0, parent_dir)
-        module_name = module_path.stem
-    else:
-        module_name = args.benchmark_module
-
-    # Import the module (this triggers decorator execution)
-    if module_name in sys.modules:
-        importlib.reload(sys.modules[module_name])
-    else:
-        importlib.import_module(module_name)
-
-    # Look up benchmark by name
-    benchmarks = get_registered_benchmarks()
-    if args.benchmark_name not in benchmarks:
-        available = ", ".join(benchmarks.keys())
-        print(
-            f"ERROR: Benchmark '{args.benchmark_name}' not found. "
-            f"Available: {available}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    bench = benchmarks[args.benchmark_name]
+    # Import benchmark using shared logic
+    bench = import_benchmark(args.benchmark_module, args.benchmark_name)
 
     # Load dataset
     dataset = load_dataset(args.dataset, limit=args.limit_samples)
 
-    # Choose model call function based on endpoint type
-    if args.model_type == "chat":
-        model_fn = call_model_chat
-    else:
-        model_fn = call_model_completions
-
-    # Evaluate each sample
-    all_scores = []
-    for idx, row in enumerate(dataset):
-        # Render prompt
-        try:
-            prompt = bench.prompt.format(**row)
-        except KeyError as e:
-            print(
-                f"Warning: Sample {idx} missing field {e}, skipping",
-                file=sys.stderr,
-            )
-            continue
-
-        # Call model
-        try:
-            response = model_fn(
+    # Create model_call_fn that wraps the HTTP calls
+    def model_call_fn(prompt: str, endpoint_type: str) -> str:
+        """Model call function that routes through subprocess HTTP calls."""
+        if endpoint_type == "chat":
+            return call_model_chat(
                 url=args.model_url,
                 model_id=args.model_id,
                 prompt=prompt,
@@ -388,17 +343,23 @@ def main():
                 max_tokens=args.max_tokens,
                 api_key=api_key,
             )
-        except (requests.HTTPError, requests.Timeout) as e:
-            print(
-                f"Warning: Model call failed for sample {idx}: {e}, skipping",
-                file=sys.stderr,
+        else:
+            return call_model_completions(
+                url=args.model_url,
+                model_id=args.model_id,
+                prompt=prompt,
+                temperature=args.temperature,
+                max_tokens=args.max_tokens,
+                api_key=api_key,
             )
-            continue
 
-        # Score response
-        target = row.get(bench.target_field, "")
-        sample_scores = bench.scorer_fn(response, str(target), row)
-        all_scores.append(sample_scores)
+    # Run evaluation loop using shared logic
+    all_scores = run_eval_loop(
+        bench=bench,
+        dataset=dataset,
+        model_call_fn=model_call_fn,
+        endpoint_type=args.model_type,
+    )
 
     # Aggregate scores
     results = aggregate_scores(all_scores, args.benchmark_name)
