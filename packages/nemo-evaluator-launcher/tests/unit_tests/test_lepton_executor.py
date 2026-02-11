@@ -990,7 +990,10 @@ class TestLeptonExecutorExecuteEval:
                 "deployment": {"type": "none"},
                 "execution": {"output_dir": str(tmp_path)},
                 "evaluation": {
-                    "tasks": [{"name": "lm-eval.mmlu"}, {"name": "lm-eval.gpqa"}]
+                    "tasks": [
+                        {"name": "lm-evaluation-harness.mmlu"},
+                        {"name": "simple_evals.gpqa_diamond"},
+                    ]
                 },
                 "target": {"api_endpoint": {"url": "http://endpoint"}},
             }

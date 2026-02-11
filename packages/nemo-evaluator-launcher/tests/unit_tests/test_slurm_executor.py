@@ -30,6 +30,7 @@ from nemo_evaluator_launcher.executors.base import ExecutionState, ExecutionStat
 from nemo_evaluator_launcher.executors.slurm.executor import (
     SlurmExecutor,
     _create_slurm_sbatch_script,
+    _generate_autoresume_handler,
 )
 
 
@@ -567,6 +568,236 @@ class TestSlurmExecutorFeatures:
 
         # Check that no proxy is set up (since n_tasks=1, even though num_nodes=2)
         assert "proxy" not in script.lower()
+
+
+class TestMaxWalltimeFeature:
+    """Test maximum wall-clock time feature for preventing infinite job resuming."""
+
+    @pytest.fixture
+    def base_config(self):
+        """Base configuration for testing."""
+        return {
+            "deployment": {
+                "type": "vllm",
+                "image": "test-image:latest",
+                "command": "test-command",
+                "served_model_name": "test-model",
+                "port": 8000,
+                "endpoints": {
+                    "health": "/health",
+                },
+            },
+            "execution": {
+                "type": "slurm",
+                "output_dir": "/test/output",
+                "walltime": "01:00:00",
+                "account": "test-account",
+                "partition": "test-partition",
+                "num_nodes": 1,
+                "ntasks_per_node": 1,
+                "subproject": "test-subproject",
+            },
+            "evaluation": {"env_vars": {}},
+            "target": {"api_endpoint": {"url": "http://localhost:8000/v1"}},
+        }
+
+    @pytest.fixture
+    def mock_task(self):
+        """Mock task configuration."""
+        return OmegaConf.create({"name": "test_task"})
+
+    @pytest.fixture
+    def mock_dependencies(self):
+        """Mock external dependencies used by _create_slurm_sbatch_script."""
+        with (
+            patch(
+                "nemo_evaluator_launcher.executors.slurm.executor.load_tasks_mapping"
+            ) as mock_load_tasks,
+            patch(
+                "nemo_evaluator_launcher.executors.slurm.executor.get_task_definition_for_job"
+            ) as mock_get_task_def,
+            patch(
+                "nemo_evaluator_launcher.common.helpers.get_eval_factory_command"
+            ) as mock_get_eval_command,
+            patch(
+                "nemo_evaluator_launcher.common.helpers.get_served_model_name"
+            ) as mock_get_model_name,
+        ):
+            mock_load_tasks.return_value = {}
+            mock_get_task_def.return_value = {
+                "container": "test-eval-container:latest",
+                "required_env_vars": [],
+                "endpoint_type": "openai",
+                "task": "test_task",
+            }
+            from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+            mock_get_eval_command.return_value = CmdAndReadableComment(
+                cmd="nemo-evaluator run_eval --test", debug="# Test command"
+            )
+            mock_get_model_name.return_value = "test-model"
+
+            yield {
+                "load_tasks_mapping": mock_load_tasks,
+                "get_task_definition_for_job": mock_get_task_def,
+                "get_eval_factory_command": mock_get_eval_command,
+                "get_served_model_name": mock_get_model_name,
+            }
+
+    def test_generate_autoresume_handler_without_max_walltime(self):
+        """Test autoresume handler generation without max_walltime."""
+        handler = _generate_autoresume_handler(Path("/test/remote"), max_walltime=None)
+
+        # Should have basic autoresume logic
+        assert "_this_script=$0" in handler
+        assert "_prev_slurm_job_id=$1" in handler
+        assert "sbatch --dependency=afternotok:$SLURM_JOB_ID" in handler
+
+        # Should NOT have max_walltime checks
+        assert "_max_walltime=" not in handler
+        assert "Maximum total walltime" not in handler
+        assert "_accumulated_seconds" not in handler
+
+    def test_generate_autoresume_handler_with_max_walltime(self):
+        """Test autoresume handler generation with max_walltime."""
+        handler = _generate_autoresume_handler(
+            Path("/test/remote"), max_walltime="24:00:00"
+        )
+
+        # Should have basic autoresume logic
+        assert "_this_script=$0" in handler
+        assert "_prev_slurm_job_id=$1" in handler
+        assert "sbatch --dependency=afternotok:$SLURM_JOB_ID" in handler
+
+        # Should have max_walltime checks
+        assert '_max_walltime="24:00:00"' in handler
+        assert "/test/remote/.job_start_time" in handler
+        assert "/test/remote/.accumulated_walltime" in handler
+        assert "_walltime_to_seconds()" in handler
+        assert "_accumulated_seconds" in handler
+        assert "Maximum total walltime" in handler
+        assert "Stopping job chain to prevent infinite resuming" in handler
+        # Should use sacct to get actual elapsed time from previous jobs
+        assert "sacct -j $_prev_slurm_job_id -P -n -o Elapsed" in handler
+
+    def test_generate_autoresume_handler_max_walltime_formats(self):
+        """Test autoresume handler with various max_walltime formats."""
+        # Test HH:MM:SS format
+        handler = _generate_autoresume_handler(
+            Path("/test/remote"), max_walltime="12:30:45"
+        )
+        assert '_max_walltime="12:30:45"' in handler
+
+        # Test short format
+        handler = _generate_autoresume_handler(
+            Path("/test/remote"), max_walltime="02:00:00"
+        )
+        assert '_max_walltime="02:00:00"' in handler
+
+    def test_create_sbatch_script_without_max_walltime(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """Test sbatch script generation without explicit max_walltime uses default."""
+        cfg = OmegaConf.create(base_config)
+
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        # Should have autoresume logic WITH default max_walltime (120:00:00 = 5 days)
+        assert "_this_script=$0" in script
+        assert "sbatch --dependency=afternotok:$SLURM_JOB_ID" in script
+        assert '_max_walltime="120:00:00"' in script
+        assert "_accumulated_walltime_file" in script
+        assert "Maximum total walltime" in script
+
+    def test_create_sbatch_script_with_max_walltime(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """Test sbatch script generation with max_walltime."""
+        base_config["execution"]["max_walltime"] = "24:00:00"
+        cfg = OmegaConf.create(base_config)
+
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        # Should have autoresume logic WITH max_walltime checks
+        assert "_this_script=$0" in script
+        assert "sbatch --dependency=afternotok:$SLURM_JOB_ID" in script
+        assert '_max_walltime="24:00:00"' in script
+        assert "_accumulated_seconds" in script
+        assert "Maximum total walltime" in script
+        # Should use sacct for accurate walltime tracking
+        assert "sacct" in script
+
+    def test_create_sbatch_script_max_walltime_null(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """Test sbatch script generation with max_walltime explicitly set to null for unlimited."""
+        base_config["execution"]["max_walltime"] = None
+        cfg = OmegaConf.create(base_config)
+
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        # When explicitly set to None, should have autoresume logic but NO max_walltime checks
+        assert "_this_script=$0" in script
+        assert "sbatch --dependency=afternotok:$SLURM_JOB_ID" in script
+        assert "_max_walltime=" not in script
+        assert "_accumulated_walltime_file" not in script
+
+    def test_autoresume_handler_creates_start_time_file(self):
+        """Test that autoresume handler creates accumulated walltime file on first run."""
+        handler = _generate_autoresume_handler(
+            Path("/test/remote"), max_walltime="08:00:00"
+        )
+
+        # Should create accumulated walltime file on first run or manual resume
+        assert "_accumulated_walltime_file" in handler
+        assert 'echo "0" > "$_accumulated_walltime_file"' in handler
+        assert "Job chain started at" in handler
+        # Should still write start time for current job
+        assert 'date +%s > "$_start_time_file"' in handler
+
+    def test_autoresume_handler_time_conversion(self):
+        """Test that autoresume handler includes time conversion logic."""
+        handler = _generate_autoresume_handler(
+            Path("/test/remote"), max_walltime="10:30:00"
+        )
+
+        # Should have time conversion function
+        assert "_walltime_to_seconds()" in handler
+        assert "hours * 3600 + minutes * 60 + seconds" in handler
+
+        # Should handle different time formats
+        assert "HH:MM:SS" in handler or "BASH_REMATCH" in handler
+
+    def test_autoresume_handler_elapsed_time_formatting(self):
+        """Test that autoresume handler formats elapsed time for logging."""
+        handler = _generate_autoresume_handler(
+            Path("/test/remote"), max_walltime="04:00:00"
+        )
+
+        # Should format elapsed time for human-readable output
+        assert "_elapsed_formatted" in handler
+        assert "printf" in handler
 
 
 class TestSlurmExecutorHelperFunctions:

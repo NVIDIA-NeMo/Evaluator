@@ -1,0 +1,115 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+defaults:
+  - execution: slurm/default
+  - deployment: vllm
+  - _self_
+
+execution:
+  mounts:
+    evaluation:
+      ./hf_cache: /root/.cache/huggingface
+  hostname: ??? # SLURM headnode (login) hostname (required)
+  username: ${oc.env:USER} # Cluster username; defaults to $USER.
+  account: ??? # SLURM account allocation (required)
+  output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
+
+deployment:
+  image: vllm/vllm-openai:v0.13.0
+  checkpoint_path: null
+  hf_model_handle: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4
+  served_model_name: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4
+  tensor_parallel_size: 2
+  data_parallel_size: 1
+  extra_args: "--max-model-len 262144 --gpu-memory-utilization 0.90 --enable-log-requests --no-enable-prefix-caching --trust-remote-code --mamba_ssm_cache_dtype float32 --enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser deepseek_r1"
+
+
+target:
+  api_endpoint:
+    api_key_name: API_KEY # FIXME: needed for NeMo Skills container as it requires some api key to be set
+
+evaluation:
+  env_vars:
+    HF_TOKEN: HF_TOKEN
+    JUDGE_API_KEY: JUDGE_API_KEY # API Key with access to gpt-4o for HLE
+  nemo_evaluator_config:
+    config:
+      params:
+        max_new_tokens: 131072
+        temperature: 0.99999
+        top_p: 0.99999
+        parallelism: 32
+        request_timeout: 3600
+        max_retries: 10
+        extra:
+          tokenizer: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4
+          tokenizer_backend: huggingface
+    target:
+      api_endpoint:
+        adapter_config:
+          use_caching: true
+          tracking_requests_stats: true
+          log_failed_requests: true
+          use_request_logging: true
+          max_logged_requests: 10
+          use_response_logging: true
+          max_logged_responses: 10
+  tasks:
+  - name: ns_ifbench
+    nemo_evaluator_config:
+      config:
+        params:
+          extra:
+            num_repeats: 8
+  - name: ns_livecodebench
+    nemo_evaluator_config:
+      config:
+        params:
+          extra:
+            num_repeats: 8
+            dataset_split: test_v5_2407_2412
+  - name: ns_mmlu_pro
+    nemo_evaluator_config:
+      config:
+        params:
+          extra:
+            num_repeats: 1
+            args: "++prompt_config=eval/aai/mcq-10choices-boxed"
+  - name: ns_gpqa
+    nemo_evaluator_config:
+      config:
+        params:
+          extra:
+            num_repeats: 8
+            args: "++prompt_config=eval/aai/mcq-4choices"
+  - name: ns_scicode
+    nemo_evaluator_config:
+      config:
+        params:
+          extra:
+            num_repeats: 8
+  - name: ns_hle
+    nemo_evaluator_config:
+      config:
+        params:
+          extra:
+            num_repeats: 1
+            judge_support: true
+            judge:
+              parallelism: 16
+              model_id: openai/gpt-4o
+              url: ??? # Set your OpenAI-compatible API URL for the judge model
+              api_key: JUDGE_API_KEY

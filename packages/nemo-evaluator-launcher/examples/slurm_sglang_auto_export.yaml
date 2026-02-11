@@ -57,7 +57,7 @@ deployment:
 # specify the benchmarks to evaluate
 evaluation:
   tasks:
-    - name: gpqa_diamond
+    - name: simple_evals.gpqa_diamond
       env_vars:
         HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
 
