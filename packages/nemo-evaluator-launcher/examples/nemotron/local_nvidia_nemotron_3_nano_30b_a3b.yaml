@@ -189,3 +189,13 @@ evaluation:
           adapter_config:
             use_reasoning: false
             params_to_add: {"chat_template_kwargs": {"enable_thinking": false}, "skip_special_tokens": false}
+  - name: aa_lcr
+    env_vars:
+      JUDGE_API_KEY: NGC_API_KEY
+    nemo_evaluator_config:
+      config:
+        params:
+          temperature: 0.99999
+          top_p: 0.99999
+          extra:
+            n_samples: 8
