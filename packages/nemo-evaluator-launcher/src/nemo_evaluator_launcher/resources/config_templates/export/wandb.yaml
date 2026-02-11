@@ -1,0 +1,10 @@
+execution:
+  auto_export:
+    destinations: ["wandb"]
+
+export:
+  wandb:
+    project: ??? # W&B project name (required)
+    entity: ??? # W&B entity/team name (required)
+    log_logs: true
+    tags: [] # Optional list of string tags

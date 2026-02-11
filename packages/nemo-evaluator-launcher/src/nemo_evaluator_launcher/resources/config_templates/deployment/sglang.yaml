@@ -1,0 +1,15 @@
+defaults:
+  - deployment: sglang
+
+execution:
+  env_vars:
+    deployment:
+      HF_TOKEN: $HF_TOKEN # Required for gated HuggingFace models
+
+deployment:
+  checkpoint_path: null # Set to path if using local checkpoint
+  hf_model_handle: ??? # HuggingFace model handle
+  served_model_name: ??? # Model name for API
+  tensor_parallel_size: 1
+  data_parallel_size: 1
+  extra_args: "--context-length 32768"
