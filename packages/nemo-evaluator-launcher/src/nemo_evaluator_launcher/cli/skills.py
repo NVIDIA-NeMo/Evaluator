@@ -87,6 +87,14 @@ def _github_list_dir(path: str, ref: str) -> list[dict]:
     resp = requests.get(url, timeout=30, headers=_github_headers())
     if resp.status_code == 403 and "rate limit" in resp.text.lower():
         raise RuntimeError(_RATE_LIMIT_HINT)
+    if resp.status_code == 404:
+        raise RuntimeError(
+            f"GitHub ref '{ref}' not found in {_REPO}.\n"
+            f"This usually means you are running a pre-release or test-PyPI version of NEL\n"
+            f"whose tag does not exist on GitHub.\n"
+            f"Use --ref to specify an existing branch, tag, or commit SHA, e.g.:\n"
+            f"  nel skills install --ref main --claude"
+        )
     if resp.status_code != 200:
         raise RuntimeError(f"GitHub API error ({resp.status_code}): {resp.text}")
     data = resp.json()
