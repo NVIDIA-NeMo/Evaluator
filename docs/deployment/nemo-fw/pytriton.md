@@ -19,7 +19,7 @@ It supports model parallelism across single-node and multi-node configurations, 
 ## Deploy Models Using PyTriton
 
 The deployment scripts are available inside [`/opt/Export-Deploy/scripts/deploy/nlp/`](https://github.com/NVIDIA-NeMo/Export-Deploy/tree/main/scripts/deploy/nlp) directory.
-The example command below uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to Megatron Bridge format. To evaluate a checkpoint saved during [pretraining or finetuning](https://docs.nvidia.com/nemo/megatron-bridge/latest/recipe-usage.html), provide the path to the saved checkpoint using the `--megatron_checkpoint` flag in the command below.
+The example command below uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to the Megatron Bridge format. To evaluate a checkpoint saved during [pre-training or fine-tuning](https://docs.nvidia.com/nemo/megatron-bridge/latest/recipe-usage.html), provide the path to the saved checkpoint using the `--megatron_checkpoint` flag in the command below.
 
 ```{literalinclude} _snippets/deploy_pytriton.sh
 :language: bash
@@ -28,7 +28,7 @@ The example command below uses a Hugging Face LLaMA 3 8B checkpoint that has bee
 ```
 
 When working with a larger model, you can use model parallelism to distribute the model across available devices.
-In the example below we deploy the [Llama-3_3-Nemotron-Super-49B-v1](https://huggingface.co/nvidia/Llama-3_3-Nemotron-Super-49B-v1) (converted to the Megatron Bridge format) with 8 devices and tensor parallelism:
+The example below deploys the [Llama-3_3-Nemotron-Super-49B-v1](https://huggingface.co/nvidia/Llama-3_3-Nemotron-Super-49B-v1) model (converted to the Megatron Bridge format) with 8 devices and tensor parallelism:
 
 ```bash
 python \
