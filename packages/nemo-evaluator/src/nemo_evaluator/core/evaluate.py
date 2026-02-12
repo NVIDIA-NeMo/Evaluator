@@ -47,9 +47,43 @@ __all__ = ["evaluate"]
 
 
 def parse_output(evaluation: Evaluation) -> EvaluationResult:
-    # create a module name that is importable
-    output_module = importlib.import_module(f"core_evals.{evaluation.pkg_name}.output")
-    return output_module.parse_output(evaluation.config.output_dir)
+    """Parse evaluation output by importing the appropriate output module.
+
+    Uses Python namespace package mechanism for both nemo_evaluator and core_evals.
+    Tries nemo_evaluator namespace first, then falls back to core_evals.
+    """
+    # Try nemo_evaluator namespace first (custom harnesses from .nemo_evaluator directories)
+    try:
+        output_module = importlib.import_module(
+            f"nemo_evaluator.{evaluation.pkg_name}.output"
+        )
+        logger.debug(
+            f"Loaded output parser from nemo_evaluator.{evaluation.pkg_name}.output"
+        )
+        return output_module.parse_output(evaluation.config.output_dir)
+    except (ImportError, ModuleNotFoundError):
+        logger.debug(
+            f"Module nemo_evaluator.{evaluation.pkg_name}.output not found, trying core_evals"
+        )
+
+    # Fall back to core_evals namespace
+    try:
+        output_module = importlib.import_module(
+            f"core_evals.{evaluation.pkg_name}.output"
+        )
+        logger.debug(
+            f"Loaded output parser from core_evals.{evaluation.pkg_name}.output"
+        )
+        return output_module.parse_output(evaluation.config.output_dir)
+    except (ImportError, ModuleNotFoundError) as e:
+        logger.error(
+            f"Failed to import output parser for {evaluation.pkg_name}. "
+            f"Tried both nemo_evaluator.{evaluation.pkg_name}.output and core_evals.{evaluation.pkg_name}.output"
+        )
+        raise ImportError(
+            f"Could not find output parser for harness '{evaluation.pkg_name}'. "
+            f"Make sure the harness is in nemo_evaluator or core_evals namespace."
+        ) from e
 
 
 def evaluate(
