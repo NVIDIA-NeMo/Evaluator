@@ -249,7 +249,7 @@ def generate_secrets_env(
                 )
             else:
                 group_remappings[group_name].append(remapping)
-                lines.append(f"export {disambiguated}={resolved_value}")
+                lines.append(f'export {disambiguated}="{resolved_value}"')
                 if isinstance(val, EnvVarLiteral):
                     literal_disambiguated_names.add(disambiguated)
                 logger.debug(
@@ -286,13 +286,15 @@ def build_reexport_commands(group_name: str, result: SecretsEnvResult) -> str:
     # Resolved vars (literal + host) first — they source from .secrets.env
     for remapping in result.group_remappings.get(group_name, []):
         commands.append(
-            f"export {remapping.original_name}=${remapping.disambiguated_name}"
+            'export %s="${%s}"'
+            % (remapping.original_name, remapping.disambiguated_name)
         )
     # Runtime vars second — they may reference vars re-exported above
     # (e.g. API_KEY=$NGC_API_TOKEN where NGC_API_TOKEN was just re-exported)
     for remapping in result.runtime_vars.get(group_name, []):
         commands.append(
-            f"export {remapping.original_name}=${remapping.disambiguated_name}"
+            'export %s="${%s}"'
+            % (remapping.original_name, remapping.disambiguated_name)
         )
     return " ; ".join(commands)
 
@@ -313,12 +315,14 @@ def redact_secrets_env_content(
     for line in secrets_content.splitlines():
         if line.startswith("export ") and "=" in line[len("export ") :]:
             key, _, value = line[len("export ") :].partition("=")
+            # Strip surrounding quotes added for shell safety
+            unquoted = value.strip('"')
             if key in literal_names:
                 redacted_lines.append(line)
-            elif len(value) > 4:
-                redacted_lines.append(f"export {key}=***{value[-4:]}")
+            elif len(unquoted) > 4:
+                redacted_lines.append(f'export {key}="***{unquoted[-4:]}"')
             else:
-                redacted_lines.append(f"export {key}=***")
+                redacted_lines.append(f'export {key}="***"')
         else:
             redacted_lines.append(line)
     return "\n".join(redacted_lines) + ("\n" if secrets_content.endswith("\n") else "")
