@@ -78,7 +78,7 @@ evaluation:
     - name: ifeval
     - name: gpqa_diamond
       env_vars:
-        HF_TOKEN: HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
+        HF_TOKEN: $host:HF_TOKEN_FOR_GPQA_DIAMOND # Click request access for GPQA-Diamond: https://huggingface.co/datasets/Idavidrein/gpqa
 ```
 
 ## Reference

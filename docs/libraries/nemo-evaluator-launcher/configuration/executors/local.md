@@ -30,30 +30,19 @@ nemo-evaluator-launcher run --config packages/nemo-evaluator-launcher/examples/l
   -o target.api_endpoint.api_key_name=NGC_API_KEY
 ```
 
-## Environment Variables
+## Environment Variables and Secrets
 
-The Local executor supports passing environment variables from your local machine to evaluation containers:
-
-### How It Works
-
-The executor passes environment variables to Docker containers using `docker run -e KEY=VALUE` flags. The executor automatically adds `$` to your variable names from the configuration `env_vars` (for example, `OPENAI_API_KEY` becomes `$OPENAI_API_KEY`).
-
-### Configuration
+Environment variables use the unified prefix syntax (`$host:`, `$lit:`, `$runtime:`) described in {ref}`env-vars-configuration`. Declare them at the top-level `env_vars:` section, at `evaluation.env_vars`, or per-task. Secret values are stored in a `.secrets.env` file alongside the generated `run.sh` and sourced at runtime — they never appear in the script itself.
 
 ```yaml
+env_vars:
+  HF_TOKEN: $host:HF_TOKEN
 evaluation:
-  env_vars:
-    API_KEY: YOUR_API_KEY_ENV_VAR_NAME
-    CUSTOM_VAR: YOUR_CUSTOM_ENV_VAR_NAME
   tasks:
     - name: my_task
       env_vars:
-        TASK_SPECIFIC_VAR: TASK_ENV_VAR_NAME
+        CUSTOM_VAR: $host:MY_CUSTOM_VAR
 ```
-
-## Secrets and API Keys
-
-The executor handles API keys the same way as environment variables - store them as environment variables on your machine and reference them in the `env_vars` configuration.
 
 ## Mounting and Storage
 
