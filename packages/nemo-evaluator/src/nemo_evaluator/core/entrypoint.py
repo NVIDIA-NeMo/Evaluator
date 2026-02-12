@@ -15,7 +15,6 @@
 
 import argparse
 import os
-import pkgutil
 import sys
 
 import yaml
@@ -127,18 +126,16 @@ def show_available_tasks() -> None:
 
     .. important:: Only evaluations from installed wheels are being displayed.
     """
-    try:
-        import core_evals
+    from nemo_evaluator.core.input import _get_harness_packages
 
-        core_evals_pkg = list(pkgutil.iter_modules(core_evals.__path__))
-    except ImportError:
-        core_evals_pkg = []
+    harness_packages = _get_harness_packages()
 
-    if not core_evals_pkg:
+    if not harness_packages:
         print("NO evaluation packages are installed.")
+        return
 
     include_internal = _is_internal_package_installed()
-    for pkg in core_evals_pkg:
+    for pkg in harness_packages:
         framework_eval_mapping, *_ = _get_framework_evaluations(
             os.path.join(pkg.module_finder.path, pkg.name, "framework.yml"),
             include_internal=include_internal,
