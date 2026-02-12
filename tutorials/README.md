@@ -1,5 +1,5 @@
-Evaluation of Large Language Models with the NeMo 2.0
-=====================================================
+Evaluation of Large Language Models with NeMo Framework
+========================================================
 
 This directory contains Jupyter Notebook tutorials using the NeMo Framework for evaluating large language models (LLMs):
 
