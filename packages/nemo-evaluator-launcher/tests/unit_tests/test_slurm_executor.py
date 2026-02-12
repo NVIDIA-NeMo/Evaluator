@@ -142,8 +142,8 @@ class TestSlurmExecutorFeatures:
 
         # Env vars are now in .secrets.env, not inline in script
         assert result.secrets_env_content is not None
-        assert "=deploy_value1" in result.secrets_env_content
-        assert "=deploy_value2" in result.secrets_env_content
+        assert '="deploy_value1"' in result.secrets_env_content
+        assert '="deploy_value2"' in result.secrets_env_content
 
         # Script sources secrets file and re-exports
         assert 'source "' in result.cmd
@@ -178,8 +178,8 @@ class TestSlurmExecutorFeatures:
 
         # Env vars are now in .secrets.env, not inline in script
         assert result.secrets_env_content is not None
-        assert "=eval_value1" in result.secrets_env_content
-        assert "=eval_value2" in result.secrets_env_content
+        assert '="eval_value1"' in result.secrets_env_content
+        assert '="eval_value2"' in result.secrets_env_content
 
         # Script sources secrets file
         assert 'source "' in result.cmd
@@ -351,8 +351,8 @@ class TestSlurmExecutorFeatures:
         assert "old_value1" in result.secrets_env_content
         assert "old_value2" in result.secrets_env_content
         assert "source" in script
-        assert "export OLD_VAR1=$OLD_VAR1_" in script
-        assert "export OLD_VAR2=$OLD_VAR2_" in script
+        assert 'export OLD_VAR1="${OLD_VAR1_' in script
+        assert 'export OLD_VAR2="${OLD_VAR2_' in script
 
     def test_backward_compatibility_mixed_env_vars(
         self, base_config, mock_task, mock_dependencies
@@ -394,9 +394,9 @@ class TestSlurmExecutorFeatures:
 
         # Script should source secrets and re-export
         assert "source" in script
-        assert "export OLD_VAR=$OLD_VAR_" in script
-        assert "export NEW_VAR=$NEW_VAR_" in script
-        assert "export EVAL_VAR=$EVAL_VAR_" in script
+        assert 'export OLD_VAR="${OLD_VAR_' in script
+        assert 'export NEW_VAR="${NEW_VAR_' in script
+        assert 'export EVAL_VAR="${EVAL_VAR_' in script
 
         # Check that both old and new deployment vars are passed to deployment container
         assert (
@@ -458,10 +458,10 @@ class TestSlurmExecutorFeatures:
 
         # Script should source secrets and re-export eval vars
         assert "source" in script
-        assert "export EVAL_VAR=$EVAL_VAR_" in script
+        assert 'export EVAL_VAR="${EVAL_VAR_' in script
         # Deploy reexport only appears before the deployment srun;
         # with deployment.type == "none" there's no deployment srun
-        assert "export DEPLOY_VAR=$DEPLOY_VAR_" not in script
+        assert 'export DEPLOY_VAR="${DEPLOY_VAR_' not in script
 
         # Should not have deployment server section when type is 'none'
 
@@ -527,11 +527,11 @@ class TestSlurmExecutorFeatures:
 
         # Script should source secrets and re-export
         assert "source" in script
-        assert "export DEPLOY_VAR1=$DEPLOY_VAR1_" in script
-        assert "export DEPLOY_VAR2=$DEPLOY_VAR2_" in script
-        assert "export EVAL_VAR1=$EVAL_VAR1_" in script
-        assert "export EVAL_VAR2=$EVAL_VAR2_" in script
-        assert "export OLD_DEPLOY_VAR=$OLD_DEPLOY_VAR_" in script
+        assert 'export DEPLOY_VAR1="${DEPLOY_VAR1_' in script
+        assert 'export DEPLOY_VAR2="${DEPLOY_VAR2_' in script
+        assert 'export EVAL_VAR1="${EVAL_VAR1_' in script
+        assert 'export EVAL_VAR2="${EVAL_VAR2_' in script
+        assert 'export OLD_DEPLOY_VAR="${OLD_DEPLOY_VAR_' in script
 
         # All mounts should be present
         assert "/host/deploy1:/container/deploy1" in script

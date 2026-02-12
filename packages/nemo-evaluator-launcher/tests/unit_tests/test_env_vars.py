@@ -139,7 +139,7 @@ class TestGenerateSecretsEnv:
             {"deployment": {"HF_HOME": EnvVarLiteral(value="/hf-cache")}}
         )
         assert "export HF_HOME_" in result.secrets_content
-        assert "=/hf-cache" in result.secrets_content
+        assert '="/hf-cache"' in result.secrets_content
         assert len(result.group_remappings["deployment"]) == 1
         assert result.group_remappings["deployment"][0].original_name == "HF_HOME"
 
@@ -148,7 +148,7 @@ class TestGenerateSecretsEnv:
             result = generate_secrets_env(
                 {"eval_task": {"TOKEN": EnvVarFromHost(host_var_name="MY_TOKEN")}}
             )
-        assert "=secret123" in result.secrets_content
+        assert '="secret123"' in result.secrets_content
         assert len(result.group_remappings["eval_task"]) == 1
 
     def test_runtime_var_not_in_secrets_content(self):
@@ -170,8 +170,8 @@ class TestGenerateSecretsEnv:
                 }
             )
         # Both should be in secrets content but disambiguated
-        assert "=val_a" in result.secrets_content
-        assert "=val_b" in result.secrets_content
+        assert '="val_a"' in result.secrets_content
+        assert '="val_b"' in result.secrets_content
         # Different disambiguated names
         name_a = result.group_remappings["task_a"][0].disambiguated_name
         name_b = result.group_remappings["task_b"][0].disambiguated_name
@@ -198,8 +198,8 @@ class TestGenerateSecretsEnv:
             )
         assert len(result.group_remappings["my_group"]) == 2  # lit + host
         assert len(result.runtime_vars["my_group"]) == 1  # runtime
-        assert "=literal" in result.secrets_content
-        assert "=host_val" in result.secrets_content
+        assert '="literal"' in result.secrets_content
+        assert '="host_val"' in result.secrets_content
 
     def test_special_chars_in_group_name(self):
         result = generate_secrets_env(
@@ -227,7 +227,7 @@ class TestBuildReexportCommands:
             },
         )
         cmd = build_reexport_commands("task_a", result)
-        assert cmd == "export HF_TOKEN=$HF_TOKEN_abc_TASK_A"
+        assert cmd == 'export HF_TOKEN="${HF_TOKEN_abc_TASK_A}"'
 
     def test_multiple_vars(self):
         result = SecretsEnvResult(
@@ -240,8 +240,8 @@ class TestBuildReexportCommands:
             },
         )
         cmd = build_reexport_commands("task_a", result)
-        assert "export HF_TOKEN=$HF_TOKEN_abc_TASK_A" in cmd
-        assert "export API_KEY=$API_KEY_abc_TASK_A" in cmd
+        assert 'export HF_TOKEN="${HF_TOKEN_abc_TASK_A}"' in cmd
+        assert 'export API_KEY="${API_KEY_abc_TASK_A}"' in cmd
         assert " ; " in cmd
 
     def test_empty_group(self):
@@ -260,8 +260,8 @@ class TestBuildReexportCommands:
             runtime_vars={"task_a": [VarRemapping("API_KEY", "NGC_API_TOKEN")]},
         )
         cmd = build_reexport_commands("task_a", result)
-        assert "export HF_TOKEN=$HF_TOKEN_abc_TASK_A" in cmd
-        assert "export API_KEY=$NGC_API_TOKEN" in cmd
+        assert 'export HF_TOKEN="${HF_TOKEN_abc_TASK_A}"' in cmd
+        assert 'export API_KEY="${NGC_API_TOKEN}"' in cmd
 
 
 # --- Config collection with hierarchical merging ---
@@ -480,63 +480,63 @@ class TestCollectDeploymentEnvVars:
 
 class TestRedactSecretsEnvContent:
     def test_long_value_shows_last_four(self):
-        content = "export MY_KEY=super_secret_value\n"
+        content = 'export MY_KEY="super_secret_value"\n'
         result = redact_secrets_env_content(content)
-        assert result == "export MY_KEY=***alue\n"
+        assert result == 'export MY_KEY="***alue"\n'
 
     def test_short_value_fully_masked(self):
-        content = "export KEY=abcd\n"
+        content = 'export KEY="abcd"\n'
         result = redact_secrets_env_content(content)
-        assert result == "export KEY=***\n"
+        assert result == 'export KEY="***"\n'
 
     def test_very_short_value_fully_masked(self):
-        content = "export KEY=ab\n"
+        content = 'export KEY="ab"\n'
         result = redact_secrets_env_content(content)
-        assert result == "export KEY=***\n"
+        assert result == 'export KEY="***"\n'
 
     def test_empty_value(self):
-        content = "export KEY=\n"
+        content = 'export KEY=""\n'
         result = redact_secrets_env_content(content)
-        assert result == "export KEY=***\n"
+        assert result == 'export KEY="***"\n'
 
     def test_multiple_lines(self):
-        content = "export A=long_secret_a\nexport B=long_secret_b\n"
+        content = 'export A="long_secret_a"\nexport B="long_secret_b"\n'
         result = redact_secrets_env_content(content)
-        assert "export A=***et_a" in result
-        assert "export B=***et_b" in result
+        assert 'export A="***et_a"' in result
+        assert 'export B="***et_b"' in result
 
     def test_non_export_lines_pass_through(self):
-        content = "# comment\nexport KEY=secret_val\n"
+        content = '# comment\nexport KEY="secret_val"\n'
         result = redact_secrets_env_content(content)
         assert result.startswith("# comment\n")
-        assert "export KEY=***_val" in result
+        assert 'export KEY="***_val"' in result
 
     def test_empty_content(self):
         result = redact_secrets_env_content("")
         assert result == ""
 
     def test_value_with_equals_sign(self):
-        content = "export KEY=val=ue=with=equals\n"
+        content = 'export KEY="val=ue=with=equals"\n'
         result = redact_secrets_env_content(content)
-        assert result == "export KEY=***uals\n"
+        assert result == 'export KEY="***uals"\n'
 
     def test_literal_keys_shown_unredacted(self):
-        content = "export SECRET_abc_TASK=my_secret_key\nexport PATH_abc_TASK=/some/long/path\n"
+        content = 'export SECRET_abc_TASK="my_secret_key"\nexport PATH_abc_TASK="/some/long/path"\n'
         result = redact_secrets_env_content(
             content, literal_disambiguated_names={"PATH_abc_TASK"}
         )
-        assert "export SECRET_abc_TASK=***_key" in result
-        assert "export PATH_abc_TASK=/some/long/path" in result
+        assert 'export SECRET_abc_TASK="***_key"' in result
+        assert 'export PATH_abc_TASK="/some/long/path"' in result
 
     def test_all_literal_keys_unredacted(self):
-        content = "export A=value_a\nexport B=value_b\n"
+        content = 'export A="value_a"\nexport B="value_b"\n'
         result = redact_secrets_env_content(
             content, literal_disambiguated_names={"A", "B"}
         )
-        assert result == "export A=value_a\nexport B=value_b\n"
+        assert result == 'export A="value_a"\nexport B="value_b"\n'
 
     def test_no_literal_keys_all_redacted(self):
-        content = "export A=value_a\nexport B=value_b\n"
+        content = 'export A="value_a"\nexport B="value_b"\n'
         result = redact_secrets_env_content(content, literal_disambiguated_names=set())
-        assert "export A=***ue_a" in result
-        assert "export B=***ue_b" in result
+        assert 'export A="***ue_a"' in result
+        assert 'export B="***ue_b"' in result

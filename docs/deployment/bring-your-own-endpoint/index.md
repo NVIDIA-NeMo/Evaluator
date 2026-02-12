@@ -104,7 +104,7 @@ target:
   api_endpoint:
     url: http://your-endpoint:8000/v1/completions
     model_id: your-model-name
-    api_key_name: API_KEY  # Optional, needed for gated endpoints
+    api_key_name: NGC_API_KEY  # Optional, needed for gated endpoints
 
 evaluation:
   tasks:
