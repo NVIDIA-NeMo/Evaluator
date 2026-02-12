@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
-import subprocess
-import time
+import os
+from pathlib import Path
 
 from nemo_evaluator.api import check_endpoint, evaluate
 
@@ -34,14 +34,15 @@ def wait_and_evaluate(target_cfg, eval_cfg, serving_backend="pytriton"):
 
     result = evaluate(target_cfg=target_cfg, eval_cfg=eval_cfg)
 
-    # Shutdown Ray server after evaluation if using Ray backend, since it does not shutdown automatically like Triton.
+    # For Ray backend, write a success marker so the deploy wrapper
+    # (running as the foreground COMMAND in ray.sub.j2) detects eval
+    # is done, kills the deploy process, and exits 0.
+    # The Slurm job then reports SUCCESS instead of KILLED.
     if serving_backend == "ray":
-        logger.info("Evaluation completed. Shutting down Ray server...")
-
-        # Try to shutdown Ray using ray CLI
-        subprocess.run(["ray", "stop", "--force"], check=False, timeout=30)
-        logger.info("Ray server shutdown command sent.")
-        time.sleep(5)  # Give some time for graceful shutdown
+        log_dir = os.environ.get("LOG_DIR", "/tmp")
+        marker = os.path.join(log_dir, "EVAL_SUCCESS")
+        Path(marker).touch()
+        logger.info(f"Evaluation completed. Wrote EVAL_SUCCESS marker to {marker}")
 
     return result
 
