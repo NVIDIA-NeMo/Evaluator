@@ -117,6 +117,59 @@ def _is_internal_package_installed() -> bool:
     return importlib.util.find_spec("nemo_evaluator_internal") is not None
 
 
+def _get_harness_packages():
+    """Discover harness packages from nemo_evaluator and core_evals namespaces.
+
+    Both use Python's namespace package mechanism (PEP 420) identically:
+    - nemo_evaluator: User/project custom harnesses (checked first, if available in PYTHONPATH)
+    - core_evals: Core evaluation frameworks (fallback)
+
+    Both work the same way - they must be in sys.path (via pip install, PYTHONPATH, etc.)
+
+    Returns:
+        list: List of ModuleInfo objects representing discovered packages
+    """
+    packages = []
+
+    # Try to discover from nemo_evaluator namespace (if it exists in sys.path)
+    try:
+        import nemo_evaluator
+
+        # Use pkgutil to discover submodules (same as core_evals)
+        nemo_eval_packages = list(pkgutil.iter_modules(nemo_evaluator.__path__))
+
+        # Filter to only include packages with framework.yml
+        for pkg_info in nemo_eval_packages:
+            framework_path = os.path.join(
+                pkg_info.module_finder.path, pkg_info.name, "framework.yml"
+            )
+            if os.path.exists(framework_path):
+                packages.append(pkg_info)
+                _logger.debug(
+                    f"Found harness in nemo_evaluator namespace: {pkg_info.name}"
+                )
+
+        if packages:
+            _logger.info(
+                f"Found {len(packages)} harness packages in nemo_evaluator namespace"
+            )
+    except (ImportError, AttributeError) as e:
+        _logger.debug(f"No nemo_evaluator namespace harnesses found: {e}")
+
+    # Then check for core_evals namespace (core harnesses)
+    try:
+        import core_evals
+
+        core_evals_pkg = list(pkgutil.iter_modules(core_evals.__path__))
+        _logger.debug(f"Found {len(core_evals_pkg)} packages in core_evals namespace")
+        packages.extend(core_evals_pkg)
+    except ImportError as e:
+        _logger.debug(f"No core_evals namespace found: {e}")
+
+    _logger.info(f"Total harness packages discovered: {len(packages)}")
+    return packages
+
+
 def get_framework_evaluations(
     filepath: str, *, include_internal: bool = True
 ) -> tuple[str, dict, dict[str, Evaluation]]:
@@ -173,25 +226,20 @@ def _get_framework_evaluations(
 
 
 def _copy_fdfs(target_dir: str):
-    """This function takes Framework Definition Files (FDFs) from installed core_evals packages
-    and moves them to a defined location.
+    """This function takes Framework Definition Files (FDFs) from installed harness packages
+    (.nemo_evaluator and core_evals) and moves them to a defined location.
 
     Note: This function is used during docker builds!
 
     Args:
         target_dir: where FDFs should be copied to
     """
-    try:
-        import core_evals
-
-        core_evals_pkg = list(pkgutil.iter_modules(core_evals.__path__))
-    except ImportError:
-        core_evals_pkg = []
+    harness_packages = _get_harness_packages()
     os.makedirs(
         target_dir,
         exist_ok=True,
     )
-    for pkg in core_evals_pkg:
+    for pkg in harness_packages:
         installed_fdf_filepath = os.path.join(
             pkg.module_finder.path, pkg.name, "framework.yml"
         )
@@ -245,14 +293,10 @@ def get_available_evaluations() -> tuple[
     all_framework_eval_mappings = {}
     all_framework_defaults = {}
     all_eval_name_mapping = {}
-    try:
-        import core_evals
 
-        core_evals_pkg = list(pkgutil.iter_modules(core_evals.__path__))
-    except ImportError:
-        core_evals_pkg = []
+    harness_packages = _get_harness_packages()
 
-    for pkg in core_evals_pkg:
+    for pkg in harness_packages:
         (
             framework_eval_mapping,
             framework_defaults,
