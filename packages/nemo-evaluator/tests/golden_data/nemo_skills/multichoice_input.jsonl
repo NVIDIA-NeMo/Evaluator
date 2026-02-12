@@ -1,0 +1,5 @@
+{"question": "What is the capital of France?", "expected_answer": "A", "choices": "A) Paris B) London C) Berlin D) Madrid"}
+{"question": "What is 2+2?", "expected_answer": "B", "choices": "A) 3 B) 4 C) 5 D) 6"}
+{"question": "What is H2O?", "expected_answer": "C", "choices": "A) Hydrogen B) Oxygen C) Water D) Helium"}
+{"question": "What color is the sky?", "expected_answer": "A", "choices": "A) Blue B) Green C) Red D) Yellow"}
+{"question": "What is the largest planet?", "expected_answer": "D", "choices": "A) Earth B) Mars C) Venus D) Jupiter"}

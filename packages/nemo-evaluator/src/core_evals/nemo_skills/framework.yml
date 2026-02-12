@@ -1,0 +1,89 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# NeMo-Skills Framework Definition for NeMo Evaluator
+# Per C-039 through C-042
+
+framework:
+  name: "nemo_skills"
+  pkg_name: "nemo_skills"
+  description: "NVIDIA nemo-skills integration with 100+ benchmarks"
+
+defaults:
+  execution_mode: native
+  native_entrypoint: "nemo_evaluator.plugins.nemo_skills.runner:evaluate"
+  isolation_required: false
+  config:
+    params:
+      max_new_tokens: 512
+      temperature: 0.0
+      parallelism: 8
+      extra:
+        eval_split: "test"
+        num_seeds: 1
+
+evaluations:
+  # Math Benchmarks
+  - name: "GSM8K"
+    type: "nemo_skills.gsm8k"
+    description: "Grade School Math 8K problems"
+    execution_mode: native
+    native_entrypoint: "nemo_evaluator.plugins.nemo_skills.runner:evaluate"
+    config:
+      params:
+        extra:
+          benchmark_name: "gsm8k"
+          eval_type: "gsm8k"
+          data_dir: "${DATA_DIR}"
+
+  - name: "AIME 2024"
+    type: "nemo_skills.aime24"
+    description: "American Invitational Mathematics Examination 2024"
+    execution_mode: native
+    native_entrypoint: "nemo_evaluator.plugins.nemo_skills.runner:evaluate"
+    config:
+      params:
+        extra:
+          benchmark_name: "aime24"
+          eval_type: "aime24"
+          data_dir: "${DATA_DIR}"
+
+  # Multiple Choice Benchmarks
+  - name: "MMLU"
+    type: "nemo_skills.mmlu"
+    description: "Massive Multitask Language Understanding"
+    execution_mode: native
+    native_entrypoint: "nemo_evaluator.plugins.nemo_skills.runner:evaluate"
+    config:
+      params:
+        extra:
+          benchmark_name: "mmlu"
+          eval_type: "mmlu"
+          data_dir: "${DATA_DIR}"
+
+  # Code Benchmarks
+  - name: "HumanEval"
+    type: "nemo_skills.humaneval"
+    description: "Human-Eval code generation benchmark"
+    execution_mode: subprocess
+    command: "run_benchmark humaneval"
+    isolation_required: true
+    config:
+      params:
+        extra:
+          benchmark_name: "humaneval"
+          eval_type: "humaneval"
+          data_dir: "${DATA_DIR}"
+
+  # Instruction Following
+  - name: "IFEval"
+    type: "nemo_skills.ifeval"
+    description: "Instruction Following Evaluation"
+    execution_mode: native
+    native_entrypoint: "nemo_evaluator.plugins.nemo_skills.runner:evaluate"
+    config:
+      params:
+        extra:
+          benchmark_name: "ifeval"
+          eval_type: "ifeval"
+          data_dir: "${DATA_DIR}"
