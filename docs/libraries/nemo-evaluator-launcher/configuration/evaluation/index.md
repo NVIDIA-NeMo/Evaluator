@@ -23,7 +23,7 @@ evaluation:
             temperature: 0.6
             top_p: 0.95
       env_vars:  # Task-specific environment variables
-        HF_TOKEN: MY_HF_TOKEN
+        HF_TOKEN: $host:HF_TOKEN
 ```
 
 ## Key Components
@@ -87,20 +87,83 @@ evaluation:
               n_samples: 5
 ```
 
+(env-vars-configuration)=
+
 ### Environment Variables
 
-Task-specific environment variables. These parameters are set for a single job and don't affect other tasks:
+Environment variables can be declared at multiple levels. Values at more specific levels override broader ones (last wins):
 
 ```yaml
+# 1. Top-level — applies to ALL jobs (deployment + evaluation)
+env_vars:
+  HF_TOKEN: $host:HF_TOKEN
+  CACHE_DIR: $lit:/cache/huggingface
+
+# 2. Evaluation-level — applies to all evaluation tasks
+evaluation:
+  env_vars:
+    CUSTOM_VAR: $lit:some_value
+
+# 3. Task-level — applies to a single task only
 evaluation:
   tasks:
     - name: task_name1
-      # HF_TOKEN and CUSTOM_VAR are available for task_name1
       env_vars:
-        HF_TOKEN: MY_HF_TOKEN
-        CUSTOM_VAR: CUSTOM_VALUE
-    - name: task_name2    # HF_TOKEN and CUSTOM_VAR are not set for task_name2
+        HF_TOKEN: $host:HF_TOKEN_FOR_GPQA_DIAMOND  # overrides top-level
+    - name: task_name2   # inherits top-level HF_TOKEN
 ```
+
+#### Value Prefixes
+
+Every value must use one of three explicit prefixes:
+
+| Prefix | Meaning | Example |
+|--------|---------|---------|
+| `$host:VAR` | Resolved from the host environment (or `.env` file) at config-load time. Fails if the variable is not set. | `$host:HF_TOKEN` |
+| `$lit:value` | Literal value, written as-is. Use for paths, URLs, flags. | `$lit:/cache/huggingface` |
+| `$runtime:VAR` | Late-bound — resolved by the execution environment at runtime (e.g., a variable set by SLURM or the deployment container). | `$runtime:SLURM_JOB_ID` |
+
+Bare (unprefixed) values still work for backward compatibility but emit deprecation warnings.
+
+:::{tip}
+Use the migration script to automatically add prefixes to existing configs:
+```bash
+python scripts/migrate_config.py your_config.yaml        # preview
+python scripts/migrate_config.py your_config.yaml --write # overwrite
+```
+:::
+
+#### API Key (`api_key_name`)
+
+The `target.api_endpoint.api_key_name` field specifies which host environment variable holds the API key for the model endpoint. The launcher automatically includes it in the evaluation environment — you do not need to add it to `env_vars` manually:
+
+```yaml
+target:
+  api_endpoint:
+    url: https://integrate.api.nvidia.com/v1/chat/completions
+    model_id: meta/llama-3.1-8b-instruct
+    api_key_name: NGC_API_KEY   # resolved from $NGC_API_KEY on the host
+```
+
+If you need to override the API key for a specific task, declare it explicitly in that task's `env_vars`.
+
+#### Loading from `.env` Files
+
+The launcher can load environment variables from a `.env` file before resolving `$host:` references. This is useful for keeping secrets out of your shell history:
+
+```bash
+# Loads $PWD/.env by default (if it exists)
+nemo-evaluator-launcher run --config config.yaml
+
+# Or specify a path explicitly
+nemo-evaluator-launcher run --config config.yaml --env-file /path/to/.env
+```
+
+Variables already set in the shell environment take precedence over `.env` file values.
+
+#### Secrets Handling
+
+Secrets (`$host:` values) are never written into generated scripts (`run.sh`, `run.sub`). Instead, they are stored in a separate `.secrets.env` file alongside the script and sourced at runtime. This prevents accidental exposure in logs, artifacts, and dry-run output.
 
 ### Dataset Directory Mounting
 

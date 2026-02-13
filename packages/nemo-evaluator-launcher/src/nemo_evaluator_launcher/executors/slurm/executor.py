@@ -18,7 +18,6 @@
 Handles submitting evaluation jobs to a SLURM cluster via SSH and sbatch scripts.
 """
 
-import copy
 import os
 import re
 import shlex
@@ -33,6 +32,13 @@ import yaml
 from jinja2 import Environment, FileSystemLoader
 from omegaconf import DictConfig, OmegaConf
 
+from nemo_evaluator_launcher.common.env_vars import (
+    build_reexport_commands,
+    collect_deployment_env_vars,
+    collect_eval_env_vars,
+    generate_secrets_env,
+    redact_secrets_env_content,
+)
 from nemo_evaluator_launcher.common.execdb import (
     ExecutionDB,
     JobData,
@@ -85,6 +91,7 @@ class SlurmExecutor(BaseExecutor):
 
         local_runsub_paths = []
         remote_runsub_paths = []
+        task_literal_names: list[frozenset[str]] = []
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             timestamp = get_timestamp_string(include_microseconds=False)
@@ -167,8 +174,17 @@ class SlurmExecutor(BaseExecutor):
                 with open(local_runsub_path, "w") as f:
                     f.write(sbatch_script_content_str.rstrip("\n") + "\n")
 
+                # Write .secrets.env alongside run.sub (will be rsynced together)
+                if sbatch_script_content_struct.secrets_env_content:
+                    secrets_env_path = local_task_subdir / ".secrets.env"
+                    with open(secrets_env_path, "w") as f:
+                        f.write(sbatch_script_content_struct.secrets_env_content)
+
                 local_runsub_paths.append(local_runsub_path)
                 remote_runsub_paths.append(remote_runsub_path)
+                task_literal_names.append(
+                    sbatch_script_content_struct.literal_disambiguated_names
+                )
 
             if dry_run:
                 print(bold("\n\n=============================================\n\n"))
@@ -177,6 +193,23 @@ class SlurmExecutor(BaseExecutor):
                     print(cyan(f"\n\n=========== Task {idx} =====================\n\n"))
                     with open(local_runsub_path, "r") as f:
                         print(grey(f.read()))
+
+                    secrets_env_path = local_runsub_path.parent / ".secrets.env"
+                    if secrets_env_path.exists():
+                        print(
+                            cyan(
+                                f"\n----------- Secrets (redacted) | Task {idx} / .secrets.env -----------\n"
+                            )
+                        )
+                        print(
+                            grey(
+                                redact_secrets_env_content(
+                                    secrets_env_path.read_text(),
+                                    task_literal_names[idx],
+                                )
+                            )
+                        )
+
                 print(bold("To submit jobs") + ", run the executor without --dry-run")
                 if is_potentially_unsafe:
                     print(
@@ -575,50 +608,38 @@ def _create_slurm_sbatch_script(
     s += f'TASK_DIR="{str(remote_task_subdir)}"\n'
     s += "\n"
 
-    # collect all env vars
-    env_vars = copy.deepcopy(dict(cfg.evaluation.get("env_vars", {})))
-    env_vars.update(task.get("env_vars", {}))
+    # Collect env vars using unified pipeline
     api_key_name = get_api_key_name(cfg)
-    if api_key_name:
-        assert "API_KEY" not in env_vars
-        env_vars["API_KEY"] = api_key_name
+    eval_env_vars = collect_eval_env_vars(cfg, task, task_definition, api_key_name)
+    deployment_env_vars = collect_deployment_env_vars(cfg)
 
-    # check if the environment variables are set
-    for env_var in env_vars.values():
-        if os.getenv(env_var) is None:
-            raise ValueError(f"Trying to pass an unset environment variable {env_var}.")
+    # Merge all into groups for secrets file generation
+    env_groups = {}
+    # Evaluation vars for this task (merged: top-level → eval → task → exec eval → api_key)
+    if eval_env_vars:
+        env_groups[task.name] = eval_env_vars
+    # Deployment vars (merged: top-level → exec deployment → deployment.env_vars)
+    if deployment_env_vars:
+        env_groups["deployment"] = deployment_env_vars
 
-    # check if required env vars are defined (excluding NEMO_EVALUATOR_DATASET_DIR which is handled separately):
-    for required_env_var in task_definition.get("required_env_vars", []):
-        # Skip NEMO_EVALUATOR_DATASET_DIR as it's handled by dataset mounting logic below
-        if required_env_var == "NEMO_EVALUATOR_DATASET_DIR":
-            continue
-        if required_env_var not in env_vars.keys():
-            raise ValueError(
-                f"{task.name} task requires environment variable {required_env_var}."
-                " Specify it in the task subconfig in the 'env_vars' dict as the following"
-                f" pair {required_env_var}: YOUR_ENV_VAR_NAME"
-            )
+    secrets_env_content = None
+    literal_disambiguated_names: set[str] = set()
+    eval_reexport_cmd = ""
+    deploy_reexport_cmd = ""
+    if env_groups:
+        secrets_result = generate_secrets_env(env_groups)
+        secrets_env_content = secrets_result.secrets_content
+        literal_disambiguated_names = secrets_result.literal_disambiguated_names
 
-    # save env vars:
-    for env_var_dst, env_var_src in env_vars.items():
-        s += f"export {env_var_dst}={os.getenv(env_var_src)}\n"
-    all_env_vars = {
-        **cfg.execution.get("env_vars", {}).get("deployment", {}),
-        **cfg.execution.get("env_vars", {}).get("evaluation", {}),
-    }
-    if cfg.deployment.get("env_vars"):
-        warnings.warn(
-            "cfg.deployment.env_vars will be deprecated in future versions. "
-            "Use cfg.execution.env_vars.deployment instead.",
-            category=DeprecationWarning,
-            stacklevel=2,
-        )
-        all_env_vars.update(cfg.deployment["env_vars"])
-    for env_var_dst, env_var_value in all_env_vars.items():
-        s += f"export {env_var_dst}={env_var_value}\n"
-    if env_vars:
+        # Source .secrets.env at runtime (file lives alongside run.sub).
+        # Reexports are emitted later, right before each respective srun,
+        # so that eval and deployment vars don't overwrite each other.
+        secrets_env_path = remote_task_subdir / ".secrets.env"
+        s += f'source "{secrets_env_path}"\n'
         s += "\n"
+
+        eval_reexport_cmd = build_reexport_commands(task.name, secrets_result)
+        deploy_reexport_cmd = build_reexport_commands("deployment", secrets_result)
 
     # auto resume after timeout (with optional max_walltime enforcement)
     max_walltime = cfg.execution.get("max_walltime", "120:00:00")
@@ -668,6 +689,10 @@ def _create_slurm_sbatch_script(
             cfg.execution.get("mounts", {}).get("deployment", {}).items()
         ):
             deployment_mounts_list.append(f"{source_mnt}:{target_mnt}")
+
+        # Re-export deployment vars right before deployment srun
+        if deploy_reexport_cmd:
+            s += f"{deploy_reexport_cmd}\n"
 
         # add deployment srun command
         deployment_srun_cmd, deployment_is_unsafe, deployment_debug = (
@@ -742,6 +767,10 @@ def _create_slurm_sbatch_script(
     s += eval_factory_command_debug_comment
     s += "\n\n"
 
+    # Re-export eval vars right before eval srun
+    if eval_reexport_cmd:
+        s += f"{eval_reexport_cmd}\n"
+
     s += "# evaluation client\n"
     s += "srun --mpi pmix --overlap "
     s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
@@ -792,6 +821,8 @@ def _create_slurm_sbatch_script(
         cmd=s,
         debug=debug_str,
         is_potentially_unsafe=is_potentially_unsafe,
+        secrets_env_content=secrets_env_content,
+        literal_disambiguated_names=frozenset(literal_disambiguated_names),
     )
 
 

@@ -13,11 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 import pathlib
 import time
 from dataclasses import dataclass
 from typing import Literal
 
+from dotenv import dotenv_values, load_dotenv
 from simple_parsing import field
 
 from nemo_evaluator_launcher.common.logging_utils import logger
@@ -78,6 +80,14 @@ class Cmd:
             "help": "Directory to save the complete run config. Defaults to ~/.nemo-evaluator/run_configs/"
         },
     )
+    env_file: str | None = field(
+        default=None,
+        alias=["--env-file"],
+        metadata={
+            "help": "Path to .env file to load environment variables from. "
+            "If not specified, loads $PWD/.env if it exists."
+        },
+    )
 
     def _parse_requested_tasks(self) -> list[str]:
         """Parse -t arguments into a list of task names.
@@ -94,7 +104,61 @@ class Cmd:
                 requested_tasks.append(task_name)
         return requested_tasks
 
+    @staticmethod
+    def _redact_value(value: str) -> str:
+        if len(value) <= 4:
+            return "***"
+        return "***" + value[-4:]
+
+    def _load_env_file(self) -> None:
+        """Load environment variables from a .env file.
+
+        Uses --env-file path if specified, otherwise loads $PWD/.env if it exists.
+        Logs loaded keys with redacted values and warns about shadowed keys.
+        """
+        if self.env_file:
+            env_path = pathlib.Path(self.env_file)
+            if not env_path.is_file():
+                raise FileNotFoundError(
+                    f"Specified --env-file '{self.env_file}' does not exist."
+                )
+        else:
+            env_path = pathlib.Path.cwd() / ".env"
+            if not env_path.is_file():
+                return
+
+        # Parse first to inspect keys before loading
+        parsed = dotenv_values(env_path)
+
+        shadowed_keys = set()
+        for key, value in parsed.items():
+            if value is None:
+                continue
+            if key in os.environ:
+                shadowed_keys.add(key)
+                logger.warning(
+                    "Env file key already set in environment, skipping",
+                    key=key,
+                    env_file_value=self._redact_value(value),
+                    existing_value=self._redact_value(os.environ[key]),
+                )
+
+        load_dotenv(env_path, override=False)
+
+        loaded = {
+            k: self._redact_value(v)
+            for k, v in parsed.items()
+            if v is not None and k not in shadowed_keys
+        }
+        if loaded:
+            logger.info("Loaded env file", path=str(env_path), keys=loaded)
+        else:
+            logger.info("Loaded env file (no new keys)", path=str(env_path))
+
     def execute(self) -> None:
+        # Load .env file before anything else
+        self._load_env_file()
+
         # Import heavy dependencies only when needed
         import yaml
         from omegaconf import OmegaConf

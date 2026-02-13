@@ -59,13 +59,22 @@ else
 
     # Docker run with eval factory command
     (
+        {% if task.secrets_env_content -%}
+        # Source secrets and re-export to original names (scoped to subshell)
+        source "$task_dir/.secrets.env"
+        {{ task.eval_reexport_cmd }}
+        {% if task.deployment -%}
+        {{ task.deployment_reexport_cmd }}
+        {% endif -%}
+        {% endif -%}
+
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.running"
         {% if task.deployment %}
         docker run --rm --shm-size=100g --gpus all {{ task.deployment.extra_docker_args }} \
         --name {{ task.deployment.container_name }} --entrypoint '' \
         -p {{ task.deployment.port }}:{{ task.deployment.port }} \
-        {% for env_var in task.deployment.env_vars -%}
-        -e {{ env_var }} \
+        {% for var_name in task.deployment.env_var_names -%}
+        -e {{ var_name }} \
         {% endfor -%}
         {% for mount in task.deployment.mounts -%}
         -v {{ mount }} \
@@ -95,9 +104,12 @@ else
       {% if task.dataset_mount_host and task.dataset_mount_container -%}
       --volume "{{ task.dataset_mount_host }}:{{ task.dataset_mount_container }}" \
       {% endif -%}
-      {% for env_var in task.env_vars -%}
-      -e {{ env_var }} \
+      {% for var_name in task.env_var_names -%}
+      -e {{ var_name }} \
       {% endfor -%}
+      {% if task.dataset_env_var_value -%}
+      -e NEMO_EVALUATOR_DATASET_DIR={{ task.dataset_env_var_value }} \
+      {% endif -%}
       {{ task.eval_image }} \
       bash -c '
         {{ task.eval_factory_command | indent(8) }} ;

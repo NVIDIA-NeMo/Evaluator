@@ -42,6 +42,13 @@ class CmdAndReadableComment:
     # downstream callers who want to raise exceptions e.g. when a script was
     # saved that would execute this command.
     is_potentially_unsafe: bool = False
+    # Optional .secrets.env file content to be written alongside the script.
+    # When set, the caller should write this to a .secrets.env file in the same
+    # directory as the script, and it will be sourced at runtime.
+    secrets_env_content: str | None = None
+    # Disambiguated names whose values came from EnvVarLiteral (not secrets).
+    # Used by dry-run display to show literal values unredacted.
+    literal_disambiguated_names: frozenset[str] = frozenset()
 
 
 def _str_to_echo_command(str_to_save: str, filename: str) -> CmdAndReadableComment:
@@ -212,12 +219,13 @@ def get_eval_factory_command(
         ["config", "output_dir"],
         CONTAINER_RESULTS_DIR,
     )
-    # FIXME(martas): update to api_key_name after 25.12 is released
-    _set_nested_optionally_overriding(
-        merged_nemo_evaluator_config,
-        ["target", "api_endpoint", "api_key"],
-        "API_KEY",
-    )
+    api_key_name = get_api_key_name(cfg)
+    if api_key_name:
+        _set_nested_optionally_overriding(
+            merged_nemo_evaluator_config,
+            ["target", "api_endpoint", "api_key_name"],
+            api_key_name,
+        )
     _set_nested_optionally_overriding(
         merged_nemo_evaluator_config,
         [

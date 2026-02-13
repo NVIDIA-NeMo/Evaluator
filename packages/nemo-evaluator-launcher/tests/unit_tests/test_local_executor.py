@@ -215,9 +215,7 @@ class TestLocalExecutorDryRun:
             mock_get_task_def.side_effect = mock_get_task_def_side_effect
 
             # Should raise ValueError for missing API key
-            with pytest.raises(
-                ValueError, match="Trying to pass an unset environment variable"
-            ):
+            with pytest.raises(ValueError, match="is not set"):
                 LocalExecutor.execute_eval(sample_config, dry_run=True)
 
     def test_execute_eval_dry_run_required_task_env_vars(
@@ -254,7 +252,7 @@ class TestLocalExecutorDryRun:
                 # (which is the value of TASK_ENV in the configuration)
                 with pytest.raises(
                     ValueError,
-                    match="Trying to pass an unset environment variable TASK_VALUE",
+                    match="TASK_VALUE.*is not set",
                 ):
                     LocalExecutor.execute_eval(sample_config, dry_run=True)
 

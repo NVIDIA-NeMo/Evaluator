@@ -48,7 +48,7 @@ target:
   api_endpoint:
     model_id: meta/llama-3.1-8b-instruct    # Model identifier (required)
     url: https://your-endpoint.com/v1/chat/completions  # Endpoint URL (required)
-    api_key_name: API_KEY                    # Environment variable name (recommended)
+    api_key_name: NGC_API_KEY                 # Environment variable name holding the API key
 
 ```
 
