@@ -164,31 +164,76 @@ def _get_framework_evaluations(
 
 
 def _copy_fdfs(target_dir: str):
-    """This function takes Framework Definition Files (FDFs) from installed core_evals packages
-    and moves them to a defined location.
+    """Copy Framework Definition Files (FDFs) from installed packages to a target directory.
+
+    Supports two discovery patterns:
+    1. Legacy ``core_evals`` namespace packages
+    2. OSS ``.nemo_evaluator`` entry-point packages (``nemo_evaluator.frameworks`` group)
 
     Note: This function is used during docker builds!
 
     Args:
         target_dir: where FDFs should be copied to
     """
+    import shutil
+
+    os.makedirs(target_dir, exist_ok=True)
+
+    # Pattern 1: Legacy core_evals namespace packages
     try:
         import core_evals
 
         core_evals_pkg = list(pkgutil.iter_modules(core_evals.__path__))
     except ImportError:
         core_evals_pkg = []
-    os.makedirs(
-        target_dir,
-        exist_ok=True,
-    )
+
     for pkg in core_evals_pkg:
         installed_fdf_filepath = os.path.join(
             pkg.module_finder.path, pkg.name, "framework.yml"
         )
-        os.makedirs(os.path.join(target_dir, pkg.name), exist_ok=True)
-        target_filepath = os.path.join(target_dir, pkg.name, "framework.yml")
-        os.system(f"cp {installed_fdf_filepath} {target_filepath}")
+        dest_dir = os.path.join(target_dir, pkg.name)
+        os.makedirs(dest_dir, exist_ok=True)
+        target_filepath = os.path.join(dest_dir, "framework.yml")
+        shutil.copy2(installed_fdf_filepath, target_filepath)
+
+    # Pattern 2: OSS .nemo_evaluator entry-point packages
+    try:
+        from importlib.metadata import entry_points as _entry_points
+    except ImportError:
+        try:
+            from importlib_metadata import entry_points as _entry_points
+        except ImportError:
+            return
+
+    try:
+        eps = _entry_points()
+        if hasattr(eps, "select"):
+            framework_eps = eps.select(group="nemo_evaluator.frameworks")
+        else:
+            framework_eps = eps.get("nemo_evaluator.frameworks", [])
+
+        for entry_point in framework_eps:
+            try:
+                module = entry_point.load()
+                module_path = os.path.dirname(module.__file__)
+                nemo_eval_path = os.path.join(module_path, ".nemo_evaluator")
+
+                if os.path.isdir(nemo_eval_path):
+                    for harness in os.listdir(nemo_eval_path):
+                        harness_path = os.path.join(nemo_eval_path, harness)
+                        if os.path.isdir(harness_path):
+                            framework_yml = os.path.join(harness_path, "framework.yml")
+                            if os.path.exists(framework_yml):
+                                dest_dir = os.path.join(target_dir, harness)
+                                os.makedirs(dest_dir, exist_ok=True)
+                                shutil.copy2(
+                                    framework_yml,
+                                    os.path.join(dest_dir, "framework.yml"),
+                                )
+            except Exception:
+                continue
+    except Exception:
+        pass
 
 
 def merge_dicts(dict1, dict2):
