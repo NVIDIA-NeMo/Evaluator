@@ -20,29 +20,47 @@ from nemo_evaluator.api import check_endpoint, evaluate
 logger = logging.getLogger(__name__)
 
 
+def _write_eval_marker(success: bool):
+    """Write marker files so the deploy wrapper knows eval finished.
+
+    EVAL_DONE is always written (signals "eval is no longer running").
+    EVAL_SUCCESS is only written on success.
+
+    The deploy wrapper (RAY_DEPLOY_SCRIPT) polls for EVAL_DONE, then
+    checks EVAL_SUCCESS to decide exit 0 (SUCCESS) or exit 1 (FAILED).
+    """
+    log_dir = os.environ.get("LOG_DIR", "/tmp")
+    if success:
+        Path(os.path.join(log_dir, "EVAL_SUCCESS")).touch()
+        logger.info(f"Wrote EVAL_SUCCESS marker to {log_dir}")
+    Path(os.path.join(log_dir, "EVAL_DONE")).touch()
+    logger.info(f"Wrote EVAL_DONE marker to {log_dir}")
+
+
 # [snippet-start]
 def wait_and_evaluate(target_cfg, eval_cfg, serving_backend="pytriton"):
-    server_ready = check_endpoint(
-        endpoint_url=target_cfg.api_endpoint.url,
-        endpoint_type=target_cfg.api_endpoint.type,
-        model_name=target_cfg.api_endpoint.model_id,
-    )
-    if not server_ready:
-        raise RuntimeError(
-            "Server is not ready to accept requests. Check the deployment logs for errors."
+    try:
+        server_ready = check_endpoint(
+            endpoint_url=target_cfg.api_endpoint.url,
+            endpoint_type=target_cfg.api_endpoint.type,
+            model_name=target_cfg.api_endpoint.model_id,
         )
+        if not server_ready:
+            raise RuntimeError(
+                "Server is not ready to accept requests. Check the deployment logs for errors."
+            )
 
-    result = evaluate(target_cfg=target_cfg, eval_cfg=eval_cfg)
+        result = evaluate(target_cfg=target_cfg, eval_cfg=eval_cfg)
 
-    # For Ray backend, write a success marker so the deploy wrapper
-    # (running as the foreground COMMAND in ray.sub.j2) detects eval
-    # is done, kills the deploy process, and exits 0.
-    # The Slurm job then reports SUCCESS instead of KILLED.
+    except Exception:
+        if serving_backend == "ray":
+            logger.info("Evaluation failed. Writing failure marker.")
+            _write_eval_marker(success=False)
+        raise
+
     if serving_backend == "ray":
-        log_dir = os.environ.get("LOG_DIR", "/tmp")
-        marker = os.path.join(log_dir, "EVAL_SUCCESS")
-        Path(marker).touch()
-        logger.info(f"Evaluation completed. Wrote EVAL_SUCCESS marker to {marker}")
+        logger.info("Evaluation completed successfully. Writing success marker.")
+        _write_eval_marker(success=True)
 
     return result
 
