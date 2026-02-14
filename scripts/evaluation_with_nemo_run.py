@@ -66,7 +66,8 @@ python \
 # [snippet-deploy-end]
 DEPLOY_PID=$!
 
-# Poll for eval completion (success or failure) while deploy is running
+# Poll for eval completion (success or failure) while deploy is running. This is required since deployment is still alive
+# even after evaluation is finished or evaluation fails.
 while kill -0 $DEPLOY_PID 2>/dev/null; do
     if [ -f "${{LOG_DIR:-/tmp}}/EVAL_DONE" ]; then
         kill $DEPLOY_PID 2>/dev/null || true

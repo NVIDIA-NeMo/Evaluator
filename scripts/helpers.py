@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def _write_eval_marker(success: bool):
-    """Write marker files so the deploy wrapper knows eval finished.
+    """Write marker files so the deploy process knows eval finished.
 
     EVAL_DONE is always written (signals "eval is no longer running").
     EVAL_SUCCESS is only written on success.
