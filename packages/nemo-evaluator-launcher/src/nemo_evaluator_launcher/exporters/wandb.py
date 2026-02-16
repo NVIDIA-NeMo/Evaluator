@@ -34,6 +34,7 @@ from nemo_evaluator_launcher.exporters.base import BaseExporter
 from nemo_evaluator_launcher.exporters.registry import register_exporter
 from nemo_evaluator_launcher.exporters.utils import (
     DataForExport,
+    get_available_artifacts,
     get_copytree_ignore,
 )
 
@@ -220,12 +221,11 @@ class WandBExporter(BaseExporter):
 
             if self.config.get("only_required", True):
                 # Upload only specific required files
-                for p in artifacts_dir.iterdir():
-                    if p.is_file():
-                        artifact.add_file(
-                            str(p), name=f"{artifact_root}/artifacts/{p.name}"
-                        )
-                        logged_names.append(p.name)
+                for p in get_available_artifacts(artifacts_dir):
+                    artifact.add_file(
+                        str(p), name=f"{artifact_root}/artifacts/{p.name}"
+                    )
+                    logged_names.append(p.name)
             else:
                 # Upload all artifacts with recursive exclusion
                 import tempfile
