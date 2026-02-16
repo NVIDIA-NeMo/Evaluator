@@ -98,6 +98,8 @@ Use WebSearch to find model card (HuggingFace, build.nvidia.com). Read it carefu
   - If the model card mentions downloading files (like reasoning parsers, custom plugins) before deployment, add `deployment.pre_cmd` with the download command
   - Use `curl` instead of `wget` as it's more widely available in Docker containers
   - Example: `pre_cmd: curl -L -o reasoning_parser.py https://huggingface.co/.../reasoning_parser.py`
+  - When using `pip install` in `pre_cmd`, always use `--no-cache-dir` to avoid cross-device link errors in Docker containers (the pip cache and temp directories may be on different filesystems)
+  - Example: `pre_cmd: pip3 install --no-cache-dir flash-attn --no-build-isolation`
 - Any other model-specific requirements
 
 Remember to check `evaluation.nemo_evaluator_config` and `evaluation.tasks.*.nemo_evaluator_config` overrides too for parameters to adjust (e.g. disabling reasoning)!
