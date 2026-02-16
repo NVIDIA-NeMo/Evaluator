@@ -27,6 +27,7 @@ import re
 import secrets
 import warnings
 from dataclasses import dataclass, field
+from typing import ClassVar
 
 from omegaconf import DictConfig
 
@@ -34,15 +35,12 @@ from nemo_evaluator_launcher.common.logging_utils import logger
 
 # --- Value types ---
 
-PREFIX_LIT = "$lit:"
-PREFIX_HOST = "$host:"
-PREFIX_RUNTIME = "$runtime:"
-
 
 @dataclass(frozen=True)
 class EnvVarLiteral:
     """A literal env var value, written directly."""
 
+    PREFIX: ClassVar[str] = "$lit:"
     value: str
 
 
@@ -50,6 +48,7 @@ class EnvVarLiteral:
 class EnvVarFromHost:
     """An env var sourced from the host environment at config-load time."""
 
+    PREFIX: ClassVar[str] = "$host:"
     host_var_name: str
 
 
@@ -57,6 +56,7 @@ class EnvVarFromHost:
 class EnvVarRuntime:
     """A late-bound env var, resolved by the execution environment at runtime."""
 
+    PREFIX: ClassVar[str] = "$runtime:"
     runtime_var_name: str
 
 
@@ -66,7 +66,7 @@ EnvVarValue = EnvVarLiteral | EnvVarFromHost | EnvVarRuntime
 _ENV_VAR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
-def parse_env_var_value(raw: str, default_type: str = "host") -> EnvVarValue:
+def parse_env_var_value(raw: str) -> EnvVarValue:
     """Parse a raw env var value string into a typed EnvVarValue.
 
     Supports explicit prefixes ($lit:, $host:, $runtime:) and backward-compatible
@@ -74,9 +74,6 @@ def parse_env_var_value(raw: str, default_type: str = "host") -> EnvVarValue:
 
     Args:
         raw: The raw string value from config.
-        default_type: How to interpret unprefixed bare names. "host" (default) treats
-            them as env var references (for evaluation.env_vars backward compat).
-            "lit" treats them as literal values (for execution.env_vars backward compat).
 
     Raises ValueError if ${oc.env:...} Hydra resolver syntax is detected.
     """
@@ -89,12 +86,12 @@ def parse_env_var_value(raw: str, default_type: str = "host") -> EnvVarValue:
         )
 
     # Explicit prefixes
-    if raw.startswith(PREFIX_LIT):
-        return EnvVarLiteral(value=raw[len(PREFIX_LIT) :])
-    if raw.startswith(PREFIX_HOST):
-        return EnvVarFromHost(host_var_name=raw[len(PREFIX_HOST) :])
-    if raw.startswith(PREFIX_RUNTIME):
-        return EnvVarRuntime(runtime_var_name=raw[len(PREFIX_RUNTIME) :])
+    if raw.startswith(EnvVarLiteral.PREFIX):
+        return EnvVarLiteral(value=raw[len(EnvVarLiteral.PREFIX) :])
+    if raw.startswith(EnvVarFromHost.PREFIX):
+        return EnvVarFromHost(host_var_name=raw[len(EnvVarFromHost.PREFIX) :])
+    if raw.startswith(EnvVarRuntime.PREFIX):
+        return EnvVarRuntime(runtime_var_name=raw[len(EnvVarRuntime.PREFIX) :])
 
     # Backward-compatible: $VAR_NAME → $host:VAR_NAME (old syntax without prefix keyword)
     if raw.startswith("$") and _ENV_VAR_NAME_RE.match(raw[1:]):
@@ -106,24 +103,15 @@ def parse_env_var_value(raw: str, default_type: str = "host") -> EnvVarValue:
         )
         return EnvVarFromHost(host_var_name=raw[1:])
 
-    # Backward-compatible: bare env var name
+    # Backward-compatible: bare UPPER_CASE env var name → host reference
     if _ENV_VAR_NAME_RE.match(raw):
-        if default_type == "host":
-            warnings.warn(
-                f"Unprefixed env var value '{raw}' is deprecated. "
-                f"Use '$host:{raw}' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            return EnvVarFromHost(host_var_name=raw)
-        else:
-            warnings.warn(
-                f"Unprefixed env var value '{raw}' is deprecated. "
-                f"Use '$lit:{raw}' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            return EnvVarLiteral(value=raw)
+        warnings.warn(
+            f"Unprefixed env var value '{raw}' is deprecated. "
+            f"Use '$host:{raw}' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return EnvVarFromHost(host_var_name=raw)
 
     # Backward-compatible: anything else (paths, URLs, etc.) → $lit:VALUE
     warnings.warn(
@@ -345,8 +333,7 @@ def collect_eval_env_vars(
     """Collect and parse evaluation env vars from config for a single task.
 
     Merges (last wins):
-        cfg.env_vars → cfg.evaluation.env_vars → task.env_vars
-        → cfg.execution.env_vars.evaluation (deprecated) → api_key
+        cfg.env_vars → cfg.evaluation.env_vars → task.env_vars → api_key
 
     Validates required_env_vars from task_definition are present.
 
@@ -372,16 +359,14 @@ def collect_eval_env_vars(
     # 3. task.env_vars (task-level overrides)
     raw_env_vars.update(task.get("env_vars", {}))
 
-    # 5. API key — ensure the named env var is present in env_vars.
+    # 4. API key — ensure the named env var is present in env_vars.
     # If the user already declared it (e.g. NGC_API_TOKEN: $host:NGC_API_TOKEN),
     # do nothing. Otherwise, add it as a host ref so it gets resolved from the host env.
     if api_key_name and api_key_name not in raw_env_vars:
         raw_env_vars[api_key_name] = api_key_name
 
     # Check required env vars (excluding NEMO_EVALUATOR_DATASET_DIR)
-    # Also check the deprecated exec eval vars for required var coverage
-    exec_eval_vars = dict(cfg.execution.get("env_vars", {}).get("evaluation", {}))
-    all_var_names = set(raw_env_vars.keys()) | set(exec_eval_vars.keys())
+    all_var_names = set(raw_env_vars.keys())
     for required_env_var in task_definition.get("required_env_vars", []):
         if required_env_var == "NEMO_EVALUATOR_DATASET_DIR":
             continue
@@ -397,19 +382,6 @@ def collect_eval_env_vars(
     for target_name, raw_value in raw_env_vars.items():
         parsed[target_name] = parse_env_var_value(str(raw_value))
 
-    # 4. Deprecated: execution.env_vars.evaluation (parsed with literal default)
-    if exec_eval_vars:
-        warnings.warn(
-            "cfg.execution.env_vars.evaluation is deprecated. "
-            "Move these variables to top-level env_vars or evaluation.env_vars instead.",
-            category=DeprecationWarning,
-            stacklevel=2,
-        )
-        for target_name, raw_value in exec_eval_vars.items():
-            parsed[target_name] = parse_env_var_value(
-                str(raw_value), default_type="lit"
-            )
-
     return parsed
 
 
@@ -417,8 +389,7 @@ def collect_deployment_env_vars(cfg: DictConfig) -> dict[str, EnvVarValue]:
     """Collect and parse deployment env vars from config.
 
     Merges (last wins):
-        cfg.env_vars → cfg.execution.env_vars.deployment (deprecated)
-        → cfg.deployment.env_vars (deprecated)
+        cfg.env_vars → cfg.deployment.env_vars
 
     Args:
         cfg: Full run config.
@@ -432,56 +403,9 @@ def collect_deployment_env_vars(cfg: DictConfig) -> dict[str, EnvVarValue]:
     for target_name, raw_value in top_level_vars.items():
         parsed[target_name] = parse_env_var_value(str(raw_value))
 
-    # 2. Deprecated: execution.env_vars.deployment — uses literal default
-    exec_deploy_vars = dict(cfg.execution.get("env_vars", {}).get("deployment", {}))
-    if exec_deploy_vars:
-        warnings.warn(
-            "cfg.execution.env_vars.deployment is deprecated. "
-            "Move these variables to top-level env_vars or deployment.env_vars instead.",
-            category=DeprecationWarning,
-            stacklevel=2,
-        )
-        for target_name, raw_value in exec_deploy_vars.items():
-            parsed[target_name] = parse_env_var_value(
-                str(raw_value), default_type="lit"
-            )
-
-    # 3. Deprecated: cfg.deployment.env_vars — uses literal default
+    # 2. cfg.deployment.env_vars to override the top ones
     if cfg.deployment.get("env_vars"):
-        warnings.warn(
-            "cfg.deployment.env_vars will be deprecated in future versions. "
-            "Use top-level env_vars instead.",
-            category=DeprecationWarning,
-            stacklevel=2,
-        )
         for target_name, raw_value in cfg.deployment["env_vars"].items():
-            parsed[target_name] = parse_env_var_value(
-                str(raw_value), default_type="lit"
-            )
-
-    return parsed
-
-
-def collect_execution_eval_env_vars(cfg: DictConfig) -> dict[str, EnvVarValue]:
-    """Collect and parse execution-level evaluation env vars.
-
-    These come from cfg.execution.env_vars.evaluation (deprecated path).
-    Now folded into collect_eval_env_vars() hierarchy; this function remains
-    for backward compatibility with executors that call it separately.
-
-    Args:
-        cfg: Full run config.
-
-    Returns:
-        dict mapping target_name → EnvVarValue.
-    """
-    raw_env_vars: dict[str, str] = dict(
-        cfg.execution.get("env_vars", {}).get("evaluation", {})
-    )
-
-    # Parse — execution.env_vars values default to literal
-    parsed: dict[str, EnvVarValue] = {}
-    for target_name, raw_value in raw_env_vars.items():
-        parsed[target_name] = parse_env_var_value(str(raw_value), default_type="lit")
+            parsed[target_name] = parse_env_var_value(str(raw_value))
 
     return parsed

@@ -119,8 +119,13 @@ class TestSlurmExecutorFeatures:
     def test_new_execution_env_vars_deployment(
         self, base_config, mock_task, mock_dependencies
     ):
-        """Test new execution.env_vars.deployment configuration."""
-        # Add new env_vars structure
+        """Test deployment env vars via top-level env_vars."""
+        # Put env vars in top-level env_vars (new path)
+        base_config["env_vars"] = {
+            "DEPLOY_VAR1": "$lit:deploy_value1",
+            "DEPLOY_VAR2": "$lit:deploy_value2",
+        }
+        # Keep execution.env_vars.deployment for --container-env name pass-through
         base_config["execution"]["env_vars"] = {
             "deployment": {
                 "DEPLOY_VAR1": "deploy_value1",
@@ -155,8 +160,13 @@ class TestSlurmExecutorFeatures:
     def test_new_execution_env_vars_evaluation(
         self, base_config, mock_task, mock_dependencies
     ):
-        """Test new execution.env_vars.evaluation configuration."""
-        # Add new env_vars structure
+        """Test evaluation env vars via top-level env_vars."""
+        # Put env vars in top-level env_vars (new path)
+        base_config["env_vars"] = {
+            "EVAL_VAR1": "$lit:eval_value1",
+            "EVAL_VAR2": "$lit:eval_value2",
+        }
+        # Keep execution.env_vars.evaluation for --container-env name pass-through
         base_config["execution"]["env_vars"] = {
             "deployment": {},
             "evaluation": {
@@ -309,62 +319,51 @@ class TestSlurmExecutorFeatures:
         # Should NOT contain --no-container-mount-home by default (mount_home defaults to True)
         assert "--no-container-mount-home" not in script
 
-    def test_deprecation_warning_deployment_env_vars(
-        self, base_config, mock_task, mock_dependencies
-    ):
-        """Test deprecation warning for old deployment.env_vars usage."""
-        # Use old-style deployment.env_vars
+    def test_deployment_env_vars(self, base_config, mock_task, mock_dependencies):
+        """Test deployment.env_vars are collected into secrets and re-exported."""
         base_config["deployment"]["env_vars"] = {
-            "OLD_VAR1": "old_value1",
-            "OLD_VAR2": "old_value2",
+            "VAR1": "$lit:value1",
+            "VAR2": "$lit:value2",
         }
 
         cfg = OmegaConf.create(base_config)
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        result = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        )
+        script = result.cmd
 
-            result = _create_slurm_sbatch_script(
-                cfg=cfg,
-                task=mock_task,
-                eval_image="test-eval-container:latest",
-                remote_task_subdir=Path("/test/remote"),
-                invocation_id="test123",
-                job_id="test123.0",
-            )
-            script = result.cmd
-
-            # Check that deprecation warnings were issued
-            deprecation_warnings = [
-                warning
-                for warning in w
-                if issubclass(warning.category, DeprecationWarning)
-            ]
-            assert len(deprecation_warnings) >= 1
-            assert any(
-                "cfg.deployment.env_vars will be deprecated" in str(warning.message)
-                for warning in deprecation_warnings
-            )
-
-        # Old env vars should still work — values are in secrets file, re-exports in script
+        # Values are in secrets file, re-exports in script
         assert result.secrets_env_content is not None
-        assert "old_value1" in result.secrets_env_content
-        assert "old_value2" in result.secrets_env_content
+        assert "value1" in result.secrets_env_content
+        assert "value2" in result.secrets_env_content
         assert "source" in script
-        assert 'export OLD_VAR1="${OLD_VAR1_' in script
-        assert 'export OLD_VAR2="${OLD_VAR2_' in script
+        assert 'export VAR1="${VAR1_' in script
+        assert 'export VAR2="${VAR2_' in script
 
     def test_backward_compatibility_mixed_env_vars(
         self, base_config, mock_task, mock_dependencies
     ):
-        """Test backward compatibility when both old and new env_vars are present."""
-        # Mix old and new style
-        base_config["deployment"]["env_vars"] = {
-            "OLD_VAR": "old_value",
+        """Test mixed env vars from top-level and deployment.env_vars."""
+        # Top-level env_vars (new unified path) — flows to both deployment and eval
+        base_config["env_vars"] = {
+            "NEW_VAR": "$lit:new_value",
+            "EVAL_VAR": "$lit:eval_value",
         }
+        # deployment.env_vars — overrides for deployment
+        base_config["deployment"]["env_vars"] = {
+            "OLD_VAR": "$lit:old_value",
+        }
+        # execution.env_vars for --container-env name pass-through
         base_config["execution"]["env_vars"] = {
             "deployment": {
                 "NEW_VAR": "new_value",
+                "OLD_VAR": "old_value",
             },
             "evaluation": {
                 "EVAL_VAR": "eval_value",
@@ -434,6 +433,13 @@ class TestSlurmExecutorFeatures:
     def test_no_deployment_type_none(self, base_config, mock_task, mock_dependencies):
         """Test behavior when deployment type is 'none'."""
         base_config["deployment"]["type"] = "none"
+        # DEPLOY_VAR via deployment.env_vars (only flows to deployment, not eval)
+        base_config["deployment"]["env_vars"] = {"DEPLOY_VAR": "$lit:deploy_value"}
+        # EVAL_VAR via top-level env_vars (flows to eval)
+        base_config["env_vars"] = {
+            "EVAL_VAR": "$lit:eval_value",
+        }
+        # execution.env_vars for --container-env name pass-through
         base_config["execution"]["env_vars"] = {
             "deployment": {"DEPLOY_VAR": "deploy_value"},
             "evaluation": {"EVAL_VAR": "eval_value"},
@@ -478,6 +484,14 @@ class TestSlurmExecutorFeatures:
         self, base_config, mock_task, mock_dependencies
     ):
         """Test complex configuration with all new features together."""
+        # Top-level env_vars for secrets pipeline
+        base_config["env_vars"] = {
+            "DEPLOY_VAR1": "$lit:deploy_value1",
+            "DEPLOY_VAR2": "$lit:deploy_value2",
+            "EVAL_VAR1": "$lit:eval_value1",
+            "EVAL_VAR2": "$lit:eval_value2",
+        }
+        # execution.env_vars for --container-env name pass-through
         base_config["execution"]["env_vars"] = {
             "deployment": {
                 "DEPLOY_VAR1": "deploy_value1",
@@ -499,8 +513,10 @@ class TestSlurmExecutorFeatures:
             },
             "mount_home": False,
         }
-        # Also add old-style for compatibility test
-        base_config["deployment"]["env_vars"] = {"OLD_DEPLOY_VAR": "old_deploy_value"}
+        # Also add old-style deployment.env_vars for compatibility test
+        base_config["deployment"]["env_vars"] = {
+            "OLD_DEPLOY_VAR": "$lit:old_deploy_value"
+        }
 
         cfg = OmegaConf.create(base_config)
 

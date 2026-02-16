@@ -16,7 +16,6 @@
 """Tests for nemo_evaluator_launcher.common.env_vars module."""
 
 import os
-import warnings
 from unittest import mock
 
 import pytest
@@ -362,47 +361,6 @@ class TestCollectEvalEnvVars:
         assert result["TOP_ONLY"] == EnvVarLiteral(value="top_only")
         assert result["EVAL_ONLY"] == EnvVarLiteral(value="eval_only")
 
-    def test_deprecated_execution_eval_env_vars_merged(self):
-        """execution.env_vars.evaluation is merged with deprecation warning."""
-        cfg = self._make_cfg(
-            {
-                "execution": {
-                    "env_vars": {"evaluation": {"EXEC_VAR": "$lit:exec_val"}}
-                },
-            }
-        )
-        task = OmegaConf.create({"name": "test_task", "env_vars": {}})
-        task_def = {}
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            result = collect_eval_env_vars(cfg, task, task_def)
-
-        assert result["EXEC_VAR"] == EnvVarLiteral(value="exec_val")
-        dep_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
-        assert any(
-            "execution.env_vars.evaluation" in str(x.message) for x in dep_warnings
-        )
-
-    def test_deprecated_execution_eval_overrides_earlier(self):
-        """execution.env_vars.evaluation (deprecated) overrides top-level and eval."""
-        cfg = self._make_cfg(
-            {
-                "env_vars": {"VAR": "$lit:top"},
-                "evaluation": {"env_vars": {"VAR": "$lit:eval"}},
-                "execution": {"env_vars": {"evaluation": {"VAR": "$lit:exec"}}},
-            }
-        )
-        task = OmegaConf.create({"name": "test_task", "env_vars": {}})
-        task_def = {}
-
-        with warnings.catch_warnings(record=True):
-            warnings.simplefilter("always")
-            result = collect_eval_env_vars(cfg, task, task_def)
-
-        # Deprecated exec path overrides eval-level (it merges after)
-        assert result["VAR"] == EnvVarLiteral(value="exec")
-
 
 class TestCollectDeploymentEnvVars:
     """Tests for collect_deployment_env_vars with hierarchical merging."""
@@ -433,39 +391,16 @@ class TestCollectDeploymentEnvVars:
         result = collect_deployment_env_vars(cfg)
         assert result["SHARED_VAR"] == EnvVarLiteral(value="shared")
 
-    def test_deprecated_exec_deployment_overrides_top_level(self):
-        """execution.env_vars.deployment overrides top-level."""
+    def test_deployment_env_vars_overrides_top_level(self):
+        """cfg.deployment.env_vars overrides top-level (last wins)."""
         cfg = self._make_cfg(
             {
                 "env_vars": {"VAR": "$lit:top"},
-                "execution": {"env_vars": {"deployment": {"VAR": "$lit:exec"}}},
-            }
-        )
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            result = collect_deployment_env_vars(cfg)
-
-        assert result["VAR"] == EnvVarLiteral(value="exec")
-        dep_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
-        assert any(
-            "execution.env_vars.deployment" in str(x.message) for x in dep_warnings
-        )
-
-    def test_deprecated_deployment_env_vars_overrides_all(self):
-        """cfg.deployment.env_vars overrides everything (last wins)."""
-        cfg = self._make_cfg(
-            {
-                "env_vars": {"VAR": "$lit:top"},
-                "execution": {"env_vars": {"deployment": {"VAR": "$lit:exec"}}},
                 "deployment": {"type": "none", "env_vars": {"VAR": "$lit:deploy"}},
             }
         )
 
-        with warnings.catch_warnings(record=True):
-            warnings.simplefilter("always")
-            result = collect_deployment_env_vars(cfg)
-
+        result = collect_deployment_env_vars(cfg)
         assert result["VAR"] == EnvVarLiteral(value="deploy")
 
     def test_no_env_vars_returns_empty(self):
