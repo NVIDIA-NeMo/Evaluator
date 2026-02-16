@@ -660,7 +660,7 @@ def _create_slurm_sbatch_script(
 
     # Resolve a primary node for single-node sruns (client/proxy/export).
     # This must be safe under `set -u` and work for deployment.type == "none".
-    # Prefer SLURM_JOB_NODELIST but fall back to SLURM_NODELIST; if neither exists,
+    # Prefer SLURM_JOBNODELIST but fall back to SLURM_NODELIST; if neither exists,
     # fall back to the local hostname.
     s += "# Resolve PRIMARY_NODE for single-node sruns\n"
     s += 'NODELIST="${SLURM_JOB_NODELIST:-${SLURM_NODELIST:-}}"\n'

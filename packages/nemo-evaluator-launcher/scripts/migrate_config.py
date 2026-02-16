@@ -23,7 +23,8 @@ Usage:
     python scripts/migrate_config.py config.yaml -o new.yaml  # write to new file
 
 Heuristics for classifying bare (unprefixed) values:
-  - Already prefixed ($host:, $lit:, $runtime:, or deprecated !host: etc.) → kept as-is
+  - Already prefixed ($host:, $lit:, $runtime:) → kept as-is
+  - Deprecated !host:/!lit:/!runtime: → converted to $host:/$lit:/$runtime:
   - $VAR_NAME (dollar-prefixed) → $host:VAR_NAME
   - Bare UPPER_CASE name matching [A-Z_][A-Z0-9_]* → $host:NAME
   - Numbers (0, 1, etc.) → $lit:value
@@ -40,8 +41,15 @@ _ENV_VAR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 # Matches an UPPER_CASE env var name (the typical host-env pattern)
 _UPPER_CASE_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 
-# Prefixes that mean the value is already migrated
-_KNOWN_PREFIXES = ("$host:", "$lit:", "$runtime:", "!host:", "!lit:", "!runtime:")
+# Prefixes that mean the value is already migrated (new $ syntax)
+_KNOWN_PREFIXES = ("$host:", "$lit:", "$runtime:")
+
+# Deprecated prefixes that need conversion from ! to $
+_DEPRECATED_PREFIX_MAP = {
+    "!host:": "$host:",
+    "!lit:": "$lit:",
+    "!runtime:": "$runtime:",
+}
 
 # Sections whose env_vars values default to literal (execution context)
 _LITERAL_DEFAULT_SECTIONS = {"execution"}
@@ -61,9 +69,14 @@ def classify_value(raw: str, parent_section: str | None) -> str:
 
     stripped = raw.strip()
 
-    # Already has an explicit prefix
+    # Already has the new $ prefix — no change needed
     if stripped.startswith(_KNOWN_PREFIXES):
         return raw
+
+    # Deprecated ! prefix — convert to $
+    for old_prefix, new_prefix in _DEPRECATED_PREFIX_MAP.items():
+        if stripped.startswith(old_prefix):
+            return new_prefix + stripped[len(old_prefix):]
 
     # Hydra resolver — flag but don't auto-migrate (needs manual attention)
     if "${oc.env:" in stripped or "${oc.decode:" in stripped:
