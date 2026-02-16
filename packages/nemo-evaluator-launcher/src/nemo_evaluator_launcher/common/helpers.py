@@ -23,6 +23,7 @@ import yaml
 from omegaconf import DictConfig, OmegaConf
 
 from nemo_evaluator_launcher.cli.version import get_versions
+from nemo_evaluator_launcher.common.env_vars import SecretsEnvResult
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 CONTAINER_RESULTS_DIR = "/results"
@@ -42,13 +43,9 @@ class CmdAndReadableComment:
     # downstream callers who want to raise exceptions e.g. when a script was
     # saved that would execute this command.
     is_potentially_unsafe: bool = False
-    # Optional .secrets.env file content to be written alongside the script.
-    # When set, the caller should write this to a .secrets.env file in the same
-    # directory as the script, and it will be sourced at runtime.
-    secrets_env_content: str | None = None
-    # Disambiguated names whose values came from EnvVarLiteral (not secrets).
-    # Used by dry-run display to show literal values unredacted.
-    literal_disambiguated_names: frozenset[str] = frozenset()
+    # Optional secrets env result. When set, the caller writes
+    # secrets_env_result.secrets_content to .secrets.env alongside the script.
+    secrets_env_result: SecretsEnvResult | None = None
 
 
 def _str_to_echo_command(str_to_save: str, filename: str) -> CmdAndReadableComment:

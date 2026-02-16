@@ -139,21 +139,23 @@ class Cmd:
                 logger.warning(
                     "Env file key already set in environment, skipping",
                     key=key,
-                    env_file_value=self._redact_value(value),
-                    existing_value=self._redact_value(os.environ[key]),
+                    env_file_value=_redact_value(value),
+                    existing_value=_redact_value(os.environ[key]),
                 )
 
         load_dotenv(env_path, override=False)
 
         loaded = {
-            k: self._redact_value(v)
+            k: _redact_value(v)
             for k, v in parsed.items()
             if v is not None and k not in shadowed_keys
         }
-        if loaded:
-            logger.info("Loaded env file", path=str(env_path), keys=loaded)
-        else:
-            logger.info("Loaded env file (no new keys)", path=str(env_path))
+        logger.info(
+            "Loaded env file",
+            path=str(env_path),
+            loaded_keys=loaded,
+            skipped_keys=shadowed_keys,
+        )
 
     def execute(self) -> None:
         # Load .env file before anything else

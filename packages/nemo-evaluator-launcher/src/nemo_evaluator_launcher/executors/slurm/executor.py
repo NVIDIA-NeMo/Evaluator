@@ -174,15 +174,19 @@ class SlurmExecutor(BaseExecutor):
                     f.write(sbatch_script_content_str.rstrip("\n") + "\n")
 
                 # Write .secrets.env alongside run.sub (will be rsynced together)
-                if sbatch_script_content_struct.secrets_env_content:
+                if sbatch_script_content_struct.secrets_env_result:
                     secrets_env_path = local_task_subdir / ".secrets.env"
                     with open(secrets_env_path, "w") as f:
-                        f.write(sbatch_script_content_struct.secrets_env_content)
+                        f.write(
+                            sbatch_script_content_struct.secrets_env_result.secrets_content
+                        )
 
                 local_runsub_paths.append(local_runsub_path)
                 remote_runsub_paths.append(remote_runsub_path)
                 task_literal_names.append(
-                    sbatch_script_content_struct.literal_disambiguated_names
+                    sbatch_script_content_struct.secrets_env_result.literal_disambiguated_names
+                    if sbatch_script_content_struct.secrets_env_result
+                    else set()
                 )
 
             if dry_run:
@@ -621,14 +625,11 @@ def _create_slurm_sbatch_script(
     if deployment_env_vars:
         env_groups["deployment"] = deployment_env_vars
 
-    secrets_env_content = None
-    literal_disambiguated_names: set[str] = set()
+    secrets_result = None
     eval_reexport_cmd = ""
     deploy_reexport_cmd = ""
     if env_groups:
         secrets_result = generate_secrets_env(env_groups)
-        secrets_env_content = secrets_result.secrets_content
-        literal_disambiguated_names = secrets_result.literal_disambiguated_names
 
         # Source .secrets.env at runtime (file lives alongside run.sub).
         # Reexports are emitted later, right before each respective srun,
@@ -820,8 +821,7 @@ def _create_slurm_sbatch_script(
         cmd=s,
         debug=debug_str,
         is_potentially_unsafe=is_potentially_unsafe,
-        secrets_env_content=secrets_env_content,
-        literal_disambiguated_names=frozenset(literal_disambiguated_names),
+        secrets_env_result=secrets_result,
     )
 
 

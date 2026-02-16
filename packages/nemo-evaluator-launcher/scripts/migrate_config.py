@@ -24,7 +24,8 @@ Usage:
 
 Heuristics for classifying bare (unprefixed) values:
   - Already prefixed ($host:, $lit:, $runtime:) → kept as-is
-  - Deprecated !host:/!lit:/!runtime: → converted to $host:/$lit:/$runtime:
+  - ${oc.env:VAR} Hydra resolvers → $host:VAR
+  - ${oc.decode:...} Hydra resolvers → listed as non-migrated (needs manual review)
   - $VAR_NAME (dollar-prefixed) → $host:VAR_NAME
   - Bare UPPER_CASE name matching [A-Z_][A-Z0-9_]* → $host:NAME
   - Numbers (0, 1, etc.) → $lit:value
@@ -41,27 +42,22 @@ _ENV_VAR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 # Matches an UPPER_CASE env var name (the typical host-env pattern)
 _UPPER_CASE_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 
-# Prefixes that mean the value is already migrated (new $ syntax)
+# Prefixes that mean the value is already migrated
 _KNOWN_PREFIXES = ("$host:", "$lit:", "$runtime:")
 
-# Deprecated prefixes that need conversion from ! to $
-_DEPRECATED_PREFIX_MAP = {
-    "!host:": "$host:",
-    "!lit:": "$lit:",
-    "!runtime:": "$runtime:",
-}
-
-# Sections whose env_vars values default to literal (execution context)
-_LITERAL_DEFAULT_SECTIONS = {"execution"}
+# Regex to extract the variable name from ${oc.env:VAR_NAME} or ${oc.env:VAR_NAME,default}
+_OC_ENV_RE = re.compile(r"\$\{oc\.env:([A-Za-z_][A-Za-z0-9_]*)(?:,[^}]*)?\}")
 
 
-def classify_value(raw: str, parent_section: str | None) -> str:
-    """Return the migrated value with an explicit prefix.
+def classify_value(raw: str) -> str | None:
+    """Return the migrated value with an explicit prefix, or None if non-migrable.
+
+    Returns:
+        The migrated string, or None if the value cannot be auto-migrated
+        (e.g. ${oc.decode:...}) and needs manual review.
 
     Args:
         raw: The raw string value from the YAML.
-        parent_section: The top-level config section this env_var lives under
-                        (e.g. "execution", "evaluation", "deployment", "env_vars").
     """
     if not isinstance(raw, str):
         # Numbers, bools — treat as literal
@@ -73,14 +69,14 @@ def classify_value(raw: str, parent_section: str | None) -> str:
     if stripped.startswith(_KNOWN_PREFIXES):
         return raw
 
-    # Deprecated ! prefix — convert to $
-    for old_prefix, new_prefix in _DEPRECATED_PREFIX_MAP.items():
-        if stripped.startswith(old_prefix):
-            return new_prefix + stripped[len(old_prefix) :]
+    # ${oc.decode:...} — cannot auto-migrate, needs manual review
+    if "${oc.decode:" in stripped:
+        return None
 
-    # Hydra resolver — flag but don't auto-migrate (needs manual attention)
-    if "${oc.env:" in stripped or "${oc.decode:" in stripped:
-        return raw  # leave as-is, user must handle manually
+    # ${oc.env:VAR_NAME} → $host:VAR_NAME
+    m = _OC_ENV_RE.fullmatch(stripped)
+    if m:
+        return f"$host:{m.group(1)}"
 
     # $VAR_NAME → host ref (strip the leading $)
     if stripped.startswith("$") and _ENV_VAR_NAME_RE.match(stripped[1:]):
@@ -92,14 +88,11 @@ def classify_value(raw: str, parent_section: str | None) -> str:
 
     # Bare valid env var name
     if _ENV_VAR_NAME_RE.match(stripped):
-        # In execution context, bare names were treated as literals
-        if parent_section in _LITERAL_DEFAULT_SECTIONS:
-            return f"$lit:{stripped}"
         # UPPER_CASE → almost certainly a host env var reference
         if _UPPER_CASE_RE.match(stripped):
             return f"$host:{stripped}"
-        # Mixed-case valid identifier — ambiguous, default to literal
-        return f"$lit:{stripped}"
+        # Mixed-case valid identifier — ambiguous, default to host
+        return f"$host:{stripped}"
 
     # Everything else: paths, URLs, strings with spaces/slashes → literal
     return f"$lit:{stripped}"
@@ -121,39 +114,33 @@ def _find_env_vars_sections(data, path=None):
             yield from _find_env_vars_sections(item, path + [str(idx)])
 
 
-def _get_parent_section(path: list[str]) -> str | None:
-    """Return the top-level section name for an env_vars path.
-
-    For paths like ["execution", "env_vars"] → "execution"
-    For paths like ["env_vars"] → "env_vars"
-    For paths like ["evaluation", "tasks", "0", "env_vars"] → "evaluation"
-    """
-    if len(path) >= 2:
-        return path[0]
-    if path:
-        return path[0]
-    return None
-
-
 def _is_nested_env_vars(env_dict: dict) -> bool:
     """Check if this env_vars dict has sub-keys like deployment/evaluation (execution-style)."""
     return any(isinstance(v, dict) for v in env_dict.values())
 
 
 def migrate_env_vars_dict(
-    env_dict: dict, parent_section: str | None
-) -> dict[str, tuple[str, str]]:
-    """Migrate a flat env_vars dict. Returns {key: (old_value, new_value)}."""
+    env_dict: dict,
+) -> tuple[dict[str, tuple[str, str]], list[str]]:
+    """Migrate a flat env_vars dict.
+
+    Returns:
+        (changes, non_migrable) where changes is {key: (old_value, new_value)}
+        and non_migrable is a list of "key: value" strings that need manual review.
+    """
     changes = {}
+    non_migrable = []
     for key, value in env_dict.items():
         if isinstance(value, dict):
             # Nested (execution.env_vars.deployment / .evaluation) — recurse
             continue
         old = str(value)
-        new = classify_value(value, parent_section)
-        if old != new:
+        new = classify_value(value)
+        if new is None:
+            non_migrable.append(f"{key}: {old}")
+        elif old != new:
             changes[key] = (old, new)
-    return changes
+    return changes, non_migrable
 
 
 def process_yaml_text(text: str, changes_by_key: dict[str, tuple[str, str]]) -> str:
@@ -189,44 +176,51 @@ def process_yaml_text(text: str, changes_by_key: dict[str, tuple[str, str]]) -> 
     return "\n".join(result)
 
 
-def migrate(text: str) -> tuple[str, list[str]]:
-    """Migrate a YAML config string. Returns (new_text, list of change descriptions)."""
+def migrate(text: str) -> tuple[str, list[str], list[str]]:
+    """Migrate a YAML config string.
+
+    Returns:
+        (new_text, change_descriptions, non_migrable_descriptions)
+    """
     # Use yaml only for understanding the structure, apply changes to raw text
     import yaml
 
     data = yaml.safe_load(text)
     if not isinstance(data, dict):
-        return text, []
+        return text, [], []
 
     all_changes: dict[str, tuple[str, str]] = {}
     descriptions: list[str] = []
+    all_non_migrable: list[str] = []
 
     for path, env_dict in _find_env_vars_sections(data):
-        parent = _get_parent_section(path)
         section_label = ".".join(path)
 
         if _is_nested_env_vars(env_dict):
             # execution.env_vars with deployment/evaluation sub-dicts
             for sub_key, sub_dict in env_dict.items():
                 if isinstance(sub_dict, dict):
-                    sub_parent = "execution" if parent == "execution" else parent
-                    changes = migrate_env_vars_dict(sub_dict, sub_parent)
+                    changes, non_migrable = migrate_env_vars_dict(sub_dict)
                     for k, (old, new) in changes.items():
                         descriptions.append(
                             f"  {section_label}.{sub_key}.{k}: {old} -> {new}"
                         )
+                    for item in non_migrable:
+                        all_non_migrable.append(f"  {section_label}.{sub_key}.{item}")
                     all_changes.update(changes)
         else:
-            changes = migrate_env_vars_dict(env_dict, parent)
+            changes, non_migrable = migrate_env_vars_dict(env_dict)
             for k, (old, new) in changes.items():
                 descriptions.append(f"  {section_label}.{k}: {old} -> {new}")
+            for item in non_migrable:
+                all_non_migrable.append(f"  {section_label}.{item}")
             all_changes.update(changes)
 
-    if not all_changes:
-        return text, ["No changes needed."]
+    if not all_changes and not all_non_migrable:
+        return text, ["No changes needed."], []
 
-    new_text = process_yaml_text(text, all_changes)
-    return new_text, descriptions
+    new_text = process_yaml_text(text, all_changes) if all_changes else text
+    return new_text, descriptions, all_non_migrable
 
 
 def main():
@@ -245,11 +239,19 @@ def main():
     with open(args.config) as f:
         text = f.read()
 
-    new_text, descriptions = migrate(text)
+    new_text, descriptions, non_migrable = migrate(text)
 
     print(f"Migration: {args.config}", file=sys.stderr)
     for desc in descriptions:
         print(desc, file=sys.stderr)
+
+    if non_migrable:
+        print(
+            "\n\033[31mNon-migrable (needs manual review):\033[0m",
+            file=sys.stderr,
+        )
+        for item in non_migrable:
+            print(f"\033[31m{item}\033[0m", file=sys.stderr)
 
     if args.write:
         with open(args.config, "w") as f:
