@@ -35,6 +35,7 @@ from nemo_evaluator_launcher.common.env_vars import (
     build_reexport_commands,
     collect_deployment_env_vars,
     collect_eval_env_vars,
+    collect_exporters_env_vars,
     generate_secrets_env,
     redact_secrets_env_content,
 )
@@ -211,12 +212,16 @@ class LocalExecutor(BaseExecutor):
                 # Set NEMO_EVALUATOR_DATASET_DIR to the container mount path
                 dataset_env_var_value = dataset_mount_container
 
+            exporters_env_parsed = collect_exporters_env_vars(cfg)
+
             # Build env_groups for secrets file generation
             env_groups = {}
             if eval_env_parsed:
                 env_groups[task.name] = eval_env_parsed
             if deployment and deployment_env_parsed:
                 env_groups["deployment"] = deployment_env_parsed
+            if exporters_env_parsed:
+                env_groups["export"] = exporters_env_parsed
 
             secrets_result = None
             eval_reexport_cmd = ""
@@ -228,6 +233,7 @@ class LocalExecutor(BaseExecutor):
                 deployment_reexport_cmd = build_reexport_commands(
                     "deployment", secrets_result
                 )
+                export_reexport_cmd = build_reexport_commands("export", secrets_result)
 
             eval_image = task_definition["container"]
             if "container" in task:
@@ -262,6 +268,7 @@ class LocalExecutor(BaseExecutor):
                 else None,
                 "eval_reexport_cmd": eval_reexport_cmd,
                 "deployment_reexport_cmd": deployment_reexport_cmd,
+                "export_reexport_cmd": export_reexport_cmd,
                 "output_dir": task_output_dir,
                 "eval_factory_command": eval_factory_command,
                 "eval_factory_command_debug_comment": eval_factory_command_debug_comment,
