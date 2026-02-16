@@ -24,7 +24,6 @@ import shlex
 import subprocess
 import tempfile
 import time
-import warnings
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -1662,12 +1661,6 @@ def _generate_deployment_srun_command(
         cfg.execution.get("env_vars", {}).get("deployment", {})
     )
     if cfg.deployment.get("env_vars"):
-        warnings.warn(
-            "cfg.deployment.env_vars will be deprecated in future versions. "
-            "Use cfg.execution.env_vars.deployment instead.",
-            category=DeprecationWarning,
-            stacklevel=2,
-        )
         deployment_env_var_names.extend(list(cfg.deployment["env_vars"]))
 
     # Always add MASTER_IP to the environment variables

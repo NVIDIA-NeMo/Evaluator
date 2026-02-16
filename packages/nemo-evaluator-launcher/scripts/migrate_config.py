@@ -76,7 +76,7 @@ def classify_value(raw: str, parent_section: str | None) -> str:
     # Deprecated ! prefix — convert to $
     for old_prefix, new_prefix in _DEPRECATED_PREFIX_MAP.items():
         if stripped.startswith(old_prefix):
-            return new_prefix + stripped[len(old_prefix):]
+            return new_prefix + stripped[len(old_prefix) :]
 
     # Hydra resolver — flag but don't auto-migrate (needs manual attention)
     if "${oc.env:" in stripped or "${oc.decode:" in stripped:
