@@ -32,6 +32,12 @@ from nemo_evaluator_launcher.common.printing_utils import (
 )
 
 
+def _redact_value(value: str) -> str:
+    if len(value) <= 4:
+        return "***"
+    return "***" + value[-4:]
+
+
 @dataclass
 class Cmd:
     """Run command parameters"""
@@ -103,12 +109,6 @@ class Cmd:
             if task_name and task_name not in requested_tasks:
                 requested_tasks.append(task_name)
         return requested_tasks
-
-    @staticmethod
-    def _redact_value(value: str) -> str:
-        if len(value) <= 4:
-            return "***"
-        return "***" + value[-4:]
 
     def _load_env_file(self) -> None:
         """Load environment variables from a .env file.
