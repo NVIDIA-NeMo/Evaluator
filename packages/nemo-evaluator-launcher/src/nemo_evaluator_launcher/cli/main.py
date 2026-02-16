@@ -26,6 +26,7 @@ import nemo_evaluator_launcher.cli.logs as logs
 import nemo_evaluator_launcher.cli.ls_runs as ls_runs
 import nemo_evaluator_launcher.cli.ls_task as ls_task
 import nemo_evaluator_launcher.cli.ls_tasks as ls_tasks
+import nemo_evaluator_launcher.cli.resume as resume
 import nemo_evaluator_launcher.cli.run as run
 import nemo_evaluator_launcher.cli.skills as skills
 import nemo_evaluator_launcher.cli.status as status
@@ -53,6 +54,7 @@ def is_verbose_enabled(args) -> bool:
         "runs",
         "task",
         "export",
+        "resume",
     ]
     for subcmd in subcommands:
         if hasattr(args, subcmd) and hasattr(getattr(args, subcmd), "verbose"):
@@ -208,6 +210,14 @@ def create_parser() -> ArgumentParser:
     )
     export_parser.add_arguments(export.ExportCmd, dest="export")
 
+    # Resume subcommand
+    resume_parser = subparsers.add_parser(
+        "resume",
+        help="Resume an evaluation.",
+        description="Resume an evaluation by re-executing previously launched commands",
+    )
+    resume_parser.add_arguments(resume.Cmd, dest="resume")
+
     # Info subcommand
     info_parser = subparsers.add_parser(
         "info",
@@ -277,6 +287,8 @@ def main() -> None:
             parser._skills_parser.print_help()  # type: ignore[attr-defined]
     elif args.command == "export":
         args.export.execute()
+    elif args.command == "resume":
+        args.resume.execute()
     elif args.command == "info":
         args.info.execute()
 
