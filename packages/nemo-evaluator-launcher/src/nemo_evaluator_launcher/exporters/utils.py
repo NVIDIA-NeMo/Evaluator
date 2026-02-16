@@ -37,6 +37,9 @@ REQUIRED_ARTIFACTS = [
     "run_config.yml",
     "metadata.yaml",
 ]
+
+# FIXME(martas): this filename doesn't match what we have in nvidia-eval-commons-internal
+# OmniInfoInterceptor uses "omni-info.json.txt"
 OPTIONAL_ARTIFACTS = ["omni-info.json"]
 
 # Glob-style patterns to exclude when only_required=false (applied recursively)
