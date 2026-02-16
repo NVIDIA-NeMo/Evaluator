@@ -428,7 +428,6 @@ def collect_exporters_env_vars(cfg: DictConfig) -> dict[str, EnvVarValue]:
         dict mapping target_name → EnvVarValue.
     """
     # 1. Top-level env_vars (new unified config) — uses host default
-    breakpoint()
     top_level_vars = _collect_top_level_env_vars(cfg)
     parsed: dict[str, EnvVarValue] = {}
     for target_name, raw_value in top_level_vars.items():
