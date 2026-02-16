@@ -36,10 +36,7 @@ class TestExampleConfigs:
     def test_example_config_dry_run(self, config_name, mock_execdb, setup_env_vars):
         """Test that example configs can be loaded and run in dry_run mode."""
         # Skip lepton configs with deployment (they try to create real endpoints even in dry_run)
-        if (
-            config_name.startswith("lepton_")
-            and config_name != "lepton_none_llama_3_1_8b_instruct"
-        ):
+        if config_name.startswith("lepton_") and config_name != "lepton_basic":
             pytest.skip(
                 "Lepton configs with deployment try to create endpoints even in dry_run mode"
             )
@@ -65,7 +62,6 @@ class TestExampleConfigs:
             if "auto_export" in config_name:
                 overrides.extend(
                     [
-                        "++execution.env_vars.export.PATH=/tmp/test/bin:$PATH",
                         "++export.mlflow.tracking_uri=http://test-mlflow:5000",
                     ]
                 )
