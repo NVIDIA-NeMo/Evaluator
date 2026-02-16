@@ -218,15 +218,12 @@ class LocalExecutor(BaseExecutor):
             if deployment and deployment_env_parsed:
                 env_groups["deployment"] = deployment_env_parsed
 
-            secrets_env_content = None
+            secrets_result = None
             eval_reexport_cmd = ""
             deployment_reexport_cmd = ""
-            literal_disambiguated_names: set[str] = set()
             eval_env_var_names = list(eval_env_parsed.keys())
             if env_groups:
                 secrets_result = generate_secrets_env(env_groups)
-                secrets_env_content = secrets_result.secrets_content
-                literal_disambiguated_names = secrets_result.literal_disambiguated_names
                 eval_reexport_cmd = build_reexport_commands(task.name, secrets_result)
                 deployment_reexport_cmd = build_reexport_commands(
                     "deployment", secrets_result
@@ -259,8 +256,10 @@ class LocalExecutor(BaseExecutor):
                 "eval_image": eval_image,
                 "client_container_name": client_container_name,
                 "env_var_names": eval_env_var_names,
-                "secrets_env_content": secrets_env_content,
-                "literal_disambiguated_names": literal_disambiguated_names,
+                "secrets_env_result": secrets_result,
+                "secrets_env_content": secrets_result.secrets_content
+                if secrets_result
+                else None,
                 "eval_reexport_cmd": eval_reexport_cmd,
                 "deployment_reexport_cmd": deployment_reexport_cmd,
                 "output_dir": task_output_dir,
@@ -289,8 +288,10 @@ class LocalExecutor(BaseExecutor):
 
             (task_output_dir / "run.sh").write_text(run_sh_content)
 
-            if secrets_env_content:
-                (task_output_dir / ".secrets.env").write_text(secrets_env_content)
+            if secrets_result:
+                (task_output_dir / ".secrets.env").write_text(
+                    secrets_result.secrets_content
+                )
 
         run_all_sequentially_sh_content = (
             run_template.render(
@@ -339,7 +340,9 @@ class LocalExecutor(BaseExecutor):
                         grey(
                             redact_secrets_env_content(
                                 evaluation_task["secrets_env_content"],
-                                evaluation_task["literal_disambiguated_names"],
+                                evaluation_task[
+                                    "secrets_env_result"
+                                ].literal_disambiguated_names,
                             )
                         )
                     )

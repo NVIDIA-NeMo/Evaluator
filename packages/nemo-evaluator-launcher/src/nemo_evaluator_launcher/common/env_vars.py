@@ -166,19 +166,36 @@ class VarRemapping:
 
 @dataclass
 class SecretsEnvResult:
-    """Result of generating a .secrets.env file."""
+    """Result of generating a .secrets.env file for a set of env var groups.
+
+    The .secrets.env file contains ``export DISAMBIGUATED=value`` lines.
+    Each original env var name is disambiguated with a per-group suffix
+    (e.g. ``HF_TOKEN_a3f1_TASK_A``) so that different groups (tasks,
+    deployment) can define the same var name with different values
+    without collisions.
+
+    At runtime the script sources .secrets.env and then re-exports each
+    disambiguated name back to the original name right before the
+    container that needs it (see ``build_reexport_commands``).
+    """
 
     secrets_content: str
-    """Full .secrets.env file body (export VAR=value lines)."""
+    """Full .secrets.env file body — newline-separated ``export KEY="value"`` lines."""
 
     group_remappings: dict[str, list[VarRemapping]] = field(default_factory=dict)
-    """Per group: list of original→disambiguated name mappings."""
+    """Per-group list of (original_name → disambiguated_name) mappings for
+    resolved vars (literal and host). Used by ``build_reexport_commands``
+    to emit ``export ORIGINAL="${DISAMBIGUATED}"`` shell commands."""
 
     runtime_vars: dict[str, list[VarRemapping]] = field(default_factory=dict)
-    """Per group: runtime vars that have no value in the secrets file."""
+    """Per-group runtime vars ($runtime:). These have no value in .secrets.env;
+    their reexport references the runtime variable name directly
+    (e.g. ``export API_KEY="${NGC_API_TOKEN}"``)."""
 
     literal_disambiguated_names: set[str] = field(default_factory=set)
-    """Disambiguated names whose values came from EnvVarLiteral (not secrets)."""
+    """Set of disambiguated names whose values came from EnvVarLiteral.
+    Used by ``redact_secrets_env_content`` to show literal values in
+    clear text while masking actual secrets in dry-run output."""
 
 
 def _make_disambiguated_name(original_name: str, group_name: str, token: str) -> str:

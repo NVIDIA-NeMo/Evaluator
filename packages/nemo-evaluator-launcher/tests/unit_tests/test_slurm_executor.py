@@ -146,9 +146,9 @@ class TestSlurmExecutorFeatures:
         )
 
         # Env vars are now in .secrets.env, not inline in script
-        assert result.secrets_env_content is not None
-        assert '="deploy_value1"' in result.secrets_env_content
-        assert '="deploy_value2"' in result.secrets_env_content
+        assert result.secrets_env_result is not None
+        assert '="deploy_value1"' in result.secrets_env_result.secrets_content
+        assert '="deploy_value2"' in result.secrets_env_result.secrets_content
 
         # Script sources secrets file and re-exports
         assert 'source "' in result.cmd
@@ -187,9 +187,9 @@ class TestSlurmExecutorFeatures:
         )
 
         # Env vars are now in .secrets.env, not inline in script
-        assert result.secrets_env_content is not None
-        assert '="eval_value1"' in result.secrets_env_content
-        assert '="eval_value2"' in result.secrets_env_content
+        assert result.secrets_env_result is not None
+        assert '="eval_value1"' in result.secrets_env_result.secrets_content
+        assert '="eval_value2"' in result.secrets_env_result.secrets_content
 
         # Script sources secrets file
         assert 'source "' in result.cmd
@@ -339,9 +339,9 @@ class TestSlurmExecutorFeatures:
         script = result.cmd
 
         # Values are in secrets file, re-exports in script
-        assert result.secrets_env_content is not None
-        assert "value1" in result.secrets_env_content
-        assert "value2" in result.secrets_env_content
+        assert result.secrets_env_result is not None
+        assert "value1" in result.secrets_env_result.secrets_content
+        assert "value2" in result.secrets_env_result.secrets_content
         assert "source" in script
         assert 'export VAR1="${VAR1_' in script
         assert 'export VAR2="${VAR2_' in script
@@ -386,10 +386,10 @@ class TestSlurmExecutorFeatures:
             script = result.cmd
 
         # Both old and new env vars should be present in secrets file
-        assert result.secrets_env_content is not None
-        assert "old_value" in result.secrets_env_content
-        assert "new_value" in result.secrets_env_content
-        assert "eval_value" in result.secrets_env_content
+        assert result.secrets_env_result is not None
+        assert "old_value" in result.secrets_env_result.secrets_content
+        assert "new_value" in result.secrets_env_result.secrets_content
+        assert "eval_value" in result.secrets_env_result.secrets_content
 
         # Script should source secrets and re-export
         assert "source" in script
@@ -458,9 +458,9 @@ class TestSlurmExecutorFeatures:
         script = result.cmd
 
         # Environment variables should be in secrets file
-        assert result.secrets_env_content is not None
-        assert "deploy_value" in result.secrets_env_content
-        assert "eval_value" in result.secrets_env_content
+        assert result.secrets_env_result is not None
+        assert "deploy_value" in result.secrets_env_result.secrets_content
+        assert "eval_value" in result.secrets_env_result.secrets_content
 
         # Script should source secrets and re-export eval vars
         assert "source" in script
@@ -534,12 +534,12 @@ class TestSlurmExecutorFeatures:
             script = result.cmd
 
         # All environment variables should be in secrets file
-        assert result.secrets_env_content is not None
-        assert "deploy_value1" in result.secrets_env_content
-        assert "deploy_value2" in result.secrets_env_content
-        assert "eval_value1" in result.secrets_env_content
-        assert "eval_value2" in result.secrets_env_content
-        assert "old_deploy_value" in result.secrets_env_content
+        assert result.secrets_env_result is not None
+        assert "deploy_value1" in result.secrets_env_result.secrets_content
+        assert "deploy_value2" in result.secrets_env_result.secrets_content
+        assert "eval_value1" in result.secrets_env_result.secrets_content
+        assert "eval_value2" in result.secrets_env_result.secrets_content
+        assert "old_deploy_value" in result.secrets_env_result.secrets_content
 
         # Script should source secrets and re-export
         assert "source" in script
