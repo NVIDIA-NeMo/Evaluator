@@ -142,6 +142,7 @@ else
 (
     # Give it a moment to ensure file is fully written
     sleep 1
+    {{ task.export_reexport_cmd }}
 
     exit_code=$(tail -1 "$logs_dir/stage.exit" | cut -d' ' -f2)
     if [ "$exit_code" = "0" ]; then
