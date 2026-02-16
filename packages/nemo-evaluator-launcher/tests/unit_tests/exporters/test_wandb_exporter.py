@@ -329,7 +329,7 @@ class TestWandBExporter:
         exp = WandBExporter({"log_artifacts": True})
         logged = exp._log_artifacts(data, _Artifact())
         # wandb logs config.yaml fallback + results.yml when log_artifacts is True
-        assert "config.yaml" in logged
+        assert "config.yml" in logged
         assert "results.yml" in logged
         assert len(calls["added"]) == 2  # config.yaml + results.yml
 

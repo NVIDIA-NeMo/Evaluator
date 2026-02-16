@@ -15,12 +15,10 @@
 #
 """Weights & Biases results exporter."""
 
-import os
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-
-import yaml
 
 try:
     import wandb
@@ -191,45 +189,35 @@ class WandBExporter(BaseExporter):
 
             artifact_root = f"{data.harness}.{data.task}"  # "<harness>.<benchmark>"
 
-            # Add config file
-            if self.config.get("log_artifacts", True):
-                cfg_added = False
-                for fname in ("config.yml", "run_config.yml"):
-                    p = artifacts_dir / fname
-                    if p.exists():
-                        artifact.add_file(str(p), name=f"{artifact_root}/{fname}")
-                        logged_names.append(fname)
-                        cfg_added = True
-                        break
-                if not cfg_added and data.config:
-                    # Create temporary config file
-                    import tempfile
+            # Log config at root level (or synthesize)
+            fname = "config.yml"
+            p = data.artifacts_dir / fname
+            if p.exists():
+                artifact.add_file(str(p), name=f"{artifact_root}/{fname}")
+                logged_names.append(fname)
+            else:
+                # TODO(martas): why we need this? is it even possible?
+                with tempfile.NamedTemporaryFile("w", suffix=".yml") as tmp_cfg:
+                    import yaml
 
-                    with tempfile.NamedTemporaryFile(
-                        "w", suffix=".yaml", delete=False
-                    ) as tmp_cfg:
-                        yaml.dump(
-                            data.config,
-                            tmp_cfg,
-                            default_flow_style=False,
-                            sort_keys=False,
-                        )
-                        cfg_path = tmp_cfg.name
-                    artifact.add_file(cfg_path, name=f"{artifact_root}/config.yaml")
-                    os.unlink(cfg_path)
-                    logged_names.append("config.yaml")
+                    yaml.dump(
+                        data.config or {},
+                        tmp_cfg,
+                        default_flow_style=False,
+                        sort_keys=False,
+                    )
+                    cfg_path = tmp_cfg.name
+                    artifact.add_file(cfg_path, name=f"{artifact_root}/{fname}")
+
+                logged_names.append(fname)
 
             if self.config.get("only_required", True):
                 # Upload only specific required files
                 for p in get_available_artifacts(artifacts_dir):
-                    artifact.add_file(
-                        str(p), name=f"{artifact_root}/artifacts/{p.name}"
-                    )
-                    logged_names.append(p.name)
+                    artifact.add_file(str(p), name=f"{artifact_root}/artifacts/{p}")
+                    logged_names.append(p)
             else:
                 # Upload all artifacts with recursive exclusion
-                import tempfile
-
                 with tempfile.TemporaryDirectory() as tmp:
                     staged = Path(tmp) / "artifacts"
                     shutil.copytree(
