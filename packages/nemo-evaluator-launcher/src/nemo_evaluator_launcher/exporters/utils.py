@@ -477,25 +477,32 @@ def ssh_download_artifacts(
                         [str(f) for f in art_dir.rglob("*") if f.is_file()]
                     )
 
-    # Logs (top-level only)
+    # Logs (top-level files only, streamed via tar+ssh with compression)
     if copy_logs:
         local_logs = export_dir / "logs"
+        local_logs.mkdir(parents=True, exist_ok=True)
         remote_logs = f"{paths['remote_path']}/logs"
-        cmd = (
-            ["scp", "-r"]
-            + ssh_opts
-            + [
-                f"{paths['username']}@{paths['hostname']}:{remote_logs}/.",
-                str(local_logs),
-            ]
-        )
-        if subprocess.run(cmd, capture_output=True).returncode == 0:
-            for p in local_logs.iterdir():
-                if p.is_dir():
-                    import shutil
 
-                    shutil.rmtree(p, ignore_errors=True)
-            exported_files.extend([str(f) for f in local_logs.glob("*") if f.is_file()])
+        # Use tar+ssh to stream compressed logs — top-level files only (no subdirs)
+        ssh_cmd = ["ssh"] + ssh_opts
+        remote_tar_cmd = f"cd {remote_logs} && find . -maxdepth 1 -type f -print0 | tar -czf - --null -T -"
+        ssh_full = ssh_cmd + [
+            f"{paths['username']}@{paths['hostname']}",
+            remote_tar_cmd,
+        ]
+        with subprocess.Popen(
+            ssh_full, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        ) as ssh_proc:
+            tar_extract = subprocess.run(
+                ["tar", "-xzf", "-", "-C", str(local_logs)],
+                stdin=ssh_proc.stdout,
+                capture_output=True,
+            )
+            ssh_proc.wait()
+            if ssh_proc.returncode == 0 and tar_extract.returncode == 0:
+                exported_files.extend(
+                    [str(f) for f in local_logs.glob("*") if f.is_file()]
+                )
 
     return exported_files
 
