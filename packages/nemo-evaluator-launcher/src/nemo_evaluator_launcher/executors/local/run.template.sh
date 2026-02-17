@@ -60,16 +60,16 @@ else
     # Docker run with eval factory command
     (
         {% if task.secrets_env_content -%}
-        # Source secrets and re-export to original names (scoped to subshell)
+        # Source secrets (scoped to subshell); re-exports happen before each docker run
         source "$task_dir/.secrets.env"
-        {{ task.eval_reexport_cmd }}
-        {% if task.deployment -%}
-        {{ task.deployment_reexport_cmd }}
-        {% endif -%}
         {% endif -%}
 
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.running"
         {% if task.deployment %}
+        {% if task.deployment_reexport_cmd -%}
+        # Re-export deployment env vars to original names
+        {{ task.deployment_reexport_cmd }}
+        {% endif -%}
         docker run --rm --shm-size=100g --gpus all {{ task.deployment.extra_docker_args }} \
         --name {{ task.deployment.container_name }} --entrypoint '' \
         -p {{ task.deployment.port }}:{{ task.deployment.port }} \
@@ -98,6 +98,10 @@ else
         date
 
         {% endif %}
+        {% if task.eval_reexport_cmd -%}
+        # Re-export eval env vars to original names
+        {{ task.eval_reexport_cmd }}
+        {% endif -%}
         docker run --rm --shm-size=100g {{ extra_docker_args }} \
         {% if task.deployment %}--network container:$SERVER_CONTAINER_NAME \{% endif %}--name {{ task.client_container_name }} \
       --volume "$artifacts_dir":/results \

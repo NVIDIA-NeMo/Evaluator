@@ -51,11 +51,11 @@ class TestLocalExecutorDryRun:
                 }
             },
             "evaluation": {
-                "env_vars": {"GLOBAL_ENV": "GLOBAL_VALUE"},
+                "env_vars": {"GLOBAL_ENV": "$host:GLOBAL_VALUE"},
                 "tasks": [
                     {
                         "name": "test_task_1",
-                        "env_vars": {"TASK_ENV": "TASK_VALUE"},
+                        "env_vars": {"TASK_ENV": "$host:TASK_VALUE"},
                         "nemo_evaluator_config": {
                             "config": {"params": {"param1": "value1"}}
                         },

@@ -64,30 +64,25 @@ class TestParseEnvVarValue:
         with pytest.raises(ValueError, match="Hydra resolver syntax"):
             parse_env_var_value("${oc.decode:something}")
 
-    def test_backward_compat_dollar_prefix(self):
-        with pytest.warns(DeprecationWarning, match="Use '\\$host:HF_TOKEN'"):
-            result = parse_env_var_value("$HF_TOKEN")
-        assert result == EnvVarFromHost(host_var_name="HF_TOKEN")
+    def test_unprefixed_dollar_raises(self):
+        with pytest.raises(ValueError, match="Use '\\$host:HF_TOKEN'"):
+            parse_env_var_value("$HF_TOKEN")
 
-    def test_backward_compat_bare_name(self):
-        with pytest.warns(DeprecationWarning, match="Use '\\$host:MY_VAR'"):
-            result = parse_env_var_value("MY_VAR")
-        assert result == EnvVarFromHost(host_var_name="MY_VAR")
+    def test_unprefixed_bare_name_raises(self):
+        with pytest.raises(ValueError, match="Use '\\$host:MY_VAR'"):
+            parse_env_var_value("MY_VAR")
 
-    def test_backward_compat_path_value(self):
-        with pytest.warns(DeprecationWarning, match="Use '\\$lit:/some/path'"):
-            result = parse_env_var_value("/some/path")
-        assert result == EnvVarLiteral(value="/some/path")
+    def test_unprefixed_path_value_raises(self):
+        with pytest.raises(ValueError, match="Use '\\$lit:/some/path'"):
+            parse_env_var_value("/some/path")
 
-    def test_backward_compat_url_value(self):
-        with pytest.warns(DeprecationWarning, match="Use '\\$lit:"):
-            result = parse_env_var_value("http://example.com")
-        assert result == EnvVarLiteral(value="http://example.com")
+    def test_unprefixed_url_value_raises(self):
+        with pytest.raises(ValueError, match="Use '\\$lit:"):
+            parse_env_var_value("http://example.com")
 
-    def test_backward_compat_value_with_spaces(self):
-        with pytest.warns(DeprecationWarning, match="Use '\\$lit:"):
-            result = parse_env_var_value("hello world")
-        assert result == EnvVarLiteral(value="hello world")
+    def test_unprefixed_value_with_spaces_raises(self):
+        with pytest.raises(ValueError, match="Use '\\$lit:"):
+            parse_env_var_value("hello world")
 
 
 # --- resolve_env_var ---

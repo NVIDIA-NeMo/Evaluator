@@ -1043,11 +1043,11 @@ class TestSlurmExecutorDryRun:
                 }
             },
             "evaluation": {
-                "env_vars": {"GLOBAL_ENV": "GLOBAL_VALUE"},
+                "env_vars": {"GLOBAL_ENV": "$host:GLOBAL_VALUE"},
                 "tasks": [
                     {
                         "name": "mmlu_pro",
-                        "env_vars": {"TASK_ENV": "TASK_VALUE"},
+                        "env_vars": {"TASK_ENV": "$host:TASK_VALUE"},
                         "nemo_evaluator_config": {
                             "config": {"params": {"temperature": 0.95}}
                         },
@@ -1705,11 +1705,11 @@ class TestSlurmExecutorSystemCalls:
                 }
             },
             "evaluation": {
-                "env_vars": {"GLOBAL_ENV": "GLOBAL_VALUE"},
+                "env_vars": {"GLOBAL_ENV": "$host:GLOBAL_VALUE"},
                 "tasks": [
                     {
                         "name": "mmlu_pro",
-                        "env_vars": {"TASK_ENV": "TASK_VALUE"},
+                        "env_vars": {"TASK_ENV": "$host:TASK_VALUE"},
                         "nemo_evaluator_config": {
                             "config": {"params": {"temperature": 0.95}}
                         },
