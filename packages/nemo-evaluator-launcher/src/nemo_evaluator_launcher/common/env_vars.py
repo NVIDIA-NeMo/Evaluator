@@ -25,7 +25,6 @@ import copy
 import os
 import re
 import secrets
-import warnings
 from dataclasses import dataclass, field
 from typing import ClassVar
 
@@ -69,13 +68,14 @@ _ENV_VAR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 def parse_env_var_value(raw: str) -> EnvVarValue:
     """Parse a raw env var value string into a typed EnvVarValue.
 
-    Supports explicit prefixes ($lit:, $host:, $runtime:) and backward-compatible
-    unprefixed values (with deprecation warnings).
+    Every value must carry an explicit prefix ($host:, $lit:, $runtime:).
+    Unprefixed values raise ValueError with a suggested fix.
 
     Args:
         raw: The raw string value from config.
 
-    Raises ValueError if ${oc.env:...} Hydra resolver syntax is detected.
+    Raises:
+        ValueError: If the value has no recognized prefix or uses Hydra resolver syntax.
     """
     # Hard error for Hydra resolver syntax
     if "${oc.env:" in raw or "${oc.decode:" in raw:
@@ -93,33 +93,19 @@ def parse_env_var_value(raw: str) -> EnvVarValue:
     if raw.startswith(EnvVarRuntime.PREFIX):
         return EnvVarRuntime(runtime_var_name=raw[len(EnvVarRuntime.PREFIX) :])
 
-    # Backward-compatible: $VAR_NAME → $host:VAR_NAME (old syntax without prefix keyword)
+    # No recognized prefix — build a helpful suggestion
     if raw.startswith("$") and _ENV_VAR_NAME_RE.match(raw[1:]):
-        warnings.warn(
-            f"Unprefixed env var value '{raw}' is deprecated. "
-            f"Use '$host:{raw[1:]}' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return EnvVarFromHost(host_var_name=raw[1:])
+        suggestion = f"$host:{raw[1:]}"
+    elif _ENV_VAR_NAME_RE.match(raw):
+        suggestion = f"$host:{raw}"
+    else:
+        suggestion = f"$lit:{raw}"
 
-    # Backward-compatible: bare UPPER_CASE env var name → host reference
-    if _ENV_VAR_NAME_RE.match(raw):
-        warnings.warn(
-            f"Unprefixed env var value '{raw}' is deprecated. "
-            f"Use '$host:{raw}' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return EnvVarFromHost(host_var_name=raw)
-
-    # Backward-compatible: anything else (paths, URLs, etc.) → $lit:VALUE
-    warnings.warn(
-        f"Unprefixed env var value '{raw}' is deprecated. Use '$lit:{raw}' instead.",
-        DeprecationWarning,
-        stacklevel=2,
+    raise ValueError(
+        f"Env var value '{raw}' must have an explicit prefix. "
+        f"Use '{suggestion}' instead. "
+        f"Run the migration script: python scripts/migrate_config.py your_config.yaml"
     )
-    return EnvVarLiteral(value=raw)
 
 
 def resolve_env_var(target_name: str, val: EnvVarValue) -> tuple[str, str | None]:
@@ -380,7 +366,7 @@ def collect_eval_env_vars(
     # If the user already declared it (e.g. NGC_API_TOKEN: $host:NGC_API_TOKEN),
     # do nothing. Otherwise, add it as a host ref so it gets resolved from the host env.
     if api_key_name and api_key_name not in raw_env_vars:
-        raw_env_vars[api_key_name] = api_key_name
+        raw_env_vars[api_key_name] = f"$host:{api_key_name}"
 
     # Check required env vars (excluding NEMO_EVALUATOR_DATASET_DIR)
     all_var_names = set(raw_env_vars.keys())
