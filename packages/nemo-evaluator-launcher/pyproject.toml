@@ -50,6 +50,8 @@ all = ["mlflow", "wandb", "gsheets"]
 nemo-evaluator-launcher = "nemo_evaluator_launcher.cli.main:main"
 nv-eval = "nemo_evaluator_launcher.cli.main:main"
 nel = "nemo_evaluator_launcher.cli.main:main"
+# TODO(Apr 2026): Remove this entrypoint once the migration period is over.
+nel-migrate-config = "nemo_evaluator_launcher.cli.migrate_config:main"
 
 [dependency-groups]
 dev = [
