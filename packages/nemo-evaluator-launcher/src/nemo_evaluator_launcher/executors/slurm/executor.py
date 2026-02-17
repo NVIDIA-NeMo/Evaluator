@@ -510,6 +510,73 @@ class SlurmExecutor(BaseExecutor):
             return ExecutionState.FAILED
 
     @staticmethod
+    def resume_job(job_id: str) -> None:
+        """Resume a SLURM job by resubmitting its sbatch script via SSH.
+
+        Cleans up stale auto-resume state (.slurm_job_id.list and
+        .accumulated_walltime) before resubmitting so that ``nel status``
+        tracks the new job chain rather than the old one.
+
+        Args:
+            job_id: The job ID (e.g., abc123.0) to resume.
+
+        Raises:
+            ValueError: If job is not found or not a slurm job.
+            RuntimeError: If sbatch submission fails.
+        """
+        db = ExecutionDB()
+        job = db.get_job(job_id)
+
+        if job is None:
+            raise ValueError(f"Job {job_id} not found")
+        if job.executor != "slurm":
+            raise ValueError(
+                f"Job {job_id} is not a slurm job (executor: {job.executor})"
+            )
+
+        hostname = job.data["hostname"]
+        username = job.data["username"]
+        remote_dir = job.data["remote_rundir_path"]
+
+        # Clean up stale auto-resume state before resubmitting
+        sbatch_cmd = (
+            f"cd {remote_dir}"
+            f" && rm -f .slurm_job_id.list .accumulated_walltime"
+            f" && sbatch run.sub"
+        )
+        ssh_command = f"ssh {username}@{hostname} {shlex.quote(sbatch_cmd)}"
+
+        logger.info(f"Submitting sbatch for {remote_dir}", cmd=ssh_command)
+        completed = subprocess.run(
+            shlex.split(ssh_command),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        if completed.returncode != 0:
+            error_msg = (
+                completed.stderr.decode("utf-8")
+                if completed.stderr
+                else "Unknown error"
+            )
+            raise RuntimeError(f"sbatch failed for {remote_dir}: {error_msg}")
+
+        stdout = completed.stdout.decode("utf-8")
+        match = re.search(r"Submitted batch job (\d+)", stdout)
+        if not match:
+            raise RuntimeError(
+                f"Could not parse SLURM job ID from sbatch output: {stdout}"
+            )
+
+        new_slurm_job_id = match.group(1)
+        logger.info(f"Submitted {job.job_id} as SLURM job {new_slurm_job_id}")
+
+        # Update ExecDB so nel status/kill target the new SLURM job
+        job.data["slurm_job_id"] = new_slurm_job_id
+        job.data["resumed_at"] = time.time()
+        db.write_job(job)
+
+    @staticmethod
     def kill_job(job_id: str) -> None:
         """Kill a SLURM job.
 

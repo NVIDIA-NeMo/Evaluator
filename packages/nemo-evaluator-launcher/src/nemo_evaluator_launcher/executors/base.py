@@ -99,6 +99,21 @@ class BaseExecutor(ABC):
         raise NotImplementedError("Subclasses must implement this method")
 
     @staticmethod
+    @abstractmethod
+    def resume_job(job_id: str) -> None:
+        """Resume a job by its ID.
+
+        Args:
+            job_id: The job ID to resume.
+
+        Raises:
+            ValueError: If job is not found or invalid.
+            RuntimeError: If job cannot be resumed.
+            NotImplementedError: If not implemented by a subclass.
+        """
+        raise NotImplementedError("Subclasses must implement this method")
+
+    @staticmethod
     def get_kill_failure_message(
         job_id: str, container_or_id: str, status: Optional[ExecutionState] = None
     ) -> str:
