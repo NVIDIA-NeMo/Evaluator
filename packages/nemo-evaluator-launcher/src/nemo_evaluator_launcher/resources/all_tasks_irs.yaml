@@ -1,7 +1,7 @@
 metadata:
-  mapping_toml_checksum: sha256:66143ca20474d37e7f14b4d9e958c2f8506dd53b2135d78c10007c292a750eda
-  num_tasks: 411
-  num_harnesses: 23
+  mapping_toml_checksum: sha256:30eda37d92cca6e295948ba530c063e4a58a0b421e02e166cf1f521648ddf406
+  num_tasks: 426
+  num_harnesses: 24
 harnesses:
 - name: lm-evaluation-harness
   description: This project provides a unified framework to test generative language
@@ -194,6 +194,14 @@ harnesses:
   url: https://huggingface.co/datasets/ArtificialAnalysis/AA-LCR
   container: nvcr.io/nvidia/eval-factory/aa-lcr:26.01
   container_digest: sha256:67dd35302ed15610afc9471a2ff4f515d95a235753f1b259db60748249366939
+  arch: multiarch
+- name: nemo_gym
+  description: NeMo Gym benchmarks for RL-based LLM evaluation. Includes math verification
+    (AIME, DAPO), MCQA, instruction following, function calling, and more.
+  full_name: NeMo Gym
+  url: https://github.com/NVIDIA-NeMo/Gym
+  container: gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/nemo-gym:dev-2026-02-13T18-03-4bb112d3
+  container_digest: sha256:ebdf30767b0e7e5a70e39f37da7f90157f453849de8477d245ee16cbe1f654fa
   arch: multiarch
 tasks:
 - name: mmlu
@@ -21721,6 +21729,611 @@ tasks:
       type: ViDoReV3_Text_Image
     target:
       api_endpoint: {}
+- name: techqa
+  description: NVIDIA TechQA
+  harness: mteb
+  defaults:
+    command: '{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}}
+      &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}}
+      &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export
+      RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name
+      {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task
+      "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}}
+      --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}}
+      --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path
+      is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {%
+      if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif
+      %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}}
+      {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template
+      "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template
+      is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{%
+      endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name
+      {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}}
+      --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif
+      %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}}
+      {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}}
+      {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split
+      {{config.params.extra.eval_split}} {% endif %}'
+    framework_name: mteb
+    pkg_name: mteb
+    config:
+      params:
+        max_retries: 10
+        parallelism: 20
+        task: TechQA
+        request_timeout: 300
+        extra:
+          query_prompt_template: null
+          document_prompt_template: null
+          ranker:
+            model_id: null
+            url: null
+            api_key: null
+            endpoint_type: nim
+          top_k: 40
+          truncate: END
+          batch_size: 128
+          eval_split: test
+          dataset_path: null
+          cache_path: null
+          args: null
+          version_lite: null
+          language: null
+      supported_endpoint_types:
+      - embedding
+      type: techqa
+    target:
+      api_endpoint: {}
+- name: nvidia_vidore_v1
+  description: NVIDIA ViDoReV1
+  harness: mteb
+  defaults:
+    command: '{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}}
+      &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}}
+      &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export
+      RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name
+      {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task
+      "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}}
+      --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}}
+      --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path
+      is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {%
+      if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif
+      %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}}
+      {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template
+      "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template
+      is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{%
+      endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name
+      {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}}
+      --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif
+      %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}}
+      {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}}
+      {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split
+      {{config.params.extra.eval_split}} {% endif %}'
+    framework_name: mteb
+    pkg_name: mteb
+    config:
+      params:
+        max_retries: 10
+        parallelism: 20
+        task: nvidia_vidore_v1
+        request_timeout: 300
+        extra:
+          query_prompt_template: null
+          document_prompt_template: null
+          ranker:
+            model_id: null
+            url: null
+            api_key: null
+            endpoint_type: nim
+          top_k: 40
+          truncate: END
+          batch_size: 128
+          eval_split: test
+          dataset_path: null
+          cache_path: null
+          args: null
+          version_lite: null
+          language: null
+      supported_endpoint_types:
+      - embedding
+      type: nvidia_vidore_v1
+    target:
+      api_endpoint: {}
+- name: nvidia_vidore_v2
+  description: NVIDIA ViDoReV2
+  harness: mteb
+  defaults:
+    command: '{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}}
+      &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}}
+      &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export
+      RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name
+      {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task
+      "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}}
+      --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}}
+      --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path
+      is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {%
+      if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif
+      %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}}
+      {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template
+      "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template
+      is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{%
+      endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name
+      {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}}
+      --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif
+      %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}}
+      {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}}
+      {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split
+      {{config.params.extra.eval_split}} {% endif %}'
+    framework_name: mteb
+    pkg_name: mteb
+    config:
+      params:
+        max_retries: 10
+        parallelism: 20
+        task: nvidia_vidore_v2
+        request_timeout: 300
+        extra:
+          query_prompt_template: null
+          document_prompt_template: null
+          ranker:
+            model_id: null
+            url: null
+            api_key: null
+            endpoint_type: nim
+          top_k: 40
+          truncate: END
+          batch_size: 128
+          eval_split: test
+          dataset_path: null
+          cache_path: null
+          args: null
+          version_lite: null
+          language: null
+      supported_endpoint_types:
+      - embedding
+      type: nvidia_vidore_v2
+    target:
+      api_endpoint: {}
+- name: nvidia_vidore_v3
+  description: NVIDIA ViDoReV3
+  harness: mteb
+  defaults:
+    command: '{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}}
+      &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}}
+      &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export
+      RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name
+      {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task
+      "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}}
+      --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}}
+      --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path
+      is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {%
+      if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif
+      %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}}
+      {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template
+      "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template
+      is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{%
+      endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name
+      {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}}
+      --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif
+      %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}}
+      {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}}
+      {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split
+      {{config.params.extra.eval_split}} {% endif %}'
+    framework_name: mteb
+    pkg_name: mteb
+    config:
+      params:
+        max_retries: 10
+        parallelism: 20
+        task: nvidia_vidore_v3
+        request_timeout: 300
+        extra:
+          query_prompt_template: null
+          document_prompt_template: null
+          ranker:
+            model_id: null
+            url: null
+            api_key: null
+            endpoint_type: nim
+          top_k: 40
+          truncate: END
+          batch_size: 128
+          eval_split: test
+          dataset_path: null
+          cache_path: null
+          args: null
+          version_lite: null
+          language: null
+      supported_endpoint_types:
+      - embedding
+      type: nvidia_vidore_v3
+    target:
+      api_endpoint: {}
+- name: nvidia_digital_corpora_10k_text
+  description: NVIDIA Internal - Digital Corpora10k Text Retrieval
+  harness: mteb
+  defaults:
+    command: '{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}}
+      &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}}
+      &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export
+      RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name
+      {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task
+      "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}}
+      --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}}
+      --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path
+      is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {%
+      if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif
+      %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}}
+      {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template
+      "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template
+      is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{%
+      endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name
+      {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}}
+      --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif
+      %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}}
+      {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}}
+      {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split
+      {{config.params.extra.eval_split}} {% endif %}'
+    framework_name: mteb
+    pkg_name: mteb
+    config:
+      params:
+        max_retries: 10
+        parallelism: 20
+        task: nvidia_digital_corpora_10k_text
+        request_timeout: 300
+        extra:
+          query_prompt_template: null
+          document_prompt_template: null
+          ranker:
+            model_id: null
+            url: null
+            api_key: null
+            endpoint_type: nim
+          top_k: 40
+          truncate: END
+          batch_size: 128
+          eval_split: test
+          dataset_path: null
+          cache_path: null
+          args: null
+          version_lite: null
+          language: null
+      supported_endpoint_types:
+      - embedding
+      type: nvidia_digital_corpora_10k_text
+    target:
+      api_endpoint: {}
+- name: nvidia_digital_corpora_10k
+  description: NVIDIA Internal - Digital Corpora10k Retrieval
+  harness: mteb
+  defaults:
+    command: '{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}}
+      &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}}
+      &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export
+      RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name
+      {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task
+      "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}}
+      --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}}
+      --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path
+      is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {%
+      if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif
+      %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}}
+      {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template
+      "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template
+      is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{%
+      endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name
+      {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}}
+      --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif
+      %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}}
+      {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}}
+      {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split
+      {{config.params.extra.eval_split}} {% endif %}'
+    framework_name: mteb
+    pkg_name: mteb
+    config:
+      params:
+        max_retries: 10
+        parallelism: 20
+        task: nvidia_digital_corpora_10k
+        request_timeout: 300
+        extra:
+          query_prompt_template: null
+          document_prompt_template: null
+          ranker:
+            model_id: null
+            url: null
+            api_key: null
+            endpoint_type: nim
+          top_k: 40
+          truncate: END
+          batch_size: 128
+          eval_split: test
+          dataset_path: null
+          cache_path: null
+          args: null
+          version_lite: null
+          language: null
+      supported_endpoint_types:
+      - embedding
+      type: nvidia_digital_corpora_10k
+    target:
+      api_endpoint: {}
+- name: nvidia_earnings_v2_text
+  description: NVIDIA Internal - Earnings V2 Text Retrieval
+  harness: mteb
+  defaults:
+    command: '{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}}
+      &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}}
+      &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export
+      RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name
+      {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task
+      "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}}
+      --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}}
+      --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path
+      is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {%
+      if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif
+      %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}}
+      {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template
+      "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template
+      is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{%
+      endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name
+      {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}}
+      --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif
+      %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}}
+      {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}}
+      {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split
+      {{config.params.extra.eval_split}} {% endif %}'
+    framework_name: mteb
+    pkg_name: mteb
+    config:
+      params:
+        max_retries: 10
+        parallelism: 20
+        task: nvidia_earnings_v2_text
+        request_timeout: 300
+        extra:
+          query_prompt_template: null
+          document_prompt_template: null
+          ranker:
+            model_id: null
+            url: null
+            api_key: null
+            endpoint_type: nim
+          top_k: 40
+          truncate: END
+          batch_size: 128
+          eval_split: test
+          dataset_path: null
+          cache_path: null
+          args: null
+          version_lite: null
+          language: null
+      supported_endpoint_types:
+      - embedding
+      type: nvidia_earnings_v2_text
+    target:
+      api_endpoint: {}
+- name: nvidia_earnings_v2
+  description: NVIDIA Internal - Earnings V2 Multimodal Retrieval
+  harness: mteb
+  defaults:
+    command: '{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}}
+      &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}}
+      &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export
+      RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name
+      {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task
+      "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}}
+      --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}}
+      --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path
+      is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {%
+      if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif
+      %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}}
+      {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template
+      "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template
+      is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{%
+      endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name
+      {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}}
+      --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif
+      %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}}
+      {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}}
+      {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split
+      {{config.params.extra.eval_split}} {% endif %}'
+    framework_name: mteb
+    pkg_name: mteb
+    config:
+      params:
+        max_retries: 10
+        parallelism: 20
+        task: nvidia_earnings_v2
+        request_timeout: 300
+        extra:
+          query_prompt_template: null
+          document_prompt_template: null
+          ranker:
+            model_id: null
+            url: null
+            api_key: null
+            endpoint_type: nim
+          top_k: 40
+          truncate: END
+          batch_size: 128
+          eval_split: test
+          dataset_path: null
+          cache_path: null
+          args: null
+          version_lite: null
+          language: null
+      supported_endpoint_types:
+      - embedding
+      type: nvidia_earnings_v2
+    target:
+      api_endpoint: {}
+- name: nvidia_vidore_v1_text
+  description: NVIDIA Internal - ViDoReV1 Text Retrieval
+  harness: mteb
+  defaults:
+    command: '{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}}
+      &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}}
+      &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export
+      RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name
+      {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task
+      "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}}
+      --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}}
+      --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path
+      is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {%
+      if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif
+      %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}}
+      {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template
+      "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template
+      is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{%
+      endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name
+      {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}}
+      --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif
+      %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}}
+      {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}}
+      {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split
+      {{config.params.extra.eval_split}} {% endif %}'
+    framework_name: mteb
+    pkg_name: mteb
+    config:
+      params:
+        max_retries: 10
+        parallelism: 20
+        task: NVIDIA ViDoRe V1 (Text)
+        request_timeout: 300
+        extra:
+          query_prompt_template: null
+          document_prompt_template: null
+          ranker:
+            model_id: null
+            url: null
+            api_key: null
+            endpoint_type: nim
+          top_k: 40
+          truncate: END
+          batch_size: 128
+          eval_split: test
+          dataset_path: null
+          cache_path: null
+          args: null
+          version_lite: null
+          language: null
+      supported_endpoint_types:
+      - embedding
+      type: nvidia_vidore_v1_text
+    target:
+      api_endpoint: {}
+- name: nvidia_vidore_v2_text
+  description: NVIDIA Internal - ViDoReV2 Text Retrieval
+  harness: mteb
+  defaults:
+    command: '{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}}
+      &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}}
+      &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export
+      RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name
+      {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task
+      "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}}
+      --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}}
+      --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path
+      is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {%
+      if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif
+      %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}}
+      {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template
+      "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template
+      is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{%
+      endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name
+      {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}}
+      --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif
+      %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}}
+      {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}}
+      {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split
+      {{config.params.extra.eval_split}} {% endif %}'
+    framework_name: mteb
+    pkg_name: mteb
+    config:
+      params:
+        max_retries: 10
+        parallelism: 20
+        task: NVIDIA ViDoRe V2 (Text)
+        request_timeout: 300
+        extra:
+          query_prompt_template: null
+          document_prompt_template: null
+          ranker:
+            model_id: null
+            url: null
+            api_key: null
+            endpoint_type: nim
+          top_k: 40
+          truncate: END
+          batch_size: 128
+          eval_split: test
+          dataset_path: null
+          cache_path: null
+          args: null
+          version_lite: null
+          language: null
+      supported_endpoint_types:
+      - embedding
+      type: nvidia_vidore_v2_text
+    target:
+      api_endpoint: {}
+- name: nvidia_vidore_v3_text
+  description: NVIDIA Internal - ViDoReV3 Text Retrieval
+  harness: mteb
+  defaults:
+    command: '{% if target.api_endpoint.api_key_name is not none %}export API_TOKEN=${{target.api_endpoint.api_key_name}}
+      &&{% endif %} {% if config.params.extra.dataset_path is not none %} export MTEB_INTERNAL_DATASET_PATH={{config.params.extra.dataset_path}}
+      &&{% endif %} {% if config.params.extra.ranker.api_key is not none %}export
+      RANKER_API_TOKEN=${{config.params.extra.ranker.api_key}} &&{% endif %} mteb  --encoder_name
+      {{target.api_endpoint.model_id}} --encoder_url {{target.api_endpoint.url}} --task
+      "{{config.params.task}}" --workdir {{config.output_dir}} --batch_size {{config.params.extra.batch_size}}
+      --async_limit {{config.params.parallelism}} --max_retries {{config.params.max_retries}}
+      --request_timeout {{config.params.request_timeout}} {% if config.params.extra.cache_path
+      is not none %} --cache_path {{config.params.extra.cache_path}}{% endif %} {%
+      if config.params.extra.args is not none %} {{config.params.extra.args}} {% endif
+      %} {% if config.params.extra.language is not none %} --langs {{config.params.extra.language}}
+      {% endif %} {% if config.params.extra.query_prompt_template is not none %} --query_prompt_template
+      "{{config.params.extra.query_prompt_template}}"{% endif %} {% if config.params.extra.document_prompt_template
+      is not none %} --document_prompt_template "{{config.params.extra.document_prompt_template}}"{%
+      endif %} {% if config.params.extra.ranker.model_id is not none %} --ranker_name
+      {{config.params.extra.ranker.model_id}} --ranker_url {{config.params.extra.ranker.url}}
+      --ranker_endpoint_type {{config.params.extra.ranker.endpoint_type}}{% endif
+      %} --truncate {{config.params.extra.truncate}} --top_k {{config.params.extra.top_k}}
+      {% if config.params.extra.version_lite is not none%} --version_lite {{config.params.extra.version_lite}}
+      {% endif %} {% if config.params.extra.eval_split is not none %} --eval_split
+      {{config.params.extra.eval_split}} {% endif %}'
+    framework_name: mteb
+    pkg_name: mteb
+    config:
+      params:
+        max_retries: 10
+        parallelism: 20
+        task: NVIDIA ViDoRe V3 (Text)
+        request_timeout: 300
+        extra:
+          query_prompt_template: null
+          document_prompt_template: null
+          ranker:
+            model_id: null
+            url: null
+            api_key: null
+            endpoint_type: nim
+          top_k: 40
+          truncate: END
+          batch_size: 128
+          eval_split: test
+          dataset_path: null
+          cache_path: null
+          args: null
+          version_lite: null
+          language: null
+      supported_endpoint_types:
+      - embedding
+      type: nvidia_vidore_v3_text
+    target:
+      api_endpoint: {}
 - name: aa_lcr
   description: A challenging benchmark measuring language models' ability to extract,
     reason about, and synthesize information from long-form documents ranging from
@@ -21768,3 +22381,191 @@ tasks:
       type: aa_lcr
     target:
       api_endpoint: {}
+- name: nemo_gym_aime2024
+  description: AIME 2024 (30 problems, typically scored as mean@32)
+  harness: nemo_gym
+  defaults:
+    command: nemo-gym-eval --benchmark {{config.params.task}} --agent-name {{config.params.task}}_simple_agent
+      --target-url {{target.api_endpoint.url}} --target-model {{target.api_endpoint.model_id}}
+      --endpoint-type chat {% if target.api_endpoint.api_key_name is not none %}--target-api-key-name
+      {{target.api_endpoint.api_key_name}}{% endif %} --input-jsonl {{config.output_dir}}/data/{{config.params.extra.input_jsonl}}
+      --output-dir {{config.output_dir}} {% if config.params.limit_samples is not
+      none %}--limit {{config.params.limit_samples}}{% endif %} {% if config.params.extra.num_repeats
+      is not none %}--num-repeats {{config.params.extra.num_repeats}}{% endif %} {%
+      if config.params.parallelism is not none %}--parallelism {{config.params.parallelism}}{%
+      endif %} {% if config.params.temperature is not none %}--temperature {{config.params.temperature}}{%
+      endif %} {% if config.params.max_new_tokens is not none %}--max-new-tokens {{config.params.max_new_tokens}}{%
+      endif %} {% if config.params.extra.uses_reasoning_parser %}--uses-reasoning-parser{%
+      endif %} {% if config.params.extra.replace_developer_role_with_system %}--replace-developer-role-with-system{%
+      endif %} {% if config.params.extra.use_judge %}--use-judge --judge-url {{config.params.extra.judge.url}}
+      --judge-model {{config.params.extra.judge.model_id}} {% if config.params.extra.judge.api_key
+      is not none %}--judge-api-key-name {{config.params.extra.judge.api_key}}{% endif
+      %} {% endif %} {% if config.params.extra.hf_repo_id is not none %}--hf-repo-id
+      {{config.params.extra.hf_repo_id}}{% endif %} {% if config.params.extra.hf_artifact
+      is not none %}--hf-artifact {{config.params.extra.hf_artifact}}{% endif %} {%
+      if config.params.extra.hf_split is not none %}--hf-split {{config.params.extra.hf_split}}{%
+      endif %}
+    framework_name: nemo_gym
+    pkg_name: nemo_gym
+    config:
+      params:
+        parallelism: 16
+        task: math_with_judge
+        extra:
+          input_jsonl: aime24_validation.jsonl
+          num_repeats: 32
+          uses_reasoning_parser: false
+          replace_developer_role_with_system: false
+          use_judge: false
+          hf_repo_id: nvidia/Nemotron-RL-math-OpenMathReasoning
+          hf_artifact: validation.jsonl
+          hf_split: null
+          judge:
+            url: null
+            model_id: null
+            api_key: null
+      supported_endpoint_types:
+      - chat
+      type: nemo_gym_aime2024
+    target: {}
+- name: nemo_gym_mcqa
+  description: Multi-Choice Question Answering (GPQA-style)
+  harness: nemo_gym
+  defaults:
+    command: nemo-gym-eval --benchmark {{config.params.task}} --agent-name {{config.params.task}}_simple_agent
+      --target-url {{target.api_endpoint.url}} --target-model {{target.api_endpoint.model_id}}
+      --endpoint-type chat {% if target.api_endpoint.api_key_name is not none %}--target-api-key-name
+      {{target.api_endpoint.api_key_name}}{% endif %} --input-jsonl {{config.output_dir}}/data/{{config.params.extra.input_jsonl}}
+      --output-dir {{config.output_dir}} {% if config.params.limit_samples is not
+      none %}--limit {{config.params.limit_samples}}{% endif %} {% if config.params.extra.num_repeats
+      is not none %}--num-repeats {{config.params.extra.num_repeats}}{% endif %} {%
+      if config.params.parallelism is not none %}--parallelism {{config.params.parallelism}}{%
+      endif %} {% if config.params.temperature is not none %}--temperature {{config.params.temperature}}{%
+      endif %} {% if config.params.max_new_tokens is not none %}--max-new-tokens {{config.params.max_new_tokens}}{%
+      endif %} {% if config.params.extra.uses_reasoning_parser %}--uses-reasoning-parser{%
+      endif %} {% if config.params.extra.replace_developer_role_with_system %}--replace-developer-role-with-system{%
+      endif %} {% if config.params.extra.use_judge %}--use-judge --judge-url {{config.params.extra.judge.url}}
+      --judge-model {{config.params.extra.judge.model_id}} {% if config.params.extra.judge.api_key
+      is not none %}--judge-api-key-name {{config.params.extra.judge.api_key}}{% endif
+      %} {% endif %} {% if config.params.extra.hf_repo_id is not none %}--hf-repo-id
+      {{config.params.extra.hf_repo_id}}{% endif %} {% if config.params.extra.hf_artifact
+      is not none %}--hf-artifact {{config.params.extra.hf_artifact}}{% endif %} {%
+      if config.params.extra.hf_split is not none %}--hf-split {{config.params.extra.hf_split}}{%
+      endif %}
+    framework_name: nemo_gym
+    pkg_name: nemo_gym
+    config:
+      params:
+        parallelism: 16
+        task: mcqa
+        extra:
+          input_jsonl: mcqa_train.jsonl
+          num_repeats: null
+          uses_reasoning_parser: false
+          replace_developer_role_with_system: false
+          use_judge: false
+          hf_repo_id: nvidia/Nemotron-RL-knowledge-mcqa
+          hf_artifact: null
+          hf_split: train
+          judge:
+            url: null
+            model_id: null
+            api_key: null
+      supported_endpoint_types:
+      - chat
+      type: nemo_gym_mcqa
+    target: {}
+- name: nemo_gym_instruction_following
+  description: Instruction-following evaluation (IFEval-style constraints)
+  harness: nemo_gym
+  defaults:
+    command: nemo-gym-eval --benchmark {{config.params.task}} --agent-name {{config.params.task}}_simple_agent
+      --target-url {{target.api_endpoint.url}} --target-model {{target.api_endpoint.model_id}}
+      --endpoint-type chat {% if target.api_endpoint.api_key_name is not none %}--target-api-key-name
+      {{target.api_endpoint.api_key_name}}{% endif %} --input-jsonl {{config.output_dir}}/data/{{config.params.extra.input_jsonl}}
+      --output-dir {{config.output_dir}} {% if config.params.limit_samples is not
+      none %}--limit {{config.params.limit_samples}}{% endif %} {% if config.params.extra.num_repeats
+      is not none %}--num-repeats {{config.params.extra.num_repeats}}{% endif %} {%
+      if config.params.parallelism is not none %}--parallelism {{config.params.parallelism}}{%
+      endif %} {% if config.params.temperature is not none %}--temperature {{config.params.temperature}}{%
+      endif %} {% if config.params.max_new_tokens is not none %}--max-new-tokens {{config.params.max_new_tokens}}{%
+      endif %} {% if config.params.extra.uses_reasoning_parser %}--uses-reasoning-parser{%
+      endif %} {% if config.params.extra.replace_developer_role_with_system %}--replace-developer-role-with-system{%
+      endif %} {% if config.params.extra.use_judge %}--use-judge --judge-url {{config.params.extra.judge.url}}
+      --judge-model {{config.params.extra.judge.model_id}} {% if config.params.extra.judge.api_key
+      is not none %}--judge-api-key-name {{config.params.extra.judge.api_key}}{% endif
+      %} {% endif %} {% if config.params.extra.hf_repo_id is not none %}--hf-repo-id
+      {{config.params.extra.hf_repo_id}}{% endif %} {% if config.params.extra.hf_artifact
+      is not none %}--hf-artifact {{config.params.extra.hf_artifact}}{% endif %} {%
+      if config.params.extra.hf_split is not none %}--hf-split {{config.params.extra.hf_split}}{%
+      endif %}
+    framework_name: nemo_gym
+    pkg_name: nemo_gym
+    config:
+      params:
+        parallelism: 16
+        task: instruction_following
+        extra:
+          input_jsonl: instruction_following.jsonl
+          num_repeats: null
+          uses_reasoning_parser: false
+          replace_developer_role_with_system: false
+          use_judge: false
+          hf_repo_id: nvidia/Nemotron-RL-instruction_following
+          hf_artifact: instruction_following.jsonl
+          hf_split: null
+          judge:
+            url: null
+            model_id: null
+            api_key: null
+      supported_endpoint_types:
+      - chat
+      type: nemo_gym_instruction_following
+    target: {}
+- name: nemo_gym_aime2024_judge
+  description: AIME 2024 with LLM-as-judge fallback for ambiguous answers
+  harness: nemo_gym
+  defaults:
+    command: nemo-gym-eval --benchmark {{config.params.task}} --agent-name {{config.params.task}}_simple_agent
+      --target-url {{target.api_endpoint.url}} --target-model {{target.api_endpoint.model_id}}
+      --endpoint-type chat {% if target.api_endpoint.api_key_name is not none %}--target-api-key-name
+      {{target.api_endpoint.api_key_name}}{% endif %} --input-jsonl {{config.output_dir}}/data/{{config.params.extra.input_jsonl}}
+      --output-dir {{config.output_dir}} {% if config.params.limit_samples is not
+      none %}--limit {{config.params.limit_samples}}{% endif %} {% if config.params.extra.num_repeats
+      is not none %}--num-repeats {{config.params.extra.num_repeats}}{% endif %} {%
+      if config.params.parallelism is not none %}--parallelism {{config.params.parallelism}}{%
+      endif %} {% if config.params.temperature is not none %}--temperature {{config.params.temperature}}{%
+      endif %} {% if config.params.max_new_tokens is not none %}--max-new-tokens {{config.params.max_new_tokens}}{%
+      endif %} {% if config.params.extra.uses_reasoning_parser %}--uses-reasoning-parser{%
+      endif %} {% if config.params.extra.replace_developer_role_with_system %}--replace-developer-role-with-system{%
+      endif %} {% if config.params.extra.use_judge %}--use-judge --judge-url {{config.params.extra.judge.url}}
+      --judge-model {{config.params.extra.judge.model_id}} {% if config.params.extra.judge.api_key
+      is not none %}--judge-api-key-name {{config.params.extra.judge.api_key}}{% endif
+      %} {% endif %} {% if config.params.extra.hf_repo_id is not none %}--hf-repo-id
+      {{config.params.extra.hf_repo_id}}{% endif %} {% if config.params.extra.hf_artifact
+      is not none %}--hf-artifact {{config.params.extra.hf_artifact}}{% endif %} {%
+      if config.params.extra.hf_split is not none %}--hf-split {{config.params.extra.hf_split}}{%
+      endif %}
+    framework_name: nemo_gym
+    pkg_name: nemo_gym
+    config:
+      params:
+        parallelism: 16
+        task: math_with_judge
+        extra:
+          input_jsonl: aime24_validation.jsonl
+          num_repeats: 32
+          uses_reasoning_parser: false
+          replace_developer_role_with_system: false
+          use_judge: true
+          hf_repo_id: nvidia/Nemotron-RL-math-OpenMathReasoning
+          hf_artifact: validation.jsonl
+          hf_split: null
+          judge:
+            url: https://inference-api.nvidia.com/v1
+            model_id: azure/openai/gpt-4.1
+            api_key: JUDGE_API_KEY
+      supported_endpoint_types:
+      - chat
+      type: nemo_gym_aime2024_judge
+    target: {}

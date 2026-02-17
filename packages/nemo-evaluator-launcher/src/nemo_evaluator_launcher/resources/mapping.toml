@@ -112,3 +112,7 @@ container = "nvcr.io/nvidia/eval-factory/mteb:26.01"
 [aa-lcr]
 container = "nvcr.io/nvidia/eval-factory/aa-lcr:26.01"
 # container-digest:sha256:67dd35302ed15610afc9471a2ff4f515d95a235753f1b259db60748249366939
+
+[nemo_gym]
+container = "gitlab-master.nvidia.com:5005/dl/joc/competitive_evaluation/nvidia-core-evals/ci-llm/nemo-gym:dev-2026-02-13T18-03-4bb112d3"
+# container-digest:sha256:ebdf30767b0e7e5a70e39f37da7f90157f453849de8477d245ee16cbe1f654fa
