@@ -295,8 +295,16 @@ def _resume_slurm(db: ExecutionDB, jobs: Dict[str, JobData]) -> None:
         username = job.data["username"]
         remote_dir = job.data["remote_rundir_path"]
 
-        # sbatch the run.sub script on the remote host
-        sbatch_cmd = f"cd {remote_dir} && sbatch run.sub"
+        # Clean up stale auto-resume state before resubmitting:
+        # - Remove .slurm_job_id.list so nel status doesn't read the old chain
+        #   and incorrectly report the previous job's status while the new job is pending.
+        #   The script itself will append the new SLURM job ID when it starts.
+        # - Reset .accumulated_walltime so the max_walltime clock starts fresh.
+        sbatch_cmd = (
+            f"cd {remote_dir}"
+            f" && rm -f .slurm_job_id.list .accumulated_walltime"
+            f" && sbatch run.sub"
+        )
         ssh_command = f"ssh {username}@{hostname} {shlex.quote(sbatch_cmd)}"
 
         logger.info(f"Submitting sbatch for {remote_dir}", cmd=ssh_command)
