@@ -166,6 +166,11 @@ def resume_eval(invocation_id: str) -> str:
         FileNotFoundError: If run scripts no longer exist on disk.
         RuntimeError: If script execution fails immediately.
     """
+    import platform
+    import shlex
+    import subprocess
+    import time
+
     from nemo_evaluator_launcher.common.logging_utils import logger
 
     db = ExecutionDB()
@@ -178,164 +183,56 @@ def resume_eval(invocation_id: str) -> str:
         )
 
     first_job = next(iter(jobs.values()))
-    executor = first_job.executor
+    executor_cls = get_executor(first_job.executor)
     resolved_id = first_job.invocation_id
 
     logger.info(
         f"Resuming invocation {resolved_id}",
         num_jobs=len(jobs),
-        executor=executor,
+        executor=first_job.executor,
     )
 
-    if executor == "local":
-        _resume_local(db, jobs)
-    elif executor == "slurm":
-        _resume_slurm(db, jobs)
-    else:
-        raise ValueError(
-            f"Resume not supported for executor '{executor}'. "
-            f"Only 'local' and 'slurm' executors are supported."
-        )
-
-    logger.info(f"Resumed invocation {resolved_id} successfully")
-    return resolved_id
-
-
-def _resume_local(db: ExecutionDB, jobs: Dict[str, JobData]) -> None:
-    """Resume local executor jobs by re-executing bash scripts.
-
-    Each job's ``data["output_dir"]`` points to the *task-level* directory
-    (e.g. ``<timestamp>-<invocation_id>/<task_name>/``).  The invocation-level
-    parent may contain ``run_all.sequential.sh`` for sequential mode.
-    """
-    import platform
-    import shlex
-    import subprocess
-    import time
-
-    from nemo_evaluator_launcher.common.logging_utils import logger
-
-    # output_dir is the task dir; parent is the invocation dir
-    any_task_dir = Path(next(iter(jobs.values())).data["output_dir"])
-    invocation_dir = any_task_dir.parent
-
-    os_name = platform.system()
-    processes: list[tuple[str, subprocess.Popen, Path]] = []
-
-    # Sequential mode: a single run_all.sequential.sh in the invocation dir
-    if (invocation_dir / "run_all.sequential.sh").exists():
-        logger.info("Detected sequential mode, executing run_all.sequential.sh")
-        if os_name == "Windows":
-            proc = subprocess.Popen(
-                shlex.split("bash run_all.sequential.sh"),
-                cwd=invocation_dir,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
-            )
-        else:
-            proc = subprocess.Popen(
-                shlex.split("bash run_all.sequential.sh"),
-                cwd=invocation_dir,
-                start_new_session=True,
-            )
-        processes.append(("run_all.sequential.sh", proc, invocation_dir))
-        for job in jobs.values():
-            job.data["resumed_at"] = time.time()
-            db.write_job(job)
-    else:
-        # Parallel mode: re-run each task's run.sh
-        for job in jobs.values():
-            task_dir = Path(job.data["output_dir"])
-            if not (task_dir / "run.sh").exists():
-                raise FileNotFoundError(f"run.sh not found in {task_dir}")
-            logger.info(f"Executing {task_dir.name}/run.sh")
+    # Local sequential mode: run_all.sequential.sh instead of per-job resume
+    if first_job.executor == "local":
+        any_task_dir = Path(next(iter(jobs.values())).data["output_dir"])
+        invocation_dir = any_task_dir.parent
+        if (invocation_dir / "run_all.sequential.sh").exists():
+            logger.info("Detected sequential mode, executing run_all.sequential.sh")
+            os_name = platform.system()
             if os_name == "Windows":
                 proc = subprocess.Popen(
-                    shlex.split("bash run.sh"),
-                    cwd=task_dir,
+                    shlex.split("bash run_all.sequential.sh"),
+                    cwd=invocation_dir,
                     creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
                 )
             else:
                 proc = subprocess.Popen(
-                    shlex.split("bash run.sh"),
-                    cwd=task_dir,
+                    shlex.split("bash run_all.sequential.sh"),
+                    cwd=invocation_dir,
                     start_new_session=True,
                 )
-            processes.append((f"{task_dir.name}/run.sh", proc, task_dir))
-            job.data["resumed_at"] = time.time()
-            db.write_job(job)
+            for job in jobs.values():
+                job.data["resumed_at"] = time.time()
+                db.write_job(job)
 
-    # Check for immediate startup failures (same pattern as local executor)
-    time.sleep(0.3)
-    for script_name, proc, cwd in processes:
-        exit_code = proc.poll()
-        if exit_code is not None and exit_code != 0:
-            raise RuntimeError(
-                f"Script {script_name} failed immediately with exit code {exit_code}. "
-                f"Check logs in {cwd}/logs/"
-            )
+            # Check for immediate startup failure
+            time.sleep(0.3)
+            exit_code = proc.poll()
+            if exit_code is not None and exit_code != 0:
+                raise RuntimeError(
+                    f"Script run_all.sequential.sh failed immediately with exit code {exit_code}. "
+                    f"Check logs in {invocation_dir}/logs/"
+                )
 
+            logger.info(f"Resumed invocation {resolved_id} successfully")
+            return resolved_id
 
-def _resume_slurm(db: ExecutionDB, jobs: Dict[str, JobData]) -> None:
-    """Resume SLURM executor jobs by resubmitting sbatch scripts via SSH.
+    # Standard per-job resume
+    for job_id in jobs:
+        executor_cls.resume_job(job_id)
 
-    Uses the same SSH pattern as the SLURM executor (raw ``ssh`` subprocess
-    calls).  After each successful ``sbatch``, updates the ExecDB entry with
-    the new SLURM job ID so that ``nel status`` and ``nel kill`` target the
-    resumed job.
-    """
-    import re
-    import shlex
-    import subprocess
-    import time
-
-    from nemo_evaluator_launcher.common.logging_utils import logger
-
-    for job in jobs.values():
-        hostname = job.data["hostname"]
-        username = job.data["username"]
-        remote_dir = job.data["remote_rundir_path"]
-
-        # Clean up stale auto-resume state before resubmitting:
-        # - Remove .slurm_job_id.list so nel status doesn't read the old chain
-        #   and incorrectly report the previous job's status while the new job is pending.
-        #   The script itself will append the new SLURM job ID when it starts.
-        # - Reset .accumulated_walltime so the max_walltime clock starts fresh.
-        sbatch_cmd = (
-            f"cd {remote_dir}"
-            f" && rm -f .slurm_job_id.list .accumulated_walltime"
-            f" && sbatch run.sub"
-        )
-        ssh_command = f"ssh {username}@{hostname} {shlex.quote(sbatch_cmd)}"
-
-        logger.info(f"Submitting sbatch for {remote_dir}", cmd=ssh_command)
-        completed = subprocess.run(
-            shlex.split(ssh_command),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-
-        if completed.returncode != 0:
-            error_msg = (
-                completed.stderr.decode("utf-8")
-                if completed.stderr
-                else "Unknown error"
-            )
-            raise RuntimeError(f"sbatch failed for {remote_dir}: {error_msg}")
-
-        stdout = completed.stdout.decode("utf-8")
-        match = re.search(r"Submitted batch job (\d+)", stdout)
-        if not match:
-            raise RuntimeError(
-                f"Could not parse SLURM job ID from sbatch output: {stdout}"
-            )
-
-        new_slurm_job_id = match.group(1)
-        logger.info(f"Submitted {job.job_id} as SLURM job {new_slurm_job_id}")
-
-        # Update ExecDB so nel status/kill target the new SLURM job
-        job.data["slurm_job_id"] = new_slurm_job_id
-        job.data["resumed_at"] = time.time()
-        db.write_job(job)
+    logger.info(f"Resumed invocation {resolved_id} successfully")
+    return resolved_id
 
 
 def get_status(ids_or_prefixes: list[str]) -> list[dict[str, Any]]:
