@@ -104,7 +104,7 @@ def parse_env_var_value(raw: str) -> EnvVarValue:
     raise ValueError(
         f"Env var value '{raw}' must have an explicit prefix. "
         f"Use '{suggestion}' instead. "
-        f"Run the migration script: python scripts/migrate_config.py your_config.yaml"
+        f"Run the migration tool: nel-migrate-config your_config.yaml"
     )
 
 
