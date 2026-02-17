@@ -40,9 +40,6 @@ execution:
   hostname: ???  # SLURM headnode hostname (required)
   account: ???  # SLURM account (required)
   output_dir: ???  # ABSOLUTE path on cluster (required)
-  env_vars:
-    deployment:
-      NGC_API_KEY: "$host:NGC_API_KEY"  # Required for NIM container authentication
   mounts:
     deployment:
       # Replace /path/to/nim/cache with the absolute path to the NIM cache directory on the cluster
@@ -52,10 +49,11 @@ execution:
 deployment:
   image: nvcr.io/nim/meta/llama-3.2-1b-instruct:latest
   served_model_name: meta/llama-3.2-1b-instruct
+  env_vars:
+    NGC_API_KEY: $host:NGC_API_KEY
 
 # Specify the benchmarks to evaluate
 evaluation:
   tasks:
     - name: lm-evaluation-harness.ifeval
     - name: gsm8k
-

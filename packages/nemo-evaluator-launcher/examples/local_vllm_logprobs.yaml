@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 # How to use:
 #
 # 1. copy this file locally or clone the repository
@@ -34,11 +33,6 @@ defaults:
 
 execution:
   output_dir: llama_local
-  env_vars:
-    deployment:
-      HF_TOKEN: "$host:HF_TOKEN"  # needed to access meta-llama/Llama-3.1-8B gated model
-
-# specify deployment arguments
 deployment:
   checkpoint_path: null
   hf_model_handle: meta-llama/Llama-3.1-8B
@@ -46,6 +40,8 @@ deployment:
   tensor_parallel_size: 1
   data_parallel_size: 1
   extra_args: "--max-model-len 32768"
+  env_vars:
+    HF_TOKEN: $host:HF_TOKEN
 
 # specify the benchmarks to evaluate
 evaluation:
@@ -60,6 +56,6 @@ evaluation:
           tokenizer: meta-llama/Llama-3.1-8B  # or use a path to locally stored checkpoint
           tokenizer_backend: huggingface      # or "tiktoken"
   env_vars:
-      HF_TOKEN: HF_TOKEN  # needed to access the tokenizer on the client side
+      HF_TOKEN: $host:HF_TOKEN  # needed to access the tokenizer on the client side
   tasks:
     - name: piqa
