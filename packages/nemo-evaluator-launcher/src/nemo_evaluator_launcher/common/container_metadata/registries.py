@@ -30,10 +30,22 @@ from nemo_evaluator_launcher.common.logging_utils import logger
 
 
 def _get_docker_config_path() -> pathlib.Path:
-    """Return the effective Docker `config.json` path.
+    """Return the effective container runtime config path (Docker or Podman).
 
-    Respects `DOCKER_CONFIG` if set; otherwise defaults to `~/.docker/config.json`.
+    Uses ContainerRuntime to detect available runtime and returns appropriate config path.
+    Falls back to Docker config if runtime detection fails.
     """
+    try:
+        from nemo_evaluator_launcher.common.container_runtime import ContainerRuntime
+
+        runtime = ContainerRuntime()
+        config_path = runtime.get_config_path()
+        if config_path:
+            return pathlib.Path(config_path)
+    except Exception:
+        pass  # Fall back to Docker config
+
+    # Fallback to Docker config
     docker_config_dir = os.getenv("DOCKER_CONFIG")
     if docker_config_dir:
         return pathlib.Path(docker_config_dir) / "config.json"
@@ -333,7 +345,7 @@ def _read_docker_credentials_detailed(
 
 
 def _read_docker_credentials(registry_url: str) -> Optional[Tuple[str, str]]:
-    """Read Docker credentials from Docker config file.
+    """Read container credentials from Docker or Podman config file.
 
     Docker stores credentials in ~/.docker/config.json with format:
     {
@@ -344,6 +356,8 @@ def _read_docker_credentials(registry_url: str) -> Optional[Tuple[str, str]]:
       }
     }
 
+    Podman stores credentials in ~/.config/containers/auth.json with the same format.
+
     Args:
         registry_url: Registry URL to look up credentials for
 
@@ -351,7 +365,86 @@ def _read_docker_credentials(registry_url: str) -> Optional[Tuple[str, str]]:
         Tuple of (username, password) if found, None otherwise
     """
     creds, _source = _read_docker_credentials_detailed(registry_url)
-    return creds
+    if creds:
+        return creds
+
+    # If using Podman, also check Docker config as fallback
+    docker_config_path = _get_docker_config_path()
+    if "containers/auth.json" in str(docker_config_path):
+        docker_fallback = pathlib.Path.home() / ".docker" / "config.json"
+        if docker_fallback.exists():
+            logger.debug(
+                "Podman config had no credentials, checking Docker config fallback",
+                fallback_path=str(docker_fallback),
+            )
+            result = _read_credentials_from_config(docker_fallback, registry_url)
+            if result:
+                return result
+
+    return None
+
+
+def _read_credentials_from_config(
+    config_path: pathlib.Path, registry_url: str
+) -> Optional[Tuple[str, str]]:
+    """Read credentials from a specific config file.
+
+    Args:
+        config_path: Path to config file
+        registry_url: Registry URL to look up
+
+    Returns:
+        Tuple of (username, password) if found, None otherwise
+    """
+    if not config_path.exists():
+        logger.debug(
+            "Container config file not found", config_path=str(config_path)
+        )
+        return None
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+
+        auths = config.get("auths", {})
+        if not auths:
+            logger.debug("No auths section in config file", config_path=str(config_path))
+            return None
+
+        registry_auth, matched_key = _find_auth_in_config(auths, registry_url)
+        if not registry_auth:
+            return None
+
+        auth_string = registry_auth.get("auth")
+        if not auth_string:
+            return None
+
+        result = _decode_auth_string(auth_string, registry_url)
+        if result:
+            username, _ = result
+            logger.debug(
+                "Found credentials in config (inline auth)",
+                registry_url=registry_url,
+                username=username,
+                matched_key=matched_key or registry_url,
+                config_path=str(config_path),
+            )
+        return result
+
+    except json.JSONDecodeError as e:
+        logger.warning(
+            "Failed to parse config file",
+            config_path=str(config_path),
+            error=str(e),
+        )
+        return None
+    except Exception as e:
+        logger.warning(
+            "Error reading config file",
+            config_path=str(config_path),
+            error=str(e),
+        )
+        return None
 
 
 def _retry_without_auth(
