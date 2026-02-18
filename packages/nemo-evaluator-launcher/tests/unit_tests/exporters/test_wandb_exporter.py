@@ -72,6 +72,141 @@ class TestWandBExporter:
             assert len(skipped) == 1
             assert skipped[0] == "test1234.0"
 
+    def test_log_mode_per_task_creates_one_run_per_job(
+        self, monkeypatch, wandb_fake, tmp_path
+    ):
+        """per_task: one W&B run per job, identifier is invocation_id-task."""
+        _W, _Run = wandb_fake
+        create_calls = []
+
+        def capture_create(*, identifier, metrics, data, existing_run_id=None):
+            create_calls.append(
+                {
+                    "identifier": identifier,
+                    "metrics": metrics,
+                    "job_ids": [job_data.job_id for job_data in data],
+                }
+            )
+            return {"run_url": "http://wandb/run/123"}
+
+        data1 = DataForExport(
+            artifacts_dir=tmp_path / "a1",
+            logs_dir=None,
+            config={},
+            model_id="m",
+            metrics={"acc": 0.9},
+            harness="lm-eval",
+            task="mmlu",
+            container="c",
+            executor="local",
+            invocation_id="inv1",
+            job_id="inv1.0",
+            timestamp=0.0,
+            job_data={},
+        )
+        data2 = DataForExport(
+            artifacts_dir=tmp_path / "a2",
+            logs_dir=None,
+            config={},
+            model_id="m",
+            metrics={"f1": 0.8},
+            harness="lm-eval",
+            task="gsm8k",
+            container="c",
+            executor="local",
+            invocation_id="inv1",
+            job_id="inv1.1",
+            timestamp=0.0,
+            job_data={},
+        )
+        exp = WandBExporter(
+            {
+                "entity": "e",
+                "project": "p",
+                "log_mode": "per_task",
+                "log_artifacts": False,
+            }
+        )
+        monkeypatch.setattr(exp, "_create_wandb_run", capture_create, raising=False)
+
+        successful, failed, skipped = exp.export_jobs([data1, data2])
+
+        assert len(create_calls) == 2
+        assert create_calls[0]["identifier"] == "inv1-mmlu"
+        assert create_calls[0]["metrics"] == {"acc": 0.9}
+        assert create_calls[1]["identifier"] == "inv1-gsm8k"
+        assert create_calls[1]["metrics"] == {"f1": 0.8}
+        assert set(successful) == {"inv1.0", "inv1.1"}
+        assert len(failed) == 0
+        assert len(skipped) == 0
+
+    def test_log_mode_multi_task_creates_one_run_per_invocation(
+        self, monkeypatch, wandb_fake, tmp_path
+    ):
+        """multi_task: one W&B run per invocation with aggregated metrics."""
+        _W, _Run = wandb_fake
+        create_calls = []
+
+        def capture_create(*, identifier, metrics, data, existing_run_id=None):
+            create_calls.append(
+                {
+                    "identifier": identifier,
+                    "metrics": metrics,
+                    "job_ids": [job_data.job_id for job_data in data],
+                }
+            )
+            return {"run_url": "http://wandb/run/123"}
+
+        data1 = DataForExport(
+            artifacts_dir=tmp_path / "a1",
+            logs_dir=None,
+            config={},
+            model_id="m",
+            metrics={"acc": 0.9},
+            harness="lm-eval",
+            task="mmlu",
+            container="c",
+            executor="local",
+            invocation_id="inv2",
+            job_id="inv2.0",
+            timestamp=0.0,
+            job_data={},
+        )
+        data2 = DataForExport(
+            artifacts_dir=tmp_path / "a2",
+            logs_dir=None,
+            config={},
+            model_id="m",
+            metrics={"f1": 0.8},
+            harness="lm-eval",
+            task="gsm8k",
+            container="c",
+            executor="local",
+            invocation_id="inv2",
+            job_id="inv2.1",
+            timestamp=0.0,
+            job_data={},
+        )
+        exp = WandBExporter(
+            {
+                "entity": "e",
+                "project": "p",
+                "log_mode": "multi_task",
+                "log_artifacts": False,
+            }
+        )
+        monkeypatch.setattr(exp, "_check_existing_run", lambda *a, **k: None)
+        monkeypatch.setattr(exp, "_create_wandb_run", capture_create, raising=False)
+
+        successful, failed, skipped = exp.export_jobs([data1, data2])
+
+        assert len(create_calls) == 1
+        assert create_calls[0]["identifier"] == "inv2"
+        assert create_calls[0]["metrics"] == {"acc": 0.9, "f1": 0.8}
+        assert set(successful) == {"inv2.0", "inv2.1"}
+        assert len(failed) == 0
+        assert len(skipped) == 0
+
     @pytest.mark.parametrize("log_mode", ["per_task", "multi_task"])
     def test_export_jobs_ok(self, monkeypatch, wandb_fake, log_mode, tmp_path):
         _W, _Run = wandb_fake
