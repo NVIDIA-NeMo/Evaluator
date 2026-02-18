@@ -62,9 +62,9 @@ from nemo_evaluator.byob import benchmark, scorer
     endpoint_type="chat"
 )
 @scorer
-def simple_contains_scorer(response, target, metadata):
+def simple_contains_scorer(sample):
     """Returns True if target substring is in response (case-insensitive)."""
-    return {"correct": target.lower() in response.lower()}
+    return {"correct": sample.target.lower() in sample.response.lower()}
 ''')
 
         # Create temporary JSONL dataset with 3 samples
@@ -161,8 +161,8 @@ from nemo_evaluator.byob import benchmark, scorer
     endpoint_type="chat"
 )
 @scorer
-def contract_scorer(response, target, metadata):
-    return {"correct": target.lower() in response.lower()}
+def contract_scorer(sample):
+    return {"correct": sample.target.lower() in sample.response.lower()}
 ''')
 
         # Create temporary dataset

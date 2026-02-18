@@ -22,6 +22,7 @@ T070-T071 are fully automated scorer smoke tests.
 
 import pytest
 
+from nemo_evaluator.byob.decorators import ScorerInput
 from nemo_evaluator.byob.scorers import exact_match, contains
 
 
@@ -104,7 +105,7 @@ def test_built_in_scorer_smoke_test():
     Verifies that built-in scorers return dict with expected structure.
     """
     # Test exact_match
-    result = exact_match("test", "test", {})
+    result = exact_match(ScorerInput(response="test", target="test", metadata={}))
     assert isinstance(result, dict), (
         f"exact_match should return dict, got {type(result).__name__}"
     )
@@ -116,7 +117,7 @@ def test_built_in_scorer_smoke_test():
     )
 
     # Test contains
-    result = contains("hello world", "world", {})
+    result = contains(ScorerInput(response="hello world", target="world", metadata={}))
     assert isinstance(result, dict), (
         f"contains should return dict, got {type(result).__name__}"
     )
@@ -133,10 +134,10 @@ def test_custom_scorer_smoke_test_detects_wrong_type():
 
     Demonstrates how to detect a scorer that returns the wrong type.
     """
-    def bad_scorer(response, target, metadata):
+    def bad_scorer(sample):
         return "correct"  # BUG: returns string instead of dict
 
-    result = bad_scorer("test", "test", {})
+    result = bad_scorer("test")
     assert not isinstance(result, dict), (
         f"This test validates detection logic. "
         f"The bad_scorer incorrectly returns {type(result).__name__} instead of dict. "
@@ -144,10 +145,10 @@ def test_custom_scorer_smoke_test_detects_wrong_type():
     )
 
     # Good scorer for comparison
-    def good_scorer(response, target, metadata):
+    def good_scorer(sample):
         return {"correct": True}
 
-    result = good_scorer("test", "test", {})
+    result = good_scorer("test")
     assert isinstance(result, dict), (
         "good_scorer should return dict"
     )

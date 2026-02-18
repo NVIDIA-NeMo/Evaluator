@@ -45,8 +45,8 @@ from nemo_evaluator.byob import benchmark, scorer
 
 @benchmark(name="test-import", dataset="unused", prompt="Q: {q}\\nA:", target_field="a")
 @scorer
-def test_scorer(response, target, metadata):
-    return {"match": target in response}
+def test_scorer(sample):
+    return {"match": sample.target in sample.response}
 '''
         benchmark_file = tmp_path / "import_test.py"
         benchmark_file.write_text(code)
@@ -88,7 +88,7 @@ def test_scorer(response, target, metadata):
 
         @benchmark(name="polluted-bench", dataset="x", prompt="x", target_field="x")
         @scorer
-        def polluted(response, target, metadata):
+        def polluted(sample):
             return {}
 
         benchmarks_after_pollution = get_registered_benchmarks()
