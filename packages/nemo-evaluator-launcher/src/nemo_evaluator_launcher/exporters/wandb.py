@@ -95,16 +95,14 @@ class WandBExporter(BaseExporter):
                             continue
 
                         identifier = f"{data.invocation_id}-{data.task}"
-                        result = self._create_wandb_run(
+                        run_info = self._create_wandb_run(
                             identifier=identifier,
                             metrics=data.metrics,
-                            data=data,
-                            should_resume=False,
-                            existing_run_id=None,
+                            data=[data],
                         )
                         successful_jobs.append(data.job_id)
                         logger.info(
-                            f"Exported job {data.job_id} to W&B: {result.get('run_url')}"
+                            f"Exported job {data.job_id} to W&B: {run_info['run_url']}"
                         )
 
                     except Exception as e:
@@ -125,9 +123,12 @@ class WandBExporter(BaseExporter):
 
                 # Create one run per invocation
                 for invocation_id, inv_data_list in invocations.items():
+                    all_metrics = {}
                     try:
                         # Aggregate metrics from all jobs
-                        all_metrics = {}
+                        # FIXME(martas): we potentially override metrics here
+                        # if they have same name for different tasks
+
                         for data in inv_data_list:
                             if data.metrics:
                                 all_metrics.update(data.metrics)
@@ -140,23 +141,20 @@ class WandBExporter(BaseExporter):
                             continue
 
                         # Check if run exists
-                        should_resume, run_id = self._check_existing_run(
+                        run_id = self._check_existing_run(
                             invocation_id, inv_data_list[0]
                         )
 
                         # Use first job data as template
-                        first_data = inv_data_list[0]
                         result = self._create_wandb_run(
                             identifier=invocation_id,
                             metrics=all_metrics,
-                            data=first_data,
-                            should_resume=should_resume,
+                            data=inv_data_list,
                             existing_run_id=run_id,
-                            all_data=inv_data_list,  # Pass all data for multi_task mode
                         )
                         successful_jobs.extend([d.job_id for d in inv_data_list])
                         logger.info(
-                            f"Exported invocation {invocation_id} to W&B: {result.get('run_url')}"
+                            f"Exported invocation {invocation_id} to W&B: {result['run_url']}"
                         )
 
                     except Exception as e:
@@ -184,6 +182,9 @@ class WandBExporter(BaseExporter):
 
         try:
             artifacts_dir = data.artifacts_dir
+            if not artifacts_dir.exists():
+                logger.error(f"Artifacts directory {artifacts_dir} does not exist")
+                return []
             logs_dir = data.logs_dir
             logged_names: List[str] = []
 
@@ -231,7 +232,10 @@ class WandBExporter(BaseExporter):
                     # Count items for logging
                     logged_names.extend([p.name for p in staged.iterdir()])
 
-            if self.config.get("log_logs", False) and logs_dir and logs_dir.exists():
+            if self.config.get("log_logs", False) and logs_dir:
+                if not logs_dir.exists():
+                    logger.error(f"Logs directory {logs_dir} does not exist")
+                    return logged_names
                 for p in logs_dir.rglob("*"):
                     if p.is_file():
                         rel = p.relative_to(logs_dir).as_posix()
@@ -243,9 +247,7 @@ class WandBExporter(BaseExporter):
             logger.error(f"Error logging artifacts: {e}")
             return []
 
-    def _check_existing_run(
-        self, identifier: str, data: DataForExport
-    ) -> tuple[bool, Optional[str]]:
+    def _check_existing_run(self, identifier: str, data: DataForExport) -> str | None:
         """Check if run exists based on webhook metadata then name patterns."""
         try:
             import wandb
@@ -258,8 +260,10 @@ class WandBExporter(BaseExporter):
                     "W&B requires 'entity' and 'project' to be configured. "
                     "Set export.wandb.entity and export.wandb.project fields in the config."
                 )
-                return False, None
+                return None
 
+            # FIXME(martas): I don't think this path is possible to reach
+            # as we never set these metadata for jobs
             # Check webhook metadata for run_id first
             webhook_meta = (data.job_data or {}).get("webhook_metadata", {})
             if (
@@ -270,7 +274,7 @@ class WandBExporter(BaseExporter):
                 try:
                     # Verify the run actually exists
                     run = api.run(f"{entity}/{project}/{webhook_meta['run_id']}")
-                    return True, run.id
+                    return run.id
                 except Exception:
                     pass
 
@@ -279,39 +283,50 @@ class WandBExporter(BaseExporter):
                 runs = api.runs(f"{entity}/{project}")
                 for run in runs:
                     if run.display_name == self.config["name"]:
-                        return True, run.id
+                        return run.id
 
             # Check default pattern
             default_run_name = f"eval-{identifier}"
             runs = api.runs(f"{entity}/{project}")
             for run in runs:
                 if run.display_name == default_run_name:
-                    return True, run.id
+                    return run.id
 
-            return False, None
+            return None
         except Exception:
-            return False, None
+            return None
 
     def _create_wandb_run(
         self,
         identifier: str,
         metrics: Dict[str, float],
-        data: DataForExport,
-        should_resume: bool,
-        existing_run_id: Optional[str],
-        all_data: Optional[List[DataForExport]] = None,
+        data: List[DataForExport],
+        existing_run_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create or resume W&B run for job(s)."""
         log_mode = self.config.get("log_mode", "per_task")
-        task_name = data.task
-        benchmark = data.task
-        harness = data.harness or "unknown"
+        if log_mode == "per_task" and len(data) > 1:
+            raise RuntimeError(
+                "Log mode 'per_task' does not support multiple data items"
+            )
+
+        invocation_id = {job_data.invocation_id for job_data in data}
+        if len(invocation_id) > 1:
+            raise RuntimeError(
+                f"Trying to create a W&B run with multiple invocation IDs: {list(invocation_id)}"
+            )
+        elif len(invocation_id) == 0:
+            raise RuntimeError("No invocation ID found in data")
+        invocation_id = invocation_id.pop()
+
+        executor = {job_data.executor for job_data in data}
+        executor = ", ".join(executor)
 
         if self.config.get("name"):
             run_name = self.config["name"]
         else:
             run_name = (
-                f"eval-{data.invocation_id}-{benchmark}"
+                f"eval-{data[0].invocation_id}-{data[0].task}"
                 if log_mode == "per_task"
                 else f"eval-{identifier}"
             )
@@ -320,7 +335,7 @@ class WandBExporter(BaseExporter):
             "entity": self.config.get("entity"),
             "project": self.config.get("project"),
             "name": run_name,
-            "group": self.config.get("group", data.invocation_id),
+            "group": self.config.get("group", invocation_id),
             "job_type": self.config.get("job_type", "evaluation"),
             "tags": self.config.get("tags"),
             "notes": self.config.get("description"),
@@ -331,23 +346,20 @@ class WandBExporter(BaseExporter):
             stable_id = self.config.get("run_id") or identifier  # invocation_id
             run_args["id"] = stable_id
             run_args["resume"] = "allow"
-        elif should_resume:
+        elif existing_run_id:
             run_args["id"] = existing_run_id
             run_args["resume"] = "allow"
 
         # Config metadata
-        exec_type = (data.config or {}).get("execution", {}).get(
-            "type"
-        ) or data.executor
         run_config = {
-            "invocation_id": data.invocation_id,
-            "executor": exec_type,
+            "invocation_id": invocation_id,
+            "executor": executor,
         }
 
         if log_mode == "per_task":
-            run_config["job_id"] = data.job_id
-            run_config["harness"] = harness
-            run_config["benchmark"] = benchmark
+            run_config["job_id"] = data[0].job_id
+            run_config["harness"] = data[0].harness
+            run_config["benchmark"] = data[0].task
 
         if self.config.get("triggered_by_webhook"):
             run_config.update(
@@ -366,11 +378,11 @@ class WandBExporter(BaseExporter):
         run = wandb.init(**{k: v for k, v in run_args.items() if v is not None})
 
         # In multi_task, aggregate lists after init (no overwrite)
-        if log_mode == "multi_task" and all_data:
+        if log_mode == "multi_task":
             try:
                 benchmarks = list(run.config.get("benchmarks", []))
                 harnesses = list(run.config.get("harnesses", []))
-                for d in all_data:
+                for d in data:
                     if d.task and d.task not in benchmarks:
                         benchmarks.append(d.task)
                     if d.harness and d.harness not in harnesses:
@@ -381,27 +393,32 @@ class WandBExporter(BaseExporter):
                 )
             except Exception:
                 pass
-
+            artifact_name = invocation_id
+            artifact_metadata = {
+                "invocation_id": invocation_id,
+            }
+            step_idx = 0
+        else:
+            artifact_name = f"{invocation_id}_{data[0].task}"
+            artifact_metadata = {
+                "invocation_id": invocation_id,
+                "task": data[0].task,
+                "benchmark": data[0].task,
+                "harness": data[0].harness,
+            }
+            step_idx = int(data[0].job_id.split(".")[-1])
         # Artifact naming
-        artifact_name = (
-            f"{data.invocation_id}_{benchmark}"
-            if log_mode == "per_task"
-            else data.invocation_id
-        )
         artifact = wandb.Artifact(
             name=artifact_name,
             type="evaluation_result",
             description="Evaluation results",
-            metadata={
-                "invocation_id": data.invocation_id,
-                "task": task_name,
-                "benchmark": benchmark,
-                "harness": harness,
-            },
+            metadata=artifact_metadata,
         )
 
         # Log artifacts from data
-        logged_artifacts = self._log_artifacts(data, artifact)
+        logged_artifacts = []
+        for job_data in data:
+            logged_artifacts.extend(self._log_artifacts(job_data, artifact))
 
         try:
             run.log_artifact(artifact)
@@ -409,30 +426,27 @@ class WandBExporter(BaseExporter):
             try:
                 for k in metrics.keys():
                     run.define_metric(k, summary="last")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Error defining metric {k} for run {run.id}: {e}")
 
+            # NOTE(martas): we use job ID (ie tasks order in the config)as step index here.
+            # This doesn't look right but I don't want to change existing behavior
             # Log metrics with per-task step
-            try:
-                step_idx = int(data.job_id.split(".")[-1])
-            except Exception:
-                step_idx = 0
             run.log(metrics, step=step_idx)
 
             # metrics summary
             try:
                 run.summary.update(metrics)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Error updating summary for run {run.id}: {e}")
         finally:
             try:
                 run.finish()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Error finishing run {run.id}: {e}")
 
         return {
             "run_id": run.id,
             "run_url": run.url,
-            "metrics_logged": len(metrics),
             "artifacts_logged": len(logged_artifacts),
         }
