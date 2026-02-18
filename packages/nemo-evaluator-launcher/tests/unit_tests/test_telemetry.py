@@ -366,7 +366,7 @@ class TestLocalExecutorTelemetryPropagation:
 
                 script_content = run_script.read_text()
                 assert (
-                    "NEMO_EVALUATOR_TELEMETRY_SESSION_ID=test-session-12345"
+                    "NEMO_EVALUATOR_TELEMETRY_SESSION_ID=test-session-12345"  # pragma: allowlist secret
                     in script_content
                 )
                 assert "NEMO_EVALUATOR_TELEMETRY_ENABLED=true" in script_content
