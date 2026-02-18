@@ -178,10 +178,7 @@ def run_eval(
         cfg.execution.get("auto_export") if hasattr(cfg, "execution") else None
     )
     if auto_export:
-        if isinstance(auto_export, list):
-            exporter_names = list(auto_export)
-        else:
-            exporter_names = list(auto_export.get("destinations", []) or [])
+        exporter_names = list(auto_export.get("destinations", []) or [])
 
     model_name = "unknown"
     if hasattr(cfg, "target") and hasattr(cfg.target, "api_endpoint"):
