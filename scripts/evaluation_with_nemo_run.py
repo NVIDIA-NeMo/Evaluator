@@ -45,6 +45,7 @@ python \
   --pipeline_model_parallel_size {pipeline_model_parallel_size} \
   --expert_model_parallel_size {expert_model_parallel_size} \
   --max_batch_size {max_batch_size} \
+  --inference_max_seq_length {inference_max_seq_length} \
   {additional_args}
 """
 
@@ -62,6 +63,7 @@ python \
   --expert_model_parallel_size {expert_model_parallel_size} \
   --max_batch_size {max_batch_size} \
   --num_replicas {num_replicas} \
+  --inference_max_seq_length {inference_max_seq_length} \
   {additional_args} &
 # [snippet-deploy-end]
 DEPLOY_PID=$!
@@ -94,7 +96,7 @@ def get_parser():
     parser.add_argument(
         "--megatron_checkpoint",
         type=str,
-        default=None,
+        required=True,
         help="Megatron-Bridge checkpoint to be evaluated",
     )
     parser.add_argument(
