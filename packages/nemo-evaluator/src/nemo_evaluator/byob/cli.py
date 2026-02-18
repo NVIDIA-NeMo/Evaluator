@@ -128,6 +128,10 @@ def byob_compile(args=None):
             else:
                 print(f"    WARNING: Dataset not found: {ds}", file=sys.stderr)
             print(f"    Mode: {execution_mode}")
+            # Show requirements if declared
+            reqs = fdf["defaults"]["config"]["params"]["extra"].get("requirements", [])
+            if reqs:
+                print(f"    Requirements: {', '.join(reqs)}")
         sys.exit(0)
 
     # Normal compile + install

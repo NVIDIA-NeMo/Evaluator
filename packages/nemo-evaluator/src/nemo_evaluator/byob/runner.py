@@ -26,30 +26,8 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from nemo_evaluator.byob.dataset import load_dataset
 from nemo_evaluator.byob.eval_logic import import_benchmark, run_eval_loop
-
-
-def load_dataset(path: str, limit: Optional[int] = None) -> List[Dict]:
-    """Load JSONL dataset from file.
-
-    Args:
-        path: Path to JSONL file.
-        limit: Optional limit on number of samples to load.
-
-    Returns:
-        List of sample dictionaries.
-    """
-    data = []
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:  # Skip blank lines
-                continue
-            data.append(json.loads(line))
-
-    if limit and limit > 0:
-        return data[:limit]
-    return data
 
 
 def call_model_chat(

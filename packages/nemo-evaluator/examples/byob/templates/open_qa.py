@@ -23,7 +23,7 @@ Target field: answer
 """
 import os
 
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.byob import benchmark, scorer, ScorerInput
 from nemo_evaluator.byob.scorers import contains
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -41,10 +41,10 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     endpoint_type="chat",
 )
 @scorer
-def qa_scorer(response: str, target: str, metadata: dict) -> dict:
+def qa_scorer(sample: ScorerInput) -> dict:
     """Check if target answer is contained in model response.
 
     Uses the built-in contains scorer for simplicity.
     For stricter matching, replace with exact_match or f1_token.
     """
-    return contains(response, target, metadata)
+    return contains(sample)

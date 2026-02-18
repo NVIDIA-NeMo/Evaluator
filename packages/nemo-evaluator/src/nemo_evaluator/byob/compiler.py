@@ -19,7 +19,7 @@ import importlib
 import os
 import sys
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import yaml
 
@@ -128,6 +128,7 @@ def compile_benchmark(module_path: str, execution_mode: str = "subprocess") -> D
                                 "benchmark_module": benchmark_module_ref,
                                 "benchmark_name": normalized_name,
                                 "dataset": dataset_path,
+                                "requirements": bench.requirements,
                             },
                         },
                     },
@@ -164,6 +165,7 @@ def compile_benchmark(module_path: str, execution_mode: str = "subprocess") -> D
                                 "benchmark_module": benchmark_module_ref,
                                 "benchmark_name": normalized_name,
                                 "dataset": dataset_path,
+                                "requirements": bench.requirements,
                             },
                         },
                     },
@@ -212,10 +214,13 @@ def install_benchmark(
     # Create directory structure
     os.makedirs(pkg_dir, exist_ok=True)
 
+    # Extract user requirements from FDF
+    user_reqs = fdf.get("defaults", {}).get("config", {}).get("params", {}).get("extra", {}).get("requirements", [])
+
     # Write pyproject.toml
     pyproject_path = os.path.join(pkg_dir, "pyproject.toml")
     with open(pyproject_path, "w") as f:
-        f.write(_generate_pyproject_toml(pkg_name))
+        f.write(_generate_pyproject_toml(pkg_name, user_requirements=user_reqs))
 
     # Create core_evals namespace package
     core_evals_dir = os.path.join(pkg_dir, "core_evals")
@@ -296,8 +301,13 @@ def parse_output(output_dir: str) -> EvaluationResult:
 '''
 
 
-def _generate_pyproject_toml(pkg_name: str) -> str:
+def _generate_pyproject_toml(pkg_name: str, user_requirements: Optional[List[str]] = None) -> str:
     """Generate pyproject.toml content for the namespace package."""
+    deps = ["nemo-evaluator"]
+    if user_requirements:
+        deps.extend(user_requirements)
+    deps_str = ", ".join(f'"{d}"' for d in deps)
+
     return f'''[build-system]
 requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
@@ -306,7 +316,7 @@ build-backend = "setuptools.build_meta"
 name = "core-evals-{pkg_name}"
 version = "0.1.0"
 requires-python = ">=3.10"
-dependencies = ["nemo-evaluator"]
+dependencies = [{deps_str}]
 
 [tool.setuptools.packages.find]
 include = ["core_evals", "core_evals.*"]

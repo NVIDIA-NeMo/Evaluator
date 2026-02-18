@@ -22,7 +22,7 @@ Usage:
 """
 import os
 
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.byob import benchmark, scorer, ScorerInput
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -40,8 +40,8 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     endpoint_type="chat",
 )
 @scorer
-def boolq_scorer(response: str, target: str, metadata: dict) -> dict:
-    response_lower = response.strip().lower()
+def boolq_scorer(sample: ScorerInput) -> dict:
+    response_lower = sample.response.strip().lower()
 
     # Extract yes/no from response (priority: startswith > contains > fallback)
     if response_lower.startswith("yes"):
@@ -55,5 +55,5 @@ def boolq_scorer(response: str, target: str, metadata: dict) -> dict:
     else:
         predicted = response_lower[:10]  # fallback
 
-    target_str = "yes" if target.lower() in ("true", "yes", "1") else "no"
+    target_str = "yes" if sample.target.lower() in ("true", "yes", "1") else "no"
     return {"correct": predicted == target_str}

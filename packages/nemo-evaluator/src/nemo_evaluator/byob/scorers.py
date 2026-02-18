@@ -13,26 +13,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Built-in scorer functions for BYOB benchmarks."""
+"""Built-in scorer functions for BYOB benchmarks.
+
+All scorers accept a single ``ScorerInput`` argument and return a dict
+of metric name -> numeric/bool value.
+
+Example::
+
+    from nemo_evaluator.byob.scorers import exact_match
+    from nemo_evaluator.byob.decorators import ScorerInput
+
+    result = exact_match(ScorerInput(response="Yes", target="yes", metadata={}))
+    # {"correct": True}
+"""
+
+from __future__ import annotations
 
 import re
 from collections import Counter
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from nemo_evaluator.byob.decorators import ScorerInput
 
 
-def contains(response: str, target: str, metadata: dict) -> dict:
+def contains(sample: ScorerInput) -> dict:
     """Check if target string is contained in response (case-insensitive)."""
-    return {"correct": target.lower().strip() in response.lower()}
+    return {"correct": sample.target.lower().strip() in sample.response.lower()}
 
 
-def exact_match(response: str, target: str, metadata: dict) -> dict:
+def exact_match(sample: ScorerInput) -> dict:
     """Check if response exactly matches target (case-insensitive, whitespace-stripped)."""
-    return {"correct": response.strip().lower() == target.strip().lower()}
+    return {"correct": sample.response.strip().lower() == sample.target.strip().lower()}
 
 
-def f1_token(response: str, target: str, metadata: dict) -> dict:
+def f1_token(sample: ScorerInput) -> dict:
     """Compute token-level F1 score between response and target."""
-    pred_tokens = response.lower().split()
-    ref_tokens = target.lower().split()
+    pred_tokens = sample.response.lower().split()
+    ref_tokens = sample.target.lower().split()
 
     if not pred_tokens or not ref_tokens:
         return {"f1": 0.0, "precision": 0.0, "recall": 0.0}
@@ -50,10 +68,10 @@ def f1_token(response: str, target: str, metadata: dict) -> dict:
     return {"f1": f1, "precision": precision, "recall": recall}
 
 
-def regex_match(response: str, target: str, metadata: dict) -> dict:
+def regex_match(sample: ScorerInput) -> dict:
     """Check if target regex pattern matches anywhere in response."""
     try:
-        return {"correct": bool(re.search(target, response, re.IGNORECASE))}
+        return {"correct": bool(re.search(sample.target, sample.response, re.IGNORECASE))}
     except re.error:
         return {"correct": False}
 
@@ -66,11 +84,11 @@ def any_of(*scorer_fns):
         from nemo_evaluator.byob.scorers import contains, exact_match, any_of
         combined = any_of(contains, exact_match)
     """
-    def combined(response: str, target: str, metadata: dict) -> dict:
+    def combined(sample: ScorerInput) -> dict:
         results = {}
         any_correct = False
         for fn in scorer_fns:
-            sub_result = fn(response, target, metadata)
+            sub_result = fn(sample)
             for key, value in sub_result.items():
                 results[f"{fn.__name__}_{key}"] = value
             if sub_result.get("correct"):
@@ -89,11 +107,11 @@ def all_of(*scorer_fns):
         from nemo_evaluator.byob.scorers import contains, exact_match, all_of
         combined = all_of(contains, exact_match)
     """
-    def combined(response: str, target: str, metadata: dict) -> dict:
+    def combined(sample: ScorerInput) -> dict:
         results = {}
         all_correct = True
         for fn in scorer_fns:
-            sub_result = fn(response, target, metadata)
+            sub_result = fn(sample)
             for key, value in sub_result.items():
                 results[f"{fn.__name__}_{key}"] = value
             if not sub_result.get("correct"):

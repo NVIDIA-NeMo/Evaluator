@@ -20,7 +20,7 @@ import logging
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Protocol, Tuple
 
 from nemo_evaluator.api.api_dataclasses import (
     EvaluationResult,
@@ -31,6 +31,7 @@ from nemo_evaluator.api.api_dataclasses import (
 )
 from nemo_evaluator.byob.decorators import (
     BenchmarkDefinition,
+    ScorerInput,
     clear_registry,
     get_registered_benchmarks,
 )
@@ -107,11 +108,95 @@ def import_benchmark(
     return benchmarks[benchmark_name]
 
 
+class EvalStrategy(Protocol):
+    """Protocol for evaluation strategies.
+
+    Different evaluation modes (standard, judge, multi-turn, agentic)
+    implement this protocol to define how each sample is evaluated.
+    """
+
+    def evaluate_sample(
+        self,
+        idx: int,
+        row: Dict,
+        bench: BenchmarkDefinition,
+        model_call_fn: Callable[[str, str], str],
+        endpoint_type: str,
+    ) -> Tuple[Optional[Dict], Optional[SampleResult]]:
+        """Evaluate a single sample.
+
+        Returns:
+            Tuple of (scores_dict_or_None, sample_result_or_None).
+            Return (None, SampleResult with error status) on failure.
+        """
+        ...
+
+
+class StandardStrategy:
+    """Standard single-turn evaluation: render prompt -> call model -> score."""
+
+    def evaluate_sample(
+        self,
+        idx: int,
+        row: Dict,
+        bench: BenchmarkDefinition,
+        model_call_fn: Callable[[str, str], str],
+        endpoint_type: str,
+    ) -> Tuple[Optional[Dict], Optional[SampleResult]]:
+        # Render prompt
+        try:
+            prompt = bench.prompt.format(**row)
+        except KeyError as e:
+            target = row.get(bench.target_field, "")
+            return None, SampleResult(
+                sample_id=idx, prompt="", response=None,
+                target=str(target), scores=None,
+                status="skipped_missing_field", error=str(e), metadata=row,
+            )
+
+        # Call model
+        try:
+            response = model_call_fn(prompt, endpoint_type)
+        except Exception as e:
+            target = row.get(bench.target_field, "")
+            return None, SampleResult(
+                sample_id=idx, prompt=prompt, response=None,
+                target=str(target), scores=None,
+                status="skipped_model_error", error=str(e), metadata=row,
+            )
+
+        # Score using ScorerInput
+        target = row.get(bench.target_field, "")
+        scorer_input = ScorerInput(
+            response=response,
+            target=str(target),
+            metadata=row,
+            model_call_fn=model_call_fn,
+            config=bench.extra_config,
+        )
+        try:
+            sample_scores = bench.scorer_fn(scorer_input)
+        except Exception as e:
+            return None, SampleResult(
+                sample_id=idx, prompt=prompt, response=response,
+                target=str(target), scores=None,
+                status="skipped_scorer_error", error=str(e), metadata=row,
+            )
+
+        prediction = SampleResult(
+            sample_id=idx, prompt=prompt, response=response,
+            target=str(target), scores=sample_scores,
+            status="scored", metadata=row,
+        )
+        return sample_scores, prediction
+
+
 def run_eval_loop(
     bench: BenchmarkDefinition,
     dataset: List[Dict],
     model_call_fn: Callable[[str, str], str],
     endpoint_type: str,
+    strategy: Optional[EvalStrategy] = None,
     save_predictions: bool = False,
     show_progress: bool = True,
     max_consecutive_errors: int = 0,
@@ -119,14 +204,17 @@ def run_eval_loop(
 ) -> Tuple[List[Dict], List[SampleResult]]:
     """Core evaluation loop shared between subprocess and native modes.
 
-    For each sample: renders prompt template, calls model, scores response.
-    Skips samples on error unless fail_on_skip is True.
+    Delegates per-sample evaluation to the provided strategy (defaults to
+    StandardStrategy).  The loop handles bookkeeping: progress logging,
+    consecutive-error tracking, fail-on-skip, and prediction collection.
 
     Args:
         bench: Benchmark definition with prompt template and scorer.
         dataset: List of sample dicts loaded from JSONL.
         model_call_fn: Callable(prompt, endpoint_type) -> response_text.
         endpoint_type: "chat" or "completions".
+        strategy: EvalStrategy implementation for per-sample evaluation.
+            Defaults to StandardStrategy when None.
         save_predictions: If True, collect per-sample SampleResult objects.
         show_progress: If True, log progress periodically.
         max_consecutive_errors: If > 0, abort after N consecutive failures.
@@ -135,6 +223,9 @@ def run_eval_loop(
     Returns:
         Tuple of (all_scores, all_predictions).
     """
+    if strategy is None:
+        strategy = StandardStrategy()
+
     all_scores = []
     all_predictions: List[SampleResult] = []
     total = len(dataset)
@@ -145,23 +236,18 @@ def run_eval_loop(
     progress_interval = max(1, min(10, total // 10)) if total > 0 else 1
 
     for idx, row in enumerate(dataset):
-        # Render prompt
-        try:
-            prompt = bench.prompt.format(**row)
-        except KeyError as e:
-            msg = f"Sample {idx} missing field {e}, skipping"
-            logger.warning(msg)
+        scores, prediction = strategy.evaluate_sample(
+            idx, row, bench, model_call_fn, endpoint_type
+        )
+
+        if scores is None:
+            # Sample failed
             skipped_count += 1
             consecutive_errors += 1
-
-            if save_predictions:
-                target = row.get(bench.target_field, "")
-                all_predictions.append(SampleResult(
-                    sample_id=idx, prompt="", response=None,
-                    target=str(target), scores=None,
-                    status="skipped_missing_field", error=str(e), metadata=row,
-                ))
-
+            if save_predictions and prediction:
+                all_predictions.append(prediction)
+            msg = f"Sample {idx} failed: {prediction.error if prediction else 'unknown'}"
+            logger.warning(msg)
             if fail_on_skip:
                 raise RuntimeError(msg)
             if max_consecutive_errors > 0 and consecutive_errors >= max_consecutive_errors:
@@ -171,47 +257,12 @@ def run_eval_loop(
                 )
             continue
 
-        # Call model
-        try:
-            response = model_call_fn(prompt, endpoint_type)
-        except Exception as e:
-            msg = f"Model call failed for sample {idx}: {e}, skipping"
-            logger.warning(msg)
-            skipped_count += 1
-            consecutive_errors += 1
-
-            if save_predictions:
-                target = row.get(bench.target_field, "")
-                all_predictions.append(SampleResult(
-                    sample_id=idx, prompt=prompt, response=None,
-                    target=str(target), scores=None,
-                    status="skipped_model_error", error=str(e), metadata=row,
-                ))
-
-            if fail_on_skip:
-                raise RuntimeError(msg)
-            if max_consecutive_errors > 0 and consecutive_errors >= max_consecutive_errors:
-                raise RuntimeError(
-                    f"Aborting: {consecutive_errors} consecutive errors "
-                    f"reached limit of {max_consecutive_errors}"
-                )
-            continue
-
-        # Reset consecutive errors on success
+        # Success
         consecutive_errors = 0
-
-        # Score
-        target = row.get(bench.target_field, "")
-        sample_scores = bench.scorer_fn(response, str(target), row)
-        all_scores.append(sample_scores)
+        all_scores.append(scores)
         scored_count += 1
-
-        if save_predictions:
-            all_predictions.append(SampleResult(
-                sample_id=idx, prompt=prompt, response=response,
-                target=str(target), scores=sample_scores,
-                status="scored", metadata=row,
-            ))
+        if save_predictions and prediction:
+            all_predictions.append(prediction)
 
         # Progress
         if show_progress and total > 0:
