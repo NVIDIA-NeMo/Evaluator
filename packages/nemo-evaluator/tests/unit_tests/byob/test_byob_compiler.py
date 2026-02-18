@@ -478,3 +478,175 @@ def scorer_two(response, target, metadata):
         # Neither should have command field
         assert "command" not in result["bench_one_native"]["defaults"]
         assert "command" not in result["bench_two_native"]["defaults"]
+
+
+class TestCompileWithRequirements:
+    """Tests for requirements field in compile_benchmark output."""
+
+    def test_compile_benchmark_with_inline_requirements(self, tmp_path):
+        """Test that inline requirements list is propagated to FDF extra params."""
+        benchmark_code = '''
+from nemo_evaluator.byob import benchmark, scorer
+
+@benchmark(
+    name="test-reqs-inline",
+    dataset="data.jsonl",
+    prompt="Q: {q}\\nA:",
+    requirements=["numpy>=1.0", "pandas"],
+)
+@scorer
+def check(response, target, metadata):
+    return {"correct": target.lower() in response.lower()}
+'''
+        benchmark_file = tmp_path / "reqs_inline_benchmark.py"
+        benchmark_file.write_text(benchmark_code)
+
+        result = compile_benchmark(str(benchmark_file))
+
+        assert "test_reqs_inline" in result, \
+            f"Expected 'test_reqs_inline' key, got {result.keys()}"
+        fdf = result["test_reqs_inline"]
+
+        extra = fdf["defaults"]["config"]["params"]["extra"]
+        assert "requirements" in extra, \
+            "FDF extra params should contain 'requirements' key"
+        assert extra["requirements"] == ["numpy>=1.0", "pandas"], \
+            f"Expected ['numpy>=1.0', 'pandas'], got {extra['requirements']}"
+
+    def test_compile_benchmark_with_no_requirements(self, tmp_path):
+        """Test that omitting requirements produces an empty list in FDF extra params."""
+        benchmark_code = '''
+from nemo_evaluator.byob import benchmark, scorer
+
+@benchmark(name="test-no-reqs", dataset="data.jsonl", prompt="Q: {q}\\nA:")
+@scorer
+def check(response, target, metadata):
+    return {"correct": True}
+'''
+        benchmark_file = tmp_path / "no_reqs_benchmark.py"
+        benchmark_file.write_text(benchmark_code)
+
+        result = compile_benchmark(str(benchmark_file))
+
+        assert "test_no_reqs" in result, \
+            f"Expected 'test_no_reqs' key, got {result.keys()}"
+        fdf = result["test_no_reqs"]
+
+        extra = fdf["defaults"]["config"]["params"]["extra"]
+        assert "requirements" in extra, \
+            "FDF extra params should contain 'requirements' key even when empty"
+        assert extra["requirements"] == [], \
+            f"Expected empty list, got {extra['requirements']}"
+
+    def test_compile_benchmark_with_requirements_file(self, tmp_path):
+        """Test that a requirements.txt file path is resolved and parsed into FDF."""
+        # Create a requirements.txt file
+        reqs_file = tmp_path / "requirements.txt"
+        reqs_file.write_text("# Comment line\nnumpy>=1.0\npandas\n\nscikit-learn>=1.2\n")
+
+        benchmark_code = f'''
+from nemo_evaluator.byob import benchmark, scorer
+
+@benchmark(
+    name="test-reqs-file",
+    dataset="data.jsonl",
+    prompt="Q: {{q}}\\nA:",
+    requirements="{reqs_file}",
+)
+@scorer
+def check(response, target, metadata):
+    return {{"correct": True}}
+'''
+        benchmark_file = tmp_path / "reqs_file_benchmark.py"
+        benchmark_file.write_text(benchmark_code)
+
+        result = compile_benchmark(str(benchmark_file))
+
+        assert "test_reqs_file" in result, \
+            f"Expected 'test_reqs_file' key, got {result.keys()}"
+        fdf = result["test_reqs_file"]
+
+        extra = fdf["defaults"]["config"]["params"]["extra"]
+        assert "requirements" in extra, \
+            "FDF extra params should contain 'requirements' key"
+        assert extra["requirements"] == ["numpy>=1.0", "pandas", "scikit-learn>=1.2"], \
+            f"Expected parsed requirements list, got {extra['requirements']}"
+
+
+class TestInstallWithRequirements:
+    """Tests for requirements propagation through install_benchmark to pyproject.toml."""
+
+    def _make_fdf(self, requirements=None):
+        """Helper to build a minimal FDF dict with optional requirements in extra params."""
+        extra = {
+            "benchmark_module": "/path/to/module.py",
+            "benchmark_name": "test_pkg",
+            "dataset": "/path/to/data.jsonl",
+        }
+        if requirements is not None:
+            extra["requirements"] = requirements
+
+        return {
+            "framework": {"name": "byob_test_pkg", "pkg_name": "byob_test_pkg"},
+            "defaults": {
+                "command": "python -m nemo_evaluator.byob.runner ...",
+                "config": {
+                    "params": {
+                        "limit_samples": None,
+                        "max_new_tokens": 4096,
+                        "temperature": 0,
+                        "extra": extra,
+                    }
+                },
+                "target": {"api_endpoint": {}},
+            },
+            "evaluations": [{
+                "name": "test-pkg",
+                "description": "BYOB benchmark: test-pkg",
+                "defaults": {
+                    "config": {
+                        "type": "byob_test_pkg.test-pkg",
+                        "supported_endpoint_types": ["chat"],
+                    }
+                }
+            }]
+        }
+
+    def test_install_with_user_requirements(self, tmp_path):
+        """Test that user requirements appear in pyproject.toml dependencies."""
+        fdf = self._make_fdf(requirements=["numpy>=1.0"])
+        pkg_dir = install_benchmark("test_pkg", fdf, install_dir=str(tmp_path))
+
+        toml_content = (Path(pkg_dir) / "pyproject.toml").read_text()
+
+        assert '"nemo-evaluator"' in toml_content, \
+            "pyproject.toml should always include nemo-evaluator dependency"
+        assert '"numpy>=1.0"' in toml_content, \
+            f"pyproject.toml should contain numpy>=1.0 dependency, got:\n{toml_content}"
+
+        # Verify the full dependencies line has both deps
+        assert 'dependencies = ["nemo-evaluator", "numpy>=1.0"]' in toml_content, \
+            f"Expected dependencies with both nemo-evaluator and numpy>=1.0, got:\n{toml_content}"
+
+    def test_install_without_user_requirements(self, tmp_path):
+        """Test that FDF without requirements key produces pyproject.toml with only nemo-evaluator."""
+        fdf = self._make_fdf(requirements=None)
+        # Remove requirements key entirely from extra to simulate old FDFs
+        fdf["defaults"]["config"]["params"]["extra"].pop("requirements", None)
+
+        pkg_dir = install_benchmark("test_pkg", fdf, install_dir=str(tmp_path))
+
+        toml_content = (Path(pkg_dir) / "pyproject.toml").read_text()
+
+        assert 'dependencies = ["nemo-evaluator"]' in toml_content, \
+            f"Expected only nemo-evaluator dependency, got:\n{toml_content}"
+
+    def test_install_with_empty_requirements(self, tmp_path):
+        """Test that empty requirements list produces pyproject.toml with only nemo-evaluator."""
+        fdf = self._make_fdf(requirements=[])
+        pkg_dir = install_benchmark("test_pkg", fdf, install_dir=str(tmp_path))
+
+        toml_content = (Path(pkg_dir) / "pyproject.toml").read_text()
+
+        assert 'dependencies = ["nemo-evaluator"]' in toml_content, \
+            f"Expected only nemo-evaluator dependency when requirements is empty, got:\n{toml_content}"

@@ -17,6 +17,7 @@
 
 import pytest
 from nemo_evaluator.byob.decorators import clear_registry
+from nemo_evaluator.byob.dataset import _FETCHER_REGISTRY, LocalFetcher
 
 
 @pytest.fixture(autouse=True)
@@ -30,3 +31,18 @@ def _clear_byob_registry():
     clear_registry()
     yield
     clear_registry()
+
+
+@pytest.fixture(autouse=True)
+def _reset_fetcher_registry():
+    """Ensure clean DatasetFetcher registry state for every test.
+
+    The fetcher registry is a module-level list in
+    nemo_evaluator.byob.dataset. Save and restore it around
+    each test to prevent cross-test pollution from custom
+    fetchers registered via register_fetcher().
+    """
+    saved = _FETCHER_REGISTRY.copy()
+    yield
+    _FETCHER_REGISTRY.clear()
+    _FETCHER_REGISTRY.extend(saved)

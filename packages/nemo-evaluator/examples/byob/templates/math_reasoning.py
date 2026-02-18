@@ -23,7 +23,7 @@ Target field: answer
 """
 import os
 
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.byob import benchmark, scorer, ScorerInput
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -41,7 +41,7 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     endpoint_type="chat",
 )
 @scorer
-def math_scorer(response: str, target: str, metadata: dict) -> dict:
+def math_scorer(sample: ScorerInput) -> dict:
     """Extract the last number from the response and compare to target.
 
     Handles formats like:
@@ -55,14 +55,14 @@ def math_scorer(response: str, target: str, metadata: dict) -> dict:
     import re
 
     # Extract all numbers (including negative and decimal)
-    numbers = re.findall(r'-?\d+\.?\d*', response)
+    numbers = re.findall(r'-?\d+\.?\d*', sample.response)
     if not numbers:
         return {"correct": False, "parsed": False}
 
     predicted = numbers[-1].rstrip('.')
 
     # Normalize target (strip whitespace, handle string numbers)
-    target_clean = str(target).strip().rstrip('.')
+    target_clean = str(sample.target).strip().rstrip('.')
 
     # Compare as strings first (handles integers)
     if predicted == target_clean:

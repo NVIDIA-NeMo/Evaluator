@@ -97,7 +97,7 @@ class ByobNativeHarness:
             bench = import_benchmark(benchmark_module, benchmark_name)
 
             # Load dataset (import here to avoid circular dependency)
-            from nemo_evaluator.byob.runner import load_dataset
+            from nemo_evaluator.byob.dataset import load_dataset
             dataset = load_dataset(dataset_path, limit=limit_samples)
 
             # Run evaluation loop (returns tuple: scores, predictions)

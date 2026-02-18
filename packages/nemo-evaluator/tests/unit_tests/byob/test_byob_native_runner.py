@@ -26,7 +26,7 @@ from nemo_evaluator.api.api_dataclasses import (
     ConfigParams,
     EvaluationTarget,
 )
-from nemo_evaluator.byob.decorators import get_registered_benchmarks
+from nemo_evaluator.byob.decorators import ScorerInput, get_registered_benchmarks
 from nemo_evaluator.byob.native_runner import ByobNativeHarness
 
 
@@ -41,8 +41,8 @@ from nemo_evaluator.byob import benchmark, scorer
 
 @benchmark(name="test-native", dataset="unused", prompt="Q: {question}\\nA:", target_field="answer")
 @scorer
-def simple_scorer(response, target, metadata):
-    return {"correct": target.lower() in response.lower()}
+def simple_scorer(sample):
+    return {"correct": sample.target.lower() in sample.response.lower()}
 '''
         benchmark_file = tmp_path / "test_benchmark.py"
         benchmark_file.write_text(code)

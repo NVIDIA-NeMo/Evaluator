@@ -23,7 +23,7 @@ Target field: answer
 """
 import os
 
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.byob import benchmark, scorer, ScorerInput
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -43,7 +43,7 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     endpoint_type="chat",
 )
 @scorer
-def multichoice_scorer(response: str, target: str, metadata: dict) -> dict:
+def multichoice_scorer(sample: ScorerInput) -> dict:
     """Extract letter choice from response.
 
     Handles formats like:
@@ -55,7 +55,7 @@ def multichoice_scorer(response: str, target: str, metadata: dict) -> dict:
     """
     import re
 
-    response_clean = response.strip()
+    response_clean = sample.response.strip()
 
     # Try: first character is A-D
     if response_clean and response_clean[0].upper() in "ABCD":
@@ -75,6 +75,6 @@ def multichoice_scorer(response: str, target: str, metadata: dict) -> dict:
             predicted = match.group(1).upper() if match else ""
 
     return {
-        "correct": predicted == target.strip().upper(),
+        "correct": predicted == sample.target.strip().upper(),
         "parsed": bool(predicted),
     }

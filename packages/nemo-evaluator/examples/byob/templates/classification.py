@@ -23,7 +23,7 @@ Target field: label
 """
 import os
 
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.byob import benchmark, scorer, ScorerInput
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -41,10 +41,10 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     endpoint_type="chat",
 )
 @scorer
-def classification_scorer(response: str, target: str, metadata: dict) -> dict:
+def classification_scorer(sample: ScorerInput) -> dict:
     """Extract classification label from first line of response."""
-    predicted = response.strip().split('\n')[0].strip().lower()
-    target_lower = target.strip().lower()
+    predicted = sample.response.strip().split('\n')[0].strip().lower()
+    target_lower = sample.target.strip().lower()
 
     # Exact match on first line
     exact = predicted == target_lower

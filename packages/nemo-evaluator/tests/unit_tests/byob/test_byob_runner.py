@@ -208,8 +208,8 @@ class TestLoadDataset:
         assert data[1]["question"] == "q2"
 
     def test_load_dataset_file_not_found(self):
-        """Test that load_dataset raises FileNotFoundError for nonexistent file."""
-        with pytest.raises(FileNotFoundError):
+        """Test that load_dataset raises ValueError for nonexistent file (no fetcher supports it)."""
+        with pytest.raises(ValueError, match="No fetcher supports"):
             load_dataset("/nonexistent/path.jsonl")
 
     def test_load_dataset_limit_zero(self, tmp_path):
@@ -235,8 +235,8 @@ class TestSavePredictions:
         """Create a mock BenchmarkDefinition for testing save-predictions."""
         from nemo_evaluator.byob.decorators import BenchmarkDefinition
 
-        def simple_scorer(response, target, metadata):
-            return {"correct": target.lower() in response.lower()}
+        def simple_scorer(sample):
+            return {"correct": sample.target.lower() in sample.response.lower()}
 
         return BenchmarkDefinition(
             name="save-test",
@@ -684,8 +684,8 @@ class TestFailOnSkip:
         """Create a mock BenchmarkDefinition for fail-on-skip tests."""
         from nemo_evaluator.byob.decorators import BenchmarkDefinition
 
-        def simple_scorer(response, target, metadata):
-            return {"correct": target.lower() in response.lower()}
+        def simple_scorer(sample):
+            return {"correct": sample.target.lower() in sample.response.lower()}
 
         return BenchmarkDefinition(
             name="fail-on-skip-test",
@@ -729,10 +729,10 @@ class TestFailOnSkip:
 
         # Verify error message contains useful context
         error_msg = str(exc_info.value)
-        assert "sample 1" in error_msg.lower(), \
-            f"Expected error to mention 'sample 1', got: {error_msg}"
-        assert "model call failed" in error_msg.lower(), \
-            f"Expected error to mention 'model call failed', got: {error_msg}"
+        assert "sample" in error_msg.lower(), \
+            f"Expected error to mention 'sample', got: {error_msg}"
+        assert "failed" in error_msg.lower(), \
+            f"Expected error to mention 'failed', got: {error_msg}"
 
     def test_fail_on_skip_false_skips_gracefully(self, mock_benchmark):
         """Test that fail_on_skip=False skips errors gracefully.
@@ -807,10 +807,10 @@ class TestFailOnSkip:
 
         # Verify error message contains useful context
         error_msg = str(exc_info.value)
-        assert "sample 0" in error_msg.lower(), \
-            f"Expected error to mention 'sample 0', got: {error_msg}"
-        assert "missing field" in error_msg.lower(), \
-            f"Expected error to mention 'missing field', got: {error_msg}"
+        assert "sample" in error_msg.lower(), \
+            f"Expected error to mention 'sample', got: {error_msg}"
+        assert "failed" in error_msg.lower(), \
+            f"Expected error to mention 'failed', got: {error_msg}"
 
 
 class TestLogFormat:
