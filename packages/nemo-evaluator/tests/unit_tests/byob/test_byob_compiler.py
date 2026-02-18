@@ -15,12 +15,14 @@
 
 """Unit tests for BYOB compiler module."""
 
+import sys
 from pathlib import Path
 
 import pytest
 import yaml
 
 from nemo_evaluator.byob.compiler import compile_benchmark, install_benchmark
+from nemo_evaluator.byob.defaults import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
 
 
 class TestCompileBenchmark:
@@ -34,8 +36,8 @@ from nemo_evaluator.byob import benchmark, scorer
 
 @benchmark(name="test-compile", dataset="data.jsonl", prompt="Q: {q}\\nA:")
 @scorer
-def check(response, target, metadata):
-    return {"correct": target.lower() in response.lower()}
+def check(sample):
+    return {"correct": sample.target.lower() in sample.response.lower()}
 '''
         benchmark_file = tmp_path / "test_benchmark.py"
         benchmark_file.write_text(benchmark_code)
@@ -113,12 +115,12 @@ from nemo_evaluator.byob import benchmark, scorer
 
 @benchmark(name="bench-one", dataset="d1.jsonl", prompt="{q}")
 @scorer
-def scorer_one(response, target, metadata):
+def scorer_one(sample):
     return {"correct": True}
 
 @benchmark(name="bench-two", dataset="d2.jsonl", prompt="{q}")
 @scorer
-def scorer_two(response, target, metadata):
+def scorer_two(sample):
     return {"correct": True}
 '''
         benchmark_file = tmp_path / "multi_benchmark.py"
@@ -230,8 +232,8 @@ from nemo_evaluator.byob import benchmark, scorer
 
 @benchmark(name="test-native", dataset="data.jsonl", prompt="Q: {q}\\nA:")
 @scorer
-def check(response, target, metadata):
-    return {"correct": target.lower() in response.lower()}
+def check(sample):
+    return {"correct": sample.target.lower() in sample.response.lower()}
 '''
         benchmark_file = tmp_path / "native_benchmark.py"
         benchmark_file.write_text(benchmark_code)
@@ -271,7 +273,7 @@ from nemo_evaluator.byob import benchmark, scorer
 
 @benchmark(name="test-default", dataset="data.jsonl", prompt="Q: {q}\\nA:")
 @scorer
-def check(response, target, metadata):
+def check(sample):
     return {"correct": True}
 '''
         benchmark_file = tmp_path / "default_benchmark.py"
@@ -301,7 +303,7 @@ from nemo_evaluator.byob import benchmark, scorer
 
 @benchmark(name="test-subprocess", dataset="data.jsonl", prompt="{q}")
 @scorer
-def check(response, target, metadata):
+def check(sample):
     return {"correct": True}
 '''
         benchmark_file = tmp_path / "subprocess_benchmark.py"
@@ -453,12 +455,12 @@ from nemo_evaluator.byob import benchmark, scorer
 
 @benchmark(name="bench-one-native", dataset="d1.jsonl", prompt="{q}")
 @scorer
-def scorer_one(response, target, metadata):
+def scorer_one(sample):
     return {"correct": True}
 
 @benchmark(name="bench-two-native", dataset="d2.jsonl", prompt="{q}")
 @scorer
-def scorer_two(response, target, metadata):
+def scorer_two(sample):
     return {"correct": True}
 '''
         benchmark_file = tmp_path / "multi_native_benchmark.py"
@@ -495,8 +497,8 @@ from nemo_evaluator.byob import benchmark, scorer
     requirements=["numpy>=1.0", "pandas"],
 )
 @scorer
-def check(response, target, metadata):
-    return {"correct": target.lower() in response.lower()}
+def check(sample):
+    return {"correct": sample.target.lower() in sample.response.lower()}
 '''
         benchmark_file = tmp_path / "reqs_inline_benchmark.py"
         benchmark_file.write_text(benchmark_code)
@@ -520,7 +522,7 @@ from nemo_evaluator.byob import benchmark, scorer
 
 @benchmark(name="test-no-reqs", dataset="data.jsonl", prompt="Q: {q}\\nA:")
 @scorer
-def check(response, target, metadata):
+def check(sample):
     return {"correct": True}
 '''
         benchmark_file = tmp_path / "no_reqs_benchmark.py"
@@ -554,7 +556,7 @@ from nemo_evaluator.byob import benchmark, scorer
     requirements="{reqs_file}",
 )
 @scorer
-def check(response, target, metadata):
+def check(sample):
     return {{"correct": True}}
 '''
         benchmark_file = tmp_path / "reqs_file_benchmark.py"
@@ -650,3 +652,134 @@ class TestInstallWithRequirements:
 
         assert 'dependencies = ["nemo-evaluator"]' in toml_content, \
             f"Expected only nemo-evaluator dependency when requirements is empty, got:\n{toml_content}"
+
+
+class TestCompilerSysPathCleanup:
+    """Tests for sys.path and sys.modules cleanup after compile_benchmark."""
+
+    def test_sys_path_restored_after_compile(self, tmp_path):
+        """Validate sys.path is restored to its original state after compilation."""
+        benchmark_code = '''
+from nemo_evaluator.byob import benchmark, scorer
+
+@benchmark(name="path-test", dataset="data.jsonl", prompt="{q}")
+@scorer
+def check(sample):
+    return {"correct": True}
+'''
+        benchmark_file = tmp_path / "path_benchmark.py"
+        benchmark_file.write_text(benchmark_code)
+
+        saved_path = sys.path[:]
+
+        compile_benchmark(str(benchmark_file))
+
+        assert sys.path == saved_path, (
+            f"sys.path was not restored after compile_benchmark. "
+            f"Expected {len(saved_path)} entries, got {len(sys.path)}"
+        )
+
+    def test_sys_modules_cleaned_after_compile(self, tmp_path):
+        """Validate user benchmark module is removed from sys.modules after compilation."""
+        benchmark_code = '''
+from nemo_evaluator.byob import benchmark, scorer
+
+@benchmark(name="modules-test", dataset="data.jsonl", prompt="{q}")
+@scorer
+def check(sample):
+    return {"correct": True}
+'''
+        benchmark_file = tmp_path / "modules_benchmark.py"
+        benchmark_file.write_text(benchmark_code)
+
+        compile_benchmark(str(benchmark_file))
+
+        # The user module should have been cleaned up from sys.modules
+        assert "modules_benchmark" not in sys.modules, (
+            "User benchmark module 'modules_benchmark' should have been removed "
+            "from sys.modules after compile_benchmark"
+        )
+
+    def test_cleanup_on_compile_error(self, tmp_path):
+        """Validate sys.path is restored even when compile_benchmark raises."""
+        bad_code = '''
+raise RuntimeError("intentional error during import")
+'''
+        benchmark_file = tmp_path / "bad_benchmark.py"
+        benchmark_file.write_text(bad_code)
+
+        saved_path = sys.path[:]
+
+        with pytest.raises(RuntimeError, match="intentional error during import"):
+            compile_benchmark(str(benchmark_file))
+
+        assert sys.path == saved_path, (
+            f"sys.path was not restored after failed compile_benchmark. "
+            f"Expected {len(saved_path)} entries, got {len(sys.path)}"
+        )
+
+
+class TestBuildFdfHelper:
+    """Tests for the _build_fdf helper function and FDF structural correctness."""
+
+    def test_native_vs_subprocess_structural_differences(self, tmp_path):
+        """Validate native has execution_mode and no command; subprocess has command and no execution_mode."""
+        benchmark_code = '''
+from nemo_evaluator.byob import benchmark, scorer
+
+@benchmark(name="fdf-test", dataset="data.jsonl", prompt="{q}")
+@scorer
+def check(sample):
+    return {"correct": True}
+'''
+        benchmark_file = tmp_path / "fdf_benchmark.py"
+        benchmark_file.write_text(benchmark_code)
+
+        native_result = compile_benchmark(str(benchmark_file), execution_mode="native")
+        native_fdf = native_result["fdf_test"]
+
+        # Native mode: has execution_mode, no command
+        assert native_fdf["defaults"].get("execution_mode") == "native", (
+            "Native FDF should have execution_mode='native'"
+        )
+        assert "command" not in native_fdf["defaults"], (
+            "Native FDF should not have a 'command' field"
+        )
+
+        subprocess_result = compile_benchmark(str(benchmark_file), execution_mode="subprocess")
+        subprocess_fdf = subprocess_result["fdf_test"]
+
+        # Subprocess mode: has command, no execution_mode
+        assert "command" in subprocess_fdf["defaults"], (
+            "Subprocess FDF should have a 'command' field"
+        )
+        assert subprocess_fdf["defaults"].get("execution_mode") is None, (
+            "Subprocess FDF should not have execution_mode set"
+        )
+
+    def test_fdf_uses_defaults_constants(self, tmp_path):
+        """Validate max_new_tokens and temperature in FDF match defaults.py constants."""
+        benchmark_code = '''
+from nemo_evaluator.byob import benchmark, scorer
+
+@benchmark(name="defaults-fdf", dataset="data.jsonl", prompt="{q}")
+@scorer
+def check(sample):
+    return {"correct": True}
+'''
+        benchmark_file = tmp_path / "defaults_fdf_benchmark.py"
+        benchmark_file.write_text(benchmark_code)
+
+        result = compile_benchmark(str(benchmark_file))
+        fdf = result["defaults_fdf"]
+
+        params = fdf["defaults"]["config"]["params"]
+
+        assert params["max_new_tokens"] == DEFAULT_MAX_TOKENS, (
+            f"FDF max_new_tokens should be {DEFAULT_MAX_TOKENS}, "
+            f"got {params['max_new_tokens']}"
+        )
+        assert params["temperature"] == DEFAULT_TEMPERATURE, (
+            f"FDF temperature should be {DEFAULT_TEMPERATURE}, "
+            f"got {params['temperature']}"
+        )

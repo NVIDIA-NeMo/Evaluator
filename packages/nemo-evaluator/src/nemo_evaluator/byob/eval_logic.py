@@ -292,8 +292,7 @@ def build_evaluation_result(
     Uses runner.aggregate_scores() for statistics computation, then constructs
     proper Pydantic models matching the engine's expected structure.
     """
-    # Import here to avoid circular dependency
-    from nemo_evaluator.byob.runner import aggregate_scores
+    from nemo_evaluator.byob.aggregation import aggregate_scores
 
     raw = aggregate_scores(scores, benchmark_name)
     if not raw or "tasks" not in raw:

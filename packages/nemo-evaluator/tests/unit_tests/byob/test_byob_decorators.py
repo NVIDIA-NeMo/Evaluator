@@ -83,7 +83,7 @@ class TestBenchmarkDecorator:
 
         @benchmark(name="test-qa", dataset="data.jsonl", prompt="Q: {q}\nA:")
         @scorer
-        def my_scorer(response, target, metadata):
+        def my_scorer(sample):
             return {"correct": True}
 
         benchmarks = get_registered_benchmarks()
@@ -104,7 +104,7 @@ class TestBenchmarkDecorator:
 
         @benchmark(name="defaults-test", dataset="d.jsonl", prompt="{x}")
         @scorer
-        def fn(response, target, metadata):
+        def fn(sample):
             return {"ok": True}
 
         defn = get_registered_benchmarks()["defaults_test"]
@@ -131,7 +131,7 @@ class TestBenchmarkDecorator:
             another=42,
         )
         @scorer
-        def fn(response, target, metadata):
+        def fn(sample):
             return {"ok": True}
 
         defn = get_registered_benchmarks()["custom"]
@@ -144,14 +144,14 @@ class TestBenchmarkDecorator:
 
         @benchmark(name="duplicate", dataset="d.jsonl", prompt="{x}")
         @scorer
-        def fn1(response, target, metadata):
+        def fn1(sample):
             return {"ok": True}
 
         with pytest.raises(ValueError, match="already registered"):
 
             @benchmark(name="Duplicate!", dataset="d2.jsonl", prompt="{y}")
             @scorer
-            def fn2(response, target, metadata):
+            def fn2(sample):
                 return {"ok": True}
 
     def test_multiple_benchmarks(self):
@@ -159,12 +159,12 @@ class TestBenchmarkDecorator:
 
         @benchmark(name="bench-a", dataset="d1.jsonl", prompt="{x}")
         @scorer
-        def fn_a(response, target, metadata):
+        def fn_a(sample):
             return {"ok": True}
 
         @benchmark(name="bench-b", dataset="d2.jsonl", prompt="{y}")
         @scorer
-        def fn_b(response, target, metadata):
+        def fn_b(sample):
             return {"ok": True}
 
         benchmarks = get_registered_benchmarks()
@@ -179,7 +179,7 @@ class TestBenchmarkDecorator:
 
         @benchmark(name="attr-test", dataset="d.jsonl", prompt="{x}")
         @scorer
-        def fn(response, target, metadata):
+        def fn(sample):
             return {"ok": True}
 
         assert hasattr(fn, "_benchmark_definition"), (
@@ -198,7 +198,7 @@ class TestScorerDecorator:
         """Validate @scorer sets _is_scorer=True and preserves functionality."""
 
         @scorer
-        def my_fn(response, target, metadata):
+        def my_fn(sample):
             return {"score": 1.0}
 
         assert hasattr(my_fn, "_is_scorer"), (
@@ -207,7 +207,7 @@ class TestScorerDecorator:
         assert my_fn._is_scorer is True
 
         # Function is still callable and works correctly
-        result = my_fn("resp", "tgt", {})
+        result = my_fn(ScorerInput(response="resp", target="tgt", metadata={}))
         assert result == {"score": 1.0}
 
 
@@ -219,7 +219,7 @@ class TestRegistryManagement:
 
         @benchmark(name="temp", dataset="d.jsonl", prompt="{x}")
         @scorer
-        def fn(response, target, metadata):
+        def fn(sample):
             return {}
 
         assert len(get_registered_benchmarks()) == 1, (
@@ -512,7 +512,7 @@ class TestBenchmarkWithRequirements:
             requirements=["numpy>=1.0", "pandas"],
         )
         @scorer
-        def fn(response, target, metadata):
+        def fn(sample):
             return {"ok": True}
 
         defn = get_registered_benchmarks()["req_list"]
@@ -525,7 +525,7 @@ class TestBenchmarkWithRequirements:
 
         @benchmark(name="req-none", dataset="d.jsonl", prompt="{x}")
         @scorer
-        def fn(response, target, metadata):
+        def fn(sample):
             return {"ok": True}
 
         defn = get_registered_benchmarks()["req_none"]
@@ -554,7 +554,7 @@ class TestBenchmarkWithRequirements:
             normalized_name="req_file",
             dataset="d.jsonl",
             prompt="{x}",
-            scorer_fn=lambda r, t, m: {},
+            scorer_fn=lambda sample: {},
             requirements=resolved_reqs,
         )
         assert defn.requirements == ["rogue-score>=0.1.2", "nltk"], (
@@ -602,8 +602,76 @@ class TestBenchmarkWithPromptFile:
             normalized_name="prompt_file",
             dataset="d.jsonl",
             prompt=resolved,
-            scorer_fn=lambda r, t, m: {},
+            scorer_fn=lambda sample: {},
         )
         assert defn.prompt == "# System\nEvaluate: {input}", (
             f"Expected resolved prompt in definition, got {defn.prompt!r}"
         )
+
+
+class TestScorerSignatureValidation:
+    """Tests for scorer signature validation via _validate_scorer_signature."""
+
+    def test_one_arg_scorer_accepted(self):
+        """Validate a scorer with one parameter (ScorerInput) is accepted."""
+
+        @scorer
+        def fn(sample):
+            return {}
+
+        assert hasattr(fn, "_is_scorer"), (
+            "Expected @scorer to set _is_scorer attribute"
+        )
+        assert fn._is_scorer is True
+
+    def test_two_arg_scorer_accepted(self):
+        """Validate a scorer with two parameters (sample, config) is accepted."""
+
+        @scorer
+        def fn(sample, config):
+            return {}
+
+        assert hasattr(fn, "_is_scorer"), (
+            "Expected @scorer to set _is_scorer attribute"
+        )
+        assert fn._is_scorer is True
+
+    def test_zero_arg_scorer_rejected(self):
+        """Validate a scorer with zero parameters is rejected with TypeError."""
+        with pytest.raises(TypeError):
+
+            @scorer
+            def fn():
+                return {}
+
+    def test_three_arg_scorer_rejected(self):
+        """Validate a scorer with three required parameters is rejected with TypeError."""
+        with pytest.raises(TypeError):
+
+            @scorer
+            def fn(response, target, metadata):
+                return {}
+
+    def test_four_arg_scorer_rejected(self):
+        """Validate a scorer with four required parameters is rejected with TypeError."""
+        with pytest.raises(TypeError):
+
+            @scorer
+            def fn(response, target, metadata, extra):
+                return {}
+
+    def test_rejection_message_mentions_scorer_input(self):
+        """Validate the TypeError message for rejected scorers mentions ScorerInput."""
+        with pytest.raises(TypeError, match="ScorerInput"):
+
+            @scorer
+            def fn(response, target, metadata):
+                return {}
+
+    def test_rejection_message_provides_migration_hint(self):
+        """Validate the TypeError message provides a migration hint with 'Migrate from'."""
+        with pytest.raises(TypeError, match="Migrate from"):
+
+            @scorer
+            def fn(response, target, metadata):
+                return {}

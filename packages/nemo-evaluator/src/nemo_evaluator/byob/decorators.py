@@ -175,12 +175,72 @@ def benchmark(name: str, dataset: str, prompt: str,
     return decorator
 
 
+def _validate_scorer_signature(fn: Callable) -> None:
+    """Validate that a scorer function has an acceptable signature.
+
+    Accepted signatures:
+        - 1 parameter: ``def scorer(sample: ScorerInput)``  (preferred)
+        - 2 parameters: ``def scorer(sample, config)``      (flexible)
+
+    Rejected signatures:
+        - 0 parameters: missing required input
+        - 3+ parameters: legacy pattern that should migrate to ScorerInput
+
+    Args:
+        fn: The scorer callable to validate.
+
+    Raises:
+        TypeError: If the scorer signature is invalid.
+    """
+    try:
+        sig = inspect.signature(fn)
+    except (ValueError, TypeError):
+        # If we cannot introspect (e.g. built-in), skip validation.
+        return
+
+    params = [
+        p for p in sig.parameters.values()
+        if p.default is inspect.Parameter.empty
+        and p.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+    ]
+    total_params = [
+        p for p in sig.parameters.values()
+        if p.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+    ]
+
+    n_required = len(params)
+    n_total = len(total_params)
+
+    if n_total == 0:
+        raise TypeError(
+            f"Scorer '{fn.__qualname__}' accepts 0 arguments. "
+            f"BYOB scorers must accept at least one argument — the ScorerInput instance. "
+            f"Example: def {fn.__name__}(sample: ScorerInput) -> dict: ..."
+        )
+
+    if n_required >= 3:
+        raise TypeError(
+            f"Scorer '{fn.__qualname__}' accepts {n_required} required arguments. "
+            f"BYOB scorers now accept a single ScorerInput argument. "
+            f"Migrate from `def scorer(response, target, metadata)` to "
+            f"`def scorer(sample: ScorerInput)`."
+        )
+
+
 def scorer(fn):
     """Decorator that marks a function as a BYOB scorer.
 
-    Sets fn._is_scorer = True. Used compositionally with @benchmark
-    (scorer is the inner decorator).
+    Validates the scorer signature and sets ``fn._is_scorer = True``.
+    Used compositionally with ``@benchmark`` (scorer is the inner decorator).
+
+    Accepted scorer signatures:
+        - 1 parameter: ``def scorer(sample: ScorerInput)``
+        - 2 parameters: ``def scorer(sample, config)``
+
+    Raises:
+        TypeError: If the scorer has 0 or 3+ parameters.
     """
+    _validate_scorer_signature(fn)
     fn._is_scorer = True
     return fn
 

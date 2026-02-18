@@ -30,6 +30,7 @@ from pathlib import Path
 import pytest
 
 from nemo_evaluator.byob.compiler import compile_benchmark, install_benchmark
+from nemo_evaluator.byob.decorators import ScorerInput
 
 
 def _get_boolq_benchmark_path():
@@ -81,19 +82,19 @@ class TestBoolQScorer:
     def test_yes_true(self):
         """BoolQ scorer: 'Yes' response with target 'true' should be correct."""
         scorer = _load_boolq_scorer()
-        result = scorer("Yes, they do speak the same language.", "true", {})
+        result = scorer(ScorerInput(response="Yes, they do speak the same language.", target="true", metadata={}))
         assert result["correct"] is True, "Expected 'Yes' + target='true' to be correct"
 
     def test_no_false(self):
         """BoolQ scorer: 'No' response with target 'false' should be correct."""
         scorer = _load_boolq_scorer()
-        result = scorer("No, it is not based on a true story.", "false", {})
+        result = scorer(ScorerInput(response="No, it is not based on a true story.", target="false", metadata={}))
         assert result["correct"] is True, "Expected 'No' + target='false' to be correct"
 
     def test_yes_false_is_wrong(self):
         """BoolQ scorer: 'Yes' response with target 'false' should be incorrect."""
         scorer = _load_boolq_scorer()
-        result = scorer("Yes, it is.", "false", {})
+        result = scorer(ScorerInput(response="Yes, it is.", target="false", metadata={}))
         assert result["correct"] is False, "Expected 'Yes' + target='false' to be incorrect"
 
 
@@ -172,8 +173,8 @@ from nemo_evaluator.byob import benchmark, scorer
     endpoint_type="chat"
 )
 @scorer
-def simple_scorer(response, target, metadata):
-    return {"correct": target.lower() in response.lower()}
+def simple_scorer(sample):
+    return {"correct": sample.target.lower() in sample.response.lower()}
 ''')
 
         # Create a temporary JSONL dataset

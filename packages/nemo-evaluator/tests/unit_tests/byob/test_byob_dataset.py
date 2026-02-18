@@ -20,12 +20,16 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import pytest
+from unittest.mock import MagicMock, patch
+
 from nemo_evaluator.byob.dataset import (
     DatasetFetcher,
     FetchResult,
+    HuggingFaceFetcher,
     LocalFetcher,
     _FETCHER_REGISTRY,
     _detect_format,
+    _remap_fields,
     get_fetcher_for_uri,
     load_csv,
     load_dataset,
@@ -553,3 +557,169 @@ class TestLoadDataset:
         data = load_dataset(str(path))
         assert len(data) == 2, f"Expected 2 records from .json file, got {len(data)}"
         assert data == records, f"Data mismatch: {data}"
+
+
+# ---------------------------------------------------------------------------
+# TestHuggingFaceFetcher
+# ---------------------------------------------------------------------------
+
+
+class TestHuggingFaceFetcher:
+    """Tests for the HuggingFaceFetcher class."""
+
+    def test_supports_hf_prefix(self) -> None:
+        """Validate supports() returns True for URIs with hf:// prefix."""
+        fetcher = HuggingFaceFetcher()
+        assert fetcher.supports("hf://my_dataset") is True, (
+            "Expected supports('hf://my_dataset') to be True"
+        )
+
+    def test_not_supports_other_prefix(self) -> None:
+        """Validate supports() returns False for non-hf:// URIs."""
+        fetcher = HuggingFaceFetcher()
+        assert fetcher.supports("/local/path") is False, (
+            "Expected supports('/local/path') to be False"
+        )
+        assert fetcher.supports("s3://bucket/data.jsonl") is False, (
+            "Expected supports('s3://...') to be False"
+        )
+        assert fetcher.supports("https://example.com/data") is False, (
+            "Expected supports('https://...') to be False"
+        )
+
+    def test_import_error_when_datasets_missing(self) -> None:
+        """Validate clear ImportError when 'datasets' package is not installed."""
+        fetcher = HuggingFaceFetcher()
+        import builtins
+        original_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name == "datasets":
+                raise ImportError("No module named 'datasets'")
+            return original_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=mock_import):
+            with pytest.raises(ImportError, match="datasets"):
+                fetcher.fetch("hf://test/dataset")
+
+    def test_uri_parsing(self) -> None:
+        """Validate _parse_uri with various URI patterns returns correct tuples."""
+        # hf://org/dataset/config/split -> (org/dataset, config, split)
+        result = HuggingFaceFetcher._parse_uri("hf://org/dataset/config/split")
+        assert result == ("org/dataset", "config", "split"), (
+            f"Expected ('org/dataset', 'config', 'split'), got {result}"
+        )
+
+        # hf://org/dataset/config -> (org/dataset, config, None)
+        result = HuggingFaceFetcher._parse_uri("hf://org/dataset/config")
+        assert result == ("org/dataset", "config", None), (
+            f"Expected ('org/dataset', 'config', None), got {result}"
+        )
+
+        # hf://org/dataset -> (org/dataset, None, None)
+        result = HuggingFaceFetcher._parse_uri("hf://org/dataset")
+        assert result == ("org/dataset", None, None), (
+            f"Expected ('org/dataset', None, None), got {result}"
+        )
+
+        # hf://single_name -> (single_name, None, None)
+        result = HuggingFaceFetcher._parse_uri("hf://single_name")
+        assert result == ("single_name", None, None), (
+            f"Expected ('single_name', None, None), got {result}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# TestFieldRemapping
+# ---------------------------------------------------------------------------
+
+
+class TestFieldRemapping:
+    """Tests for field remapping in dataset loading."""
+
+    def test_basic_remap(self) -> None:
+        """Validate basic field remapping with {old_key: new_key}."""
+        records = [
+            {"old_key": "value1", "other": "keep"},
+            {"old_key": "value2", "other": "keep2"},
+        ]
+        result = _remap_fields(records, {"old_key": "new_key"})
+
+        assert len(result) == 2, f"Expected 2 records, got {len(result)}"
+        assert "new_key" in result[0], (
+            f"Expected 'new_key' in remapped record, got keys {list(result[0].keys())}"
+        )
+        assert "old_key" not in result[0], (
+            "Expected 'old_key' to be renamed in remapped record"
+        )
+        assert result[0]["new_key"] == "value1", (
+            f"Expected new_key='value1', got {result[0]['new_key']!r}"
+        )
+        assert result[0]["other"] == "keep", (
+            f"Expected unmapped key 'other' to be passed through, got {result[0]['other']!r}"
+        )
+
+    def test_no_mapping_passthrough(self, tmp_path: Path) -> None:
+        """Validate field_mapping=None returns data unchanged via load_dataset."""
+        path = tmp_path / "data.jsonl"
+        records = [{"question": "Q1", "answer": "A1"}]
+        path.write_text(json.dumps(records[0]), encoding="utf-8")
+
+        data = load_dataset(str(path), field_mapping=None)
+        assert data == records, (
+            f"Expected data unchanged when field_mapping=None, got {data}"
+        )
+
+    def test_missing_source_key_ignored(self) -> None:
+        """Validate mapping referencing a key not in data is silently ignored."""
+        records = [{"existing": "value"}]
+        result = _remap_fields(records, {"nonexistent": "new_name"})
+
+        assert len(result) == 1, f"Expected 1 record, got {len(result)}"
+        assert "existing" in result[0], (
+            "Expected 'existing' key to be preserved"
+        )
+        assert "new_name" not in result[0], (
+            "Expected 'new_name' not in result when source key is missing"
+        )
+        assert "nonexistent" not in result[0], (
+            "Expected 'nonexistent' not in result"
+        )
+
+    def test_remap_integration(self, tmp_path: Path) -> None:
+        """Validate load_dataset with field_mapping parameter end-to-end."""
+        path = tmp_path / "data.jsonl"
+        records = [
+            {"src_question": "What?", "src_answer": "Yes"},
+            {"src_question": "How?", "src_answer": "No"},
+        ]
+        path.write_text(
+            "\n".join(json.dumps(r) for r in records),
+            encoding="utf-8",
+        )
+
+        data = load_dataset(
+            str(path),
+            field_mapping={"src_question": "question", "src_answer": "answer"},
+        )
+
+        assert len(data) == 2, f"Expected 2 records, got {len(data)}"
+        assert "question" in data[0], (
+            f"Expected 'question' key after remapping, got keys {list(data[0].keys())}"
+        )
+        assert "answer" in data[0], (
+            f"Expected 'answer' key after remapping, got keys {list(data[0].keys())}"
+        )
+        assert data[0]["question"] == "What?", (
+            f"Expected question='What?', got {data[0]['question']!r}"
+        )
+        assert data[1]["answer"] == "No", (
+            f"Expected answer='No', got {data[1]['answer']!r}"
+        )
+        # Original keys should be gone
+        assert "src_question" not in data[0], (
+            "Expected 'src_question' to be renamed, not present"
+        )
+        assert "src_answer" not in data[0], (
+            "Expected 'src_answer' to be renamed, not present"
+        )

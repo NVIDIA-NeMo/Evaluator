@@ -17,12 +17,16 @@
 
 from nemo_evaluator.byob.decorators import ScorerInput
 from nemo_evaluator.byob.scorers import (
+    BUILTIN_SCORERS,
     all_of,
     any_of,
+    bleu,
     contains,
     exact_match,
     f1_token,
     regex_match,
+    retrieval_metrics,
+    rouge,
 )
 
 
@@ -314,4 +318,307 @@ class TestScorerInputDefaults:
         )
         assert sample.turn_index == 2, (
             f"Expected turn_index to be 2, got {sample.turn_index}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# BLEU scorer tests
+# ---------------------------------------------------------------------------
+
+
+class TestBleuScorer:
+    """Tests for the bleu scorer function."""
+
+    def test_bleu_perfect_match(self):
+        """Validate identical response and target produce bleu_1 close to 1.0."""
+        result = bleu(_make_input(response="the cat sat on the mat", target="the cat sat on the mat"))
+        assert abs(result["bleu_1"] - 1.0) < 0.01, (
+            f"Expected bleu_1 close to 1.0 for perfect match, got {result['bleu_1']}"
+        )
+
+    def test_bleu_no_overlap(self):
+        """Validate completely different texts produce all bleu_n close to 0 (but smoothed > 0)."""
+        result = bleu(_make_input(response="alpha beta gamma", target="one two three"))
+        for key in ("bleu_1", "bleu_2", "bleu_3", "bleu_4"):
+            assert result[key] < 0.5, (
+                f"Expected {key} < 0.5 for no overlap, got {result[key]}"
+            )
+            # Smoothed BLEU should still be > 0 due to add-1 smoothing
+            assert result[key] > 0.0, (
+                f"Expected {key} > 0.0 due to Laplace smoothing, got {result[key]}"
+            )
+
+    def test_bleu_partial_overlap(self):
+        """Validate partial overlap produces bleu values strictly between 0 and 1."""
+        result = bleu(_make_input(
+            response="the cat sat on the mat",
+            target="the cat played on the rug",
+        ))
+        for key in ("bleu_1", "bleu_2", "bleu_3", "bleu_4"):
+            assert 0.0 < result[key] < 1.0, (
+                f"Expected 0 < {key} < 1 for partial overlap, got {result[key]}"
+            )
+
+    def test_bleu_empty_inputs(self):
+        """Validate empty response or target returns all 0.0."""
+        result_empty_response = bleu(_make_input(response="", target="hello world"))
+        result_empty_target = bleu(_make_input(response="hello world", target=""))
+        result_both_empty = bleu(_make_input(response="", target=""))
+
+        for result in (result_empty_response, result_empty_target, result_both_empty):
+            for key in ("bleu_1", "bleu_2", "bleu_3", "bleu_4"):
+                assert result[key] == 0.0, (
+                    f"Expected {key} == 0.0 for empty input, got {result[key]}"
+                )
+
+    def test_bleu_returns_four_keys(self):
+        """Validate bleu result dict has exactly bleu_1, bleu_2, bleu_3, bleu_4."""
+        result = bleu(_make_input(response="hello world", target="hello world"))
+        expected_keys = {"bleu_1", "bleu_2", "bleu_3", "bleu_4"}
+        assert set(result.keys()) == expected_keys, (
+            f"Expected keys {expected_keys}, got {set(result.keys())}"
+        )
+
+    def test_bleu_registered(self):
+        """Validate 'bleu' is registered in BUILTIN_SCORERS."""
+        assert "bleu" in BUILTIN_SCORERS, (
+            f"Expected 'bleu' in BUILTIN_SCORERS, got keys {list(BUILTIN_SCORERS.keys())}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# ROUGE scorer tests
+# ---------------------------------------------------------------------------
+
+
+class TestRougeScorer:
+    """Tests for the rouge scorer function."""
+
+    def test_rouge_perfect_match(self):
+        """Validate identical texts produce rouge_1 == rouge_2 == rouge_l == 1.0."""
+        result = rouge(_make_input(response="the cat sat on the mat", target="the cat sat on the mat"))
+        assert result["rouge_1"] == 1.0, (
+            f"Expected rouge_1 == 1.0, got {result['rouge_1']}"
+        )
+        assert result["rouge_2"] == 1.0, (
+            f"Expected rouge_2 == 1.0, got {result['rouge_2']}"
+        )
+        assert result["rouge_l"] == 1.0, (
+            f"Expected rouge_l == 1.0, got {result['rouge_l']}"
+        )
+
+    def test_rouge_no_overlap(self):
+        """Validate completely different texts produce all 0.0."""
+        result = rouge(_make_input(response="alpha beta gamma", target="one two three"))
+        assert result["rouge_1"] == 0.0, (
+            f"Expected rouge_1 == 0.0, got {result['rouge_1']}"
+        )
+        assert result["rouge_2"] == 0.0, (
+            f"Expected rouge_2 == 0.0, got {result['rouge_2']}"
+        )
+        assert result["rouge_l"] == 0.0, (
+            f"Expected rouge_l == 0.0, got {result['rouge_l']}"
+        )
+
+    def test_rouge_partial_overlap(self):
+        """Validate some shared tokens produce values between 0 and 1."""
+        result = rouge(_make_input(
+            response="the cat sat on the mat",
+            target="the cat played on the rug",
+        ))
+        for key in ("rouge_1", "rouge_2", "rouge_l"):
+            assert 0.0 < result[key] < 1.0, (
+                f"Expected 0 < {key} < 1 for partial overlap, got {result[key]}"
+            )
+
+    def test_rouge_lcs_correctness(self):
+        """Validate ROUGE-L differs from n-gram overlap when LCS is shorter.
+
+        pred: "A B C D"  ref: "A C B D"
+        ROUGE-1 tokens overlap: A, B, C, D (4/4 each) => F1 = 1.0
+        LCS: "A C D" or "A B D" (length 3), precision = 3/4, recall = 3/4
+        ROUGE-L F1 = 2 * 0.75 * 0.75 / (0.75 + 0.75) = 0.75
+        """
+        result = rouge(_make_input(response="A B C D", target="A C B D"))
+        assert result["rouge_1"] == 1.0, (
+            f"Expected rouge_1 == 1.0 (all unigrams match), got {result['rouge_1']}"
+        )
+        assert abs(result["rouge_l"] - 0.75) < 0.01, (
+            f"Expected rouge_l close to 0.75, got {result['rouge_l']}"
+        )
+
+    def test_rouge_empty_inputs(self):
+        """Validate empty response or target returns all 0.0."""
+        for resp, tgt in [("", "hello"), ("hello", ""), ("", "")]:
+            result = rouge(_make_input(response=resp, target=tgt))
+            for key in ("rouge_1", "rouge_2", "rouge_l"):
+                assert result[key] == 0.0, (
+                    f"Expected {key} == 0.0 for empty input ({resp!r}, {tgt!r}), "
+                    f"got {result[key]}"
+                )
+
+
+# ---------------------------------------------------------------------------
+# Retrieval metrics tests
+# ---------------------------------------------------------------------------
+
+
+class TestRetrievalMetrics:
+    """Tests for the retrieval_metrics scorer function."""
+
+    def test_retrieval_perfect(self):
+        """Validate all retrieved are relevant produces perfect scores."""
+        sample = _make_input(metadata={
+            "retrieved": ["a", "b", "c"],
+            "relevant": ["a", "b", "c"],
+        })
+        result = retrieval_metrics(sample)
+        assert result["precision_at_k"] == 1.0, (
+            f"Expected precision_at_k == 1.0, got {result['precision_at_k']}"
+        )
+        assert result["recall_at_k"] == 1.0, (
+            f"Expected recall_at_k == 1.0, got {result['recall_at_k']}"
+        )
+        assert result["mrr"] == 1.0, (
+            f"Expected mrr == 1.0, got {result['mrr']}"
+        )
+        assert result["ndcg"] == 1.0, (
+            f"Expected ndcg == 1.0, got {result['ndcg']}"
+        )
+
+    def test_retrieval_none_relevant(self):
+        """Validate no retrieved item is relevant produces all 0.0."""
+        sample = _make_input(metadata={
+            "retrieved": ["x", "y", "z"],
+            "relevant": ["a", "b", "c"],
+        })
+        result = retrieval_metrics(sample)
+        assert result["precision_at_k"] == 0.0, (
+            f"Expected precision_at_k == 0.0, got {result['precision_at_k']}"
+        )
+        assert result["recall_at_k"] == 0.0, (
+            f"Expected recall_at_k == 0.0, got {result['recall_at_k']}"
+        )
+        assert result["mrr"] == 0.0, (
+            f"Expected mrr == 0.0, got {result['mrr']}"
+        )
+        assert result["ndcg"] == 0.0, (
+            f"Expected ndcg == 0.0, got {result['ndcg']}"
+        )
+
+    def test_retrieval_partial(self):
+        """Validate some hits produce expected precision and recall.
+
+        retrieved = ["a", "x", "b"], relevant = ["a", "b"]
+        k = 3 (default), hits = 2
+        precision@k = 2/3, recall@k = 2/2 = 1.0
+        """
+        sample = _make_input(metadata={
+            "retrieved": ["a", "x", "b"],
+            "relevant": ["a", "b"],
+        })
+        result = retrieval_metrics(sample)
+        assert abs(result["precision_at_k"] - 2.0 / 3.0) < 0.001, (
+            f"Expected precision_at_k close to 0.667, got {result['precision_at_k']}"
+        )
+        assert result["recall_at_k"] == 1.0, (
+            f"Expected recall_at_k == 1.0, got {result['recall_at_k']}"
+        )
+
+    def test_retrieval_mrr_position(self):
+        """Validate first relevant item at position 3 produces mrr == 1/3."""
+        sample = _make_input(metadata={
+            "retrieved": ["x", "y", "a", "b"],
+            "relevant": ["a", "b"],
+        })
+        result = retrieval_metrics(sample)
+        assert abs(result["mrr"] - 1.0 / 3.0) < 0.001, (
+            f"Expected mrr close to 0.333, got {result['mrr']}"
+        )
+
+    def test_retrieval_empty_lists(self):
+        """Validate missing metadata keys produce all 0.0."""
+        # Empty metadata dict -- no "retrieved" or "relevant" keys
+        sample = _make_input(metadata={})
+        result = retrieval_metrics(sample)
+        for key in ("precision_at_k", "recall_at_k", "mrr", "ndcg"):
+            assert result[key] == 0.0, (
+                f"Expected {key} == 0.0 for empty metadata, got {result[key]}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Multi-turn conversation tests (B3)
+# ---------------------------------------------------------------------------
+
+
+class TestMultiTurnConversation:
+    """Tests for ScorerInput multi-turn conversation fields (B3)."""
+
+    def test_scorer_input_with_conversation(self):
+        """Validate ScorerInput with conversation list is accessible."""
+        conversation = [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi there!"},
+            {"role": "user", "content": "How are you?"},
+        ]
+        inp = ScorerInput(
+            response="I'm doing well",
+            target="fine",
+            metadata={},
+            conversation=conversation,
+        )
+        assert inp.conversation == conversation, (
+            f"Expected conversation to be accessible, got {inp.conversation}"
+        )
+        assert len(inp.conversation) == 3, (
+            f"Expected 3 turns, got {len(inp.conversation)}"
+        )
+
+    def test_scorer_input_with_turn_index(self):
+        """Validate turn_index field works correctly."""
+        inp = ScorerInput(
+            response="resp",
+            target="tgt",
+            metadata={},
+            turn_index=5,
+        )
+        assert inp.turn_index == 5, (
+            f"Expected turn_index == 5, got {inp.turn_index}"
+        )
+
+    def test_scorer_receives_conversation_in_eval(self):
+        """Validate a scorer that reads conversation receives it through ScorerInput."""
+        captured = {}
+
+        def conversation_scorer(sample):
+            captured["conversation"] = sample.conversation
+            captured["turn_index"] = sample.turn_index
+            return {"correct": True}
+
+        conversation = [{"role": "user", "content": "test"}]
+        inp = ScorerInput(
+            response="resp",
+            target="tgt",
+            metadata={},
+            conversation=conversation,
+            turn_index=0,
+        )
+        result = conversation_scorer(inp)
+
+        assert result == {"correct": True}, (
+            f"Expected scorer to return correct result, got {result}"
+        )
+        assert captured["conversation"] == conversation, (
+            f"Expected scorer to receive conversation, got {captured['conversation']}"
+        )
+        assert captured["turn_index"] == 0, (
+            f"Expected scorer to receive turn_index=0, got {captured['turn_index']}"
+        )
+
+    def test_conversation_default_is_none(self):
+        """Validate conversation defaults to None when not provided."""
+        inp = ScorerInput(response="r", target="t", metadata={})
+        assert inp.conversation is None, (
+            f"Expected conversation default to be None, got {inp.conversation}"
         )
