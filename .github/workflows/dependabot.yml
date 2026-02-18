@@ -11,7 +11,6 @@ permissions:
 jobs:
   get-release-branch-names:
     runs-on: ubuntu-latest
-    environment: nemo-ci
     outputs:
       eval: ${{ steps.get-branch.outputs.nemo_eval_release_branch }}
     steps:
