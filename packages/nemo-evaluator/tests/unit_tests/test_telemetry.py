@@ -19,22 +19,21 @@ import os
 import uuid
 from unittest.mock import patch
 
-import pytest
-
 
 class TestTelemetryEnabled:
     """Tests for is_telemetry_enabled function."""
 
     def test_telemetry_enabled_default(self):
         """Test that telemetry is enabled by default."""
-        from nemo_evaluator.telemetry import is_telemetry_enabled
 
         with patch.dict(os.environ, {}, clear=True):
             # Remove the env var if it exists
             os.environ.pop("NEMO_EVALUATOR_TELEMETRY_ENABLED", None)
             # Re-import to get fresh state
             import importlib
+
             import nemo_evaluator.telemetry as telemetry_module
+
             importlib.reload(telemetry_module)
             assert telemetry_module.is_telemetry_enabled() is True
 
@@ -70,39 +69,39 @@ class TestSessionId:
 
     def test_session_id_generation(self):
         """Test that generated session IDs are valid UUIDs."""
-        from nemo_evaluator.telemetry import generate_session_id
+        from nemo_evaluator.telemetry import _generate_session_id
 
-        session_id = generate_session_id()
+        session_id = _generate_session_id()
         # Should be a valid UUID
         uuid.UUID(session_id)  # Raises ValueError if invalid
 
     def test_session_id_uniqueness(self):
         """Test that each call generates a unique session ID."""
-        from nemo_evaluator.telemetry import generate_session_id
+        from nemo_evaluator.telemetry import _generate_session_id
 
-        ids = [generate_session_id() for _ in range(100)]
+        ids = [_generate_session_id() for _ in range(100)]
         assert len(set(ids)) == 100
 
     def test_get_session_id_from_env(self):
         """Test that session ID is read from environment variable."""
         from nemo_evaluator.telemetry import (
-            SESSION_ID_ENV_VAR,
+            TELEMETRY_SESSION_ID_ENV_VAR,
             get_session_id,
         )
 
         test_id = "test-session-123"
-        with patch.dict(os.environ, {SESSION_ID_ENV_VAR: test_id}):
+        with patch.dict(os.environ, {TELEMETRY_SESSION_ID_ENV_VAR: test_id}):
             assert get_session_id() == test_id
 
     def test_get_session_id_generates_new(self):
         """Test that a new session ID is generated when not in env."""
         from nemo_evaluator.telemetry import (
-            SESSION_ID_ENV_VAR,
+            TELEMETRY_SESSION_ID_ENV_VAR,
             get_session_id,
         )
 
         with patch.dict(os.environ, {}, clear=True):
-            os.environ.pop(SESSION_ID_ENV_VAR, None)
+            os.environ.pop(TELEMETRY_SESSION_ID_ENV_VAR, None)
             session_id = get_session_id()
             # Should be a valid UUID
             uuid.UUID(session_id)
@@ -113,14 +112,14 @@ class TestEventSerialization:
 
     def test_evaluation_task_event_serialization(self):
         """Test that EvaluationTaskEvent serializes with correct camelCase aliases."""
-        from nemo_evaluator.telemetry import EvaluationTaskEvent, TaskStatusEnum
+        from nemo_evaluator.telemetry import EvaluationTaskEvent, StatusEnum
 
         event = EvaluationTaskEvent(
             task="mmlu",
             framework_name="lm-eval",
             model="llama-3.1-8b",
             execution_duration_seconds=123.45,
-            status=TaskStatusEnum.SUCCESS,
+            status=StatusEnum.SUCCESS,
         )
 
         serialized = event.model_dump(by_alias=True)
@@ -135,26 +134,18 @@ class TestEventSerialization:
 
     def test_evaluation_task_event_started_without_duration(self):
         """Test that STARTED events can be created without execution_duration_seconds."""
-        from nemo_evaluator.telemetry import EvaluationTaskEvent, TaskStatusEnum
+        from nemo_evaluator.telemetry import EvaluationTaskEvent, StatusEnum
 
         event = EvaluationTaskEvent(
             task="mmlu",
             framework_name="unknown",
             model="llama-3.1-8b",
-            status=TaskStatusEnum.STARTED,
+            status=StatusEnum.STARTED,
         )
 
         serialized = event.model_dump(by_alias=True)
         assert serialized["status"] == "started"
         assert serialized["executionDurationSeconds"] == 0.0
-
-    def test_status_values(self):
-        """Test that TaskStatusEnum has expected values."""
-        from nemo_evaluator.telemetry import TaskStatusEnum
-
-        assert TaskStatusEnum.STARTED.value == "started"
-        assert TaskStatusEnum.SUCCESS.value == "success"
-        assert TaskStatusEnum.FAILURE.value == "failure"
 
 
 class TestTelemetryHandler:
@@ -177,7 +168,7 @@ class TestTelemetryHandler:
         """Test that events are not enqueued when telemetry is disabled."""
         from nemo_evaluator.telemetry import (
             EvaluationTaskEvent,
-            TaskStatusEnum,
+            StatusEnum,
             TelemetryHandler,
         )
 
@@ -188,7 +179,7 @@ class TestTelemetryHandler:
                 framework_name="lm-eval",
                 model="test-model",
                 execution_duration_seconds=1.0,
-                status=TaskStatusEnum.SUCCESS,
+                status=StatusEnum.SUCCESS,
             )
             handler.enqueue(event)
             assert len(handler._events) == 0
@@ -197,7 +188,7 @@ class TestTelemetryHandler:
         """Test that events are enqueued when telemetry is enabled."""
         from nemo_evaluator.telemetry import (
             EvaluationTaskEvent,
-            TaskStatusEnum,
+            StatusEnum,
             TelemetryHandler,
         )
 
@@ -208,7 +199,7 @@ class TestTelemetryHandler:
                 framework_name="lm-eval",
                 model="test-model",
                 execution_duration_seconds=1.0,
-                status=TaskStatusEnum.SUCCESS,
+                status=StatusEnum.SUCCESS,
             )
             handler.enqueue(event)
             assert len(handler._events) == 1
@@ -234,7 +225,7 @@ class TestBuildPayload:
         from nemo_evaluator.telemetry import (
             EvaluationTaskEvent,
             QueuedEvent,
-            TaskStatusEnum,
+            StatusEnum,
             build_payload,
         )
 
@@ -243,7 +234,7 @@ class TestBuildPayload:
             framework_name="lm-eval",
             model="test-model",
             execution_duration_seconds=60.5,
-            status=TaskStatusEnum.SUCCESS,
+            status=StatusEnum.SUCCESS,
         )
         queued = QueuedEvent(event=event, timestamp=datetime.now(timezone.utc))
 
@@ -266,7 +257,7 @@ class TestBuildPayload:
         from nemo_evaluator.telemetry import (
             EvaluationTaskEvent,
             QueuedEvent,
-            TaskStatusEnum,
+            StatusEnum,
             build_payload,
         )
 
@@ -275,7 +266,7 @@ class TestBuildPayload:
             framework_name="helm",
             model="gpt-4",
             execution_duration_seconds=120.0,
-            status=TaskStatusEnum.FAILURE,
+            status=StatusEnum.FAILURE,
         )
         queued = QueuedEvent(event=event, timestamp=datetime.now(timezone.utc))
 

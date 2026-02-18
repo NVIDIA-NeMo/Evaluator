@@ -39,16 +39,18 @@ from nemo_evaluator.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Environment variable for session ID propagation
-SESSION_ID_ENV_VAR = "NEMO_EVALUATOR_TELEMETRY_SESSION_ID"
+# Environment variable names
+TELEMETRY_ENABLED_ENV_VAR = "NEMO_EVALUATOR_TELEMETRY_ENABLED"
+TELEMETRY_SESSION_ID_ENV_VAR = "NEMO_EVALUATOR_TELEMETRY_SESSION_ID"
+TELEMETRY_ENDPOINT_ENV_VAR = "NEMO_EVALUATOR_TELEMETRY_ENDPOINT"
 
 # Telemetry configuration
 CLIENT_ID = "14399890258381784"
 # Maps to "eventSysVer" in the payload — identifies the telemetry client version.
 NEMO_TELEMETRY_VERSION = "nemo-telemetry/1.0"
-MAX_RETRIES = 3
 NEMO_TELEMETRY_ENDPOINT = os.getenv(
-    "NEMO_EVALUATOR_TELEMETRY_ENDPOINT", "https://events.telemetry.data.nvidia.com/v1.1/events/json"
+    TELEMETRY_ENDPOINT_ENV_VAR,
+    "https://events.telemetry.data.nvidia.com/v1.1/events/json",
 )
 CPU_ARCHITECTURE = platform.uname().machine
 
@@ -56,38 +58,33 @@ CPU_ARCHITECTURE = platform.uname().machine
 _notification_shown = False
 
 
-def _get_httpx():
-    """Lazy import httpx to minimize startup latency."""
-    import httpx
-
-    return httpx
-
-
 def is_telemetry_enabled() -> bool:
     """Check if telemetry is enabled via environment variable."""
-    return os.getenv("NEMO_EVALUATOR_TELEMETRY_ENABLED", "true").lower() in ("1", "true", "yes")
+    return os.getenv(TELEMETRY_ENABLED_ENV_VAR, "true").lower() in ("1", "true", "yes")
 
 
-def generate_session_id() -> str:
+def _generate_session_id() -> str:
     """Generate a new UUID session ID."""
     return str(uuid.uuid4())
 
 
 def get_session_id() -> str:
     """Get session ID from environment or generate a new one."""
-    return os.getenv(SESSION_ID_ENV_VAR) or generate_session_id()
+    return os.getenv(TELEMETRY_SESSION_ID_ENV_VAR) or _generate_session_id()
 
 
 def show_telemetry_notification() -> None:
     """Show telemetry notification to the user (only once per session)."""
     global _notification_shown
     if not _notification_shown:
-        logger.info("Telemetry enabled. Set NEMO_EVALUATOR_TELEMETRY_ENABLED=false to disable.")
+        logger.info(
+            f"Telemetry enabled. Set {TELEMETRY_ENABLED_ENV_VAR}=false to disable."
+        )
         _notification_shown = True
 
 
-class TaskStatusEnum(str, Enum):
-    """Status of an evaluation task. Event is collected anonymously."""
+class StatusEnum(str, Enum):
+    """Status of a telemetry event. Event is collected anonymously."""
 
     STARTED = "started"
     SUCCESS = "success"
@@ -98,7 +95,8 @@ class TelemetryEvent(BaseModel):
     """Base class for telemetry events."""
 
     _event_name: ClassVar[str]  # Subclasses must define this
-    # Maps to "eventSchemaVer" in the payload — versioning for the event data structure.
+    # Event data structure version (maps to "eventSchemaVer").
+    # Distinct from NEMO_TELEMETRY_VERSION which identifies the telemetry client version (maps to "eventSysVer").
     _schema_version: ClassVar[str] = "1.0"
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -134,7 +132,7 @@ class EvaluationTaskEvent(TelemetryEvent):
         alias="executionDurationSeconds",
         description="Duration of the evaluation in seconds. Event is collected anonymously.",
     )
-    status: TaskStatusEnum = Field(
+    status: StatusEnum = Field(
         ...,
         description="The status of the task (started/success/failure). Event is collected anonymously.",
     )
@@ -159,7 +157,10 @@ def _get_iso_timestamp(dt: datetime | None = None) -> str:
 
 
 def build_payload(
-    events: list[QueuedEvent], *, source_client_version: str, session_id: str = "undefined"
+    events: list[QueuedEvent],
+    *,
+    source_client_version: str,
+    session_id: str = "undefined",
 ) -> dict[str, Any]:
     """Build the telemetry payload for sending to the endpoint."""
     return {
@@ -219,7 +220,7 @@ class TelemetryHandler:
         self,
         flush_interval_seconds: float = 120.0,
         max_queue_size: int = 50,
-        max_retries: int = MAX_RETRIES,
+        max_retries: int = 3,
         source_client_version: str = "undefined",
         session_id: str = "undefined",
     ):
@@ -258,8 +259,10 @@ class TelemetryHandler:
         """Start the telemetry handler synchronously."""
         logger.debug(
             "Telemetry handler starting",
-            endpoint=NEMO_TELEMETRY_ENDPOINT, session_id=self._session_id,
-            client_id=CLIENT_ID, version=self._source_client_version,
+            endpoint=NEMO_TELEMETRY_ENDPOINT,
+            session_id=self._session_id,
+            client_id=CLIENT_ID,
+            version=self._source_client_version,
         )
         self._run_sync(self._astart())
 
@@ -267,7 +270,8 @@ class TelemetryHandler:
         """Stop the telemetry handler synchronously."""
         logger.debug(
             "Telemetry handler stopping",
-            pending=len(self._events), dlq=len(self._dlq),
+            pending=len(self._events),
+            dlq=len(self._dlq),
         )
         self._run_sync(self._astop())
 
@@ -278,14 +282,22 @@ class TelemetryHandler:
     def enqueue(self, event: TelemetryEvent) -> None:
         """Add an event to the queue for sending."""
         if not is_telemetry_enabled():
-            logger.debug("Telemetry disabled, skipping event", event_type=type(event).__name__)
+            logger.debug(
+                "Telemetry disabled, skipping event", event_type=type(event).__name__
+            )
             return
         if not isinstance(event, TelemetryEvent):
-            logger.debug("Ignoring non-TelemetryEvent object", event_type=type(event).__name__)
+            logger.debug(
+                "Ignoring non-TelemetryEvent object", event_type=type(event).__name__
+            )
             return
         queued = QueuedEvent(event=event, timestamp=datetime.now(timezone.utc))
         self._events.append(queued)
-        logger.debug("Enqueued telemetry event", event_name=event._event_name, queue_size=len(self._events))
+        logger.debug(
+            "Enqueued telemetry event",
+            event_name=event._event_name,
+            queue_size=len(self._events),
+        )
         if len(self._events) >= self._max_queue_size:
             self._flush_signal.set()
 
@@ -337,40 +349,53 @@ class TelemetryHandler:
         """Send events to the telemetry endpoint."""
         logger.debug(
             "Sending telemetry events",
-            count=len(events), endpoint=NEMO_TELEMETRY_ENDPOINT, session_id=self._session_id,
+            count=len(events),
+            endpoint=NEMO_TELEMETRY_ENDPOINT,
+            session_id=self._session_id,
         )
         try:
-            httpx = _get_httpx()
+            import httpx
+
             async with httpx.AsyncClient() as client:
                 await self._send_events_with_client(client, events)
         except Exception as e:
             logger.debug("Telemetry send failed (events moved to DLQ)", error=str(e))
             self._add_to_dlq(events)
 
-    async def _send_events_with_client(self, client: Any, events: list[QueuedEvent]) -> None:
+    async def _send_events_with_client(
+        self, client: Any, events: list[QueuedEvent]
+    ) -> None:
         """Send events using the provided HTTP client."""
         if not events:
             return
 
         payload = build_payload(
-            events, source_client_version=self._source_client_version, session_id=self._session_id
+            events,
+            source_client_version=self._source_client_version,
+            session_id=self._session_id,
         )
         try:
             response = await client.post(NEMO_TELEMETRY_ENDPOINT, json=payload)
             # 2xx, 400, 422 are all considered complete (no retry)
             # 400/422 indicate bad payload which retrying won't fix
             if response.is_success:
-                logger.debug("Telemetry events sent successfully", status=response.status_code)
+                logger.debug(
+                    "Telemetry events sent successfully", status=response.status_code
+                )
                 return
             if response.status_code in (400, 422):
                 logger.debug(
                     "Telemetry endpoint rejected payload",
-                    status=response.status_code, response=response.text[:200],
+                    status=response.status_code,
+                    response=response.text[:200],
                 )
                 return
             # 413 (payload too large) - split and retry
             if response.status_code == 413:
-                logger.debug("Telemetry payload too large (HTTP 413), splitting", count=len(events))
+                logger.debug(
+                    "Telemetry payload too large (HTTP 413), splitting",
+                    count=len(events),
+                )
                 if len(events) == 1:
                     # Can't split further, drop the event
                     return
@@ -385,7 +410,9 @@ class TelemetryHandler:
                 )
                 self._add_to_dlq(events)
         except Exception as e:
-            logger.debug("Telemetry HTTP request failed (events moved to DLQ)", error=str(e))
+            logger.debug(
+                "Telemetry HTTP request failed (events moved to DLQ)", error=str(e)
+            )
             self._add_to_dlq(events)
 
     def _add_to_dlq(self, events: list[QueuedEvent]) -> None:
@@ -395,7 +422,8 @@ class TelemetryHandler:
             if queued.retry_count > self._max_retries:
                 logger.debug(
                     "Dropping telemetry event after max retries",
-                    event_name=queued.event._event_name, max_retries=self._max_retries,
+                    event_name=queued.event._event_name,
+                    max_retries=self._max_retries,
                 )
                 continue
             self._dlq.append(queued)

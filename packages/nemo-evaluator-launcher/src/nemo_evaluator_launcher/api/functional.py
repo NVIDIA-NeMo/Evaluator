@@ -151,34 +151,37 @@ def run_eval(
 
     # Set up telemetry
     from nemo_evaluator.telemetry import (
-        SESSION_ID_ENV_VAR,
+        TELEMETRY_SESSION_ID_ENV_VAR,
+        StatusEnum,
         TelemetryHandler,
-        generate_session_id,
+        get_session_id,
         is_telemetry_enabled,
         show_telemetry_notification,
     )
-    from nemo_evaluator_launcher.telemetry import (
-        JobStatusEnum,
-        LauncherJobEvent,
-    )
 
-    session_id = generate_session_id()
+    from nemo_evaluator_launcher.telemetry import LauncherJobEvent
+
+    session_id = get_session_id()
     telemetry_handler = None
 
     # Extract telemetry metadata from config
     task_names = []
-    if hasattr(cfg, "evaluation") and hasattr(cfg.evaluation, "tasks") and cfg.evaluation.tasks:
+    if (
+        hasattr(cfg, "evaluation")
+        and hasattr(cfg.evaluation, "tasks")
+        and cfg.evaluation.tasks
+    ):
         task_names = [t.name for t in cfg.evaluation.tasks if hasattr(t, "name")]
 
     exporter_names = []
-    if hasattr(cfg, "export") and cfg.export:
-        # export config can have different structures, try to extract exporter names
-        if isinstance(cfg.export, list):
-            for exp in cfg.export:
-                if hasattr(exp, "type"):
-                    exporter_names.append(exp.type)
-        elif hasattr(cfg.export, "type"):
-            exporter_names.append(cfg.export.type)
+    auto_export = (
+        cfg.execution.get("auto_export") if hasattr(cfg, "execution") else None
+    )
+    if auto_export:
+        if isinstance(auto_export, list):
+            exporter_names = list(auto_export)
+        else:
+            exporter_names = list(auto_export.get("destinations", []) or [])
 
     model_name = "unknown"
     if hasattr(cfg, "target") and hasattr(cfg.target, "api_endpoint"):
@@ -186,8 +189,8 @@ def run_eval(
             model_name = cfg.target.api_endpoint.model_id or "unknown"
     # Also check deployment for model name
     if model_name == "unknown" and hasattr(cfg, "deployment"):
-        if hasattr(cfg.deployment, "model"):
-            model_name = cfg.deployment.model or "unknown"
+        if hasattr(cfg.deployment, "served_model_name"):
+            model_name = cfg.deployment.served_model_name or "unknown"
 
     executor_type = cfg.execution.type if hasattr(cfg.execution, "type") else "unknown"
     deployment_type = cfg.deployment.type if hasattr(cfg.deployment, "type") else "none"
@@ -205,42 +208,30 @@ def run_eval(
                 model=model_name,
                 tasks=task_names,
                 exporters=exporter_names,
-                status=JobStatusEnum.STARTED,
+                status=StatusEnum.STARTED,
             )
         )
 
     # Propagate session ID to containers/child processes
-    os.environ[SESSION_ID_ENV_VAR] = session_id
+    os.environ[TELEMETRY_SESSION_ID_ENV_VAR] = session_id
 
+    status = StatusEnum.FAILURE
     try:
         result = get_executor(cfg.execution.type).execute_eval(cfg, dry_run)
-        if telemetry_handler:
-            telemetry_handler.enqueue(
-                LauncherJobEvent(
-                    executor_type=executor_type,
-                    deployment_type=deployment_type,
-                    model=model_name,
-                    tasks=task_names,
-                    exporters=exporter_names,
-                    status=JobStatusEnum.SUCCESS,
-                )
-            )
+        status = StatusEnum.SUCCESS
         return result
-    except Exception:
-        if telemetry_handler:
-            telemetry_handler.enqueue(
-                LauncherJobEvent(
-                    executor_type=executor_type,
-                    deployment_type=deployment_type,
-                    model=model_name,
-                    tasks=task_names,
-                    exporters=exporter_names,
-                    status=JobStatusEnum.FAILURE,
-                )
-            )
-        raise
     finally:
         if telemetry_handler:
+            telemetry_handler.enqueue(
+                LauncherJobEvent(
+                    executor_type=executor_type,
+                    deployment_type=deployment_type,
+                    model=model_name,
+                    tasks=task_names,
+                    exporters=exporter_names,
+                    status=status,
+                )
+            )
             telemetry_handler.stop()
 
 

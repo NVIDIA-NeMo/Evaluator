@@ -547,6 +547,12 @@ def _create_slurm_sbatch_script(
         endpoint_type=task.get("endpoint_type"),
     )
 
+    from nemo_evaluator.telemetry import (
+        TELEMETRY_ENABLED_ENV_VAR,
+        TELEMETRY_ENDPOINT_ENV_VAR,
+        TELEMETRY_SESSION_ID_ENV_VAR,
+    )
+
     # TODO(public release): convert to template
     s = "#!/bin/bash\n"
 
@@ -619,12 +625,13 @@ def _create_slurm_sbatch_script(
         s += f"export {env_var_dst}={env_var_value}\n"
 
     # Add telemetry env vars for propagation to containers
-    if os.getenv("NEMO_EVALUATOR_TELEMETRY_SESSION_ID"):
-        s += f"export NEMO_EVALUATOR_TELEMETRY_SESSION_ID={os.getenv('NEMO_EVALUATOR_TELEMETRY_SESSION_ID')}\n"
-    if os.getenv("NEMO_EVALUATOR_TELEMETRY_ENABLED"):
-        s += f"export NEMO_EVALUATOR_TELEMETRY_ENABLED={os.getenv('NEMO_EVALUATOR_TELEMETRY_ENABLED')}\n"
-    if os.getenv("NEMO_EVALUATOR_TELEMETRY_ENDPOINT"):
-        s += f"export NEMO_EVALUATOR_TELEMETRY_ENDPOINT={os.getenv('NEMO_EVALUATOR_TELEMETRY_ENDPOINT')}\n"
+    for tel_var in (
+        TELEMETRY_SESSION_ID_ENV_VAR,
+        TELEMETRY_ENABLED_ENV_VAR,
+        TELEMETRY_ENDPOINT_ENV_VAR,
+    ):
+        if os.getenv(tel_var):
+            s += f"export {tel_var}={os.getenv(tel_var)}\n"
 
     if env_vars:
         s += "\n"
@@ -759,12 +766,13 @@ def _create_slurm_sbatch_script(
         cfg.execution.get("env_vars", {}).get("evaluation", {})
     )
     # Add telemetry env vars to container env list
-    if os.getenv("NEMO_EVALUATOR_TELEMETRY_SESSION_ID"):
-        evaluation_env_var_names.append("NEMO_EVALUATOR_TELEMETRY_SESSION_ID")
-    if os.getenv("NEMO_EVALUATOR_TELEMETRY_ENABLED"):
-        evaluation_env_var_names.append("NEMO_EVALUATOR_TELEMETRY_ENABLED")
-    if os.getenv("NEMO_EVALUATOR_TELEMETRY_ENDPOINT"):
-        evaluation_env_var_names.append("NEMO_EVALUATOR_TELEMETRY_ENDPOINT")
+    for tel_var in (
+        TELEMETRY_SESSION_ID_ENV_VAR,
+        TELEMETRY_ENABLED_ENV_VAR,
+        TELEMETRY_ENDPOINT_ENV_VAR,
+    ):
+        if os.getenv(tel_var):
+            evaluation_env_var_names.append(tel_var)
     if evaluation_env_var_names:
         s += "--container-env {} ".format(",".join(evaluation_env_var_names))
     if not cfg.execution.get("mounts", {}).get("mount_home", True):
@@ -899,6 +907,21 @@ def _generate_auto_export_section(
 
     if not launcher_install_cmd:
         launcher_install_cmd = "pip install nemo-evaluator-launcher[all]"
+
+    # Propagate telemetry env vars to auto-export job
+    from nemo_evaluator.telemetry import (
+        TELEMETRY_ENABLED_ENV_VAR,
+        TELEMETRY_ENDPOINT_ENV_VAR,
+        TELEMETRY_SESSION_ID_ENV_VAR,
+    )
+
+    for tel_var in (
+        TELEMETRY_SESSION_ID_ENV_VAR,
+        TELEMETRY_ENABLED_ENV_VAR,
+        TELEMETRY_ENDPOINT_ENV_VAR,
+    ):
+        if os.getenv(tel_var):
+            s += f"    export {tel_var}={os.getenv(tel_var)}\n"
 
     s += "    # export\n"
     s += "    srun --mpi pmix --overlap "
