@@ -22,25 +22,14 @@ Defines launcher-specific telemetry events. Shared telemetry infrastructure
 
 from __future__ import annotations
 
-from enum import Enum
 from typing import ClassVar, List
 
+from nemo_evaluator.telemetry import StatusEnum, TelemetryEvent
 from pydantic import Field
 
-from nemo_evaluator.telemetry import TelemetryEvent
-
 __all__ = [
-    "JobStatusEnum",
     "LauncherJobEvent",
 ]
-
-
-class JobStatusEnum(str, Enum):
-    """Status of a launcher job. Event is collected anonymously."""
-
-    STARTED = "started"
-    SUCCESS = "success"
-    FAILURE = "failure"
 
 
 class LauncherJobEvent(TelemetryEvent):
@@ -74,7 +63,7 @@ class LauncherJobEvent(TelemetryEvent):
         default_factory=list,
         description="List of exporters used. Event is collected anonymously.",
     )
-    status: JobStatusEnum = Field(
+    status: StatusEnum = Field(
         ...,
         description="The status of the job (started/success/failure). Event is collected anonymously.",
     )

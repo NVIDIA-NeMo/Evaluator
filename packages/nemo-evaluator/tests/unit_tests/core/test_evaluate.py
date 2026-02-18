@@ -111,7 +111,9 @@ def test_evaluate_telemetry_uses_framework_name(tmp_path: Path):
         ),
         patch("nemo_evaluator.telemetry.is_telemetry_enabled", return_value=True),
         patch("nemo_evaluator.telemetry.show_telemetry_notification"),
-        patch("nemo_evaluator.telemetry.TelemetryHandler", return_value=CapturingHandler()),
+        patch(
+            "nemo_evaluator.telemetry.TelemetryHandler", return_value=CapturingHandler()
+        ),
         patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "true"}),
     ):
         evaluate(
@@ -127,7 +129,11 @@ def test_evaluate_telemetry_uses_framework_name(tmp_path: Path):
     assert len(captured_events) == 2
     started_event = captured_events[0]
     assert started_event.framework_name == "lm-eval"
+    assert started_event.task == "test_task"
+    assert started_event.model == "unknown"
     assert started_event.status == "started"
     completion_event = captured_events[1]
     assert completion_event.framework_name == "lm-eval"
+    assert completion_event.task == "test_task"
+    assert completion_event.model == "unknown"
     assert completion_event.status == "success"

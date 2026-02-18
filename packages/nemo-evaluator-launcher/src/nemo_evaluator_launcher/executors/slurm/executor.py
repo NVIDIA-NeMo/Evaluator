@@ -650,6 +650,12 @@ def _create_slurm_sbatch_script(
         endpoint_type=task.get("endpoint_type"),
     )
 
+    from nemo_evaluator.telemetry import (
+        TELEMETRY_ENABLED_ENV_VAR,
+        TELEMETRY_ENDPOINT_ENV_VAR,
+        TELEMETRY_SESSION_ID_ENV_VAR,
+    )
+
     # TODO(public release): convert to template
     s = "#!/bin/bash\n"
 
@@ -973,6 +979,21 @@ def _generate_auto_export_section(
 
     if not launcher_install_cmd:
         launcher_install_cmd = "pip install nemo-evaluator-launcher[all]"
+
+    # Propagate telemetry env vars to auto-export job
+    from nemo_evaluator.telemetry import (
+        TELEMETRY_ENABLED_ENV_VAR,
+        TELEMETRY_ENDPOINT_ENV_VAR,
+        TELEMETRY_SESSION_ID_ENV_VAR,
+    )
+
+    for tel_var in (
+        TELEMETRY_SESSION_ID_ENV_VAR,
+        TELEMETRY_ENABLED_ENV_VAR,
+        TELEMETRY_ENDPOINT_ENV_VAR,
+    ):
+        if os.getenv(tel_var):
+            s += f"    export {tel_var}={os.getenv(tel_var)}\n"
 
     s += "    # export\n"
     s += "    srun --mpi pmix --overlap "

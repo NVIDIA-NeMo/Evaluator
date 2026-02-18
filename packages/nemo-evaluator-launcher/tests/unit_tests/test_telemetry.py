@@ -17,7 +17,7 @@
 
 import os
 import uuid
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -27,14 +27,15 @@ class TestTelemetryEnabled:
 
     def test_telemetry_enabled_default(self):
         """Test that telemetry is enabled by default."""
-        from nemo_evaluator.telemetry import is_telemetry_enabled
 
         with patch.dict(os.environ, {}, clear=True):
             # Remove the env var if it exists
             os.environ.pop("NEMO_EVALUATOR_TELEMETRY_ENABLED", None)
             # Re-import to get fresh state
             import importlib
+
             import nemo_evaluator.telemetry as telemetry_module
+
             importlib.reload(telemetry_module)
             assert telemetry_module.is_telemetry_enabled() is True
 
@@ -70,39 +71,39 @@ class TestSessionId:
 
     def test_session_id_generation(self):
         """Test that generated session IDs are valid UUIDs."""
-        from nemo_evaluator.telemetry import generate_session_id
+        from nemo_evaluator.telemetry import _generate_session_id
 
-        session_id = generate_session_id()
+        session_id = _generate_session_id()
         # Should be a valid UUID
         uuid.UUID(session_id)  # Raises ValueError if invalid
 
     def test_session_id_uniqueness(self):
         """Test that each call generates a unique session ID."""
-        from nemo_evaluator.telemetry import generate_session_id
+        from nemo_evaluator.telemetry import _generate_session_id
 
-        ids = [generate_session_id() for _ in range(100)]
+        ids = [_generate_session_id() for _ in range(100)]
         assert len(set(ids)) == 100
 
     def test_get_session_id_from_env(self):
         """Test that session ID is read from environment variable."""
         from nemo_evaluator.telemetry import (
-            SESSION_ID_ENV_VAR,
+            TELEMETRY_SESSION_ID_ENV_VAR,
             get_session_id,
         )
 
         test_id = "test-session-123"
-        with patch.dict(os.environ, {SESSION_ID_ENV_VAR: test_id}):
+        with patch.dict(os.environ, {TELEMETRY_SESSION_ID_ENV_VAR: test_id}):
             assert get_session_id() == test_id
 
     def test_get_session_id_generates_new(self):
         """Test that a new session ID is generated when not in env."""
         from nemo_evaluator.telemetry import (
-            SESSION_ID_ENV_VAR,
+            TELEMETRY_SESSION_ID_ENV_VAR,
             get_session_id,
         )
 
         with patch.dict(os.environ, {}, clear=True):
-            os.environ.pop(SESSION_ID_ENV_VAR, None)
+            os.environ.pop(TELEMETRY_SESSION_ID_ENV_VAR, None)
             session_id = get_session_id()
             # Should be a valid UUID
             uuid.UUID(session_id)
@@ -113,7 +114,9 @@ class TestEventSerialization:
 
     def test_launcher_job_event_serialization(self):
         """Test that LauncherJobEvent serializes with correct camelCase aliases."""
-        from nemo_evaluator_launcher.telemetry import JobStatusEnum, LauncherJobEvent
+        from nemo_evaluator.telemetry import StatusEnum
+
+        from nemo_evaluator_launcher.telemetry import LauncherJobEvent
 
         event = LauncherJobEvent(
             executor_type="local",
@@ -121,7 +124,7 @@ class TestEventSerialization:
             model="llama-3.1-8b",
             tasks=["mmlu", "ifeval"],
             exporters=["wandb"],
-            status=JobStatusEnum.STARTED,
+            status=StatusEnum.STARTED,
         )
 
         serialized = event.model_dump(by_alias=True)
@@ -133,14 +136,6 @@ class TestEventSerialization:
         assert serialized["tasks"] == ["mmlu", "ifeval"]
         assert serialized["exporters"] == ["wandb"]
         assert serialized["status"] == "started"
-
-    def test_event_status_values(self):
-        """Test that JobStatusEnum has expected values."""
-        from nemo_evaluator_launcher.telemetry import JobStatusEnum
-
-        assert JobStatusEnum.STARTED.value == "started"
-        assert JobStatusEnum.SUCCESS.value == "success"
-        assert JobStatusEnum.FAILURE.value == "failure"
 
 
 class TestTelemetryHandler:
@@ -161,11 +156,9 @@ class TestTelemetryHandler:
 
     def test_handler_enqueue_when_disabled(self):
         """Test that events are not enqueued when telemetry is disabled."""
-        from nemo_evaluator.telemetry import TelemetryHandler
-        from nemo_evaluator_launcher.telemetry import (
-            JobStatusEnum,
-            LauncherJobEvent,
-        )
+        from nemo_evaluator.telemetry import StatusEnum, TelemetryHandler
+
+        from nemo_evaluator_launcher.telemetry import LauncherJobEvent
 
         with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "false"}):
             handler = TelemetryHandler()
@@ -175,18 +168,16 @@ class TestTelemetryHandler:
                 model="test",
                 tasks=[],
                 exporters=[],
-                status=JobStatusEnum.STARTED,
+                status=StatusEnum.STARTED,
             )
             handler.enqueue(event)
             assert len(handler._events) == 0
 
     def test_handler_enqueue_when_enabled(self):
         """Test that events are enqueued when telemetry is enabled."""
-        from nemo_evaluator.telemetry import TelemetryHandler
-        from nemo_evaluator_launcher.telemetry import (
-            JobStatusEnum,
-            LauncherJobEvent,
-        )
+        from nemo_evaluator.telemetry import StatusEnum, TelemetryHandler
+
+        from nemo_evaluator_launcher.telemetry import LauncherJobEvent
 
         with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "true"}):
             handler = TelemetryHandler()
@@ -196,7 +187,7 @@ class TestTelemetryHandler:
                 model="test",
                 tasks=[],
                 exporters=[],
-                status=JobStatusEnum.STARTED,
+                status=StatusEnum.STARTED,
             )
             handler.enqueue(event)
             assert len(handler._events) == 1
@@ -219,11 +210,9 @@ class TestBuildPayload:
         """Test that build_payload creates correct structure."""
         from datetime import datetime, timezone
 
-        from nemo_evaluator.telemetry import QueuedEvent, build_payload
-        from nemo_evaluator_launcher.telemetry import (
-            JobStatusEnum,
-            LauncherJobEvent,
-        )
+        from nemo_evaluator.telemetry import QueuedEvent, StatusEnum, build_payload
+
+        from nemo_evaluator_launcher.telemetry import LauncherJobEvent
 
         event = LauncherJobEvent(
             executor_type="local",
@@ -231,7 +220,7 @@ class TestBuildPayload:
             model="test-model",
             tasks=["mmlu"],
             exporters=[],
-            status=JobStatusEnum.SUCCESS,
+            status=StatusEnum.SUCCESS,
         )
         queued = QueuedEvent(event=event, timestamp=datetime.now(timezone.utc))
 
@@ -253,7 +242,7 @@ class TestCLINoTelemetryFlag:
 
     def test_no_telemetry_flag_sets_env_var(self):
         """Test that --no-telemetry flag sets the environment variable."""
-        from nemo_evaluator_launcher.cli.main import create_parser, main
+        from nemo_evaluator_launcher.cli.main import create_parser
 
         # Create parser and parse args
         parser = create_parser()
@@ -326,7 +315,9 @@ class TestLocalExecutorTelemetryPropagation:
         os.environ["TEST_API_KEY"] = "test_key_value"
         os.environ["NEMO_EVALUATOR_TELEMETRY_SESSION_ID"] = "test-session-12345"
         os.environ["NEMO_EVALUATOR_TELEMETRY_ENABLED"] = "true"
-        os.environ["NEMO_EVALUATOR_TELEMETRY_ENDPOINT"] = "https://staging.example.com/v1.1/events/json"
+        os.environ["NEMO_EVALUATOR_TELEMETRY_ENDPOINT"] = (
+            "https://staging.example.com/v1.1/events/json"
+        )
 
         try:
             with (
@@ -374,9 +365,15 @@ class TestLocalExecutorTelemetryPropagation:
                 assert run_script.exists()
 
                 script_content = run_script.read_text()
-                assert "NEMO_EVALUATOR_TELEMETRY_SESSION_ID=test-session-12345" in script_content
+                assert (
+                    "NEMO_EVALUATOR_TELEMETRY_SESSION_ID=test-session-12345"
+                    in script_content
+                )
                 assert "NEMO_EVALUATOR_TELEMETRY_ENABLED=true" in script_content
-                assert "NEMO_EVALUATOR_TELEMETRY_ENDPOINT=https://staging.example.com/v1.1/events/json" in script_content
+                assert (
+                    "NEMO_EVALUATOR_TELEMETRY_ENDPOINT=https://staging.example.com/v1.1/events/json"
+                    in script_content
+                )
 
         finally:
             for env_var in [
@@ -492,7 +489,9 @@ class TestSlurmExecutorTelemetryPropagation:
             },
         }
 
-    def test_sbatch_script_includes_telemetry_env_vars_when_set(self, slurm_base_config):
+    def test_sbatch_script_includes_telemetry_env_vars_when_set(
+        self, slurm_base_config
+    ):
         """Test that sbatch script includes telemetry env vars when set."""
         from pathlib import Path
 
@@ -507,7 +506,9 @@ class TestSlurmExecutorTelemetryPropagation:
 
         os.environ["NEMO_EVALUATOR_TELEMETRY_SESSION_ID"] = "slurm-session-67890"
         os.environ["NEMO_EVALUATOR_TELEMETRY_ENABLED"] = "false"
-        os.environ["NEMO_EVALUATOR_TELEMETRY_ENDPOINT"] = "https://staging.example.com/v1.1/events/json"
+        os.environ["NEMO_EVALUATOR_TELEMETRY_ENDPOINT"] = (
+            "https://staging.example.com/v1.1/events/json"
+        )
 
         try:
             with (
@@ -552,16 +553,24 @@ class TestSlurmExecutorTelemetryPropagation:
                 script = result.cmd
 
                 # Verify telemetry env vars are exported in the script
-                assert "export NEMO_EVALUATOR_TELEMETRY_SESSION_ID=slurm-session-67890" in script
+                assert (
+                    "export NEMO_EVALUATOR_TELEMETRY_SESSION_ID=slurm-session-67890"
+                    in script
+                )
                 assert "export NEMO_EVALUATOR_TELEMETRY_ENABLED=false" in script
-                assert "export NEMO_EVALUATOR_TELEMETRY_ENDPOINT=https://staging.example.com/v1.1/events/json" in script
+                assert (
+                    "export NEMO_EVALUATOR_TELEMETRY_ENDPOINT=https://staging.example.com/v1.1/events/json"
+                    in script
+                )
 
         finally:
             os.environ.pop("NEMO_EVALUATOR_TELEMETRY_SESSION_ID", None)
             os.environ.pop("NEMO_EVALUATOR_TELEMETRY_ENABLED", None)
             os.environ.pop("NEMO_EVALUATOR_TELEMETRY_ENDPOINT", None)
 
-    def test_sbatch_script_excludes_telemetry_env_vars_when_not_set(self, slurm_base_config):
+    def test_sbatch_script_excludes_telemetry_env_vars_when_not_set(
+        self, slurm_base_config
+    ):
         """Test that sbatch script does NOT include telemetry env vars when not set."""
         from pathlib import Path
 
@@ -666,7 +675,9 @@ class TestLeptonExecutorTelemetryPropagation:
 
         os.environ["NEMO_EVALUATOR_TELEMETRY_SESSION_ID"] = "lepton-session-abc123"
         os.environ["NEMO_EVALUATOR_TELEMETRY_ENABLED"] = "true"
-        os.environ["NEMO_EVALUATOR_TELEMETRY_ENDPOINT"] = "https://staging.example.com/v1.1/events/json"
+        os.environ["NEMO_EVALUATOR_TELEMETRY_ENDPOINT"] = (
+            "https://staging.example.com/v1.1/events/json"
+        )
 
         captured_env_vars = {}
 
@@ -711,9 +722,17 @@ class TestLeptonExecutorTelemetryPropagation:
                 LeptonExecutor.execute_eval(cfg, dry_run=False)
 
                 # Verify telemetry env vars were passed to create_lepton_job
-                assert captured_env_vars.get("NEMO_EVALUATOR_TELEMETRY_SESSION_ID") == "lepton-session-abc123"
-                assert captured_env_vars.get("NEMO_EVALUATOR_TELEMETRY_ENABLED") == "true"
-                assert captured_env_vars.get("NEMO_EVALUATOR_TELEMETRY_ENDPOINT") == "https://staging.example.com/v1.1/events/json"
+                assert (
+                    captured_env_vars.get("NEMO_EVALUATOR_TELEMETRY_SESSION_ID")
+                    == "lepton-session-abc123"
+                )
+                assert (
+                    captured_env_vars.get("NEMO_EVALUATOR_TELEMETRY_ENABLED") == "true"
+                )
+                assert (
+                    captured_env_vars.get("NEMO_EVALUATOR_TELEMETRY_ENDPOINT")
+                    == "https://staging.example.com/v1.1/events/json"
+                )
 
         finally:
             os.environ.pop("NEMO_EVALUATOR_TELEMETRY_SESSION_ID", None)
