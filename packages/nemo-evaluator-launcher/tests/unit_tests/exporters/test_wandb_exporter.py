@@ -102,7 +102,7 @@ class TestWandBExporter:
                 }
             )
             monkeypatch.setattr(
-                exp, "_check_existing_run", lambda *a, **k: (False, None), raising=False
+                exp, "_check_existing_run", lambda *a, **k: None, raising=False
             )
         else:
             exp = WandBExporter(
@@ -173,7 +173,7 @@ class TestWandBExporter:
             }
         )
         monkeypatch.setattr(
-            exp, "_check_existing_run", lambda *a, **k: (True, "rid"), raising=False
+            exp, "_check_existing_run", lambda *a, **k: "rid", raising=False
         )
         successful, failed, skipped = exp.export_jobs([data])
         assert len(successful) == 1
@@ -382,8 +382,8 @@ class TestWandBExporter:
             job_data={},
         )
         exp = WandBExporter({"entity": None, "project": None})
-        exists, run_id = exp._check_existing_run("ident", data)
-        assert exists is False and run_id is None
+        run_id = exp._check_existing_run("ident", data)
+        assert run_id is None
 
     def test_check_existing_run_webhook_id(self, monkeypatch, wandb_fake, tmp_path):
         _W, _Run = wandb_fake
@@ -413,8 +413,8 @@ class TestWandBExporter:
         exp = WandBExporter(
             {"entity": "e", "project": "p", "triggered_by_webhook": True}
         )
-        exists, run_id = exp._check_existing_run("ident", data)
-        assert exists is True and run_id == "abc123"
+        run_id = exp._check_existing_run("ident", data)
+        assert run_id == "abc123"
 
     def test_check_existing_run_name_match(self, monkeypatch, wandb_fake, tmp_path):
         _W, _Run = wandb_fake
@@ -441,8 +441,8 @@ class TestWandBExporter:
             job_data={},
         )
         exp = WandBExporter({"entity": "e", "project": "p", "name": "my-name"})
-        exists, run_id = exp._check_existing_run("ident", data)
-        assert exists is True and run_id == "rid1"
+        run_id = exp._check_existing_run("ident", data)
+        assert run_id == "rid1"
 
     def test_check_existing_run_default_pattern_match(
         self, monkeypatch, wandb_fake, tmp_path
@@ -473,8 +473,8 @@ class TestWandBExporter:
             job_data={},
         )
         exp = WandBExporter({"entity": "e", "project": "p"})
-        exists, run_id = exp._check_existing_run("ident", data)
-        assert exists is True and run_id == "rid2"
+        run_id = exp._check_existing_run("ident", data)
+        assert run_id == "rid2"
 
     def test_check_existing_run_no_match(self, monkeypatch, wandb_fake, tmp_path):
         _W, _Run = wandb_fake
@@ -502,5 +502,5 @@ class TestWandBExporter:
             job_data={},
         )
         exp = WandBExporter({"entity": "e", "project": "p"})
-        exists, run_id = exp._check_existing_run("ident", data)
-        assert exists is False and run_id is None
+        run_id = exp._check_existing_run("ident", data)
+        assert run_id is None
