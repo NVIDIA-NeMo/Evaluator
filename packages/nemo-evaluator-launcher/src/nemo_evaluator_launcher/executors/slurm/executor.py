@@ -547,6 +547,12 @@ def _create_slurm_sbatch_script(
         endpoint_type=task.get("endpoint_type"),
     )
 
+    from nemo_evaluator.telemetry import (
+        TELEMETRY_ENABLED_ENV_VAR,
+        TELEMETRY_ENDPOINT_ENV_VAR,
+        TELEMETRY_SESSION_ID_ENV_VAR,
+    )
+
     # TODO(public release): convert to template
     s = "#!/bin/bash\n"
 
@@ -617,6 +623,16 @@ def _create_slurm_sbatch_script(
         all_env_vars.update(cfg.deployment["env_vars"])
     for env_var_dst, env_var_value in all_env_vars.items():
         s += f"export {env_var_dst}={env_var_value}\n"
+
+    # Add telemetry env vars for propagation to containers
+    for tel_var in (
+        TELEMETRY_SESSION_ID_ENV_VAR,
+        TELEMETRY_ENABLED_ENV_VAR,
+        TELEMETRY_ENDPOINT_ENV_VAR,
+    ):
+        if os.getenv(tel_var):
+            s += f"export {tel_var}={os.getenv(tel_var)}\n"
+
     if env_vars:
         s += "\n"
 
@@ -749,6 +765,14 @@ def _create_slurm_sbatch_script(
     evaluation_env_var_names = list(
         cfg.execution.get("env_vars", {}).get("evaluation", {})
     )
+    # Add telemetry env vars to container env list
+    for tel_var in (
+        TELEMETRY_SESSION_ID_ENV_VAR,
+        TELEMETRY_ENABLED_ENV_VAR,
+        TELEMETRY_ENDPOINT_ENV_VAR,
+    ):
+        if os.getenv(tel_var):
+            evaluation_env_var_names.append(tel_var)
     if evaluation_env_var_names:
         s += "--container-env {} ".format(",".join(evaluation_env_var_names))
     if not cfg.execution.get("mounts", {}).get("mount_home", True):
@@ -883,6 +907,21 @@ def _generate_auto_export_section(
 
     if not launcher_install_cmd:
         launcher_install_cmd = "pip install nemo-evaluator-launcher[all]"
+
+    # Propagate telemetry env vars to auto-export job
+    from nemo_evaluator.telemetry import (
+        TELEMETRY_ENABLED_ENV_VAR,
+        TELEMETRY_ENDPOINT_ENV_VAR,
+        TELEMETRY_SESSION_ID_ENV_VAR,
+    )
+
+    for tel_var in (
+        TELEMETRY_SESSION_ID_ENV_VAR,
+        TELEMETRY_ENABLED_ENV_VAR,
+        TELEMETRY_ENDPOINT_ENV_VAR,
+    ):
+        if os.getenv(tel_var):
+            s += f"    export {tel_var}={os.getenv(tel_var)}\n"
 
     s += "    # export\n"
     s += "    srun --mpi pmix --overlap "

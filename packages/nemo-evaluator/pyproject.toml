@@ -21,6 +21,7 @@ name = "nemo-evaluator"
 dynamic = ["version"]
 dependencies = [
     "flask",
+    "httpx>=0.27.2,<1",
     "jinja2",
     "psutil",
     "pydantic",

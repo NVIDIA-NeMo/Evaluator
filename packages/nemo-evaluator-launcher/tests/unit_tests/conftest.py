@@ -21,7 +21,7 @@ import re
 import time
 import types
 from typing import Dict
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from omegaconf import DictConfig, OmegaConf
@@ -38,6 +38,23 @@ from nemo_evaluator_launcher.executors.base import (
     ExecutionStatus,
 )
 from nemo_evaluator_launcher.executors.registry import register_executor
+
+
+@pytest.fixture(autouse=True)
+def _disable_telemetry(monkeypatch):
+    """Disable telemetry for all unit tests to avoid emitting events to prod.
+
+    Two layers of protection:
+    1. Set NEMO_EVALUATOR_TELEMETRY_ENABLED=false so telemetry is disabled by default.
+    2. Mock _send_events as a no-op so even tests that explicitly enable telemetry
+       (e.g. to test enqueue behavior) cannot make real HTTP requests.
+    """
+    monkeypatch.setenv("NEMO_EVALUATOR_TELEMETRY_ENABLED", "false")
+    with patch(
+        "nemo_evaluator.telemetry.TelemetryHandler._send_events",
+        new_callable=AsyncMock,
+    ):
+        yield
 
 
 @register_executor("dummy")

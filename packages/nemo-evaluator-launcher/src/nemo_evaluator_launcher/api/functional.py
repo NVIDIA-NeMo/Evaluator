@@ -19,12 +19,14 @@ This module provides the main functional entry points for running evaluations, q
 """
 
 import copy
+import os
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import yaml
 from omegaconf import DictConfig, OmegaConf
 
+from nemo_evaluator_launcher import __version__
 from nemo_evaluator_launcher.api.types import RunConfig
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.common.mapping import load_tasks_mapping
@@ -146,7 +148,88 @@ def run_eval(
         print(OmegaConf.to_yaml(cfg))
 
     _check_api_endpoint_when_deployment_is_configured(cfg)
-    return get_executor(cfg.execution.type).execute_eval(cfg, dry_run)
+
+    # Set up telemetry
+    from nemo_evaluator.telemetry import (
+        TELEMETRY_SESSION_ID_ENV_VAR,
+        StatusEnum,
+        TelemetryHandler,
+        get_session_id,
+        is_telemetry_enabled,
+        show_telemetry_notification,
+    )
+
+    from nemo_evaluator_launcher.telemetry import LauncherJobEvent
+
+    session_id = get_session_id()
+    telemetry_handler = None
+
+    # Extract telemetry metadata from config
+    task_names = []
+    if (
+        hasattr(cfg, "evaluation")
+        and hasattr(cfg.evaluation, "tasks")
+        and cfg.evaluation.tasks
+    ):
+        task_names = [t.name for t in cfg.evaluation.tasks if hasattr(t, "name")]
+
+    exporter_names = []
+    auto_export = (
+        cfg.execution.get("auto_export") if hasattr(cfg, "execution") else None
+    )
+    if auto_export:
+        exporter_names = list(auto_export.get("destinations", []) or [])
+
+    model_name = "unknown"
+    if hasattr(cfg, "target") and hasattr(cfg.target, "api_endpoint"):
+        if hasattr(cfg.target.api_endpoint, "model_id"):
+            model_name = cfg.target.api_endpoint.model_id or "unknown"
+    # Also check deployment for model name
+    if model_name == "unknown" and hasattr(cfg, "deployment"):
+        if hasattr(cfg.deployment, "served_model_name"):
+            model_name = cfg.deployment.served_model_name or "unknown"
+
+    executor_type = cfg.execution.type if hasattr(cfg.execution, "type") else "unknown"
+    deployment_type = cfg.deployment.type if hasattr(cfg.deployment, "type") else "none"
+
+    if is_telemetry_enabled() and not dry_run:
+        show_telemetry_notification()
+        telemetry_handler = TelemetryHandler(
+            source_client_version=__version__, session_id=session_id
+        )
+        telemetry_handler.start()
+        telemetry_handler.enqueue(
+            LauncherJobEvent(
+                executor_type=executor_type,
+                deployment_type=deployment_type,
+                model=model_name,
+                tasks=task_names,
+                exporters=exporter_names,
+                status=StatusEnum.STARTED,
+            )
+        )
+
+    # Propagate session ID to containers/child processes
+    os.environ[TELEMETRY_SESSION_ID_ENV_VAR] = session_id
+
+    status = StatusEnum.FAILURE
+    try:
+        result = get_executor(cfg.execution.type).execute_eval(cfg, dry_run)
+        status = StatusEnum.SUCCESS
+        return result
+    finally:
+        if telemetry_handler:
+            telemetry_handler.enqueue(
+                LauncherJobEvent(
+                    executor_type=executor_type,
+                    deployment_type=deployment_type,
+                    model=model_name,
+                    tasks=task_names,
+                    exporters=exporter_names,
+                    status=status,
+                )
+            )
+            telemetry_handler.stop()
 
 
 def get_status(ids_or_prefixes: list[str]) -> list[dict[str, Any]]:
