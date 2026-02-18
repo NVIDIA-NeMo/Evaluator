@@ -33,6 +33,7 @@ import jinja2
 import yaml
 from omegaconf import DictConfig, OmegaConf
 
+from nemo_evaluator_launcher.common.container_runtime import ContainerRuntime
 from nemo_evaluator_launcher.common.execdb import (
     ExecutionDB,
     JobData,
@@ -78,12 +79,13 @@ class LocalExecutor(BaseExecutor):
         Raises:
             RuntimeError: If the run script fails.
         """
-        # Check if docker is available (skip in dry_run mode)
-        if not dry_run and shutil.which("docker") is None:
-            raise RuntimeError(
-                "Docker is not installed or not in PATH. "
-                "Please install Docker to run local evaluations."
-            )
+        # Check if container runtime is available (skip in dry_run mode)
+        if not dry_run:
+            try:
+                runtime = ContainerRuntime()
+                logger.info(f"Using container runtime: {runtime.runtime}")
+            except RuntimeError as e:
+                raise RuntimeError(str(e))
 
         # Generate invocation ID for this evaluation run
         invocation_id = generate_invocation_id()
@@ -122,6 +124,9 @@ class LocalExecutor(BaseExecutor):
         is_potentially_unsafe = False
 
         deployment = None
+
+        # Detect container runtime (Docker or Podman) for template
+        runtime = ContainerRuntime()
 
         for idx, task in enumerate(cfg.evaluation.tasks):
             timestamp = get_timestamp_string()
@@ -295,6 +300,7 @@ class LocalExecutor(BaseExecutor):
                     evaluation_tasks=[evaluation_task],
                     auto_export_destinations=auto_export_destinations,
                     extra_docker_args=extra_docker_args,
+                    container_runtime=runtime.command,
                 ).rstrip("\n")
                 + "\n"
             )
@@ -306,6 +312,7 @@ class LocalExecutor(BaseExecutor):
                 evaluation_tasks=evaluation_tasks,
                 auto_export_destinations=auto_export_destinations,
                 extra_docker_args=extra_docker_args,
+                container_runtime=runtime.command,
             ).rstrip("\n")
             + "\n"
         )
@@ -596,9 +603,12 @@ class LocalExecutor(BaseExecutor):
 
         killed_something = False
 
-        # First, try to stop the Docker container if it's running
+        # Detect container runtime
+        runtime = ContainerRuntime()
+
+        # First, try to stop the container if it's running
         result = subprocess.run(
-            shlex.split(f"docker stop {container_name}"),
+            shlex.split(runtime.get_stop_command(container_name)),
             capture_output=True,
             text=True,
             timeout=30,
@@ -607,9 +617,9 @@ class LocalExecutor(BaseExecutor):
             killed_something = True
         # Don't raise error if container doesn't exist (might be still pulling)
 
-        # Find and kill Docker processes for this container
+        # Find and kill container processes for this container
         result = subprocess.run(
-            shlex.split(f"pkill -f 'docker run.*{container_name}'"),
+            shlex.split(f"pkill -f '{runtime.get_kill_process_pattern(container_name)}'"),
             capture_output=True,
             text=True,
             timeout=10,
