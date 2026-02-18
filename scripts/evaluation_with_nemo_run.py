@@ -35,7 +35,7 @@ ENDPOINT_TYPES = {"chat": "chat/completions/", "completions": "completions/"}
 TRITON_DEPLOY_SCRIPT = """
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_inframework_triton.py \
-  --nemo_checkpoint {nemo_checkpoint} \
+  --megatron_checkpoint {megatron_checkpoint} \
   --triton_model_name megatron_model \
   --server_address {server_address} \
   --server_port {server_port} \
@@ -43,34 +43,61 @@ python \
   --num_nodes {nodes} \
   --tensor_model_parallel_size {tensor_model_parallel_size} \
   --pipeline_model_parallel_size {pipeline_model_parallel_size} \
+  --expert_model_parallel_size {expert_model_parallel_size} \
   --max_batch_size {max_batch_size} \
+  --inference_max_seq_length {inference_max_seq_length} \
   {additional_args}
 """
 
 RAY_DEPLOY_SCRIPT = """
+# Run deploy in background so the wrapper can monitor for eval completion
 python \
   /opt/Export-Deploy/scripts/deploy/nlp/deploy_ray_inframework.py \
-  --nemo_checkpoint {nemo_checkpoint} \
+  --megatron_checkpoint {megatron_checkpoint} \
   --model_id megatron_model \
   --port {server_port} \
   --host {server_address} \
   --num_gpus {devices} \
   --tensor_model_parallel_size {tensor_model_parallel_size} \
   --pipeline_model_parallel_size {pipeline_model_parallel_size} \
+  --expert_model_parallel_size {expert_model_parallel_size} \
   --max_batch_size {max_batch_size} \
   --num_replicas {num_replicas} \
-  {additional_args}
-"""
+  --inference_max_seq_length {inference_max_seq_length} \
+  {additional_args} &
 # [snippet-deploy-end]
+DEPLOY_PID=$!
+
+# Poll for eval completion (success or failure) while deploy is running. This is required since deployment is still alive
+# even after evaluation is finished or evaluation fails.
+while kill -0 $DEPLOY_PID 2>/dev/null; do
+    if [ -f "${{LOG_DIR:-/tmp}}/EVAL_DONE" ]; then
+        kill $DEPLOY_PID 2>/dev/null || true
+        wait $DEPLOY_PID 2>/dev/null || true
+        if [ -f "${{LOG_DIR:-/tmp}}/EVAL_SUCCESS" ]; then
+            echo "[INFO] Evaluation succeeded. Deploy stopped. Exiting cleanly."
+            exit 0
+        else
+            echo "[ERROR] Evaluation failed. Deploy stopped."
+            exit 1
+        fi
+    fi
+    sleep 5
+done
+
+# Deploy exited on its own (before eval finished) -- propagate its exit code
+wait $DEPLOY_PID 2>/dev/null
+exit $?
+"""
 
 
 def get_parser():
     parser = argparse.ArgumentParser(description="NeMo2.0 Evaluation")
     parser.add_argument(
-        "--nemo_checkpoint",
+        "--megatron_checkpoint",
         type=str,
         required=True,
-        help="NeMo 2.0 checkpoint to be evaluated",
+        help="Megatron-Bridge checkpoint to be evaluated",
     )
     parser.add_argument(
         "--serving_backend",
@@ -131,6 +158,12 @@ def get_parser():
         type=int,
         default=1,
         help="Pipeline parallelism size to deploy the model",
+    )
+    parser.add_argument(
+        "--expert_model_parallel_size",
+        type=int,
+        default=1,
+        help="Expert parallelism size to deploy the model",
     )
     parser.add_argument(
         "--batch_size",
@@ -287,13 +320,15 @@ def main():
 
     additional_args = args.additional_args
     commons_args = {
-        "nemo_checkpoint": args.nemo_checkpoint,
+        "megatron_checkpoint": args.megatron_checkpoint,
         "server_port": args.server_port,
         "server_address": args.server_address,
         "max_input_len": args.max_input_len,
         "tensor_model_parallel_size": args.tensor_parallelism_size,
         "pipeline_model_parallel_size": args.pipeline_parallelism_size,
+        "expert_model_parallel_size": args.expert_model_parallel_size,
         "max_batch_size": args.batch_size,
+        "inference_max_seq_length": args.max_input_len,
         "devices": args.devices
         if args.serving_backend == "pytriton"
         else args.devices * args.nodes,
@@ -306,14 +341,14 @@ def main():
         additional_args += (
             f" --triton_port {args.triton_port}"
             f" --triton_http_address {args.triton_address}"
-            f" --inference_max_seq_length {args.max_input_len}"
         )
         deploy_script = TRITON_DEPLOY_SCRIPT.format(
             **commons_args, additional_args=additional_args
         )
         deploy_run_script = run.Script(inline=deploy_script)
+
     elif args.serving_backend == "ray":
-        # Ray deployment with nem-run requires python executable path to be set, else it cannot find the libraries
+        # Ray deployment with nemo-run requires python executable path to be set, else it cannot find the libraries
         # like mcore, mbridge, etc.
         additional_args += (
             ' --runtime_env \'{"py_executable": "/opt/venv/bin/python"}\''
