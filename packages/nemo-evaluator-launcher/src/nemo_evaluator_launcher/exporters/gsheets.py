@@ -169,6 +169,18 @@ class GSheetsExporter(BaseExporter):
                 )
                 skipped_jobs.append(data.job_id)
                 continue
+            if not data.metrics:
+                logger.warning(f"No metrics found for job {data.job_id}, skipping")
+                skipped_jobs.append(data.job_id)
+                continue
+
+            # Clean metrics to remove task prefix if present
+            cleaned_metrics = {}
+            for k, v in data.metrics.items():
+                if v is not None:
+                    if k.startswith(data.task + "_"):
+                        k = k[len(data.task) + 1 :]
+                    cleaned_metrics[k] = v
             row = {
                 "Model Name": data.model_id,
                 "Harness": data.harness,
@@ -177,7 +189,7 @@ class GSheetsExporter(BaseExporter):
                 "Container": data.container,
                 "Invocation ID": data.invocation_id,
                 "Job ID": data.job_id,
-                **(data.metrics or {}),
+                **cleaned_metrics,
             }
             header_fieldnames.update(set(row.keys()))
             all_rows.append(row)
