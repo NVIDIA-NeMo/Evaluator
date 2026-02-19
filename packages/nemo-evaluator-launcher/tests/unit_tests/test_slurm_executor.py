@@ -119,8 +119,13 @@ class TestSlurmExecutorFeatures:
     def test_new_execution_env_vars_deployment(
         self, base_config, mock_task, mock_dependencies
     ):
-        """Test new execution.env_vars.deployment configuration."""
-        # Add new env_vars structure
+        """Test deployment env vars via top-level env_vars."""
+        # Put env vars in top-level env_vars (new path)
+        base_config["env_vars"] = {
+            "DEPLOY_VAR1": "$lit:deploy_value1",
+            "DEPLOY_VAR2": "$lit:deploy_value2",
+        }
+        # Keep execution.env_vars.deployment for --container-env name pass-through
         base_config["execution"]["env_vars"] = {
             "deployment": {
                 "DEPLOY_VAR1": "deploy_value1",
@@ -131,27 +136,37 @@ class TestSlurmExecutorFeatures:
 
         cfg = OmegaConf.create(base_config)
 
-        script = _create_slurm_sbatch_script(
+        result = _create_slurm_sbatch_script(
             cfg=cfg,
             task=mock_task,
             eval_image="test-eval-container:latest",
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        ).cmd
+        )
 
-        # Check that deployment environment variables are exported
-        assert "export DEPLOY_VAR1=deploy_value1" in script
-        assert "export DEPLOY_VAR2=deploy_value2" in script
+        # Env vars are now in .secrets.env, not inline in script
+        assert result.secrets_env_result is not None
+        assert '="deploy_value1"' in result.secrets_env_result.secrets_content
+        assert '="deploy_value2"' in result.secrets_env_result.secrets_content
+
+        # Script sources secrets file and re-exports
+        assert 'source "' in result.cmd
+        assert ".secrets.env" in result.cmd
 
         # Check that deployment env vars are passed to deployment container
-        assert "--container-env DEPLOY_VAR1,DEPLOY_VAR2" in script
+        assert "--container-env DEPLOY_VAR1,DEPLOY_VAR2" in result.cmd
 
     def test_new_execution_env_vars_evaluation(
         self, base_config, mock_task, mock_dependencies
     ):
-        """Test new execution.env_vars.evaluation configuration."""
-        # Add new env_vars structure
+        """Test evaluation env vars via top-level env_vars."""
+        # Put env vars in top-level env_vars (new path)
+        base_config["env_vars"] = {
+            "EVAL_VAR1": "$lit:eval_value1",
+            "EVAL_VAR2": "$lit:eval_value2",
+        }
+        # Keep execution.env_vars.evaluation for --container-env name pass-through
         base_config["execution"]["env_vars"] = {
             "deployment": {},
             "evaluation": {
@@ -162,21 +177,26 @@ class TestSlurmExecutorFeatures:
 
         cfg = OmegaConf.create(base_config)
 
-        script = _create_slurm_sbatch_script(
+        result = _create_slurm_sbatch_script(
             cfg=cfg,
             task=mock_task,
             eval_image="test-eval-container:latest",
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        ).cmd
+        )
 
-        # Check that evaluation environment variables are exported
-        assert "export EVAL_VAR1=eval_value1" in script
-        assert "export EVAL_VAR2=eval_value2" in script
+        # Env vars are now in .secrets.env, not inline in script
+        assert result.secrets_env_result is not None
+        assert '="eval_value1"' in result.secrets_env_result.secrets_content
+        assert '="eval_value2"' in result.secrets_env_result.secrets_content
+
+        # Script sources secrets file
+        assert 'source "' in result.cmd
+        assert ".secrets.env" in result.cmd
 
         # Check that evaluation env vars are passed to evaluation container
-        assert "--container-env EVAL_VAR1,EVAL_VAR2" in script
+        assert "--container-env EVAL_VAR1,EVAL_VAR2" in result.cmd
 
     def test_new_execution_mounts_deployment(
         self, base_config, mock_task, mock_dependencies
@@ -299,57 +319,51 @@ class TestSlurmExecutorFeatures:
         # Should NOT contain --no-container-mount-home by default (mount_home defaults to True)
         assert "--no-container-mount-home" not in script
 
-    def test_deprecation_warning_deployment_env_vars(
-        self, base_config, mock_task, mock_dependencies
-    ):
-        """Test deprecation warning for old deployment.env_vars usage."""
-        # Use old-style deployment.env_vars
+    def test_deployment_env_vars(self, base_config, mock_task, mock_dependencies):
+        """Test deployment.env_vars are collected into secrets and re-exported."""
         base_config["deployment"]["env_vars"] = {
-            "OLD_VAR1": "old_value1",
-            "OLD_VAR2": "old_value2",
+            "VAR1": "$lit:value1",
+            "VAR2": "$lit:value2",
         }
 
         cfg = OmegaConf.create(base_config)
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        result = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        )
+        script = result.cmd
 
-            script = _create_slurm_sbatch_script(
-                cfg=cfg,
-                task=mock_task,
-                eval_image="test-eval-container:latest",
-                remote_task_subdir=Path("/test/remote"),
-                invocation_id="test123",
-                job_id="test123.0",
-            ).cmd
-
-            # Check that deprecation warnings were issued
-            deprecation_warnings = [
-                warning
-                for warning in w
-                if issubclass(warning.category, DeprecationWarning)
-            ]
-            assert len(deprecation_warnings) >= 1
-            assert any(
-                "cfg.deployment.env_vars will be deprecated" in str(warning.message)
-                for warning in deprecation_warnings
-            )
-
-        # Old env vars should still work
-        assert "export OLD_VAR1=old_value1" in script
-        assert "export OLD_VAR2=old_value2" in script
+        # Values are in secrets file, re-exports in script
+        assert result.secrets_env_result is not None
+        assert "value1" in result.secrets_env_result.secrets_content
+        assert "value2" in result.secrets_env_result.secrets_content
+        assert "source" in script
+        assert 'export VAR1="${VAR1_' in script
+        assert 'export VAR2="${VAR2_' in script
 
     def test_backward_compatibility_mixed_env_vars(
         self, base_config, mock_task, mock_dependencies
     ):
-        """Test backward compatibility when both old and new env_vars are present."""
-        # Mix old and new style
-        base_config["deployment"]["env_vars"] = {
-            "OLD_VAR": "old_value",
+        """Test mixed env vars from top-level and deployment.env_vars."""
+        # Top-level env_vars (new unified path) — flows to both deployment and eval
+        base_config["env_vars"] = {
+            "NEW_VAR": "$lit:new_value",
+            "EVAL_VAR": "$lit:eval_value",
         }
+        # deployment.env_vars — overrides for deployment
+        base_config["deployment"]["env_vars"] = {
+            "OLD_VAR": "$lit:old_value",
+        }
+        # execution.env_vars for --container-env name pass-through
         base_config["execution"]["env_vars"] = {
             "deployment": {
                 "NEW_VAR": "new_value",
+                "OLD_VAR": "old_value",
             },
             "evaluation": {
                 "EVAL_VAR": "eval_value",
@@ -361,19 +375,27 @@ class TestSlurmExecutorFeatures:
         with warnings.catch_warnings(record=True):
             warnings.simplefilter("always")
 
-            script = _create_slurm_sbatch_script(
+            result = _create_slurm_sbatch_script(
                 cfg=cfg,
                 task=mock_task,
                 eval_image="test-eval-container:latest",
                 remote_task_subdir=Path("/test/remote"),
                 invocation_id="test123",
                 job_id="test123.0",
-            ).cmd
+            )
+            script = result.cmd
 
-        # Both old and new env vars should be present
-        assert "export OLD_VAR=old_value" in script
-        assert "export NEW_VAR=new_value" in script
-        assert "export EVAL_VAR=eval_value" in script
+        # Both old and new env vars should be present in secrets file
+        assert result.secrets_env_result is not None
+        assert "old_value" in result.secrets_env_result.secrets_content
+        assert "new_value" in result.secrets_env_result.secrets_content
+        assert "eval_value" in result.secrets_env_result.secrets_content
+
+        # Script should source secrets and re-export
+        assert "source" in script
+        assert 'export OLD_VAR="${OLD_VAR_' in script
+        assert 'export NEW_VAR="${NEW_VAR_' in script
+        assert 'export EVAL_VAR="${EVAL_VAR_' in script
 
         # Check that both old and new deployment vars are passed to deployment container
         assert (
@@ -411,6 +433,13 @@ class TestSlurmExecutorFeatures:
     def test_no_deployment_type_none(self, base_config, mock_task, mock_dependencies):
         """Test behavior when deployment type is 'none'."""
         base_config["deployment"]["type"] = "none"
+        # DEPLOY_VAR via deployment.env_vars (only flows to deployment, not eval)
+        base_config["deployment"]["env_vars"] = {"DEPLOY_VAR": "$lit:deploy_value"}
+        # EVAL_VAR via top-level env_vars (flows to eval)
+        base_config["env_vars"] = {
+            "EVAL_VAR": "$lit:eval_value",
+        }
+        # execution.env_vars for --container-env name pass-through
         base_config["execution"]["env_vars"] = {
             "deployment": {"DEPLOY_VAR": "deploy_value"},
             "evaluation": {"EVAL_VAR": "eval_value"},
@@ -418,18 +447,27 @@ class TestSlurmExecutorFeatures:
 
         cfg = OmegaConf.create(base_config)
 
-        script = _create_slurm_sbatch_script(
+        result = _create_slurm_sbatch_script(
             cfg=cfg,
             task=mock_task,
             eval_image="test-eval-container:latest",
             remote_task_subdir=Path("/test/remote"),
             invocation_id="test123",
             job_id="test123.0",
-        ).cmd
+        )
+        script = result.cmd
 
-        # Environment variables should still be exported
-        assert "export DEPLOY_VAR=deploy_value" in script
-        assert "export EVAL_VAR=eval_value" in script
+        # Environment variables should be in secrets file
+        assert result.secrets_env_result is not None
+        assert "deploy_value" in result.secrets_env_result.secrets_content
+        assert "eval_value" in result.secrets_env_result.secrets_content
+
+        # Script should source secrets and re-export eval vars
+        assert "source" in script
+        assert 'export EVAL_VAR="${EVAL_VAR_' in script
+        # Deploy reexport only appears before the deployment srun;
+        # with deployment.type == "none" there's no deployment srun
+        assert 'export DEPLOY_VAR="${DEPLOY_VAR_' not in script
 
         # Should not have deployment server section when type is 'none'
 
@@ -446,6 +484,14 @@ class TestSlurmExecutorFeatures:
         self, base_config, mock_task, mock_dependencies
     ):
         """Test complex configuration with all new features together."""
+        # Top-level env_vars for secrets pipeline
+        base_config["env_vars"] = {
+            "DEPLOY_VAR1": "$lit:deploy_value1",
+            "DEPLOY_VAR2": "$lit:deploy_value2",
+            "EVAL_VAR1": "$lit:eval_value1",
+            "EVAL_VAR2": "$lit:eval_value2",
+        }
+        # execution.env_vars for --container-env name pass-through
         base_config["execution"]["env_vars"] = {
             "deployment": {
                 "DEPLOY_VAR1": "deploy_value1",
@@ -467,29 +513,41 @@ class TestSlurmExecutorFeatures:
             },
             "mount_home": False,
         }
-        # Also add old-style for compatibility test
-        base_config["deployment"]["env_vars"] = {"OLD_DEPLOY_VAR": "old_deploy_value"}
+        # Also add old-style deployment.env_vars for compatibility test
+        base_config["deployment"]["env_vars"] = {
+            "OLD_DEPLOY_VAR": "$lit:old_deploy_value"
+        }
 
         cfg = OmegaConf.create(base_config)
 
         with warnings.catch_warnings(record=True):
             warnings.simplefilter("always")
 
-            script = _create_slurm_sbatch_script(
+            result = _create_slurm_sbatch_script(
                 cfg=cfg,
                 task=mock_task,
                 eval_image="test-eval-container:latest",
                 remote_task_subdir=Path("/test/remote"),
                 invocation_id="test123",
                 job_id="test123.0",
-            ).cmd
+            )
+            script = result.cmd
 
-        # All environment variables should be exported
-        assert "export DEPLOY_VAR1=deploy_value1" in script
-        assert "export DEPLOY_VAR2=deploy_value2" in script
-        assert "export EVAL_VAR1=eval_value1" in script
-        assert "export EVAL_VAR2=eval_value2" in script
-        assert "export OLD_DEPLOY_VAR=old_deploy_value" in script
+        # All environment variables should be in secrets file
+        assert result.secrets_env_result is not None
+        assert "deploy_value1" in result.secrets_env_result.secrets_content
+        assert "deploy_value2" in result.secrets_env_result.secrets_content
+        assert "eval_value1" in result.secrets_env_result.secrets_content
+        assert "eval_value2" in result.secrets_env_result.secrets_content
+        assert "old_deploy_value" in result.secrets_env_result.secrets_content
+
+        # Script should source secrets and re-export
+        assert "source" in script
+        assert 'export DEPLOY_VAR1="${DEPLOY_VAR1_' in script
+        assert 'export DEPLOY_VAR2="${DEPLOY_VAR2_' in script
+        assert 'export EVAL_VAR1="${EVAL_VAR1_' in script
+        assert 'export EVAL_VAR2="${EVAL_VAR2_' in script
+        assert 'export OLD_DEPLOY_VAR="${OLD_DEPLOY_VAR_' in script
 
         # All mounts should be present
         assert "/host/deploy1:/container/deploy1" in script
@@ -985,11 +1043,11 @@ class TestSlurmExecutorDryRun:
                 }
             },
             "evaluation": {
-                "env_vars": {"GLOBAL_ENV": "GLOBAL_VALUE"},
+                "env_vars": {"GLOBAL_ENV": "$host:GLOBAL_VALUE"},
                 "tasks": [
                     {
                         "name": "mmlu_pro",
-                        "env_vars": {"TASK_ENV": "TASK_VALUE"},
+                        "env_vars": {"TASK_ENV": "$host:TASK_VALUE"},
                         "nemo_evaluator_config": {
                             "config": {"params": {"temperature": 0.95}}
                         },
@@ -1115,9 +1173,7 @@ class TestSlurmExecutorDryRun:
             mock_get_task_def.side_effect = mock_get_task_def_side_effect
 
             # Should raise ValueError for missing API key
-            with pytest.raises(
-                ValueError, match="Trying to pass an unset environment variable"
-            ):
+            with pytest.raises(ValueError, match="is not set"):
                 SlurmExecutor.execute_eval(sample_config, dry_run=True)
 
     def test_execute_eval_dry_run_required_task_env_vars(
@@ -1154,7 +1210,7 @@ class TestSlurmExecutorDryRun:
                 # (which is the value of TASK_ENV in the configuration)
                 with pytest.raises(
                     ValueError,
-                    match="Trying to pass an unset environment variable TASK_VALUE",
+                    match="TASK_VALUE.*is not set",
                 ):
                     SlurmExecutor.execute_eval(sample_config, dry_run=True)
 
@@ -1649,11 +1705,11 @@ class TestSlurmExecutorSystemCalls:
                 }
             },
             "evaluation": {
-                "env_vars": {"GLOBAL_ENV": "GLOBAL_VALUE"},
+                "env_vars": {"GLOBAL_ENV": "$host:GLOBAL_VALUE"},
                 "tasks": [
                     {
                         "name": "mmlu_pro",
-                        "env_vars": {"TASK_ENV": "TASK_VALUE"},
+                        "env_vars": {"TASK_ENV": "$host:TASK_VALUE"},
                         "nemo_evaluator_config": {
                             "config": {"params": {"temperature": 0.95}}
                         },

@@ -38,6 +38,11 @@ defaults:
   - _self_
 
 # set required execution arguments
+
+env_vars:
+  HF_DATASETS_OFFLINE: $lit:0
+  TRANSFORMERS_OFFLINE: $lit:0
+
 execution:
   hostname: ??? # SLURM headnode (login) hostname (required)
   username: ${oc.env:USER} # Cluster username; defaults to $USER.
@@ -57,19 +62,6 @@ execution:
       /path/to/hf_home: /root/.cache/huggingface
     mount_home: false   # don't mount home directory
 
-  env_vars:
-    # if the checkpoint and datasets are already cached, you can set
-    # HF_DATASETS_OFFLINE=1 and TRANSFORMERS_OFFLINE=1 for offline mode
-    deployment:
-      HF_DATASETS_OFFLINE: 0
-      TRANSFORMERS_OFFLINE: 0
-    evaluation:
-      HF_DATASETS_OFFLINE: 0
-      TRANSFORMERS_OFFLINE: 0
-
-# set up deployment as usual
-# the model will be downloaded from Hugging Face during deployment
-# and stored in the HF home directory for later use
 deployment:
   checkpoint_path: null
   hf_model_handle: meta-llama/Llama-3.1-8B-Instruct
@@ -77,6 +69,9 @@ deployment:
   tensor_parallel_size: 1
   data_parallel_size: 8
   extra_args: "--max-model-len 32768"
+  env_vars:
+    HF_DATASETS_OFFLINE: $lit:0
+    TRANSFORMERS_OFFLINE: $lit:0
 
 evaluation:
   tasks:
