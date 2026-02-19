@@ -569,6 +569,41 @@ class TestSlurmExecutorFeatures:
         # Check that no proxy is set up (since n_tasks=1, even though num_nodes=2)
         assert "proxy" not in script.lower()
 
+    @pytest.mark.parametrize(
+        "gres_value, expect_gres_in_script",
+        [
+            ("gpu:8", True),
+            (None, False),
+            ("", False),
+            ("UNSET", False),
+        ],
+        ids=["gres_gpu8", "gres_none", "gres_empty", "gres_absent"],
+    )
+    def test_gres_sbatch_directive(
+        self, base_config, mock_task, mock_dependencies, gres_value, expect_gres_in_script
+    ):
+        """Test that #SBATCH --gres is only emitted when gres has a truthy value."""
+        if gres_value == "UNSET":
+            base_config["execution"].pop("gres", None)
+        else:
+            base_config["execution"]["gres"] = gres_value
+
+        cfg = OmegaConf.create(base_config)
+
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        if expect_gres_in_script:
+            assert f"#SBATCH --gres {gres_value}" in script
+        else:
+            assert "#SBATCH --gres" not in script
+
 
 class TestMaxWalltimeFeature:
     """Test maximum wall-clock time feature for preventing infinite job resuming."""
