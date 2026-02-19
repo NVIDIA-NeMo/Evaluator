@@ -73,6 +73,7 @@ nemo-evaluator-example = "nemo_evaluator.cli.example:main"
 eval-factory = "nemo_evaluator.core.entrypoint:run_eval"
 nemo-evaluator = "nemo_evaluator.core.entrypoint:run_eval"
 ne = "nemo_evaluator.core.entrypoint:run_eval"
+nemo-evaluator-byob = "nemo_evaluator.byob.cli:byob_compile"
 
 [tool.coverage.run]
 concurrency = ["thread", "multiprocessing"]

@@ -40,6 +40,12 @@ class EndpointType(str, Enum):
     EMBEDDING = "embedding"
 
 
+class ExecutionMode(str, Enum):
+    """How the evaluation harness is executed."""
+    SUBPROCESS = "subprocess"
+    NATIVE = "native"
+
+
 class ApiEndpoint(BaseModel):
     """API endpoint configuration containing information on endpoint placement, targeted model name and adapter used before prompting endpoint."""
 
@@ -214,13 +220,34 @@ class EvaluationMetadata(dict):
 class Evaluation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    command: str = Field(description="jinja template of the command to be executed")
+    command: Optional[str] = Field(
+        default=None,
+        description="Jinja template of the command to be executed (required for subprocess mode)"
+    )
+    execution_mode: ExecutionMode = Field(
+        default=ExecutionMode.SUBPROCESS,
+        description="Execution mode: subprocess (shell command) or native (in-process Python)"
+    )
     framework_name: str = Field(description="Name of the framework")
     pkg_name: str = Field(description="Name of the package")
     config: EvaluationConfig
     target: EvaluationTarget
 
+    @model_validator(mode="after")
+    def validate_command_for_execution_mode(self) -> "Evaluation":
+        if self.execution_mode == ExecutionMode.SUBPROCESS and not self.command:
+            raise ValueError(
+                "command is required when execution_mode is 'subprocess'. "
+                "Set execution_mode to 'native' to use in-process execution."
+            )
+        return self
+
     def render_command(self):
+        if not self.command:
+            raise ValueError(
+                "Cannot render command: no command template set. "
+                "This evaluation uses native execution mode."
+            )
         values = self.model_dump()
         env = get_jinja2_environment()
 
