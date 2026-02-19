@@ -1,0 +1,92 @@
+# SYNC_MANIFEST.yaml -- Declarative manifest for CI sync of nemo-skills code
+#
+# This manifest controls what gets synced from the upstream nemo-skills repository
+# into the NeMo Evaluator package, including directory copying rules, import rewriting,
+# and validation constraints.
+
+source_repo: "github.com/NVIDIA-NeMo/Skills"
+source_ref: "v1.0.0"
+target_dir: "src/nemo_evaluator/_nemo_skills/"
+pip_dependency_range: ">=1.0.0,<1.1.0"
+
+sync_dirs:
+  # Evaluation directory - all Python files except specific exclusions
+  - source: "evaluation/"
+    target: "evaluation/"
+    include:
+      - "**/*.py"
+    exclude:
+      - "evaluation/fill_majority_answer.py"
+      - "evaluation/generate_judgement.py"
+      - "**/__pycache__/**"
+
+  # Dataset directory - selective files only
+  - source: "dataset/"
+    target: "dataset/"
+    include:
+      - "*/__init__.py"
+      - "bfcl_v3/bfcl_score.py"
+      - "bfcl_v4/bfcl_score.py"
+      - "aai/aai_score.py"
+      - "utils.py"
+    exclude:
+      - "*/prepare.py"
+      - "*/download_*.py"
+      - "**/__pycache__/**"
+
+  # Prompt directory - all template and Python files
+  - source: "prompt/"
+    target: "prompt/"
+    include:
+      - "**/*.yaml"
+      - "**/*.yml"
+      - "**/*.py"
+      - "**/*.jinja"
+      - "**/*.jinja2"
+    exclude:
+      - "**/__pycache__/**"
+
+# Import rewrite rules - ORDER MATTERS!
+# More specific rules must appear before less specific rules.
+# These rules are applied as literal string replacements in order.
+import_rewrite_rules:
+  # Adapter-routed imports (most specific first)
+  - pattern: "from nemo_skills.utils import"
+    replacement: "from nemo_evaluator._nemo_skills._adapters.utils import"
+  - pattern: "from nemo_skills.utils"
+    replacement: "from nemo_evaluator._nemo_skills._adapters.utils"
+  - pattern: "import nemo_skills.utils"
+    replacement: "import nemo_evaluator._nemo_skills._adapters.utils"
+  - pattern: "from nemo_skills.file_utils import"
+    replacement: "from nemo_evaluator._nemo_skills._adapters.file_utils import"
+  - pattern: "from nemo_skills.file_utils"
+    replacement: "from nemo_evaluator._nemo_skills._adapters.file_utils"
+  - pattern: "from nemo_skills.dataset.utils import"
+    replacement: "from nemo_evaluator._nemo_skills._adapters.dataset_utils import"
+  - pattern: "from nemo_skills.inference.eval.scicode_utils import"
+    replacement: "from nemo_evaluator._nemo_skills._adapters.scicode_utils import"
+
+  # Direct synced code imports
+  - pattern: "from nemo_skills.evaluation"
+    replacement: "from nemo_evaluator._nemo_skills.evaluation"
+  - pattern: "import nemo_skills.evaluation"
+    replacement: "import nemo_evaluator._nemo_skills.evaluation"
+  - pattern: "from nemo_skills.dataset"
+    replacement: "from nemo_evaluator._nemo_skills.dataset"
+  - pattern: "import nemo_skills.dataset"
+    replacement: "import nemo_evaluator._nemo_skills.dataset"
+  - pattern: "from nemo_skills.prompt"
+    replacement: "from nemo_evaluator._nemo_skills.prompt"
+  - pattern: "import nemo_skills.prompt"
+    replacement: "import nemo_evaluator._nemo_skills.prompt"
+
+# Import allowlist - these imports are NOT rewritten and resolve from pip
+import_allowlist:
+  - "nemo_skills.code_execution"
+  - "nemo_skills.code_execution.sandbox"
+  - "nemo_skills.code_execution.proof_utils"
+
+# Protected files - never overwritten by sync, even if newer upstream versions exist
+protected_files:
+  - "_nemo_skills/_adapters/*.py"
+  - "_nemo_skills/SYNCED_FROM.md"

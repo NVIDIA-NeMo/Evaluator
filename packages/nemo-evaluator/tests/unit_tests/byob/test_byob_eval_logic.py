@@ -1,0 +1,479 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Unit tests for BYOB eval_logic shared between subprocess and native modes."""
+
+import pytest
+from unittest.mock import MagicMock
+
+from nemo_evaluator.api.api_dataclasses import EvaluationResult
+from nemo_evaluator.byob.decorators import get_registered_benchmarks
+from nemo_evaluator.byob.eval_logic import (
+    build_evaluation_result,
+    import_benchmark,
+    run_eval_loop,
+)
+
+
+class TestImportBenchmark:
+    """Tests for import_benchmark function."""
+
+    @pytest.fixture
+    def temp_benchmark_file(self, tmp_path):
+        """Create a temporary benchmark .py file."""
+        code = '''
+from nemo_evaluator.byob import benchmark, scorer
+
+@benchmark(name="test-import", dataset="unused", prompt="Q: {q}\\nA:", target_field="a")
+@scorer
+def test_scorer(response, target, metadata):
+    return {"match": target in response}
+'''
+        benchmark_file = tmp_path / "import_test.py"
+        benchmark_file.write_text(code)
+        return benchmark_file
+
+    def test_import_benchmark_by_filepath(self, temp_benchmark_file):
+        """Test importing benchmark from file path.
+
+        Validates:
+        - File path is resolved correctly
+        - Benchmark is registered during import
+        - Correct benchmark is returned
+        """
+        bench = import_benchmark(str(temp_benchmark_file), "test-import")
+
+        assert bench is not None, "Expected benchmark to be returned"
+        assert bench.name == "test-import", \
+            f"Expected name='test-import', got '{bench.name}'"
+        assert bench.prompt == "Q: {q}\nA:", \
+            f"Expected specific prompt, got '{bench.prompt}'"
+        assert bench.target_field == "a", \
+            f"Expected target_field='a', got '{bench.target_field}'"
+
+    def test_import_benchmark_clears_registry_first(self, temp_benchmark_file):
+        """Test that import_benchmark clears registry before importing.
+
+        This prevents cross-evaluation pollution. Registry should be
+        empty at start, populated after first import, then cleared
+        and repopulated on second import.
+        """
+        # First import
+        bench1 = import_benchmark(str(temp_benchmark_file), "test-import")
+        benchmarks_after_first = get_registered_benchmarks()
+        assert "test-import" in benchmarks_after_first, \
+            "Benchmark should be registered after import"
+
+        # Manually register a different benchmark to simulate pollution
+        from nemo_evaluator.byob import benchmark, scorer
+
+        @benchmark(name="polluted-bench", dataset="x", prompt="x", target_field="x")
+        @scorer
+        def polluted(response, target, metadata):
+            return {}
+
+        benchmarks_after_pollution = get_registered_benchmarks()
+        assert len(benchmarks_after_pollution) == 2, \
+            "Should have 2 benchmarks after manual registration"
+
+        # Second import - should clear first
+        bench2 = import_benchmark(str(temp_benchmark_file), "test-import")
+        benchmarks_after_second = get_registered_benchmarks()
+
+        # Only test-import should remain (polluted-bench cleared)
+        assert "test-import" in benchmarks_after_second, \
+            "test-import should still be registered"
+        assert "polluted-bench" not in benchmarks_after_second, \
+            "import_benchmark should have cleared previous registry state"
+
+    def test_import_benchmark_not_found(self, temp_benchmark_file):
+        """Test clear error when requested benchmark doesn't exist."""
+        with pytest.raises(ValueError, match="nonexistent.*not found"):
+            import_benchmark(str(temp_benchmark_file), "nonexistent")
+
+    def test_import_benchmark_module_not_found(self):
+        """Test clear error when benchmark module file doesn't exist."""
+        # This should raise during import, not during lookup
+        with pytest.raises((FileNotFoundError, ImportError, ModuleNotFoundError)):
+            import_benchmark("/tmp/does_not_exist_12345.py", "whatever")
+
+    def test_import_benchmark_available_list_in_error(self, temp_benchmark_file):
+        """Test that error message lists available benchmarks.
+
+        This makes debugging much easier when wrong name is used.
+        """
+        try:
+            import_benchmark(str(temp_benchmark_file), "wrong-name")
+            pytest.fail("Expected ValueError")
+        except ValueError as e:
+            error_msg = str(e)
+            assert "test-import" in error_msg, \
+                f"Error message should list available benchmarks, got: {error_msg}"
+
+
+class TestRunEvalLoop:
+    """Tests for run_eval_loop function."""
+
+    @pytest.fixture
+    def mock_benchmark(self):
+        """Create a mock BenchmarkDefinition."""
+        from nemo_evaluator.byob.decorators import BenchmarkDefinition
+
+        def simple_scorer(response, target, metadata):
+            return {"correct": target.lower() in response.lower()}
+
+        return BenchmarkDefinition(
+            name="test-loop",
+            dataset="unused",
+            prompt="Q: {question}\nA:",
+            target_field="answer",
+            scorer_fn=simple_scorer,
+        )
+
+    @pytest.fixture
+    def sample_dataset(self):
+        """Sample dataset for eval loop tests."""
+        return [
+            {"question": "Is the sky blue?", "answer": "yes"},
+            {"question": "Is water dry?", "answer": "no"},
+            {"question": "Do cats meow?", "answer": "yes"},
+        ]
+
+    @pytest.fixture
+    def mock_model_call_fn(self):
+        """Mock model call function."""
+        return MagicMock(return_value="Yes, that is correct.")
+
+    def test_run_eval_loop_basic(
+        self, mock_benchmark, sample_dataset, mock_model_call_fn
+    ):
+        """Test basic eval loop execution.
+
+        Validates:
+        - All samples are processed
+        - Prompts are rendered with sample fields
+        - Model call function is invoked correctly
+        - Scorer is called with response, target, metadata
+        - Returns list of score dicts
+        """
+        scores = run_eval_loop(
+            bench=mock_benchmark,
+            dataset=sample_dataset,
+            model_call_fn=mock_model_call_fn,
+            endpoint_type="chat",
+        )
+
+        assert len(scores) == 3, \
+            f"Expected 3 scores (one per sample), got {len(scores)}"
+
+        # Verify all scores have expected keys
+        for score in scores:
+            assert "correct" in score, \
+                f"Expected 'correct' key in score, got {list(score.keys())}"
+
+        # Verify model was called 3 times with correct signature
+        assert mock_model_call_fn.call_count == 3, \
+            f"Expected 3 model calls, got {mock_model_call_fn.call_count}"
+
+        for call in mock_model_call_fn.call_args_list:
+            args, kwargs = call
+            assert len(args) == 2, \
+                f"Expected (prompt, endpoint_type) args, got {len(args)}"
+            prompt, endpoint = args
+            assert "Q:" in prompt, \
+                f"Expected rendered prompt, got: {prompt}"
+            assert endpoint == "chat", \
+                f"Expected endpoint_type='chat', got '{endpoint}'"
+
+    def test_run_eval_loop_missing_prompt_field(
+        self, mock_benchmark, mock_model_call_fn
+    ):
+        """Test that samples missing prompt fields are skipped with warning.
+
+        Middle sample missing 'question' -> should be skipped, not crashed.
+        """
+        dataset = [
+            {"question": "q1", "answer": "yes"},
+            {"WRONG_KEY": "q2", "answer": "no"},  # Missing 'question'
+            {"question": "q3", "answer": "yes"},
+        ]
+
+        scores = run_eval_loop(
+            bench=mock_benchmark,
+            dataset=dataset,
+            model_call_fn=mock_model_call_fn,
+            endpoint_type="chat",
+        )
+
+        assert len(scores) == 2, \
+            f"Expected 2 scores (1 skipped for missing field), got {len(scores)}"
+
+        # Model should only be called twice
+        assert mock_model_call_fn.call_count == 2, \
+            f"Expected 2 model calls (1 sample skipped), got {mock_model_call_fn.call_count}"
+
+    def test_run_eval_loop_model_error_skips_sample(
+        self, mock_benchmark, sample_dataset
+    ):
+        """Test that model errors skip the sample, not crash the loop.
+
+        Model fails on sample 1 -> that sample skipped, others processed.
+        """
+        mock_model_call_fn = MagicMock(side_effect=[
+            "Yes",  # sample 0 succeeds
+            Exception("Model timeout"),  # sample 1 fails
+            "No",  # sample 2 succeeds
+        ])
+
+        scores = run_eval_loop(
+            bench=mock_benchmark,
+            dataset=sample_dataset,
+            model_call_fn=mock_model_call_fn,
+            endpoint_type="chat",
+        )
+
+        assert len(scores) == 2, \
+            f"Expected 2 scores (1 skipped for model error), got {len(scores)}"
+
+    def test_run_eval_loop_empty_dataset(
+        self, mock_benchmark, mock_model_call_fn
+    ):
+        """Test that empty dataset returns empty score list."""
+        scores = run_eval_loop(
+            bench=mock_benchmark,
+            dataset=[],
+            model_call_fn=mock_model_call_fn,
+            endpoint_type="chat",
+        )
+
+        assert scores == [], \
+            f"Expected empty list for empty dataset, got {scores}"
+        assert mock_model_call_fn.call_count == 0, \
+            "Model should not be called for empty dataset"
+
+    def test_run_eval_loop_scorer_receives_metadata(
+        self, sample_dataset, mock_model_call_fn
+    ):
+        """Test that scorer receives the full sample dict as metadata.
+
+        This allows scorers to access additional fields beyond target.
+        """
+        scorer_calls = []
+
+        def capture_scorer(response, target, metadata):
+            scorer_calls.append((response, target, metadata))
+            return {"match": True}
+
+        from nemo_evaluator.byob.decorators import BenchmarkDefinition
+        mock_benchmark = BenchmarkDefinition(
+            name="test-metadata",
+            dataset="unused",
+            prompt="Q: {question}",
+            target_field="answer",
+            scorer_fn=capture_scorer,
+        )
+
+        scores = run_eval_loop(
+            bench=mock_benchmark,
+            dataset=sample_dataset,
+            model_call_fn=mock_model_call_fn,
+            endpoint_type="chat",
+        )
+
+        # Verify scorer was called with full sample dict
+        assert len(scorer_calls) == 3, \
+            f"Expected 3 scorer calls, got {len(scorer_calls)}"
+
+        for i, (response, target, metadata) in enumerate(scorer_calls):
+            expected_sample = sample_dataset[i]
+            assert metadata == expected_sample, \
+                f"Sample {i}: expected metadata to be full sample dict"
+            assert target == expected_sample["answer"], \
+                f"Sample {i}: expected target to match answer field"
+
+    def test_run_eval_loop_endpoint_type_passed_through(
+        self, mock_benchmark, sample_dataset
+    ):
+        """Test that endpoint_type is passed to model_call_fn correctly.
+
+        Tests both chat and completions endpoint types.
+        """
+        mock_chat = MagicMock(return_value="Response")
+        scores_chat = run_eval_loop(
+            bench=mock_benchmark,
+            dataset=sample_dataset,
+            model_call_fn=mock_chat,
+            endpoint_type="chat",
+        )
+
+        for call in mock_chat.call_args_list:
+            args, _ = call
+            assert args[1] == "chat", \
+                f"Expected endpoint_type='chat', got '{args[1]}'"
+
+        mock_completions = MagicMock(return_value="Response")
+        scores_completions = run_eval_loop(
+            bench=mock_benchmark,
+            dataset=sample_dataset,
+            model_call_fn=mock_completions,
+            endpoint_type="completions",
+        )
+
+        for call in mock_completions.call_args_list:
+            args, _ = call
+            assert args[1] == "completions", \
+                f"Expected endpoint_type='completions', got '{args[1]}'"
+
+
+class TestBuildEvaluationResult:
+    """Tests for build_evaluation_result function."""
+
+    def test_build_evaluation_result_structure(self):
+        """Test that build_evaluation_result produces correct EvaluationResult structure.
+
+        Contract:
+        - Returns EvaluationResult instance
+        - Contains tasks dict
+        - Each task has metrics dict
+        - Each metric has scores dict
+        - Each score has value and stats
+        """
+        # Sample scores matching aggregate_scores output
+        scores = [
+            {"correct": True},
+            {"correct": False},
+            {"correct": True},
+        ]
+
+        result = build_evaluation_result(scores, "test-bench")
+
+        assert isinstance(result, EvaluationResult), \
+            f"Expected EvaluationResult, got {type(result)}"
+        assert "test-bench" in result.tasks, \
+            f"Expected 'test-bench' in tasks, got {list(result.tasks.keys())}"
+
+        task = result.tasks["test-bench"]
+        assert "pass@1" in task.metrics, \
+            f"Expected 'pass@1' in metrics, got {list(task.metrics.keys())}"
+
+        metric = task.metrics["pass@1"]
+        assert "correct" in metric.scores, \
+            f"Expected 'correct' in scores, got {list(metric.scores.keys())}"
+
+        score = metric.scores["correct"]
+        assert hasattr(score, "value"), "Score missing 'value' attribute"
+        assert hasattr(score, "stats"), "Score missing 'stats' attribute"
+        assert hasattr(score.stats, "count"), "Stats missing 'count'"
+        assert hasattr(score.stats, "mean"), "Stats missing 'mean'"
+        assert hasattr(score.stats, "stderr"), "Stats missing 'stderr'"
+        assert hasattr(score.stats, "stddev"), "Stats missing 'stddev'"
+
+    def test_build_evaluation_result_empty_scores(self):
+        """Test that empty score list produces empty EvaluationResult."""
+        result = build_evaluation_result([], "empty-bench")
+
+        assert isinstance(result, EvaluationResult), \
+            f"Expected EvaluationResult even for empty, got {type(result)}"
+        assert len(result.tasks) == 0, \
+            f"Expected empty tasks for empty scores, got {list(result.tasks.keys())}"
+
+    def test_build_evaluation_result_values_match_aggregation(self):
+        """Test that values in EvaluationResult match aggregate_scores output.
+
+        Hand-computed values for [True, False, True]:
+        - mean = 2/3 = 0.6667
+        - Binary detected -> scaled to 66.67
+        """
+        scores = [
+            {"correct": True},
+            {"correct": False},
+            {"correct": True},
+        ]
+
+        result = build_evaluation_result(scores, "value-test")
+
+        score = result.tasks["value-test"].metrics["pass@1"].scores["correct"]
+
+        # Binary scores should be scaled to percentage
+        assert abs(score.value - 66.6667) < 0.01, \
+            f"Expected value~66.6667 (binary percentage), got {score.value}"
+        assert score.stats.count == 3, \
+            f"Expected count=3, got {score.stats.count}"
+        assert abs(score.stats.mean - 66.6667) < 0.01, \
+            f"Expected mean~66.6667, got {score.stats.mean}"
+
+    def test_build_evaluation_result_multiple_score_keys(self):
+        """Test that multiple score keys are all included in result."""
+        scores = [
+            {"correct": True, "parsed": True},
+            {"correct": False, "parsed": True},
+            {"correct": True, "parsed": False},
+        ]
+
+        result = build_evaluation_result(scores, "multi-key")
+
+        metric = result.tasks["multi-key"].metrics["pass@1"]
+        assert "correct" in metric.scores, \
+            "Expected 'correct' in scores"
+        assert "parsed" in metric.scores, \
+            "Expected 'parsed' in scores"
+
+        # Both should have count=3
+        assert metric.scores["correct"].stats.count == 3
+        assert metric.scores["parsed"].stats.count == 3
+
+    def test_build_evaluation_result_continuous_scores(self):
+        """Test that continuous (non-binary) scores are NOT scaled.
+
+        Continuous scores (e.g., F1 0.8, 0.9, 1.0) should not be scaled by 100.
+        """
+        scores = [
+            {"f1": 0.8},
+            {"f1": 0.9},
+            {"f1": 1.0},
+        ]
+
+        result = build_evaluation_result(scores, "continuous-bench")
+
+        score = result.tasks["continuous-bench"].metrics["pass@1"].scores["f1"]
+
+        # Continuous scores should NOT be scaled (mean = 0.9, not 90)
+        assert abs(score.value - 0.9) < 0.0001, \
+            f"Expected value~0.9 (no scaling for continuous), got {score.value}"
+        assert abs(score.stats.mean - 0.9) < 0.0001, \
+            f"Expected mean~0.9, got {score.stats.mean}"
+
+    def test_build_evaluation_result_single_sample(self):
+        """Test single sample produces stderr=0, stddev=0.
+
+        Hand-computed:
+        - n=1, binary, mean=1.0
+        - stddev=0, stderr=0 (n<=1 special case)
+        - Binary -> value=100.0
+        """
+        scores = [{"correct": True}]
+
+        result = build_evaluation_result(scores, "single-bench")
+
+        score = result.tasks["single-bench"].metrics["pass@1"].scores["correct"]
+
+        assert score.stats.count == 1, \
+            f"Expected count=1, got {score.stats.count}"
+        assert score.value == 100.0, \
+            f"Expected value=100.0 (binary True), got {score.value}"
+        assert score.stats.stddev == 0.0, \
+            f"Expected stddev=0.0 (n=1), got {score.stats.stddev}"
+        assert score.stats.stderr == 0.0, \
+            f"Expected stderr=0.0 (n=1), got {score.stats.stderr}"
