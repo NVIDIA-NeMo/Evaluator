@@ -396,22 +396,44 @@ class TestSSHHelpers:
 
     def test_download_artifacts_only_required_with_logs(self, tmp_path: Path):
         paths = {"username": "user", "hostname": "host", "remote_path": "/remote"}
-        logs_dir = tmp_path / "logs"
-        logs_dir.mkdir(parents=True, exist_ok=True)
-        (logs_dir / "foo.log").write_text("x")
 
-        with patch("subprocess.run", return_value=SimpleNamespace(returncode=0)):
-            out = U.ssh_download_artifacts(
-                paths,
-                tmp_path,
-                config={"copy_logs": True, "only_required": True},
-                control_paths=None,
-            )
+        # Mock Popen for the tar+ssh log streaming
+        class FakePopen:
+            def __init__(self, cmd, stdout=None, stderr=None):
+                self.returncode = 0
+                self.stdout = None
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+            def wait(self):
+                pass
+
+        def fake_run(cmd, capture_output=True, stdin=None):
+            if isinstance(cmd, list) and "tar" in cmd and "-xzf" in cmd:
+                # Simulate tar extraction by creating a log file
+                logs_dir = tmp_path / "logs"
+                logs_dir.mkdir(parents=True, exist_ok=True)
+                (logs_dir / "foo.log").write_text("x")
+            return SimpleNamespace(returncode=0)
+
+        with patch("subprocess.Popen", FakePopen):
+            with patch("subprocess.run", side_effect=fake_run):
+                out = U.ssh_download_artifacts(
+                    paths,
+                    tmp_path,
+                    config={"copy_logs": True, "only_required": True},
+                    control_paths=None,
+                )
 
         expected_artifacts = {
             str(tmp_path / "artifacts" / name) for name in U.get_relevant_artifacts()
         }
         assert set(out).issuperset(expected_artifacts)
+        assert str(tmp_path / "logs" / "foo.log") in out
 
     def test_download_artifacts_only_required_false_uses_tar_with_exclusions(
         self, tmp_path: Path

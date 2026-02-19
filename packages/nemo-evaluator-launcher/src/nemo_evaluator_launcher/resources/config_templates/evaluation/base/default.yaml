@@ -1,0 +1,15 @@
+# Base model evaluation configuration (completions endpoint)
+# Uses log-probabilities for multiple-choice tasks
+# See: https://docs.nvidia.com/nemo/evaluator/latest/evaluation/run-evals/logprobs.html
+evaluation:
+  nemo_evaluator_config:
+    config:
+      params:
+        request_timeout: 3600
+        parallelism: 64
+        extra:
+          # Tokenizer required for log-probability tasks
+          tokenizer: ??? # HuggingFace model handle or path to tokenizer (must match evaluated model)
+          tokenizer_backend: huggingface # or "tiktoken"
+  env_vars:
+    HF_TOKEN: HF_TOKEN # Required to access gated tokenizers

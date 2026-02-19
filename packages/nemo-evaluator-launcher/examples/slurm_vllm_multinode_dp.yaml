@@ -60,14 +60,15 @@ defaults:
 
 # Override default execution arguments
 execution:
-  type: slurm # Executor type (required)
   hostname: ??? # SLURM headnode (login) hostname (required)
   username: ${oc.env:USER} # Cluster username; defaults to $USER
   account: ??? # SLURM account allocation (required)
   output_dir: ??? # ABSOLUTE path accessible to SLURM compute nodes (required)
-  num_nodes: 2 # Number of SLURM nodes for multi-node deployment
+
+  partition: batch
   walltime: 01:00:00
 
+  num_nodes: 2 # Number of SLURM nodes for multi-node deployment
   deployment:
     n_tasks: ${execution.num_nodes}  # For multi-node vLLM deployment, must match num_nodes
 

@@ -1,7 +1,7 @@
 metadata:
-  mapping_toml_checksum: sha256:34c9503db8192c0cf758502d975ab8c0e869f54555805f753f0ca8ddc7096fbe
-  num_tasks: 410
-  num_harnesses: 22
+  mapping_toml_checksum: sha256:66143ca20474d37e7f14b4d9e958c2f8506dd53b2135d78c10007c292a750eda
+  num_tasks: 411
+  num_harnesses: 23
 harnesses:
 - name: lm-evaluation-harness
   description: This project provides a unified framework to test generative language
@@ -185,6 +185,15 @@ harnesses:
   url: https://github.com/embeddings-benchmark/mteb
   container: nvcr.io/nvidia/eval-factory/mteb:26.01
   container_digest: sha256:fb0ea5360bec880d4ecbfc63015d775dc3d22601e5ab17d760a992402646cbbb
+  arch: multiarch
+- name: AA-LCR
+  description: A challenging benchmark measuring language models' ability to extract,
+    reason about, and synthesize information from long-form documents ranging from
+    10k to 100k tokens (measured using the cl100k_base tokenizer).
+  full_name: Artificial Analysis Long Context Reasoning Benchmark
+  url: https://huggingface.co/datasets/ArtificialAnalysis/AA-LCR
+  container: nvcr.io/nvidia/eval-factory/aa-lcr:26.01
+  container_digest: sha256:67dd35302ed15610afc9471a2ff4f515d95a235753f1b259db60748249366939
   arch: multiarch
 tasks:
 - name: mmlu
@@ -21710,5 +21719,52 @@ tasks:
       supported_endpoint_types:
       - embedding
       type: ViDoReV3_Text_Image
+    target:
+      api_endpoint: {}
+- name: aa_lcr
+  description: A challenging benchmark measuring language models' ability to extract,
+    reason about, and synthesize information from long-form documents ranging from
+    10k to 100k tokens (measured using the cl100k_base tokenizer).
+  harness: AA-LCR
+  defaults:
+    command: aa_lcr --model={{target.api_endpoint.model_id}} --endpoint_url={{target.api_endpoint.url}}  --temperature={{config.params.temperature}}
+      --top_p={{config.params.top_p}} --request_timeout={{config.params.request_timeout}}  {%
+      if config.params.limit_samples is not none %}--limit {{config.params.limit_samples}}{%
+      endif %} --output_dir={{config.output_dir}}  {% if target.api_endpoint.api_key_name
+      is not none %}--api_key_name={{target.api_endpoint.api_key_name}}{% endif %}
+      --max_retries={{config.params.max_retries}}  --max_new_tokens={{config.params.max_new_tokens}}
+      --async_limit={{config.params.parallelism}} --num_repeats={{config.params.extra.n_samples}}
+      --seed={{config.params.extra.seed}} --judge_model={{config.params.extra.judge.model_id}}
+      --judge_url={{config.params.extra.judge.url}} --judge_temperature={{config.params.extra.judge.temperature}}
+      --judge_top_p={{config.params.extra.judge.top_p}} --judge_max_new_tokens={{config.params.extra.judge.max_new_tokens}}
+      --judge_async_limit={{config.params.extra.judge.parallelism}} {% if config.params.extra.judge.api_key
+      is defined %}--judge_api_key_name={{config.params.extra.judge.api_key}}{% endif
+      %}
+    framework_name: AA-LCR
+    pkg_name: aa_lcr
+    config:
+      params:
+        max_new_tokens: 16384
+        max_retries: 30
+        parallelism: 10
+        temperature: 0.0
+        request_timeout: 600
+        top_p: 1.0
+        extra:
+          n_samples: 3
+          seed: 42
+          judge:
+            url: https://integrate.api.nvidia.com/v1/chat/completions
+            model_id: nvdev/qwen/qwen-235b
+            request_timeout: 600
+            max_retries: 30
+            temperature: 0.0
+            top_p: 1.0
+            max_new_tokens: 1024
+            parallelism: 10
+            api_key: JUDGE_API_KEY
+      supported_endpoint_types:
+      - chat
+      type: aa_lcr
     target:
       api_endpoint: {}

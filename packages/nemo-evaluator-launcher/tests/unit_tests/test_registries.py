@@ -17,6 +17,8 @@
 
 import base64
 import json
+import pathlib
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
@@ -95,19 +97,28 @@ class TestFindAuthInConfig:
 
 
 class TestReadDockerCredentials:
-    """Test reading Docker credentials from config file."""
+    """Test reading Docker credentials from config file.
 
-    def test_read_docker_credentials_not_found(self, tmp_path, monkeypatch):
-        """Test when Docker config file doesn't exist."""
-        # Point DOCKER_CONFIG at an empty temp dir (no config.json).
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path))
+    All tests patch ``_get_docker_config_path`` to point at ``tmp_path`` so
+    they are runtime-agnostic (work with both Docker and Podman installations).
+    """
+
+    @pytest.fixture(autouse=True)
+    def patch_config_path(self, tmp_path):
+        """Patch _get_docker_config_path to use tmp_path for every test."""
+        with patch(
+            "nemo_evaluator_launcher.common.container_metadata.registries._get_docker_config_path",
+            return_value=tmp_path / "config.json",
+        ):
+            yield
+
+    def test_read_docker_credentials_not_found(self, tmp_path):
+        """Test when config file doesn't exist."""
         result = _read_docker_credentials("test-registry")
         assert result is None
 
-    def test_read_docker_credentials_found(self, tmp_path, monkeypatch):
-        """Test reading credentials from Docker config."""
-        # Docker looks for ${DOCKER_CONFIG}/config.json when DOCKER_CONFIG is set.
-        monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path))
+    def test_read_docker_credentials_found(self, tmp_path):
+        """Test reading inline credentials from config."""
         config_file = tmp_path / "config.json"
         username = "testuser"
         password = "testpass"
@@ -124,6 +135,109 @@ class TestReadDockerCredentials:
         assert result is not None
         assert result[0] == username
         assert result[1] == password
+
+    @patch(
+        "nemo_evaluator_launcher.common.container_metadata.registries.subprocess.run"
+    )
+    def test_read_docker_credentials_creds_store(self, mock_run, tmp_path):
+        """Test reading credentials via credsStore helper when auths entry is empty."""
+        config_file = tmp_path / "config.json"
+        config_data = {
+            "auths": {
+                "gitlab-master.nvidia.com": {},
+                "gitlab-master.nvidia.com:5005": {},
+            },
+            "credsStore": "osxkeychain",
+        }
+        config_file.write_text(json.dumps(config_data))
+
+        mock_run.return_value = SimpleNamespace(
+            returncode=0,
+            stdout='{"Username":"u","Secret":"s"}',
+            stderr="",
+        )
+
+        result = _read_docker_credentials("gitlab-master.nvidia.com:5005")
+        assert result == ("u", "s")
+
+        assert mock_run.call_count == 1
+        args, kwargs = mock_run.call_args
+        assert args[0] == ["docker-credential-osxkeychain", "get"]
+        assert kwargs["text"] is True
+        assert kwargs["capture_output"] is True
+        assert kwargs["check"] is False
+        # First tried server should be the exact matched key.
+        assert kwargs["input"] == "gitlab-master.nvidia.com:5005\n"
+
+    @patch(
+        "nemo_evaluator_launcher.common.container_metadata.registries.subprocess.run"
+    )
+    def test_read_docker_credentials_creds_store_helper_missing(
+        self, mock_run, tmp_path
+    ):
+        """Test credsStore helper missing returns None."""
+        config_file = tmp_path / "config.json"
+        config_data = {
+            "auths": {"gitlab-master.nvidia.com:5005": {}},
+            "credsStore": "osxkeychain",
+        }
+        config_file.write_text(json.dumps(config_data))
+
+        mock_run.side_effect = FileNotFoundError()
+
+        result = _read_docker_credentials("gitlab-master.nvidia.com:5005")
+        assert result is None
+
+    def test_read_docker_credentials_podman_fallback_to_docker(self, tmp_path):
+        """When Podman config has no creds, fall back to Docker config."""
+        podman_config = tmp_path / "containers" / "auth.json"
+        podman_config.parent.mkdir()
+        podman_config.write_text(json.dumps({"auths": {}}))
+
+        # Docker fallback is at home() / ".docker" / "config.json"
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        docker_config = fake_home / ".docker" / "config.json"
+        docker_config.parent.mkdir()
+        username = "dockeruser"
+        password = "dockerpass"
+        auth_string = base64.b64encode(f"{username}:{password}".encode()).decode()
+        docker_config.write_text(
+            json.dumps({"auths": {"test-registry": {"auth": auth_string}}})
+        )
+
+        # Simulate Podman: primary config path contains "containers/auth.json"
+        # and Docker fallback exists at home/.docker/config.json
+        with patch(
+            "nemo_evaluator_launcher.common.container_metadata.registries._get_docker_config_path",
+            return_value=podman_config,
+        ), patch(
+            "nemo_evaluator_launcher.common.container_metadata.registries.pathlib.Path.home",
+            return_value=fake_home,
+        ):
+            result = _read_docker_credentials("test-registry")
+
+        assert result is not None
+        assert result[0] == username
+        assert result[1] == password
+
+    def test_read_docker_credentials_podman_no_docker_fallback(self, tmp_path):
+        """When Podman config has no creds and Docker fallback is absent, return None."""
+        podman_config = tmp_path / "containers" / "auth.json"
+        podman_config.parent.mkdir()
+        podman_config.write_text(json.dumps({"auths": {}}))
+
+        # home() points to a dir without .docker/config.json
+        with patch(
+            "nemo_evaluator_launcher.common.container_metadata.registries._get_docker_config_path",
+            return_value=podman_config,
+        ), patch(
+            "nemo_evaluator_launcher.common.container_metadata.registries.pathlib.Path.home",
+            return_value=tmp_path,
+        ):
+            result = _read_docker_credentials("test-registry")
+
+        assert result is None
 
 
 class TestResolveCredentials:
@@ -297,11 +411,15 @@ class TestCreateAuthenticator:
     """Test authenticator factory function."""
 
     @patch(
-        "nemo_evaluator_launcher.common.container_metadata.registries._resolve_gitlab_credentials"
+        "nemo_evaluator_launcher.common.container_metadata.registries._resolve_gitlab_credentials_with_sources"
     )
     def test_create_authenticator_gitlab(self, mock_resolve):
         """Test creating GitLab authenticator."""
-        mock_resolve.return_value = ("user", "pass")
+        mock_resolve.return_value = (
+            "user",
+            "pass",
+            {"username_source": "env:GITLAB_TOKEN"},
+        )
         auth = create_authenticator("gitlab", "gitlab.example.com:5005", "test/repo")
         assert isinstance(auth, GitlabDockerRegistryHandler)
 

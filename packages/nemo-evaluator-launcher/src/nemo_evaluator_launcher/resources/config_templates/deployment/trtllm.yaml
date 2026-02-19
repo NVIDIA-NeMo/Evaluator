@@ -1,0 +1,9 @@
+defaults:
+  - deployment: trtllm
+
+deployment:
+  checkpoint_path: ??? # Path to TRT-LLM engine/checkpoint (required)
+  served_model_name: ??? # Model name for API
+  tensor_parallel_size: 8
+  pipeline_parallel_size: 1
+  extra_args: ""
