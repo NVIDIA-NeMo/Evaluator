@@ -213,6 +213,7 @@ def resume_eval(invocation_id: str) -> str:
                 )
             for job in jobs.values():
                 job.data["resumed_at"] = time.time()
+                job.data.pop("killed", None)
                 db.write_job(job)
 
             # Check for immediate startup failure
