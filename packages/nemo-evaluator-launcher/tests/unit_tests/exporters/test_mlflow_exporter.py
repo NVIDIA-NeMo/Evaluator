@@ -57,9 +57,6 @@ class TestMLflowExporter:
         ExecutionDB().write_job(jd)
 
         exp = MLflowExporter({"tracking_uri": "http://mlflow", "log_artifacts": False})
-        monkeypatch.setattr(
-            exp, "_get_existing_run_info", lambda *a, **k: (False, None), raising=False
-        )
 
         result = exp.export([jd.job_id])
         assert result.successful_jobs == [jd.job_id]
@@ -108,13 +105,51 @@ class TestMLflowExporter:
         exp = MLflowExporter({"tracking_uri": "http://ml", "skip_existing": True})
         monkeypatch.setattr(
             exp,
-            "_get_existing_run_info",
-            lambda *a, **k: (True, "existing123"),
+            "_get_existing_run_id",
+            lambda *a, **k: ("existing123"),
             raising=False,
         )
 
         result = exp.export([jd.job_id])
         assert result.skipped_jobs == [jd.job_id]
+
+    def test_export_with_update_existing(
+        self, mock_execdb, monkeypatch, mlflow_fake, tmp_path: Path
+    ):
+        _ML, _RunCtx = mlflow_fake
+        inv = "test002"
+
+        # Create job with artifacts
+        artifacts_dir = tmp_path / inv / f"{inv}.0" / "artifacts"
+        artifacts_dir.mkdir(parents=True)
+
+        (artifacts_dir / "run_config.yml").write_text(
+            "framework_name: test-harness\nconfig:\n  type: test_task\ntarget:\n  api_endpoint:\n    model_id: test-model\n"
+        )
+        (artifacts_dir / "results.yml").write_text(
+            "results:\n  tasks:\n    test_task:\n      metrics:\n        accuracy:\n          scores:\n            accuracy:\n              value: 0.9\nconfig: {}\n"
+        )
+
+        jd = JobData(
+            inv,
+            f"{inv}.0",
+            0.0,
+            "local",
+            {"output_dir": str(tmp_path / inv / f"{inv}.0")},
+            {},
+        )
+        ExecutionDB().write_job(jd)
+
+        exp = MLflowExporter({"tracking_uri": "http://ml"})
+        monkeypatch.setattr(
+            exp,
+            "_get_existing_run_id",
+            lambda *a, **k: ("existing123"),
+            raising=False,
+        )
+
+        result = exp.export([jd.job_id])
+        assert result.successful_jobs == [jd.job_id]
 
     def test_log_artifacts_disabled(
         self, monkeypatch, mlflow_fake, tmp_path: Path, mock_execdb
@@ -155,9 +190,6 @@ class TestMLflowExporter:
         )
 
         exp = MLflowExporter({"tracking_uri": "http://mlflow", "log_artifacts": False})
-        monkeypatch.setattr(
-            exp, "_get_existing_run_info", lambda *a, **k: (False, None), raising=False
-        )
 
         result = exp.export([jd.job_id])
         assert result.successful_jobs == [jd.job_id]
@@ -218,9 +250,6 @@ class TestMLflowExporter:
                 "log_artifacts": False,
             }
         )
-        monkeypatch.setattr(
-            exp, "_get_existing_run_info", lambda *a, **k: (False, None), raising=False
-        )
 
         result = exp.export([jd.job_id])
         assert result.successful_jobs == [jd.job_id]
@@ -275,9 +304,6 @@ class TestMLflowExporter:
                 "log_config_params_max_depth": 2,
                 "log_artifacts": False,
             }
-        )
-        monkeypatch.setattr(
-            exp, "_get_existing_run_info", lambda *a, **k: (False, None), raising=False
         )
 
         result = exp.export([jd.job_id])
