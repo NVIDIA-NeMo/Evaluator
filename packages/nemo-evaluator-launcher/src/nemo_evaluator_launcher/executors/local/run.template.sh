@@ -134,12 +134,10 @@ else
     {% endif %}
 
     echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $exit_code" > "$logs_dir/stage.exit"
-) >> "$logs_dir/stdout.log" 2>&1
 
 
-{% if auto_export_destinations %}
-# Monitor job completion and auto-export
-(
+    {% if auto_export_destinations %}
+    # Monitor job completion and auto-export
     # Give it a moment to ensure file is fully written
     sleep 1
     {{ task.export_reexport_cmd }}
@@ -147,29 +145,31 @@ else
     exit_code=$(tail -1 "$logs_dir/stage.exit" | cut -d' ' -f2)
     if [ "$exit_code" = "0" ]; then
         # Log auto-export activity to task logs
-        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Job {{ task.job_id }} completed successfully. Starting auto-export..." >> "$logs_dir/stdout.log"
+        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Job {{ task.job_id }} completed successfully. Starting auto-export..."
 
         cat > ${artifacts_dir}/export_config.yml << 'EOF'
 {{ auto_export_config_str | indent(2) }}
 EOF
         {% for dest in auto_export_destinations %}
-        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Exporting job {{ task.job_id }} to {{ dest }}..." >> "$logs_dir/stdout.log"
-        nemo-evaluator-launcher export {{ task.job_id }} --dest {{ dest }} --config ${artifacts_dir}/export_config.yml >> "$logs_dir/stdout.log" 2>&1
+        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Exporting job {{ task.job_id }} to {{ dest }}..."
+        nemo-evaluator-launcher export {{ task.job_id }} --dest {{ dest }} --config ${artifacts_dir}/export_config.yml
         if [ $? -eq 0 ]; then
-            echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Export to {{ dest }} completed successfully" >> "$logs_dir/stdout.log"
+            echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Export to {{ dest }} completed successfully"
         else
-            echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Export to {{ dest }} failed" >> "$logs_dir/stdout.log"
+            echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Export to {{ dest }} failed"
         fi
         {% endfor %}
 
-        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Auto-export completed for job {{ task.job_id }}" >> "$logs_dir/stdout.log"
+        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Auto-export completed for job {{ task.job_id }}"
     else
-        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Job {{ task.job_id }} failed with exit code $exit_code. Skipping auto-export." >> "$logs_dir/stdout.log"
+        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Job {{ task.job_id }} failed with exit code $exit_code. Skipping auto-export."
     fi
-)
 
-{% endif %}
+
+    {% endif %}
+) >> "$logs_dir/stdout.log" 2>&1
 fi
+
 
 
 {% endfor %}
