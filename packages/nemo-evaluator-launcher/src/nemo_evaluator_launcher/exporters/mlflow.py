@@ -19,7 +19,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import List, Tuple
 
 try:
     import mlflow
@@ -28,7 +28,6 @@ try:
 except ImportError:
     MLFLOW_AVAILABLE = False
 
-from nemo_evaluator_launcher.common.execdb import JobData
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.exporters.base import BaseExporter
 from nemo_evaluator_launcher.exporters.registry import register_exporter
@@ -45,44 +44,38 @@ from nemo_evaluator_launcher.exporters.utils import (
 class MLflowExporter(BaseExporter):
     """Export accuracy metrics to MLflow tracking server."""
 
+    DEFAULT_EXPERIMENT_NAME = "nemo-evaluator-launcher"
+
     def is_available(self) -> bool:
         return MLFLOW_AVAILABLE
 
-    def _get_existing_run_info(
-        self, job_data: JobData, config: Dict[str, Any]
-    ) -> tuple[bool, str]:
-        """Check if MLflow run exists for this invocation/job."""
+    def _get_existing_run_id(self, job_id: str, experiment_name: str) -> str | None:
+        """Check if MLflow run exists for this job and return the run id if it does."""
         try:
-            import mlflow
+            experiment = mlflow.get_experiment_by_name(experiment_name)
+            if not experiment:
+                return None
 
-            tracking_uri = config.get("tracking_uri")
-            if not tracking_uri:
-                return False, None
+            # Search for runs with matching invocation_id tag
+            runs = mlflow.search_runs(
+                experiment_ids=[experiment.experiment_id],
+                filter_string=f"tags.job_id = '{job_id}'",
+            )
 
-            mlflow.set_tracking_uri(tracking_uri)
-            experiment_name = config.get("experiment_name", "nemo-evaluator-launcher")
+            if not runs.empty:
+                existing_run = runs.iloc[0]
+                if len(runs) > 1:
+                    logger.warning(
+                        f"Multiple runs found for job {job_id}, using the first one: {existing_run.run_id}"
+                    )
+                else:
+                    logger.info(f"Run found for job {job_id}: {existing_run.run_id}")
 
-            try:
-                experiment = mlflow.get_experiment_by_name(experiment_name)
-                if not experiment:
-                    return False, None
+                return existing_run.run_id
 
-                # Search for runs with matching invocation_id tag
-                runs = mlflow.search_runs(
-                    experiment_ids=[experiment.experiment_id],
-                    filter_string=f"tags.invocation_id = '{job_data.invocation_id}'",
-                )
-
-                if not runs.empty:
-                    existing_run = runs.iloc[0]
-                    return True, existing_run.run_id
-
-            except Exception:
-                pass
-
-            return False, None
-        except ImportError:
-            return False, None
+        except Exception as e:
+            logger.debug(f"Error checking if run exists for job {job_id}: {e}")
+            return None
 
     def export_jobs(
         self, data_for_export: List[DataForExport]
@@ -119,7 +112,9 @@ class MLflowExporter(BaseExporter):
         mlflow.set_tracking_uri(tracking_uri)
 
         # Set experiment
-        experiment_name = self.config.get("experiment_name", "nemo-evaluator-launcher")
+        experiment_name = self.config.get(
+            "experiment_name", self.DEFAULT_EXPERIMENT_NAME
+        )
         mlflow.set_experiment(experiment_name)
         for data in data_for_export:
             try:
@@ -195,13 +190,18 @@ class MLflowExporter(BaseExporter):
         }
 
         # skip run if it already exists
-        exists, _ = self._get_existing_run_info(job_data, self.config)
-        if exists and self.config.get("skip_existing"):
+        existing_run_id = None
+        skip_existing = self.config.get("skip_existing", False)
+        existing_run_id = self._get_existing_run_id(
+            job_data.job_id,
+            self.config.get("experiment_name", self.DEFAULT_EXPERIMENT_NAME),
+        )
+        if existing_run_id and skip_existing:
             return "skipped"
 
         # run
         try:
-            with mlflow.start_run():
+            with mlflow.start_run(run_id=existing_run_id):
                 # Set tags
                 if safe_tags:
                     mlflow.set_tags(safe_tags)
