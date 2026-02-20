@@ -23,7 +23,6 @@ import os
 import pathlib
 import platform
 import shlex
-import shutil
 import subprocess
 import time
 import warnings
@@ -619,7 +618,9 @@ class LocalExecutor(BaseExecutor):
 
         # Find and kill container processes for this container
         result = subprocess.run(
-            shlex.split(f"pkill -f '{runtime.get_kill_process_pattern(container_name)}'"),
+            shlex.split(
+                f"pkill -f '{runtime.get_kill_process_pattern(container_name)}'"
+            ),
             capture_output=True,
             text=True,
             timeout=10,

@@ -23,6 +23,7 @@ RUNTIME="docker"
 
 command -v $RUNTIME >/dev/null 2>&1 || { echo "$RUNTIME not found"; exit 1; }
 
+
 # Initialize: remove killed jobs file from previous runs
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 killed_jobs_file="$script_dir/killed_jobs.txt"
