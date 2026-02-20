@@ -622,6 +622,7 @@ class LocalExecutor(BaseExecutor):
             )
 
         job.data["resumed_at"] = time.time()
+        job.data.pop("killed", None)
         db.write_job(job)
 
         # Check for immediate startup failure
