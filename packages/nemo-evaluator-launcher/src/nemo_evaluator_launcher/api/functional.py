@@ -196,15 +196,16 @@ def resume_eval(invocation_id: str) -> str:
     if first_job.executor == "local":
         any_task_dir = Path(next(iter(jobs.values())).data["output_dir"])
         invocation_dir = any_task_dir.parent
+
+        # Remove stage files so the resumed run starts with a clean state
+        for job in jobs.values():
+            task_output_dir = Path(job.data["output_dir"])
+            logs_dir = task_output_dir / "logs"
+            for stage_file in ("stage.pre-start", "stage.running", "stage.exit"):
+                (logs_dir / stage_file).unlink(missing_ok=True)
+
         if (invocation_dir / "run_all.sequential.sh").exists():
             logger.info("Detected sequential mode, executing run_all.sequential.sh")
-
-            # Remove stage files so the resumed run starts with a clean state
-            for job in jobs.values():
-                task_output_dir = Path(job.data["output_dir"])
-                logs_dir = task_output_dir / "logs"
-                for stage_file in ("stage.pre-start", "stage.running", "stage.exit"):
-                    (logs_dir / stage_file).unlink(missing_ok=True)
 
             os_name = platform.system()
             if os_name == "Windows":
