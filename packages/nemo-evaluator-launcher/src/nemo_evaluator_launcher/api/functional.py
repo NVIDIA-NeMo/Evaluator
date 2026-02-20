@@ -150,7 +150,7 @@ def run_eval(
 
 
 def resume_eval(invocation_id: str) -> str:
-    """Resume an evaluation by re-executing existing bash scripts.
+    """Resume an evaluation by re-executing existing scripts.
 
     Automates the manual process of navigating to the execution directory
     and re-executing ``bash run.sh`` (local) or ``sbatch run.sub`` (SLURM).
@@ -198,6 +198,14 @@ def resume_eval(invocation_id: str) -> str:
         invocation_dir = any_task_dir.parent
         if (invocation_dir / "run_all.sequential.sh").exists():
             logger.info("Detected sequential mode, executing run_all.sequential.sh")
+
+            # Remove stage files so the resumed run starts with a clean state
+            for job in jobs.values():
+                task_output_dir = Path(job.data["output_dir"])
+                logs_dir = task_output_dir / "logs"
+                for stage_file in ("stage.pre-start", "stage.running", "stage.exit"):
+                    (logs_dir / stage_file).unlink(missing_ok=True)
+
             os_name = platform.system()
             if os_name == "Windows":
                 proc = subprocess.Popen(
