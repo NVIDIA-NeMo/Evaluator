@@ -12,7 +12,6 @@
       {
         "pattern": "^beep boop.*",
         "on_property": "title",
-        "method": "match",
         "target": "beep boop"
       }
     ],
