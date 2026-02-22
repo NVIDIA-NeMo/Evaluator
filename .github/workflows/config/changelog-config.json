@@ -10,10 +10,10 @@
     "empty_template": "${{OWNER}}\n${{REPO}}\n${{FROM_TAG}}\n${{TO_TAG}}",
     "label_extractor": [
       {
-        "pattern": "^(beep boop).*",
+        "pattern": "^beep boop.*",
         "on_property": "title",
         "method": "match",
-        "target": "$1"
+        "target": "beep boop"
       }
     ],
     "duplicate_filter": {
