@@ -84,7 +84,7 @@ jobs:
         env:
           CHANGELOG: ${{ steps.build-changelog.outputs.changelog }}
         run: |
-          echo "Changelog: \n ${{ CHANGELOG }}"
+          echo "Changelog: \n ${{ env.CHANGELOG }}"
   # validate-inputs:
   #   runs-on: ubuntu-latest
   #   steps:
