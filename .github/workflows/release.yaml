@@ -84,6 +84,7 @@ jobs:
       gh-release-use-changelog-builder: true
       gh-release-changelog-included-paths: |
         packages/nemo-evaluator/
+      publish-docs: false
       packaging: uv
       skip-test-wheel: true
       app-id: ${{ vars.BOT_ID }}
@@ -115,6 +116,7 @@ jobs:
       gh-release-use-changelog-builder: true
       gh-release-changelog-included-paths: |
         packages/nemo-evaluator-launcher/
+      publish-docs: false
       packaging: uv
       skip-test-wheel: true
       app-id: ${{ vars.BOT_ID }}
