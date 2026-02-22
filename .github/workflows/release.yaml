@@ -11,161 +11,129 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-name: "Debug Release NeMo-Eval"
+name: "Release NeMo-Eval"
 
 on:
-  push:
-  # workflow_dispatch:
-  #   inputs:
-  #     component:
-  #       description: Component to release
-  #       required: true
-  #       default: nemo-evaluator
-  #       type: choice
-  #       options:
-  #         - nemo-evaluator
-  #         - nemo-evaluator-launcher
-  #     release-ref:
-  #       description: Full SHA (not short) or tag of the commit to build
-  #       required: true
-  #       type: string
-  #     dry-run:
-  #       description: "Dry Run: only publish to test PyPI"
-  #       required: true
-  #       default: true
-  #       type: boolean
-  #     create-gh-release:
-  #       description: Create a GitHub release
-  #       required: true
-  #       default: true
-  #       type: boolean
-  #     version-bump-branch:
-  #       description: Branch to push the version bump
-  #       required: true
-  #       type: string
-  #     from-tag:
-  #       description: Tag to build from
-  #       required: false
-  #       type: string
-  # schedule:
-  #   # Mon-Thu
-  #   - cron: "0 1 * * 1-4"
+  workflow_dispatch:
+    inputs:
+      component:
+        description: Component to release
+        required: true
+        default: nemo-evaluator
+        type: choice
+        options:
+          - nemo-evaluator
+          - nemo-evaluator-launcher
+      release-ref:
+        description: Full SHA (not short) or tag of the commit to build
+        required: true
+        type: string
+      dry-run:
+        description: "Dry Run: only publish to test PyPI"
+        required: true
+        default: true
+        type: boolean
+      create-gh-release:
+        description: Create a GitHub release
+        required: true
+        default: true
+        type: boolean
+      version-bump-branch:
+        description: Branch to push the version bump
+        required: true
+        type: string
+      from-tag:
+        description: Tag to build from
+        required: false
+        type: string
+  schedule:
+    # Mon-Thu
+    - cron: "0 1 * * 1-4"
 
 permissions:
   contents: write # To read repository content
   pull-requests: write # To create PRs
 
 jobs:
-  build-changelog:
+  validate-inputs:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          path: ${{ github.run_id }}
-          token: ${{ secrets.PAT || secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-          fetch-tags: true
-      - name: Build Changelog
-        id: build-changelog
-        uses: mikepenz/release-changelog-builder-action@v6.1.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.PAT || secrets.GITHUB_TOKEN }}
-        with:
-          configuration: ${{ github.run_id }}/.github/workflows/config/changelog-config.json
-          owner: ${{ github.repository_owner }}
-          repo: ${{ github.event.repository.name }}
-          ignorePreReleases: "false"
-          failOnError: "false"
-          fromTag: nemo-evaluator-v0.1.64
-          toTag: a7597eb99dce0d867e371cdda9f44ac9e75679e8
-          mode: PR
-          includeOnlyPaths: |
-            packages/nemo-evaluator/
-      - name: Print Changelog
-        env:
-          CHANGELOG: ${{ steps.build-changelog.outputs.changelog }}
+      - name: Validate inputs
         run: |
-          echo "Changelog: \n ${{ env.CHANGELOG }}"
-  # validate-inputs:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Validate inputs
-  #       run: |
-  #         if [ "${{ github.event_name }}" == "schedule" ]; then
-  #           echo "Skipping validation for scheduled run"
-  #           exit 0
-  #         fi
-  #         if [ "${{ inputs.version-bump-branch }}" == "${{ inputs.release-ref }}" ]; then
-  #           echo "Error: version-bump-branch cannot be the same as release-ref"
-  #           echo "version-bump-branch: ${{ inputs.version-bump-branch }}"
-  #           echo "release-ref: ${{ inputs.release-ref }}"
-  #           exit 1
-  #         fi
-  #         echo "Input validation passed"
+          if [ "${{ github.event_name }}" == "schedule" ]; then
+            echo "Skipping validation for scheduled run"
+            exit 0
+          fi
+          if [ "${{ inputs.version-bump-branch }}" == "${{ inputs.release-ref }}" ]; then
+            echo "Error: version-bump-branch cannot be the same as release-ref"
+            echo "version-bump-branch: ${{ inputs.version-bump-branch }}"
+            echo "release-ref: ${{ inputs.release-ref }}"
+            exit 1
+          fi
+          echo "Input validation passed"
 
-  # release:
-  #   if: ${{ github.event_name == 'schedule' || inputs.component == 'nemo-evaluator' }}
-  #   needs: validate-inputs
-  #   uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@1cd95c6d845179bf034be3760b46b86cb9e9d620
-  #   with:
-  #     release-ref: ${{ github.event_name == 'schedule' && github.sha || inputs.release-ref || github.sha }}
-  #     python-package: nemo_evaluator
-  #     library-name: NeMo Evaluator
-  #     # Tricky, below is the exact rewrite of "if it's schedule, then false, else use the version of `inputs.dry-run`"
-  #     dry-run: ${{ github.event_name != 'schedule' && inputs.dry-run }}
-  #     version-bump-branch: ${{ github.event_name == 'schedule' && 'main' || inputs.version-bump-branch || github.ref_name }}
-  #     create-gh-release: ${{ github.event_name == 'schedule' && true || inputs.create-gh-release }}
-  #     gh-release-tag-prefix: nemo-evaluator-
-  #     gh-release-use-changelog-builder: true
-  #     gh-release-changelog-included-paths: |
-  #       packages/nemo-evaluator/
-  #     gh-release-from-tag: ${{ inputs.from-tag }}
-  #     publish-docs: false
-  #     packaging: uv
-  #     skip-test-wheel: true
-  #     app-id: ${{ vars.BOT_ID }}
-  #     has-src-dir: true
-  #     root-dir: packages/nemo-evaluator
-  #   secrets:
-  #     TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
-  #     TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
-  #     SLACK_WEBHOOK_ADMIN: ${{ secrets.SLACK_WEBHOOK_ADMIN }}
-  #     SLACK_WEBHOOK: ${{ secrets.SLACK_RELEASE_ENDPOINT }}
-  #     PAT: ${{ secrets.PAT }}
-  #     SSH_KEY: ${{ secrets.SSH_KEY }}
-  #     SSH_PWD: ${{ secrets.SSH_PWD }}
-  #     BOT_KEY: ${{ secrets.BOT_KEY }}
+  release:
+    if: ${{ github.event_name == 'schedule' || inputs.component == 'nemo-evaluator' }}
+    needs: validate-inputs
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@1cd95c6d845179bf034be3760b46b86cb9e9d620
+    with:
+      release-ref: ${{ github.event_name == 'schedule' && github.sha || inputs.release-ref || github.sha }}
+      python-package: nemo_evaluator
+      library-name: NeMo Evaluator
+      # Tricky, below is the exact rewrite of "if it's schedule, then false, else use the version of `inputs.dry-run`"
+      dry-run: ${{ github.event_name != 'schedule' && inputs.dry-run }}
+      version-bump-branch: ${{ github.event_name == 'schedule' && 'main' || inputs.version-bump-branch || github.ref_name }}
+      create-gh-release: ${{ github.event_name == 'schedule' && true || inputs.create-gh-release }}
+      gh-release-tag-prefix: nemo-evaluator-
+      gh-release-use-changelog-builder: true
+      gh-release-changelog-included-paths: |
+        packages/nemo-evaluator/
+      gh-release-from-tag: ${{ inputs.from-tag }}
+      publish-docs: false
+      packaging: uv
+      skip-test-wheel: true
+      app-id: ${{ vars.BOT_ID }}
+      has-src-dir: true
+      root-dir: packages/nemo-evaluator
+    secrets:
+      TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
+      TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+      SLACK_WEBHOOK_ADMIN: ${{ secrets.SLACK_WEBHOOK_ADMIN }}
+      SLACK_WEBHOOK: ${{ secrets.SLACK_RELEASE_ENDPOINT }}
+      PAT: ${{ secrets.PAT }}
+      SSH_KEY: ${{ secrets.SSH_KEY }}
+      SSH_PWD: ${{ secrets.SSH_PWD }}
+      BOT_KEY: ${{ secrets.BOT_KEY }}
 
-  # release-launcher:
-  #   if: ${{ github.event_name == 'schedule' || inputs.component == 'nemo-evaluator-launcher' }}
-  #   needs: validate-inputs
-  #   uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@1cd95c6d845179bf034be3760b46b86cb9e9d620
-  #   with:
-  #     release-ref: ${{ github.event_name == 'schedule' && github.sha || inputs.release-ref || github.sha }}
-  #     python-package: nemo_evaluator_launcher
-  #     library-name: NeMo Evaluator Launcher
-  #     # Tricky, below is the exact rewrite of "if it's schedule, then false, else use the version of `inputs.dry-run`"
-  #     dry-run: ${{ github.event_name != 'schedule' && inputs.dry-run }}
-  #     version-bump-branch: ${{ github.event_name == 'schedule' && 'main' || inputs.version-bump-branch || github.ref_name }}
-  #     create-gh-release: ${{ github.event_name == 'schedule' && true || inputs.create-gh-release }}
-  #     gh-release-tag-prefix: nemo-evaluator-launcher-
-  #     gh-release-use-changelog-builder: true
-  #     gh-release-changelog-included-paths: |
-  #       packages/nemo-evaluator-launcher/
-  #     gh-release-from-tag: ${{ inputs.from-tag }}
-  #     publish-docs: false
-  #     packaging: uv
-  #     skip-test-wheel: true
-  #     app-id: ${{ vars.BOT_ID }}
-  #     has-src-dir: true
-  #     root-dir: packages/nemo-evaluator-launcher
-  #   secrets:
-  #     TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
-  #     TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
-  #     SLACK_WEBHOOK_ADMIN: ${{ secrets.SLACK_WEBHOOK_ADMIN }}
-  #     SLACK_WEBHOOK: ${{ secrets.SLACK_RELEASE_ENDPOINT }}
-  #     PAT: ${{ secrets.PAT }}
-  #     SSH_KEY: ${{ secrets.SSH_KEY }}
-  #     SSH_PWD: ${{ secrets.SSH_PWD }}
-  #     BOT_KEY: ${{ secrets.BOT_KEY }}
+  release-launcher:
+    if: ${{ github.event_name == 'schedule' || inputs.component == 'nemo-evaluator-launcher' }}
+    needs: validate-inputs
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@1cd95c6d845179bf034be3760b46b86cb9e9d620
+    with:
+      release-ref: ${{ github.event_name == 'schedule' && github.sha || inputs.release-ref || github.sha }}
+      python-package: nemo_evaluator_launcher
+      library-name: NeMo Evaluator Launcher
+      # Tricky, below is the exact rewrite of "if it's schedule, then false, else use the version of `inputs.dry-run`"
+      dry-run: ${{ github.event_name != 'schedule' && inputs.dry-run }}
+      version-bump-branch: ${{ github.event_name == 'schedule' && 'main' || inputs.version-bump-branch || github.ref_name }}
+      create-gh-release: ${{ github.event_name == 'schedule' && true || inputs.create-gh-release }}
+      gh-release-tag-prefix: nemo-evaluator-launcher-
+      gh-release-use-changelog-builder: true
+      gh-release-changelog-included-paths: |
+        packages/nemo-evaluator-launcher/
+      gh-release-from-tag: ${{ inputs.from-tag }}
+      publish-docs: false
+      packaging: uv
+      skip-test-wheel: true
+      app-id: ${{ vars.BOT_ID }}
+      has-src-dir: true
+      root-dir: packages/nemo-evaluator-launcher
+    secrets:
+      TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
+      TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+      SLACK_WEBHOOK_ADMIN: ${{ secrets.SLACK_WEBHOOK_ADMIN }}
+      SLACK_WEBHOOK: ${{ secrets.SLACK_RELEASE_ENDPOINT }}
+      PAT: ${{ secrets.PAT }}
+      SSH_KEY: ${{ secrets.SSH_KEY }}
+      SSH_PWD: ${{ secrets.SSH_PWD }}
+      BOT_KEY: ${{ secrets.BOT_KEY }}
