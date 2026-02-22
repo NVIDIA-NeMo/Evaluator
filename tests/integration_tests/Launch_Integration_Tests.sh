@@ -18,6 +18,7 @@ export HF_HOME="/home/TestData/HF_HOME"
 export HF_DATASETS_OFFLINE="1"
 export TRANSFORMERS_OFFLINE="1"
 export HF_DATASETS_CACHE="/tmp/datasets"
+export NEMO_EVALUATOR_TELEMETRY_ENABLED="false"
 
 mkdir /tmp/datasets
 cp -r ${HF_HOME}/datasets/gsm8k /tmp/datasets
