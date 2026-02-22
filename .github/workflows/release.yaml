@@ -80,6 +80,11 @@ jobs:
           fromTag: nemo-evaluator-v0.1.64
           toTag: a7597eb99dce0d867e371cdda9f44ac9e75679e8
           mode: PR
+      - name: Print Changelog
+        env:
+          CHANGELOG: ${{ steps.build-changelog.outputs.changelog }}
+        run: |
+          echo "Changelog: \n ${{ CHANGELOG }}"
   # validate-inputs:
   #   runs-on: ubuntu-latest
   #   steps:
