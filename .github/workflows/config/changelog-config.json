@@ -1,13 +1,20 @@
 {
     "categories": [],
     "ignore_labels": [
-      "ignore"
+      "beep boop"
     ],
     "sort": "ASC",
     "template": "\n${{CHANGELOG}}\n\n<details><summary>Changelog Details</summary>\n\n${{UNCATEGORIZED}}\n</details>\n",
     "pr_template": "- ${{TITLE}} by @${{AUTHOR}} :: PR: #${{NUMBER}}",
     "commit_template": "- ${{TITLE}} by @${{AUTHOR}}",
     "empty_template": "${{OWNER}}\n${{REPO}}\n${{FROM_TAG}}\n${{TO_TAG}}",
+    "label_extractor": [
+      {
+        "pattern": "^beep boop.*",
+        "on_property": "title",
+        "method": "match"
+      }
+    ],
     "duplicate_filter": {
       "pattern": ".+",
       "on_property": "title",
