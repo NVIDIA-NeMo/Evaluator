@@ -25,17 +25,15 @@ uv pip install -e <path>  # Editable install
 
 ```bash
 cd packages/nemo-evaluator
-uv run pytest tests/unit_tests/ -v
+uv run --group test pytest tests/unit_tests/ -v
 ```
 
 ### Launcher package
 
 ```bash
 cd packages/nemo-evaluator-launcher
-NEMO_EVALUATOR_LAUNCHER_LOG_DIR=/tmp .venv/bin/pytest tests/unit_tests/ -v
+uv run --group dev pytest tests/unit_tests/ -v
 ```
-
-**Important**: The launcher requires `NEMO_EVALUATOR_LAUNCHER_LOG_DIR` set to a writable directory, otherwise tests fail with `ValueError: Unable to configure handler 'file'`.
 
 ## Pre-commit
 
