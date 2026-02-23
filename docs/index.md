@@ -328,6 +328,7 @@ Home <self>
 Overview <about/index>
 Key Features <about/key-features>
 Concepts <about/concepts/index>
+Configuration <about/configuration>
 Telemetry <about/telemetry>
 Release Notes <about/release-notes/index>
 :::

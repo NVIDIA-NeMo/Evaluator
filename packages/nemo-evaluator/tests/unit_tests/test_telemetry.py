@@ -17,51 +17,97 @@
 
 import os
 import uuid
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
-class TestTelemetryEnabled:
-    """Tests for is_telemetry_enabled function."""
+class TestTelemetryLevel:
+    """Tests for get_telemetry_level function."""
 
-    def test_telemetry_enabled_default(self):
-        """Test that telemetry is enabled by default."""
+    def test_default_level_is_full(self):
+        """Test that default telemetry level is DEFAULT (2) when nothing is set."""
+        from nemo_evaluator.config import TelemetryLevel
+        from nemo_evaluator.telemetry import get_telemetry_level
 
+        mock_path = MagicMock()
+        mock_path.exists.return_value = False
         with patch.dict(os.environ, {}, clear=True):
-            # Remove the env var if it exists
-            os.environ.pop("NEMO_EVALUATOR_TELEMETRY_ENABLED", None)
-            # Re-import to get fresh state
-            import importlib
+            os.environ.pop("NEMO_EVALUATOR_TELEMETRY_LEVEL", None)
+            with patch("nemo_evaluator.config.CONFIG_FILE", mock_path):
+                assert get_telemetry_level() == TelemetryLevel.DEFAULT
 
-            import nemo_evaluator.telemetry as telemetry_module
+    def test_level_0_disables_telemetry(self):
+        """Test that level 0 disables telemetry."""
+        from nemo_evaluator.config import TelemetryLevel
+        from nemo_evaluator.telemetry import get_telemetry_level
 
-            importlib.reload(telemetry_module)
-            assert telemetry_module.is_telemetry_enabled() is True
+        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_LEVEL": "0"}):
+            assert get_telemetry_level() == TelemetryLevel.OFF
 
-    def test_telemetry_disabled_via_env(self):
-        """Test that telemetry can be disabled via environment variable."""
-        from nemo_evaluator.telemetry import is_telemetry_enabled
+    def test_level_1_is_minimal(self):
+        """Test that level 1 enables minimal telemetry (no model_id)."""
+        from nemo_evaluator.config import TelemetryLevel
+        from nemo_evaluator.telemetry import get_telemetry_level
 
-        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "false"}):
-            assert is_telemetry_enabled() is False
+        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_LEVEL": "1"}):
+            assert get_telemetry_level() == TelemetryLevel.MINIMAL
 
-        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "0"}):
-            assert is_telemetry_enabled() is False
+    def test_level_2_is_full(self):
+        """Test that level 2 enables full telemetry."""
+        from nemo_evaluator.config import TelemetryLevel
+        from nemo_evaluator.telemetry import get_telemetry_level
 
-        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "no"}):
-            assert is_telemetry_enabled() is False
+        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_LEVEL": "2"}):
+            assert get_telemetry_level() == TelemetryLevel.DEFAULT
 
-    def test_telemetry_enabled_explicit(self):
-        """Test that telemetry can be explicitly enabled."""
-        from nemo_evaluator.telemetry import is_telemetry_enabled
+    def test_invalid_value_falls_back_to_minimal(self):
+        """Test that invalid values fall back to MINIMAL (1)."""
+        from nemo_evaluator.config import TelemetryLevel
+        from nemo_evaluator.telemetry import get_telemetry_level
 
-        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "true"}):
-            assert is_telemetry_enabled() is True
+        for invalid in ("true", "false", "yes", "no", "abc", "3", "-1"):
+            with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_LEVEL": invalid}):
+                assert get_telemetry_level() == TelemetryLevel.MINIMAL, (
+                    f"Expected MINIMAL for invalid value '{invalid}'"
+                )
 
-        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "1"}):
-            assert is_telemetry_enabled() is True
+    def test_config_file_fallback(self, tmp_path):
+        """Test that config file is used when env var is not set."""
+        from nemo_evaluator.config import (
+            NemoEvaluatorConfig,
+            TelemetryConfig,
+            TelemetryLevel,
+            save_config,
+        )
+        from nemo_evaluator.telemetry import get_telemetry_level
 
-        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "yes"}):
-            assert is_telemetry_enabled() is True
+        config_file = tmp_path / "config.yaml"
+        save_config(
+            NemoEvaluatorConfig(telemetry=TelemetryConfig(level=TelemetryLevel.OFF)),
+            path=config_file,
+        )
+        with patch.dict(os.environ, {}, clear=True):
+            os.environ.pop("NEMO_EVALUATOR_TELEMETRY_LEVEL", None)
+            with patch("nemo_evaluator.config.CONFIG_FILE", config_file):
+                assert get_telemetry_level() == TelemetryLevel.OFF
+
+    def test_env_var_overrides_config_file(self, tmp_path):
+        """Test that env var takes priority over config file."""
+        from nemo_evaluator.config import (
+            NemoEvaluatorConfig,
+            TelemetryConfig,
+            TelemetryLevel,
+            save_config,
+        )
+        from nemo_evaluator.telemetry import get_telemetry_level
+
+        config_file = tmp_path / "config.yaml"
+        save_config(
+            NemoEvaluatorConfig(telemetry=TelemetryConfig(level=TelemetryLevel.OFF)),
+            path=config_file,
+        )
+        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_LEVEL": "2"}):
+            with patch("nemo_evaluator.config.CONFIG_FILE", config_file):
+                assert get_telemetry_level() == TelemetryLevel.DEFAULT
 
 
 class TestSessionId:
@@ -72,8 +118,7 @@ class TestSessionId:
         from nemo_evaluator.telemetry import _generate_session_id
 
         session_id = _generate_session_id()
-        # Should be a valid UUID
-        uuid.UUID(session_id)  # Raises ValueError if invalid
+        uuid.UUID(session_id)
 
     def test_session_id_uniqueness(self):
         """Test that each call generates a unique session ID."""
@@ -103,7 +148,6 @@ class TestSessionId:
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop(TELEMETRY_SESSION_ID_ENV_VAR, None)
             session_id = get_session_id()
-            # Should be a valid UUID
             uuid.UUID(session_id)
 
 
@@ -123,9 +167,6 @@ class TestEventSerialization:
         )
 
         serialized = event.model_dump(by_alias=True)
-        assert "frameworkName" in serialized
-        assert "executionDurationSeconds" in serialized
-        assert "status" in serialized
         assert serialized["task"] == "mmlu"
         assert serialized["frameworkName"] == "lm-eval"
         assert serialized["model"] == "llama-3.1-8b"
@@ -165,54 +206,53 @@ class TestTelemetryHandler:
         assert handler._running is False
 
     def test_handler_enqueue_when_disabled(self):
-        """Test that events are not enqueued when telemetry is disabled."""
+        """Test that events are not enqueued when telemetry level is OFF."""
+        from nemo_evaluator.config import TelemetryLevel
         from nemo_evaluator.telemetry import (
             EvaluationTaskEvent,
             StatusEnum,
             TelemetryHandler,
         )
 
-        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "false"}):
-            handler = TelemetryHandler()
-            event = EvaluationTaskEvent(
-                task="test",
-                framework_name="lm-eval",
-                model="test-model",
-                execution_duration_seconds=1.0,
-                status=StatusEnum.SUCCESS,
-            )
-            handler.enqueue(event)
-            assert len(handler._events) == 0
+        handler = TelemetryHandler(telemetry_level=TelemetryLevel.OFF)
+        event = EvaluationTaskEvent(
+            task="test",
+            framework_name="lm-eval",
+            model="test-model",
+            execution_duration_seconds=1.0,
+            status=StatusEnum.SUCCESS,
+        )
+        handler.enqueue(event)
+        assert len(handler._events) == 0
 
     def test_handler_enqueue_when_enabled(self):
-        """Test that events are enqueued when telemetry is enabled."""
+        """Test that events are enqueued when telemetry level is DEFAULT."""
+        from nemo_evaluator.config import TelemetryLevel
         from nemo_evaluator.telemetry import (
             EvaluationTaskEvent,
             StatusEnum,
             TelemetryHandler,
         )
 
-        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "true"}):
-            handler = TelemetryHandler()
-            event = EvaluationTaskEvent(
-                task="test",
-                framework_name="lm-eval",
-                model="test-model",
-                execution_duration_seconds=1.0,
-                status=StatusEnum.SUCCESS,
-            )
-            handler.enqueue(event)
-            assert len(handler._events) == 1
+        handler = TelemetryHandler(telemetry_level=TelemetryLevel.DEFAULT)
+        event = EvaluationTaskEvent(
+            task="test",
+            framework_name="lm-eval",
+            model="test-model",
+            execution_duration_seconds=1.0,
+            status=StatusEnum.SUCCESS,
+        )
+        handler.enqueue(event)
+        assert len(handler._events) == 1
 
     def test_handler_graceful_degradation(self):
         """Test that handler silently fails on invalid events."""
+        from nemo_evaluator.config import TelemetryLevel
         from nemo_evaluator.telemetry import TelemetryHandler
 
-        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "true"}):
-            handler = TelemetryHandler()
-            # Enqueue something that's not a TelemetryEvent
-            handler.enqueue("not an event")  # type: ignore
-            assert len(handler._events) == 0
+        handler = TelemetryHandler(telemetry_level=TelemetryLevel.DEFAULT)
+        handler.enqueue("not an event")  # type: ignore
+        assert len(handler._events) == 0
 
 
 class TestBuildPayload:

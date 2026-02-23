@@ -326,23 +326,25 @@ def evaluate(
     Returns:
         EvaluationResult: Evaluation results and metadata
     """
+    from nemo_evaluator.config import TelemetryLevel
     from nemo_evaluator.telemetry import (
         EvaluationTaskEvent,
         StatusEnum,
         TelemetryHandler,
         get_session_id,
-        is_telemetry_enabled,
+        get_telemetry_level,
         show_telemetry_notification,
     )
 
     start_time = time.time()
     telemetry_handler = None
+    telemetry_level = get_telemetry_level()
 
-    if is_telemetry_enabled():
-        show_telemetry_notification()
+    if telemetry_level != TelemetryLevel.OFF:
         telemetry_handler = TelemetryHandler(
             source_client_version=__version__,
             session_id=get_session_id(),
+            telemetry_level=telemetry_level,
         )
         telemetry_handler.start()
 
@@ -358,13 +360,16 @@ def evaluate(
         if target_cfg.api_endpoint and target_cfg.api_endpoint.model_id
         else "unknown"
     )
+    model_name_for_telemetry = (
+        model_name if telemetry_level == TelemetryLevel.DEFAULT else "redacted"
+    )
 
     if telemetry_handler:
         telemetry_handler.enqueue(
             EvaluationTaskEvent(
                 task=eval_cfg.type,
                 framework_name=evaluation.framework_name,
-                model=model_name,
+                model=model_name_for_telemetry,
                 status=StatusEnum.STARTED,
             )
         )
@@ -380,12 +385,13 @@ def evaluate(
                 EvaluationTaskEvent(
                     task=eval_cfg.type,
                     framework_name=evaluation.framework_name,
-                    model=model_name,
+                    model=model_name_for_telemetry,
                     execution_duration_seconds=time.time() - start_time,
                     status=status,
                 )
             )
             telemetry_handler.stop()
+            show_telemetry_notification()
 
 
 def _write_with_versioning_header(

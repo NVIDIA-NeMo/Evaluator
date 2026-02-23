@@ -22,48 +22,55 @@ from unittest.mock import patch
 import pytest
 
 
-class TestTelemetryEnabled:
-    """Tests for is_telemetry_enabled function."""
+class TestTelemetryLevel:
+    """Tests for get_telemetry_level function."""
 
-    def test_telemetry_enabled_default(self):
-        """Test that telemetry is enabled by default."""
+    def test_default_level_is_full(self):
+        """Test that default telemetry level is DEFAULT (2) when nothing is set."""
+        from unittest.mock import MagicMock
 
+        from nemo_evaluator.config import TelemetryLevel
+        from nemo_evaluator.telemetry import get_telemetry_level
+
+        mock_path = MagicMock()
+        mock_path.exists.return_value = False
         with patch.dict(os.environ, {}, clear=True):
-            # Remove the env var if it exists
-            os.environ.pop("NEMO_EVALUATOR_TELEMETRY_ENABLED", None)
-            # Re-import to get fresh state
-            import importlib
+            os.environ.pop("NEMO_EVALUATOR_TELEMETRY_LEVEL", None)
+            with patch("nemo_evaluator.config.CONFIG_FILE", mock_path):
+                assert get_telemetry_level() == TelemetryLevel.DEFAULT
 
-            import nemo_evaluator.telemetry as telemetry_module
+    def test_level_0_disables_telemetry(self):
+        """Test that level 0 disables telemetry."""
+        from nemo_evaluator.config import TelemetryLevel
+        from nemo_evaluator.telemetry import get_telemetry_level
 
-            importlib.reload(telemetry_module)
-            assert telemetry_module.is_telemetry_enabled() is True
+        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_LEVEL": "0"}):
+            assert get_telemetry_level() == TelemetryLevel.OFF
 
-    def test_telemetry_disabled_via_env(self):
-        """Test that telemetry can be disabled via environment variable."""
-        from nemo_evaluator.telemetry import is_telemetry_enabled
+    def test_level_1_is_minimal(self):
+        """Test that level 1 enables minimal telemetry (no model_id)."""
+        from nemo_evaluator.config import TelemetryLevel
+        from nemo_evaluator.telemetry import get_telemetry_level
 
-        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "false"}):
-            assert is_telemetry_enabled() is False
+        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_LEVEL": "1"}):
+            assert get_telemetry_level() == TelemetryLevel.MINIMAL
 
-        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "0"}):
-            assert is_telemetry_enabled() is False
+    def test_level_2_is_full(self):
+        """Test that level 2 enables full telemetry."""
+        from nemo_evaluator.config import TelemetryLevel
+        from nemo_evaluator.telemetry import get_telemetry_level
 
-        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "no"}):
-            assert is_telemetry_enabled() is False
+        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_LEVEL": "2"}):
+            assert get_telemetry_level() == TelemetryLevel.DEFAULT
 
-    def test_telemetry_enabled_explicit(self):
-        """Test that telemetry can be explicitly enabled."""
-        from nemo_evaluator.telemetry import is_telemetry_enabled
+    def test_invalid_value_falls_back_to_minimal(self):
+        """Test that invalid values fall back to MINIMAL (1)."""
+        from nemo_evaluator.config import TelemetryLevel
+        from nemo_evaluator.telemetry import get_telemetry_level
 
-        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "true"}):
-            assert is_telemetry_enabled() is True
-
-        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "1"}):
-            assert is_telemetry_enabled() is True
-
-        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "yes"}):
-            assert is_telemetry_enabled() is True
+        for invalid in ("true", "false", "abc", "3"):
+            with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_LEVEL": invalid}):
+                assert get_telemetry_level() == TelemetryLevel.MINIMAL
 
 
 class TestSessionId:
@@ -155,52 +162,51 @@ class TestTelemetryHandler:
         assert handler._running is False
 
     def test_handler_enqueue_when_disabled(self):
-        """Test that events are not enqueued when telemetry is disabled."""
+        """Test that events are not enqueued when telemetry level is OFF."""
+        from nemo_evaluator.config import TelemetryLevel
         from nemo_evaluator.telemetry import StatusEnum, TelemetryHandler
 
         from nemo_evaluator_launcher.telemetry import LauncherJobEvent
 
-        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "false"}):
-            handler = TelemetryHandler()
-            event = LauncherJobEvent(
-                executor_type="local",
-                deployment_type="none",
-                model="test",
-                tasks=[],
-                exporters=[],
-                status=StatusEnum.STARTED,
-            )
-            handler.enqueue(event)
-            assert len(handler._events) == 0
+        handler = TelemetryHandler(telemetry_level=TelemetryLevel.OFF)
+        event = LauncherJobEvent(
+            executor_type="local",
+            deployment_type="none",
+            model="test",
+            tasks=[],
+            exporters=[],
+            status=StatusEnum.STARTED,
+        )
+        handler.enqueue(event)
+        assert len(handler._events) == 0
 
     def test_handler_enqueue_when_enabled(self):
-        """Test that events are enqueued when telemetry is enabled."""
+        """Test that events are enqueued when telemetry level is DEFAULT."""
+        from nemo_evaluator.config import TelemetryLevel
         from nemo_evaluator.telemetry import StatusEnum, TelemetryHandler
 
         from nemo_evaluator_launcher.telemetry import LauncherJobEvent
 
-        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "true"}):
-            handler = TelemetryHandler()
-            event = LauncherJobEvent(
-                executor_type="local",
-                deployment_type="none",
-                model="test",
-                tasks=[],
-                exporters=[],
-                status=StatusEnum.STARTED,
-            )
-            handler.enqueue(event)
-            assert len(handler._events) == 1
+        handler = TelemetryHandler(telemetry_level=TelemetryLevel.DEFAULT)
+        event = LauncherJobEvent(
+            executor_type="local",
+            deployment_type="none",
+            model="test",
+            tasks=[],
+            exporters=[],
+            status=StatusEnum.STARTED,
+        )
+        handler.enqueue(event)
+        assert len(handler._events) == 1
 
     def test_handler_graceful_degradation(self):
         """Test that handler silently fails on invalid events."""
+        from nemo_evaluator.config import TelemetryLevel
         from nemo_evaluator.telemetry import TelemetryHandler
 
-        with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "true"}):
-            handler = TelemetryHandler()
-            # Enqueue something that's not a TelemetryEvent
-            handler.enqueue("not an event")  # type: ignore
-            assert len(handler._events) == 0
+        handler = TelemetryHandler(telemetry_level=TelemetryLevel.DEFAULT)
+        handler.enqueue("not an event")  # type: ignore
+        assert len(handler._events) == 0
 
 
 class TestBuildPayload:
@@ -237,29 +243,94 @@ class TestBuildPayload:
         assert payload["eventSchemaVer"] == "1.0"
 
 
-class TestCLINoTelemetryFlag:
-    """Tests for CLI --no-telemetry flag."""
+class TestConfigSubcommand:
+    """Tests for the config CLI subcommand."""
 
-    def test_no_telemetry_flag_sets_env_var(self):
-        """Test that --no-telemetry flag sets the environment variable."""
-        from nemo_evaluator_launcher.cli.main import create_parser
+    def test_config_set_telemetry_level(self, tmp_path):
+        """Test config set telemetry.level writes config file."""
+        from nemo_evaluator_launcher.cli.config import SetCmd
 
-        # Create parser and parse args
-        parser = create_parser()
-        args = parser.parse_args(["--no-telemetry", "--version"])
+        config_file = tmp_path / "config.yaml"
+        with patch("nemo_evaluator.config.CONFIG_FILE", config_file):
+            SetCmd(key="telemetry.level", value="1").execute()
 
-        assert hasattr(args, "no_telemetry")
-        assert args.no_telemetry is True
+        import yaml
 
-    def test_no_telemetry_short_flag(self):
-        """Test that -T short flag works."""
-        from nemo_evaluator_launcher.cli.main import create_parser
+        data = yaml.safe_load(config_file.read_text())
+        assert data["telemetry"]["level"] == 1
 
-        parser = create_parser()
-        args = parser.parse_args(["-T", "--version"])
+    def test_config_set_invalid_level(self, caplog):
+        """Test config set with invalid level logs error."""
+        import logging
 
-        assert hasattr(args, "no_telemetry")
-        assert args.no_telemetry is True
+        from nemo_evaluator_launcher.cli.config import SetCmd
+
+        with caplog.at_level(logging.ERROR):
+            SetCmd(key="telemetry.level", value="abc").execute()
+        assert "Invalid" in caplog.text
+
+    def test_config_set_unknown_key(self, caplog):
+        """Test config set with unknown key logs error."""
+        import logging
+
+        from nemo_evaluator_launcher.cli.config import SetCmd
+
+        with caplog.at_level(logging.ERROR):
+            SetCmd(key="unknown.key", value="value").execute()
+        assert "Unknown" in caplog.text
+
+    def test_config_get_telemetry_level(self, caplog):
+        """Test config get telemetry.level displays the effective level."""
+        import logging
+
+        from nemo_evaluator_launcher.cli.config import GetCmd
+
+        with caplog.at_level(logging.INFO):
+            with patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_LEVEL": "1"}):
+                GetCmd(key="telemetry.level").execute()
+
+        assert "1" in caplog.text
+        assert "MINIMAL" in caplog.text
+
+    def test_config_get_unknown_key(self, caplog):
+        """Test config get with unknown key logs error."""
+        import logging
+
+        from nemo_evaluator_launcher.cli.config import GetCmd
+
+        with caplog.at_level(logging.ERROR):
+            GetCmd(key="unknown.key").execute()
+        assert "Unknown" in caplog.text
+
+    def test_config_show_no_file(self, caplog):
+        """Test config show when no config file exists."""
+        import logging
+        from unittest.mock import MagicMock
+
+        from nemo_evaluator_launcher.cli.config import ShowCmd
+
+        mock_path = MagicMock()
+        mock_path.exists.return_value = False
+        with caplog.at_level(logging.INFO):
+            with patch("nemo_evaluator_launcher.cli.config.CONFIG_FILE", mock_path):
+                ShowCmd().execute()
+
+        assert "No config file" in caplog.text
+
+    def test_config_show_with_file(self, tmp_path, caplog):
+        """Test config show dumps file contents."""
+        import logging
+
+        from nemo_evaluator_launcher.cli.config import ShowCmd
+
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("telemetry:\n  level: 1\n")
+        with caplog.at_level(logging.INFO):
+            with patch("nemo_evaluator_launcher.cli.config.CONFIG_FILE", config_file):
+                ShowCmd().execute()
+
+        assert "telemetry:" in caplog.text
+        assert "level: 1" in caplog.text
 
 
 class TestLocalExecutorTelemetryPropagation:
@@ -314,7 +385,7 @@ class TestLocalExecutorTelemetryPropagation:
         """Test that telemetry env vars are included in Docker env vars when set."""
         os.environ["TEST_API_KEY"] = "test_key_value"
         os.environ["NEMO_EVALUATOR_TELEMETRY_SESSION_ID"] = "test-session-12345"
-        os.environ["NEMO_EVALUATOR_TELEMETRY_ENABLED"] = "true"
+        os.environ["NEMO_EVALUATOR_TELEMETRY_LEVEL"] = "2"
         os.environ["NEMO_EVALUATOR_TELEMETRY_ENDPOINT"] = (
             "https://staging.example.com/v1.1/events/json"
         )
@@ -369,7 +440,7 @@ class TestLocalExecutorTelemetryPropagation:
                     "NEMO_EVALUATOR_TELEMETRY_SESSION_ID=test-session-12345"  # pragma: allowlist secret
                     in script_content
                 )
-                assert "NEMO_EVALUATOR_TELEMETRY_ENABLED=true" in script_content
+                assert "NEMO_EVALUATOR_TELEMETRY_LEVEL=2" in script_content
                 assert (
                     "NEMO_EVALUATOR_TELEMETRY_ENDPOINT=https://staging.example.com/v1.1/events/json"
                     in script_content
@@ -379,7 +450,7 @@ class TestLocalExecutorTelemetryPropagation:
             for env_var in [
                 "TEST_API_KEY",
                 "NEMO_EVALUATOR_TELEMETRY_SESSION_ID",
-                "NEMO_EVALUATOR_TELEMETRY_ENABLED",
+                "NEMO_EVALUATOR_TELEMETRY_LEVEL",
                 "NEMO_EVALUATOR_TELEMETRY_ENDPOINT",
             ]:
                 os.environ.pop(env_var, None)
@@ -391,7 +462,7 @@ class TestLocalExecutorTelemetryPropagation:
         os.environ["TEST_API_KEY"] = "test_key_value"
         # Explicitly remove telemetry env vars
         os.environ.pop("NEMO_EVALUATOR_TELEMETRY_SESSION_ID", None)
-        os.environ.pop("NEMO_EVALUATOR_TELEMETRY_ENABLED", None)
+        os.environ.pop("NEMO_EVALUATOR_TELEMETRY_LEVEL", None)
         os.environ.pop("NEMO_EVALUATOR_TELEMETRY_ENDPOINT", None)
 
         try:
@@ -441,7 +512,7 @@ class TestLocalExecutorTelemetryPropagation:
 
                 script_content = run_script.read_text()
                 assert "NEMO_EVALUATOR_TELEMETRY_SESSION_ID" not in script_content
-                assert "NEMO_EVALUATOR_TELEMETRY_ENABLED" not in script_content
+                assert "NEMO_EVALUATOR_TELEMETRY_LEVEL" not in script_content
                 assert "NEMO_EVALUATOR_TELEMETRY_ENDPOINT" not in script_content
 
         finally:
@@ -505,7 +576,7 @@ class TestSlurmExecutorTelemetryPropagation:
         task = OmegaConf.create({"name": "test_task"})
 
         os.environ["NEMO_EVALUATOR_TELEMETRY_SESSION_ID"] = "slurm-session-67890"
-        os.environ["NEMO_EVALUATOR_TELEMETRY_ENABLED"] = "false"
+        os.environ["NEMO_EVALUATOR_TELEMETRY_LEVEL"] = "1"
         os.environ["NEMO_EVALUATOR_TELEMETRY_ENDPOINT"] = (
             "https://staging.example.com/v1.1/events/json"
         )
@@ -557,7 +628,7 @@ class TestSlurmExecutorTelemetryPropagation:
                     "export NEMO_EVALUATOR_TELEMETRY_SESSION_ID=slurm-session-67890"
                     in script
                 )
-                assert "export NEMO_EVALUATOR_TELEMETRY_ENABLED=false" in script
+                assert "export NEMO_EVALUATOR_TELEMETRY_LEVEL=1" in script
                 assert (
                     "export NEMO_EVALUATOR_TELEMETRY_ENDPOINT=https://staging.example.com/v1.1/events/json"
                     in script
@@ -565,7 +636,7 @@ class TestSlurmExecutorTelemetryPropagation:
 
         finally:
             os.environ.pop("NEMO_EVALUATOR_TELEMETRY_SESSION_ID", None)
-            os.environ.pop("NEMO_EVALUATOR_TELEMETRY_ENABLED", None)
+            os.environ.pop("NEMO_EVALUATOR_TELEMETRY_LEVEL", None)
             os.environ.pop("NEMO_EVALUATOR_TELEMETRY_ENDPOINT", None)
 
     def test_sbatch_script_excludes_telemetry_env_vars_when_not_set(
@@ -585,7 +656,7 @@ class TestSlurmExecutorTelemetryPropagation:
 
         # Ensure env vars are not set
         os.environ.pop("NEMO_EVALUATOR_TELEMETRY_SESSION_ID", None)
-        os.environ.pop("NEMO_EVALUATOR_TELEMETRY_ENABLED", None)
+        os.environ.pop("NEMO_EVALUATOR_TELEMETRY_LEVEL", None)
         os.environ.pop("NEMO_EVALUATOR_TELEMETRY_ENDPOINT", None)
 
         with (
@@ -631,7 +702,7 @@ class TestSlurmExecutorTelemetryPropagation:
 
             # Verify telemetry env vars are NOT in the script
             assert "NEMO_EVALUATOR_TELEMETRY_SESSION_ID" not in script
-            assert "NEMO_EVALUATOR_TELEMETRY_ENABLED" not in script
+            assert "NEMO_EVALUATOR_TELEMETRY_LEVEL" not in script
             assert "NEMO_EVALUATOR_TELEMETRY_ENDPOINT" not in script
 
 
@@ -674,7 +745,7 @@ class TestLeptonExecutorTelemetryPropagation:
         }
 
         os.environ["NEMO_EVALUATOR_TELEMETRY_SESSION_ID"] = "lepton-session-abc123"
-        os.environ["NEMO_EVALUATOR_TELEMETRY_ENABLED"] = "true"
+        os.environ["NEMO_EVALUATOR_TELEMETRY_LEVEL"] = "2"
         os.environ["NEMO_EVALUATOR_TELEMETRY_ENDPOINT"] = (
             "https://staging.example.com/v1.1/events/json"
         )
@@ -726,9 +797,7 @@ class TestLeptonExecutorTelemetryPropagation:
                     captured_env_vars.get("NEMO_EVALUATOR_TELEMETRY_SESSION_ID")
                     == "lepton-session-abc123"
                 )
-                assert (
-                    captured_env_vars.get("NEMO_EVALUATOR_TELEMETRY_ENABLED") == "true"
-                )
+                assert captured_env_vars.get("NEMO_EVALUATOR_TELEMETRY_LEVEL") == "2"
                 assert (
                     captured_env_vars.get("NEMO_EVALUATOR_TELEMETRY_ENDPOINT")
                     == "https://staging.example.com/v1.1/events/json"
@@ -736,7 +805,7 @@ class TestLeptonExecutorTelemetryPropagation:
 
         finally:
             os.environ.pop("NEMO_EVALUATOR_TELEMETRY_SESSION_ID", None)
-            os.environ.pop("NEMO_EVALUATOR_TELEMETRY_ENABLED", None)
+            os.environ.pop("NEMO_EVALUATOR_TELEMETRY_LEVEL", None)
             os.environ.pop("NEMO_EVALUATOR_TELEMETRY_ENDPOINT", None)
 
     def test_lepton_job_env_vars_exclude_telemetry_when_not_set(self, tmpdir):
@@ -776,7 +845,7 @@ class TestLeptonExecutorTelemetryPropagation:
 
         # Ensure env vars are not set
         os.environ.pop("NEMO_EVALUATOR_TELEMETRY_SESSION_ID", None)
-        os.environ.pop("NEMO_EVALUATOR_TELEMETRY_ENABLED", None)
+        os.environ.pop("NEMO_EVALUATOR_TELEMETRY_LEVEL", None)
         os.environ.pop("NEMO_EVALUATOR_TELEMETRY_ENDPOINT", None)
 
         captured_env_vars = {}
@@ -822,5 +891,5 @@ class TestLeptonExecutorTelemetryPropagation:
 
             # Verify telemetry env vars were NOT passed to create_lepton_job
             assert "NEMO_EVALUATOR_TELEMETRY_SESSION_ID" not in captured_env_vars
-            assert "NEMO_EVALUATOR_TELEMETRY_ENABLED" not in captured_env_vars
+            assert "NEMO_EVALUATOR_TELEMETRY_LEVEL" not in captured_env_vars
             assert "NEMO_EVALUATOR_TELEMETRY_ENDPOINT" not in captured_env_vars

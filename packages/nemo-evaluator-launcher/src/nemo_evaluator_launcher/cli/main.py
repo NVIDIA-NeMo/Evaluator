@@ -19,6 +19,7 @@ import os
 
 from simple_parsing import ArgumentParser
 
+import nemo_evaluator_launcher.cli.config as config
 import nemo_evaluator_launcher.cli.export as export
 import nemo_evaluator_launcher.cli.info as info
 import nemo_evaluator_launcher.cli.kill as kill
@@ -77,14 +78,6 @@ def create_parser() -> ArgumentParser:
         "--verbose",
         action="store_true",
         help="Enable verbose logging (sets LOG_LEVEL=DEBUG)",
-    )
-
-    # Add --no-telemetry flag to disable telemetry
-    parser.add_argument(
-        "-T",
-        "--no-telemetry",
-        action="store_true",
-        help="Disable telemetry for this invocation",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=False)
@@ -248,12 +241,6 @@ def main() -> None:
     # Handle --verbose flag
     if is_verbose_enabled(args):
         os.environ["LOG_LEVEL"] = "DEBUG"
-
-    # Handle --no-telemetry flag
-    if hasattr(args, "no_telemetry") and args.no_telemetry:
-        from nemo_evaluator.telemetry import TELEMETRY_ENABLED_ENV_VAR
-
-        os.environ[TELEMETRY_ENABLED_ENV_VAR] = "false"
 
     # Handle --version flag
     if hasattr(args, "version") and args.version:

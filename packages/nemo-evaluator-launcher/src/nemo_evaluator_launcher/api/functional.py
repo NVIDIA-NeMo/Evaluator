@@ -150,12 +150,13 @@ def run_eval(
     _check_api_endpoint_when_deployment_is_configured(cfg)
 
     # Set up telemetry
+    from nemo_evaluator.config import TELEMETRY_LEVEL_ENV_VAR, TelemetryLevel
     from nemo_evaluator.telemetry import (
         TELEMETRY_SESSION_ID_ENV_VAR,
         StatusEnum,
         TelemetryHandler,
         get_session_id,
-        is_telemetry_enabled,
+        get_telemetry_level,
         show_telemetry_notification,
     )
 
@@ -163,6 +164,7 @@ def run_eval(
 
     session_id = get_session_id()
     telemetry_handler = None
+    telemetry_level = get_telemetry_level()
 
     # Extract telemetry metadata from config
     task_names = []
@@ -189,28 +191,35 @@ def run_eval(
         if hasattr(cfg.deployment, "served_model_name"):
             model_name = cfg.deployment.served_model_name or "unknown"
 
+    model_name_for_telemetry = (
+        model_name if telemetry_level == TelemetryLevel.DEFAULT else "redacted"
+    )
+
     executor_type = cfg.execution.type if hasattr(cfg.execution, "type") else "unknown"
     deployment_type = cfg.deployment.type if hasattr(cfg.deployment, "type") else "none"
 
-    if is_telemetry_enabled() and not dry_run:
-        show_telemetry_notification()
-        telemetry_handler = TelemetryHandler(
-            source_client_version=__version__, session_id=session_id
-        )
-        telemetry_handler.start()
-        telemetry_handler.enqueue(
-            LauncherJobEvent(
-                executor_type=executor_type,
-                deployment_type=deployment_type,
-                model=model_name,
-                tasks=task_names,
-                exporters=exporter_names,
-                status=StatusEnum.STARTED,
-            )
-        )
+    if not dry_run:
+        # Propagate session ID and telemetry level to containers/child processes
+        os.environ[TELEMETRY_SESSION_ID_ENV_VAR] = session_id
+        os.environ[TELEMETRY_LEVEL_ENV_VAR] = str(telemetry_level.value)
 
-    # Propagate session ID to containers/child processes
-    os.environ[TELEMETRY_SESSION_ID_ENV_VAR] = session_id
+        if telemetry_level != TelemetryLevel.OFF:
+            telemetry_handler = TelemetryHandler(
+                source_client_version=__version__,
+                session_id=session_id,
+                telemetry_level=telemetry_level,
+            )
+            telemetry_handler.start()
+            telemetry_handler.enqueue(
+                LauncherJobEvent(
+                    executor_type=executor_type,
+                    deployment_type=deployment_type,
+                    model=model_name_for_telemetry,
+                    tasks=task_names,
+                    exporters=exporter_names,
+                    status=StatusEnum.STARTED,
+                )
+            )
 
     status = StatusEnum.FAILURE
     try:
@@ -223,13 +232,14 @@ def run_eval(
                 LauncherJobEvent(
                     executor_type=executor_type,
                     deployment_type=deployment_type,
-                    model=model_name,
+                    model=model_name_for_telemetry,
                     tasks=task_names,
                     exporters=exporter_names,
                     status=status,
                 )
             )
             telemetry_handler.stop()
+            show_telemetry_notification()
 
 
 def resume_eval(invocation_id: str) -> str:

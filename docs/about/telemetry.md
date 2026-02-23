@@ -6,6 +6,28 @@ NeMo Evaluator collects telemetry to help improve the project.
 
 **All telemetry events are collected anonymously.**
 
+## Telemetry Levels
+
+NeMo Evaluator supports three telemetry levels:
+
+```{list-table}
+:header-rows: 1
+:widths: 15 25 60
+
+* - Level
+  - Name
+  - Description
+* - `0`
+  - OFF
+  - No telemetry reporting at all.
+* - `1`
+  - MINIMAL
+  - Usage metrics are reported but `model_id` is **redacted**.
+* - `2` (default)
+  - DEFAULT
+  - Full reporting including `model_id`.
+```
+
 ## Event: `EvaluationTaskEvent` (from `nemo-evaluator`)
 
 ```{list-table}
@@ -19,7 +41,7 @@ NeMo Evaluator collects telemetry to help improve the project.
 * - `frameworkName`
   - Evaluation framework name (for example `lm-eval`, `helm`).
 * - `model`
-  - Model name used for evaluation.
+  - Model name used for evaluation (redacted at level 1).
 * - `executionDurationSeconds`
   - Evaluation duration in seconds.
 * - `status`
@@ -39,7 +61,7 @@ NeMo Evaluator collects telemetry to help improve the project.
 * - `deploymentType`
   - Deployment type (`none`, `vllm`, `sglang`, `nim`, etc.).
 * - `model`
-  - Model name for the launched run.
+  - Model name for the launched run (redacted at level 1).
 * - `tasks`
   - List of requested evaluation tasks.
 * - `exporters`
@@ -56,11 +78,17 @@ NeMo Evaluator collects telemetry to help improve the project.
 
 * - Control
   - Effect
-* - `NEMO_EVALUATOR_TELEMETRY_ENABLED=false`
+* - `NEMO_EVALUATOR_TELEMETRY_LEVEL=0`
   - Disables telemetry globally.
-* - `nemo-evaluator-launcher --no-telemetry` (or `-T`)
-  - Disables telemetry for that launcher invocation.
+* - `NEMO_EVALUATOR_TELEMETRY_LEVEL=1`
+  - Enables telemetry without sending `model_id`.
+* - `NEMO_EVALUATOR_TELEMETRY_LEVEL=2`
+  - Enables full telemetry (default).
+* - `nemo-evaluator-launcher config set telemetry.level <0|1|2>`
+  - Persists telemetry level to the config file. See {ref}`configuration`.
 ```
+
+**Priority:** environment variable > config file > default (2).
 
 ## Aggregate Reporting
 

@@ -25,12 +25,16 @@ from nemo_evaluator.api.api_dataclasses import (
     EvaluationConfig,
     EvaluationTarget,
 )
+from nemo_evaluator.config import TelemetryLevel
 from nemo_evaluator.core.evaluate import evaluate
 
 
 def test_evaluate_result_config_matches_run_config(tmp_path: Path):
     with (
-        patch("nemo_evaluator.telemetry.is_telemetry_enabled", return_value=False),
+        patch(
+            "nemo_evaluator.telemetry.get_telemetry_level",
+            return_value=TelemetryLevel.OFF,
+        ),
         patch(
             "nemo_evaluator.core.evaluate.validate_configuration",
             return_value=Evaluation(
@@ -109,12 +113,15 @@ def test_evaluate_telemetry_uses_framework_name(tmp_path: Path):
             "nemo_evaluator.core.evaluate.monitor_memory_usage",
             return_value=(MagicMock(model_dump=lambda **k: {"test": "result"}), {}),
         ),
-        patch("nemo_evaluator.telemetry.is_telemetry_enabled", return_value=True),
+        patch(
+            "nemo_evaluator.telemetry.get_telemetry_level",
+            return_value=TelemetryLevel.DEFAULT,
+        ),
         patch("nemo_evaluator.telemetry.show_telemetry_notification"),
         patch(
             "nemo_evaluator.telemetry.TelemetryHandler", return_value=CapturingHandler()
         ),
-        patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_ENABLED": "true"}),
+        patch.dict(os.environ, {"NEMO_EVALUATOR_TELEMETRY_LEVEL": "2"}),
     ):
         evaluate(
             eval_cfg=EvaluationConfig(

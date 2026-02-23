@@ -17,7 +17,7 @@
 Telemetry handler for NeMo Evaluator.
 
 Environment variables:
-- NEMO_EVALUATOR_TELEMETRY_ENABLED: Whether telemetry is enabled (default: true).
+- NEMO_EVALUATOR_TELEMETRY_LEVEL: Telemetry level (0=off, 1=minimal, 2=full; default: 2).
 - NEMO_EVALUATOR_TELEMETRY_SESSION_ID: Session ID for correlating events across components.
 - NEMO_EVALUATOR_TELEMETRY_ENDPOINT: The endpoint to send the telemetry events to.
 """
@@ -35,12 +35,16 @@ from typing import Any, ClassVar
 
 from pydantic import BaseModel, Field
 
+from nemo_evaluator.config import (
+    TELEMETRY_LEVEL_ENV_VAR,
+    TelemetryLevel,
+    load_config,
+)
 from nemo_evaluator.logging import get_logger
 
 logger = get_logger(__name__)
 
 # Environment variable names
-TELEMETRY_ENABLED_ENV_VAR = "NEMO_EVALUATOR_TELEMETRY_ENABLED"
 TELEMETRY_SESSION_ID_ENV_VAR = "NEMO_EVALUATOR_TELEMETRY_SESSION_ID"
 TELEMETRY_ENDPOINT_ENV_VAR = "NEMO_EVALUATOR_TELEMETRY_ENDPOINT"
 
@@ -54,13 +58,32 @@ NEMO_TELEMETRY_ENDPOINT = os.getenv(
 )
 CPU_ARCHITECTURE = platform.uname().machine
 
-# Track if notification has been shown this session
-_notification_shown = False
 
+def get_telemetry_level() -> TelemetryLevel:
+    """Determine the effective telemetry level.
 
-def is_telemetry_enabled() -> bool:
-    """Check if telemetry is enabled via environment variable."""
-    return os.getenv(TELEMETRY_ENABLED_ENV_VAR, "true").lower() in ("1", "true", "yes")
+    Priority: env var > config file > default (2).
+    Invalid values fall back to MINIMAL (1).
+    """
+    raw = os.getenv(TELEMETRY_LEVEL_ENV_VAR)
+    if raw is None:
+        try:
+            return load_config().telemetry.level
+        except Exception as exc:
+            logger.warning(
+                "Failed to read telemetry config, falling back to MINIMAL: %s",
+                exc,
+            )
+            return TelemetryLevel.MINIMAL
+
+    try:
+        return TelemetryLevel(int(raw))
+    except (ValueError, KeyError):
+        logger.warning(
+            f"Invalid NEMO_EVALUATOR_TELEMETRY_LEVEL='{raw}', "
+            "falling back to 1 (MINIMAL)"
+        )
+        return TelemetryLevel.MINIMAL
 
 
 def _generate_session_id() -> str:
@@ -74,13 +97,12 @@ def get_session_id() -> str:
 
 
 def show_telemetry_notification() -> None:
-    """Show telemetry notification to the user (only once per session)."""
-    global _notification_shown
-    if not _notification_shown:
-        logger.info(
-            f"Telemetry enabled. Set {TELEMETRY_ENABLED_ENV_VAR}=false to disable."
-        )
-        _notification_shown = True
+    """Log how to change the telemetry level."""
+    logger.warning(
+        "Set %s=<0|1|2> or run "
+        "'nemo-evaluator-launcher config set telemetry.level <0|1|2>' to change.",
+        TELEMETRY_LEVEL_ENV_VAR,
+    )
 
 
 class StatusEnum(str, Enum):
@@ -223,6 +245,7 @@ class TelemetryHandler:
         max_retries: int = 3,
         source_client_version: str = "undefined",
         session_id: str = "undefined",
+        telemetry_level: TelemetryLevel = TelemetryLevel.DEFAULT,
     ):
         self._flush_interval = flush_interval_seconds
         self._max_queue_size = max_queue_size
@@ -234,6 +257,7 @@ class TelemetryHandler:
         self._running = False
         self._source_client_version = source_client_version
         self._session_id = session_id
+        self._telemetry_level = telemetry_level
 
     async def _astart(self) -> None:
         """Start the telemetry handler asynchronously."""
@@ -281,7 +305,7 @@ class TelemetryHandler:
 
     def enqueue(self, event: TelemetryEvent) -> None:
         """Add an event to the queue for sending."""
-        if not is_telemetry_enabled():
+        if self._telemetry_level == TelemetryLevel.OFF:
             logger.debug(
                 "Telemetry disabled, skipping event", event_type=type(event).__name__
             )
@@ -291,13 +315,13 @@ class TelemetryHandler:
                 "Ignoring non-TelemetryEvent object", event_type=type(event).__name__
             )
             return
+        logger.warning(
+            "Telemetry event: %s %s",
+            event._event_name,
+            event.model_dump(by_alias=True),
+        )
         queued = QueuedEvent(event=event, timestamp=datetime.now(timezone.utc))
         self._events.append(queued)
-        logger.debug(
-            "Enqueued telemetry event",
-            event_name=event._event_name,
-            queue_size=len(self._events),
-        )
         if len(self._events) >= self._max_queue_size:
             self._flush_signal.set()
 

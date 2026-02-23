@@ -57,6 +57,14 @@ uv pip install -e ../nemo-evaluator
 
 Without this, new or modified modules in the core package won't be visible to the launcher.
 
+## Logging
+
+Prefer `logger` over `print()` for all output. Use `print()` only when raw unformatted output is specifically needed (e.g. `--dry-run` dumping YAML to stdout).
+
+## Re-exports
+
+Do not add re-exports (importing a symbol from one module and exporting it from another) unless you have confirmed it is needed for backward compatibility.
+
 ## Git Conventions
 
 - Branch naming: `username/feature-name`

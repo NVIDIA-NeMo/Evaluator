@@ -13,6 +13,9 @@
 
 ## 🆕 What's New in 26.01 Release
 
+### Telemetry
+- Anonymous telemetry to help improve the project. See [Telemetry](#-telemetry) for details and opt-out options.
+
 ### New Evaluation Harnesses
 - **TAU2-Bench** (`tau2-bench`): Conversational agents in dual-control environments (telecom, airline, retail)
 - **RULER** (`long-context-eval`): Long-context evaluation with configurable sequence lengths (4K to 1M tokens)
@@ -203,7 +206,7 @@ NeMo Evaluator collects telemetry to help improve the project.
 |---|---|
 | `task` | Evaluated task/benchmark name. |
 | `frameworkName` | Evaluation framework name (for example `lm-eval`, `helm`). |
-| `model` | Model name used for evaluation. |
+| `model` | Model name used for evaluation (redacted at level 1). |
 | `executionDurationSeconds` | Evaluation duration in seconds. |
 | `status` | Task status: `started`, `success`, or `failure`. |
 
@@ -213,7 +216,7 @@ NeMo Evaluator collects telemetry to help improve the project.
 |---|---|
 | `executorType` | Launcher executor backend (`local`, `slurm`, `lepton`, etc.). |
 | `deploymentType` | Deployment type (`none`, `vllm`, `sglang`, `nim`, etc.). |
-| `model` | Model name for the launched run. |
+| `model` | Model name for the launched run (redacted at level 1). |
 | `tasks` | List of requested evaluation tasks. |
 | `exporters` | List of configured exporters. |
 | `status` | Job status: `started`, `success`, or `failure`. |
@@ -222,8 +225,10 @@ NeMo Evaluator collects telemetry to help improve the project.
 
 | Control | Effect |
 |---|---|
-| `NEMO_EVALUATOR_TELEMETRY_ENABLED=false` | Disables telemetry globally. |
-| `nemo-evaluator-launcher --no-telemetry` (or `-T`) | Disables telemetry for that launcher invocation. |
+| `NEMO_EVALUATOR_TELEMETRY_LEVEL=0` | Disables telemetry. |
+| `NEMO_EVALUATOR_TELEMETRY_LEVEL=1` | Usage data only. |
+| `NEMO_EVALUATOR_TELEMETRY_LEVEL=2` | Usage data + model ID (default). |
+| `nemo-evaluator-launcher config set telemetry.level <0\|1\|2>` | Persists telemetry level to config file. |
 
 ### Aggregate Reporting
 
