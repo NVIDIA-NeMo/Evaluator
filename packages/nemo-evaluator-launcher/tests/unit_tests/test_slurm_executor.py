@@ -122,8 +122,8 @@ class TestSlurmExecutorFeatures:
         """Test deployment env vars via top-level env_vars."""
         # Put env vars in top-level env_vars (new path)
         base_config["env_vars"] = {
-            "DEPLOY_VAR1": "$lit:deploy_value1",
-            "DEPLOY_VAR2": "$lit:deploy_value2",
+            "DEPLOY_VAR1": "lit:deploy_value1",
+            "DEPLOY_VAR2": "lit:deploy_value2",
         }
         # Keep execution.env_vars.deployment for --container-env name pass-through
         base_config["execution"]["env_vars"] = {
@@ -163,8 +163,8 @@ class TestSlurmExecutorFeatures:
         """Test evaluation env vars via top-level env_vars."""
         # Put env vars in top-level env_vars (new path)
         base_config["env_vars"] = {
-            "EVAL_VAR1": "$lit:eval_value1",
-            "EVAL_VAR2": "$lit:eval_value2",
+            "EVAL_VAR1": "lit:eval_value1",
+            "EVAL_VAR2": "lit:eval_value2",
         }
         # Keep execution.env_vars.evaluation for --container-env name pass-through
         base_config["execution"]["env_vars"] = {
@@ -322,8 +322,8 @@ class TestSlurmExecutorFeatures:
     def test_deployment_env_vars(self, base_config, mock_task, mock_dependencies):
         """Test deployment.env_vars are collected into secrets and re-exported."""
         base_config["deployment"]["env_vars"] = {
-            "VAR1": "$lit:value1",
-            "VAR2": "$lit:value2",
+            "VAR1": "lit:value1",
+            "VAR2": "lit:value2",
         }
 
         cfg = OmegaConf.create(base_config)
@@ -352,12 +352,12 @@ class TestSlurmExecutorFeatures:
         """Test mixed env vars from top-level and deployment.env_vars."""
         # Top-level env_vars (new unified path) — flows to both deployment and eval
         base_config["env_vars"] = {
-            "NEW_VAR": "$lit:new_value",
-            "EVAL_VAR": "$lit:eval_value",
+            "NEW_VAR": "lit:new_value",
+            "EVAL_VAR": "lit:eval_value",
         }
         # deployment.env_vars — overrides for deployment
         base_config["deployment"]["env_vars"] = {
-            "OLD_VAR": "$lit:old_value",
+            "OLD_VAR": "lit:old_value",
         }
         # execution.env_vars for --container-env name pass-through
         base_config["execution"]["env_vars"] = {
@@ -434,10 +434,10 @@ class TestSlurmExecutorFeatures:
         """Test behavior when deployment type is 'none'."""
         base_config["deployment"]["type"] = "none"
         # DEPLOY_VAR via deployment.env_vars (only flows to deployment, not eval)
-        base_config["deployment"]["env_vars"] = {"DEPLOY_VAR": "$lit:deploy_value"}
+        base_config["deployment"]["env_vars"] = {"DEPLOY_VAR": "lit:deploy_value"}
         # EVAL_VAR via top-level env_vars (flows to eval)
         base_config["env_vars"] = {
-            "EVAL_VAR": "$lit:eval_value",
+            "EVAL_VAR": "lit:eval_value",
         }
         # execution.env_vars for --container-env name pass-through
         base_config["execution"]["env_vars"] = {
@@ -486,10 +486,10 @@ class TestSlurmExecutorFeatures:
         """Test complex configuration with all new features together."""
         # Top-level env_vars for secrets pipeline
         base_config["env_vars"] = {
-            "DEPLOY_VAR1": "$lit:deploy_value1",
-            "DEPLOY_VAR2": "$lit:deploy_value2",
-            "EVAL_VAR1": "$lit:eval_value1",
-            "EVAL_VAR2": "$lit:eval_value2",
+            "DEPLOY_VAR1": "lit:deploy_value1",
+            "DEPLOY_VAR2": "lit:deploy_value2",
+            "EVAL_VAR1": "lit:eval_value1",
+            "EVAL_VAR2": "lit:eval_value2",
         }
         # execution.env_vars for --container-env name pass-through
         base_config["execution"]["env_vars"] = {
@@ -515,7 +515,7 @@ class TestSlurmExecutorFeatures:
         }
         # Also add old-style deployment.env_vars for compatibility test
         base_config["deployment"]["env_vars"] = {
-            "OLD_DEPLOY_VAR": "$lit:old_deploy_value"
+            "OLD_DEPLOY_VAR": "lit:old_deploy_value"
         }
 
         cfg = OmegaConf.create(base_config)
@@ -1043,11 +1043,11 @@ class TestSlurmExecutorDryRun:
                 }
             },
             "evaluation": {
-                "env_vars": {"GLOBAL_ENV": "$host:GLOBAL_VALUE"},
+                "env_vars": {"GLOBAL_ENV": "host:GLOBAL_VALUE"},
                 "tasks": [
                     {
                         "name": "mmlu_pro",
-                        "env_vars": {"TASK_ENV": "$host:TASK_VALUE"},
+                        "env_vars": {"TASK_ENV": "host:TASK_VALUE"},
                         "nemo_evaluator_config": {
                             "config": {"params": {"temperature": 0.95}}
                         },
@@ -1705,11 +1705,11 @@ class TestSlurmExecutorSystemCalls:
                 }
             },
             "evaluation": {
-                "env_vars": {"GLOBAL_ENV": "$host:GLOBAL_VALUE"},
+                "env_vars": {"GLOBAL_ENV": "host:GLOBAL_VALUE"},
                 "tasks": [
                     {
                         "name": "mmlu_pro",
-                        "env_vars": {"TASK_ENV": "$host:TASK_VALUE"},
+                        "env_vars": {"TASK_ENV": "host:TASK_VALUE"},
                         "nemo_evaluator_config": {
                             "config": {"params": {"temperature": 0.95}}
                         },

@@ -16,9 +16,9 @@
 """Unified environment variable handling for NeMo Evaluator Launcher.
 
 Three value types are supported via explicit prefixes:
-    "$lit:some_value"       — literal value, written directly
-    "$host:HOST_VAR"        — resolved from host env at config-load time via os.getenv()
-    "$runtime:RUNTIME_VAR"  — late-bound, resolved by the execution environment at runtime
+    "lit:some_value"       — literal value, written directly
+    "host:HOST_VAR"        — resolved from host env at config-load time via os.getenv()
+    "runtime:RUNTIME_VAR"  — late-bound, resolved by the execution environment at runtime
 """
 
 import copy
@@ -39,7 +39,7 @@ from nemo_evaluator_launcher.common.logging_utils import logger
 class EnvVarLiteral:
     """A literal env var value, written directly."""
 
-    PREFIX: ClassVar[str] = "$lit:"
+    PREFIX: ClassVar[str] = "lit:"
     value: str
 
 
@@ -47,7 +47,7 @@ class EnvVarLiteral:
 class EnvVarFromHost:
     """An env var sourced from the host environment at config-load time."""
 
-    PREFIX: ClassVar[str] = "$host:"
+    PREFIX: ClassVar[str] = "host:"
     host_var_name: str
 
 
@@ -55,7 +55,7 @@ class EnvVarFromHost:
 class EnvVarRuntime:
     """A late-bound env var, resolved by the execution environment at runtime."""
 
-    PREFIX: ClassVar[str] = "$runtime:"
+    PREFIX: ClassVar[str] = "runtime:"
     runtime_var_name: str
 
 
@@ -68,7 +68,7 @@ _ENV_VAR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 def parse_env_var_value(raw: str) -> EnvVarValue:
     """Parse a raw env var value string into a typed EnvVarValue.
 
-    Every value must carry an explicit prefix ($host:, $lit:, $runtime:).
+    Every value must carry an explicit prefix (host:, lit:, runtime:).
     Unprefixed values raise ValueError with a suggested fix.
 
     Args:
@@ -82,7 +82,7 @@ def parse_env_var_value(raw: str) -> EnvVarValue:
         raise ValueError(
             f"Hydra resolver syntax '{raw}' is not allowed in env var fields. "
             "It resolves secrets into the config object, defeating secret isolation. "
-            "Use '$host:VAR_NAME' instead."
+            "Use 'host:VAR_NAME' instead."
         )
 
     # Explicit prefixes
@@ -95,11 +95,11 @@ def parse_env_var_value(raw: str) -> EnvVarValue:
 
     # No recognized prefix — build a helpful suggestion
     if raw.startswith("$") and _ENV_VAR_NAME_RE.match(raw[1:]):
-        suggestion = f"$host:{raw[1:]}"
+        suggestion = f"host:{raw[1:]}"
     elif _ENV_VAR_NAME_RE.match(raw):
-        suggestion = f"$host:{raw}"
+        suggestion = f"host:{raw}"
     else:
-        suggestion = f"$lit:{raw}"
+        suggestion = f"lit:{raw}"
 
     raise ValueError(
         f"Env var value '{raw}' must have an explicit prefix. "
@@ -174,7 +174,7 @@ class SecretsEnvResult:
     to emit ``export ORIGINAL="${DISAMBIGUATED}"`` shell commands."""
 
     runtime_vars: dict[str, list[VarRemapping]] = field(default_factory=dict)
-    """Per-group runtime vars ($runtime:). These have no value in .secrets.env;
+    """Per-group runtime vars (runtime:). These have no value in .secrets.env;
     their reexport references the runtime variable name directly
     (e.g. ``export API_KEY="${NGC_API_TOKEN}"``)."""
 
@@ -363,10 +363,10 @@ def collect_eval_env_vars(
     raw_env_vars.update(task.get("env_vars", {}))
 
     # 4. API key — ensure the named env var is present in env_vars.
-    # If the user already declared it (e.g. NGC_API_TOKEN: $host:NGC_API_TOKEN),
+    # If the user already declared it (e.g. NGC_API_TOKEN: host:NGC_API_TOKEN),
     # do nothing. Otherwise, add it as a host ref so it gets resolved from the host env.
     if api_key_name and api_key_name not in raw_env_vars:
-        raw_env_vars[api_key_name] = f"$host:{api_key_name}"
+        raw_env_vars[api_key_name] = f"host:{api_key_name}"
 
     # Check required env vars (excluding NEMO_EVALUATOR_DATASET_DIR)
     all_var_names = set(raw_env_vars.keys())
@@ -377,7 +377,7 @@ def collect_eval_env_vars(
             raise ValueError(
                 f"{task.name} task requires environment variable {required_env_var}. "
                 "Specify it in the task subconfig in the 'env_vars' dict as the following "
-                f"pair {required_env_var}: $host:YOUR_ENV_VAR_NAME"
+                f"pair {required_env_var}: host:YOUR_ENV_VAR_NAME"
             )
 
     # Parse main env vars (evaluation context: bare names default to host)

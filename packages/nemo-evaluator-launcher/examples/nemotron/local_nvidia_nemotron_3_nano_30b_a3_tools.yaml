@@ -38,8 +38,8 @@ target:
 
 evaluation:
   env_vars:
-    HF_TOKEN: $host:HF_TOKEN
-    HF_HOME: $host:HF_HOME
+    HF_TOKEN: host:HF_TOKEN
+    HF_HOME: host:HF_HOME
   nemo_evaluator_config:
     config:
       params:

@@ -40,8 +40,8 @@ defaults:
 # set required execution arguments
 
 env_vars:
-  HF_DATASETS_OFFLINE: $lit:0
-  TRANSFORMERS_OFFLINE: $lit:0
+  HF_DATASETS_OFFLINE: lit:0
+  TRANSFORMERS_OFFLINE: lit:0
 
 execution:
   hostname: ??? # SLURM headnode (login) hostname (required)
@@ -70,8 +70,8 @@ deployment:
   data_parallel_size: 8
   extra_args: "--max-model-len 32768"
   env_vars:
-    HF_DATASETS_OFFLINE: $lit:0
-    TRANSFORMERS_OFFLINE: $lit:0
+    HF_DATASETS_OFFLINE: lit:0
+    TRANSFORMERS_OFFLINE: lit:0
 
 evaluation:
   tasks:

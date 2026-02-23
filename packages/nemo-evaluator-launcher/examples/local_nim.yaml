@@ -45,7 +45,7 @@ deployment:
   image: nvcr.io/nim/meta/llama-3.2-1b-instruct:latest
   served_model_name: meta/llama-3.2-1b-instruct
   env_vars:
-    NGC_API_KEY: $host:NGC_API_KEY
+    NGC_API_KEY: host:NGC_API_KEY
 
 # Specify the benchmarks to evaluate
 evaluation:

@@ -47,7 +47,7 @@ deployment:
 # specify the benchmarks to evaluate
 evaluation:
   env_vars:
-    HF_TOKEN: $host:HF_TOKEN
+    HF_TOKEN: host:HF_TOKEN
   nemo_evaluator_config:  # global config settings that apply to all tasks
     config:
       params:

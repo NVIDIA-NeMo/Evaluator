@@ -41,19 +41,19 @@ from nemo_evaluator_launcher.common.env_vars import (
 
 class TestParseEnvVarValue:
     def test_literal_prefix(self):
-        result = parse_env_var_value("$lit:some/path/here")
+        result = parse_env_var_value("lit:some/path/here")
         assert result == EnvVarLiteral(value="some/path/here")
 
     def test_literal_empty_value(self):
-        result = parse_env_var_value("$lit:")
+        result = parse_env_var_value("lit:")
         assert result == EnvVarLiteral(value="")
 
     def test_host_prefix(self):
-        result = parse_env_var_value("$host:HF_TOKEN")
+        result = parse_env_var_value("host:HF_TOKEN")
         assert result == EnvVarFromHost(host_var_name="HF_TOKEN")
 
     def test_runtime_prefix(self):
-        result = parse_env_var_value("$runtime:SLURM_JOB_ID")
+        result = parse_env_var_value("runtime:SLURM_JOB_ID")
         assert result == EnvVarRuntime(runtime_var_name="SLURM_JOB_ID")
 
     def test_hydra_resolver_raises_error(self):
@@ -65,23 +65,23 @@ class TestParseEnvVarValue:
             parse_env_var_value("${oc.decode:something}")
 
     def test_unprefixed_dollar_raises(self):
-        with pytest.raises(ValueError, match="Use '\\$host:HF_TOKEN'"):
+        with pytest.raises(ValueError, match="Use 'host:HF_TOKEN'"):
             parse_env_var_value("$HF_TOKEN")
 
     def test_unprefixed_bare_name_raises(self):
-        with pytest.raises(ValueError, match="Use '\\$host:MY_VAR'"):
+        with pytest.raises(ValueError, match="Use 'host:MY_VAR'"):
             parse_env_var_value("MY_VAR")
 
     def test_unprefixed_path_value_raises(self):
-        with pytest.raises(ValueError, match="Use '\\$lit:/some/path'"):
+        with pytest.raises(ValueError, match="Use 'lit:/some/path'"):
             parse_env_var_value("/some/path")
 
     def test_unprefixed_url_value_raises(self):
-        with pytest.raises(ValueError, match="Use '\\$lit:"):
+        with pytest.raises(ValueError, match="Use 'lit:"):
             parse_env_var_value("http://example.com")
 
     def test_unprefixed_value_with_spaces_raises(self):
-        with pytest.raises(ValueError, match="Use '\\$lit:"):
+        with pytest.raises(ValueError, match="Use 'lit:"):
             parse_env_var_value("hello world")
 
 
@@ -287,7 +287,7 @@ class TestCollectEvalEnvVars:
 
     def test_top_level_env_vars_flow_to_eval(self):
         """Top-level env_vars are included in eval collection."""
-        cfg = self._make_cfg({"env_vars": {"HF_TOKEN": "$host:HF_TOKEN"}})
+        cfg = self._make_cfg({"env_vars": {"HF_TOKEN": "host:HF_TOKEN"}})
         task = OmegaConf.create({"name": "test_task", "env_vars": {}})
         task_def = {}
 
@@ -299,8 +299,8 @@ class TestCollectEvalEnvVars:
         """evaluation.env_vars overrides top-level env_vars."""
         cfg = self._make_cfg(
             {
-                "env_vars": {"HF_TOKEN": "$host:GLOBAL_TOKEN"},
-                "evaluation": {"env_vars": {"HF_TOKEN": "$host:EVAL_TOKEN"}},
+                "env_vars": {"HF_TOKEN": "host:GLOBAL_TOKEN"},
+                "evaluation": {"env_vars": {"HF_TOKEN": "host:EVAL_TOKEN"}},
             }
         )
         task = OmegaConf.create({"name": "test_task", "env_vars": {}})
@@ -313,13 +313,13 @@ class TestCollectEvalEnvVars:
         """task.env_vars overrides evaluation.env_vars."""
         cfg = self._make_cfg(
             {
-                "evaluation": {"env_vars": {"HF_TOKEN": "$host:EVAL_TOKEN"}},
+                "evaluation": {"env_vars": {"HF_TOKEN": "host:EVAL_TOKEN"}},
             }
         )
         task = OmegaConf.create(
             {
                 "name": "test_task",
-                "env_vars": {"HF_TOKEN": "$host:TASK_TOKEN"},
+                "env_vars": {"HF_TOKEN": "host:TASK_TOKEN"},
             }
         )
         task_def = {}
@@ -332,13 +332,13 @@ class TestCollectEvalEnvVars:
         cfg = self._make_cfg(
             {
                 "env_vars": {
-                    "SHARED": "$lit:top",
-                    "TOP_ONLY": "$lit:top_only",
+                    "SHARED": "lit:top",
+                    "TOP_ONLY": "lit:top_only",
                 },
                 "evaluation": {
                     "env_vars": {
-                        "SHARED": "$lit:eval",
-                        "EVAL_ONLY": "$lit:eval_only",
+                        "SHARED": "lit:eval",
+                        "EVAL_ONLY": "lit:eval_only",
                     },
                 },
             }
@@ -346,7 +346,7 @@ class TestCollectEvalEnvVars:
         task = OmegaConf.create(
             {
                 "name": "test_task",
-                "env_vars": {"SHARED": "$lit:task"},
+                "env_vars": {"SHARED": "lit:task"},
             }
         )
         task_def = {}
@@ -381,7 +381,7 @@ class TestCollectDeploymentEnvVars:
 
     def test_top_level_env_vars_flow_to_deployment(self):
         """Top-level env_vars are included in deployment collection."""
-        cfg = self._make_cfg({"env_vars": {"SHARED_VAR": "$lit:shared"}})
+        cfg = self._make_cfg({"env_vars": {"SHARED_VAR": "lit:shared"}})
 
         result = collect_deployment_env_vars(cfg)
         assert result["SHARED_VAR"] == EnvVarLiteral(value="shared")
@@ -390,8 +390,8 @@ class TestCollectDeploymentEnvVars:
         """cfg.deployment.env_vars overrides top-level (last wins)."""
         cfg = self._make_cfg(
             {
-                "env_vars": {"VAR": "$lit:top"},
-                "deployment": {"type": "none", "env_vars": {"VAR": "$lit:deploy"}},
+                "env_vars": {"VAR": "lit:top"},
+                "deployment": {"type": "none", "env_vars": {"VAR": "lit:deploy"}},
             }
         )
 

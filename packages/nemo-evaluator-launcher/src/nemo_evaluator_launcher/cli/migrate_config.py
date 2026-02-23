@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 # TODO(Apr 2026): Remove this entrypoint once the migration period is over.
-"""Migrate launcher config YAML to use explicit $host:/$lit: env var prefixes.
+"""Migrate launcher config YAML to use explicit host:/lit: env var prefixes.
 
 Usage:
     nel-migrate-config config.yaml              # preview (dry-run)
@@ -22,13 +22,13 @@ Usage:
     nel-migrate-config config.yaml -o new.yaml  # write to new file
 
 Heuristics for classifying bare (unprefixed) values:
-  - Already prefixed ($host:, $lit:, $runtime:) → kept as-is
-  - ${oc.env:VAR} Hydra resolvers → $host:VAR
+  - Already prefixed (host:, lit:, runtime:) → kept as-is
+  - ${oc.env:VAR} Hydra resolvers → host:VAR
   - ${oc.decode:...} Hydra resolvers → listed as non-migrated (needs manual review)
-  - $VAR_NAME (dollar-prefixed) → $host:VAR_NAME
-  - Bare UPPER_CASE name matching [A-Z_][A-Z0-9_]* → $host:NAME
-  - Numbers (0, 1, etc.) → $lit:value
-  - Everything else (paths, URLs, mixed-case, spaces) → $lit:value
+  - $VAR_NAME (dollar-prefixed) → host:VAR_NAME
+  - Bare UPPER_CASE name matching [A-Z_][A-Z0-9_]* → host:NAME
+  - Numbers (0, 1, etc.) → lit:value
+  - Everything else (paths, URLs, mixed-case, spaces) → lit:value
 
 Structural migration:
   - execution.env_vars.deployment → deployment.env_vars
@@ -47,7 +47,7 @@ _ENV_VAR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _UPPER_CASE_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 
 # Prefixes that mean the value is already migrated
-_KNOWN_PREFIXES = ("$host:", "$lit:", "$runtime:")
+_KNOWN_PREFIXES = ("host:", "lit:", "runtime:")
 
 # Regex to extract the variable name from ${oc.env:VAR_NAME} or ${oc.env:VAR_NAME,default}
 _OC_ENV_RE = re.compile(r"\$\{oc\.env:([A-Za-z_][A-Za-z0-9_]*)(?:,[^}]*)?\}")
@@ -65,7 +65,7 @@ def classify_value(raw: str) -> str | None:
     """
     if not isinstance(raw, str):
         # Numbers, bools — treat as literal
-        return f"$lit:{raw}"
+        return f"lit:{raw}"
 
     stripped = raw.strip()
 
@@ -77,29 +77,29 @@ def classify_value(raw: str) -> str | None:
     if "${oc.decode:" in stripped:
         return None
 
-    # ${oc.env:VAR_NAME} → $host:VAR_NAME
+    # ${oc.env:VAR_NAME} → host:VAR_NAME
     m = _OC_ENV_RE.fullmatch(stripped)
     if m:
-        return f"$host:{m.group(1)}"
+        return f"host:{m.group(1)}"
 
     # $VAR_NAME → host ref (strip the leading $)
     if stripped.startswith("$") and _ENV_VAR_NAME_RE.match(stripped[1:]):
-        return f"$host:{stripped[1:]}"
+        return f"host:{stripped[1:]}"
 
     # Pure numeric string → literal
     if stripped.isdigit():
-        return f"$lit:{stripped}"
+        return f"lit:{stripped}"
 
     # Bare valid env var name
     if _ENV_VAR_NAME_RE.match(stripped):
         # UPPER_CASE → almost certainly a host env var reference
         if _UPPER_CASE_RE.match(stripped):
-            return f"$host:{stripped}"
+            return f"host:{stripped}"
         # Mixed-case valid identifier — ambiguous, default to host
-        return f"$host:{stripped}"
+        return f"host:{stripped}"
 
     # Everything else: paths, URLs, strings with spaces/slashes → literal
-    return f"$lit:{stripped}"
+    return f"lit:{stripped}"
 
 
 def _find_env_vars_sections(data, path=None):
@@ -467,7 +467,7 @@ def migrate(text: str) -> tuple[str, list[str], list[str]]:
     """Migrate a YAML config string.
 
     Phase 1: Structural migration (execution.env_vars → proper locations).
-    Phase 2: Value prefix migration ($host:, $lit:, etc.).
+    Phase 2: Value prefix migration (host:, lit:, etc.).
 
     Returns:
         (new_text, change_descriptions, non_migrable_descriptions)
@@ -520,7 +520,7 @@ def migrate(text: str) -> tuple[str, list[str], list[str]]:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Migrate launcher config YAML to use explicit $host:/$lit: env var prefixes."
+        description="Migrate launcher config YAML to use explicit host:/lit: env var prefixes."
     )
     parser.add_argument("config", help="Path to the config YAML file")
     parser.add_argument(
