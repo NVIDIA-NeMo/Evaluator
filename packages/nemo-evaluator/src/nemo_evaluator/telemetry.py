@@ -71,8 +71,8 @@ def get_telemetry_level() -> TelemetryLevel:
             return load_config().telemetry.level
         except Exception as exc:
             logger.warning(
-                "Failed to read telemetry config, falling back to MINIMAL: %s",
-                exc,
+                "Failed to read telemetry config, falling back to MINIMAL",
+                error=str(exc),
             )
             return TelemetryLevel.MINIMAL
 
@@ -96,12 +96,14 @@ def get_session_id() -> str:
     return os.getenv(TELEMETRY_SESSION_ID_ENV_VAR) or _generate_session_id()
 
 
+_TELEMETRY_TAG = "\033[1;33m[TELEMETRY]\033[0m"
+
+
 def show_telemetry_notification() -> None:
     """Log how to change the telemetry level."""
     logger.warning(
-        "Set %s=<0|1|2> or run "
-        "'nemo-evaluator-launcher config set telemetry.level <0|1|2>' to change.",
-        TELEMETRY_LEVEL_ENV_VAR,
+        f"{_TELEMETRY_TAG} Set {TELEMETRY_LEVEL_ENV_VAR}=<0|1|2> or run"
+        " 'nemo-evaluator-launcher config set telemetry.level <0|1|2>' to change."
     )
 
 
@@ -316,9 +318,8 @@ class TelemetryHandler:
             )
             return
         logger.warning(
-            "Telemetry event: %s %s",
-            event._event_name,
-            event.model_dump(by_alias=True),
+            f"{_TELEMETRY_TAG} {event._event_name}",
+            **event.model_dump(by_alias=True),
         )
         queued = QueuedEvent(event=event, timestamp=datetime.now(timezone.utc))
         self._events.append(queued)

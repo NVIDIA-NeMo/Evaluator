@@ -45,7 +45,7 @@ class SetCmd:
                 TelemetryLevel(level)  # validate
             except (ValueError, KeyError):
                 logger.error(
-                    "Invalid telemetry level '%s'. Must be 0, 1, or 2.", self.value
+                    f"Invalid telemetry level '{self.value}'. Must be 0, 1, or 2."
                 )
                 return
             cfg = load_config()
@@ -53,10 +53,11 @@ class SetCmd:
             save_config(cfg)
             label = TelemetryLevel(level).name
             logger.info(
-                "Telemetry level set to %d (%s) in %s", level, label, CONFIG_FILE
+                f"Telemetry level set to {level} ({label})",
+                path=str(CONFIG_FILE),
             )
         else:
-            logger.error("Unknown config key '%s'.", self.key)
+            logger.error(f"Unknown config key '{self.key}'.")
 
 
 @dataclass
@@ -68,9 +69,9 @@ class GetCmd:
     def execute(self) -> None:
         if self.key == "telemetry.level":
             level = get_telemetry_level()
-            logger.info("%d (%s)", level.value, level.name)
+            logger.info(f"{level.value} ({level.name})")
         else:
-            logger.error("Unknown config key '%s'.", self.key)
+            logger.error(f"Unknown config key '{self.key}'.")
 
 
 @dataclass
@@ -79,6 +80,6 @@ class ShowCmd:
 
     def execute(self) -> None:
         if not CONFIG_FILE.exists():
-            logger.info("No config file found at %s", CONFIG_FILE)
+            logger.info(f"No config file found at {CONFIG_FILE}")
             return
         logger.info(CONFIG_FILE.read_text().rstrip())
