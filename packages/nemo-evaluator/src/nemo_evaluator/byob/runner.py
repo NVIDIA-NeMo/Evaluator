@@ -17,7 +17,6 @@
 
 import argparse
 import json
-import logging
 import os
 import sys
 from pathlib import Path
@@ -35,6 +34,9 @@ from nemo_evaluator.byob.defaults import (
     DEFAULT_TIMEOUT_SECONDS,
 )
 from nemo_evaluator.byob.eval_logic import import_benchmark, run_eval_loop
+from nemo_evaluator.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def create_session(
@@ -163,6 +165,123 @@ def call_model_completions(
     return response.json()["choices"][0]["text"]
 
 
+def check_requirements(requirements: List[str]) -> List[str]:
+    """Validate that declared requirements are installed.
+
+    Uses ``importlib.metadata.version()`` and ``packaging.version.Version``
+    to verify each requirement is installed and meets version constraints.
+
+    Args:
+        requirements: List of PEP 508 requirement strings
+            (e.g. ``["numpy>=1.20", "pandas"]``).
+
+    Returns:
+        List of warning messages for missing or incompatible packages.
+        Empty list means all requirements are satisfied.
+    """
+    import importlib.metadata
+    import re
+
+    warnings = []
+    for req_str in requirements:
+        req_str = req_str.strip()
+        if not req_str:
+            continue
+
+        # Parse package name and optional version specifier
+        # Handles: "numpy", "numpy>=1.20", "numpy>=1.20,<2.0", "numpy==1.24"
+        match = re.match(r"^([a-zA-Z0-9_.-]+)\s*(.*)?$", req_str)
+        if not match:
+            warnings.append(f"Cannot parse requirement: {req_str}")
+            continue
+
+        pkg_name = match.group(1)
+        version_spec = (match.group(2) or "").strip()
+
+        try:
+            installed_version = importlib.metadata.version(pkg_name)
+        except importlib.metadata.PackageNotFoundError:
+            warnings.append(f"Missing package: {pkg_name} (required: {req_str})")
+            continue
+
+        if version_spec:
+            try:
+                from packaging.version import Version
+                from packaging.specifiers import SpecifierSet
+                spec = SpecifierSet(version_spec)
+                if Version(installed_version) not in spec:
+                    warnings.append(
+                        f"Version mismatch: {pkg_name}=={installed_version} "
+                        f"does not satisfy {req_str}"
+                    )
+            except Exception:
+                # packaging not available or parse error — skip version check
+                pass
+
+    return warnings
+
+
+def ensure_requirements(requirements: List[str]) -> None:
+    """Check declared requirements and install any that are missing.
+
+    First checks which packages are missing or have version mismatches,
+    then installs them via ``pip install``.
+
+    Args:
+        requirements: List of PEP 508 requirement strings.
+    """
+    import subprocess
+
+    warnings = check_requirements(requirements)
+    if not warnings:
+        return
+
+    to_install = []
+    for req_str in requirements:
+        req_str = req_str.strip()
+        if not req_str:
+            continue
+        # Check if this specific requirement triggered a warning
+        import re
+        match = re.match(r"^([a-zA-Z0-9_.-]+)", req_str)
+        if not match:
+            continue
+        pkg_name = match.group(1)
+        if any(pkg_name in w for w in warnings):
+            to_install.append(req_str)
+
+    if not to_install:
+        return
+
+    logger.info(
+        "Installing missing benchmark requirements",
+        packages=to_install,
+    )
+    # Try uv pip first (for uv-managed environments), fall back to pip
+    import shutil
+    uv_bin = shutil.which("uv")
+    if uv_bin:
+        cmd = [uv_bin, "pip", "install", *to_install]
+    else:
+        cmd = [sys.executable, "-m", "pip", "install", *to_install]
+
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=True,
+        )
+        logger.info("Requirements installed successfully", packages=to_install)
+    except subprocess.CalledProcessError as e:
+        logger.error(
+            "Failed to install requirements",
+            packages=to_install, cmd=" ".join(cmd),
+            stderr=e.stderr.strip() if e.stderr else "",
+        )
+        raise RuntimeError(
+            f"Failed to install benchmark requirements {to_install}: "
+            f"{e.stderr.strip() if e.stderr else 'unknown error'}"
+        ) from e
+
+
 def main():
     """CLI entrypoint for BYOB runner."""
     parser = argparse.ArgumentParser(
@@ -246,12 +365,6 @@ def main():
         help="Raise error on any skipped sample (missing field or model error)",
     )
     parser.add_argument(
-        "--log-format",
-        choices=["text", "json"],
-        default="text",
-        help="Log output format: text (default) or json",
-    )
-    parser.add_argument(
         "--max-retries",
         type=int,
         default=3,
@@ -263,26 +376,14 @@ def main():
         default=0.5,
         help="Backoff factor for exponential retry delay (default: 0.5)",
     )
+    parser.add_argument(
+        "--parallelism",
+        type=int,
+        default=1,
+        help="Number of concurrent evaluation threads (default: 1, sequential)",
+    )
 
     args = parser.parse_args()
-
-    # Configure JSON logging if requested
-    if args.log_format == "json":
-        class JsonFormatter(logging.Formatter):
-            def format(self, record):
-                log_entry = {
-                    "timestamp": self.formatTime(record),
-                    "level": record.levelname,
-                    "message": record.getMessage(),
-                    "logger": record.name,
-                }
-                return json.dumps(log_entry)
-
-        handler = logging.StreamHandler()
-        handler.setFormatter(JsonFormatter())
-        byob_logger = logging.getLogger("nemo_evaluator.byob")
-        byob_logger.addHandler(handler)
-        byob_logger.setLevel(logging.INFO)
 
     # Resolve API key from environment variable
     api_key = None
@@ -292,8 +393,15 @@ def main():
     # Import benchmark using shared logic
     bench = import_benchmark(args.benchmark_module, args.benchmark_name)
 
+    # Install missing requirements declared by the benchmark
+    if bench.requirements:
+        ensure_requirements(bench.requirements)
+
     # Load dataset
-    dataset = load_dataset(args.dataset, limit=args.limit_samples)
+    dataset = load_dataset(
+        args.dataset, limit=args.limit_samples,
+        field_mapping=bench.field_mapping,
+    )
 
     # Create session with connection pooling and retry
     session = create_session(
@@ -337,6 +445,7 @@ def main():
         endpoint_type=args.model_type,
         save_predictions=args.save_predictions,
         fail_on_skip=args.fail_on_skip,
+        parallelism=args.parallelism,
     )
 
     # Aggregate scores

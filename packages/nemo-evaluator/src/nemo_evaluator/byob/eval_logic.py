@@ -16,8 +16,9 @@
 """Shared BYOB evaluation logic for both subprocess and native modes."""
 
 import importlib
-import logging
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Protocol, Tuple
@@ -35,8 +36,9 @@ from nemo_evaluator.byob.decorators import (
     clear_registry,
     get_registered_benchmarks,
 )
+from nemo_evaluator.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -201,6 +203,7 @@ def run_eval_loop(
     show_progress: bool = True,
     max_consecutive_errors: int = 0,
     fail_on_skip: bool = False,
+    parallelism: int = 1,
 ) -> Tuple[List[Dict], List[SampleResult]]:
     """Core evaluation loop shared between subprocess and native modes.
 
@@ -219,6 +222,8 @@ def run_eval_loop(
         show_progress: If True, log progress periodically.
         max_consecutive_errors: If > 0, abort after N consecutive failures.
         fail_on_skip: If True, raise RuntimeError on any skipped sample.
+        parallelism: Number of concurrent evaluation threads. When > 1,
+            samples are evaluated in parallel using a ThreadPoolExecutor.
 
     Returns:
         Tuple of (all_scores, all_predictions).
@@ -226,6 +231,45 @@ def run_eval_loop(
     if strategy is None:
         strategy = StandardStrategy()
 
+    if parallelism > 1 and len(dataset) > 1:
+        return _run_eval_loop_parallel(
+            bench=bench,
+            dataset=dataset,
+            model_call_fn=model_call_fn,
+            endpoint_type=endpoint_type,
+            strategy=strategy,
+            save_predictions=save_predictions,
+            show_progress=show_progress,
+            max_consecutive_errors=max_consecutive_errors,
+            fail_on_skip=fail_on_skip,
+            parallelism=parallelism,
+        )
+
+    return _run_eval_loop_sequential(
+        bench=bench,
+        dataset=dataset,
+        model_call_fn=model_call_fn,
+        endpoint_type=endpoint_type,
+        strategy=strategy,
+        save_predictions=save_predictions,
+        show_progress=show_progress,
+        max_consecutive_errors=max_consecutive_errors,
+        fail_on_skip=fail_on_skip,
+    )
+
+
+def _run_eval_loop_sequential(
+    bench: BenchmarkDefinition,
+    dataset: List[Dict],
+    model_call_fn: Callable[[str, str], str],
+    endpoint_type: str,
+    strategy: EvalStrategy,
+    save_predictions: bool = False,
+    show_progress: bool = True,
+    max_consecutive_errors: int = 0,
+    fail_on_skip: bool = False,
+) -> Tuple[List[Dict], List[SampleResult]]:
+    """Sequential evaluation loop (original behavior)."""
     all_scores = []
     all_predictions: List[SampleResult] = []
     total = len(dataset)
@@ -247,7 +291,7 @@ def run_eval_loop(
             if save_predictions and prediction:
                 all_predictions.append(prediction)
             msg = f"Sample {idx} failed: {prediction.error if prediction else 'unknown'}"
-            logger.warning(msg)
+            logger.warning("Sample failed", sample_id=idx, error=prediction.error if prediction else "unknown")
             if fail_on_skip:
                 raise RuntimeError(msg)
             if max_consecutive_errors > 0 and consecutive_errors >= max_consecutive_errors:
@@ -269,15 +313,129 @@ def run_eval_loop(
             processed = idx + 1
             if processed % progress_interval == 0 or processed == total:
                 logger.info(
-                    "Progress: %d/%d (%.0f%%) - scored=%d, skipped=%d",
-                    processed, total, (processed / total) * 100,
-                    scored_count, skipped_count,
+                    "Evaluation progress",
+                    processed=processed, total=total,
+                    pct=round((processed / total) * 100),
+                    scored=scored_count, skipped=skipped_count,
                 )
 
     if show_progress:
         logger.info(
-            "Evaluation complete: %d scored, %d skipped out of %d total",
-            scored_count, skipped_count, total,
+            "Evaluation complete",
+            scored=scored_count, skipped=skipped_count, total=total,
+        )
+
+    return all_scores, all_predictions
+
+
+def _run_eval_loop_parallel(
+    bench: BenchmarkDefinition,
+    dataset: List[Dict],
+    model_call_fn: Callable[[str, str], str],
+    endpoint_type: str,
+    strategy: EvalStrategy,
+    save_predictions: bool = False,
+    show_progress: bool = True,
+    max_consecutive_errors: int = 0,
+    fail_on_skip: bool = False,
+    parallelism: int = 4,
+) -> Tuple[List[Dict], List[SampleResult]]:
+    """Parallel evaluation loop using ThreadPoolExecutor.
+
+    Maintains sample ordering in results regardless of completion order.
+    Thread-safe bookkeeping via a lock for counters and error tracking.
+    """
+    total = len(dataset)
+
+    # Pre-allocate result slots indexed by sample position
+    results: List[Optional[Tuple[Optional[Dict], Optional[SampleResult]]]] = [None] * total
+
+    # Thread-safe counters
+    lock = threading.Lock()
+    scored_count = 0
+    skipped_count = 0
+    consecutive_errors = 0
+    abort_error: Optional[RuntimeError] = None
+
+    progress_interval = max(1, min(10, total // 10)) if total > 0 else 1
+
+    def evaluate_one(idx: int, row: Dict) -> Tuple[int, Optional[Dict], Optional[SampleResult]]:
+        scores, prediction = strategy.evaluate_sample(
+            idx, row, bench, model_call_fn, endpoint_type
+        )
+        return idx, scores, prediction
+
+    with ThreadPoolExecutor(max_workers=parallelism) as executor:
+        futures = {}
+        for idx, row in enumerate(dataset):
+            future = executor.submit(evaluate_one, idx, row)
+            futures[future] = idx
+
+        for future in as_completed(futures):
+            idx = futures[future]
+            try:
+                _, scores, prediction = future.result()
+            except Exception as e:
+                # Unexpected exception from the thread itself
+                scores = None
+                prediction = SampleResult(
+                    sample_id=idx, prompt="", response=None,
+                    target="", scores=None,
+                    status="skipped_model_error", error=str(e),
+                )
+
+            results[idx] = (scores, prediction)
+
+            with lock:
+                if scores is None:
+                    skipped_count += 1
+                    consecutive_errors += 1
+                    msg = f"Sample {idx} failed: {prediction.error if prediction else 'unknown'}"
+                    logger.warning("Sample failed", sample_id=idx, error=prediction.error if prediction else "unknown")
+                    if fail_on_skip and abort_error is None:
+                        abort_error = RuntimeError(msg)
+                    if (max_consecutive_errors > 0
+                            and consecutive_errors >= max_consecutive_errors
+                            and abort_error is None):
+                        abort_error = RuntimeError(
+                            f"Aborting: {consecutive_errors} consecutive errors "
+                            f"reached limit of {max_consecutive_errors}"
+                        )
+                else:
+                    consecutive_errors = 0
+                    scored_count += 1
+
+                if show_progress and total > 0:
+                    processed = scored_count + skipped_count
+                    if processed % progress_interval == 0 or processed == total:
+                        logger.info(
+                            "Evaluation progress",
+                            processed=processed, total=total,
+                            pct=round((processed / total) * 100),
+                            scored=scored_count, skipped=skipped_count,
+                        )
+
+    # Check for abort conditions after all futures complete
+    if abort_error is not None:
+        raise abort_error
+
+    # Collect results in original order
+    all_scores = []
+    all_predictions: List[SampleResult] = []
+    for idx in range(total):
+        result_pair = results[idx]
+        if result_pair is None:
+            continue
+        scores, prediction = result_pair
+        if scores is not None:
+            all_scores.append(scores)
+        if save_predictions and prediction is not None:
+            all_predictions.append(prediction)
+
+    if show_progress:
+        logger.info(
+            "Evaluation complete",
+            scored=scored_count, skipped=skipped_count, total=total,
         )
 
     return all_scores, all_predictions

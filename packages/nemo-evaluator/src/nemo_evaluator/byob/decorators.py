@@ -71,6 +71,7 @@ class BenchmarkDefinition:
     target_field: str = "target"
     endpoint_type: str = "chat"
     requirements: List[str] = field(default_factory=list)
+    field_mapping: Optional[Dict[str, str]] = None
     extra_config: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -119,12 +120,13 @@ def _resolve_requirements(requirements, base_dir: Path) -> List[str]:
 
 def benchmark(name: str, dataset: str, prompt: str,
               target_field: str = "target", endpoint_type: str = "chat",
-              requirements=None, **kwargs):
+              requirements=None, field_mapping=None, extra=None, **kwargs):
     """Decorator that registers a function as a BYOB benchmark.
 
     Args:
         name: Human-readable benchmark name.
-        dataset: Path to JSONL dataset file.
+        dataset: Path to JSONL dataset file, or a ``hf://`` URI for
+                 HuggingFace datasets downloaded at runtime.
         prompt: Python format string with {field} placeholders, or path to
                 a template file (.txt, .md, .jinja, .jinja2).
         target_field: JSONL field containing ground truth.
@@ -132,7 +134,15 @@ def benchmark(name: str, dataset: str, prompt: str,
         requirements: Pip dependencies. Either a list of specifiers
                       (e.g., ["rouge-score>=0.1.2"]) or a path to a
                       requirements.txt file. None means no extra deps.
-        **kwargs: Extra configuration passed through to extra_config.
+        field_mapping: Optional dict mapping source field names to target
+                       field names (e.g. ``{"opa": "a", "opb": "b"}``).
+                       Applied after loading the dataset.
+        extra: Framework-specific parameters that map directly to
+               ``config.params.extra`` in the generated framework.yml.
+               Use this for judge configuration, custom settings, etc.
+               Example: ``extra={"judge": {"url": "...", "model_id": "..."}}``.
+        **kwargs: Also merged into extra config (for backward compat).
+                  ``extra`` takes precedence over ``**kwargs`` on conflicts.
     """
     def decorator(fn):
         normalized = _normalize_name(name)
@@ -156,6 +166,11 @@ def benchmark(name: str, dataset: str, prompt: str,
         resolved_prompt = _resolve_prompt(prompt, base_dir)
         resolved_reqs = _resolve_requirements(requirements, base_dir)
 
+        # Merge extra config: kwargs (backward compat) + extra (preferred)
+        merged_extra = dict(kwargs)
+        if extra:
+            merged_extra.update(extra)
+
         defn = BenchmarkDefinition(
             name=name,
             normalized_name=normalized,
@@ -165,7 +180,8 @@ def benchmark(name: str, dataset: str, prompt: str,
             target_field=target_field,
             endpoint_type=endpoint_type,
             requirements=resolved_reqs,
-            extra_config=kwargs,
+            field_mapping=field_mapping,
+            extra_config=merged_extra,
         )
 
         _BENCHMARK_REGISTRY[normalized] = defn
