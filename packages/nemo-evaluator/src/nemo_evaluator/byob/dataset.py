@@ -41,12 +41,13 @@ from __future__ import annotations
 
 import csv
 import json
-import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Protocol, runtime_checkable
 
-logger = logging.getLogger(__name__)
+from nemo_evaluator.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -176,7 +177,7 @@ class HuggingFaceFetcher:
         out_path = cache / ("_".join(parts) + ".jsonl")
 
         if out_path.exists():
-            logger.info("HuggingFace dataset already cached: %s", out_path)
+            logger.info("HuggingFace dataset already cached", path=str(out_path))
             return FetchResult(
                 local_path=out_path,
                 format="jsonl",
@@ -189,10 +190,8 @@ class HuggingFaceFetcher:
             )
 
         logger.info(
-            "Downloading HuggingFace dataset %s (config=%s, split=%s)",
-            dataset_name,
-            config,
-            split,
+            "Downloading HuggingFace dataset",
+            dataset=dataset_name, config=config, split=split,
         )
 
         load_kwargs: Dict[str, str] = {}
@@ -207,7 +206,7 @@ class HuggingFaceFetcher:
         # In that case take the first available split.
         if isinstance(ds, hf_datasets.DatasetDict):
             first_split = next(iter(ds))
-            logger.info("No split specified; using first available split: %s", first_split)
+            logger.info("No split specified; using first available split", split=first_split)
             ds = ds[first_split]
 
         # Write out as JSONL.
@@ -215,7 +214,7 @@ class HuggingFaceFetcher:
             for record in ds:
                 fout.write(json.dumps(record, ensure_ascii=False) + "\n")
 
-        logger.info("Converted HuggingFace dataset to JSONL: %s (%d records)", out_path, len(ds))
+        logger.info("Converted HuggingFace dataset to JSONL", path=str(out_path), records=len(ds))
 
         return FetchResult(
             local_path=out_path,
@@ -232,7 +231,21 @@ class HuggingFaceFetcher:
 
     @staticmethod
     def _parse_uri(uri: str) -> tuple:
-        """Parse ``hf://dataset_name[/config[/split]]``.
+        """Parse ``hf://dataset_name[/config[/split]][?split=X]``.
+
+        Supports two ways to specify the split:
+
+        - **Query parameter** (recommended for namespaced datasets)::
+
+              hf://google/boolq?split=validation
+              hf://CohereForAI/Global-MMLU-Lite/en?split=test
+
+        - **Path segments** (positional)::
+
+              hf://dataset_name                         -> (name, None, None)
+              hf://namespace/dataset                    -> (ns/name, None, None)
+              hf://namespace/dataset/config             -> (ns/name, config, None)
+              hf://namespace/dataset/config/split       -> (ns/name, config, split)
 
         Returns:
             A 3-tuple ``(dataset_name, config_or_None, split_or_None)``.
@@ -244,37 +257,28 @@ class HuggingFaceFetcher:
         if not body:
             raise ValueError(f"Invalid HuggingFace URI (empty body): {uri}")
 
-        # Split on '/' but allow dataset names that contain a namespace
-        # separator (e.g. ``org/dataset``).  Strategy: split into at most
-        # 4 parts -- the first two may form the namespaced dataset name.
+        # Extract ?split=X query parameter if present
+        query_split = None
+        if "?" in body:
+            body, query = body.split("?", 1)
+            for param in query.split("&"):
+                if param.startswith("split="):
+                    query_split = param[len("split="):]
+
         segments = [s for s in body.split("/") if s]
         if not segments:
             raise ValueError(f"Invalid HuggingFace URI (empty body): {uri}")
 
-        # Heuristic: HuggingFace dataset names are either "name" or
-        # "namespace/name".  We consume the first segment; if the second
-        # segment is lowercase-alpha-ish we check whether it looks more
-        # like a namespace/name combo or a config.  For simplicity we
-        # rely on a convention: if there are exactly two segments and the
-        # first one looks like a namespace (contains no special chars),
-        # treat both as the dataset name.  With 3 segments treat the
-        # first two as the name and the third as config.  With 4 treat
-        # first two as name, third as config, fourth as split.
         if len(segments) == 1:
-            return (segments[0], None, None)
+            return (segments[0], None, query_split)
         elif len(segments) == 2:
-            # Could be "namespace/dataset" or "dataset/config".
-            # Convention: if a '/' separated namespace is expected the
-            # user writes hf://namespace/dataset.  With exactly 2 parts
-            # we treat this as namespace/dataset (no config, no split).
-            return ("/".join(segments[:2]), None, None)
+            return ("/".join(segments[:2]), None, query_split)
         elif len(segments) == 3:
-            return ("/".join(segments[:2]), segments[2], None)
+            return ("/".join(segments[:2]), segments[2], query_split)
         elif len(segments) >= 4:
-            return ("/".join(segments[:2]), segments[2], segments[3])
+            return ("/".join(segments[:2]), segments[2], query_split or segments[3])
 
-        # Unreachable, but keeps mypy happy.
-        return (body, None, None)  # pragma: no cover
+        return (body, None, query_split)  # pragma: no cover
 
 
 # --- Format detection ---
@@ -359,7 +363,7 @@ _LOADERS: Dict[str, Callable[..., List[Dict]]] = {
 
 # --- Fetcher registry ---
 
-_FETCHER_REGISTRY: List[DatasetFetcher] = [LocalFetcher()]
+_FETCHER_REGISTRY: List[DatasetFetcher] = [LocalFetcher(), HuggingFaceFetcher()]
 
 
 def register_fetcher(fetcher: DatasetFetcher) -> None:
@@ -459,10 +463,9 @@ def load_dataset(
     fetcher = get_fetcher_for_uri(uri)
     result = fetcher.fetch(uri)
     logger.info(
-        "Fetched dataset: %s (format=%s, source=%s)",
-        result.local_path,
-        result.format,
-        result.metadata.get("source", "unknown"),
+        "Fetched dataset",
+        path=str(result.local_path), format=result.format,
+        source=result.metadata.get("source", "unknown"),
     )
 
     loader = _LOADERS.get(result.format)
@@ -473,10 +476,10 @@ def load_dataset(
         )
 
     data = loader(result.local_path, limit=limit)
-    logger.info("Loaded %d records from %s", len(data), result.local_path)
+    logger.info("Loaded dataset records", records=len(data), path=str(result.local_path))
 
     if field_mapping is not None:
         data = _remap_fields(data, field_mapping)
-        logger.info("Applied field remapping: %s", field_mapping)
+        logger.info("Applied field remapping", field_mapping=field_mapping)
 
     return data

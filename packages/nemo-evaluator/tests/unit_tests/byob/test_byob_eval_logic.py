@@ -596,7 +596,7 @@ class TestStandardStrategy:
             prompt="Q: {question}\nA:",
             target_field="answer",
             scorer_fn=config_scorer,
-            extra_config={"judge_model": "gpt-4", "temperature": 0.0},
+            extra_config={"judge": {"model_id": "gpt-4"}, "temperature": 0.0},
         )
 
         row = {"question": "Is the sky blue?", "answer": "yes"}
@@ -611,7 +611,7 @@ class TestStandardStrategy:
 
         assert len(received_configs) == 1, \
             "Expected scorer to be called once"
-        assert received_configs[0] == {"judge_model": "gpt-4", "temperature": 0.0}, \
+        assert received_configs[0] == {"judge": {"model_id": "gpt-4"}, "temperature": 0.0}, \
             f"Expected extra_config in ScorerInput.config, got {received_configs[0]}"
 
 

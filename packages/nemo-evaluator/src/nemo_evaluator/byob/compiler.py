@@ -53,6 +53,9 @@ COMMAND_TEMPLATE = (
     "{% if target.api_endpoint.api_key_name is not none %}"
     " --api-key-name {{target.api_endpoint.api_key_name}}"
     "{% endif %}"
+    "{% if config.params.parallelism is not none %}"
+    " --parallelism {{config.params.parallelism}}"
+    "{% endif %}"
 )
 
 
@@ -78,18 +81,29 @@ def _build_fdf(
     Returns:
         FDF dict ready for YAML serialization.
     """
+    extra_params: dict = {
+        "benchmark_module": benchmark_module_ref,
+        "benchmark_name": normalized_name,
+        "dataset": dataset_path,
+        "requirements": bench.requirements,
+    }
+    # Propagate field_mapping if declared
+    if bench.field_mapping:
+        extra_params["field_mapping"] = bench.field_mapping
+    # Propagate judge config(s) from @benchmark kwargs
+    # Supports: judge={...}, judge_1={...}, judge_2={...}, etc.
+    for key, value in bench.extra_config.items():
+        if key == "judge" or (key.startswith("judge_") and key[6:].isdigit()):
+            extra_params[key] = value
+            extra_params["judge_support"] = True
+
     defaults: dict = {
         "config": {
             "params": {
                 "limit_samples": None,
                 "max_new_tokens": DEFAULT_MAX_TOKENS,
                 "temperature": DEFAULT_TEMPERATURE,
-                "extra": {
-                    "benchmark_module": benchmark_module_ref,
-                    "benchmark_name": normalized_name,
-                    "dataset": dataset_path,
-                    "requirements": bench.requirements,
-                },
+                "extra": extra_params,
             },
         },
         "target": {"api_endpoint": {}},

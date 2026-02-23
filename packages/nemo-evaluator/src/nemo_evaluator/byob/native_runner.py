@@ -24,6 +24,9 @@ from nemo_evaluator.byob.eval_logic import (
     import_benchmark,
     run_eval_loop,
 )
+from nemo_evaluator.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class ByobNativeHarness:
@@ -92,13 +95,24 @@ class ByobNativeHarness:
         saved_path = sys.path[:]
         saved_modules = set(sys.modules.keys())
 
+        # Read parallelism from config
+        parallelism = evaluation.config.params.parallelism or 1
+
         try:
             # Import benchmark (clears registry internally)
             bench = import_benchmark(benchmark_module, benchmark_name)
 
+            # Install missing requirements declared by the benchmark
+            if bench.requirements:
+                from nemo_evaluator.byob.runner import ensure_requirements
+                ensure_requirements(bench.requirements)
+
             # Load dataset (import here to avoid circular dependency)
             from nemo_evaluator.byob.dataset import load_dataset
-            dataset = load_dataset(dataset_path, limit=limit_samples)
+            dataset = load_dataset(
+                dataset_path, limit=limit_samples,
+                field_mapping=bench.field_mapping,
+            )
 
             # Run evaluation loop (returns tuple: scores, predictions)
             scores, _predictions = run_eval_loop(
@@ -106,6 +120,7 @@ class ByobNativeHarness:
                 dataset=dataset,
                 model_call_fn=model_call_fn,
                 endpoint_type=endpoint_type,
+                parallelism=parallelism,
             )
 
             # Build result
