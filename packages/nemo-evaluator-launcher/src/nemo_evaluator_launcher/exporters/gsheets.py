@@ -25,6 +25,8 @@ try:
 except ImportError:
     GSPREAD_AVAILABLE = False
 
+from pathlib import Path
+
 from nemo_evaluator_launcher.common.logging_utils import logger
 from nemo_evaluator_launcher.exporters.base import BaseExporter
 from nemo_evaluator_launcher.exporters.registry import register_exporter
@@ -59,14 +61,35 @@ class GSheetsExporter(BaseExporter):
 
         try:
             # Connect to Google Sheets
-            service_account_file = self.config.get("service_account_file")
-
-            if service_account_file:
+            service_account_file = (
+                self.config.get("service_account_file")
+                or gspread.auth.DEFAULT_SERVICE_ACCOUNT_FILENAME
+            )
+            user_credentials_file = (
+                self.config.get("oauth_file")
+                or gspread.auth.DEFAULT_CREDENTIALS_FILENAME
+            )
+            if service_account_file and Path(service_account_file).exists():
                 gc = gspread.service_account(
                     filename=os.path.expanduser(service_account_file)
                 )
+                logger.info(
+                    "Authenticated with service account file",
+                    service_account_file=service_account_file,
+                )
+            elif user_credentials_file and Path(user_credentials_file).exists():
+                gc = gspread.oauth(
+                    credentials_filename=os.path.expanduser(user_credentials_file)
+                )
+                logger.info(
+                    "Authenticated with user credentials file",
+                    user_credentials_file=user_credentials_file,
+                )
             else:
-                gc = gspread.service_account()
+                logger.error(
+                    "No service account or user credentials file found. Please authenticate with ."
+                )
+                return [], [data.job_id for data in data_for_export], []
 
             # Get or create spreadsheet
             spreadsheet_id = self.config.get("spreadsheet_id")
