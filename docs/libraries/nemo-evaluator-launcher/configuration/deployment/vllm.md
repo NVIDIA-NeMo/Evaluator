@@ -38,6 +38,18 @@ deployment:
 - **data_parallel_size**: Number of model replicas (default: 1)
 - **gpu_memory_utilization**: Fraction of GPU memory to use for the model (default: 0.95)
 
+### Multi-Node Multi-Instance Settings
+
+For models that don't fit on a single node but need multiple replicas with HAProxy load balancing:
+
+```yaml
+deployment:
+  multiple_instances: true
+  nodes_per_instance: 2   # Nodes per vLLM instance (default: 1)
+```
+
+- **nodes_per_instance**: Number of nodes each vLLM instance spans. When > 1, the launcher groups nodes into instances, injects `INSTANCE_ID`, `INSTANCE_RANK`, `INSTANCE_MASTER_IP`, `NODES_PER_INSTANCE`, `NUM_INSTANCES`, and `ALL_NODE_IPS` per task, overrides `MASTER_IP` per instance, and configures HAProxy to route only to instance head nodes. Requires `multiple_instances: true` and `execution.deployment.n_tasks` equal to `execution.num_nodes`.
+
 ### Extra Arguments and Endpoints
 
 ```yaml
@@ -88,5 +100,8 @@ The following example configuration files are available in the `examples/` direc
 - `lepton_vllm_llama_3_1_8b_instruct.yaml` - vLLM deployment on Lepton platform
 - `slurm_llama_3_1_8b_instruct.yaml` - vLLM deployment on SLURM cluster
 - `slurm_llama_3_1_8b_instruct_hf.yaml` - vLLM deployment using HuggingFace model ID
+- `slurm_vllm_multinode_ray_tp_pp.yaml` - Single multi-node instance with Ray TP+PP
+- `slurm_vllm_multinode_dp_haproxy.yaml` - Multiple single-node instances with HAProxy
+- `slurm_vllm_multinode_multiinstance_ray_tp_pp.yaml` - Multiple multi-node instances with Ray TP+PP and HAProxy
 
 Use `nemo-evaluator-launcher run --dry-run` to check your configuration before running.

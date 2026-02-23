@@ -138,6 +138,105 @@ evaluation:
     - name: hellaswag
 ```
 
+### Multi-Node Multi-Instance Deployment
+
+For models too large to fit on a single node (e.g., DeepSeek-R1 requiring 2 nodes per instance), you can run multiple instances across nodes with HAProxy load balancing. Each instance spans multiple nodes using Ray tensor/pipeline parallelism.
+
+**Architecture** (4 nodes total, 2 instances of 2 nodes each):
+- Instance 0 (nodes 0,1): Ray head + worker, vLLM on :8000
+- Instance 1 (nodes 2,3): Ray head + worker, vLLM on :8000
+- HAProxy: distributes requests across both instances
+
+```yaml
+defaults:
+  - execution: slurm/default
+  - deployment: vllm
+  - _self_
+
+execution:
+  hostname: slurm.example.com
+  username: ${oc.env:USER}
+  account: my-account
+  output_dir: /shared/results
+  num_nodes: 4  # Total SLURM nodes: 2 instances × 2 nodes each
+  deployment:
+    n_tasks: ${execution.num_nodes}  # Must match num_nodes
+  mounts:
+    deployment:
+      /path/to/hf_home: /root/.cache/huggingface
+    mount_home: false
+  env_vars:
+    deployment:
+      VLLM_USE_RAY_COMPILED_DAG_CHANNEL_TYPE: 'shm'
+      HF_TOKEN: ${oc.env:HF_TOKEN}  # Required if downloading model from HuggingFace
+
+deployment:
+  image: vllm/vllm-openai:v0.15.1
+  multiple_instances: true   # Enable HAProxy load balancing across instances
+  nodes_per_instance: 2      # Each instance spans 2 nodes
+  checkpoint_path: null
+  hf_model_handle: deepseek-ai/DeepSeek-R1
+  served_model_name: deepseek-ai/DeepSeek-R1
+  tensor_parallel_size: 8
+  pipeline_parallel_size: 2
+  data_parallel_size: 1
+  port: 8000
+  extra_args: "--disable-custom-all-reduce --distributed-executor-backend ray --enforce-eager"
+  pre_cmd: |
+      # Fixed ports for Ray services to avoid conflicts between instances
+      RAY_PORT=6379
+      NODE_PORT=8266
+      OBJ_PORT=8267
+      RAY_FIXED_PORTS="--node-manager-port=$NODE_PORT --object-manager-port=$OBJ_PORT --metrics-export-port=8269 --dashboard-agent-grpc-port=8270 --dashboard-agent-listen-port=8271 --runtime-env-agent-port=8272"
+
+      # INSTANCE_RANK is injected by the launcher: 0 = head node, 1+ = worker nodes
+      if [ "$INSTANCE_RANK" -eq 0 ]; then
+          # Head node: set VLLM_HOST_IP so vLLM advertises the correct routable IP to Ray
+          export VLLM_HOST_IP=$MASTER_IP
+          # Start Ray head and wait for all worker nodes in this instance to join
+          ray start --head --port=$RAY_PORT $RAY_FIXED_PORTS
+          export RAY_ADDRESS=$MASTER_IP:$RAY_PORT
+          until [ "$(ray status 2>/dev/null | grep -c 'node_')" -ge "$NODES_PER_INSTANCE" ]; do
+              sleep 10
+          done
+          ray status
+      else
+          # Worker node: connect to the head node's Ray cluster and block until terminated
+          until ray start --address=$MASTER_IP:$RAY_PORT $RAY_FIXED_PORTS --block 2>/dev/null; do
+              sleep 5
+          done
+      fi
+
+evaluation:
+  nemo_evaluator_config:
+    config:
+      params:
+        parallelism: 128
+        request_timeout: 3600
+        temperature: 0.6
+        top_p: 0.95
+        max_new_tokens: 32768
+  tasks:
+    - name: gsm8k_cot_instruct
+```
+
+Key parameters:
+- **`deployment.nodes_per_instance`**: Number of nodes per vLLM instance (default: 1)
+- **`deployment.multiple_instances: true`**: Required — enables HAProxy load balancing
+- **`execution.deployment.n_tasks`**: Must equal `num_nodes` (one srun task per node)
+- **`execution.env_vars.deployment`**: Environment variables passed into the deployment container
+
+The launcher automatically injects per-task variables inside the container:
+- **`INSTANCE_ID`**: Which instance this task belongs to (0, 1, ...)
+- **`INSTANCE_RANK`**: Rank within the instance (0 = head, 1+ = worker)
+- **`INSTANCE_MASTER_IP`**: IP of the head node for this instance
+- **`MASTER_IP`**: Overridden to `INSTANCE_MASTER_IP` so Ray connects within the instance
+- **`NODES_PER_INSTANCE`**: Number of nodes per instance
+- **`NUM_INSTANCES`**: Total number of instances
+- **`ALL_NODE_IPS`**: Comma-separated list of all node IPs
+
+See the full example at `examples/slurm_vllm_multinode_multiinstance_ray_tp_pp.yaml`.
+
 ### Tasks Requiring Dataset Mounting
 
 Some tasks require access to local datasets stored on the cluster's shared filesystem:

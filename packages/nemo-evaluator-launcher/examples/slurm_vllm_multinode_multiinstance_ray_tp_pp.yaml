@@ -1,0 +1,137 @@
+#
+# Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# ==============================================================================
+# Multi-Node Multi-Instance SLURM Deployment: DeepSeek-R1 with HAProxy
+# ==============================================================================
+# This configuration demonstrates how to run evaluations with DeepSeek-R1
+# deployed as multiple instances across SLURM nodes, each instance spanning
+# multiple nodes using Ray tensor and pipeline parallelism, with HAProxy
+# load-balancing across instances.
+#
+# Architecture:
+#   4 nodes total, 2 instances of 2 nodes each:
+#     Instance 0 (nodes 0,1): Ray head + worker, vLLM on :8000
+#     Instance 1 (nodes 2,3): Ray head + worker, vLLM on :8000
+#     HAProxy: distributes requests across Instance 0 and Instance 1
+#
+# How to use:
+#
+# 1. copy this file locally or clone the repository
+# 2. (optional) set the required values in the config file. Alternatively, you can pass them later with -o cli arguments, e.g.
+#    -o execution.hostname=my-cluster.com -o execution.output_dir=/absolute/path/on/cluster -o execution.account=my-account etc.
+# 3. (optional) run with 10 samples for quick testing - add the following flag to the command below
+#    -o ++evaluation.nemo_evaluator_config.config.params.limit_samples=10
+# 4. run full evaluation:
+#    nemo-evaluator-launcher run --config path/to/slurm_vllm_multinode_multiinstance_ray_tp_pp.yaml
+#
+# ⚠️  WARNING:
+#     Always run full evaluations (without limit_samples) for actual benchmark results.
+#     Using a subset of samples is solely for testing configuration and setup.
+#     Results from such test runs should NEVER be used to compare models or
+#     report benchmark performance.
+
+# Model Details:
+# - Model: deepseek-ai/DeepSeek-R1
+# - Hardware: 4 nodes with 8xH100 GPUs each (32 H100 GPUs total)
+# - 2 instances, each spanning 2 nodes (16 GPUs per instance)
+# - tensor_parallel_size: 8 (within node parallelism)
+# - pipeline_parallel_size: 2 (across node parallelism within each instance)
+#
+# Multi-Node Multi-Instance Configuration:
+# - execution.num_nodes: Total number of SLURM nodes (4)
+# - execution.deployment.n_tasks: Must match num_nodes (4)
+# - deployment.nodes_per_instance: Nodes per vLLM instance (2)
+# - deployment.multiple_instances: true (enables HAProxy load balancing)
+# - deployment.tensor_parallel_size: GPU parallelism within a single node
+# - deployment.pipeline_parallel_size: Model parallelism across nodes within an instance
+#
+# The launcher injects the following variables per task inside the container:
+#   INSTANCE_ID, INSTANCE_RANK, INSTANCE_MASTER_IP, MASTER_IP (overridden),
+#   NODES_PER_INSTANCE, NUM_INSTANCES, ALL_NODE_IPS
+# The pre_cmd uses INSTANCE_RANK (instead of SLURM_PROCID) to determine
+# head vs worker behavior within each instance.
+# ==============================================================================
+
+defaults:
+  - execution: slurm/default
+  - deployment: vllm
+  - _self_
+
+execution:
+  hostname: ???  # SLURM headnode (login) hostname (required)
+  username: ${oc.env:USER}
+  account: ???  # SLURM account allocation (required)
+  output_dir: ???  # ABSOLUTE path accessible to SLURM compute nodes (required)
+  num_nodes: 4  # Total SLURM nodes: 2 instances × 2 nodes each
+  deployment:
+    n_tasks: ${execution.num_nodes}  # Must match num_nodes
+  mounts:
+    deployment:
+      /path/to/hf_home: /root/.cache/huggingface
+    mount_home: false
+  env_vars:
+    deployment:
+      VLLM_USE_RAY_COMPILED_DAG_CHANNEL_TYPE: 'shm'
+      HF_TOKEN: ${oc.env:HF_TOKEN}
+
+deployment:
+  image: vllm/vllm-openai:v0.15.1
+  multiple_instances: true   # Enable HAProxy load balancing across instances
+  nodes_per_instance: 2      # Each instance spans 2 nodes
+  checkpoint_path: null
+  hf_model_handle: deepseek-ai/DeepSeek-R1
+  served_model_name: deepseek-ai/DeepSeek-R1
+  tensor_parallel_size: 8
+  pipeline_parallel_size: 2
+  data_parallel_size: 1
+  port: 8000
+  extra_args: "--disable-custom-all-reduce --distributed-executor-backend ray --enforce-eager"
+  pre_cmd: |
+      # Fixed ports for Ray services to avoid conflicts between instances
+      RAY_PORT=6379
+      NODE_PORT=8266
+      OBJ_PORT=8267
+      RAY_FIXED_PORTS="--node-manager-port=$NODE_PORT --object-manager-port=$OBJ_PORT --metrics-export-port=8269 --dashboard-agent-grpc-port=8270 --dashboard-agent-listen-port=8271 --runtime-env-agent-port=8272"
+
+      # INSTANCE_RANK is injected by the launcher: 0 = head node, 1+ = worker nodes
+      if [ "$INSTANCE_RANK" -eq 0 ]; then
+          # Head node: set VLLM_HOST_IP so vLLM advertises the correct routable IP to Ray
+          export VLLM_HOST_IP=$MASTER_IP
+          # Start Ray head and wait for all worker nodes in this instance to join
+          ray start --head --port=$RAY_PORT $RAY_FIXED_PORTS
+          export RAY_ADDRESS=$MASTER_IP:$RAY_PORT
+          until [ "$(ray status 2>/dev/null | grep -c 'node_')" -ge "$NODES_PER_INSTANCE" ]; do
+              sleep 10
+          done
+          ray status
+      else
+          # Worker node: connect to the head node's Ray cluster and block until terminated
+          until ray start --address=$MASTER_IP:$RAY_PORT $RAY_FIXED_PORTS --block 2>/dev/null; do
+              sleep 5
+          done
+      fi
+
+evaluation:
+  nemo_evaluator_config:
+    config:
+      params:
+        parallelism: 128
+        request_timeout: 3600
+        temperature: 0.6
+        top_p: 0.95
+        max_new_tokens: 32768
+  tasks:
+    - name: gsm8k_cot_instruct

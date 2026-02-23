@@ -31,6 +31,8 @@ from nemo_evaluator_launcher.executors.slurm.executor import (
     SlurmExecutor,
     _create_slurm_sbatch_script,
     _generate_autoresume_handler,
+    _generate_haproxy_config_with_placeholders,
+    _validate_multi_node_multi_instance_config,
 )
 
 
@@ -2590,3 +2592,265 @@ class TestSlurmExecutorKillJob:
 
         with pytest.raises(RuntimeError, match="Could not find or kill job"):
             SlurmExecutor.kill_job("fail123.0")
+
+
+class TestMultiNodeMultiInstance:
+    """Test multi-node multi-instance deployment (nodes_per_instance > 1)."""
+
+    @pytest.fixture
+    def base_config(self):
+        """Base configuration for testing."""
+        return {
+            "deployment": {
+                "type": "vllm",
+                "image": "test-image:latest",
+                "command": "test-command",
+                "served_model_name": "test-model",
+                "port": 8000,
+                "endpoints": {
+                    "health": "/health",
+                },
+            },
+            "execution": {
+                "type": "slurm",
+                "output_dir": "/test/output",
+                "walltime": "01:00:00",
+                "account": "test-account",
+                "partition": "test-partition",
+                "num_nodes": 1,
+                "ntasks_per_node": 1,
+                "subproject": "test-subproject",
+            },
+            "evaluation": {"env_vars": {}},
+            "target": {"api_endpoint": {"url": "http://localhost:8000/v1"}},
+        }
+
+    @pytest.fixture
+    def mock_task(self):
+        """Mock task configuration."""
+        return OmegaConf.create({"name": "test_task"})
+
+    @pytest.fixture
+    def mock_dependencies(self):
+        """Mock external dependencies used by _create_slurm_sbatch_script."""
+        with (
+            patch(
+                "nemo_evaluator_launcher.executors.slurm.executor.load_tasks_mapping"
+            ) as mock_load_tasks,
+            patch(
+                "nemo_evaluator_launcher.executors.slurm.executor.get_task_definition_for_job"
+            ) as mock_get_task_def,
+            patch(
+                "nemo_evaluator_launcher.common.helpers.get_eval_factory_command"
+            ) as mock_get_eval_command,
+            patch(
+                "nemo_evaluator_launcher.common.helpers.get_served_model_name"
+            ) as mock_get_model_name,
+        ):
+            mock_load_tasks.return_value = {}
+            mock_get_task_def.return_value = {
+                "container": "test-eval-container:latest",
+                "required_env_vars": [],
+                "endpoint_type": "openai",
+                "task": "test_task",
+            }
+            from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+            mock_get_eval_command.return_value = CmdAndReadableComment(
+                cmd="nemo-evaluator run_eval --test", debug="# Test command"
+            )
+            mock_get_model_name.return_value = "test-model"
+
+            yield {
+                "load_tasks_mapping": mock_load_tasks,
+                "get_task_definition_for_job": mock_get_task_def,
+                "get_eval_factory_command": mock_get_eval_command,
+                "get_served_model_name": mock_get_model_name,
+            }
+
+    def test_validation_indivisible_nodes(self):
+        """nodes_per_instance=2 with num_nodes=5 should raise ValueError."""
+        cfg = OmegaConf.create(
+            {
+                "deployment": {
+                    "type": "vllm",
+                    "nodes_per_instance": 2,
+                    "multiple_instances": True,
+                },
+                "execution": {
+                    "num_nodes": 5,
+                    "deployment": {"n_tasks": 5},
+                },
+            }
+        )
+        with pytest.raises(ValueError, match="must be divisible by"):
+            _validate_multi_node_multi_instance_config(cfg)
+
+    def test_validation_missing_multiple_instances(self):
+        """nodes_per_instance=2 without multiple_instances should raise ValueError."""
+        cfg = OmegaConf.create(
+            {
+                "deployment": {
+                    "type": "vllm",
+                    "nodes_per_instance": 2,
+                    "multiple_instances": False,
+                },
+                "execution": {
+                    "num_nodes": 4,
+                    "deployment": {"n_tasks": 4},
+                },
+            }
+        )
+        with pytest.raises(
+            ValueError, match="requires deployment.multiple_instances=True"
+        ):
+            _validate_multi_node_multi_instance_config(cfg)
+
+    def test_validation_n_tasks_mismatch(self):
+        """nodes_per_instance=2 with n_tasks != num_nodes should raise ValueError."""
+        cfg = OmegaConf.create(
+            {
+                "deployment": {
+                    "type": "vllm",
+                    "nodes_per_instance": 2,
+                    "multiple_instances": True,
+                },
+                "execution": {
+                    "num_nodes": 4,
+                    "deployment": {"n_tasks": 2},
+                },
+            }
+        )
+        with pytest.raises(ValueError, match="n_tasks.*to equal.*num_nodes"):
+            _validate_multi_node_multi_instance_config(cfg)
+
+    def test_backward_compat_no_nodes_per_instance(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """No nodes_per_instance in config produces identical script (default=1)."""
+        # Ensure no nodes_per_instance is set (not in base_config deployment)
+        cfg = OmegaConf.create(base_config)
+
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        # Should NOT have multi-instance specific vars
+        assert "NODES_PER_INSTANCE" not in script
+        assert "NUM_INSTANCES" not in script
+        assert "INSTANCE_ID" not in script
+        assert "INSTANCE_RANK" not in script
+        assert "INSTANCE_MASTER_IP" not in script
+        assert "HEAD_NODE_IPS" not in script
+
+    def test_haproxy_config_head_nodes_only(self, base_config):
+        """4 nodes, 2 per instance: HAProxy config should reference only IP_0 and IP_2."""
+        base_config["execution"]["num_nodes"] = 4
+        base_config["deployment"]["multiple_instances"] = True
+        base_config["deployment"]["nodes_per_instance"] = 2
+        base_config["execution"]["deployment"] = {"n_tasks": 4}
+
+        cfg = OmegaConf.create(base_config)
+        config = _generate_haproxy_config_with_placeholders(cfg)
+
+        assert "{IP_0}" in config
+        assert "{IP_2}" in config
+        # Worker node IPs should NOT be in HAProxy config
+        assert "{IP_1}" not in config
+        assert "{IP_3}" not in config
+
+    def test_script_content_has_instance_vars(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """Verify generated script contains NODES_PER_INSTANCE, NUM_INSTANCES,
+        HEAD_NODE_IPS, INSTANCE_ID, INSTANCE_RANK, INSTANCE_MASTER_IP."""
+        base_config["execution"]["num_nodes"] = 4
+        base_config["deployment"]["multiple_instances"] = True
+        base_config["deployment"]["nodes_per_instance"] = 2
+        base_config["execution"]["deployment"] = {"n_tasks": 4}
+
+        cfg = OmegaConf.create(base_config)
+
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert "NODES_PER_INSTANCE=2" in script
+        assert "NUM_INSTANCES=2" in script
+        assert "HEAD_NODE_IPS" in script
+        assert "INSTANCE_ID" in script
+        assert "INSTANCE_RANK" in script
+        assert "INSTANCE_MASTER_IP" in script
+
+    def test_container_env_includes_multi_instance_vars(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """--container-env includes NODES_PER_INSTANCE,NUM_INSTANCES,ALL_NODE_IPS."""
+        base_config["execution"]["num_nodes"] = 4
+        base_config["deployment"]["multiple_instances"] = True
+        base_config["deployment"]["nodes_per_instance"] = 2
+        base_config["execution"]["deployment"] = {"n_tasks": 4}
+
+        cfg = OmegaConf.create(base_config)
+
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        # Find the --container-env line in the deployment srun command
+        assert "NODES_PER_INSTANCE" in script
+        assert "NUM_INSTANCES" in script
+        assert "ALL_NODE_IPS" in script
+        # Verify they're in the --container-env argument
+        for line in script.splitlines():
+            if "--container-env" in line and "MASTER_IP" in line:
+                assert "NODES_PER_INSTANCE" in line
+                assert "NUM_INSTANCES" in line
+                assert "ALL_NODE_IPS" in line
+                break
+
+    def test_nodes_per_instance_1_is_noop(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """multiple_instances=True, nodes_per_instance=1, num_nodes=3 behaves like existing HAProxy."""
+        base_config["execution"]["num_nodes"] = 3
+        base_config["deployment"]["multiple_instances"] = True
+        base_config["deployment"]["nodes_per_instance"] = 1
+        base_config["execution"]["deployment"] = {"n_tasks": 3}
+
+        cfg = OmegaConf.create(base_config)
+
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        # Should NOT have multi-node multi-instance specific vars
+        assert "NODES_PER_INSTANCE" not in script
+        assert "NUM_INSTANCES" not in script
+        assert "INSTANCE_ID" not in script
+        assert "INSTANCE_RANK" not in script
+        assert "HEAD_NODE_IPS" not in script
+
+        # Should still have standard multi-instance behavior
+        assert "NODES_IPS_ARRAY" in script
+        assert "proxy" in script.lower() or "Proxy" in script

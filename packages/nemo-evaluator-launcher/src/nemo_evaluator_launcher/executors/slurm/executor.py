@@ -518,6 +518,37 @@ class SlurmExecutor(BaseExecutor):
             raise RuntimeError(error_msg)
 
 
+def _validate_multi_node_multi_instance_config(cfg: DictConfig) -> None:
+    """Validate configuration for multi-node multi-instance deployments.
+
+    Args:
+        cfg: The configuration object for the evaluation run.
+
+    Raises:
+        ValueError: If the configuration is invalid.
+    """
+    nodes_per_instance = cfg.deployment.get("nodes_per_instance", 1)
+    if nodes_per_instance < 1:
+        raise ValueError(f"nodes_per_instance must be >= 1, got {nodes_per_instance}")
+    if nodes_per_instance > 1:
+        num_nodes = cfg.execution.num_nodes
+        if num_nodes % nodes_per_instance != 0:
+            raise ValueError(
+                f"num_nodes ({num_nodes}) must be divisible by "
+                f"nodes_per_instance ({nodes_per_instance})"
+            )
+        if not cfg.deployment.get("multiple_instances", False):
+            raise ValueError(
+                "nodes_per_instance > 1 requires deployment.multiple_instances=True"
+            )
+        n_tasks = cfg.execution.get("deployment", {}).get("n_tasks", 1)
+        if n_tasks != num_nodes:
+            raise ValueError(
+                f"nodes_per_instance > 1 requires execution.deployment.n_tasks "
+                f"({n_tasks}) to equal execution.num_nodes ({num_nodes})"
+            )
+
+
 def _create_slurm_sbatch_script(
     cfg: DictConfig,
     task: DictConfig,
@@ -546,6 +577,9 @@ def _create_slurm_sbatch_script(
         container=task.get("container"),
         endpoint_type=task.get("endpoint_type"),
     )
+
+    # Validate multi-node multi-instance configuration
+    _validate_multi_node_multi_instance_config(cfg)
 
     # TODO(public release): convert to template
     s = "#!/bin/bash\n"
@@ -681,7 +715,11 @@ def _create_slurm_sbatch_script(
         health_path = cfg.deployment.endpoints.get("health", "/health")
         # For multi-instance check all node IPs, for single instance check localhost
         if cfg.deployment.get("multiple_instances", False):
-            ip_list = '"${NODES_IPS_ARRAY[@]}"'
+            nodes_per_instance = cfg.deployment.get("nodes_per_instance", 1)
+            if nodes_per_instance > 1:
+                ip_list = '"${HEAD_NODE_IPS[@]}"'  # only head nodes serve HTTP
+            else:
+                ip_list = '"${NODES_IPS_ARRAY[@]}"'  # all nodes serve HTTP
         else:
             ip_list = '"127.0.0.1"'
         s += _get_wait_for_server_handler(
@@ -1514,11 +1552,14 @@ def _generate_haproxy_config_with_placeholders(cfg):
     env = Environment(loader=FileSystemLoader(template_dir))
     template = env.get_template("proxy.cfg.template")
 
-    # Prepare template data with placeholder IPs - use actual number of nodes
+    # Prepare template data with placeholder IPs - one backend per instance head node
     num_nodes = cfg.execution.num_nodes
+    nodes_per_instance = cfg.deployment.get("nodes_per_instance", 1)
+    num_instances = num_nodes // nodes_per_instance
     nodes = []
-    for i in range(num_nodes):
-        nodes.append({"ip": f"{{IP_{i}}}", "port": cfg.deployment.port})
+    for i in range(num_instances):
+        head_idx = i * nodes_per_instance
+        nodes.append({"ip": f"{{IP_{head_idx}}}", "port": cfg.deployment.port})
 
     # Get health check parameters - prefer proxy config, fallback to deployment.endpoints.health
     proxy_config = cfg.execution.get("proxy", {}).get("config", {})
@@ -1612,6 +1653,21 @@ def _generate_deployment_srun_command(
     s += "export MASTER_IP=${NODES_IPS_ARRAY[0]}\n"
     s += 'echo "MASTER_IP: $MASTER_IP"\n'
 
+    # Multi-node multi-instance: export instance metadata and build HEAD_NODE_IPS
+    nodes_per_instance = cfg.deployment.get("nodes_per_instance", 1)
+    if nodes_per_instance > 1:
+        num_nodes = cfg.execution.num_nodes
+        num_instances = num_nodes // nodes_per_instance
+        s += "\n# Multi-node multi-instance metadata\n"
+        s += f"export NODES_PER_INSTANCE={nodes_per_instance}\n"
+        s += f"export NUM_INSTANCES={num_instances}\n"
+        s += 'export ALL_NODE_IPS=$(IFS=,; echo "${NODES_IPS_ARRAY[*]}")\n'
+        s += "HEAD_NODE_IPS=()\n"
+        s += f"for ((g=0; g<{num_instances}; g++)); do\n"
+        s += f'    HEAD_NODE_IPS+=("${{NODES_IPS_ARRAY[$((g * {nodes_per_instance}))]}}")\n'
+        s += "done\n"
+        s += 'echo "HEAD_NODE_IPS: ${HEAD_NODE_IPS[@]}"\n'
+
     # Add debug comment for deployment pre_cmd before srun command
     if debug_comment:
         s += "# Debug contents of deployment pre_cmd\n"
@@ -1643,8 +1699,27 @@ def _generate_deployment_srun_command(
     if "MASTER_IP" not in deployment_env_var_names:
         deployment_env_var_names.append("MASTER_IP")
 
+    # Add multi-node multi-instance env vars
+    if nodes_per_instance > 1:
+        for var in ["NODES_PER_INSTANCE", "NUM_INSTANCES", "ALL_NODE_IPS"]:
+            if var not in deployment_env_var_names:
+                deployment_env_var_names.append(var)
+
     if deployment_env_var_names:
         s += f"--container-env {','.join(deployment_env_var_names)} "
+
+    # Build per-task instance variable injection for multi-node multi-instance
+    instance_prefix = ""
+    if nodes_per_instance > 1:
+        instance_prefix = (
+            f"INSTANCE_ID=$((SLURM_PROCID / {nodes_per_instance})) && "
+            f"INSTANCE_RANK=$((SLURM_PROCID % {nodes_per_instance})) && "
+            "export INSTANCE_ID INSTANCE_RANK && "
+            'IFS="," read -ra _all_ips <<< "$ALL_NODE_IPS" && '
+            f"INSTANCE_MASTER_IP=${{_all_ips[$((INSTANCE_ID * {nodes_per_instance}))]}} && "
+            "export INSTANCE_MASTER_IP && "
+            "export MASTER_IP=$INSTANCE_MASTER_IP && "
+        )
 
     # Wrap deployment command to execute pre_cmd inside container if needed
     if pre_cmd:
@@ -1658,13 +1733,18 @@ def _generate_deployment_srun_command(
         # Escape single quotes in the deployment command for bash -c
         escaped_deployment_cmd = cfg.deployment.command.replace("'", "'\"'\"'")
         wrapped_command = (
-            f"bash -c '{create_pre_script_cmd.cmd} && "
+            f"bash -c '{instance_prefix}{create_pre_script_cmd.cmd} && "
             f"source deployment_pre_cmd.sh && "
             f"{escaped_deployment_cmd}'"
         )
         s += "{} &\n\n".format(wrapped_command)
     else:
-        s += "{} &\n\n".format(cfg.deployment.command)  # run asynchronously
+        if instance_prefix:
+            # Wrap in bash -c to inject instance vars
+            escaped_deployment_cmd = cfg.deployment.command.replace("'", "'\"'\"'")
+            s += "bash -c '{}{}' &\n\n".format(instance_prefix, escaped_deployment_cmd)
+        else:
+            s += "{} &\n\n".format(cfg.deployment.command)  # run asynchronously
 
     s += "SERVER_PID=$!  # capture the PID of the server background srun process\n\n"
 
