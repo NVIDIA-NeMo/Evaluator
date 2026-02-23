@@ -42,10 +42,6 @@ on:
         description: Branch to push the version bump
         required: true
         type: string
-      from-tag:
-        description: Tag to build from
-        required: false
-        type: string
   schedule:
     # Mon-Thu
     - cron: "0 1 * * 1-4"
@@ -88,7 +84,6 @@ jobs:
       gh-release-use-changelog-builder: true
       gh-release-changelog-included-paths: |
         packages/nemo-evaluator/
-      gh-release-from-tag: ${{ inputs.from-tag }}
       publish-docs: false
       packaging: uv
       skip-test-wheel: true
@@ -121,7 +116,6 @@ jobs:
       gh-release-use-changelog-builder: true
       gh-release-changelog-included-paths: |
         packages/nemo-evaluator-launcher/
-      gh-release-from-tag: ${{ inputs.from-tag }}
       publish-docs: false
       packaging: uv
       skip-test-wheel: true
