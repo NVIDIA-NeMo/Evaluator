@@ -40,6 +40,8 @@ defaults:
 # set required execution arguments
 
 env_vars:
+  # if the checkpoint and datasets are already cached, you can set
+  # HF_DATASETS_OFFLINE=1 and TRANSFORMERS_OFFLINE=1 for offline mode
   HF_DATASETS_OFFLINE: lit:0
   TRANSFORMERS_OFFLINE: lit:0
 
@@ -60,8 +62,11 @@ execution:
       /path/to/hf_home: /root/.cache/huggingface
     evaluation:
       /path/to/hf_home: /root/.cache/huggingface
-    mount_home: false   # don't mount home directory
+    mount_home: false # don't mount home directory
 
+# set up deployment as usual
+# the model will be downloaded from Hugging Face during deployment
+# and stored in the HF home directory for later use
 deployment:
   checkpoint_path: null
   hf_model_handle: meta-llama/Llama-3.1-8B-Instruct
@@ -69,13 +74,10 @@ deployment:
   tensor_parallel_size: 1
   data_parallel_size: 8
   extra_args: "--max-model-len 32768"
-  env_vars:
-    HF_DATASETS_OFFLINE: lit:0
-    TRANSFORMERS_OFFLINE: lit:0
 
 evaluation:
   tasks:
-    - name: lm-evaluation-harness.ifeval  # chat benchmark will automatically use v1/chat/completions endpoint
-    - name: gsm8k   # completions benchmark will automatically use v1/completions endpoint
+    - name: lm-evaluation-harness.ifeval # chat benchmark will automatically use v1/chat/completions endpoint
+    - name: gsm8k # completions benchmark will automatically use v1/completions endpoint
 
 # [docs-end-snippet]
