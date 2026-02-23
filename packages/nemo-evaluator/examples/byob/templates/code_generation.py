@@ -26,7 +26,7 @@ Target field: test
 """
 import os
 
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.byob import benchmark, scorer, ScorerInput
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -43,7 +43,7 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     endpoint_type="chat",
 )
 @scorer
-def code_scorer(response: str, target: str, metadata: dict) -> dict:
+def code_scorer(sample: ScorerInput) -> dict:
     """Extract Python code from response and run test assertions.
 
     Extracts code from markdown code blocks if present.
@@ -52,8 +52,8 @@ def code_scorer(response: str, target: str, metadata: dict) -> dict:
     import re
 
     # Extract code from markdown block if present
-    code_match = re.search(r'```(?:python)?\n(.*?)```', response, re.DOTALL)
-    code = code_match.group(1) if code_match else response
+    code_match = re.search(r'```(?:python)?\n(.*?)```', sample.response, re.DOTALL)
+    code = code_match.group(1) if code_match else sample.response
 
     # Clean up common artifacts
     code = code.strip()
@@ -61,7 +61,7 @@ def code_scorer(response: str, target: str, metadata: dict) -> dict:
     try:
         namespace = {}
         exec(code, namespace)
-        exec(target, namespace)
+        exec(sample.target, namespace)
         return {"correct": True, "parsed": True, "error": False}
     except AssertionError:
         return {"correct": False, "parsed": True, "error": False}

@@ -13,25 +13,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Multiple choice benchmark template.
+"""Global-MMLU-Lite benchmark onboarded as a BYOB example.
 
-Suitable for: MMLU, ARC, HellaSwag, MedQA, custom MC datasets.
-Scoring: Extract letter answer (A/B/C/D) from response, compare to target.
+Global-MMLU-Lite is a lightweight, multilingual version of MMLU from
+Cohere Labs, designed to evaluate knowledge and reasoning across 18
+languages and diverse cultural contexts. Dataset is downloaded from
+HuggingFace at runtime.
 
-Dataset fields: question (str), a (str), b (str), c (str), d (str), answer (str: "A"/"B"/"C"/"D")
-Target field: answer
+Source: CohereForAI/Global-MMLU-Lite on HuggingFace (English test split).
+
+Dataset fields (HF): question, option_a, option_b, option_c, option_d,
+                     answer (A/B/C/D), subject, subject_category,
+                     cultural_sensitivity_label
+
+Usage:
+  python -m nemo_evaluator.byob.cli examples/byob/global_mmlu_lite/benchmark.py
 """
-import os
+import re
 
 from nemo_evaluator.byob import benchmark, scorer, ScorerInput
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-
 
 @benchmark(
-    name="multichoice",
-    dataset=os.path.join(_SCRIPT_DIR, "multichoice_data.jsonl"),
+    name="global-mmlu-lite",
+    dataset="hf://CohereForAI/Global-MMLU-Lite/en?split=test",
     prompt=(
+        "The following is a multiple choice question about {subject}.\n\n"
         "{question}\n\n"
         "A) {a}\n"
         "B) {b}\n"
@@ -41,10 +48,18 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     ),
     target_field="answer",
     endpoint_type="chat",
+    requirements=["datasets"],
+    field_mapping={
+        "option_a": "a",
+        "option_b": "b",
+        "option_c": "c",
+        "option_d": "d",
+        "cultural_sensitivity_label": "cultural_sensitivity",
+    },
 )
 @scorer
-def multichoice_scorer(sample: ScorerInput) -> dict:
-    """Extract letter choice from response.
+def global_mmlu_lite_scorer(sample: ScorerInput) -> dict:
+    """Extract letter choice from response and compare to target.
 
     Handles formats like:
     - "A"
@@ -53,8 +68,6 @@ def multichoice_scorer(sample: ScorerInput) -> dict:
     - "B. Because..."
     - "(C)"
     """
-    import re
-
     response_clean = sample.response.strip()
 
     # Try: first character is A-D
@@ -70,11 +83,21 @@ def multichoice_scorer(sample: ScorerInput) -> dict:
         if match:
             predicted = match.group(1).upper()
         else:
-            # Last resort: find any standalone A-D
+            # Last resort: find any standalone A-D in first 50 chars
             match = re.search(r'\b([A-Da-d])\b', response_clean[:50])
             predicted = match.group(1).upper() if match else ""
 
-    return {
-        "correct": predicted == sample.target.strip().upper(),
-        "parsed": bool(predicted),
+    is_correct = predicted == sample.target.strip().upper()
+    is_parsed = bool(predicted)
+
+    scores = {
+        "correct": is_correct,
+        "parsed": is_parsed,
     }
+
+    # Per-category breakdown (e.g., correct_STEM, correct_Medical)
+    category = sample.metadata.get("subject_category")
+    if category:
+        scores[f"correct_{category}"] = is_correct
+
+    return scores

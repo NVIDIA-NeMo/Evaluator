@@ -17,12 +17,12 @@
 
 Quick start::
 
-    from nemo_evaluator.byob import benchmark, scorer
+    from nemo_evaluator.byob import benchmark, scorer, ScorerInput
 
     @benchmark(name="my-qa", dataset="data.jsonl", prompt="Q: {q}\\nA:")
     @scorer
-    def check(response, target, metadata):
-        return {"correct": target.lower() in response.lower()}
+    def check(inp: ScorerInput):
+        return {"correct": inp.target.lower() in inp.response.lower()}
 
 Built-in scorers (import from nemo_evaluator.byob.scorers)::
 
@@ -45,7 +45,8 @@ Scorer composition::
 
     combined = any_of(contains, my_custom_scorer)
 """
-from nemo_evaluator.byob.decorators import benchmark, scorer
+from nemo_evaluator.byob.decorators import benchmark, scorer, ScorerInput
 from nemo_evaluator.byob.scorers import any_of, all_of
+from nemo_evaluator.byob.judge import judge_score
 
-__all__ = ["benchmark", "scorer", "any_of", "all_of"]
+__all__ = ["benchmark", "scorer", "ScorerInput", "any_of", "all_of", "judge_score"]

@@ -67,6 +67,12 @@ def byob_compile(args=None):
         default=False,
         help="Validate benchmark and show configuration without installing",
     )
+    parser.add_argument(
+        "--check-requirements",
+        action="store_true",
+        default=False,
+        help="After compilation, verify all declared requirements are importable",
+    )
     parsed = parser.parse_args(args)
 
     # --list: show installed benchmarks
@@ -128,6 +134,10 @@ def byob_compile(args=None):
             else:
                 print(f"    WARNING: Dataset not found: {ds}", file=sys.stderr)
             print(f"    Mode: {execution_mode}")
+            # Show requirements if declared
+            reqs = fdf["defaults"]["config"]["params"]["extra"].get("requirements", [])
+            if reqs:
+                print(f"    Requirements: {', '.join(reqs)}")
         sys.exit(0)
 
     # Normal compile + install
@@ -151,6 +161,28 @@ def byob_compile(args=None):
         print(f"      --eval_type {eval_type} \\")
         print(f"      --model_url <YOUR_MODEL_URL> \\")
         print(f"      --model_id <YOUR_MODEL_ID>")
+
+    # Check requirements if requested
+    if parsed.check_requirements:
+        from nemo_evaluator.byob.runner import check_requirements
+
+        print("\nRequirements check:")
+        any_failed = False
+        for name, fdf in compiled.items():
+            reqs = fdf["defaults"]["config"]["params"]["extra"].get("requirements", [])
+            if not reqs:
+                print(f"  {name}: no requirements declared")
+                continue
+            warnings = check_requirements(reqs)
+            if warnings:
+                any_failed = True
+                for w in warnings:
+                    print(f"  FAIL: {w}", file=sys.stderr)
+            else:
+                print(f"  {name}: all {len(reqs)} requirement(s) satisfied")
+        if any_failed:
+            print("\nSome requirements are not satisfied.", file=sys.stderr)
+            sys.exit(1)
 
     print(f"\nCompiled {len(compiled)} benchmark(s) successfully.")
 

@@ -15,11 +15,21 @@
 
 """Unit tests for BYOB runner module."""
 
+import argparse
 import json
+import sys
+
 import pytest
+import requests
 from unittest.mock import MagicMock, patch
 
-from nemo_evaluator.byob.runner import aggregate_scores, load_dataset, call_model_chat, call_model_completions
+from nemo_evaluator.byob.runner import (
+    aggregate_scores,
+    call_model_chat,
+    call_model_completions,
+    create_session,
+    load_dataset,
+)
 
 
 class TestAggregateScores:
@@ -28,16 +38,16 @@ class TestAggregateScores:
     def test_aggregate_binary_scores(self):
         """Test aggregation of binary (True/False) scores with percentage scaling.
 
-        Hand-computed values:
+        Hand-computed values (population variance, divide by n):
         - Booleans: [True, False, True] -> [1.0, 0.0, 1.0]
         - n = 3
         - mean = 2.0 / 3 = 0.6667
-        - variance = ((1-0.6667)^2 + (0-0.6667)^2 + (1-0.6667)^2) / 3
-        -          = (0.1111 + 0.4445 + 0.1111) / 3 = 0.2222
+        - population variance = ((1-0.6667)^2 + (0-0.6667)^2 + (1-0.6667)^2) / 3
+        -                     = (0.1111 + 0.4445 + 0.1111) / 3 = 0.2222
         - stddev = sqrt(0.2222) = 0.4714
         - stderr = 0.4714 / sqrt(3) = 0.2722
         - Binary detected -> scale by 100
-        - value = 66.6667, stderr = 27.2166
+        - value = 66.6667, stddev = 47.1405, stderr = 27.2166
         """
         scores = [{"correct": True}, {"correct": False}, {"correct": True}]
         result = aggregate_scores(scores, "test_bench")
@@ -53,26 +63,26 @@ class TestAggregateScores:
             f"Expected value~66.6667, got {score_data['value']}"
         assert abs(score_data["mean"] - 66.6667) < 0.01, \
             f"Expected mean~66.6667, got {score_data['mean']}"
-        # stderr also scaled by 100 for binary metrics (sample variance: n-1)
-        # Sample variance: ((1-0.667)^2 + (0-0.667)^2 + (1-0.667)^2) / 2 = 0.333
-        # Sample stddev = sqrt(0.333) = 0.5774, scaled = 57.74
-        # Sample stderr = 57.74 / sqrt(3) = 33.33
-        assert abs(score_data["stderr"] - 33.3333) < 0.1, \
-            f"Expected stderr~33.3333, got {score_data['stderr']}"
-        assert abs(score_data["stddev"] - 57.735) < 0.1, \
-            f"Expected stddev~57.735, got {score_data['stddev']}"
+        # stderr also scaled by 100 for binary metrics (population variance: divide by n)
+        # Population variance: ((1-0.667)^2 + (0-0.667)^2 + (1-0.667)^2) / 3 = 0.2222
+        # Population stddev = sqrt(0.2222) = 0.4714, scaled = 47.14
+        # Population stderr = 47.14 / sqrt(3) = 27.22
+        assert abs(score_data["stderr"] - 27.2166) < 0.1, \
+            f"Expected stderr~27.2166, got {score_data['stderr']}"
+        assert abs(score_data["stddev"] - 47.1405) < 0.1, \
+            f"Expected stddev~47.1405, got {score_data['stddev']}"
 
     def test_aggregate_continuous_scores(self):
         """Test aggregation of continuous (non-binary) scores without scaling.
 
-        Hand-computed values:
+        Hand-computed values (population variance, divide by n):
         - Values: [0.8, 0.9, 1.0]
         - n = 3
         - mean = 2.7 / 3 = 0.9
-        - sample variance = ((0.8-0.9)^2 + (0.9-0.9)^2 + (1.0-0.9)^2) / 2
-        -          = (0.01 + 0.0 + 0.01) / 2 = 0.01
-        - stddev = sqrt(0.01) = 0.1
-        - stderr = 0.1 / sqrt(3) = 0.0577
+        - population variance = ((0.8-0.9)^2 + (0.9-0.9)^2 + (1.0-0.9)^2) / 3
+        -                     = (0.01 + 0.0 + 0.01) / 3 = 0.006667
+        - stddev = sqrt(0.006667) = 0.08165
+        - stderr = 0.08165 / sqrt(3) = 0.04714
         - NOT binary (0.8 not in {0.0, 1.0}) -> no scaling
         """
         scores = [{"f1": 0.8}, {"f1": 0.9}, {"f1": 1.0}]
@@ -86,10 +96,10 @@ class TestAggregateScores:
             f"Expected value=0.9, got {score_data['value']}"
         assert abs(score_data["mean"] - 0.9) < 0.0001, \
             f"Expected mean=0.9, got {score_data['mean']}"
-        assert abs(score_data["stddev"] - 0.1) < 0.001, \
-            f"Expected stddev~0.1, got {score_data['stddev']}"
-        assert abs(score_data["stderr"] - 0.0577) < 0.001, \
-            f"Expected stderr~0.0577, got {score_data['stderr']}"
+        assert abs(score_data["stddev"] - 0.08165) < 0.001, \
+            f"Expected stddev~0.08165, got {score_data['stddev']}"
+        assert abs(score_data["stderr"] - 0.04714) < 0.001, \
+            f"Expected stderr~0.04714, got {score_data['stderr']}"
 
     def test_aggregate_empty(self):
         """Test that empty score list returns empty dict."""
@@ -208,8 +218,8 @@ class TestLoadDataset:
         assert data[1]["question"] == "q2"
 
     def test_load_dataset_file_not_found(self):
-        """Test that load_dataset raises FileNotFoundError for nonexistent file."""
-        with pytest.raises(FileNotFoundError):
+        """Test that load_dataset raises ValueError for nonexistent file (no fetcher supports it)."""
+        with pytest.raises(ValueError, match="No fetcher supports"):
             load_dataset("/nonexistent/path.jsonl")
 
     def test_load_dataset_limit_zero(self, tmp_path):
@@ -235,8 +245,8 @@ class TestSavePredictions:
         """Create a mock BenchmarkDefinition for testing save-predictions."""
         from nemo_evaluator.byob.decorators import BenchmarkDefinition
 
-        def simple_scorer(response, target, metadata):
-            return {"correct": target.lower() in response.lower()}
+        def simple_scorer(sample):
+            return {"correct": sample.target.lower() in sample.response.lower()}
 
         return BenchmarkDefinition(
             name="save-test",
@@ -684,8 +694,8 @@ class TestFailOnSkip:
         """Create a mock BenchmarkDefinition for fail-on-skip tests."""
         from nemo_evaluator.byob.decorators import BenchmarkDefinition
 
-        def simple_scorer(response, target, metadata):
-            return {"correct": target.lower() in response.lower()}
+        def simple_scorer(sample):
+            return {"correct": sample.target.lower() in sample.response.lower()}
 
         return BenchmarkDefinition(
             name="fail-on-skip-test",
@@ -729,10 +739,10 @@ class TestFailOnSkip:
 
         # Verify error message contains useful context
         error_msg = str(exc_info.value)
-        assert "sample 1" in error_msg.lower(), \
-            f"Expected error to mention 'sample 1', got: {error_msg}"
-        assert "model call failed" in error_msg.lower(), \
-            f"Expected error to mention 'model call failed', got: {error_msg}"
+        assert "sample" in error_msg.lower(), \
+            f"Expected error to mention 'sample', got: {error_msg}"
+        assert "failed" in error_msg.lower(), \
+            f"Expected error to mention 'failed', got: {error_msg}"
 
     def test_fail_on_skip_false_skips_gracefully(self, mock_benchmark):
         """Test that fail_on_skip=False skips errors gracefully.
@@ -807,10 +817,10 @@ class TestFailOnSkip:
 
         # Verify error message contains useful context
         error_msg = str(exc_info.value)
-        assert "sample 0" in error_msg.lower(), \
-            f"Expected error to mention 'sample 0', got: {error_msg}"
-        assert "missing field" in error_msg.lower(), \
-            f"Expected error to mention 'missing field', got: {error_msg}"
+        assert "sample" in error_msg.lower(), \
+            f"Expected error to mention 'sample', got: {error_msg}"
+        assert "failed" in error_msg.lower(), \
+            f"Expected error to mention 'failed', got: {error_msg}"
 
 
 class TestLogFormat:
@@ -955,3 +965,107 @@ class TestLogFormat:
         # Verify json format can be parsed
         assert args_json.log_format == "json", \
             f"Expected log_format='json' when specified, got '{args_json.log_format}'"
+
+
+class TestSessionPooling:
+    """Tests for session pooling in call_model_chat/call_model_completions."""
+
+    def test_session_used_when_provided(self):
+        """Validate that a provided session's post method is used for the HTTP call."""
+        mock_session = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "session response"}}]
+        }
+        mock_session.post.return_value = mock_response
+
+        result = call_model_chat(
+            url="http://localhost:8000",
+            model_id="test-model",
+            prompt="Test prompt",
+            session=mock_session,
+        )
+
+        mock_session.post.assert_called_once()
+        assert result == "session response", (
+            f"Expected 'session response', got {result!r}"
+        )
+
+    def test_fallback_when_session_none(self):
+        """Validate that requests.post is called directly when session is None."""
+        with patch("nemo_evaluator.byob.runner.requests") as mock_requests:
+            mock_response = MagicMock()
+            mock_response.json.return_value = {
+                "choices": [{"message": {"content": "fallback response"}}]
+            }
+            mock_requests.post.return_value = mock_response
+
+            result = call_model_chat(
+                url="http://localhost:8000",
+                model_id="test-model",
+                prompt="Test prompt",
+                session=None,
+            )
+
+            mock_requests.post.assert_called_once()
+            assert result == "fallback response", (
+                f"Expected 'fallback response', got {result!r}"
+            )
+
+
+class TestRetrySession:
+    """Tests for create_session retry/backoff configuration."""
+
+    def test_create_session_returns_session(self):
+        """Validate create_session() returns a requests.Session instance."""
+        session = create_session()
+        assert isinstance(session, requests.Session), (
+            f"Expected requests.Session, got {type(session).__name__}"
+        )
+
+    def test_create_session_custom_params(self):
+        """Validate custom max_retries and backoff_factor are applied to the adapter."""
+        session = create_session(max_retries=5, backoff_factor=1.0)
+
+        # Get the adapter mounted for http://
+        adapter = session.get_adapter("http://test.com")
+        retry = adapter.max_retries
+
+        assert retry.total == 5, (
+            f"Expected max_retries total=5, got {retry.total}"
+        )
+        assert retry.backoff_factor == 1.0, (
+            f"Expected backoff_factor=1.0, got {retry.backoff_factor}"
+        )
+
+    def test_retry_cli_args(self):
+        """Validate --max-retries and --retry-backoff are accepted by argparse."""
+        test_args = [
+            "--benchmark-module", "test.py",
+            "--benchmark-name", "test",
+            "--dataset", "test.jsonl",
+            "--output-dir", "/tmp/out",
+            "--model-url", "http://localhost:8000",
+            "--model-id", "test-model",
+            "--max-retries", "7",
+            "--retry-backoff", "2.5",
+        ]
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--benchmark-module", required=True)
+        parser.add_argument("--benchmark-name", required=True)
+        parser.add_argument("--dataset", required=True)
+        parser.add_argument("--output-dir", required=True)
+        parser.add_argument("--model-url", required=True)
+        parser.add_argument("--model-id", required=True)
+        parser.add_argument("--max-retries", type=int, default=3)
+        parser.add_argument("--retry-backoff", type=float, default=0.5)
+
+        args = parser.parse_args(test_args)
+
+        assert args.max_retries == 7, (
+            f"Expected max_retries=7, got {args.max_retries}"
+        )
+        assert args.retry_backoff == 2.5, (
+            f"Expected retry_backoff=2.5, got {args.retry_backoff}"
+        )

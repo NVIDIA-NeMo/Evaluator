@@ -17,49 +17,67 @@
 
 import argparse
 import json
-import logging
-import math
 import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import requests
+from urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter
 
+from nemo_evaluator.byob.aggregation import aggregate_scores  # noqa: F401 — re-export for backward compat
+from nemo_evaluator.byob.dataset import load_dataset
+from nemo_evaluator.byob.defaults import (
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_TEMPERATURE,
+    DEFAULT_TIMEOUT_SECONDS,
+)
 from nemo_evaluator.byob.eval_logic import import_benchmark, run_eval_loop
+from nemo_evaluator.logging import get_logger
+
+logger = get_logger(__name__)
 
 
-def load_dataset(path: str, limit: Optional[int] = None) -> List[Dict]:
-    """Load JSONL dataset from file.
+def create_session(
+    max_retries: int = 3,
+    backoff_factor: float = 0.5,
+) -> requests.Session:
+    """Create a requests.Session with connection pooling and retry logic.
+
+    Retries on 429 (rate-limit), 500, 502, 503, 504.
+    Does NOT retry on 400 (client error).
 
     Args:
-        path: Path to JSONL file.
-        limit: Optional limit on number of samples to load.
+        max_retries: Maximum number of retries per request.
+        backoff_factor: Multiplier for exponential backoff between retries.
 
     Returns:
-        List of sample dictionaries.
+        Configured requests.Session.
     """
-    data = []
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:  # Skip blank lines
-                continue
-            data.append(json.loads(line))
-
-    if limit and limit > 0:
-        return data[:limit]
-    return data
+    session = requests.Session()
+    retry = Retry(
+        total=max_retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["POST"],
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
 
 
 def call_model_chat(
     url: str,
     model_id: str,
     prompt: str,
-    temperature: float = 0,
-    max_tokens: int = 4096,
+    temperature: float = DEFAULT_TEMPERATURE,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
     api_key: Optional[str] = None,
-    timeout: float = 120,
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    session: Optional[requests.Session] = None,
 ) -> str:
     """Call OpenAI-compatible chat completions endpoint.
 
@@ -71,6 +89,7 @@ def call_model_chat(
         max_tokens: Maximum tokens to generate.
         api_key: Optional Bearer token for Authorization header.
         timeout: Request timeout in seconds.
+        session: Optional requests.Session for connection pooling.
 
     Returns:
         Generated response text.
@@ -91,7 +110,8 @@ def call_model_chat(
         "max_tokens": max_tokens,
     }
 
-    response = requests.post(endpoint, json=payload, headers=headers, timeout=timeout)
+    http = session or requests
+    response = http.post(endpoint, json=payload, headers=headers, timeout=timeout)
     response.raise_for_status()
 
     return response.json()["choices"][0]["message"]["content"]
@@ -101,10 +121,11 @@ def call_model_completions(
     url: str,
     model_id: str,
     prompt: str,
-    temperature: float = 0,
-    max_tokens: int = 4096,
+    temperature: float = DEFAULT_TEMPERATURE,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
     api_key: Optional[str] = None,
-    timeout: float = 120,
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    session: Optional[requests.Session] = None,
 ) -> str:
     """Call OpenAI-compatible completions endpoint.
 
@@ -116,6 +137,7 @@ def call_model_completions(
         max_tokens: Maximum tokens to generate.
         api_key: Optional Bearer token for Authorization header.
         timeout: Request timeout in seconds.
+        session: Optional requests.Session for connection pooling.
 
     Returns:
         Generated response text.
@@ -136,126 +158,128 @@ def call_model_completions(
         "max_tokens": max_tokens,
     }
 
-    response = requests.post(endpoint, json=payload, headers=headers, timeout=timeout)
+    http = session or requests
+    response = http.post(endpoint, json=payload, headers=headers, timeout=timeout)
     response.raise_for_status()
 
     return response.json()["choices"][0]["text"]
 
 
-def aggregate_scores(scores: List[Dict], benchmark_name: str) -> Dict:
-    """Aggregate per-sample scores into summary statistics.
+def check_requirements(requirements: List[str]) -> List[str]:
+    """Validate that declared requirements are installed.
 
-    This is the core aggregation logic:
-    1. Collect all numeric keys (bool, int, float) across all sample dicts.
-    2. For each key:
-       - Convert booleans to 0.0/1.0.
-       - Compute: mean, sample variance (Bessel's correction, /(n-1)), stddev, stderr = stddev / sqrt(n).
-       - If n <= 1: variance=0, stderr=0.
-       - Detect binary: is_binary = all(v in (0.0, 1.0) for v in values).
-       - Binary metrics: scale display values by 100 (percentage).
-       - Round all values to 4 decimal places.
-    3. Output structure conforms to engine expectations.
+    Uses ``importlib.metadata.version()`` and ``packaging.version.Version``
+    to verify each requirement is installed and meets version constraints.
 
     Args:
-        scores: List of score dictionaries from scorer function.
-        benchmark_name: Name of benchmark (used as task name in output).
+        requirements: List of PEP 508 requirement strings
+            (e.g. ``["numpy>=1.20", "pandas"]``).
 
     Returns:
-        Nested dict with structure:
-        {
-            "tasks": {
-                "<benchmark_name>": {
-                    "metrics": {
-                        "pass@1": {
-                            "scores": {
-                                "<key>": {
-                                    "value": N,
-                                    "count": N,
-                                    "mean": N,
-                                    "stderr": N,
-                                    "stddev": N
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        List of warning messages for missing or incompatible packages.
+        Empty list means all requirements are satisfied.
     """
-    if not scores:
-        return {}
+    import importlib.metadata
+    import re
 
-    # Collect all numeric keys across all samples
-    all_keys = set()
-    for score_dict in scores:
-        for key, value in score_dict.items():
-            if isinstance(value, (bool, int, float)):
-                all_keys.add(key)
-
-    # Compute statistics for each key
-    aggregated_scores = {}
-    for key in sorted(all_keys):
-        # Extract values for this key, converting booleans to 0.0/1.0
-        values = []
-        for score_dict in scores:
-            if key in score_dict:
-                val = score_dict[key]
-                if isinstance(val, bool):
-                    values.append(1.0 if val else 0.0)
-                elif isinstance(val, (int, float)):
-                    values.append(float(val))
-
-        if not values:
+    warnings = []
+    for req_str in requirements:
+        req_str = req_str.strip()
+        if not req_str:
             continue
 
-        n = len(values)
-        mean_val = sum(values) / n
+        # Parse package name and optional version specifier
+        # Handles: "numpy", "numpy>=1.20", "numpy>=1.20,<2.0", "numpy==1.24"
+        match = re.match(r"^([a-zA-Z0-9_.-]+)\s*(.*)?$", req_str)
+        if not match:
+            warnings.append(f"Cannot parse requirement: {req_str}")
+            continue
 
-        # Sample variance (Bessel's correction: divide by n-1)
-        if n <= 1:
-            variance = 0.0
-            stddev = 0.0
-            stderr = 0.0
-        else:
-            variance = sum((v - mean_val) ** 2 for v in values) / (n - 1)
-            stddev = math.sqrt(variance)
-            stderr = stddev / math.sqrt(n)
+        pkg_name = match.group(1)
+        version_spec = (match.group(2) or "").strip()
 
-        # Detect binary (all values in {0.0, 1.0})
-        is_binary = all(v in (0.0, 1.0) for v in values)
+        try:
+            installed_version = importlib.metadata.version(pkg_name)
+        except importlib.metadata.PackageNotFoundError:
+            warnings.append(f"Missing package: {pkg_name} (required: {req_str})")
+            continue
 
-        # Scale binary metrics to percentage (0-100)
-        if is_binary:
-            display_value = mean_val * 100
-            display_mean = mean_val * 100
-            display_stderr = stderr * 100
-            display_stddev = stddev * 100
-        else:
-            display_value = mean_val
-            display_mean = mean_val
-            display_stderr = stderr
-            display_stddev = stddev
+        if version_spec:
+            try:
+                from packaging.version import Version
+                from packaging.specifiers import SpecifierSet
+                spec = SpecifierSet(version_spec)
+                if Version(installed_version) not in spec:
+                    warnings.append(
+                        f"Version mismatch: {pkg_name}=={installed_version} "
+                        f"does not satisfy {req_str}"
+                    )
+            except Exception:
+                # packaging not available or parse error — skip version check
+                pass
 
-        # Round to 4 decimal places
-        aggregated_scores[key] = {
-            "value": round(display_value, 4),
-            "count": n,
-            "mean": round(display_mean, 4),
-            "stderr": round(display_stderr, 4),
-            "stddev": round(display_stddev, 4),
-        }
+    return warnings
 
-    return {
-        "tasks": {
-            benchmark_name: {
-                "metrics": {
-                    "pass@1": {
-                        "scores": aggregated_scores
-                    }
-                }
-            }
-        }
-    }
+
+def ensure_requirements(requirements: List[str]) -> None:
+    """Check declared requirements and install any that are missing.
+
+    First checks which packages are missing or have version mismatches,
+    then installs them via ``pip install``.
+
+    Args:
+        requirements: List of PEP 508 requirement strings.
+    """
+    import subprocess
+
+    warnings = check_requirements(requirements)
+    if not warnings:
+        return
+
+    to_install = []
+    for req_str in requirements:
+        req_str = req_str.strip()
+        if not req_str:
+            continue
+        # Check if this specific requirement triggered a warning
+        import re
+        match = re.match(r"^([a-zA-Z0-9_.-]+)", req_str)
+        if not match:
+            continue
+        pkg_name = match.group(1)
+        if any(pkg_name in w for w in warnings):
+            to_install.append(req_str)
+
+    if not to_install:
+        return
+
+    logger.info(
+        "Installing missing benchmark requirements",
+        packages=to_install,
+    )
+    # Try uv pip first (for uv-managed environments), fall back to pip
+    import shutil
+    uv_bin = shutil.which("uv")
+    if uv_bin:
+        cmd = [uv_bin, "pip", "install", *to_install]
+    else:
+        cmd = [sys.executable, "-m", "pip", "install", *to_install]
+
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=True,
+        )
+        logger.info("Requirements installed successfully", packages=to_install)
+    except subprocess.CalledProcessError as e:
+        logger.error(
+            "Failed to install requirements",
+            packages=to_install, cmd=" ".join(cmd),
+            stderr=e.stderr.strip() if e.stderr else "",
+        )
+        raise RuntimeError(
+            f"Failed to install benchmark requirements {to_install}: "
+            f"{e.stderr.strip() if e.stderr else 'unknown error'}"
+        ) from e
 
 
 def main():
@@ -302,13 +326,13 @@ def main():
     parser.add_argument(
         "--temperature",
         type=float,
-        default=0,
+        default=DEFAULT_TEMPERATURE,
         help="Sampling temperature",
     )
     parser.add_argument(
         "--max-tokens",
         type=int,
-        default=4096,
+        default=DEFAULT_MAX_TOKENS,
         help="Maximum generation tokens",
     )
     parser.add_argument(
@@ -331,8 +355,8 @@ def main():
     parser.add_argument(
         "--timeout-per-sample",
         type=float,
-        default=120,
-        help="Timeout in seconds for each model call (default: 120)",
+        default=DEFAULT_TIMEOUT_SECONDS,
+        help=f"Timeout in seconds for each model call (default: {DEFAULT_TIMEOUT_SECONDS})",
     )
     parser.add_argument(
         "--fail-on-skip",
@@ -341,31 +365,25 @@ def main():
         help="Raise error on any skipped sample (missing field or model error)",
     )
     parser.add_argument(
-        "--log-format",
-        choices=["text", "json"],
-        default="text",
-        help="Log output format: text (default) or json",
+        "--max-retries",
+        type=int,
+        default=3,
+        help="Maximum number of HTTP retries per model call (default: 3)",
+    )
+    parser.add_argument(
+        "--retry-backoff",
+        type=float,
+        default=0.5,
+        help="Backoff factor for exponential retry delay (default: 0.5)",
+    )
+    parser.add_argument(
+        "--parallelism",
+        type=int,
+        default=1,
+        help="Number of concurrent evaluation threads (default: 1, sequential)",
     )
 
     args = parser.parse_args()
-
-    # Configure JSON logging if requested
-    if args.log_format == "json":
-        class JsonFormatter(logging.Formatter):
-            def format(self, record):
-                log_entry = {
-                    "timestamp": self.formatTime(record),
-                    "level": record.levelname,
-                    "message": record.getMessage(),
-                    "logger": record.name,
-                }
-                return json.dumps(log_entry)
-
-        handler = logging.StreamHandler()
-        handler.setFormatter(JsonFormatter())
-        byob_logger = logging.getLogger("nemo_evaluator.byob")
-        byob_logger.addHandler(handler)
-        byob_logger.setLevel(logging.INFO)
 
     # Resolve API key from environment variable
     api_key = None
@@ -375,8 +393,21 @@ def main():
     # Import benchmark using shared logic
     bench = import_benchmark(args.benchmark_module, args.benchmark_name)
 
+    # Install missing requirements declared by the benchmark
+    if bench.requirements:
+        ensure_requirements(bench.requirements)
+
     # Load dataset
-    dataset = load_dataset(args.dataset, limit=args.limit_samples)
+    dataset = load_dataset(
+        args.dataset, limit=args.limit_samples,
+        field_mapping=bench.field_mapping,
+    )
+
+    # Create session with connection pooling and retry
+    session = create_session(
+        max_retries=args.max_retries,
+        backoff_factor=args.retry_backoff,
+    )
 
     # Create model_call_fn that wraps the HTTP calls
     timeout = args.timeout_per_sample
@@ -392,6 +423,7 @@ def main():
                 max_tokens=args.max_tokens,
                 api_key=api_key,
                 timeout=timeout,
+                session=session,
             )
         else:
             return call_model_completions(
@@ -402,6 +434,7 @@ def main():
                 max_tokens=args.max_tokens,
                 api_key=api_key,
                 timeout=timeout,
+                session=session,
             )
 
     # Run evaluation loop using shared logic
@@ -412,6 +445,7 @@ def main():
         endpoint_type=args.model_type,
         save_predictions=args.save_predictions,
         fail_on_skip=args.fail_on_skip,
+        parallelism=args.parallelism,
     )
 
     # Aggregate scores

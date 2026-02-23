@@ -13,48 +13,59 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Multiple choice benchmark template.
+"""MedMCQA benchmark onboarded as a BYOB example.
 
-Suitable for: MMLU, ARC, HellaSwag, MedQA, custom MC datasets.
-Scoring: Extract letter answer (A/B/C/D) from response, compare to target.
+MedMCQA is a large-scale multiple-choice QA dataset from Indian medical
+entrance exams (AIIMS & NEET PG), covering 21 medical subjects with ~194K
+questions. Dataset is downloaded from HuggingFace at runtime.
 
-Dataset fields: question (str), a (str), b (str), c (str), d (str), answer (str: "A"/"B"/"C"/"D")
-Target field: answer
+Source: openlifescienceai/medmcqa on HuggingFace (validation split).
+
+Dataset fields (HF): question, opa, opb, opc, opd, cop (0-3), subject_name,
+                     topic_name, exp (explanation)
+
+Usage:
+  python -m nemo_evaluator.byob.cli examples/byob/medmcqa/benchmark.py
 """
-import os
+import re
 
 from nemo_evaluator.byob import benchmark, scorer, ScorerInput
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Map HF integer answer codes to letters
+_COP_TO_LETTER = {"0": "A", "1": "B", "2": "C", "3": "D"}
 
 
 @benchmark(
-    name="multichoice",
-    dataset=os.path.join(_SCRIPT_DIR, "multichoice_data.jsonl"),
+    name="medmcqa",
+    dataset="hf://openlifescienceai/medmcqa?split=validation",
     prompt=(
-        "{question}\n\n"
+        "You are a medical expert taking a licensing examination.\n\n"
+        "Question: {question}\n\n"
         "A) {a}\n"
         "B) {b}\n"
         "C) {c}\n"
         "D) {d}\n\n"
         "Answer with just the letter (A, B, C, or D):"
     ),
-    target_field="answer",
+    target_field="cop",
     endpoint_type="chat",
+    requirements=["datasets"],
+    field_mapping={"opa": "a", "opb": "b", "opc": "c", "opd": "d"},
 )
 @scorer
-def multichoice_scorer(sample: ScorerInput) -> dict:
-    """Extract letter choice from response.
+def medmcqa_scorer(sample: ScorerInput) -> dict:
+    """Extract letter choice from response and compare to target.
 
-    Handles formats like:
+    The HF dataset stores the correct answer as an integer (cop: 0-3).
+    We convert it to a letter (A-D) for comparison.
+
+    Handles response formats like:
     - "A"
     - "A)"
     - "The answer is B"
     - "B. Because..."
     - "(C)"
     """
-    import re
-
     response_clean = sample.response.strip()
 
     # Try: first character is A-D
@@ -70,11 +81,14 @@ def multichoice_scorer(sample: ScorerInput) -> dict:
         if match:
             predicted = match.group(1).upper()
         else:
-            # Last resort: find any standalone A-D
+            # Last resort: find any standalone A-D in first 50 chars
             match = re.search(r'\b([A-Da-d])\b', response_clean[:50])
             predicted = match.group(1).upper() if match else ""
 
+    # Convert HF integer target (0-3) to letter (A-D)
+    target_letter = _COP_TO_LETTER.get(sample.target.strip(), sample.target.strip().upper())
+
     return {
-        "correct": predicted == sample.target.strip().upper(),
+        "correct": predicted == target_letter,
         "parsed": bool(predicted),
     }

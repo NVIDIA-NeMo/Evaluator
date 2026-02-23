@@ -74,10 +74,10 @@ def test_scorer_type_error_detected():
 
     A scorer returning non-dict can be detected programmatically.
     """
-    def bad_scorer(response, target, metadata):
+    def bad_scorer(sample):
         return "correct"  # Wrong type
 
-    result = bad_scorer("test", "test", {})
+    result = bad_scorer("test")
     assert not isinstance(result, dict), (
         f"Type check should detect non-dict return. "
         f"Expected type check to fail for {type(result).__name__}"
@@ -139,7 +139,7 @@ def test_dataset_file_not_found_at_runtime(tmp_path):
         target_field="a"
     )
     @scorer
-    def test_scorer(response, target, metadata):
+    def test_scorer(sample):
         return {"correct": True}
 
     # Attempting to read the file will fail
@@ -157,14 +157,14 @@ def test_registration_collision():
 
     @benchmark(name="My QA", dataset="d.jsonl", prompt="Q: {q}")
     @scorer
-    def scorer1(r, t, m):
+    def scorer1(sample):
         return {"correct": True}
 
     # Attempt to register with same normalized name (my_qa)
     with pytest.raises(ValueError, match="already registered"):
         @benchmark(name="my-qa", dataset="d.jsonl", prompt="Q: {q}")
         @scorer
-        def scorer2(r, t, m):
+        def scorer2(sample):
             return {"correct": True}
 
 
@@ -221,7 +221,7 @@ def test_compiler_resolves_relative_to_absolute(tmp_path):
         "from nemo_evaluator.byob import benchmark, scorer\n"
         "@benchmark(name='test', dataset='data.jsonl', prompt='Q: {q}', target_field='answer')\n"
         "@scorer\n"
-        "def s(r, t, m): return {'correct': True}\n"
+        "def s(sample): return {'correct': True}\n"
     )
 
     # Compile from the tmp_path directory so relative path resolves

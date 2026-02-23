@@ -19,11 +19,19 @@ import importlib
 import os
 import sys
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import yaml
 
-from nemo_evaluator.byob.decorators import clear_registry, get_registered_benchmarks
+from nemo_evaluator.byob.decorators import (
+    BenchmarkDefinition,
+    clear_registry,
+    get_registered_benchmarks,
+)
+from nemo_evaluator.byob.defaults import (
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_TEMPERATURE,
+)
 
 
 # Jinja2 command template for runner invocation
@@ -45,7 +53,86 @@ COMMAND_TEMPLATE = (
     "{% if target.api_endpoint.api_key_name is not none %}"
     " --api-key-name {{target.api_endpoint.api_key_name}}"
     "{% endif %}"
+    "{% if config.params.parallelism is not none %}"
+    " --parallelism {{config.params.parallelism}}"
+    "{% endif %}"
 )
+
+
+def _build_fdf(
+    normalized_name: str,
+    bench: BenchmarkDefinition,
+    benchmark_module_ref: str,
+    dataset_path: str,
+    execution_mode: str,
+) -> dict:
+    """Build a single Framework Definition Format (FDF) dict for a benchmark.
+
+    Consolidates the native and subprocess FDF construction into a single
+    helper to eliminate near-identical code blocks.
+
+    Args:
+        normalized_name: Normalized benchmark name.
+        bench: BenchmarkDefinition from the registry.
+        benchmark_module_ref: Module reference (absolute path or dotted name).
+        dataset_path: Resolved dataset path.
+        execution_mode: "subprocess" or "native".
+
+    Returns:
+        FDF dict ready for YAML serialization.
+    """
+    extra_params: dict = {
+        "benchmark_module": benchmark_module_ref,
+        "benchmark_name": normalized_name,
+        "dataset": dataset_path,
+        "requirements": bench.requirements,
+    }
+    # Propagate field_mapping if declared
+    if bench.field_mapping:
+        extra_params["field_mapping"] = bench.field_mapping
+    # Propagate judge config(s) from @benchmark kwargs
+    # Supports: judge={...}, judge_1={...}, judge_2={...}, etc.
+    for key, value in bench.extra_config.items():
+        if key == "judge" or (key.startswith("judge_") and key[6:].isdigit()):
+            extra_params[key] = value
+            extra_params["judge_support"] = True
+
+    defaults: dict = {
+        "config": {
+            "params": {
+                "limit_samples": None,
+                "max_new_tokens": DEFAULT_MAX_TOKENS,
+                "temperature": DEFAULT_TEMPERATURE,
+                "extra": extra_params,
+            },
+        },
+        "target": {"api_endpoint": {}},
+    }
+
+    if execution_mode == "native":
+        defaults["execution_mode"] = "native"
+    else:
+        defaults["command"] = COMMAND_TEMPLATE
+
+    return {
+        "framework": {
+            "name": f"byob_{normalized_name}",
+            "pkg_name": f"byob_{normalized_name}",
+        },
+        "defaults": defaults,
+        "evaluations": [
+            {
+                "name": bench.name,
+                "description": f"BYOB benchmark: {bench.name}",
+                "defaults": {
+                    "config": {
+                        "type": f"byob_{normalized_name}.{bench.name}",
+                        "supported_endpoint_types": [bench.endpoint_type],
+                    }
+                },
+            }
+        ],
+    }
 
 
 def compile_benchmark(module_path: str, execution_mode: str = "subprocess") -> Dict[str, dict]:
@@ -65,127 +152,72 @@ def compile_benchmark(module_path: str, execution_mode: str = "subprocess") -> D
     # Clear registry for fresh state
     clear_registry()
 
-    # Resolve module path
-    if os.path.exists(module_path):
-        # It's a file path
-        abs_path = os.path.abspath(module_path)
-        parent_dir = os.path.dirname(abs_path)
-        module_name = Path(abs_path).stem
+    # Save sys.path and sys.modules for restoration (matching native_runner.py pattern)
+    saved_path = sys.path[:]
+    saved_modules = set(sys.modules.keys())
 
-        # Add parent directory to sys.path for import resolution
-        if parent_dir not in sys.path:
-            sys.path.insert(0, parent_dir)
+    try:
+        # Resolve module path
+        if os.path.exists(module_path):
+            # It's a file path
+            abs_path = os.path.abspath(module_path)
+            parent_dir = os.path.dirname(abs_path)
+            module_name = Path(abs_path).stem
 
-        resolved_module = module_name
-        benchmark_module_ref = abs_path  # Use absolute path for subprocess invocation
-    else:
-        # It's a dotted module name
-        module_name = module_path
-        resolved_module = module_name
-        benchmark_module_ref = module_name  # Use module name for subprocess invocation
+            # Add parent directory to sys.path for import resolution
+            if parent_dir not in sys.path:
+                sys.path.insert(0, parent_dir)
 
-    # Import or reload module (triggers decorator execution)
-    if resolved_module in sys.modules:
-        importlib.reload(sys.modules[resolved_module])
-    else:
-        importlib.import_module(resolved_module)
-
-    # Read registered benchmarks
-    benchmarks = get_registered_benchmarks()
-    if not benchmarks:
-        raise ValueError(
-            f"No benchmarks found in module '{module_path}'. "
-            "Did you use @benchmark and @scorer decorators?"
-        )
-
-    # Build FDF dict for each benchmark
-    compiled = {}
-    for normalized_name, bench in benchmarks.items():
-        # Resolve dataset path to absolute if it's a file
-        if os.path.exists(bench.dataset):
-            dataset_path = os.path.abspath(bench.dataset)
+            resolved_module = module_name
+            benchmark_module_ref = abs_path  # Use absolute path for subprocess invocation
         else:
-            dataset_path = bench.dataset
+            # It's a dotted module name
+            module_name = module_path
+            resolved_module = module_name
+            benchmark_module_ref = module_name  # Use module name for subprocess invocation
 
-        # Construct FDF dict
-        # CRITICAL: Place benchmark_module, benchmark_name, dataset in FRAMEWORK-level defaults
-        # to work around engine fallback lookup path (see architecture doc Section 4.1.4)
-        if execution_mode == "native":
-            fdf = {
-                "framework": {
-                    "name": f"byob_{normalized_name}",
-                    "pkg_name": f"byob_{normalized_name}",
-                },
-                "defaults": {
-                    "execution_mode": "native",
-                    # NOTE: No "command" field for native mode
-                    "config": {
-                        "params": {
-                            "limit_samples": None,
-                            "max_new_tokens": 4096,
-                            "temperature": 0,
-                            "extra": {
-                                "benchmark_module": benchmark_module_ref,
-                                "benchmark_name": normalized_name,
-                                "dataset": dataset_path,
-                            },
-                        },
-                    },
-                    "target": {"api_endpoint": {}},
-                },
-                "evaluations": [
-                    {
-                        "name": bench.name,
-                        "description": f"BYOB benchmark: {bench.name}",
-                        "defaults": {
-                            "config": {
-                                "type": f"byob_{normalized_name}.{bench.name}",
-                                "supported_endpoint_types": [bench.endpoint_type],
-                            }
-                        },
-                    }
-                ],
-            }
+        # Import or reload module (triggers decorator execution)
+        if resolved_module in sys.modules:
+            importlib.reload(sys.modules[resolved_module])
         else:
-            # Subprocess mode (default)
-            fdf = {
-                "framework": {
-                    "name": f"byob_{normalized_name}",
-                    "pkg_name": f"byob_{normalized_name}",
-                },
-                "defaults": {
-                    "command": COMMAND_TEMPLATE,
-                    "config": {
-                        "params": {
-                            "limit_samples": None,
-                            "max_new_tokens": 4096,
-                            "temperature": 0,
-                            "extra": {
-                                "benchmark_module": benchmark_module_ref,
-                                "benchmark_name": normalized_name,
-                                "dataset": dataset_path,
-                            },
-                        },
-                    },
-                    "target": {"api_endpoint": {}},
-                },
-                "evaluations": [
-                    {
-                        "name": bench.name,
-                        "description": f"BYOB benchmark: {bench.name}",
-                        "defaults": {
-                            "config": {
-                                "type": f"byob_{normalized_name}.{bench.name}",
-                                "supported_endpoint_types": [bench.endpoint_type],
-                            }
-                        },
-                    }
-                ],
-            }
+            importlib.import_module(resolved_module)
 
-        compiled[normalized_name] = fdf
+        # Read registered benchmarks
+        benchmarks = get_registered_benchmarks()
+        if not benchmarks:
+            raise ValueError(
+                f"No benchmarks found in module '{module_path}'. "
+                "Did you use @benchmark and @scorer decorators?"
+            )
 
-    return compiled
+        # Build FDF dict for each benchmark
+        compiled = {}
+        for normalized_name, bench in benchmarks.items():
+            # Resolve dataset path to absolute if it's a file
+            if os.path.exists(bench.dataset):
+                dataset_path = os.path.abspath(bench.dataset)
+            else:
+                dataset_path = bench.dataset
+
+            compiled[normalized_name] = _build_fdf(
+                normalized_name=normalized_name,
+                bench=bench,
+                benchmark_module_ref=benchmark_module_ref,
+                dataset_path=dataset_path,
+                execution_mode=execution_mode,
+            )
+
+        return compiled
+
+    finally:
+        # Restore sys.path
+        sys.path[:] = saved_path
+
+        # Remove modules added during compilation (but keep nemo_evaluator.*)
+        new_modules = set(sys.modules.keys()) - saved_modules
+        for mod_name in new_modules:
+            if not mod_name.startswith("nemo_evaluator."):
+                sys.modules.pop(mod_name, None)
 
 
 def install_benchmark(
@@ -212,10 +244,13 @@ def install_benchmark(
     # Create directory structure
     os.makedirs(pkg_dir, exist_ok=True)
 
+    # Extract user requirements from FDF
+    user_reqs = fdf.get("defaults", {}).get("config", {}).get("params", {}).get("extra", {}).get("requirements", [])
+
     # Write pyproject.toml
     pyproject_path = os.path.join(pkg_dir, "pyproject.toml")
     with open(pyproject_path, "w") as f:
-        f.write(_generate_pyproject_toml(pkg_name))
+        f.write(_generate_pyproject_toml(pkg_name, user_requirements=user_reqs))
 
     # Create core_evals namespace package
     core_evals_dir = os.path.join(pkg_dir, "core_evals")
@@ -296,8 +331,13 @@ def parse_output(output_dir: str) -> EvaluationResult:
 '''
 
 
-def _generate_pyproject_toml(pkg_name: str) -> str:
+def _generate_pyproject_toml(pkg_name: str, user_requirements: Optional[List[str]] = None) -> str:
     """Generate pyproject.toml content for the namespace package."""
+    deps = ["nemo-evaluator"]
+    if user_requirements:
+        deps.extend(user_requirements)
+    deps_str = ", ".join(f'"{d}"' for d in deps)
+
     return f'''[build-system]
 requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
@@ -306,7 +346,7 @@ build-backend = "setuptools.build_meta"
 name = "core-evals-{pkg_name}"
 version = "0.1.0"
 requires-python = ">=3.10"
-dependencies = ["nemo-evaluator"]
+dependencies = [{deps_str}]
 
 [tool.setuptools.packages.find]
 include = ["core_evals", "core_evals.*"]

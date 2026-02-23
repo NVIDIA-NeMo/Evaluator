@@ -20,7 +20,7 @@ custom evaluation benchmarks.
 
 Example::
 
-    from nemo_evaluator.byob import benchmark, scorer
+    from nemo_evaluator.byob import benchmark, scorer, ScorerInput
     from nemo_evaluator.byob.scorers import exact_match
 
     @benchmark(
@@ -30,13 +30,33 @@ Example::
         target_field="answer",
     )
     @scorer
-    def my_scorer(response, target, metadata):
-        return exact_match(response, target, metadata)
+    def my_scorer(inp: ScorerInput):
+        return exact_match(inp.response, inp.target, inp.metadata)
 """
 
+import inspect
 import re
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
+
+
+@dataclass
+class ScorerInput:
+    """All inputs available to a scorer function.
+
+    This is the single argument passed to all BYOB scorer functions.
+    Standard scorers use response, target, and metadata.
+    Advanced scorers (judge, multi-turn) use the optional fields.
+    """
+    response: str
+    target: str
+    metadata: dict
+    # Extensible fields for advanced scorers
+    model_call_fn: Optional[Callable] = None
+    config: Dict[str, Any] = field(default_factory=dict)
+    conversation: Optional[List[dict]] = None
+    turn_index: Optional[int] = None
 
 
 @dataclass
@@ -50,6 +70,8 @@ class BenchmarkDefinition:
     scorer_fn: Callable
     target_field: str = "target"
     endpoint_type: str = "chat"
+    requirements: List[str] = field(default_factory=list)
+    field_mapping: Optional[Dict[str, str]] = None
     extra_config: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -71,17 +93,56 @@ def _normalize_name(name: str) -> str:
     return normalized[:50]
 
 
+def _resolve_prompt(prompt: str, base_dir: Path) -> str:
+    """If prompt ends with a template file extension, read it as a file. Otherwise return as-is."""
+    if any(prompt.endswith(ext) for ext in (".txt", ".md", ".jinja", ".jinja2")):
+        path = (base_dir / prompt) if not Path(prompt).is_absolute() else Path(prompt)
+        if path.exists():
+            return path.read_text(encoding="utf-8")
+    return prompt
+
+
+def _resolve_requirements(requirements, base_dir: Path) -> List[str]:
+    """Resolve requirements: str means file path, list means inline deps, None means no deps."""
+    if requirements is None:
+        return []
+    if isinstance(requirements, str):
+        path = (base_dir / requirements) if not Path(requirements).is_absolute() else Path(requirements)
+        if not path.exists():
+            raise FileNotFoundError(f"Requirements file not found: {path}")
+        return [
+            line.strip()
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+    return list(requirements)
+
+
 def benchmark(name: str, dataset: str, prompt: str,
-              target_field: str = "target", endpoint_type: str = "chat", **kwargs):
+              target_field: str = "target", endpoint_type: str = "chat",
+              requirements=None, field_mapping=None, extra=None, **kwargs):
     """Decorator that registers a function as a BYOB benchmark.
 
     Args:
         name: Human-readable benchmark name.
-        dataset: Path to JSONL dataset file.
-        prompt: Python format string with {field} placeholders.
+        dataset: Path to JSONL dataset file, or a ``hf://`` URI for
+                 HuggingFace datasets downloaded at runtime.
+        prompt: Python format string with {field} placeholders, or path to
+                a template file (.txt, .md, .jinja, .jinja2).
         target_field: JSONL field containing ground truth.
         endpoint_type: "chat" or "completions".
-        **kwargs: Extra configuration passed through to extra_config.
+        requirements: Pip dependencies. Either a list of specifiers
+                      (e.g., ["rouge-score>=0.1.2"]) or a path to a
+                      requirements.txt file. None means no extra deps.
+        field_mapping: Optional dict mapping source field names to target
+                       field names (e.g. ``{"opa": "a", "opb": "b"}``).
+                       Applied after loading the dataset.
+        extra: Framework-specific parameters that map directly to
+               ``config.params.extra`` in the generated framework.yml.
+               Use this for judge configuration, custom settings, etc.
+               Example: ``extra={"judge": {"url": "...", "model_id": "..."}}``.
+        **kwargs: Also merged into extra config (for backward compat).
+                  ``extra`` takes precedence over ``**kwargs`` on conflicts.
     """
     def decorator(fn):
         normalized = _normalize_name(name)
@@ -95,15 +156,32 @@ def benchmark(name: str, dataset: str, prompt: str,
                 f"Benchmark '{name}' (normalized: '{normalized}') is already registered."
             )
 
+        # Resolve base_dir from decorated function's source file
+        try:
+            source_file = inspect.getfile(fn)
+            base_dir = Path(source_file).parent
+        except (TypeError, OSError):
+            base_dir = Path.cwd()
+
+        resolved_prompt = _resolve_prompt(prompt, base_dir)
+        resolved_reqs = _resolve_requirements(requirements, base_dir)
+
+        # Merge extra config: kwargs (backward compat) + extra (preferred)
+        merged_extra = dict(kwargs)
+        if extra:
+            merged_extra.update(extra)
+
         defn = BenchmarkDefinition(
             name=name,
             normalized_name=normalized,
             dataset=dataset,
-            prompt=prompt,
+            prompt=resolved_prompt,
             scorer_fn=fn,
             target_field=target_field,
             endpoint_type=endpoint_type,
-            extra_config=kwargs,
+            requirements=resolved_reqs,
+            field_mapping=field_mapping,
+            extra_config=merged_extra,
         )
 
         _BENCHMARK_REGISTRY[normalized] = defn
@@ -113,12 +191,72 @@ def benchmark(name: str, dataset: str, prompt: str,
     return decorator
 
 
+def _validate_scorer_signature(fn: Callable) -> None:
+    """Validate that a scorer function has an acceptable signature.
+
+    Accepted signatures:
+        - 1 parameter: ``def scorer(sample: ScorerInput)``  (preferred)
+        - 2 parameters: ``def scorer(sample, config)``      (flexible)
+
+    Rejected signatures:
+        - 0 parameters: missing required input
+        - 3+ parameters: legacy pattern that should migrate to ScorerInput
+
+    Args:
+        fn: The scorer callable to validate.
+
+    Raises:
+        TypeError: If the scorer signature is invalid.
+    """
+    try:
+        sig = inspect.signature(fn)
+    except (ValueError, TypeError):
+        # If we cannot introspect (e.g. built-in), skip validation.
+        return
+
+    params = [
+        p for p in sig.parameters.values()
+        if p.default is inspect.Parameter.empty
+        and p.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+    ]
+    total_params = [
+        p for p in sig.parameters.values()
+        if p.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+    ]
+
+    n_required = len(params)
+    n_total = len(total_params)
+
+    if n_total == 0:
+        raise TypeError(
+            f"Scorer '{fn.__qualname__}' accepts 0 arguments. "
+            f"BYOB scorers must accept at least one argument — the ScorerInput instance. "
+            f"Example: def {fn.__name__}(sample: ScorerInput) -> dict: ..."
+        )
+
+    if n_required >= 3:
+        raise TypeError(
+            f"Scorer '{fn.__qualname__}' accepts {n_required} required arguments. "
+            f"BYOB scorers now accept a single ScorerInput argument. "
+            f"Migrate from `def scorer(response, target, metadata)` to "
+            f"`def scorer(sample: ScorerInput)`."
+        )
+
+
 def scorer(fn):
     """Decorator that marks a function as a BYOB scorer.
 
-    Sets fn._is_scorer = True. Used compositionally with @benchmark
-    (scorer is the inner decorator).
+    Validates the scorer signature and sets ``fn._is_scorer = True``.
+    Used compositionally with ``@benchmark`` (scorer is the inner decorator).
+
+    Accepted scorer signatures:
+        - 1 parameter: ``def scorer(sample: ScorerInput)``
+        - 2 parameters: ``def scorer(sample, config)``
+
+    Raises:
+        TypeError: If the scorer has 0 or 3+ parameters.
     """
+    _validate_scorer_signature(fn)
     fn._is_scorer = True
     return fn
 

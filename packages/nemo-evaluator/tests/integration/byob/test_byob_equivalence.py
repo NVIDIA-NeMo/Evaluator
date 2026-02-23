@@ -71,9 +71,9 @@ from nemo_evaluator.byob import benchmark, scorer
     endpoint_type="chat"
 )
 @scorer
-def equiv_scorer(response, target, metadata):
+def equiv_scorer(sample):
     """Simple contains scorer for equivalence testing."""
-    return {"correct": target.lower() in response.lower()}
+    return {"correct": sample.target.lower() in sample.response.lower()}
 ''')
 
         # Create shared dataset with 5 samples
@@ -251,10 +251,10 @@ from nemo_evaluator.byob import benchmark, scorer
     endpoint_type="chat"
 )
 @scorer
-def binary_scorer(response, target, metadata):
+def binary_scorer(sample):
     """Returns boolean value (will be converted to 0.0 or 1.0)."""
     # This scorer returns True/False which aggregate_scores converts to 0.0/1.0
-    return {"correct": target.lower() in response.lower()}
+    return {"correct": sample.target.lower() in sample.response.lower()}
 ''')
 
         dataset_file = tmp_path / "binary_data.jsonl"
@@ -366,10 +366,10 @@ from nemo_evaluator.byob import benchmark, scorer
     endpoint_type="chat"
 )
 @scorer
-def continuous_scorer(response, target, metadata):
+def continuous_scorer(sample):
     """Returns continuous value between 0 and 1 (simulating F1 or similarity)."""
     # Return non-binary values to prevent 100x scaling
-    if target.lower() in response.lower():
+    if sample.target.lower() in sample.response.lower():
         return {"similarity": 0.95}  # High but not exactly 1.0
     else:
         return {"similarity": 0.15}  # Low but not exactly 0.0

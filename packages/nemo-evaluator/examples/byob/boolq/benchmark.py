@@ -16,20 +16,20 @@
 """BoolQ benchmark onboarded as a BYOB example.
 
 BoolQ is a yes/no question answering dataset from Google/SuperGLUE.
+Dataset is downloaded from HuggingFace at runtime.
+
+Source: google/boolq on HuggingFace (validation split).
 
 Usage:
   python -m nemo_evaluator.byob.cli examples/byob/boolq/benchmark.py
 """
-import os
 
-from nemo_evaluator.byob import benchmark, scorer
-
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+from nemo_evaluator.byob import benchmark, scorer, ScorerInput
 
 
 @benchmark(
     name="boolq",
-    dataset=os.path.join(_SCRIPT_DIR, "data.jsonl"),
+    dataset="hf://google/boolq?split=validation",
     prompt=(
         "Read the passage and answer the question with 'yes' or 'no'.\n\n"
         "Passage: {passage}\n\n"
@@ -38,10 +38,11 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
     ),
     target_field="answer",
     endpoint_type="chat",
+    requirements=["datasets"],
 )
 @scorer
-def boolq_scorer(response: str, target: str, metadata: dict) -> dict:
-    response_lower = response.strip().lower()
+def boolq_scorer(sample: ScorerInput) -> dict:
+    response_lower = sample.response.strip().lower()
 
     # Extract yes/no from response (priority: startswith > contains > fallback)
     if response_lower.startswith("yes"):
@@ -55,5 +56,6 @@ def boolq_scorer(response: str, target: str, metadata: dict) -> dict:
     else:
         predicted = response_lower[:10]  # fallback
 
-    target_str = "yes" if target.lower() in ("true", "yes", "1") else "no"
+    # HF BoolQ has answer as bool (True/False); handle both string and bool forms
+    target_str = "yes" if sample.target.lower() in ("true", "yes", "1") else "no"
     return {"correct": predicted == target_str}
