@@ -157,7 +157,6 @@ def run_eval(
         TelemetryHandler,
         get_session_id,
         get_telemetry_level,
-        show_telemetry_notification,
     )
 
     from nemo_evaluator_launcher.telemetry import LauncherJobEvent
@@ -239,7 +238,6 @@ def run_eval(
                 )
             )
             telemetry_handler.stop()
-            show_telemetry_notification()
 
 
 def resume_eval(invocation_id: str) -> str:

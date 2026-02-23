@@ -333,7 +333,6 @@ def evaluate(
         TelemetryHandler,
         get_session_id,
         get_telemetry_level,
-        show_telemetry_notification,
     )
 
     start_time = time.time()
@@ -391,7 +390,6 @@ def evaluate(
                 )
             )
             telemetry_handler.stop()
-            show_telemetry_notification()
 
 
 def _write_with_versioning_header(

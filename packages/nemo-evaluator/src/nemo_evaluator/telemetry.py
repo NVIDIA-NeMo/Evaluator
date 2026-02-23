@@ -321,6 +321,7 @@ class TelemetryHandler:
             f"{_TELEMETRY_TAG} {event._event_name}",
             **event.model_dump(by_alias=True),
         )
+        show_telemetry_notification()
         queued = QueuedEvent(event=event, timestamp=datetime.now(timezone.utc))
         self._events.append(queued)
         if len(self._events) >= self._max_queue_size:
