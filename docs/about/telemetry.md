@@ -79,7 +79,7 @@ NeMo Evaluator supports three telemetry levels:
 * - Control
   - Effect
 * - `NEMO_EVALUATOR_TELEMETRY_LEVEL=0`
-  - Disables telemetry globally.
+  - Disables telemetry.
 * - `NEMO_EVALUATOR_TELEMETRY_LEVEL=1`
   - Enables telemetry without sending `model_id`.
 * - `NEMO_EVALUATOR_TELEMETRY_LEVEL=2`
