@@ -526,12 +526,12 @@ class TestProgressTrackingInterceptor:
 
     def test_skip_multiple_initial_requests(self):
         """Test skipping more than one initial request."""
-        server = FakeProgressTrackingServer(port=8011)
+        server = FakeProgressTrackingServer(port=8012)
         server.start()
 
         try:
             params = ProgressTrackingInterceptor.Params(
-                progress_tracking_url="http://localhost:8011",
+                progress_tracking_url="http://localhost:8012",
                 progress_tracking_interval=1,
                 skip_initial_requests=3,
             )
