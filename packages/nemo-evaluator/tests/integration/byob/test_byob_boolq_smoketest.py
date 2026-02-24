@@ -96,7 +96,7 @@ class TestBoolQSmoketest:
         assert len(dataset) == _SAMPLE_LIMIT
 
         # Build model call function hitting the live endpoint
-        def model_call_fn(prompt: str, endpoint_type: str) -> str:
+        def model_call_fn(prompt, endpoint_type: str) -> str:
             return call_model_chat(
                 url=_NVIDIA_API_URL,
                 model_id=_NVIDIA_MODEL_ID,

@@ -349,8 +349,8 @@ class TestSavePredictions:
                 # Check types
                 assert isinstance(pred_dict["sample_id"], int), \
                     f"Line {line_num}: sample_id should be int"
-                assert isinstance(pred_dict["prompt"], str), \
-                    f"Line {line_num}: prompt should be str"
+                assert isinstance(pred_dict["prompt"], (str, list)), \
+                    f"Line {line_num}: prompt should be str or list"
                 assert isinstance(pred_dict["target"], str), \
                     f"Line {line_num}: target should be str"
                 assert isinstance(pred_dict["status"], str), \

@@ -16,13 +16,15 @@
 """Native harness interface and registry for in-process evaluation execution."""
 
 from contextlib import contextmanager
-from typing import Callable, Dict, Optional, Protocol, TypeAlias, runtime_checkable
+from typing import Callable, Dict, List, Optional, Protocol, TypeAlias, Union, runtime_checkable
 
 from nemo_evaluator.api.api_dataclasses import Evaluation, EvaluationResult
+from nemo_evaluator.byob.decorators import PromptType
 
 __all__ = [
     "NativeHarness",
     "ModelCallFn",
+    "PromptType",
     "register_native_harness",
     "get_native_harness",
     "make_model_call_fn_via_server",
@@ -30,9 +32,11 @@ __all__ = [
     "temp_native_harness",
 ]
 
-# Type alias for the model call function injected into native harnesses
-# Signature: (prompt: str, endpoint_type: str) -> response_text: str
-ModelCallFn: TypeAlias = Callable[[str, str], str]
+# Type alias for the model call function injected into native harnesses.
+# First argument is either a prompt string (single-turn) or a message
+# array (multi-turn: [{"role": "user", "content": "..."}]).
+# Second argument is the endpoint type ("chat" or "completions").
+ModelCallFn: TypeAlias = Callable[[PromptType, str], str]
 
 
 @runtime_checkable
@@ -170,17 +174,27 @@ def make_model_call_fn_via_server(
     """
     import requests as req
 
-    def call(prompt: str, endpoint_type: str) -> str:
+    def call(prompt: PromptType, endpoint_type: str) -> str:
         if endpoint_type == "chat":
             url = f"{adapter_url}/chat/completions"
+            # Accept either a string or a message array
+            if isinstance(prompt, list):
+                messages = prompt
+            else:
+                messages = [{"role": "user", "content": prompt}]
             payload = {
                 "model": model_id,
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": messages,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
             }
         else:
             url = f"{adapter_url}/completions"
+            if isinstance(prompt, list):
+                raise ValueError(
+                    "Completions endpoint does not support multi-turn message arrays. "
+                    "Use endpoint_type='chat' for multi-turn evaluation."
+                )
             payload = {
                 "model": model_id,
                 "prompt": prompt,
@@ -221,7 +235,7 @@ def make_model_call_fn_direct(
     """
     from nemo_evaluator.byob.runner import call_model_chat, call_model_completions
 
-    def call(prompt: str, endpoint_type: str) -> str:
+    def call(prompt: PromptType, endpoint_type: str) -> str:
         if endpoint_type == "chat":
             return call_model_chat(
                 url=model_url,

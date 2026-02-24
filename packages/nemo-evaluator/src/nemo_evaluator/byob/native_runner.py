@@ -114,12 +114,21 @@ class ByobNativeHarness:
                 field_mapping=bench.field_mapping,
             )
 
+            # Select evaluation strategy
+            strategy = None
+            strategy_name = bench.extra_config.get("strategy")
+            if strategy_name == "multi_turn":
+                from nemo_evaluator.byob.eval_logic import MultiTurnStrategy
+                turns_field = bench.extra_config.get("turns_field", "prompt")
+                strategy = MultiTurnStrategy(turns_field=turns_field)
+
             # Run evaluation loop (returns tuple: scores, predictions)
             scores, _predictions = run_eval_loop(
                 bench=bench,
                 dataset=dataset,
                 model_call_fn=model_call_fn,
                 endpoint_type=endpoint_type,
+                strategy=strategy,
                 parallelism=parallelism,
             )
 
