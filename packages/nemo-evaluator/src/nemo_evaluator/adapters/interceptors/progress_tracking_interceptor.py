@@ -68,12 +68,12 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
             description="Evaluation output directory. If provided, the progress tracking will be saved to a file in this directory.",
         )
         skip_initial_requests: Annotated[int, Field(ge=0)] = Field(
-            default=1,
+            default=0,
             description=(
                 "Number of initial requests to skip before counting samples. "
-                "Defaults to 1 because evaluation frameworks typically send a "
-                "warmup or sanity-check request through the adapter before "
-                "actual evaluation begins."
+                "Set to 1 when the evaluation framework sends a warmup or "
+                "sanity-check request through the adapter before actual "
+                "evaluation begins."
             ),
         )
 

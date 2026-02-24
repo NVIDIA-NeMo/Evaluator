@@ -110,7 +110,6 @@ class TestProgressTrackingInterceptor:
                 progress_tracking_url="http://localhost:8002",
                 progress_tracking_interval=3,
                 output_dir=None,
-                skip_initial_requests=0,
             )
             interceptor = ProgressTrackingInterceptor(params)
 
@@ -150,7 +149,6 @@ class TestProgressTrackingInterceptor:
             params = ProgressTrackingInterceptor.Params(
                 progress_tracking_url="http://localhost:8003",
                 progress_tracking_interval=1,
-                skip_initial_requests=0,
             )
             interceptor = ProgressTrackingInterceptor(params)
 
@@ -198,7 +196,6 @@ class TestProgressTrackingInterceptor:
         params = ProgressTrackingInterceptor.Params(
             progress_tracking_url="http://invalid-server:9999",
             progress_tracking_interval=1,
-            skip_initial_requests=0,
         )
         interceptor = ProgressTrackingInterceptor(params)
 
@@ -273,7 +270,6 @@ class TestProgressTrackingInterceptor:
             params = ProgressTrackingInterceptor.Params(
                 progress_tracking_url="http://localhost:8005",
                 progress_tracking_interval=1,
-                skip_initial_requests=0,
             )
             interceptor = ProgressTrackingInterceptor(params)
 
@@ -308,7 +304,6 @@ class TestProgressTrackingInterceptor:
                 progress_tracking_url="http://localhost:8006",
                 progress_tracking_interval=1,
                 request_method="POST",
-                skip_initial_requests=0,
             )
             interceptor = ProgressTrackingInterceptor(params)
 
@@ -333,7 +328,6 @@ class TestProgressTrackingInterceptor:
                 progress_tracking_url="http://localhost:8006",
                 progress_tracking_interval=1,
                 request_method="PATCH",
-                skip_initial_requests=0,
             )
             interceptor = ProgressTrackingInterceptor(params)
             interceptor.intercept_response(mock_response, context)
@@ -361,7 +355,6 @@ class TestProgressTrackingInterceptor:
                 progress_tracking_url="http://localhost:8007",
                 progress_tracking_interval=50,
                 progress_tracking_interval_seconds=0.2,
-                skip_initial_requests=0,
             )
             interceptor = ProgressTrackingInterceptor(params)
             assert interceptor.progress_tracking_url == "http://localhost:8007"
@@ -517,13 +510,13 @@ class TestProgressTrackingInterceptor:
         finally:
             server.stop()
 
-    def test_skip_initial_requests_default_is_one(self):
-        """Test that skip_initial_requests defaults to 1 (skip sanity check)."""
+    def test_skip_initial_requests_default_is_zero(self):
+        """Test that skip_initial_requests defaults to 0 (count all requests)."""
         params = ProgressTrackingInterceptor.Params()
-        assert params.skip_initial_requests == 1
+        assert params.skip_initial_requests == 0
 
         interceptor = ProgressTrackingInterceptor(params)
-        assert interceptor.skip_initial_requests == 1
+        assert interceptor.skip_initial_requests == 0
 
     def test_skip_initial_requests_validation(self):
         """Test that skip_initial_requests rejects negative values."""
