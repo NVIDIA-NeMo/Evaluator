@@ -13,6 +13,9 @@
 
 ## 🆕 What's New in 26.01 Release
 
+### Telemetry
+- Anonymous telemetry to help improve the project. See [Telemetry](#-telemetry) for details and opt-out options.
+
 ### New Evaluation Harnesses
 - **TAU2-Bench** (`tau2-bench`): Conversational agents in dual-control environments (telecom, airline, retail)
 - **RULER** (`long-context-eval`): Long-context evaluation with configurable sequence lengths (4K to 1M tokens)
@@ -189,6 +192,47 @@ Use `--project` to install into the current project directory instead of your ho
 ## 🤝 Contribution Guide
 
 We welcome community contributions. Please see our [Contribution Guide](https://github.com/NVIDIA-NeMo/Evaluator/blob/main/CONTRIBUTING.md) for instructions on submitting pull requests, reporting issues, and suggesting features.
+
+
+## 📡 Telemetry
+
+NeMo Evaluator collects telemetry to help improve the project.
+
+**All telemetry events are collected anonymously.**
+
+### Event: `EvaluationTaskEvent` (from `nemo-evaluator`)
+
+| Field | Description |
+|---|---|
+| `task` | Evaluated task/benchmark name. |
+| `frameworkName` | Evaluation framework name (for example `lm-eval`, `helm`). |
+| `model` | Model name used for evaluation (redacted at level 1). |
+| `executionDurationSeconds` | Evaluation duration in seconds. |
+| `status` | Task status: `started`, `success`, or `failure`. |
+
+### Event: `LauncherJobEvent` (from `nemo-evaluator-launcher`)
+
+| Field | Description |
+|---|---|
+| `executorType` | Launcher executor backend (`local`, `slurm`, `lepton`, etc.). |
+| `deploymentType` | Deployment type (`none`, `vllm`, `sglang`, `nim`, etc.). |
+| `model` | Model name for the launched run (redacted at level 1). |
+| `tasks` | List of requested evaluation tasks. |
+| `exporters` | List of configured exporters. |
+| `status` | Job status: `started`, `success`, or `failure`. |
+
+### Telemetry Controls
+
+| Control | Effect |
+|---|---|
+| `NEMO_EVALUATOR_TELEMETRY_LEVEL=0` | Disables telemetry. |
+| `NEMO_EVALUATOR_TELEMETRY_LEVEL=1` | Usage data only. |
+| `NEMO_EVALUATOR_TELEMETRY_LEVEL=2` | Usage data + model ID (default). |
+| `nemo-evaluator-launcher config set telemetry.level <0\|1\|2>` | Persists telemetry level to config file. |
+
+### Aggregate Reporting
+
+We may share aggregated telemetry trends with the community (for example, popularity of models, tasks, and execution backends). Aggregates are anonymous and are not used to track individual users.
 
 
 ## 📄 License
