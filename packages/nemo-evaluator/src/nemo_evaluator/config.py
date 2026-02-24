@@ -35,9 +35,6 @@ logger = get_logger(__name__)
 _xdg_config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
 CONFIG_FILE = _xdg_config_home / "nemo-evaluator" / "config.yaml"
 
-# Environment variable for telemetry level
-TELEMETRY_LEVEL_ENV_VAR = "NEMO_EVALUATOR_TELEMETRY_LEVEL"
-
 
 class TelemetryLevel(int, Enum):
     """Telemetry reporting levels."""

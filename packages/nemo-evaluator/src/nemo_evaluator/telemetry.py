@@ -36,7 +36,6 @@ from typing import Any, ClassVar
 from pydantic import BaseModel, Field
 
 from nemo_evaluator.config import (
-    TELEMETRY_LEVEL_ENV_VAR,
     TelemetryLevel,
     load_config,
 )
@@ -45,6 +44,7 @@ from nemo_evaluator.logging import get_logger
 logger = get_logger(__name__)
 
 # Environment variable names
+TELEMETRY_LEVEL_ENV_VAR = "NEMO_EVALUATOR_TELEMETRY_LEVEL"
 TELEMETRY_SESSION_ID_ENV_VAR = "NEMO_EVALUATOR_TELEMETRY_SESSION_ID"
 TELEMETRY_ENDPOINT_ENV_VAR = "NEMO_EVALUATOR_TELEMETRY_ENDPOINT"
 
