@@ -248,7 +248,7 @@ class WandBExporter(BaseExporter):
             return []
 
     def _check_existing_run(self, identifier: str, data: DataForExport) -> str | None:
-        """Check if run exists based on webhook metadata then name patterns."""
+        """Check if run exists based on name patterns."""
         try:
             import wandb
 
@@ -261,22 +261,6 @@ class WandBExporter(BaseExporter):
                     "Set export.wandb.entity and export.wandb.project fields in the config."
                 )
                 return None
-
-            # FIXME(martas): I don't think this path is possible to reach
-            # as we never set these metadata for jobs
-            # Check webhook metadata for run_id first
-            webhook_meta = (data.job_data or {}).get("webhook_metadata", {})
-            if (
-                webhook_meta.get("webhook_source") == "wandb"
-                and self.config.get("triggered_by_webhook")
-                and "run_id" in webhook_meta
-            ):
-                try:
-                    # Verify the run actually exists
-                    run = api.run(f"{entity}/{project}/{webhook_meta['run_id']}")
-                    return run.id
-                except Exception:
-                    pass
 
             # Check explicit name first
             if self.config.get("name"):
@@ -360,16 +344,6 @@ class WandBExporter(BaseExporter):
             run_config["job_id"] = data[0].job_id
             run_config["harness"] = data[0].harness
             run_config["benchmark"] = data[0].task
-
-        if self.config.get("triggered_by_webhook"):
-            run_config.update(
-                {
-                    "webhook_triggered": True,
-                    "webhook_source": self.config.get("webhook_source"),
-                    "source_artifact": self.config.get("source_artifact"),
-                    "config_source": self.config.get("config_source"),
-                }
-            )
 
         run_config.update(self.config.get("extra_metadata", {}))
         run_args["config"] = run_config

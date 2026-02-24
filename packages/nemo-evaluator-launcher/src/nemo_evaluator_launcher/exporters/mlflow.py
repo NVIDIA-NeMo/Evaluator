@@ -152,17 +152,6 @@ class MLflowExporter(BaseExporter):
             )
             all_params.update(config_params)
 
-        # Add webhook info if available
-        if self.config.get("triggered_by_webhook"):
-            all_params.update(
-                {
-                    "webhook_triggered": "true",
-                    "webhook_source": self.config.get("webhook_source"),
-                    "source_artifact": self.config.get("source_artifact"),
-                    "config_source": self.config.get("config_source"),
-                }
-            )
-
         # Sanitize params
         safe_params = {
             mlflow_sanitize(k, "param_key"): mlflow_sanitize(v, "param_value")
