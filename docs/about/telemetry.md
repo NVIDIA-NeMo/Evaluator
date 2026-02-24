@@ -22,7 +22,7 @@ NeMo Evaluator supports three telemetry levels:
   - No telemetry reporting at all.
 * - `1`
   - MINIMAL
-  - Usage metrics are reported but `model_id` is **redacted**.
+  - Usage information is reported but `model_id` is **redacted**.
 * - `2` (default)
   - DEFAULT
   - Full reporting including `model_id`.
