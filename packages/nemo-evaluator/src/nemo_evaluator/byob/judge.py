@@ -197,14 +197,32 @@ def judge_call(
         "max_tokens": config.max_new_tokens,
     }
 
+    logger.info(
+        "Judge call started",
+        endpoint=endpoint, model_id=config.model_id,
+        has_api_key=bool(api_key_value),
+        prompt_len=len(prompt),
+    )
+
     http = session or requests
     response = http.post(
         endpoint, json=payload, headers=headers,
         timeout=config.request_timeout,
     )
+
+    logger.info(
+        "Judge call completed",
+        status_code=response.status_code, model_id=config.model_id,
+    )
+
     response.raise_for_status()
 
-    return response.json()["choices"][0]["message"]["content"]
+    result = response.json()["choices"][0]["message"]["content"]
+    logger.debug(
+        "Judge response",
+        model_id=config.model_id, response_preview=result[:200],
+    )
+    return result
 
 
 def parse_grade(response: str, grade_pattern: str) -> Optional[str]:
@@ -346,8 +364,8 @@ def judge_score(
     # Call judge
     try:
         judge_response = judge_call(config, prompt, session=session)
-    except Exception:
-        logger.warning("Judge call failed", judge_key=judge_key, url=config.url)
+    except Exception as e:
+        logger.warning("Judge call failed", judge_key=judge_key, url=config.url, error=str(e))
         return {"judge_score": 0.0, "judge_grade": "CALL_ERROR"}
 
     # Parse grade

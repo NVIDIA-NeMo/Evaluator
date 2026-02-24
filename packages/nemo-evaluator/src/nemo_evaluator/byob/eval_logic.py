@@ -21,7 +21,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Protocol, Tuple
+from typing import Callable, Dict, List, Optional, Protocol, Tuple, Union
 
 from nemo_evaluator.api.api_dataclasses import (
     EvaluationResult,
@@ -32,6 +32,7 @@ from nemo_evaluator.api.api_dataclasses import (
 )
 from nemo_evaluator.byob.decorators import (
     BenchmarkDefinition,
+    PromptType,
     ScorerInput,
     clear_registry,
     get_registered_benchmarks,
@@ -47,23 +48,25 @@ class SampleResult:
 
     Attributes:
         sample_id: Zero-based index of the sample in the dataset.
-        prompt: Rendered prompt string sent to the model.
-        response: Model response text, or None if model call failed.
+        prompt: Rendered prompt string or message array sent to the model.
+        response: Model response text (last turn), or None if model call failed.
         target: Ground-truth target value from the dataset.
         scores: Score dict from the scorer function, or None if not scored.
         status: One of "scored", "skipped_missing_field", "skipped_model_error".
         error: Error message string if the sample was skipped.
         metadata: The full sample row from the dataset.
+        trajectory: Full multi-turn conversation history, if applicable.
     """
 
     sample_id: int
-    prompt: str
+    prompt: PromptType
     response: Optional[str]
     target: str
     scores: Optional[dict]
     status: str
     error: Optional[str] = None
     metadata: dict = field(default_factory=dict)
+    trajectory: Optional[List[Dict[str, str]]] = None
 
 
 def import_benchmark(
@@ -122,7 +125,7 @@ class EvalStrategy(Protocol):
         idx: int,
         row: Dict,
         bench: BenchmarkDefinition,
-        model_call_fn: Callable[[str, str], str],
+        model_call_fn: Callable[[PromptType, str], str],
         endpoint_type: str,
     ) -> Tuple[Optional[Dict], Optional[SampleResult]]:
         """Evaluate a single sample.
@@ -142,7 +145,7 @@ class StandardStrategy:
         idx: int,
         row: Dict,
         bench: BenchmarkDefinition,
-        model_call_fn: Callable[[str, str], str],
+        model_call_fn: Callable[[PromptType, str], str],
         endpoint_type: str,
     ) -> Tuple[Optional[Dict], Optional[SampleResult]]:
         # Render prompt
@@ -193,10 +196,86 @@ class StandardStrategy:
         return sample_scores, prediction
 
 
+class MultiTurnStrategy:
+    """Multi-turn evaluation: iterate through turns, build conversation, score at end.
+
+    Expects the dataset row to have a ``turns`` field (list of prompt strings)
+    or a ``prompt`` field that is a list. Each turn is sent as a message array
+    with full conversation history. The scorer receives the final response and
+    the full trajectory.
+    """
+
+    def __init__(self, turns_field: str = "prompt"):
+        self.turns_field = turns_field
+
+    def evaluate_sample(
+        self,
+        idx: int,
+        row: Dict,
+        bench: BenchmarkDefinition,
+        model_call_fn: Callable[[PromptType, str], str],
+        endpoint_type: str,
+    ) -> Tuple[Optional[Dict], Optional[SampleResult]]:
+        turns = row.get(self.turns_field, [])
+        if not turns or not isinstance(turns, list):
+            return None, SampleResult(
+                sample_id=idx, prompt="", response=None,
+                target=str(row.get(bench.target_field, "")), scores=None,
+                status="skipped_missing_field",
+                error=f"No turns found in field '{self.turns_field}'",
+                metadata=row,
+            )
+
+        conversation: List[Dict[str, str]] = []
+        responses: List[str] = []
+
+        for turn_idx, turn_prompt in enumerate(turns):
+            conversation.append({"role": "user", "content": str(turn_prompt)})
+            try:
+                response = model_call_fn(conversation, endpoint_type)
+            except Exception as e:
+                return None, SampleResult(
+                    sample_id=idx, prompt=conversation, response=None,
+                    target=str(row.get(bench.target_field, "")), scores=None,
+                    status="skipped_model_error", error=str(e),
+                    metadata=row, trajectory=list(conversation),
+                )
+            conversation.append({"role": "assistant", "content": response})
+            responses.append(response)
+
+        # Score using the last response and full trajectory
+        target = row.get(bench.target_field, "")
+        scorer_input = ScorerInput(
+            response=responses[-1],
+            target=str(target),
+            metadata=row,
+            model_call_fn=model_call_fn,
+            config=bench.extra_config,
+            conversation=list(conversation),
+            turn_index=len(turns),
+        )
+        try:
+            sample_scores = bench.scorer_fn(scorer_input)
+        except Exception as e:
+            return None, SampleResult(
+                sample_id=idx, prompt=conversation, response=responses[-1],
+                target=str(target), scores=None,
+                status="skipped_scorer_error", error=str(e),
+                metadata=row, trajectory=list(conversation),
+            )
+
+        prediction = SampleResult(
+            sample_id=idx, prompt=conversation, response=responses[-1],
+            target=str(target), scores=sample_scores,
+            status="scored", metadata=row, trajectory=list(conversation),
+        )
+        return sample_scores, prediction
+
+
 def run_eval_loop(
     bench: BenchmarkDefinition,
     dataset: List[Dict],
-    model_call_fn: Callable[[str, str], str],
+    model_call_fn: Callable[[PromptType, str], str],
     endpoint_type: str,
     strategy: Optional[EvalStrategy] = None,
     save_predictions: bool = False,
@@ -261,7 +340,7 @@ def run_eval_loop(
 def _run_eval_loop_sequential(
     bench: BenchmarkDefinition,
     dataset: List[Dict],
-    model_call_fn: Callable[[str, str], str],
+    model_call_fn: Callable[[PromptType, str], str],
     endpoint_type: str,
     strategy: EvalStrategy,
     save_predictions: bool = False,
@@ -331,7 +410,7 @@ def _run_eval_loop_sequential(
 def _run_eval_loop_parallel(
     bench: BenchmarkDefinition,
     dataset: List[Dict],
-    model_call_fn: Callable[[str, str], str],
+    model_call_fn: Callable[[PromptType, str], str],
     endpoint_type: str,
     strategy: EvalStrategy,
     save_predictions: bool = False,

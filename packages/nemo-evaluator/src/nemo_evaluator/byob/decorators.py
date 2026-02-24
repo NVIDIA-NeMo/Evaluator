@@ -38,7 +38,12 @@ import inspect
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
+
+
+# Prompt: a string (single-turn) or a message array (multi-turn).
+# Canonical definition — import from here in other modules.
+PromptType = Union[str, List[Dict[str, str]]]
 
 
 @dataclass
@@ -52,10 +57,11 @@ class ScorerInput:
     response: str
     target: str
     metadata: dict
-    # Extensible fields for advanced scorers
-    model_call_fn: Optional[Callable] = None
+    # Model call function: accepts string or message array
+    model_call_fn: Optional[Callable[[PromptType, str], str]] = None
     config: Dict[str, Any] = field(default_factory=dict)
-    conversation: Optional[List[dict]] = None
+    # Multi-turn conversation history and current turn index
+    conversation: Optional[List[Dict[str, str]]] = None
     turn_index: Optional[int] = None
 
 

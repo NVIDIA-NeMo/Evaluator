@@ -45,8 +45,8 @@ Scorer composition::
 
     combined = any_of(contains, my_custom_scorer)
 """
-from nemo_evaluator.byob.decorators import benchmark, scorer, ScorerInput
+from nemo_evaluator.byob.decorators import benchmark, scorer, ScorerInput, PromptType
 from nemo_evaluator.byob.scorers import any_of, all_of
 from nemo_evaluator.byob.judge import judge_score
 
-__all__ = ["benchmark", "scorer", "ScorerInput", "any_of", "all_of", "judge_score"]
+__all__ = ["benchmark", "scorer", "ScorerInput", "PromptType", "any_of", "all_of", "judge_score"]

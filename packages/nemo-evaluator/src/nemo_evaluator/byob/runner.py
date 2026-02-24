@@ -20,7 +20,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import requests
 from urllib3.util.retry import Retry
@@ -33,7 +33,7 @@ from nemo_evaluator.byob.defaults import (
     DEFAULT_TEMPERATURE,
     DEFAULT_TIMEOUT_SECONDS,
 )
-from nemo_evaluator.byob.eval_logic import import_benchmark, run_eval_loop
+from nemo_evaluator.byob.eval_logic import import_benchmark, run_eval_loop, MultiTurnStrategy
 from nemo_evaluator.logging import get_logger
 
 logger = get_logger(__name__)
@@ -72,7 +72,7 @@ def create_session(
 def call_model_chat(
     url: str,
     model_id: str,
-    prompt: str,
+    prompt: Union[str, List[Dict[str, str]]],
     temperature: float = DEFAULT_TEMPERATURE,
     max_tokens: int = DEFAULT_MAX_TOKENS,
     api_key: Optional[str] = None,
@@ -84,7 +84,8 @@ def call_model_chat(
     Args:
         url: Base URL for model endpoint.
         model_id: Model identifier.
-        prompt: Prompt text to send as user message.
+        prompt: Prompt text (wrapped as user message) or a message array
+                (list of ``{"role": ..., "content": ...}`` dicts).
         temperature: Sampling temperature.
         max_tokens: Maximum tokens to generate.
         api_key: Optional Bearer token for Authorization header.
@@ -103,9 +104,14 @@ def call_model_chat(
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
+    if isinstance(prompt, list):
+        messages = prompt
+    else:
+        messages = [{"role": "user", "content": prompt}]
+
     payload = {
         "model": model_id,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
@@ -120,7 +126,7 @@ def call_model_chat(
 def call_model_completions(
     url: str,
     model_id: str,
-    prompt: str,
+    prompt: Union[str, List[Dict[str, str]]],
     temperature: float = DEFAULT_TEMPERATURE,
     max_tokens: int = DEFAULT_MAX_TOKENS,
     api_key: Optional[str] = None,
@@ -132,7 +138,8 @@ def call_model_completions(
     Args:
         url: Base URL for model endpoint.
         model_id: Model identifier.
-        prompt: Prompt text.
+        prompt: Prompt text. Message arrays are not supported for the
+                completions endpoint and will raise ValueError.
         temperature: Sampling temperature.
         max_tokens: Maximum tokens to generate.
         api_key: Optional Bearer token for Authorization header.
@@ -143,9 +150,15 @@ def call_model_completions(
         Generated response text.
 
     Raises:
+        ValueError: If prompt is a message array (use chat endpoint instead).
         requests.HTTPError: On non-2xx response.
         requests.Timeout: On timeout.
     """
+    if isinstance(prompt, list):
+        raise ValueError(
+            "Completions endpoint does not support multi-turn message arrays. "
+            "Use endpoint_type='chat' for multi-turn evaluation."
+        )
     endpoint = f"{url}/completions"
     headers = {"Content-Type": "application/json"}
     if api_key:
@@ -412,7 +425,7 @@ def main():
     # Create model_call_fn that wraps the HTTP calls
     timeout = args.timeout_per_sample
 
-    def model_call_fn(prompt: str, endpoint_type: str) -> str:
+    def model_call_fn(prompt, endpoint_type: str) -> str:
         """Model call function that routes through subprocess HTTP calls."""
         if endpoint_type == "chat":
             return call_model_chat(
@@ -437,12 +450,20 @@ def main():
                 session=session,
             )
 
+    # Select evaluation strategy
+    strategy_name = bench.extra_config.get("strategy")
+    strategy = None
+    if strategy_name == "multi_turn":
+        turns_field = bench.extra_config.get("turns_field", "prompt")
+        strategy = MultiTurnStrategy(turns_field=turns_field)
+
     # Run evaluation loop using shared logic
     all_scores, all_predictions = run_eval_loop(
         bench=bench,
         dataset=dataset,
         model_call_fn=model_call_fn,
         endpoint_type=args.model_type,
+        strategy=strategy,
         save_predictions=args.save_predictions,
         fail_on_skip=args.fail_on_skip,
         parallelism=args.parallelism,
