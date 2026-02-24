@@ -78,6 +78,8 @@ def call_model_chat(
     api_key: Optional[str] = None,
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
     session: Optional[requests.Session] = None,
+    *,
+    system_prompt: Optional[str] = None,
 ) -> str:
     """Call OpenAI-compatible chat completions endpoint.
 
@@ -90,6 +92,7 @@ def call_model_chat(
         api_key: Optional Bearer token for Authorization header.
         timeout: Request timeout in seconds.
         session: Optional requests.Session for connection pooling.
+        system_prompt: Optional system message prepended to the conversation.
 
     Returns:
         Generated response text.
@@ -103,9 +106,14 @@ def call_model_chat(
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+
     payload = {
         "model": model_id,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
@@ -126,6 +134,8 @@ def call_model_completions(
     api_key: Optional[str] = None,
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
     session: Optional[requests.Session] = None,
+    *,
+    system_prompt: Optional[str] = None,
 ) -> str:
     """Call OpenAI-compatible completions endpoint.
 
@@ -138,6 +148,7 @@ def call_model_completions(
         api_key: Optional Bearer token for Authorization header.
         timeout: Request timeout in seconds.
         session: Optional requests.Session for connection pooling.
+        system_prompt: Optional system prompt prepended to the prompt text.
 
     Returns:
         Generated response text.
@@ -151,9 +162,11 @@ def call_model_completions(
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
+    full_prompt = f"{system_prompt}\n{prompt}" if system_prompt else prompt
+
     payload = {
         "model": model_id,
-        "prompt": prompt,
+        "prompt": full_prompt,
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
@@ -412,7 +425,7 @@ def main():
     # Create model_call_fn that wraps the HTTP calls
     timeout = args.timeout_per_sample
 
-    def model_call_fn(prompt: str, endpoint_type: str) -> str:
+    def model_call_fn(prompt: str, endpoint_type: str, *, system_prompt: Optional[str] = None) -> str:
         """Model call function that routes through subprocess HTTP calls."""
         if endpoint_type == "chat":
             return call_model_chat(
@@ -424,6 +437,7 @@ def main():
                 api_key=api_key,
                 timeout=timeout,
                 session=session,
+                system_prompt=system_prompt,
             )
         else:
             return call_model_completions(
@@ -435,6 +449,7 @@ def main():
                 api_key=api_key,
                 timeout=timeout,
                 session=session,
+                system_prompt=system_prompt,
             )
 
     # Run evaluation loop using shared logic

@@ -50,7 +50,7 @@ class ScorerInput:
     Advanced scorers (judge, multi-turn) use the optional fields.
     """
     response: str
-    target: str
+    target: Any
     metadata: dict
     # Extensible fields for advanced scorers
     model_call_fn: Optional[Callable] = None
@@ -73,6 +73,10 @@ class BenchmarkDefinition:
     requirements: List[str] = field(default_factory=list)
     field_mapping: Optional[Dict[str, str]] = None
     extra_config: Dict[str, Any] = field(default_factory=dict)
+    response_field: Optional[str] = None
+    _is_jinja2: bool = False
+    system_prompt: Optional[str] = None
+    _is_system_prompt_jinja2: bool = False
 
 
 _BENCHMARK_REGISTRY: Dict[str, BenchmarkDefinition] = {}
@@ -118,9 +122,22 @@ def _resolve_requirements(requirements, base_dir: Path) -> List[str]:
     return list(requirements)
 
 
+def _is_jinja2_template(prompt: str, source_extension: str = "") -> bool:
+    """Detect whether a prompt string should be rendered with Jinja2.
+
+    Conservative heuristic: only ``{%`` (block tags) and ``{#`` (comments) trigger
+    Jinja2 detection.  ``{{`` alone is ambiguous (Python brace-escape also uses it),
+    so variable-only Jinja2 templates must use a ``.jinja`` / ``.jinja2`` file extension.
+    """
+    if source_extension in (".jinja", ".jinja2"):
+        return True
+    return "{%" in prompt or "{#" in prompt
+
+
 def benchmark(name: str, dataset: str, prompt: str,
               target_field: str = "target", endpoint_type: str = "chat",
-              requirements=None, field_mapping=None, extra=None, **kwargs):
+              requirements=None, field_mapping=None, extra=None,
+              response_field=None, system_prompt=None, **kwargs):
     """Decorator that registers a function as a BYOB benchmark.
 
     Args:
@@ -141,6 +158,11 @@ def benchmark(name: str, dataset: str, prompt: str,
                ``config.params.extra`` in the generated framework.yml.
                Use this for judge configuration, custom settings, etc.
                Example: ``extra={"judge": {"url": "...", "model_id": "..."}}``.
+        response_field: Optional JSONL field containing pre-generated model
+                        responses. When set, the model is not called and
+                        responses are read directly from the dataset (eval-only mode).
+        system_prompt: Optional system prompt string or path to a template file.
+                       When set, a system message is prepended to model calls.
         **kwargs: Also merged into extra config (for backward compat).
                   ``extra`` takes precedence over ``**kwargs`` on conflicts.
     """
@@ -166,6 +188,18 @@ def benchmark(name: str, dataset: str, prompt: str,
         resolved_prompt = _resolve_prompt(prompt, base_dir)
         resolved_reqs = _resolve_requirements(requirements, base_dir)
 
+        # Detect Jinja2 template
+        source_ext = Path(prompt).suffix if any(prompt.endswith(ext) for ext in (".jinja", ".jinja2")) else ""
+        is_jinja2 = _is_jinja2_template(resolved_prompt, source_ext)
+
+        # Resolve system prompt (same as user prompt: file or inline, Jinja2 detect)
+        resolved_system_prompt = None
+        is_system_prompt_jinja2 = False
+        if system_prompt is not None:
+            resolved_system_prompt = _resolve_prompt(system_prompt, base_dir)
+            sys_ext = Path(system_prompt).suffix if any(system_prompt.endswith(ext) for ext in (".jinja", ".jinja2")) else ""
+            is_system_prompt_jinja2 = _is_jinja2_template(resolved_system_prompt, sys_ext)
+
         # Merge extra config: kwargs (backward compat) + extra (preferred)
         merged_extra = dict(kwargs)
         if extra:
@@ -182,6 +216,10 @@ def benchmark(name: str, dataset: str, prompt: str,
             requirements=resolved_reqs,
             field_mapping=field_mapping,
             extra_config=merged_extra,
+            response_field=response_field,
+            _is_jinja2=is_jinja2,
+            system_prompt=resolved_system_prompt,
+            _is_system_prompt_jinja2=is_system_prompt_jinja2,
         )
 
         _BENCHMARK_REGISTRY[normalized] = defn

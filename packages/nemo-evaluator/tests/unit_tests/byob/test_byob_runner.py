@@ -1069,3 +1069,132 @@ class TestRetrySession:
         assert args.retry_backoff == 2.5, (
             f"Expected retry_backoff=2.5, got {args.retry_backoff}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Gap 1: System Prompt in HTTP calls
+# ---------------------------------------------------------------------------
+
+
+class TestSystemPromptInCalls:
+    """Tests for system_prompt support in call_model_chat and call_model_completions."""
+
+    def test_chat_system_message_prepended(self):
+        """Validate that system_prompt adds a system message to the chat payload."""
+        mock_session = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "response"}}]
+        }
+        mock_session.post.return_value = mock_response
+
+        call_model_chat(
+            url="http://localhost:8000",
+            model_id="test-model",
+            prompt="User question",
+            session=mock_session,
+            system_prompt="You are a helpful assistant.",
+        )
+
+        mock_session.post.assert_called_once()
+        _args, kwargs = mock_session.post.call_args
+        payload = kwargs["json"]
+        messages = payload["messages"]
+
+        assert len(messages) == 2, \
+            f"Expected 2 messages (system + user), got {len(messages)}"
+        assert messages[0] == {"role": "system", "content": "You are a helpful assistant."}, \
+            f"Expected system message first, got {messages[0]}"
+        assert messages[1] == {"role": "user", "content": "User question"}, \
+            f"Expected user message second, got {messages[1]}"
+
+    def test_chat_no_system_message_when_none(self):
+        """Validate that no system message is included when system_prompt is None."""
+        mock_session = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "response"}}]
+        }
+        mock_session.post.return_value = mock_response
+
+        call_model_chat(
+            url="http://localhost:8000",
+            model_id="test-model",
+            prompt="User question",
+            session=mock_session,
+        )
+
+        _args, kwargs = mock_session.post.call_args
+        payload = kwargs["json"]
+        messages = payload["messages"]
+
+        assert len(messages) == 1, \
+            f"Expected 1 message (user only), got {len(messages)}"
+        assert messages[0]["role"] == "user"
+
+    def test_completions_system_prepended(self):
+        """Validate that system_prompt is prepended to the prompt text for completions."""
+        mock_session = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "choices": [{"text": "response"}]
+        }
+        mock_session.post.return_value = mock_response
+
+        call_model_completions(
+            url="http://localhost:8000",
+            model_id="test-model",
+            prompt="User question",
+            session=mock_session,
+            system_prompt="System instructions",
+        )
+
+        _args, kwargs = mock_session.post.call_args
+        payload = kwargs["json"]
+        prompt = payload["prompt"]
+
+        assert prompt == "System instructions\nUser question", \
+            f"Expected system prompt prepended, got '{prompt}'"
+
+    def test_completions_no_system_prompt(self):
+        """Validate that prompt is unchanged when system_prompt is None for completions."""
+        mock_session = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "choices": [{"text": "response"}]
+        }
+        mock_session.post.return_value = mock_response
+
+        call_model_completions(
+            url="http://localhost:8000",
+            model_id="test-model",
+            prompt="User question",
+            session=mock_session,
+        )
+
+        _args, kwargs = mock_session.post.call_args
+        payload = kwargs["json"]
+        prompt = payload["prompt"]
+
+        assert prompt == "User question", \
+            f"Expected unchanged prompt, got '{prompt}'"
+
+    def test_backward_compat_no_system_prompt(self):
+        """Validate backward compatibility: existing callers without system_prompt still work."""
+        mock_session = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "response"}}]
+        }
+        mock_session.post.return_value = mock_response
+
+        # Call without system_prompt kwarg at all
+        result = call_model_chat(
+            url="http://localhost:8000",
+            model_id="test-model",
+            prompt="Test prompt",
+            session=mock_session,
+        )
+
+        assert result == "response"
+        mock_session.post.assert_called_once()

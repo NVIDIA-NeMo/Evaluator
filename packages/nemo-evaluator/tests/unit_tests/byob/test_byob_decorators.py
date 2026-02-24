@@ -19,7 +19,9 @@ from pathlib import Path
 
 import pytest
 from nemo_evaluator.contrib.byob.decorators import (
+    BenchmarkDefinition,
     ScorerInput,
+    _is_jinja2_template,
     _normalize_name,
     _resolve_prompt,
     _resolve_requirements,
@@ -675,3 +677,186 @@ class TestScorerSignatureValidation:
             @scorer
             def fn(response, target, metadata):
                 return {}
+
+
+# ---------------------------------------------------------------------------
+# Gap 3: ScorerInput.target accepts Any
+# ---------------------------------------------------------------------------
+
+
+class TestScorerInputStructuredTarget:
+    """Tests for ScorerInput with structured (non-string) targets."""
+
+    def test_dict_target(self):
+        """Validate ScorerInput accepts a dict target."""
+        inp = ScorerInput(response="hi", target={"a": 1, "b": [2, 3]}, metadata={})
+        assert isinstance(inp.target, dict)
+        assert inp.target == {"a": 1, "b": [2, 3]}
+
+    def test_list_target(self):
+        """Validate ScorerInput accepts a list target."""
+        inp = ScorerInput(response="hi", target=["ans1", "ans2"], metadata={})
+        assert isinstance(inp.target, list)
+        assert inp.target == ["ans1", "ans2"]
+
+    def test_int_target(self):
+        """Validate ScorerInput accepts an int target."""
+        inp = ScorerInput(response="hi", target=42, metadata={})
+        assert inp.target == 42
+
+
+# ---------------------------------------------------------------------------
+# Gap 4: response_field on BenchmarkDefinition
+# ---------------------------------------------------------------------------
+
+
+class TestResponseField:
+    """Tests for response_field on BenchmarkDefinition and benchmark()."""
+
+    def test_response_field_default_none(self):
+        """Validate response_field defaults to None."""
+        defn = BenchmarkDefinition(
+            name="test", normalized_name="test",
+            dataset="d.jsonl", prompt="{x}",
+            scorer_fn=lambda inp: {},
+        )
+        assert defn.response_field is None
+
+    def test_response_field_set_via_benchmark_decorator(self):
+        """Validate response_field is set via @benchmark decorator."""
+
+        @benchmark(
+            name="resp-field-test",
+            dataset="d.jsonl",
+            prompt="{x}",
+            response_field="model_output",
+        )
+        @scorer
+        def fn(sample):
+            return {"ok": True}
+
+        defn = get_registered_benchmarks()["resp_field_test"]
+        assert defn.response_field == "model_output"
+
+
+# ---------------------------------------------------------------------------
+# Gap 2: Jinja2 detection heuristic
+# ---------------------------------------------------------------------------
+
+
+class TestJinja2Detection:
+    """Tests for _is_jinja2_template detection function."""
+
+    def test_block_tag_triggers_jinja2(self):
+        """Validate that {%...%} triggers Jinja2 detection."""
+        assert _is_jinja2_template("{% for x in items %}{{ x }}{% endfor %}") is True
+
+    def test_comment_tag_triggers_jinja2(self):
+        """Validate that {#...#} triggers Jinja2 detection."""
+        assert _is_jinja2_template("{# This is a comment #}{{ x }}") is True
+
+    def test_variable_only_does_not_trigger(self):
+        """Validate that {{ }} alone does NOT trigger Jinja2 (ambiguous with Python brace-escape)."""
+        assert _is_jinja2_template("{{ x }}") is False
+
+    def test_plain_format_string_not_jinja2(self):
+        """Validate that plain Python format string is not detected as Jinja2."""
+        assert _is_jinja2_template("Q: {question}\nA:") is False
+
+    def test_jinja_extension_triggers(self):
+        """Validate that .jinja extension triggers Jinja2 even for variable-only templates."""
+        assert _is_jinja2_template("{{ x }}", source_extension=".jinja") is True
+
+    def test_jinja2_extension_triggers(self):
+        """Validate that .jinja2 extension triggers Jinja2."""
+        assert _is_jinja2_template("{{ x }}", source_extension=".jinja2") is True
+
+    def test_benchmark_decorator_detects_jinja2(self):
+        """Validate that @benchmark detects Jinja2 in inline prompt."""
+
+        @benchmark(
+            name="jinja2-detect",
+            dataset="d.jsonl",
+            prompt="{% for d in docs %}{{ d }}{% endfor %}",
+        )
+        @scorer
+        def fn(sample):
+            return {"ok": True}
+
+        defn = get_registered_benchmarks()["jinja2_detect"]
+        assert defn._is_jinja2 is True
+
+    def test_benchmark_decorator_plain_format_not_jinja2(self):
+        """Validate that @benchmark does not flag plain format strings as Jinja2."""
+
+        @benchmark(
+            name="plain-format",
+            dataset="d.jsonl",
+            prompt="Q: {question}\nA:",
+        )
+        @scorer
+        def fn(sample):
+            return {"ok": True}
+
+        defn = get_registered_benchmarks()["plain_format"]
+        assert defn._is_jinja2 is False
+
+
+# ---------------------------------------------------------------------------
+# Gap 1: system_prompt on BenchmarkDefinition
+# ---------------------------------------------------------------------------
+
+
+class TestSystemPromptDecorator:
+    """Tests for system_prompt on BenchmarkDefinition and benchmark()."""
+
+    def test_system_prompt_default_none(self):
+        """Validate system_prompt defaults to None."""
+        defn = BenchmarkDefinition(
+            name="test", normalized_name="test",
+            dataset="d.jsonl", prompt="{x}",
+            scorer_fn=lambda inp: {},
+        )
+        assert defn.system_prompt is None
+        assert defn._is_system_prompt_jinja2 is False
+
+    def test_system_prompt_set_via_benchmark(self):
+        """Validate system_prompt is set via @benchmark decorator."""
+
+        @benchmark(
+            name="sys-prompt-dec",
+            dataset="d.jsonl",
+            prompt="{x}",
+            system_prompt="You are a helpful assistant.",
+        )
+        @scorer
+        def fn(sample):
+            return {"ok": True}
+
+        defn = get_registered_benchmarks()["sys_prompt_dec"]
+        assert defn.system_prompt == "You are a helpful assistant."
+        assert defn._is_system_prompt_jinja2 is False
+
+    def test_system_prompt_jinja2_detection(self):
+        """Validate Jinja2 detection works for system_prompt."""
+
+        @benchmark(
+            name="sys-prompt-j2",
+            dataset="d.jsonl",
+            prompt="{x}",
+            system_prompt="{% if domain %}Expert in {{ domain }}{% endif %}",
+        )
+        @scorer
+        def fn(sample):
+            return {"ok": True}
+
+        defn = get_registered_benchmarks()["sys_prompt_j2"]
+        assert defn._is_system_prompt_jinja2 is True
+
+    def test_system_prompt_from_file(self, tmp_path):
+        """Validate system_prompt reads from file when given a .txt path."""
+        sys_file = tmp_path / "system.txt"
+        sys_file.write_text("You are a domain expert in {domain}.", encoding="utf-8")
+
+        resolved = _resolve_prompt("system.txt", tmp_path)
+        assert resolved == "You are a domain expert in {domain}."

@@ -21,7 +21,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Protocol, Tuple
+from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple
 
 from nemo_evaluator.api.api_dataclasses import (
     EvaluationResult,
@@ -39,6 +39,34 @@ from nemo_evaluator.contrib.byob.decorators import (
 from nemo_evaluator.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Module-level Jinja2 environment singleton (lazy-initialized)
+_jinja2_env = None
+
+
+def _get_jinja2_env():
+    """Return a cached jinja2.Environment (created on first call)."""
+    global _jinja2_env
+    if _jinja2_env is None:
+        import jinja2
+        _jinja2_env = jinja2.Environment(undefined=jinja2.StrictUndefined)
+    return _jinja2_env
+
+
+def render_prompt(template: str, row: Dict, is_jinja2: bool = False) -> str:
+    """Render a prompt template with the given row data.
+
+    Args:
+        template: The prompt template string.
+        row: Dict of field values to substitute.
+        is_jinja2: If True, render with Jinja2 engine; otherwise use str.format().
+
+    Returns:
+        Rendered prompt string.
+    """
+    if is_jinja2:
+        return _get_jinja2_env().from_string(template).render(**row)
+    return template.format(**row)
 
 
 @dataclass
@@ -59,7 +87,7 @@ class SampleResult:
     sample_id: int
     prompt: str
     response: Optional[str]
-    target: str
+    target: Any
     scores: Optional[dict]
     status: str
     error: Optional[str] = None
@@ -147,23 +175,33 @@ class StandardStrategy:
     ) -> Tuple[Optional[Dict], Optional[SampleResult]]:
         # Render prompt
         try:
-            prompt = bench.prompt.format(**row)
+            prompt = render_prompt(bench.prompt, row, bench._is_jinja2)
         except KeyError as e:
             target = row.get(bench.target_field, "")
             return None, SampleResult(
                 sample_id=idx, prompt="", response=None,
-                target=str(target), scores=None,
+                target=target, scores=None,
                 status="skipped_missing_field", error=str(e), metadata=row,
             )
 
+        # Render system prompt if configured
+        rendered_system_prompt = None
+        if bench.system_prompt:
+            try:
+                rendered_system_prompt = render_prompt(
+                    bench.system_prompt, row, bench._is_system_prompt_jinja2
+                )
+            except KeyError:
+                pass  # Best-effort: skip system prompt if fields missing
+
         # Call model
         try:
-            response = model_call_fn(prompt, endpoint_type)
+            response = model_call_fn(prompt, endpoint_type, system_prompt=rendered_system_prompt)
         except Exception as e:
             target = row.get(bench.target_field, "")
             return None, SampleResult(
                 sample_id=idx, prompt=prompt, response=None,
-                target=str(target), scores=None,
+                target=target, scores=None,
                 status="skipped_model_error", error=str(e), metadata=row,
             )
 
@@ -171,7 +209,7 @@ class StandardStrategy:
         target = row.get(bench.target_field, "")
         scorer_input = ScorerInput(
             response=response,
-            target=str(target),
+            target=target,
             metadata=row,
             model_call_fn=model_call_fn,
             config=bench.extra_config,
@@ -181,13 +219,72 @@ class StandardStrategy:
         except Exception as e:
             return None, SampleResult(
                 sample_id=idx, prompt=prompt, response=response,
-                target=str(target), scores=None,
+                target=target, scores=None,
                 status="skipped_scorer_error", error=str(e), metadata=row,
             )
 
         prediction = SampleResult(
             sample_id=idx, prompt=prompt, response=response,
-            target=str(target), scores=sample_scores,
+            target=target, scores=sample_scores,
+            status="scored", metadata=row,
+        )
+        return sample_scores, prediction
+
+
+class EvalOnlyStrategy:
+    """Eval-only strategy: use pre-generated responses from the dataset instead of calling the model."""
+
+    def __init__(self, response_field: str):
+        self.response_field = response_field
+
+    def evaluate_sample(
+        self,
+        idx: int,
+        row: Dict,
+        bench: BenchmarkDefinition,
+        model_call_fn: Callable[[str, str], str],
+        endpoint_type: str,
+    ) -> Tuple[Optional[Dict], Optional[SampleResult]]:
+        # Get pre-generated response from dataset
+        if self.response_field not in row:
+            target = row.get(bench.target_field, "")
+            return None, SampleResult(
+                sample_id=idx, prompt="", response=None,
+                target=target, scores=None,
+                status="skipped_missing_field",
+                error=f"Response field '{self.response_field}' not found in row",
+                metadata=row,
+            )
+
+        response = str(row[self.response_field])
+
+        # Render prompt (best-effort, for predictions output)
+        try:
+            prompt = render_prompt(bench.prompt, row, bench._is_jinja2)
+        except KeyError:
+            prompt = ""
+
+        # Score using ScorerInput
+        target = row.get(bench.target_field, "")
+        scorer_input = ScorerInput(
+            response=response,
+            target=target,
+            metadata=row,
+            model_call_fn=model_call_fn,
+            config=bench.extra_config,
+        )
+        try:
+            sample_scores = bench.scorer_fn(scorer_input)
+        except Exception as e:
+            return None, SampleResult(
+                sample_id=idx, prompt=prompt, response=response,
+                target=target, scores=None,
+                status="skipped_scorer_error", error=str(e), metadata=row,
+            )
+
+        prediction = SampleResult(
+            sample_id=idx, prompt=prompt, response=response,
+            target=target, scores=sample_scores,
             status="scored", metadata=row,
         )
         return sample_scores, prediction
@@ -229,7 +326,10 @@ def run_eval_loop(
         Tuple of (all_scores, all_predictions).
     """
     if strategy is None:
-        strategy = StandardStrategy()
+        if bench.response_field:
+            strategy = EvalOnlyStrategy(bench.response_field)
+        else:
+            strategy = StandardStrategy()
 
     if parallelism > 1 and len(dataset) > 1:
         return _run_eval_loop_parallel(

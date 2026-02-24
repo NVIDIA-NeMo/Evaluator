@@ -119,7 +119,7 @@ class TestParallelism:
         responses = [f"Answer_{i}" for i in range(5)]
         call_idx = {"n": 0}
 
-        def model_fn(prompt, endpoint_type):
+        def model_fn(prompt, endpoint_type, **kwargs):
             idx = call_idx["n"]
             call_idx["n"] += 1
             return responses[min(idx, len(responses) - 1)]
@@ -163,7 +163,7 @@ class TestParallelism:
         """Test that model errors in parallel don't corrupt other samples."""
         call_count = {"n": 0}
 
-        def flaky_model(prompt, endpoint_type):
+        def flaky_model(prompt, endpoint_type, **kwargs):
             idx = call_count["n"]
             call_count["n"] += 1
             if idx % 3 == 1:  # Fail every 3rd sample starting at index 1
@@ -192,7 +192,7 @@ class TestParallelism:
 
     def test_parallel_fail_on_skip(self, simple_benchmark):
         """Test that fail_on_skip raises RuntimeError in parallel mode."""
-        def failing_model(prompt, endpoint_type):
+        def failing_model(prompt, endpoint_type, **kwargs):
             raise RuntimeError("Model down")
 
         dataset = [
@@ -212,7 +212,7 @@ class TestParallelism:
 
     def test_parallel_max_consecutive_errors(self, simple_benchmark):
         """Test that max_consecutive_errors is tracked in parallel mode."""
-        def always_failing_model(prompt, endpoint_type):
+        def always_failing_model(prompt, endpoint_type, **kwargs):
             raise RuntimeError("Always fails")
 
         dataset = [

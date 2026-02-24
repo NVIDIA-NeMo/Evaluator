@@ -25,11 +25,13 @@ from nemo_evaluator.contrib.byob.decorators import (
     get_registered_benchmarks,
 )
 from nemo_evaluator.contrib.byob.eval_logic import (
+    EvalOnlyStrategy,
     EvalStrategy,
     SampleResult,
     StandardStrategy,
     build_evaluation_result,
     import_benchmark,
+    render_prompt,
     run_eval_loop,
 )
 
@@ -1024,3 +1026,401 @@ class TestBuildEvaluationResult:
             f"Expected stddev=0.0 (n=1), got {score.stats.stddev}"
         assert score.stats.stderr == 0.0, \
             f"Expected stderr=0.0 (n=1), got {score.stats.stderr}"
+
+
+# ---------------------------------------------------------------------------
+# Gap 3: Structured Ground Truth tests
+# ---------------------------------------------------------------------------
+
+
+class TestStructuredTarget:
+    """Tests for structured (non-string) target support."""
+
+    def test_dict_target_passed_through(self):
+        """Validate that a dict target is passed through to the scorer without str() coercion."""
+        received_targets = []
+
+        def capture_scorer(inp: ScorerInput):
+            received_targets.append(inp.target)
+            return {"score": 1.0}
+
+        bench = BenchmarkDefinition(
+            name="dict-target",
+            normalized_name="dict_target",
+            dataset="unused",
+            prompt="Q: {question}",
+            target_field="answer",
+            scorer_fn=capture_scorer,
+        )
+
+        row = {"question": "test", "answer": {"key": "value", "nested": [1, 2]}}
+        mock_model = MagicMock(return_value="response")
+
+        strategy = StandardStrategy()
+        scores, prediction = strategy.evaluate_sample(
+            idx=0, row=row, bench=bench,
+            model_call_fn=mock_model, endpoint_type="chat",
+        )
+
+        assert scores is not None
+        assert isinstance(received_targets[0], dict), \
+            f"Expected dict target, got {type(received_targets[0])}"
+        assert received_targets[0] == {"key": "value", "nested": [1, 2]}
+        assert isinstance(prediction.target, dict), \
+            f"Expected dict in SampleResult.target, got {type(prediction.target)}"
+
+    def test_list_target_passed_through(self):
+        """Validate that a list target is passed through to the scorer without str() coercion."""
+        received_targets = []
+
+        def capture_scorer(inp: ScorerInput):
+            received_targets.append(inp.target)
+            return {"score": 1.0}
+
+        bench = BenchmarkDefinition(
+            name="list-target",
+            normalized_name="list_target",
+            dataset="unused",
+            prompt="Q: {question}",
+            target_field="answer",
+            scorer_fn=capture_scorer,
+        )
+
+        row = {"question": "test", "answer": ["a", "b", "c"]}
+        mock_model = MagicMock(return_value="response")
+
+        strategy = StandardStrategy()
+        scores, prediction = strategy.evaluate_sample(
+            idx=0, row=row, bench=bench,
+            model_call_fn=mock_model, endpoint_type="chat",
+        )
+
+        assert scores is not None
+        assert isinstance(received_targets[0], list), \
+            f"Expected list target, got {type(received_targets[0])}"
+        assert received_targets[0] == ["a", "b", "c"]
+
+    def test_scorer_input_accepts_any_target(self):
+        """Validate ScorerInput.target accepts dict, list, int, etc."""
+        inp_dict = ScorerInput(response="r", target={"a": 1}, metadata={})
+        assert isinstance(inp_dict.target, dict)
+
+        inp_list = ScorerInput(response="r", target=[1, 2, 3], metadata={})
+        assert isinstance(inp_list.target, list)
+
+        inp_int = ScorerInput(response="r", target=42, metadata={})
+        assert inp_int.target == 42
+
+
+# ---------------------------------------------------------------------------
+# Gap 4: Eval-Only Mode tests
+# ---------------------------------------------------------------------------
+
+
+class TestEvalOnlyStrategy:
+    """Tests for EvalOnlyStrategy."""
+
+    def test_uses_dataset_response(self):
+        """Validate EvalOnlyStrategy reads response from dataset instead of calling model."""
+        def simple_scorer(inp: ScorerInput):
+            return {"match": inp.target in inp.response}
+
+        bench = BenchmarkDefinition(
+            name="eval-only",
+            normalized_name="eval_only",
+            dataset="unused",
+            prompt="Q: {question}",
+            target_field="answer",
+            scorer_fn=simple_scorer,
+        )
+
+        row = {"question": "Is sky blue?", "answer": "yes", "model_output": "Yes it is"}
+        mock_model = MagicMock(return_value="SHOULD NOT BE CALLED")
+
+        strategy = EvalOnlyStrategy("model_output")
+        scores, prediction = strategy.evaluate_sample(
+            idx=0, row=row, bench=bench,
+            model_call_fn=mock_model, endpoint_type="chat",
+        )
+
+        assert scores is not None
+        assert prediction.response == "Yes it is", \
+            f"Expected response from dataset, got '{prediction.response}'"
+        mock_model.assert_not_called()
+
+    def test_model_never_called(self):
+        """Validate that model_call_fn is never invoked in eval-only mode."""
+        bench = BenchmarkDefinition(
+            name="eval-only-no-model",
+            normalized_name="eval_only_no_model",
+            dataset="unused",
+            prompt="Q: {question}",
+            target_field="answer",
+            scorer_fn=lambda inp: {"ok": True},
+        )
+
+        dataset = [
+            {"question": "q1", "answer": "a1", "resp": "r1"},
+            {"question": "q2", "answer": "a2", "resp": "r2"},
+        ]
+        mock_model = MagicMock()
+
+        scores, _ = run_eval_loop(
+            bench=BenchmarkDefinition(
+                name="eval-only-no-model",
+                normalized_name="eval_only_no_model",
+                dataset="unused",
+                prompt="Q: {question}",
+                target_field="answer",
+                scorer_fn=lambda inp: {"ok": True},
+                response_field="resp",
+            ),
+            dataset=dataset,
+            model_call_fn=mock_model,
+            endpoint_type="chat",
+        )
+
+        assert len(scores) == 2
+        mock_model.assert_not_called()
+
+    def test_missing_response_field_skips(self):
+        """Validate that a missing response field skips the sample gracefully."""
+        bench = BenchmarkDefinition(
+            name="eval-only-missing",
+            normalized_name="eval_only_missing",
+            dataset="unused",
+            prompt="Q: {question}",
+            target_field="answer",
+            scorer_fn=lambda inp: {"ok": True},
+        )
+
+        row = {"question": "q", "answer": "a"}  # No "resp" field
+        mock_model = MagicMock()
+
+        strategy = EvalOnlyStrategy("resp")
+        scores, prediction = strategy.evaluate_sample(
+            idx=0, row=row, bench=bench,
+            model_call_fn=mock_model, endpoint_type="chat",
+        )
+
+        assert scores is None
+        assert prediction.status == "skipped_missing_field"
+        assert "resp" in prediction.error
+
+    def test_auto_selection_eval_only(self):
+        """Validate that run_eval_loop auto-selects EvalOnlyStrategy when response_field is set."""
+        bench = BenchmarkDefinition(
+            name="auto-eval-only",
+            normalized_name="auto_eval_only",
+            dataset="unused",
+            prompt="Q: {question}",
+            target_field="answer",
+            scorer_fn=lambda inp: {"match": True},
+            response_field="output",
+        )
+
+        dataset = [{"question": "q", "answer": "a", "output": "model said this"}]
+        mock_model = MagicMock()
+
+        scores, _ = run_eval_loop(
+            bench=bench,
+            dataset=dataset,
+            model_call_fn=mock_model,
+            endpoint_type="chat",
+        )
+
+        assert len(scores) == 1
+        mock_model.assert_not_called()
+
+    def test_auto_selection_standard_when_no_response_field(self):
+        """Validate that run_eval_loop uses StandardStrategy when response_field is None."""
+        bench = BenchmarkDefinition(
+            name="auto-standard",
+            normalized_name="auto_standard",
+            dataset="unused",
+            prompt="Q: {question}",
+            target_field="answer",
+            scorer_fn=lambda inp: {"match": True},
+        )
+
+        dataset = [{"question": "q", "answer": "a"}]
+        mock_model = MagicMock(return_value="response")
+
+        scores, _ = run_eval_loop(
+            bench=bench,
+            dataset=dataset,
+            model_call_fn=mock_model,
+            endpoint_type="chat",
+        )
+
+        assert len(scores) == 1
+        mock_model.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Gap 2: Jinja2 Template Engine tests
+# ---------------------------------------------------------------------------
+
+
+class TestRenderPrompt:
+    """Tests for render_prompt helper function."""
+
+    def test_format_string_unchanged(self):
+        """Validate that a Python format string renders correctly with is_jinja2=False."""
+        result = render_prompt("Q: {question}\nA:", {"question": "Is sky blue?"})
+        assert result == "Q: Is sky blue?\nA:"
+
+    def test_jinja2_for_loop(self):
+        """Validate Jinja2 for-loop over a list of documents."""
+        template = "{% for d in docs %}{{ d.title }} {% endfor %}"
+        row = {"docs": [{"title": "A"}, {"title": "B"}, {"title": "C"}]}
+
+        result = render_prompt(template, row, is_jinja2=True)
+        assert "A" in result and "B" in result and "C" in result
+
+    def test_jinja2_conditional(self):
+        """Validate Jinja2 conditional rendering."""
+        template = "{% if show_hint %}Hint: {{ hint }}{% endif %}\nQ: {{ question }}"
+        row = {"show_hint": True, "hint": "Think carefully", "question": "2+2?"}
+
+        result = render_prompt(template, row, is_jinja2=True)
+        assert "Hint: Think carefully" in result
+        assert "Q: 2+2?" in result
+
+    def test_jinja2_no_conditional(self):
+        """Validate Jinja2 conditional is skipped when False."""
+        template = "{% if show_hint %}Hint: {{ hint }}{% endif %}Q: {{ question }}"
+        row = {"show_hint": False, "hint": "unused", "question": "2+2?"}
+
+        result = render_prompt(template, row, is_jinja2=True)
+        assert "Hint" not in result
+        assert "Q: 2+2?" in result
+
+
+class TestJinja2InStandardStrategy:
+    """Tests for Jinja2 rendering in StandardStrategy."""
+
+    def test_jinja2_prompt_in_strategy(self):
+        """Validate that StandardStrategy uses Jinja2 when bench._is_jinja2 is True."""
+        bench = BenchmarkDefinition(
+            name="jinja2-strategy",
+            normalized_name="jinja2_strategy",
+            dataset="unused",
+            prompt="{% for d in docs %}{{ d.title }} {% endfor %}",
+            target_field="answer",
+            scorer_fn=lambda inp: {"ok": True},
+            _is_jinja2=True,
+        )
+
+        row = {"docs": [{"title": "X"}, {"title": "Y"}], "answer": "a"}
+        mock_model = MagicMock(return_value="response")
+
+        strategy = StandardStrategy()
+        scores, prediction = strategy.evaluate_sample(
+            idx=0, row=row, bench=bench,
+            model_call_fn=mock_model, endpoint_type="chat",
+        )
+
+        assert scores is not None
+        assert "X" in prediction.prompt and "Y" in prediction.prompt
+
+
+# ---------------------------------------------------------------------------
+# Gap 1: System Prompt tests
+# ---------------------------------------------------------------------------
+
+
+class TestSystemPromptInStrategy:
+    """Tests for system prompt support in StandardStrategy."""
+
+    def test_system_prompt_passed_to_model_call(self):
+        """Validate that system_prompt is rendered and passed to model_call_fn."""
+        received_kwargs = []
+
+        def capturing_model(prompt, endpoint_type, **kwargs):
+            received_kwargs.append(kwargs)
+            return "response"
+
+        bench = BenchmarkDefinition(
+            name="sys-prompt",
+            normalized_name="sys_prompt",
+            dataset="unused",
+            prompt="Q: {question}",
+            target_field="answer",
+            scorer_fn=lambda inp: {"ok": True},
+            system_prompt="You are a {role} assistant.",
+        )
+
+        row = {"question": "test", "answer": "a", "role": "helpful"}
+
+        strategy = StandardStrategy()
+        scores, prediction = strategy.evaluate_sample(
+            idx=0, row=row, bench=bench,
+            model_call_fn=capturing_model, endpoint_type="chat",
+        )
+
+        assert scores is not None
+        assert len(received_kwargs) == 1
+        assert received_kwargs[0]["system_prompt"] == "You are a helpful assistant."
+
+    def test_no_system_prompt_backward_compat(self):
+        """Validate backward compatibility: no system_prompt means None is passed."""
+        received_kwargs = []
+
+        def capturing_model(prompt, endpoint_type, **kwargs):
+            received_kwargs.append(kwargs)
+            return "response"
+
+        bench = BenchmarkDefinition(
+            name="no-sys-prompt",
+            normalized_name="no_sys_prompt",
+            dataset="unused",
+            prompt="Q: {question}",
+            target_field="answer",
+            scorer_fn=lambda inp: {"ok": True},
+        )
+
+        row = {"question": "test", "answer": "a"}
+
+        strategy = StandardStrategy()
+        scores, _ = strategy.evaluate_sample(
+            idx=0, row=row, bench=bench,
+            model_call_fn=capturing_model, endpoint_type="chat",
+        )
+
+        assert scores is not None
+        assert received_kwargs[0]["system_prompt"] is None
+
+    def test_system_prompt_per_sample_rendering(self):
+        """Validate that system prompt is rendered per-sample with row data."""
+        prompts_seen = []
+
+        def capturing_model(prompt, endpoint_type, **kwargs):
+            prompts_seen.append(kwargs.get("system_prompt"))
+            return "response"
+
+        bench = BenchmarkDefinition(
+            name="per-sample-sys",
+            normalized_name="per_sample_sys",
+            dataset="unused",
+            prompt="Q: {question}",
+            target_field="answer",
+            scorer_fn=lambda inp: {"ok": True},
+            system_prompt="Domain: {domain}",
+        )
+
+        dataset = [
+            {"question": "q1", "answer": "a1", "domain": "math"},
+            {"question": "q2", "answer": "a2", "domain": "science"},
+        ]
+
+        scores, _ = run_eval_loop(
+            bench=bench,
+            dataset=dataset,
+            model_call_fn=capturing_model,
+            endpoint_type="chat",
+        )
+
+        assert len(scores) == 2
+        assert prompts_seen[0] == "Domain: math"
+        assert prompts_seen[1] == "Domain: science"
