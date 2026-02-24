@@ -332,3 +332,17 @@ class TestErrors:
         assert cfg.evaluation.tasks[0].nemo_evaluator_config.config.params.parallelism == 99
         # Second task unchanged
         assert cfg.evaluation.tasks[1].nemo_evaluator_config.config.params.parallelism == 1
+
+    def test_tilde_deletes_key(self, simple_cfg):
+        """~evaluation.tasks.<name>.<key> should delete the key."""
+        overrides = ["~evaluation.tasks.mmlu.nemo_evaluator_config"]
+        cfg = apply_task_name_overrides(simple_cfg, overrides)
+        assert "nemo_evaluator_config" not in cfg.evaluation.tasks[2]
+        # Other tasks untouched
+        assert "nemo_evaluator_config" in cfg.evaluation.tasks[0]
+
+    def test_tilde_nonexistent_key_raises(self, simple_cfg):
+        """Deleting a key that doesn't exist should raise."""
+        overrides = ["~evaluation.tasks.mmlu.no_such_key"]
+        with pytest.raises(ValueError, match="does not exist"):
+            apply_task_name_overrides(simple_cfg, overrides)
