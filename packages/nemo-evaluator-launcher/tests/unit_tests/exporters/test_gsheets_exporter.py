@@ -61,7 +61,7 @@ def fake_spreadsheet(fake_worksheet):
 
 
 @pytest.fixture
-def fake_service_account_new_sheet(fake_spreadsheet):
+def fake_account_new_sheet(fake_spreadsheet):
     from gspread import SpreadsheetNotFound
 
     class _Client:
@@ -81,7 +81,7 @@ def fake_service_account_new_sheet(fake_spreadsheet):
 
 
 @pytest.fixture
-def fake_service_account_existing_sheet(fake_spreadsheet):
+def fake_account_existing_sheet(fake_spreadsheet):
     class _Client:
         def __init__(self):
             self.calls = {"open": 0, "create": 0}
@@ -127,9 +127,7 @@ class TestGSheetsExporter:
         assert len(failed) == 1
         assert failed[0] == "i1.0"
 
-    def test_export_job_ok(
-        self, monkeypatch, tmp_path: Path, fake_service_account_new_sheet
-    ):
+    def test_export_job_ok(self, monkeypatch, tmp_path: Path, fake_account_new_sheet):
         monkeypatch.setattr(
             "nemo_evaluator_launcher.exporters.gsheets.GSPREAD_AVAILABLE",
             True,
@@ -138,9 +136,12 @@ class TestGSheetsExporter:
 
         monkeypatch.setattr(
             "gspread.service_account",
-            lambda *_: fake_service_account_new_sheet,
+            lambda *a, **k: fake_account_new_sheet,
             raising=False,
         )
+
+        # patch so that Path(service_account_file).exists() is True
+        monkeypatch.setattr(Path, "exists", lambda self: True)
 
         data = DataForExport(
             artifacts_dir=tmp_path / "artifacts",
@@ -162,11 +163,11 @@ class TestGSheetsExporter:
         assert successful == ["inv1.0"]
         assert len(failed) == 0
         assert len(skipped) == 0
-        assert "accuracy" in fake_service_account_new_sheet._spreadsheet.sheet1.headers
-        assert len(fake_service_account_new_sheet._spreadsheet.sheet1.rows) == 1
+        assert "accuracy" in fake_account_new_sheet._spreadsheet.sheet1.headers
+        assert len(fake_account_new_sheet._spreadsheet.sheet1.rows) == 1
 
     def test_export_multiple_jobs_ok(
-        self, monkeypatch, tmp_path: Path, fake_service_account_new_sheet
+        self, monkeypatch, tmp_path: Path, fake_account_new_sheet
     ):
         monkeypatch.setattr(
             "nemo_evaluator_launcher.exporters.gsheets.GSPREAD_AVAILABLE",
@@ -176,9 +177,12 @@ class TestGSheetsExporter:
 
         monkeypatch.setattr(
             "gspread.service_account",
-            lambda *_: fake_service_account_new_sheet,
+            lambda *a, **k: fake_account_new_sheet,
             raising=False,
         )
+
+        # patch so that Path(service_account_file).exists() is True
+        monkeypatch.setattr(Path, "exists", lambda self: True)
 
         inv = "zz11yy22"
         data_list = [
@@ -217,14 +221,14 @@ class TestGSheetsExporter:
         successful, failed, skipped = GSheetsExporter({}).export_jobs(data_list)
         assert len(successful) == 2
         assert len(failed) == 0
-        headers = fake_service_account_new_sheet._spreadsheet.sheet1.headers
+        headers = fake_account_new_sheet._spreadsheet.sheet1.headers
         assert "accuracy" in headers
         assert "t1_accuracy" not in headers
         assert "t0_accuracy" not in headers
-        assert len(fake_service_account_new_sheet._spreadsheet.sheet1.rows) == 2
+        assert len(fake_account_new_sheet._spreadsheet.sheet1.rows) == 2
 
     def test_export_job_no_metrics(
-        self, monkeypatch, tmp_path: Path, fake_service_account_new_sheet
+        self, monkeypatch, tmp_path: Path, fake_account_new_sheet
     ):
         # Enable gspread availability
         monkeypatch.setattr(
@@ -235,9 +239,12 @@ class TestGSheetsExporter:
 
         monkeypatch.setattr(
             "gspread.service_account",
-            lambda *_: fake_service_account_new_sheet,
+            lambda *a, **k: fake_account_new_sheet,
             raising=False,
         )
+
+        # patch so that Path(service_account_file).exists() is True
+        monkeypatch.setattr(Path, "exists", lambda self: True)
 
         data = DataForExport(
             artifacts_dir=tmp_path / "artifacts",
@@ -262,7 +269,7 @@ class TestGSheetsExporter:
         assert skipped[0] == "i5.0"
 
     def test_export_open_existing_and_headers_update(
-        self, monkeypatch, tmp_path: Path, fake_service_account_existing_sheet
+        self, monkeypatch, tmp_path: Path, fake_account_existing_sheet
     ):
         headers = [
             "Model Name",
@@ -274,8 +281,8 @@ class TestGSheetsExporter:
         ]  # no accuracy yet
         rows = [["model", "task", "inv1", "inv1.0", "local", "1.0"]]
 
-        fake_service_account_existing_sheet._spreadsheet.sheet1.headers = headers
-        fake_service_account_existing_sheet._spreadsheet.sheet1.rows = rows
+        fake_account_existing_sheet._spreadsheet.sheet1.headers = headers
+        fake_account_existing_sheet._spreadsheet.sheet1.rows = rows
 
         # Enable gspread availability
         monkeypatch.setattr(
@@ -284,12 +291,14 @@ class TestGSheetsExporter:
             raising=True,
         )
 
-        # Add gspread attribute to the module
         monkeypatch.setattr(
             "gspread.service_account",
-            lambda *_: fake_service_account_existing_sheet,
+            lambda *a, **k: fake_account_existing_sheet,
             raising=False,
         )
+
+        # patch so that Path(service_account_file).exists() is True
+        monkeypatch.setattr(Path, "exists", lambda self: True)
 
         inv = "aa11bb22"
         data = DataForExport(
@@ -312,14 +321,8 @@ class TestGSheetsExporter:
         assert successful == [f"{inv}.0"]
         assert failed == []
         assert skipped == []
-        assert (
-            "accuracy"
-            in fake_service_account_existing_sheet._spreadsheet.sheet1.headers
-        )
-        assert (
-            "some_metric"
-            in fake_service_account_existing_sheet._spreadsheet.sheet1.headers
-        )
+        assert "accuracy" in fake_account_existing_sheet._spreadsheet.sheet1.headers
+        assert "some_metric" in fake_account_existing_sheet._spreadsheet.sheet1.headers
 
     def test_export_exception_path(self, monkeypatch, tmp_path: Path):
         # Enable gspread
@@ -336,6 +339,10 @@ class TestGSheetsExporter:
                 RuntimeError("GSheets connection failed")
             ),
             SpreadsheetNotFound=type("SpreadsheetNotFound", (Exception,), {}),
+            auth=types.SimpleNamespace(
+                DEFAULT_SERVICE_ACCOUNT_FILENAME="creds.json",
+                DEFAULT_CREDENTIALS_FILENAME="creds.json",
+            ),
         )
         monkeypatch.setattr(gs_mod, "gspread", fake_gspread, raising=False)
 
@@ -364,7 +371,7 @@ class TestGSheetsExporter:
         self,
         monkeypatch,
         tmp_path: Path,
-        fake_service_account_new_sheet,
+        fake_account_new_sheet,
     ):
         # Enable gspread
         monkeypatch.setattr(
@@ -372,11 +379,14 @@ class TestGSheetsExporter:
             True,
             raising=True,
         )
+        # So that "if service_account_file and Path(service_account_file).exists()" is True
+        monkeypatch.setattr(Path, "exists", lambda self: True)
+
         service_account_calls = []
 
         def _track_service_account(*args, **kwargs):
             service_account_calls.append({"args": args, "kwargs": kwargs})
-            return fake_service_account_new_sheet
+            return fake_account_new_sheet
 
         monkeypatch.setattr(
             "nemo_evaluator_launcher.exporters.gsheets.gspread.service_account",
@@ -408,14 +418,14 @@ class TestGSheetsExporter:
         assert (
             service_account_calls[0]["kwargs"].get("filename") == "/path/to/creds.json"
         )
-        assert len(fake_service_account_new_sheet._spreadsheet.sheet1.rows) == 1
-        assert "accuracy" in fake_service_account_new_sheet._spreadsheet.sheet1.headers
+        assert len(fake_account_new_sheet._spreadsheet.sheet1.rows) == 1
+        assert "accuracy" in fake_account_new_sheet._spreadsheet.sheet1.headers
 
     def test_export_spreadsheet_not_found_creates_new(
         self,
         monkeypatch,
         tmp_path: Path,
-        fake_service_account_new_sheet,
+        fake_account_new_sheet,
     ):
         # Enable gspread
         monkeypatch.setattr(
@@ -426,9 +436,11 @@ class TestGSheetsExporter:
 
         monkeypatch.setattr(
             "gspread.service_account",
-            lambda *_: fake_service_account_new_sheet,
+            lambda *a, **k: fake_account_new_sheet,
             raising=False,
         )
+        # patch so that Path(service_account_file).exists() is True
+        monkeypatch.setattr(Path, "exists", lambda self: True)
 
         data = DataForExport(
             artifacts_dir=tmp_path / "artifacts",
@@ -449,13 +461,13 @@ class TestGSheetsExporter:
         successful, failed, skipped = GSheetsExporter({}).export_jobs([data])
 
         assert len(successful) == 1
-        assert fake_service_account_new_sheet.calls["open"] == 1  # Tried to open first
+        assert fake_account_new_sheet.calls["open"] == 1  # Tried to open first
         assert (
-            fake_service_account_new_sheet.calls["create"] == 1
+            fake_account_new_sheet.calls["create"] == 1
         )  # SpreadsheetNotFound -> create
 
     def test_export_mixed_success_and_skipped(
-        self, monkeypatch, tmp_path: Path, fake_service_account_new_sheet
+        self, monkeypatch, tmp_path: Path, fake_account_new_sheet
     ):
         # Enable gspread
         monkeypatch.setattr(
@@ -465,9 +477,12 @@ class TestGSheetsExporter:
         )
         monkeypatch.setattr(
             "gspread.service_account",
-            lambda *_: fake_service_account_new_sheet,
+            lambda *a, **k: fake_account_new_sheet,
             raising=False,
         )
+
+        # patch so that Path(service_account_file).exists() is True
+        monkeypatch.setattr(Path, "exists", lambda self: True)
 
         data_list = [
             DataForExport(
@@ -508,5 +523,5 @@ class TestGSheetsExporter:
         assert failed == []
         assert skipped == ["inv1.1"]
         assert (
-            len(fake_service_account_new_sheet._spreadsheet.sheet1.rows) == 1
+            len(fake_account_new_sheet._spreadsheet.sheet1.rows) == 1
         )  # Only one successful append
