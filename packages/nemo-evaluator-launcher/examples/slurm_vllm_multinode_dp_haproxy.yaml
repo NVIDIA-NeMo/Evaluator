@@ -43,6 +43,13 @@
 # - data_parallel_size: 8 (8 replicas per node using all GPUs)
 # - Total data parallelism: 16 (2 nodes × 8 GPUs)
 #
+# Configuration:
+# - execution.num_instances: 2 — 2 independent single-node instances
+#
+# What the launcher does automatically:
+# - Starts HAProxy to distribute requests across both instances
+# - Sets n_tasks = 2 (one SLURM task per node)
+#
 # ==============================================================================
 
 defaults:
@@ -60,22 +67,19 @@ execution:
   partition: batch
   walltime: 01:00:00
 
-  num_nodes: 2 # Number of SLURM nodes for multi-node deployment
-  deployment:
-    n_tasks: ${execution.num_nodes}  # One vLLM instance per node
+  num_instances: 2  # 2 independent single-node instances → HAProxy auto-enabled
 
   mounts:
     mount_home: false # Whether to mount home directory (default: true)
 
 # Override default deployment arguments
 deployment:
-  multiple_instances: true  # Enable HAProxy load balancing across nodes
   checkpoint_path: null
   hf_model_handle: nvidia/NVIDIA-Nemotron-Nano-9B-v2
   served_model_name: nvidia/NVIDIA-Nemotron-Nano-9B-v2
   tensor_parallel_size: 1  # Model fits on single GPU
   pipeline_parallel_size: 1
-  data_parallel_size_local: 8  # Each node uses all 8 GPUs for data parallelism
+  data_parallel_size: 8  # Each node uses all 8 GPUs for data parallelism
   port: 8000
   extra_args: "--trust-remote-code"
 

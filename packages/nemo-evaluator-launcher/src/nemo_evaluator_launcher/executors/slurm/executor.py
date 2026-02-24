@@ -31,7 +31,7 @@ from typing import Dict, List, Optional
 
 import yaml
 from jinja2 import Environment, FileSystemLoader
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo_evaluator_launcher.common.execdb import (
     ExecutionDB,
@@ -138,7 +138,7 @@ class SlurmExecutor(BaseExecutor):
                 )
 
                 # Create proxy config file with placeholder IPs for multi-instance deployments
-                if cfg.deployment.get("multiple_instances", False):
+                if cfg.execution.num_instances > 1:
                     proxy_type = cfg.execution.get("proxy", {}).get("type", "haproxy")
                     if proxy_type == "haproxy":
                         proxy_config = _generate_haproxy_config_with_placeholders(cfg)
@@ -518,35 +518,138 @@ class SlurmExecutor(BaseExecutor):
             raise RuntimeError(error_msg)
 
 
-def _validate_multi_node_multi_instance_config(cfg: DictConfig) -> None:
-    """Validate configuration for multi-node multi-instance deployments.
+def _resolve_multi_node_config(cfg: DictConfig) -> None:
+    """Resolve multi-node topology into two canonical fields.
 
-    Args:
-        cfg: The configuration object for the evaluation run.
+    After this function, only these two fields are guaranteed in the config:
+        execution.num_nodes_per_instance  (int >= 1)  — nodes per instance
+        execution.num_instances           (int >= 1)  — number of instances
 
-    Raises:
-        ValueError: If the configuration is invalid.
+    Total SLURM nodes = num_nodes_per_instance × num_instances.
+
+    New-style config (preferred):
+        num_nodes_per_instance + num_instances are used directly.
+        Both default to 1 if unset.
+
+    Deprecated fields (accepted, warned, removed from config):
+        execution.num_nodes (NN):
+            Removed after deriving NPI and NI. Rules:
+            - NN alone              → NPI=NN, NI=1
+            - NN + NPI              → NI=NN/NPI  (error if not divisible)
+            - NN + NI               → NPI=NN/NI  (error if not divisible)
+            - NN + NPI + NI         → validate NN == NPI×NI
+
+        deployment.multiple_instances (MI):
+            Removed after deriving NI. Only takes effect when True AND
+            neither NI nor NPI is set:
+            - MI=True + NN          → NI=NN (one instance per node)
+            - MI=True, no NN or NI  → error (can't derive NI)
+            - MI=True + NI or NPI   → MI ignored (new-style takes precedence)
+            - MI=False              → no effect, just warns
+
+        execution.deployment.n_tasks:
+            Auto-set to total nodes for vLLM. For other backends, defaults
+            to 1 if not explicitly set by the user.
     """
-    nodes_per_instance = cfg.deployment.get("nodes_per_instance", 1)
-    if nodes_per_instance < 1:
-        raise ValueError(f"nodes_per_instance must be >= 1, got {nodes_per_instance}")
-    if nodes_per_instance > 1:
-        num_nodes = cfg.execution.num_nodes
-        if num_nodes % nodes_per_instance != 0:
-            raise ValueError(
-                f"num_nodes ({num_nodes}) must be divisible by "
-                f"nodes_per_instance ({nodes_per_instance})"
+    user_num_instances = cfg.execution.get("num_instances")
+    user_num_nodes = cfg.execution.get("num_nodes")
+    user_num_nodes_per_instance = cfg.execution.get("num_nodes_per_instance")
+    user_multiple_instances = cfg.deployment.get("multiple_instances")
+
+    # Handle deprecated deployment.multiple_instances (old boolean flag)
+    if user_multiple_instances is not None:
+        logger.warning(
+            "deployment.multiple_instances is deprecated and will be "
+            "removed from config — use execution.num_instances instead."
+        )
+        with open_dict(cfg):
+            del cfg.deployment.multiple_instances
+        if (
+            user_multiple_instances
+            and user_num_instances is None
+            and user_num_nodes_per_instance is None
+        ):
+            # Old behavior: one instance per node (only when no new-style fields are set)
+            if user_num_nodes is None:
+                raise ValueError(
+                    "deployment.multiple_instances is deprecated. "
+                    "Set execution.num_instances instead."
+                )
+            user_num_instances = user_num_nodes
+
+    # Handle deprecated execution.num_nodes
+    if user_num_nodes is not None:
+        logger.warning(
+            "execution.num_nodes is deprecated and will be removed from "
+            "config — use execution.num_nodes_per_instance and "
+            "execution.num_instances instead."
+        )
+        with open_dict(cfg):
+            del cfg.execution.num_nodes
+        if user_num_nodes_per_instance is not None and user_num_instances is not None:
+            # All three set — validate consistency
+            if user_num_nodes != user_num_nodes_per_instance * user_num_instances:
+                raise ValueError(
+                    f"execution.num_nodes ({user_num_nodes}) != "
+                    f"execution.num_nodes_per_instance ({user_num_nodes_per_instance}) * "
+                    f"execution.num_instances ({user_num_instances})"
+                )
+        elif user_num_nodes_per_instance is not None:
+            # NN + NPI set → derive NI
+            if user_num_nodes % user_num_nodes_per_instance > 0:
+                raise ValueError(
+                    f"execution.num_nodes ({user_num_nodes}) must be divisible by "
+                    f"execution.num_nodes_per_instance ({user_num_nodes_per_instance})"
+                )
+            user_num_instances = user_num_nodes // user_num_nodes_per_instance
+        elif user_num_instances is not None:
+            # NN + NI set → derive NPI
+            if user_num_nodes % user_num_instances > 0:
+                raise ValueError(
+                    f"execution.num_nodes ({user_num_nodes}) must be divisible by "
+                    f"execution.num_instances ({user_num_instances})"
+                )
+            OmegaConf.update(
+                cfg,
+                "execution.num_nodes_per_instance",
+                user_num_nodes // user_num_instances,
             )
-        if not cfg.deployment.get("multiple_instances", False):
-            raise ValueError(
-                "nodes_per_instance > 1 requires deployment.multiple_instances=True"
+        else:
+            # Only NN set → NI=1, NPI=NN
+            user_num_instances = 1
+            OmegaConf.update(cfg, "execution.num_nodes_per_instance", user_num_nodes)
+    else:
+        # Preferred path: compute total from num_nodes_per_instance * num_instances
+        if user_num_instances is None:
+            user_num_instances = 1
+        num_nodes_per_instance = user_num_nodes_per_instance or 1
+        if user_num_nodes_per_instance is None:
+            OmegaConf.update(
+                cfg, "execution.num_nodes_per_instance", num_nodes_per_instance
             )
-        n_tasks = cfg.execution.get("deployment", {}).get("n_tasks", 1)
-        if n_tasks != num_nodes:
-            raise ValueError(
-                f"nodes_per_instance > 1 requires execution.deployment.n_tasks "
-                f"({n_tasks}) to equal execution.num_nodes ({num_nodes})"
+
+    OmegaConf.update(cfg, "execution.num_instances", user_num_instances)
+
+    # Auto-set n_tasks: vLLM always needs 1 task per node; others default to 1
+    user_n_tasks = cfg.execution.get("deployment", {}).get("n_tasks")
+    if cfg.deployment.get("type") == "vllm":
+        total_nodes = cfg.execution.num_nodes_per_instance * cfg.execution.num_instances
+        if user_n_tasks is not None and user_n_tasks != total_nodes:
+            logger.info(
+                "Overwriting execution.deployment.n_tasks=%d with %d "
+                "(must equal num_nodes_per_instance × num_instances for vLLM).",
+                user_n_tasks,
+                total_nodes,
             )
+            OmegaConf.update(cfg, "execution.deployment.n_tasks", total_nodes)
+        elif user_n_tasks is None:
+            logger.info(
+                "execution.deployment.n_tasks is not set, defaulting to %d.",
+                total_nodes,
+            )
+            OmegaConf.update(cfg, "execution.deployment.n_tasks", total_nodes)
+    elif user_n_tasks is None:
+        OmegaConf.update(cfg, "execution.deployment.n_tasks", 1)
 
 
 def _create_slurm_sbatch_script(
@@ -578,8 +681,8 @@ def _create_slurm_sbatch_script(
         endpoint_type=task.get("endpoint_type"),
     )
 
-    # Validate multi-node multi-instance configuration
-    _validate_multi_node_multi_instance_config(cfg)
+    # Ensure multi-node fields are resolved (idempotent if already called)
+    _resolve_multi_node_config(cfg)
 
     # TODO(public release): convert to template
     s = "#!/bin/bash\n"
@@ -588,7 +691,9 @@ def _create_slurm_sbatch_script(
     s += "#SBATCH --time {}\n".format(cfg.execution.walltime)
     s += "#SBATCH --account {}\n".format(cfg.execution.account)
     s += "#SBATCH --partition {}\n".format(cfg.execution.partition)
-    s += "#SBATCH --nodes {}\n".format(cfg.execution.num_nodes)
+    s += "#SBATCH --nodes {}\n".format(
+        cfg.execution.num_nodes_per_instance * cfg.execution.num_instances
+    )
     s += "#SBATCH --ntasks-per-node {}\n".format(cfg.execution.ntasks_per_node)
     if cfg.execution.get("gpus_per_node", None) is not None:
         s += "#SBATCH --gpus-per-node {}\n".format(cfg.execution.gpus_per_node)
@@ -713,13 +818,9 @@ def _create_slurm_sbatch_script(
 
         # wait for the server to initialize
         health_path = cfg.deployment.endpoints.get("health", "/health")
-        # For multi-instance check all node IPs, for single instance check localhost
-        if cfg.deployment.get("multiple_instances", False):
-            nodes_per_instance = cfg.deployment.get("nodes_per_instance", 1)
-            if nodes_per_instance > 1:
-                ip_list = '"${HEAD_NODE_IPS[@]}"'  # only head nodes serve HTTP
-            else:
-                ip_list = '"${NODES_IPS_ARRAY[@]}"'  # all nodes serve HTTP
+        # HEAD_NODE_IPS is always set: subset of heads when NPI > 1, all nodes otherwise
+        if cfg.execution.num_instances > 1:
+            ip_list = '"${HEAD_NODE_IPS[@]}"'
         else:
             ip_list = '"127.0.0.1"'
         s += _get_wait_for_server_handler(
@@ -732,7 +833,7 @@ def _create_slurm_sbatch_script(
         s += "\n\n"
 
         # add proxy load balancer for multi-instance deployments
-        if cfg.deployment.get("multiple_instances", False):
+        if cfg.execution.num_instances > 1:
             s += _get_proxy_server_srun_command(cfg, remote_task_subdir)
 
     # prepare evaluation mounts
@@ -801,7 +902,7 @@ def _create_slurm_sbatch_script(
     # terminate the server after all evaluation clients finish
     if cfg.deployment.type != "none":
         s += "kill $SERVER_PID  # terminate the server to finish gracefully\n"
-        if cfg.deployment.get("multiple_instances", False):
+        if cfg.execution.num_instances > 1:
             s += "kill $PROXY_PID  # terminate proxy to finish gracefully\n"
         s += "\n"
 
@@ -1553,12 +1654,9 @@ def _generate_haproxy_config_with_placeholders(cfg):
     template = env.get_template("proxy.cfg.template")
 
     # Prepare template data with placeholder IPs - one backend per instance head node
-    num_nodes = cfg.execution.num_nodes
-    nodes_per_instance = cfg.deployment.get("nodes_per_instance", 1)
-    num_instances = num_nodes // nodes_per_instance
     nodes = []
-    for i in range(num_instances):
-        head_idx = i * nodes_per_instance
+    for i in range(cfg.execution.num_nodes_per_instance):
+        head_idx = i * cfg.execution.num_nodes_per_instance
         nodes.append({"ip": f"{{IP_{head_idx}}}", "port": cfg.deployment.port})
 
     # Get health check parameters - prefer proxy config, fallback to deployment.endpoints.health
@@ -1629,6 +1727,37 @@ def _generate_deployment_srun_command(
 
     s += "# deployment server\n"
 
+    # Wrap deployment command with Ray setup for multi-node
+    if cfg.execution.num_nodes_per_instance > 1:
+        if cfg.deployment.get("type") != "vllm":
+            raise ValueError(
+                f"Multi-node (num_nodes_per_instance > 1) is only supported for "
+                f"vLLM deployments, got deployment.type={cfg.deployment.get('type')}"
+            )
+        OmegaConf.update(
+            cfg,
+            "deployment.extra_args",
+            (
+                (cfg.deployment.get("extra_args", "") or "")
+                + " --distributed-executor-backend ray"
+            ).strip(),
+        )
+        logger.info(
+            "Auto-injecting --distributed-executor-backend ray for multi-node vLLM."
+        )
+        ray_setup = (
+            Environment(loader=FileSystemLoader(Path(__file__).parent))
+            .get_template("ray_setup.sh.j2")
+            .render(
+                deployment_command=cfg.deployment.command,
+                num_nodes_per_instance=cfg.execution.num_nodes_per_instance,
+                num_instances=cfg.execution.num_instances,
+            )
+        )
+        ray_setup_echo_cmd = _str_to_echo_command(ray_setup, filename="ray_setup.sh")
+        cfg.deployment.command = f"{ray_setup_echo_cmd.cmd} && bash ray_setup.sh"
+        logger.info("Auto-injecting built-in Ray setup script for multi-node vLLM.")
+
     # Extract pre_cmd for later use inside container
     pre_cmd: str = cfg.deployment.get("pre_cmd") or ""
     if pre_cmd:
@@ -1652,21 +1781,12 @@ def _generate_deployment_srun_command(
     s += "# Export MASTER_IP as the first node IP\n"
     s += "export MASTER_IP=${NODES_IPS_ARRAY[0]}\n"
     s += 'echo "MASTER_IP: $MASTER_IP"\n'
-
-    # Multi-node multi-instance: export instance metadata and build HEAD_NODE_IPS
-    nodes_per_instance = cfg.deployment.get("nodes_per_instance", 1)
-    if nodes_per_instance > 1:
-        num_nodes = cfg.execution.num_nodes
-        num_instances = num_nodes // nodes_per_instance
-        s += "\n# Multi-node multi-instance metadata\n"
-        s += f"export NODES_PER_INSTANCE={nodes_per_instance}\n"
-        s += f"export NUM_INSTANCES={num_instances}\n"
-        s += 'export ALL_NODE_IPS=$(IFS=,; echo "${NODES_IPS_ARRAY[*]}")\n'
-        s += "HEAD_NODE_IPS=()\n"
-        s += f"for ((g=0; g<{num_instances}; g++)); do\n"
-        s += f'    HEAD_NODE_IPS+=("${{NODES_IPS_ARRAY[$((g * {nodes_per_instance}))]}}")\n'
-        s += "done\n"
-        s += 'echo "HEAD_NODE_IPS: ${HEAD_NODE_IPS[@]}"\n'
+    s += 'export ALL_NODE_IPS=$(IFS=,; echo "${NODES_IPS_ARRAY[*]}")\n'
+    s += "HEAD_NODE_IPS=()\n"
+    s += f"for ((g=0; g<{cfg.execution.num_instances}; g++)); do\n"
+    s += f'    HEAD_NODE_IPS+=("${{NODES_IPS_ARRAY[$((g * {cfg.execution.num_nodes_per_instance}))]}}")\n'
+    s += "done\n"
+    s += 'echo "HEAD_NODE_IPS: ${HEAD_NODE_IPS[@]}"\n'
 
     # Add debug comment for deployment pre_cmd before srun command
     if debug_comment:
@@ -1675,7 +1795,7 @@ def _generate_deployment_srun_command(
         s += "\n"
 
     s += "srun --mpi pmix --overlap "
-    s += f"--nodes {cfg.execution.num_nodes} --ntasks {cfg.execution.get('deployment', {}).get('n_tasks', 1)} "
+    s += f"--nodes {cfg.execution.num_nodes_per_instance * cfg.execution.num_instances} --ntasks {cfg.execution.deployment.n_tasks} "
     s += "--container-image {} ".format(cfg.deployment.image)
     if deployment_mounts_list:
         s += "--container-mounts {} ".format(",".join(deployment_mounts_list))
@@ -1695,31 +1815,13 @@ def _generate_deployment_srun_command(
         )
         deployment_env_var_names.extend(list(cfg.deployment["env_vars"]))
 
-    # Always add MASTER_IP to the environment variables
-    if "MASTER_IP" not in deployment_env_var_names:
-        deployment_env_var_names.append("MASTER_IP")
-
-    # Add multi-node multi-instance env vars
-    if nodes_per_instance > 1:
-        for var in ["NODES_PER_INSTANCE", "NUM_INSTANCES", "ALL_NODE_IPS"]:
-            if var not in deployment_env_var_names:
-                deployment_env_var_names.append(var)
+    # Always pass MASTER_IP and ALL_NODE_IPS into the container
+    for var in ["MASTER_IP", "ALL_NODE_IPS"]:
+        if var not in deployment_env_var_names:
+            deployment_env_var_names.append(var)
 
     if deployment_env_var_names:
         s += f"--container-env {','.join(deployment_env_var_names)} "
-
-    # Build per-task instance variable injection for multi-node multi-instance
-    instance_prefix = ""
-    if nodes_per_instance > 1:
-        instance_prefix = (
-            f"INSTANCE_ID=$((SLURM_PROCID / {nodes_per_instance})) && "
-            f"INSTANCE_RANK=$((SLURM_PROCID % {nodes_per_instance})) && "
-            "export INSTANCE_ID INSTANCE_RANK && "
-            'IFS="," read -ra _all_ips <<< "$ALL_NODE_IPS" && '
-            f"INSTANCE_MASTER_IP=${{_all_ips[$((INSTANCE_ID * {nodes_per_instance}))]}} && "
-            "export INSTANCE_MASTER_IP && "
-            "export MASTER_IP=$INSTANCE_MASTER_IP && "
-        )
 
     # Wrap deployment command to execute pre_cmd inside container if needed
     if pre_cmd:
@@ -1733,18 +1835,13 @@ def _generate_deployment_srun_command(
         # Escape single quotes in the deployment command for bash -c
         escaped_deployment_cmd = cfg.deployment.command.replace("'", "'\"'\"'")
         wrapped_command = (
-            f"bash -c '{instance_prefix}{create_pre_script_cmd.cmd} && "
+            f"bash -c '{create_pre_script_cmd.cmd} && "
             f"source deployment_pre_cmd.sh && "
             f"{escaped_deployment_cmd}'"
         )
         s += "{} &\n\n".format(wrapped_command)
     else:
-        if instance_prefix:
-            # Wrap in bash -c to inject instance vars
-            escaped_deployment_cmd = cfg.deployment.command.replace("'", "'\"'\"'")
-            s += "bash -c '{}{}' &\n\n".format(instance_prefix, escaped_deployment_cmd)
-        else:
-            s += "{} &\n\n".format(cfg.deployment.command)  # run asynchronously
+        s += "{} &\n\n".format(cfg.deployment.command)  # run asynchronously
 
     s += "SERVER_PID=$!  # capture the PID of the server background srun process\n\n"
 

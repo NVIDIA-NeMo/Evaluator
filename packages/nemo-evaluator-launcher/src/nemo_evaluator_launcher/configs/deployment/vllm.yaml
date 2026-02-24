@@ -21,7 +21,6 @@ port: 8000
 tensor_parallel_size: 8
 pipeline_parallel_size: 1
 data_parallel_size: 1
-nodes_per_instance: 1
 gpu_memory_utilization: 0.95
 extra_args: ""
 env_vars: {} # {name: value} dict

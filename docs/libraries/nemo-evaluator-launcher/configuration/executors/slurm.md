@@ -138,6 +138,67 @@ execution:
 - **Home Mount**: Optional mounting of user home directory (enabled by default)
 
 
+## Multi-Node Deployment
+
+For models that don't fit on a single node or when you need higher throughput, the launcher supports multi-node topologies controlled by two parameters under `execution`:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `num_nodes_per_instance` | 1 | Nodes per deployment instance. When > 1, the launcher auto-injects a Ray cluster setup script for cross-node coordination. |
+| `num_instances` | 1 | Number of independent deployment instances. When > 1, the launcher auto-starts HAProxy to load-balance requests across instances. |
+
+Total SLURM nodes = `num_nodes_per_instance × num_instances`.
+
+:::{note}
+Multi-node deployment (`num_nodes_per_instance > 1`) is only supported for vLLM deployments. The launcher automatically injects Ray and the `--distributed-executor-backend ray` flag — no manual configuration needed.
+:::
+
+### Scenario 1: Single Multi-Node Instance (Ray)
+
+A single model instance spanning multiple nodes using tensor and/or pipeline parallelism:
+
+```yaml
+execution:
+  num_nodes_per_instance: 2  # Instance spans 2 nodes → Ray auto-injected
+
+deployment:
+  tensor_parallel_size: 8    # GPU parallelism within each node
+  pipeline_parallel_size: 2  # Model parallelism across nodes
+```
+
+See: `examples/slurm_vllm_multinode_ray_tp_pp.yaml`
+
+### Scenario 2: Multiple Single-Node Instances (HAProxy)
+
+Independent model instances on separate nodes with HAProxy load balancing:
+
+```yaml
+execution:
+  num_instances: 2  # 2 independent instances → HAProxy auto-enabled
+
+deployment:
+  data_parallel_size: 8  # Each node uses all 8 GPUs
+```
+
+See: `examples/slurm_vllm_multinode_dp_haproxy.yaml`
+
+### Scenario 3: Multiple Multi-Node Instances (Ray + HAProxy)
+
+Multiple model instances, each spanning multiple nodes — combines Ray for cross-node parallelism with HAProxy for load balancing:
+
+```yaml
+execution:
+  num_nodes_per_instance: 2  # Each instance spans 2 nodes
+  num_instances: 2           # 2 instances → HAProxy auto-enabled
+  # Total: 4 SLURM nodes
+
+deployment:
+  tensor_parallel_size: 8
+  pipeline_parallel_size: 2
+```
+
+See: `examples/slurm_vllm_multinode_multiinstance_ray_tp_pp.yaml`
+
 ## Complete Configuration Example
 
 Here's a complete Slurm executor configuration using HuggingFace models:

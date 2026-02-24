@@ -334,8 +334,8 @@ def get_endpoint_url(
         # Local executor - use localhost
         endpoint_uri = cfg.deployment.endpoints[endpoint_type]
 
-        # Use HAProxy port if multiple_instances is enabled
-        if cfg.deployment.get("multiple_instances", False):
+        # Use HAProxy port if num_instances > 1
+        if cfg.execution.num_instances > 1:
             proxy_config = cfg.execution.get("proxy", {}).get("config", {})
             port = proxy_config.get("haproxy_port", 5009)
         else:
