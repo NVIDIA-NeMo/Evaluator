@@ -28,7 +28,7 @@ Every template follows this pattern:
 
 1. **SPDX license header** (Apache 2.0)
 2. **Docstring** with: "Suitable for:", "Scoring:", "Dataset fields:", "Target field:"
-3. **Import**: `from nemo_evaluator.byob import benchmark, scorer`
+3. **Import**: `from nemo_evaluator.contrib.byob import benchmark, scorer`
 4. **`_SCRIPT_DIR`** pattern for dataset path resolution
 5. **One `@benchmark` + `@scorer` pair** (exactly one per file)
 6. **Scorer returns dict** with at least key `"correct"` (bool)

@@ -23,7 +23,7 @@ Target field: expected_behavior
 """
 import os
 
-from nemo_evaluator.byob import benchmark, scorer, ScorerInput
+from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
 
 
 REFUSAL_PHRASES = (

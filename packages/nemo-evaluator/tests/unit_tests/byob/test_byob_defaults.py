@@ -21,7 +21,7 @@ values and types, and are actually consumed by runner.py and compiler.py.
 
 import inspect
 
-from nemo_evaluator.byob.defaults import (
+from nemo_evaluator.contrib.byob.defaults import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
     DEFAULT_TIMEOUT_SECONDS,
@@ -65,7 +65,7 @@ class TestDefaultConstants:
         Inspects the function signatures to confirm that the default values
         for temperature, max_tokens, and timeout originate from defaults.py.
         """
-        from nemo_evaluator.byob.runner import call_model_chat, call_model_completions
+        from nemo_evaluator.contrib.byob.runner import call_model_chat, call_model_completions
 
         for fn in (call_model_chat, call_model_completions):
             sig = inspect.signature(fn)
@@ -94,7 +94,7 @@ class TestDefaultConstants:
         Reads the _build_fdf source to confirm that the defaults dict references
         the constants from defaults.py rather than hard-coded magic numbers.
         """
-        from nemo_evaluator.byob.compiler import _build_fdf
+        from nemo_evaluator.contrib.byob.compiler import _build_fdf
 
         source = inspect.getsource(_build_fdf)
 
@@ -111,8 +111,8 @@ class TestDefaultConstants:
         The runner re-exports aggregate_scores for backward compatibility, so
         both import paths should resolve to the same function object.
         """
-        from nemo_evaluator.byob.aggregation import aggregate_scores as from_aggregation
-        from nemo_evaluator.byob.runner import aggregate_scores as from_runner
+        from nemo_evaluator.contrib.byob.aggregation import aggregate_scores as from_aggregation
+        from nemo_evaluator.contrib.byob.runner import aggregate_scores as from_runner
 
         assert from_aggregation is from_runner, (
             "aggregate_scores imported from aggregation and runner should be the same function"

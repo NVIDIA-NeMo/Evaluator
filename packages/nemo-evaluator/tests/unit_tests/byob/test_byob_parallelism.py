@@ -20,8 +20,8 @@ import time
 import pytest
 from unittest.mock import MagicMock
 
-from nemo_evaluator.byob.decorators import BenchmarkDefinition, ScorerInput
-from nemo_evaluator.byob.eval_logic import SampleResult, run_eval_loop
+from nemo_evaluator.contrib.byob.decorators import BenchmarkDefinition, ScorerInput
+from nemo_evaluator.contrib.byob.eval_logic import SampleResult, run_eval_loop
 
 
 class TestParallelism:

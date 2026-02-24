@@ -145,7 +145,7 @@ The agent writes the benchmark file, compiles it, and gives you the run command.
 │ Agent: [Step 5/5: Ship]                                     │
 │ Writing benchmark to ./my_qa_benchmark.py:                  │
 │                                                             │
-│   from nemo_evaluator.byob import benchmark, scorer         │
+│   from nemo_evaluator.contrib.byob import benchmark, scorer         │
 │                                                             │
 │   @benchmark(                                               │
 │       name="my-qa",                                         │

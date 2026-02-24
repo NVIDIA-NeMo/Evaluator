@@ -24,8 +24,8 @@ import os
 import pytest
 import yaml
 
-from nemo_evaluator.byob.compiler import compile_benchmark, install_benchmark
-from nemo_evaluator.byob.decorators import clear_registry
+from nemo_evaluator.contrib.byob.compiler import compile_benchmark, install_benchmark
+from nemo_evaluator.contrib.byob.decorators import clear_registry
 
 from .conftest import TEMPLATE_DIR, TEMPLATES
 
@@ -39,7 +39,7 @@ def test_template_compiles_independently(template_name, tmp_path):
     - FDF has required keys: framework, defaults, evaluations
     - framework.name starts with "byob_"
     - framework.pkg_name starts with "byob_"
-    - defaults.command contains "nemo_evaluator.byob.runner"
+    - defaults.command contains "nemo_evaluator.contrib.byob.runner"
     - benchmark_module path is absolute
     - dataset path is absolute (or doesn't exist at compile time)
     - install_benchmark() produces valid namespace package structure
@@ -93,7 +93,7 @@ def test_template_compiles_independently(template_name, tmp_path):
 
         # Validate command template
         command = fdf["defaults"]["command"]
-        assert "nemo_evaluator.byob.runner" in command, (
+        assert "nemo_evaluator.contrib.byob.runner" in command, (
             f"Template {template_name} command should reference runner module. "
             f"Got: {command}"
         )

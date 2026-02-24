@@ -27,7 +27,7 @@ import sys
 
 import pytest
 
-from nemo_evaluator.byob.decorators import clear_registry, get_registered_benchmarks
+from nemo_evaluator.contrib.byob.decorators import clear_registry, get_registered_benchmarks
 
 from .conftest import TEMPLATE_DIR, TEMPLATES
 

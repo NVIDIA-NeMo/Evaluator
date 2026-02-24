@@ -21,7 +21,7 @@ judge model for chain-of-thought reasoning before emitting a grade line.
 
 Usage::
 
-    from nemo_evaluator.byob.judge_templates import TEMPLATES, DEFAULT_PATTERNS
+    from nemo_evaluator.contrib.byob.judge_templates import TEMPLATES, DEFAULT_PATTERNS
 
     template_str = TEMPLATES["binary_qa"]
     grade_pattern = DEFAULT_PATTERNS["binary_qa"]

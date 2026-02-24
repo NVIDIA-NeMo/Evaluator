@@ -17,14 +17,14 @@
 
 Quick start::
 
-    from nemo_evaluator.byob import benchmark, scorer, ScorerInput
+    from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
 
     @benchmark(name="my-qa", dataset="data.jsonl", prompt="Q: {q}\\nA:")
     @scorer
     def check(inp: ScorerInput):
         return {"correct": inp.target.lower() in inp.response.lower()}
 
-Built-in scorers (import from nemo_evaluator.byob.scorers)::
+Built-in scorers (import from nemo_evaluator.contrib.byob.scorers)::
 
     contains(response, target, metadata) -> {"correct": bool}
         Case-insensitive substring match.
@@ -40,13 +40,13 @@ Built-in scorers (import from nemo_evaluator.byob.scorers)::
 
 Scorer composition::
 
-    from nemo_evaluator.byob import any_of, all_of
-    from nemo_evaluator.byob.scorers import contains
+    from nemo_evaluator.contrib.byob import any_of, all_of
+    from nemo_evaluator.contrib.byob.scorers import contains
 
     combined = any_of(contains, my_custom_scorer)
 """
-from nemo_evaluator.byob.decorators import benchmark, scorer, ScorerInput
-from nemo_evaluator.byob.scorers import any_of, all_of
-from nemo_evaluator.byob.judge import judge_score
+from nemo_evaluator.contrib.byob.decorators import benchmark, scorer, ScorerInput
+from nemo_evaluator.contrib.byob.scorers import any_of, all_of
+from nemo_evaluator.contrib.byob.judge import judge_score
 
 __all__ = ["benchmark", "scorer", "ScorerInput", "any_of", "all_of", "judge_score"]

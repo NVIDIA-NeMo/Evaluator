@@ -18,7 +18,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from nemo_evaluator.byob.runner import check_requirements, ensure_requirements
+from nemo_evaluator.contrib.byob.runner import check_requirements, ensure_requirements
 
 
 class TestCheckRequirements:
@@ -110,7 +110,7 @@ class TestCheckRequirements:
 class TestEnsureRequirements:
     """Tests for ensure_requirements function."""
 
-    @patch("nemo_evaluator.byob.runner.check_requirements")
+    @patch("nemo_evaluator.contrib.byob.runner.check_requirements")
     def test_no_install_when_satisfied(self, mock_check):
         """Test that subprocess is NOT called when all requirements are met."""
         mock_check.return_value = []
@@ -118,7 +118,7 @@ class TestEnsureRequirements:
             ensure_requirements(["numpy", "pandas"])
             mock_run.assert_not_called()
 
-    @patch("nemo_evaluator.byob.runner.check_requirements")
+    @patch("nemo_evaluator.contrib.byob.runner.check_requirements")
     def test_installs_missing_packages(self, mock_check):
         """Test that pip/uv install IS called for missing packages."""
         mock_check.return_value = ["Missing package: datasets (required: datasets)"]
@@ -131,7 +131,7 @@ class TestEnsureRequirements:
             assert "install" in cmd
             assert "datasets" in cmd
 
-    @patch("nemo_evaluator.byob.runner.check_requirements")
+    @patch("nemo_evaluator.contrib.byob.runner.check_requirements")
     def test_installs_only_missing(self, mock_check):
         """Test that only missing packages are installed, not satisfied ones."""
         mock_check.return_value = ["Missing package: datasets (required: datasets)"]

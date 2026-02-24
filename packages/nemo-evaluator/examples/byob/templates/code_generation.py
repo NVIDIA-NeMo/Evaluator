@@ -26,7 +26,7 @@ Target field: test
 """
 import os
 
-from nemo_evaluator.byob import benchmark, scorer, ScorerInput
+from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 

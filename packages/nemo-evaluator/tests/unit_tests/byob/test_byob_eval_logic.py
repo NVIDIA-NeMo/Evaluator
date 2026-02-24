@@ -19,12 +19,12 @@ import pytest
 from unittest.mock import MagicMock
 
 from nemo_evaluator.api.api_dataclasses import EvaluationResult
-from nemo_evaluator.byob.decorators import (
+from nemo_evaluator.contrib.byob.decorators import (
     BenchmarkDefinition,
     ScorerInput,
     get_registered_benchmarks,
 )
-from nemo_evaluator.byob.eval_logic import (
+from nemo_evaluator.contrib.byob.eval_logic import (
     EvalStrategy,
     SampleResult,
     StandardStrategy,
@@ -41,7 +41,7 @@ class TestImportBenchmark:
     def temp_benchmark_file(self, tmp_path):
         """Create a temporary benchmark .py file."""
         code = '''
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.contrib.byob import benchmark, scorer
 
 @benchmark(name="test-import", dataset="unused", prompt="Q: {q}\\nA:", target_field="a")
 @scorer
@@ -84,7 +84,7 @@ def test_scorer(sample):
             "Benchmark should be registered after import"
 
         # Manually register a different benchmark to simulate pollution
-        from nemo_evaluator.byob import benchmark, scorer
+        from nemo_evaluator.contrib.byob import benchmark, scorer
 
         @benchmark(name="polluted-bench", dataset="x", prompt="x", target_field="x")
         @scorer

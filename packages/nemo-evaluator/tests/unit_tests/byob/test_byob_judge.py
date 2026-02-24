@@ -20,15 +20,15 @@ import json
 import pytest
 from unittest.mock import MagicMock, patch
 
-from nemo_evaluator.byob.decorators import ScorerInput
-from nemo_evaluator.byob.judge import (
+from nemo_evaluator.contrib.byob.decorators import ScorerInput
+from nemo_evaluator.contrib.byob.judge import (
     JudgeConfig,
     judge_call,
     judge_score,
     parse_grade,
     render_judge_prompt,
 )
-from nemo_evaluator.byob.judge_templates import (
+from nemo_evaluator.contrib.byob.judge_templates import (
     DEFAULT_PATTERNS,
     DEFAULT_SCORE_MAPPINGS,
     TEMPLATES,
@@ -354,7 +354,7 @@ class TestJudgeScore:
         with pytest.raises(ValueError, match="judge"):
             judge_score(sample)
 
-    @patch("nemo_evaluator.byob.judge.judge_call")
+    @patch("nemo_evaluator.contrib.byob.judge.judge_call")
     def test_binary_qa_correct(self, mock_call):
         mock_call.return_value = "The answer matches.\nGRADE: C"
         sample = self._make_sample(judge=JUDGE_DICT)
@@ -362,7 +362,7 @@ class TestJudgeScore:
         assert result["judge_grade"] == "C"
         assert result["judge_score"] == 1.0
 
-    @patch("nemo_evaluator.byob.judge.judge_call")
+    @patch("nemo_evaluator.contrib.byob.judge.judge_call")
     def test_binary_qa_incorrect(self, mock_call):
         mock_call.return_value = "Wrong answer.\nGRADE: I"
         sample = self._make_sample(judge=JUDGE_DICT)
@@ -370,7 +370,7 @@ class TestJudgeScore:
         assert result["judge_grade"] == "I"
         assert result["judge_score"] == 0.0
 
-    @patch("nemo_evaluator.byob.judge.judge_call")
+    @patch("nemo_evaluator.contrib.byob.judge.judge_call")
     def test_likert_5(self, mock_call):
         mock_call.return_value = "Good quality.\nGRADE: 4"
         sample = self._make_sample(judge=JUDGE_DICT)
@@ -378,7 +378,7 @@ class TestJudgeScore:
         assert result["judge_grade"] == "4"
         assert result["judge_score"] == 0.8
 
-    @patch("nemo_evaluator.byob.judge.judge_call")
+    @patch("nemo_evaluator.contrib.byob.judge.judge_call")
     def test_partial_credit(self, mock_call):
         mock_call.return_value = "Partially correct.\nGRADE: P"
         sample = self._make_sample(judge=JUDGE_DICT)
@@ -386,7 +386,7 @@ class TestJudgeScore:
         assert result["judge_grade"] == "P"
         assert result["judge_score"] == 0.5
 
-    @patch("nemo_evaluator.byob.judge.judge_call")
+    @patch("nemo_evaluator.contrib.byob.judge.judge_call")
     def test_safety_template(self, mock_call):
         mock_call.return_value = "The response is safe.\nGRADE: SAFE"
         sample = self._make_sample(judge=JUDGE_DICT)
@@ -394,7 +394,7 @@ class TestJudgeScore:
         assert result["judge_grade"] == "SAFE"
         assert result["judge_score"] == 1.0
 
-    @patch("nemo_evaluator.byob.judge.judge_call")
+    @patch("nemo_evaluator.contrib.byob.judge.judge_call")
     def test_custom_template(self, mock_call):
         mock_call.return_value = "GRADE: YES"
         custom_template = "Is {response} correct for {question}?\n{reference}\n{criteria}\nGRADE: YES/NO"
@@ -408,7 +408,7 @@ class TestJudgeScore:
         assert result["judge_grade"] == "YES"
         assert result["judge_score"] == 1.0
 
-    @patch("nemo_evaluator.byob.judge.judge_call")
+    @patch("nemo_evaluator.contrib.byob.judge.judge_call")
     def test_parse_error(self, mock_call):
         mock_call.return_value = "I cannot determine the grade"
         sample = self._make_sample(judge=JUDGE_DICT)
@@ -416,7 +416,7 @@ class TestJudgeScore:
         assert result["judge_grade"] == "PARSE_ERROR"
         assert result["judge_score"] == 0.0
 
-    @patch("nemo_evaluator.byob.judge.judge_call")
+    @patch("nemo_evaluator.contrib.byob.judge.judge_call")
     def test_call_error(self, mock_call):
         mock_call.side_effect = Exception("Connection refused")
         sample = self._make_sample(judge=JUDGE_DICT)
@@ -424,7 +424,7 @@ class TestJudgeScore:
         assert result["judge_grade"] == "CALL_ERROR"
         assert result["judge_score"] == 0.0
 
-    @patch("nemo_evaluator.byob.judge.judge_call")
+    @patch("nemo_evaluator.contrib.byob.judge.judge_call")
     def test_criteria_passed_to_template(self, mock_call):
         mock_call.return_value = "GRADE: C"
         sample = self._make_sample(judge=JUDGE_DICT)
@@ -433,7 +433,7 @@ class TestJudgeScore:
         prompt = call_args[0][1]
         assert "Be strict about facts" in prompt
 
-    @patch("nemo_evaluator.byob.judge.judge_call")
+    @patch("nemo_evaluator.contrib.byob.judge.judge_call")
     def test_judge_config_object_accepted(self, mock_call):
         mock_call.return_value = "GRADE: C"
         config = JudgeConfig(url="http://judge:8000/v1", model_id="nemotron")
@@ -441,7 +441,7 @@ class TestJudgeScore:
         result = judge_score(sample, template="binary_qa")
         assert result["judge_grade"] == "C"
 
-    @patch("nemo_evaluator.byob.judge.judge_call")
+    @patch("nemo_evaluator.contrib.byob.judge.judge_call")
     def test_uses_internal_session(self, mock_call):
         """Test that _judge_session from config is used when available."""
         mock_call.return_value = "GRADE: C"
@@ -454,7 +454,7 @@ class TestJudgeScore:
         call_kwargs = mock_call.call_args
         assert call_kwargs[1].get("session") is mock_session
 
-    @patch("nemo_evaluator.byob.judge.judge_call")
+    @patch("nemo_evaluator.contrib.byob.judge.judge_call")
     def test_multi_judge_key(self, mock_call):
         """Test that judge_key parameter routes to the right config."""
         mock_call.return_value = "GRADE: C"
@@ -478,7 +478,7 @@ class TestJudgeScore:
         second_config = mock_call.call_args[0][0]
         assert second_config.model_id == "judge-b"
 
-    @patch("nemo_evaluator.byob.judge.judge_call")
+    @patch("nemo_evaluator.contrib.byob.judge.judge_call")
     def test_nemo_skills_config_format(self, mock_call):
         """Test with exact nemo-skills framework.yml config format."""
         mock_call.return_value = "GRADE: C"
@@ -587,7 +587,7 @@ class TestJudgeIntegration:
 
     def test_benchmark_with_judge_extra_config(self):
         """Verify judge={...} flows through @benchmark **kwargs."""
-        from nemo_evaluator.byob.decorators import (
+        from nemo_evaluator.contrib.byob.decorators import (
             benchmark,
             scorer,
             get_registered_benchmarks,
@@ -610,8 +610,8 @@ class TestJudgeIntegration:
 
     def test_judge_in_scorer_input(self):
         """Verify judge config reaches ScorerInput.config via StandardStrategy."""
-        from nemo_evaluator.byob.decorators import benchmark, scorer
-        from nemo_evaluator.byob.eval_logic import StandardStrategy
+        from nemo_evaluator.contrib.byob.decorators import benchmark, scorer
+        from nemo_evaluator.contrib.byob.eval_logic import StandardStrategy
 
         received_configs = []
 
@@ -626,7 +626,7 @@ class TestJudgeIntegration:
             received_configs.append(sample.config)
             return {"score": 1.0}
 
-        from nemo_evaluator.byob.decorators import get_registered_benchmarks
+        from nemo_evaluator.contrib.byob.decorators import get_registered_benchmarks
         bench = get_registered_benchmarks()["judge_input_test"]
 
         strategy = StandardStrategy()
@@ -645,11 +645,11 @@ class TestJudgeIntegration:
 
     def test_judge_support_flag_in_fdf(self):
         """Verify compiler sets judge_support: true in FDF when judge is present."""
-        from nemo_evaluator.byob.compiler import compile_benchmark
+        from nemo_evaluator.contrib.byob.compiler import compile_benchmark
         import tempfile, os
 
         code = '''
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.contrib.byob import benchmark, scorer
 @benchmark(
     name="fdf-judge",
     dataset="test.jsonl",
@@ -680,11 +680,11 @@ def s(sample):
 
     def test_multi_judge_in_fdf(self):
         """Verify multiple judge configs flow to FDF."""
-        from nemo_evaluator.byob.compiler import compile_benchmark
+        from nemo_evaluator.contrib.byob.compiler import compile_benchmark
         import tempfile, os
 
         code = '''
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.contrib.byob import benchmark, scorer
 @benchmark(
     name="multi-judge",
     dataset="test.jsonl",

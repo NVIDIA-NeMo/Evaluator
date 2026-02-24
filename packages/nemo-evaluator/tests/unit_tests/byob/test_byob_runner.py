@@ -23,7 +23,7 @@ import pytest
 import requests
 from unittest.mock import MagicMock, patch
 
-from nemo_evaluator.byob.runner import (
+from nemo_evaluator.contrib.byob.runner import (
     aggregate_scores,
     call_model_chat,
     call_model_completions,
@@ -243,7 +243,7 @@ class TestSavePredictions:
     @pytest.fixture
     def mock_benchmark(self):
         """Create a mock BenchmarkDefinition for testing save-predictions."""
-        from nemo_evaluator.byob.decorators import BenchmarkDefinition
+        from nemo_evaluator.contrib.byob.decorators import BenchmarkDefinition
 
         def simple_scorer(sample):
             return {"correct": sample.target.lower() in sample.response.lower()}
@@ -272,7 +272,7 @@ class TestSavePredictions:
         - File is created in output directory
         - File contains one JSON line per sample
         """
-        from nemo_evaluator.byob.eval_logic import run_eval_loop
+        from nemo_evaluator.contrib.byob.eval_logic import run_eval_loop
 
         # Mock model call function
         mock_model_call_fn = MagicMock(return_value="Yes, that is correct.")
@@ -315,7 +315,7 @@ class TestSavePredictions:
         - error: str or null
         - metadata: dict
         """
-        from nemo_evaluator.byob.eval_logic import run_eval_loop
+        from nemo_evaluator.contrib.byob.eval_logic import run_eval_loop
 
         mock_model_call_fn = MagicMock(return_value="Yes")
 
@@ -367,7 +367,7 @@ class TestSavePredictions:
         - scores is non-null dict
         - error is null
         """
-        from nemo_evaluator.byob.eval_logic import run_eval_loop
+        from nemo_evaluator.contrib.byob.eval_logic import run_eval_loop
 
         mock_model_call_fn = MagicMock(return_value="Yes, the sky is blue.")
 
@@ -411,7 +411,7 @@ class TestSavePredictions:
         - scores is null
         - error is non-null string
         """
-        from nemo_evaluator.byob.eval_logic import run_eval_loop
+        from nemo_evaluator.contrib.byob.eval_logic import run_eval_loop
 
         # Dataset with sample that will be skipped due to model error
         dataset = [
@@ -468,7 +468,7 @@ class TestTimeoutPerSample:
         - call_model_chat uses timeout=120 by default
         - call_model_completions uses timeout=120 by default
         """
-        with patch('nemo_evaluator.byob.runner.requests.post') as mock_post:
+        with patch('nemo_evaluator.contrib.byob.runner.requests.post') as mock_post:
             # Mock successful response
             mock_response = MagicMock()
             mock_response.json.return_value = {
@@ -497,7 +497,7 @@ class TestTimeoutPerSample:
         - Custom timeout value is used in HTTP call
         - Works for both chat and completions endpoints
         """
-        with patch('nemo_evaluator.byob.runner.requests.post') as mock_post:
+        with patch('nemo_evaluator.contrib.byob.runner.requests.post') as mock_post:
             # Mock successful response for chat
             mock_response = MagicMock()
             mock_response.json.return_value = {
@@ -519,7 +519,7 @@ class TestTimeoutPerSample:
                 f"Expected timeout=300, got {kwargs['timeout']}"
 
         # Test completions endpoint
-        with patch('nemo_evaluator.byob.runner.requests.post') as mock_post:
+        with patch('nemo_evaluator.contrib.byob.runner.requests.post') as mock_post:
             # Mock successful response for completions
             mock_response = MagicMock()
             mock_response.json.return_value = {
@@ -548,7 +548,7 @@ class TestTimeoutPerSample:
         - Value is converted to int
         - Default is 120
         """
-        from nemo_evaluator.byob.runner import main
+        from nemo_evaluator.contrib.byob.runner import main
         import sys
 
         # Test with custom timeout
@@ -564,10 +564,10 @@ class TestTimeoutPerSample:
         ]
 
         with patch.object(sys, 'argv', test_args):
-            with patch('nemo_evaluator.byob.runner.import_benchmark') as mock_import:
-                with patch('nemo_evaluator.byob.runner.load_dataset') as mock_load:
-                    with patch('nemo_evaluator.byob.runner.run_eval_loop') as mock_run:
-                        with patch('nemo_evaluator.byob.runner.aggregate_scores') as mock_agg:
+            with patch('nemo_evaluator.contrib.byob.runner.import_benchmark') as mock_import:
+                with patch('nemo_evaluator.contrib.byob.runner.load_dataset') as mock_load:
+                    with patch('nemo_evaluator.contrib.byob.runner.run_eval_loop') as mock_run:
+                        with patch('nemo_evaluator.contrib.byob.runner.aggregate_scores') as mock_agg:
                             with patch('builtins.open', MagicMock()):
                                 with patch('os.makedirs'):
                                     # Setup mocks
@@ -599,10 +599,10 @@ class TestTimeoutPerSample:
         ]
 
         with patch.object(sys, 'argv', test_args_default):
-            with patch('nemo_evaluator.byob.runner.import_benchmark') as mock_import:
-                with patch('nemo_evaluator.byob.runner.load_dataset') as mock_load:
-                    with patch('nemo_evaluator.byob.runner.run_eval_loop') as mock_run:
-                        with patch('nemo_evaluator.byob.runner.aggregate_scores') as mock_agg:
+            with patch('nemo_evaluator.contrib.byob.runner.import_benchmark') as mock_import:
+                with patch('nemo_evaluator.contrib.byob.runner.load_dataset') as mock_load:
+                    with patch('nemo_evaluator.contrib.byob.runner.run_eval_loop') as mock_run:
+                        with patch('nemo_evaluator.contrib.byob.runner.aggregate_scores') as mock_agg:
                             with patch('builtins.open', MagicMock()):
                                 with patch('os.makedirs'):
                                     # Setup mocks
@@ -692,7 +692,7 @@ class TestFailOnSkip:
     @pytest.fixture
     def mock_benchmark(self):
         """Create a mock BenchmarkDefinition for fail-on-skip tests."""
-        from nemo_evaluator.byob.decorators import BenchmarkDefinition
+        from nemo_evaluator.contrib.byob.decorators import BenchmarkDefinition
 
         def simple_scorer(sample):
             return {"correct": sample.target.lower() in sample.response.lower()}
@@ -714,7 +714,7 @@ class TestFailOnSkip:
         - run_eval_loop raises RuntimeError with descriptive message
         - The error message indicates which sample failed
         """
-        from nemo_evaluator.byob.eval_logic import run_eval_loop
+        from nemo_evaluator.contrib.byob.eval_logic import run_eval_loop
 
         dataset = [
             {"question": "q1", "answer": "a1"},
@@ -753,7 +753,7 @@ class TestFailOnSkip:
         - Scores list is shorter than dataset (skipped sample not scored)
         - Successfully processed samples are still scored
         """
-        from nemo_evaluator.byob.eval_logic import run_eval_loop
+        from nemo_evaluator.contrib.byob.eval_logic import run_eval_loop
 
         dataset = [
             {"question": "q1", "answer": "a1"},
@@ -796,7 +796,7 @@ class TestFailOnSkip:
         - run_eval_loop raises RuntimeError with descriptive message
         - The error indicates the missing field
         """
-        from nemo_evaluator.byob.eval_logic import run_eval_loop
+        from nemo_evaluator.contrib.byob.eval_logic import run_eval_loop
 
         # Dataset missing 'question' field
         dataset = [
@@ -908,7 +908,7 @@ class TestLogFormat:
         - When no --log-format is provided, parser uses "text"
         """
         import argparse
-        from nemo_evaluator.byob.runner import main
+        from nemo_evaluator.contrib.byob.runner import main
         import sys
 
         # Parse with minimal args (no --log-format specified)
@@ -993,7 +993,7 @@ class TestSessionPooling:
 
     def test_fallback_when_session_none(self):
         """Validate that requests.post is called directly when session is None."""
-        with patch("nemo_evaluator.byob.runner.requests") as mock_requests:
+        with patch("nemo_evaluator.contrib.byob.runner.requests") as mock_requests:
             mock_response = MagicMock()
             mock_response.json.return_value = {
                 "choices": [{"message": {"content": "fallback response"}}]

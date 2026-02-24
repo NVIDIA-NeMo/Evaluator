@@ -26,9 +26,9 @@ import string
 
 import pytest
 
-from nemo_evaluator.byob import benchmark, scorer
-from nemo_evaluator.byob.compiler import compile_benchmark
-from nemo_evaluator.byob.decorators import clear_registry
+from nemo_evaluator.contrib.byob import benchmark, scorer
+from nemo_evaluator.contrib.byob.compiler import compile_benchmark
+from nemo_evaluator.contrib.byob.decorators import clear_registry
 
 
 def test_data_format_error_json_parse(tmp_path):
@@ -111,7 +111,7 @@ def test_compilation_syntax_error(tmp_path):
     """
     bad_file = tmp_path / "bad_benchmark.py"
     bad_file.write_text(
-        "from nemo_evaluator.byob import benchmark, scorer\n"
+        "from nemo_evaluator.contrib.byob import benchmark, scorer\n"
         "def bad syntax():\n"  # Missing colon after function name
         "    pass\n"
     )
@@ -218,7 +218,7 @@ def test_compiler_resolves_relative_to_absolute(tmp_path):
     data_file.write_text('{"q": "test", "answer": "test"}\n')
 
     bench_file.write_text(
-        "from nemo_evaluator.byob import benchmark, scorer\n"
+        "from nemo_evaluator.contrib.byob import benchmark, scorer\n"
         "@benchmark(name='test', dataset='data.jsonl', prompt='Q: {q}', target_field='answer')\n"
         "@scorer\n"
         "def s(sample): return {'correct': True}\n"

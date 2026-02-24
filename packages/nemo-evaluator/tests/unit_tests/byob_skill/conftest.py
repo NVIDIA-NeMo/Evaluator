@@ -22,7 +22,7 @@ from typing import Callable
 
 import pytest
 
-from nemo_evaluator.byob.decorators import clear_registry, get_registered_benchmarks
+from nemo_evaluator.contrib.byob.decorators import clear_registry, get_registered_benchmarks
 
 
 # Resolve paths - REPO_ROOT points to packages/nemo-evaluator/
@@ -48,7 +48,7 @@ def clean_registry_fixture():
 
     This fixture runs before AND after each test to prevent global state
     leakage between tests. The registry is a module-level dict in
-    nemo_evaluator.byob.decorators.
+    nemo_evaluator.contrib.byob.decorators.
     """
     clear_registry()
     yield

@@ -30,7 +30,7 @@ from nemo_evaluator.api.api_dataclasses import (
     ScoreStats,
     TaskResult,
 )
-from nemo_evaluator.byob.decorators import (
+from nemo_evaluator.contrib.byob.decorators import (
     BenchmarkDefinition,
     ScorerInput,
     clear_registry,
@@ -450,7 +450,7 @@ def build_evaluation_result(
     Uses runner.aggregate_scores() for statistics computation, then constructs
     proper Pydantic models matching the engine's expected structure.
     """
-    from nemo_evaluator.byob.aggregation import aggregate_scores
+    from nemo_evaluator.contrib.byob.aggregation import aggregate_scores
 
     raw = aggregate_scores(scores, benchmark_name)
     if not raw or "tasks" not in raw:

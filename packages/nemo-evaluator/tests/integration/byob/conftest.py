@@ -17,7 +17,7 @@
 
 import pytest
 
-from nemo_evaluator.byob.decorators import clear_registry
+from nemo_evaluator.contrib.byob.decorators import clear_registry
 from tests.integration.byob.mock_server import MockServer
 
 
@@ -27,7 +27,7 @@ def _clear_byob_registry():
 
     This fixture runs before AND after each test to prevent
     global state leakage between tests. The registry is a
-    module-level dict in nemo_evaluator.byob.decorators.
+    module-level dict in nemo_evaluator.contrib.byob.decorators.
     """
     clear_registry()
     yield

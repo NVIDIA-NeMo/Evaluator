@@ -39,8 +39,8 @@ Usage:
     --overrides "config.params.limit_samples=10"
 """
 
-from nemo_evaluator.byob import benchmark, scorer, ScorerInput
-from nemo_evaluator.byob.judge import (
+from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
+from nemo_evaluator.contrib.byob.judge import (
     JudgeConfig,
     judge_call,
     parse_grade,

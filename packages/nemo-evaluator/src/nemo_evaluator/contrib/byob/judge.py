@@ -24,8 +24,8 @@ nemo-skills).
 
 Quick start::
 
-    from nemo_evaluator.byob import benchmark, scorer, ScorerInput
-    from nemo_evaluator.byob.judge import judge_score
+    from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
+    from nemo_evaluator.contrib.byob.judge import judge_score
 
     @benchmark(
         name="qa-judge",
@@ -69,7 +69,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from nemo_evaluator.byob.judge_templates import (
+from nemo_evaluator.contrib.byob.judge_templates import (
     DEFAULT_PATTERNS,
     DEFAULT_SCORE_MAPPINGS,
     TEMPLATES,

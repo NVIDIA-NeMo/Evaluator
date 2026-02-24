@@ -18,7 +18,7 @@
 from pathlib import Path
 
 import pytest
-from nemo_evaluator.byob.decorators import (
+from nemo_evaluator.contrib.byob.decorators import (
     ScorerInput,
     _normalize_name,
     _resolve_prompt,
@@ -310,16 +310,16 @@ class TestScorerInput:
         )
 
     def test_import_from_decorators_module(self):
-        """Validate ScorerInput is importable from nemo_evaluator.byob.decorators."""
-        from nemo_evaluator.byob.decorators import ScorerInput as DecScorerInput
+        """Validate ScorerInput is importable from nemo_evaluator.contrib.byob.decorators."""
+        from nemo_evaluator.contrib.byob.decorators import ScorerInput as DecScorerInput
 
         assert DecScorerInput is ScorerInput, (
             "ScorerInput imported from decorators module should be the same class"
         )
 
     def test_import_from_public_api(self):
-        """Validate ScorerInput is importable from nemo_evaluator.byob (public API)."""
-        from nemo_evaluator.byob import ScorerInput as PubScorerInput
+        """Validate ScorerInput is importable from nemo_evaluator.contrib.byob (public API)."""
+        from nemo_evaluator.contrib.byob import ScorerInput as PubScorerInput
 
         assert PubScorerInput is ScorerInput, (
             "ScorerInput imported from public API should be the same class"
@@ -541,7 +541,7 @@ class TestBenchmarkWithRequirements:
         # We need to invoke _resolve_requirements through the decorator.
         # The decorator resolves base_dir from the function source file,
         # so we call the helpers directly to test the file-based path.
-        from nemo_evaluator.byob.decorators import BenchmarkDefinition
+        from nemo_evaluator.contrib.byob.decorators import BenchmarkDefinition
 
         resolved_reqs = _resolve_requirements("requirements.txt", tmp_path)
         assert resolved_reqs == ["rogue-score>=0.1.2", "nltk"], (
@@ -590,7 +590,7 @@ class TestBenchmarkWithPromptFile:
 
     def test_prompt_file_stored_in_definition_via_helper(self, tmp_path):
         """Validate resolved prompt content is stored in BenchmarkDefinition."""
-        from nemo_evaluator.byob.decorators import BenchmarkDefinition
+        from nemo_evaluator.contrib.byob.decorators import BenchmarkDefinition
 
         prompt_file = tmp_path / "system.md"
         prompt_file.write_text("# System\nEvaluate: {input}", encoding="utf-8")

@@ -108,8 +108,8 @@ def test_skill_prompt_contains_required_sections(skill_prompt_path):
         "Skill prompt missing '@scorer' decorator reference. "
         "Expected BYOB API documentation."
     )
-    assert "nemo_evaluator.byob" in content, (
-        "Skill prompt missing 'nemo_evaluator.byob' import path. "
+    assert "nemo_evaluator.contrib.byob" in content, (
+        "Skill prompt missing 'nemo_evaluator.contrib.byob' import path. "
         "Expected BYOB API import instructions."
     )
 
@@ -231,8 +231,8 @@ def test_skill_prompt_references_critical_cli_commands(skill_prompt_path):
         "Users need this to compile benchmarks."
     )
 
-    assert "nemo_evaluator.byob" in content, (
-        "Skill prompt missing 'nemo_evaluator.byob' import path. "
+    assert "nemo_evaluator.contrib.byob" in content, (
+        "Skill prompt missing 'nemo_evaluator.contrib.byob' import path. "
         "Users need this for @benchmark and @scorer imports."
     )
 

@@ -27,11 +27,11 @@ Dataset fields (HF): question, option_a, option_b, option_c, option_d,
                      cultural_sensitivity_label
 
 Usage:
-  python -m nemo_evaluator.byob.cli examples/byob/global_mmlu_lite/benchmark.py
+  python -m nemo_evaluator.contrib.byob.cli examples/byob/global_mmlu_lite/benchmark.py
 """
 import re
 
-from nemo_evaluator.byob import benchmark, scorer, ScorerInput
+from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
 
 
 @benchmark(

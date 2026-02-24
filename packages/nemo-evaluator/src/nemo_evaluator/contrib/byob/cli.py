@@ -22,7 +22,7 @@ import sys
 
 import yaml
 
-from nemo_evaluator.byob.compiler import compile_benchmark, install_benchmark
+from nemo_evaluator.contrib.byob.compiler import compile_benchmark, install_benchmark
 
 
 def _get_version():
@@ -40,16 +40,6 @@ def byob_compile(args=None):
     )
     parser.add_argument("module", nargs="?", help="Path to Python file with @benchmark decorators")
     parser.add_argument("--install-dir", default=None, help="Custom installation directory")
-    parser.add_argument(
-        "--native",
-        action="store_true",
-        default=False,
-        help=(
-            "Run the benchmark directly in Python instead of as a separate process. "
-            "Faster startup, better error messages, and easier debugging. "
-            "Use this unless you need process isolation."
-        ),
-    )
     parser.add_argument(
         "--version",
         action="version",
@@ -91,11 +81,10 @@ def byob_compile(args=None):
                     fw = yaml.safe_load(f)
                 if fw:
                     name = fw.get("framework", {}).get("name", "unknown")
-                    mode = fw.get("defaults", {}).get("execution_mode", "subprocess")
                     evals = fw.get("evaluations", [])
                     for ev in evals:
                         eval_type = ev.get("defaults", {}).get("config", {}).get("type", "unknown")
-                        packages.append((name, eval_type, mode))
+                        packages.append((name, eval_type))
             except Exception:
                 continue
 
@@ -103,20 +92,18 @@ def byob_compile(args=None):
             print(f"No BYOB packages found at: {search_dir}")
         else:
             print(f"Installed BYOB benchmarks ({search_dir}):")
-            for name, eval_type, mode in packages:
-                print(f"  {eval_type}  [{mode}]")
+            for name, eval_type in packages:
+                print(f"  {eval_type}")
         sys.exit(0)
 
     # module is required for compile and dry-run
     if not parsed.module:
         parser.error("the following arguments are required: module")
 
-    execution_mode = "native" if parsed.native else "subprocess"
-
     # --dry-run: validate without installing
     if parsed.dry_run:
         try:
-            compiled = compile_benchmark(parsed.module, execution_mode=execution_mode)
+            compiled = compile_benchmark(parsed.module)
         except Exception as e:
             print(f"VALIDATION FAILED: {e}", file=sys.stderr)
             sys.exit(1)
@@ -133,7 +120,6 @@ def byob_compile(args=None):
                 print(f"    Samples: {sample_count}")
             else:
                 print(f"    WARNING: Dataset not found: {ds}", file=sys.stderr)
-            print(f"    Mode: {execution_mode}")
             # Show requirements if declared
             reqs = fdf["defaults"]["config"]["params"]["extra"].get("requirements", [])
             if reqs:
@@ -142,7 +128,7 @@ def byob_compile(args=None):
 
     # Normal compile + install
     print(f"Compiling benchmarks from: {parsed.module}")
-    compiled = compile_benchmark(parsed.module, execution_mode=execution_mode)
+    compiled = compile_benchmark(parsed.module)
 
     for name, fdf in compiled.items():
         pkg_name = f"byob_{name}"
@@ -152,7 +138,6 @@ def byob_compile(args=None):
         pkg_dir = install_benchmark(name, fdf, install_dir=parsed.install_dir)
         eval_type = f"{pkg_name}.{fdf['evaluations'][0]['name']}"
 
-        print(f"  Mode:      {execution_mode}")
         print(f"  Location:  {pkg_dir}")
         print(f"")
         print(f"  To run this benchmark:")
@@ -164,7 +149,7 @@ def byob_compile(args=None):
 
     # Check requirements if requested
     if parsed.check_requirements:
-        from nemo_evaluator.byob.runner import check_requirements
+        from nemo_evaluator.contrib.byob.runner import check_requirements
 
         print("\nRequirements check:")
         any_failed = False

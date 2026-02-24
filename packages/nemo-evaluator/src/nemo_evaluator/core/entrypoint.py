@@ -158,12 +158,9 @@ def run(args) -> None:
         print("Rendered config:\n")
         config = evaluation.model_dump()
         print(yaml.dump(config, sort_keys=False, default_flow_style=False, indent=2))
-        if evaluation.command:
-            print("\nRendered command:\n")
-            cmd = evaluation.render_command()
-            print(cmd)
-        else:
-            print(f"\nExecution mode: {evaluation.execution_mode.value} (no command template)")
+        print("\nRendered command:\n")
+        cmd = evaluation.render_command()
+        print(cmd)
         exit(0)
 
     metadata_cfg: EvaluationMetadata | None = run_config.get("metadata")

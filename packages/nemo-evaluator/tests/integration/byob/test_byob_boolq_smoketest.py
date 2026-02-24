@@ -31,8 +31,8 @@ from pathlib import Path
 
 import pytest
 
-from nemo_evaluator.byob.eval_logic import import_benchmark, run_eval_loop
-from nemo_evaluator.byob.runner import aggregate_scores, call_model_chat, load_dataset
+from nemo_evaluator.contrib.byob.eval_logic import import_benchmark, run_eval_loop
+from nemo_evaluator.contrib.byob.runner import aggregate_scores, call_model_chat, load_dataset
 
 _NVIDIA_API_URL = "https://integrate.api.nvidia.com/v1"
 _NVIDIA_MODEL_ID = "nvidia/nemotron-3-nano-30b-a3b"
@@ -147,7 +147,7 @@ class TestBoolQSmoketest:
 
         result = subprocess.run(
             [
-                sys.executable, "-m", "nemo_evaluator.byob.runner",
+                sys.executable, "-m", "nemo_evaluator.contrib.byob.runner",
                 "--benchmark-module", str(boolq_dir / "benchmark.py"),
                 "--benchmark-name", "boolq",
                 "--dataset", str(boolq_dir / "data.jsonl"),

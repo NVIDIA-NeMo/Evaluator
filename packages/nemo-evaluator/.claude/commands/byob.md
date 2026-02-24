@@ -19,7 +19,7 @@ If the user provides data path + target field + scoring method upfront, skip que
 ## BYOB API
 
 ```python
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.contrib.byob import benchmark, scorer
 
 @benchmark(
     name="my_bench",          # Human-readable name
@@ -35,7 +35,7 @@ def my_scorer(response: str, target: str, metadata: dict) -> dict:
     return {"correct": response.strip().lower() == target.strip().lower()}
 ```
 
-**Built-in scorers** (import from nemo_evaluator.byob.scorers):
+**Built-in scorers** (import from nemo_evaluator.contrib.byob.scorers):
 - `exact_match(response, target, metadata)` - case-insensitive string equality
 - `contains(response, target, metadata)` - target substring in response
 - `f1_token(response, target, metadata)` - token-level F1 overlap

@@ -24,7 +24,7 @@ for S3, GCS, HuggingFace, or any other data source.
 
 Example::
 
-    from nemo_evaluator.byob.dataset import load_dataset, register_fetcher
+    from nemo_evaluator.contrib.byob.dataset import load_dataset, register_fetcher
 
     # Load from local JSONL (default)
     data = load_dataset("data.jsonl")
@@ -119,7 +119,7 @@ class HuggingFaceFetcher:
 
     This fetcher is **not** auto-registered.  To enable it call::
 
-        from nemo_evaluator.byob.dataset import register_fetcher
+        from nemo_evaluator.contrib.byob.dataset import register_fetcher
         register_fetcher(HuggingFaceFetcher())
 
     Args:

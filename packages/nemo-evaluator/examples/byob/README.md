@@ -13,7 +13,7 @@ Create custom evaluation benchmarks for NeMo Evaluator in ~12 lines of Python.
 ### Step 1: Write your benchmark
 
 ```python
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.contrib.byob import benchmark, scorer
 
 @benchmark(
     name="my-qa",
@@ -48,9 +48,6 @@ nemo-evaluator run_eval \
 # Compile a benchmark
 nemo-evaluator-byob my_benchmark.py
 
-# Compile in native mode (faster, better debugging)
-nemo-evaluator-byob my_benchmark.py --native
-
 # Validate without installing
 nemo-evaluator-byob my_benchmark.py --dry-run
 
@@ -63,7 +60,7 @@ nemo-evaluator-byob --version
 
 ## Built-in Scorers
 
-Import from `nemo_evaluator.byob.scorers`:
+Import from `nemo_evaluator.contrib.byob.scorers`:
 
 | Scorer | Returns | Description |
 |--------|---------|-------------|
@@ -75,8 +72,8 @@ Import from `nemo_evaluator.byob.scorers`:
 ### Scorer Composition
 
 ```python
-from nemo_evaluator.byob import any_of, all_of
-from nemo_evaluator.byob.scorers import contains, exact_match
+from nemo_evaluator.contrib.byob import any_of, all_of
+from nemo_evaluator.contrib.byob.scorers import contains, exact_match
 
 # Correct if EITHER scorer matches
 lenient = any_of(contains, exact_match)
@@ -84,39 +81,6 @@ lenient = any_of(contains, exact_match)
 # Correct only if BOTH scorers match
 strict = all_of(contains, exact_match)
 ```
-
-## Execution Modes
-
-### Subprocess Mode (Default)
-
-Runs the benchmark in a separate Python process. Safe, isolated, production-ready.
-
-```bash
-nemo-evaluator-byob my_benchmark.py
-```
-
-### Native Mode
-
-Runs the benchmark in-process. Faster startup, better error messages, supports Python debugger breakpoints.
-
-```bash
-nemo-evaluator-byob my_benchmark.py --native
-```
-
-**Use native mode for:** Development, debugging, unit testing with mocked models.
-**Use subprocess mode for:** Production evaluations, untrusted code, long-running evals.
-
-> **Security Notice:** Native mode executes benchmark code directly in the evaluator process with full system access. Use subprocess mode (the default) when running untrusted or community-contributed benchmarks. Native mode provides no sandboxing or isolation.
-
-### When to Use Each Mode
-
-| Scenario | Recommended Mode | Why |
-|----------|-----------------|-----|
-| Production CI/CD pipeline | Subprocess | Process isolation, crash safety |
-| Debugging a new scorer | Native | Breakpoints work, faster iteration |
-| Running untrusted benchmarks | Subprocess | Security isolation |
-| Unit testing with mocked models | Native | No subprocess overhead |
-| Long-running evaluations (>1000 samples) | Subprocess | Memory isolation |
 
 ## Coding Agent Integration
 
@@ -183,5 +147,5 @@ Set a custom timeout with `--timeout-per-sample 300` for slow models.
 ### All samples skipped (0% accuracy)
 If every sample is skipped, check your model endpoint and API key. Use `--fail-on-skip` in CI to catch this:
 ```bash
-python -m nemo_evaluator.byob.runner ... --fail-on-skip
+python -m nemo_evaluator.contrib.byob.runner ... --fail-on-skip
 ```

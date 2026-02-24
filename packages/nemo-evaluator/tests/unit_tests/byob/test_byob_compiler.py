@@ -21,8 +21,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from nemo_evaluator.byob.compiler import compile_benchmark, install_benchmark
-from nemo_evaluator.byob.defaults import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
+from nemo_evaluator.contrib.byob.compiler import compile_benchmark, install_benchmark
+from nemo_evaluator.contrib.byob.defaults import DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE
 
 
 class TestCompileBenchmark:
@@ -32,7 +32,7 @@ class TestCompileBenchmark:
         """Test compiling a .py file produces correct FDF structure."""
         # Create a temp benchmark file
         benchmark_code = '''
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.contrib.byob import benchmark, scorer
 
 @benchmark(name="test-compile", dataset="data.jsonl", prompt="Q: {q}\\nA:")
 @scorer
@@ -57,8 +57,8 @@ def check(sample):
 
         # Defaults section
         assert "command" in fdf["defaults"], "Missing 'command' in defaults"
-        assert "nemo_evaluator.byob.runner" in fdf["defaults"]["command"], \
-            "Command should reference nemo_evaluator.byob.runner"
+        assert "nemo_evaluator.contrib.byob.runner" in fdf["defaults"]["command"], \
+            "Command should reference nemo_evaluator.contrib.byob.runner"
 
         assert "config" in fdf["defaults"], "Missing 'config' in defaults"
         assert fdf["defaults"]["config"]["params"]["limit_samples"] is None
@@ -111,7 +111,7 @@ def plain_function():
     def test_compile_multi_benchmark(self, tmp_path):
         """Test module with 2 benchmarks produces 2 FDF entries."""
         code = '''
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.contrib.byob import benchmark, scorer
 
 @benchmark(name="bench-one", dataset="d1.jsonl", prompt="{q}")
 @scorer
@@ -147,7 +147,7 @@ class TestInstallBenchmark:
         fdf = {
             "framework": {"name": "byob_test_pkg", "pkg_name": "byob_test_pkg"},
             "defaults": {
-                "command": "python -m nemo_evaluator.byob.runner ...",
+                "command": "python -m nemo_evaluator.contrib.byob.runner ...",
                 "config": {
                     "params": {
                         "limit_samples": None,
@@ -221,274 +221,13 @@ class TestInstallBenchmark:
             "pyproject.toml should contain package name core-evals-byob_test_pkg"
 
 
-class TestCompileNativeMode:
-    """Tests for native mode compilation extensions."""
-
-    def test_compiler_native_mode_fdf(self, tmp_path):
-        """Test compiling with execution_mode='native' produces correct FDF structure."""
-        # Create a temp benchmark file
-        benchmark_code = '''
-from nemo_evaluator.byob import benchmark, scorer
-
-@benchmark(name="test-native", dataset="data.jsonl", prompt="Q: {q}\\nA:")
-@scorer
-def check(sample):
-    return {"correct": sample.target.lower() in sample.response.lower()}
-'''
-        benchmark_file = tmp_path / "native_benchmark.py"
-        benchmark_file.write_text(benchmark_code)
-
-        # Compile with native mode
-        result = compile_benchmark(str(benchmark_file), execution_mode="native")
-
-        # Validate structure
-        assert "test_native" in result, f"Expected 'test_native' key, got {result.keys()}"
-        fdf = result["test_native"]
-
-        # Verify execution_mode is set to native
-        assert fdf["defaults"].get("execution_mode") == "native", \
-            f"FDF should contain execution_mode='native', got {fdf['defaults'].get('execution_mode')!r}"
-
-        # Verify command is NOT present in native mode
-        assert "command" not in fdf["defaults"], \
-            "Native mode FDF should not contain 'command' field"
-
-        # Framework section should still be correct
-        assert fdf["framework"]["name"] == "byob_test_native", \
-            f"Expected framework name 'byob_test_native', got {fdf['framework']['name']}"
-
-        # Config params should still be present
-        assert fdf["defaults"]["config"]["params"]["limit_samples"] is None
-        assert fdf["defaults"]["config"]["params"]["max_new_tokens"] == 4096
-        assert fdf["defaults"]["config"]["params"]["temperature"] == 0
-
-        # Extra params should contain benchmark info
-        assert fdf["defaults"]["config"]["params"]["extra"]["benchmark_name"] == "test_native", \
-            "Benchmark name should be 'test_native' in extra params"
-
-    def test_compiler_default_subprocess_mode_fdf(self, tmp_path):
-        """Test default compilation (no execution_mode arg) produces subprocess mode FDF."""
-        benchmark_code = '''
-from nemo_evaluator.byob import benchmark, scorer
-
-@benchmark(name="test-default", dataset="data.jsonl", prompt="Q: {q}\\nA:")
-@scorer
-def check(sample):
-    return {"correct": True}
-'''
-        benchmark_file = tmp_path / "default_benchmark.py"
-        benchmark_file.write_text(benchmark_code)
-
-        # Compile WITHOUT execution_mode argument (should default to subprocess)
-        result = compile_benchmark(str(benchmark_file))
-
-        fdf = result["test_default"]
-
-        # Should have command field (subprocess mode)
-        assert "command" in fdf["defaults"], \
-            "Default (subprocess) mode should include 'command' field"
-        assert "nemo_evaluator.byob.runner" in fdf["defaults"]["command"], \
-            "Default mode command should reference subprocess runner"
-
-        # Should NOT have execution_mode field, or it should be absent
-        # (backward compatibility - existing FDFs don't have execution_mode)
-        mode = fdf["defaults"].get("execution_mode")
-        assert mode is None or mode == "subprocess", \
-            f"Default compilation should not set execution_mode='native', got {mode!r}"
-
-    def test_compiler_explicit_subprocess_mode(self, tmp_path):
-        """Test explicit execution_mode='subprocess' produces subprocess FDF."""
-        benchmark_code = '''
-from nemo_evaluator.byob import benchmark, scorer
-
-@benchmark(name="test-subprocess", dataset="data.jsonl", prompt="{q}")
-@scorer
-def check(sample):
-    return {"correct": True}
-'''
-        benchmark_file = tmp_path / "subprocess_benchmark.py"
-        benchmark_file.write_text(benchmark_code)
-
-        result = compile_benchmark(str(benchmark_file), execution_mode="subprocess")
-
-        fdf = result["test_subprocess"]
-
-        # Should have command field
-        assert "command" in fdf["defaults"], \
-            "Subprocess mode should include 'command' field"
-
-    def test_install_native_mode_framework_yml(self, tmp_path):
-        """Test installing native mode FDF writes execution_mode='native' to framework.yml."""
-        # Create a native mode FDF
-        fdf_native = {
-            "framework": {"name": "byob_native_pkg", "pkg_name": "byob_native_pkg"},
-            "defaults": {
-                "execution_mode": "native",
-                # No "command" field for native mode
-                "config": {
-                    "params": {
-                        "limit_samples": None,
-                        "max_new_tokens": 4096,
-                        "temperature": 0,
-                        "extra": {
-                            "benchmark_module": "/path/to/module.py",
-                            "benchmark_name": "native_pkg",
-                            "dataset": "/path/to/data.jsonl",
-                        },
-                    }
-                },
-                "target": {"api_endpoint": {}},
-            },
-            "evaluations": [{
-                "name": "native-pkg",
-                "description": "BYOB benchmark: native-pkg",
-                "defaults": {
-                    "config": {
-                        "type": "byob_native_pkg.native-pkg",
-                        "supported_endpoint_types": ["chat"],
-                    }
-                }
-            }]
-        }
-
-        # Install benchmark
-        pkg_dir = install_benchmark("native_pkg", fdf_native, install_dir=str(tmp_path))
-
-        # Validate framework.yml contains execution_mode
-        fw_path = Path(pkg_dir) / "core_evals" / "byob_native_pkg" / "framework.yml"
-        assert fw_path.is_file(), f"framework.yml should exist at {fw_path}"
-
-        with open(fw_path) as f:
-            fw = yaml.safe_load(f)
-
-        # Verify execution_mode is preserved
-        assert fw["defaults"].get("execution_mode") == "native", \
-            f"framework.yml should contain execution_mode='native', got {fw['defaults'].get('execution_mode')!r}"
-
-        # Verify command field is absent
-        assert "command" not in fw["defaults"], \
-            "Native mode framework.yml should not contain 'command' field"
-
-    def test_install_native_mode_no_output_py(self, tmp_path):
-        """Test native mode installation does NOT create output.py (not needed for native)."""
-        fdf_native = {
-            "framework": {"name": "byob_native_pkg2", "pkg_name": "byob_native_pkg2"},
-            "defaults": {
-                "execution_mode": "native",
-                "config": {
-                    "params": {
-                        "limit_samples": None,
-                        "max_new_tokens": 4096,
-                        "temperature": 0,
-                        "extra": {
-                            "benchmark_module": "/path/to/module.py",
-                            "benchmark_name": "native_pkg2",
-                            "dataset": "/path/to/data.jsonl",
-                        },
-                    }
-                },
-                "target": {"api_endpoint": {}},
-            },
-            "evaluations": [{
-                "name": "native-pkg2",
-                "description": "BYOB benchmark: native-pkg2",
-                "defaults": {
-                    "config": {
-                        "type": "byob_native_pkg2.native-pkg2",
-                        "supported_endpoint_types": ["chat"],
-                    }
-                }
-            }]
-        }
-
-        pkg_dir = install_benchmark("native_pkg2", fdf_native, install_dir=str(tmp_path))
-
-        # output.py should NOT exist for native mode
-        output_py_path = Path(pkg_dir) / "core_evals" / "byob_native_pkg2" / "output.py"
-        assert not output_py_path.exists(), \
-            "Native mode should NOT generate output.py (returns EvaluationResult directly)"
-
-    def test_install_subprocess_mode_has_output_py(self, tmp_path):
-        """Test subprocess mode installation DOES create output.py (needed for parsing)."""
-        fdf_subprocess = {
-            "framework": {"name": "byob_subprocess_pkg", "pkg_name": "byob_subprocess_pkg"},
-            "defaults": {
-                # No execution_mode = defaults to subprocess
-                "command": "python -m nemo_evaluator.byob.runner ...",
-                "config": {
-                    "params": {
-                        "limit_samples": None,
-                        "max_new_tokens": 4096,
-                        "temperature": 0,
-                        "extra": {
-                            "benchmark_module": "/path/to/module.py",
-                            "benchmark_name": "subprocess_pkg",
-                            "dataset": "/path/to/data.jsonl",
-                        },
-                    }
-                },
-                "target": {"api_endpoint": {}},
-            },
-            "evaluations": [{
-                "name": "subprocess-pkg",
-                "description": "BYOB benchmark: subprocess-pkg",
-                "defaults": {
-                    "config": {
-                        "type": "byob_subprocess_pkg.subprocess-pkg",
-                        "supported_endpoint_types": ["chat"],
-                    }
-                }
-            }]
-        }
-
-        pkg_dir = install_benchmark("subprocess_pkg", fdf_subprocess, install_dir=str(tmp_path))
-
-        # output.py SHOULD exist for subprocess mode
-        output_py_path = Path(pkg_dir) / "core_evals" / "byob_subprocess_pkg" / "output.py"
-        assert output_py_path.is_file(), \
-            "Subprocess mode MUST generate output.py for parsing byob_results.json"
-
-    def test_compiler_native_mode_multi_benchmark(self, tmp_path):
-        """Test native mode compilation with multiple benchmarks in one module."""
-        code = '''
-from nemo_evaluator.byob import benchmark, scorer
-
-@benchmark(name="bench-one-native", dataset="d1.jsonl", prompt="{q}")
-@scorer
-def scorer_one(sample):
-    return {"correct": True}
-
-@benchmark(name="bench-two-native", dataset="d2.jsonl", prompt="{q}")
-@scorer
-def scorer_two(sample):
-    return {"correct": True}
-'''
-        benchmark_file = tmp_path / "multi_native_benchmark.py"
-        benchmark_file.write_text(code)
-
-        result = compile_benchmark(str(benchmark_file), execution_mode="native")
-
-        # Should have 2 entries, both with native mode
-        assert len(result) == 2, f"Expected 2 benchmarks, got {len(result)}"
-        assert "bench_one_native" in result
-        assert "bench_two_native" in result
-
-        # Both should have execution_mode='native'
-        assert result["bench_one_native"]["defaults"].get("execution_mode") == "native"
-        assert result["bench_two_native"]["defaults"].get("execution_mode") == "native"
-
-        # Neither should have command field
-        assert "command" not in result["bench_one_native"]["defaults"]
-        assert "command" not in result["bench_two_native"]["defaults"]
-
-
 class TestCompileWithRequirements:
     """Tests for requirements field in compile_benchmark output."""
 
     def test_compile_benchmark_with_inline_requirements(self, tmp_path):
         """Test that inline requirements list is propagated to FDF extra params."""
         benchmark_code = '''
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.contrib.byob import benchmark, scorer
 
 @benchmark(
     name="test-reqs-inline",
@@ -518,7 +257,7 @@ def check(sample):
     def test_compile_benchmark_with_no_requirements(self, tmp_path):
         """Test that omitting requirements produces an empty list in FDF extra params."""
         benchmark_code = '''
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.contrib.byob import benchmark, scorer
 
 @benchmark(name="test-no-reqs", dataset="data.jsonl", prompt="Q: {q}\\nA:")
 @scorer
@@ -547,7 +286,7 @@ def check(sample):
         reqs_file.write_text("# Comment line\nnumpy>=1.0\npandas\n\nscikit-learn>=1.2\n")
 
         benchmark_code = f'''
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.contrib.byob import benchmark, scorer
 
 @benchmark(
     name="test-reqs-file",
@@ -591,7 +330,7 @@ class TestInstallWithRequirements:
         return {
             "framework": {"name": "byob_test_pkg", "pkg_name": "byob_test_pkg"},
             "defaults": {
-                "command": "python -m nemo_evaluator.byob.runner ...",
+                "command": "python -m nemo_evaluator.contrib.byob.runner ...",
                 "config": {
                     "params": {
                         "limit_samples": None,
@@ -660,7 +399,7 @@ class TestCompilerSysPathCleanup:
     def test_sys_path_restored_after_compile(self, tmp_path):
         """Validate sys.path is restored to its original state after compilation."""
         benchmark_code = '''
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.contrib.byob import benchmark, scorer
 
 @benchmark(name="path-test", dataset="data.jsonl", prompt="{q}")
 @scorer
@@ -682,7 +421,7 @@ def check(sample):
     def test_sys_modules_cleaned_after_compile(self, tmp_path):
         """Validate user benchmark module is removed from sys.modules after compilation."""
         benchmark_code = '''
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.contrib.byob import benchmark, scorer
 
 @benchmark(name="modules-test", dataset="data.jsonl", prompt="{q}")
 @scorer
@@ -722,45 +461,10 @@ raise RuntimeError("intentional error during import")
 class TestBuildFdfHelper:
     """Tests for the _build_fdf helper function and FDF structural correctness."""
 
-    def test_native_vs_subprocess_structural_differences(self, tmp_path):
-        """Validate native has execution_mode and no command; subprocess has command and no execution_mode."""
-        benchmark_code = '''
-from nemo_evaluator.byob import benchmark, scorer
-
-@benchmark(name="fdf-test", dataset="data.jsonl", prompt="{q}")
-@scorer
-def check(sample):
-    return {"correct": True}
-'''
-        benchmark_file = tmp_path / "fdf_benchmark.py"
-        benchmark_file.write_text(benchmark_code)
-
-        native_result = compile_benchmark(str(benchmark_file), execution_mode="native")
-        native_fdf = native_result["fdf_test"]
-
-        # Native mode: has execution_mode, no command
-        assert native_fdf["defaults"].get("execution_mode") == "native", (
-            "Native FDF should have execution_mode='native'"
-        )
-        assert "command" not in native_fdf["defaults"], (
-            "Native FDF should not have a 'command' field"
-        )
-
-        subprocess_result = compile_benchmark(str(benchmark_file), execution_mode="subprocess")
-        subprocess_fdf = subprocess_result["fdf_test"]
-
-        # Subprocess mode: has command, no execution_mode
-        assert "command" in subprocess_fdf["defaults"], (
-            "Subprocess FDF should have a 'command' field"
-        )
-        assert subprocess_fdf["defaults"].get("execution_mode") is None, (
-            "Subprocess FDF should not have execution_mode set"
-        )
-
     def test_fdf_uses_defaults_constants(self, tmp_path):
         """Validate max_new_tokens and temperature in FDF match defaults.py constants."""
         benchmark_code = '''
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.contrib.byob import benchmark, scorer
 
 @benchmark(name="defaults-fdf", dataset="data.jsonl", prompt="{q}")
 @scorer

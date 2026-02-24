@@ -25,11 +25,11 @@ Dataset fields (HF): question, opa, opb, opc, opd, cop (0-3), subject_name,
                      topic_name, exp (explanation)
 
 Usage:
-  python -m nemo_evaluator.byob.cli examples/byob/medmcqa/benchmark.py
+  python -m nemo_evaluator.contrib.byob.cli examples/byob/medmcqa/benchmark.py
 """
 import re
 
-from nemo_evaluator.byob import benchmark, scorer, ScorerInput
+from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
 
 # Map HF integer answer codes to letters
 _COP_TO_LETTER = {"0": "A", "1": "B", "2": "C", "3": "D"}

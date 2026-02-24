@@ -21,10 +21,10 @@ Dataset is downloaded from HuggingFace at runtime.
 Source: google/boolq on HuggingFace (validation split).
 
 Usage:
-  python -m nemo_evaluator.byob.cli examples/byob/boolq/benchmark.py
+  python -m nemo_evaluator.contrib.byob.cli examples/byob/boolq/benchmark.py
 """
 
-from nemo_evaluator.byob import benchmark, scorer, ScorerInput
+from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
 
 
 @benchmark(

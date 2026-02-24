@@ -23,8 +23,8 @@ Target field: answer
 """
 import os
 
-from nemo_evaluator.byob import benchmark, scorer, ScorerInput
-from nemo_evaluator.byob.scorers import contains
+from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
+from nemo_evaluator.contrib.byob.scorers import contains
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 

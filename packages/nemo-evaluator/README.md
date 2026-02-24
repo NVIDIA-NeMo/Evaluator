@@ -7,7 +7,7 @@ For complete documentation, please see: [docs/nemo-evaluator/index.md](https://g
 Create custom evaluation benchmarks in ~12 lines of Python using the BYOB (Bring Your Own Benchmark) framework:
 
 ```python
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.contrib.byob import benchmark, scorer
 
 @benchmark(name="my-qa", dataset="data.jsonl", prompt="Q: {question}\nA:", target_field="answer")
 @scorer
@@ -21,4 +21,4 @@ nemo-evaluator-byob my_benchmark.py
 nemo-evaluator run_eval --eval_type byob_my_qa.my-qa --model_url http://localhost:8000 --model_id my-model
 ```
 
-See the [BYOB quickstart guide](examples/byob/README.md) for full documentation, built-in scorers, native mode, and examples.
+See the [BYOB quickstart guide](examples/byob/README.md) for full documentation, built-in scorers, and examples.

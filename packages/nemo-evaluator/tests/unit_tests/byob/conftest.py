@@ -16,8 +16,8 @@
 """Shared fixtures for BYOB unit tests."""
 
 import pytest
-from nemo_evaluator.byob.decorators import clear_registry
-from nemo_evaluator.byob.dataset import _FETCHER_REGISTRY, LocalFetcher
+from nemo_evaluator.contrib.byob.decorators import clear_registry
+from nemo_evaluator.contrib.byob.dataset import _FETCHER_REGISTRY, LocalFetcher
 
 
 @pytest.fixture(autouse=True)
@@ -26,7 +26,7 @@ def _clear_byob_registry():
 
     This fixture runs before AND after each test to prevent
     global state leakage between tests. The registry is a
-    module-level dict in nemo_evaluator.byob.decorators.
+    module-level dict in nemo_evaluator.contrib.byob.decorators.
     """
     clear_registry()
     yield
@@ -38,7 +38,7 @@ def _reset_fetcher_registry():
     """Ensure clean DatasetFetcher registry state for every test.
 
     The fetcher registry is a module-level list in
-    nemo_evaluator.byob.dataset. Save and restore it around
+    nemo_evaluator.contrib.byob.dataset. Save and restore it around
     each test to prevent cross-test pollution from custom
     fetchers registered via register_fetcher().
     """

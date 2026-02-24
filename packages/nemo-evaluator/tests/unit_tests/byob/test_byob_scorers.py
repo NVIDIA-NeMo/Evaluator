@@ -15,8 +15,8 @@
 
 """Unit tests for BYOB built-in scorer functions."""
 
-from nemo_evaluator.byob.decorators import ScorerInput
-from nemo_evaluator.byob.scorers import (
+from nemo_evaluator.contrib.byob.decorators import ScorerInput
+from nemo_evaluator.contrib.byob.scorers import (
     BUILTIN_SCORERS,
     all_of,
     any_of,

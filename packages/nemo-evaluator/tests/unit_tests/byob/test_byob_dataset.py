@@ -22,7 +22,7 @@ from typing import Dict, List, Optional
 import pytest
 from unittest.mock import MagicMock, patch
 
-from nemo_evaluator.byob.dataset import (
+from nemo_evaluator.contrib.byob.dataset import (
     DatasetFetcher,
     FetchResult,
     HuggingFaceFetcher,

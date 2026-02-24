@@ -26,14 +26,14 @@ import requests
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 
-from nemo_evaluator.byob.aggregation import aggregate_scores  # noqa: F401 — re-export for backward compat
-from nemo_evaluator.byob.dataset import load_dataset
-from nemo_evaluator.byob.defaults import (
+from nemo_evaluator.contrib.byob.aggregation import aggregate_scores  # noqa: F401 — re-export for backward compat
+from nemo_evaluator.contrib.byob.dataset import load_dataset
+from nemo_evaluator.contrib.byob.defaults import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
     DEFAULT_TIMEOUT_SECONDS,
 )
-from nemo_evaluator.byob.eval_logic import import_benchmark, run_eval_loop
+from nemo_evaluator.contrib.byob.eval_logic import import_benchmark, run_eval_loop
 from nemo_evaluator.logging import get_logger
 
 logger = get_logger(__name__)

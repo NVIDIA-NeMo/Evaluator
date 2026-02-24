@@ -29,8 +29,8 @@ from pathlib import Path
 
 import pytest
 
-from nemo_evaluator.byob.compiler import compile_benchmark, install_benchmark
-from nemo_evaluator.byob.decorators import ScorerInput
+from nemo_evaluator.contrib.byob.compiler import compile_benchmark, install_benchmark
+from nemo_evaluator.contrib.byob.decorators import ScorerInput
 
 
 def _get_boolq_benchmark_path():
@@ -163,7 +163,7 @@ class TestRunnerE2E:
         # Create a temporary benchmark file
         benchmark_file = tmp_path / "test_benchmark.py"
         benchmark_file.write_text('''
-from nemo_evaluator.byob import benchmark, scorer
+from nemo_evaluator.contrib.byob import benchmark, scorer
 
 @benchmark(
     name="test-e2e",
@@ -188,7 +188,7 @@ def simple_scorer(sample):
         # Run the benchmark via subprocess
         result = subprocess.run(
             [
-                sys.executable, "-m", "nemo_evaluator.byob.runner",
+                sys.executable, "-m", "nemo_evaluator.contrib.byob.runner",
                 "--benchmark-module", str(benchmark_file),
                 "--benchmark-name", "test_e2e",
                 "--dataset", str(dataset_file),
@@ -230,7 +230,7 @@ def simple_scorer(sample):
     def test_runner_cli_help(self):
         """Smoke test: --help should exit 0 and show expected flags."""
         result = subprocess.run(
-            [sys.executable, "-m", "nemo_evaluator.byob.runner", "--help"],
+            [sys.executable, "-m", "nemo_evaluator.contrib.byob.runner", "--help"],
             capture_output=True,
             text=True,
             timeout=10

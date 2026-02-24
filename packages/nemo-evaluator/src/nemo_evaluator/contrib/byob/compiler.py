@@ -23,12 +23,12 @@ from typing import Dict, List, Optional
 
 import yaml
 
-from nemo_evaluator.byob.decorators import (
+from nemo_evaluator.contrib.byob.decorators import (
     BenchmarkDefinition,
     clear_registry,
     get_registered_benchmarks,
 )
-from nemo_evaluator.byob.defaults import (
+from nemo_evaluator.contrib.byob.defaults import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
 )
@@ -37,7 +37,7 @@ from nemo_evaluator.byob.defaults import (
 # Jinja2 command template for runner invocation
 # NOTE: Use plain string concatenation to avoid f-string escaping issues with {{ }}
 COMMAND_TEMPLATE = (
-    "python -m nemo_evaluator.byob.runner"
+    "python -m nemo_evaluator.contrib.byob.runner"
     " --benchmark-module {{config.params.extra.benchmark_module}}"
     " --benchmark-name {{config.params.extra.benchmark_name}}"
     " --dataset {{config.params.extra.dataset}}"
@@ -64,19 +64,14 @@ def _build_fdf(
     bench: BenchmarkDefinition,
     benchmark_module_ref: str,
     dataset_path: str,
-    execution_mode: str,
 ) -> dict:
     """Build a single Framework Definition Format (FDF) dict for a benchmark.
-
-    Consolidates the native and subprocess FDF construction into a single
-    helper to eliminate near-identical code blocks.
 
     Args:
         normalized_name: Normalized benchmark name.
         bench: BenchmarkDefinition from the registry.
         benchmark_module_ref: Module reference (absolute path or dotted name).
         dataset_path: Resolved dataset path.
-        execution_mode: "subprocess" or "native".
 
     Returns:
         FDF dict ready for YAML serialization.
@@ -109,10 +104,7 @@ def _build_fdf(
         "target": {"api_endpoint": {}},
     }
 
-    if execution_mode == "native":
-        defaults["execution_mode"] = "native"
-    else:
-        defaults["command"] = COMMAND_TEMPLATE
+    defaults["command"] = COMMAND_TEMPLATE
 
     return {
         "framework": {
@@ -135,13 +127,12 @@ def _build_fdf(
     }
 
 
-def compile_benchmark(module_path: str, execution_mode: str = "subprocess") -> Dict[str, dict]:
+def compile_benchmark(module_path: str) -> Dict[str, dict]:
     """
     Import a user's benchmark module and generate Framework Definition Format (FDF) dicts.
 
     Args:
         module_path: Path to .py file or Python module name
-        execution_mode: "subprocess" (default) or "native"
 
     Returns:
         Dict mapping normalized benchmark names to FDF dicts
@@ -152,7 +143,7 @@ def compile_benchmark(module_path: str, execution_mode: str = "subprocess") -> D
     # Clear registry for fresh state
     clear_registry()
 
-    # Save sys.path and sys.modules for restoration (matching native_runner.py pattern)
+    # Save sys.path and sys.modules for restoration
     saved_path = sys.path[:]
     saved_modules = set(sys.modules.keys())
 
@@ -204,7 +195,6 @@ def compile_benchmark(module_path: str, execution_mode: str = "subprocess") -> D
                 bench=bench,
                 benchmark_module_ref=benchmark_module_ref,
                 dataset_path=dataset_path,
-                execution_mode=execution_mode,
             )
 
         return compiled
@@ -275,12 +265,10 @@ def install_benchmark(
     with open(framework_yml, "w") as f:
         yaml.safe_dump(fdf, f, default_flow_style=False, sort_keys=False)
 
-    # Write output.py ONLY for subprocess mode
-    execution_mode = fdf.get("defaults", {}).get("execution_mode", "subprocess")
-    if execution_mode != "native":
-        output_py = os.path.join(benchmark_pkg_dir, "output.py")
-        with open(output_py, "w") as f:
-            f.write(_generate_output_py())
+    # Write output.py for parsing subprocess results
+    output_py = os.path.join(benchmark_pkg_dir, "output.py")
+    with open(output_py, "w") as f:
+        f.write(_generate_output_py())
 
     return pkg_dir
 

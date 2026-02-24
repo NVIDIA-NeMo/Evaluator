@@ -20,8 +20,8 @@ of metric name -> numeric/bool value.
 
 Example::
 
-    from nemo_evaluator.byob.scorers import exact_match
-    from nemo_evaluator.byob.decorators import ScorerInput
+    from nemo_evaluator.contrib.byob.scorers import exact_match
+    from nemo_evaluator.contrib.byob.decorators import ScorerInput
 
     result = exact_match(ScorerInput(response="Yes", target="yes", metadata={}))
     # {"correct": True}
@@ -35,7 +35,7 @@ from collections import Counter
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from nemo_evaluator.byob.decorators import ScorerInput
+    from nemo_evaluator.contrib.byob.decorators import ScorerInput
 
 
 def contains(sample: ScorerInput) -> dict:
@@ -82,7 +82,7 @@ def any_of(*scorer_fns):
 
     Example::
 
-        from nemo_evaluator.byob.scorers import contains, exact_match, any_of
+        from nemo_evaluator.contrib.byob.scorers import contains, exact_match, any_of
         combined = any_of(contains, exact_match)
     """
     def combined(sample: ScorerInput) -> dict:
@@ -105,7 +105,7 @@ def all_of(*scorer_fns):
 
     Example::
 
-        from nemo_evaluator.byob.scorers import contains, exact_match, all_of
+        from nemo_evaluator.contrib.byob.scorers import contains, exact_match, all_of
         combined = all_of(contains, exact_match)
     """
     def combined(sample: ScorerInput) -> dict:
