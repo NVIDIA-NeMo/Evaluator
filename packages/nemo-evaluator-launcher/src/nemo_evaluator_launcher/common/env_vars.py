@@ -82,7 +82,7 @@ def parse_env_var_value(raw: str) -> EnvVarValue:
         raise ValueError(
             f"Hydra resolver syntax '{raw}' is not allowed in env var fields. "
             "It resolves secrets into the config object, defeating secret isolation. "
-            "Use 'host:VAR_NAME' instead."
+            f"Use '{EnvVarFromHost.PREFIX}VAR_NAME' instead."
         )
 
     # Explicit prefixes
@@ -95,11 +95,11 @@ def parse_env_var_value(raw: str) -> EnvVarValue:
 
     # No recognized prefix — build a helpful suggestion
     if raw.startswith("$") and _ENV_VAR_NAME_RE.match(raw[1:]):
-        suggestion = f"host:{raw[1:]}"
+        suggestion = f"{EnvVarFromHost.PREFIX}{raw[1:]}"
     elif _ENV_VAR_NAME_RE.match(raw):
-        suggestion = f"host:{raw}"
+        suggestion = f"{EnvVarFromHost.PREFIX}{raw}"
     else:
-        suggestion = f"lit:{raw}"
+        suggestion = f"{EnvVarLiteral.PREFIX}{raw}"
 
     raise ValueError(
         f"Env var value '{raw}' must have an explicit prefix. "
@@ -330,7 +330,6 @@ def _collect_top_level_env_vars(cfg: DictConfig) -> dict[str, str]:
 def collect_eval_env_vars(
     cfg: DictConfig,
     task: DictConfig,
-    task_definition: dict,
     api_key_name: str | None = None,
 ) -> dict[str, EnvVarValue]:
     """Collect and parse evaluation env vars from config for a single task.
@@ -338,19 +337,13 @@ def collect_eval_env_vars(
     Merges (last wins):
         cfg.env_vars → cfg.evaluation.env_vars → task.env_vars → api_key
 
-    Validates required_env_vars from task_definition are present.
-
     Args:
         cfg: Full run config.
         task: The specific evaluation task config.
-        task_definition: Task definition from tasks mapping (has required_env_vars).
         api_key_name: API key env var name (from get_api_key_name(cfg)), or None.
 
     Returns:
         dict mapping target_name → EnvVarValue.
-
-    Raises:
-        ValueError: If required env vars are missing from config.
     """
     # Collect raw env vars (target_name → raw_value_string)
     # 1. Top-level env_vars (new unified config)
@@ -366,21 +359,9 @@ def collect_eval_env_vars(
     # If the user already declared it (e.g. NGC_API_TOKEN: host:NGC_API_TOKEN),
     # do nothing. Otherwise, add it as a host ref so it gets resolved from the host env.
     if api_key_name and api_key_name not in raw_env_vars:
-        raw_env_vars[api_key_name] = f"host:{api_key_name}"
+        raw_env_vars[api_key_name] = f"{EnvVarFromHost.PREFIX}{api_key_name}"
 
-    # Check required env vars (excluding NEMO_EVALUATOR_DATASET_DIR)
-    all_var_names = set(raw_env_vars.keys())
-    for required_env_var in task_definition.get("required_env_vars", []):
-        if required_env_var == "NEMO_EVALUATOR_DATASET_DIR":
-            continue
-        if required_env_var not in all_var_names:
-            raise ValueError(
-                f"{task.name} task requires environment variable {required_env_var}. "
-                "Specify it in the task subconfig in the 'env_vars' dict as the following "
-                f"pair {required_env_var}: host:YOUR_ENV_VAR_NAME"
-            )
-
-    # Parse main env vars (evaluation context: bare names default to host)
+    # Parse main env vars
     parsed: dict[str, EnvVarValue] = {}
     for target_name, raw_value in raw_env_vars.items():
         parsed[target_name] = parse_env_var_value(str(raw_value))

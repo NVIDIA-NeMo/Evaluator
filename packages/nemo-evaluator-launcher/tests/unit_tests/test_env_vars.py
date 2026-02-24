@@ -289,9 +289,7 @@ class TestCollectEvalEnvVars:
         """Top-level env_vars are included in eval collection."""
         cfg = self._make_cfg({"env_vars": {"HF_TOKEN": "host:HF_TOKEN"}})
         task = OmegaConf.create({"name": "test_task", "env_vars": {}})
-        task_def = {}
-
-        result = collect_eval_env_vars(cfg, task, task_def)
+        result = collect_eval_env_vars(cfg, task)
         assert "HF_TOKEN" in result
         assert result["HF_TOKEN"] == EnvVarFromHost(host_var_name="HF_TOKEN")
 
@@ -304,9 +302,7 @@ class TestCollectEvalEnvVars:
             }
         )
         task = OmegaConf.create({"name": "test_task", "env_vars": {}})
-        task_def = {}
-
-        result = collect_eval_env_vars(cfg, task, task_def)
+        result = collect_eval_env_vars(cfg, task)
         assert result["HF_TOKEN"] == EnvVarFromHost(host_var_name="EVAL_TOKEN")
 
     def test_task_level_overrides_eval_level(self):
@@ -322,9 +318,7 @@ class TestCollectEvalEnvVars:
                 "env_vars": {"HF_TOKEN": "host:TASK_TOKEN"},
             }
         )
-        task_def = {}
-
-        result = collect_eval_env_vars(cfg, task, task_def)
+        result = collect_eval_env_vars(cfg, task)
         assert result["HF_TOKEN"] == EnvVarFromHost(host_var_name="TASK_TOKEN")
 
     def test_full_hierarchy_last_wins(self):
@@ -349,9 +343,7 @@ class TestCollectEvalEnvVars:
                 "env_vars": {"SHARED": "lit:task"},
             }
         )
-        task_def = {}
-
-        result = collect_eval_env_vars(cfg, task, task_def)
+        result = collect_eval_env_vars(cfg, task)
         assert result["SHARED"] == EnvVarLiteral(value="task")
         assert result["TOP_ONLY"] == EnvVarLiteral(value="top_only")
         assert result["EVAL_ONLY"] == EnvVarLiteral(value="eval_only")

@@ -187,25 +187,14 @@ class LocalExecutor(BaseExecutor):
 
             # Collect eval env vars using unified pipeline
             api_key_name = get_api_key_name(cfg)
-            eval_env_parsed = collect_eval_env_vars(
-                cfg, task, task_definition, api_key_name
-            )
+            eval_env_parsed = collect_eval_env_vars(cfg, task, api_key_name)
 
-            # Handle dataset directory mounting if NEMO_EVALUATOR_DATASET_DIR is required
+            # Handle dataset directory mounting if dataset_dir is specified in the task config
             dataset_mount_host = None
             dataset_mount_container = None
             dataset_env_var_value = None
-            if "NEMO_EVALUATOR_DATASET_DIR" in task_definition.get(
-                "required_env_vars", []
-            ):
-                # Get dataset directory from task config
-                if "dataset_dir" in task:
-                    dataset_mount_host = task["dataset_dir"]
-                else:
-                    raise ValueError(
-                        f"{task.name} task requires a dataset_dir to be specified. "
-                        f"Add 'dataset_dir: /path/to/your/dataset' under the task configuration."
-                    )
+            if "dataset_dir" in task:
+                dataset_mount_host = task["dataset_dir"]
                 # Get container mount path (default to /datasets if not specified)
                 dataset_mount_container = task.get("dataset_mount_path", "/datasets")
                 # Set NEMO_EVALUATOR_DATASET_DIR to the container mount path

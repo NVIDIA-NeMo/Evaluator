@@ -613,7 +613,7 @@ def _create_slurm_sbatch_script(
 
     # Collect env vars using unified pipeline
     api_key_name = get_api_key_name(cfg)
-    eval_env_vars = collect_eval_env_vars(cfg, task, task_definition, api_key_name)
+    eval_env_vars = collect_eval_env_vars(cfg, task, api_key_name)
     deployment_env_vars = collect_deployment_env_vars(cfg)
 
     # Merge all into groups for secrets file generation
@@ -697,7 +697,10 @@ def _create_slurm_sbatch_script(
         # add deployment srun command
         deployment_srun_cmd, deployment_is_unsafe, deployment_debug = (
             _generate_deployment_srun_command(
-                cfg, deployment_mounts_list, remote_task_subdir
+                cfg,
+                deployment_mounts_list,
+                remote_task_subdir,
+                deployment_env_var_names=list(deployment_env_vars.keys()),
             )
         )
         s += deployment_srun_cmd
@@ -731,16 +734,9 @@ def _create_slurm_sbatch_script(
     ):
         evaluation_mounts_list.append(f"{source_mnt}:{target_mnt}")
 
-    # Handle dataset directory mounting if NEMO_EVALUATOR_DATASET_DIR is required
-    if "NEMO_EVALUATOR_DATASET_DIR" in task_definition.get("required_env_vars", []):
-        # Get dataset directory from task config
-        if "dataset_dir" in task:
-            dataset_mount_host = task["dataset_dir"]
-        else:
-            raise ValueError(
-                f"{task.name} task requires a dataset_dir to be specified. "
-                f"Add 'dataset_dir: /path/to/your/dataset' under the task configuration."
-            )
+    # Handle dataset directory mounting if dataset_dir is specified in the task config
+    if "dataset_dir" in task:
+        dataset_mount_host = task["dataset_dir"]
         # Get container mount path (default to /datasets if not specified)
         dataset_mount_container = task.get("dataset_mount_path", "/datasets")
         # Add dataset mount to evaluation mounts list
@@ -775,11 +771,8 @@ def _create_slurm_sbatch_script(
     s += "srun --mpi pmix --overlap "
     s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
     s += "--container-image {} ".format(eval_image)
-    evaluation_env_var_names = list(
-        cfg.execution.get("env_vars", {}).get("evaluation", {})
-    )
-    if evaluation_env_var_names:
-        s += "--container-env {} ".format(",".join(evaluation_env_var_names))
+    if eval_env_vars:
+        s += "--container-env {} ".format(",".join(sorted(eval_env_vars.keys())))
     if not cfg.execution.get("mounts", {}).get("mount_home", True):
         s += "--no-container-mount-home "
 
@@ -1605,7 +1598,11 @@ def _generate_haproxy_config(cfg, nodes_ips):
 
 
 def _generate_deployment_srun_command(
-    cfg, deployment_mounts_list, remote_task_subdir, instance_id: int = 0
+    cfg,
+    deployment_mounts_list,
+    remote_task_subdir,
+    deployment_env_var_names: list[str] | None = None,
+    instance_id: int = 0,
 ):
     """Generate the deployment srun command with proper node/ntask configuration.
 
@@ -1657,18 +1654,15 @@ def _generate_deployment_srun_command(
         s += "--no-container-mount-home "
     s += "--output {} ".format(remote_task_subdir / "logs" / "server-%A-%t.log")
 
-    deployment_env_var_names = list(
-        cfg.execution.get("env_vars", {}).get("deployment", {})
-    )
-    if cfg.deployment.get("env_vars"):
-        deployment_env_var_names.extend(list(cfg.deployment["env_vars"]))
+    if deployment_env_var_names is None:
+        deployment_env_var_names = []
 
     # Always add MASTER_IP to the environment variables
     if "MASTER_IP" not in deployment_env_var_names:
         deployment_env_var_names.append("MASTER_IP")
 
     if deployment_env_var_names:
-        s += f"--container-env {','.join(deployment_env_var_names)} "
+        s += f"--container-env {','.join(sorted(deployment_env_var_names))} "
 
     # Wrap deployment command to execute pre_cmd inside container if needed
     if pre_cmd:

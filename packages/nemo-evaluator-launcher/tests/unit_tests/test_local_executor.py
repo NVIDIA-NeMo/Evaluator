@@ -81,7 +81,6 @@ class TestLocalExecutorDryRun:
                 "endpoint_type": "openai",
                 "harness": "lm-eval",
                 "container": "test-container:latest",
-                "required_env_vars": ["TASK_ENV"],
             },
             ("helm", "test_task_2"): {
                 "task": "test_task_2",

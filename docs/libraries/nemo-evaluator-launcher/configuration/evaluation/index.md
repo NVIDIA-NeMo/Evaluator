@@ -104,8 +104,7 @@ evaluation:
   env_vars:
     CUSTOM_VAR: $lit:some_value
 
-# 3. Task-level — applies to a single task only
-evaluation:
+  # 3. Task-level — applies to a single task only
   tasks:
     - name: task_name1
       env_vars:
