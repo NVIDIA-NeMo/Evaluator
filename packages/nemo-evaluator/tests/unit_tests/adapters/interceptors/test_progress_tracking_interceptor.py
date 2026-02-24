@@ -400,7 +400,6 @@ class TestProgressTrackingInterceptor:
         finally:
             server.stop()
 
-
     def test_skip_initial_requests_skips_sanity_check(self):
         """Test that skip_initial_requests=1 skips the first request (e.g. sanity check)."""
         server = FakeProgressTrackingServer(port=8008)
