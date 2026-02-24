@@ -131,9 +131,13 @@ def apply_task_name_overrides(
             dotted_path = f"evaluation.tasks.{idx}"
             if remaining_path:
                 dotted_path += f".{remaining_path}"
-            value = _parse_value(value_str) if value_str is not None else None
-            force_add = prefix == "++"
-            OmegaConf.update(cfg, dotted_path, value, force_add=force_add)
+
+            if prefix == "~":
+                _delete_key(cfg, dotted_path)
+            else:
+                value = _parse_value(value_str) if value_str is not None else None
+                force_add = prefix == "++"
+                OmegaConf.update(cfg, dotted_path, value, force_add=force_add)
 
     return cfg
 
@@ -265,6 +269,22 @@ def _raise_ambiguous(
         f"Task '{task_name}' appears at indices {indices} — cannot resolve unambiguously.\n"
         f"Use index-based override instead:\n" + "\n".join(hint_lines)
     )
+
+
+def _delete_key(cfg: "DictConfig", dotted_path: str) -> None:
+    """Delete a key from *cfg* at *dotted_path*, mirroring Hydra's ``~`` semantics."""
+    parts = dotted_path.rsplit(".", 1)
+    if len(parts) == 2:
+        parent_path, key = parts
+        parent = OmegaConf.select(cfg, parent_path)
+    else:
+        parent = cfg
+        key = parts[0]
+    if parent is None:
+        raise ValueError(f"Cannot delete '{dotted_path}': parent path does not exist.")
+    if key not in parent:
+        raise ValueError(f"Cannot delete '{dotted_path}': key '{key}' does not exist.")
+    del parent[key]
 
 
 def _parse_value(raw: str) -> object:
