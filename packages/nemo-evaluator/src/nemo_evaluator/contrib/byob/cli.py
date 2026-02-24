@@ -141,7 +141,7 @@ def byob_compile(args=None):
         print(f"  Location:  {pkg_dir}")
         print(f"")
         print(f"  To run this benchmark:")
-        print(f"    export PYTHONPATH=\"{os.path.dirname(pkg_dir)}:$PYTHONPATH\"")
+        print(f"    export PYTHONPATH=\"{pkg_dir}:$PYTHONPATH\"")
         print(f"    nemo-evaluator run_eval \\")
         print(f"      --eval_type {eval_type} \\")
         print(f"      --model_url <YOUR_MODEL_URL> \\")

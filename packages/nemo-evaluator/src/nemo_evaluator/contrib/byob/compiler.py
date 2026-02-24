@@ -149,6 +149,7 @@ def compile_benchmark(module_path: str) -> Dict[str, dict]:
 
     try:
         # Resolve module path
+        parent_dir = None
         if os.path.exists(module_path):
             # It's a file path
             abs_path = os.path.abspath(module_path)
@@ -184,9 +185,12 @@ def compile_benchmark(module_path: str) -> Dict[str, dict]:
         # Build FDF dict for each benchmark
         compiled = {}
         for normalized_name, bench in benchmarks.items():
-            # Resolve dataset path to absolute if it's a file
+            # Resolve dataset path to absolute if it's a file.
+            # Check both CWD and the benchmark module's directory.
             if os.path.exists(bench.dataset):
                 dataset_path = os.path.abspath(bench.dataset)
+            elif parent_dir and os.path.exists(os.path.join(parent_dir, bench.dataset)):
+                dataset_path = os.path.abspath(os.path.join(parent_dir, bench.dataset))
             else:
                 dataset_path = bench.dataset
 
