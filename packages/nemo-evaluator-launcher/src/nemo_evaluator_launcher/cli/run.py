@@ -135,11 +135,22 @@ class Cmd:
             # Create RunConfig from the loaded data
             config = OmegaConf.create(config_dict)
         else:
+            from nemo_evaluator_launcher.common.override_sugar import (
+                apply_task_name_overrides,
+                partition_overrides,
+            )
+
+            # split overrides between hydra native and syntactic sugar
+            hydra_overrides, task_name_overrides = partition_overrides(self.override)
+
             # Load the complete Hydra configuration
             config = RunConfig.from_hydra(
                 config=self.config,
-                hydra_overrides=self.override,
+                hydra_overrides=hydra_overrides,
             )
+
+            if task_name_overrides:
+                config = apply_task_name_overrides(config, task_name_overrides)
 
         # Apply task filtering if -t is specified
         if requested_tasks:
