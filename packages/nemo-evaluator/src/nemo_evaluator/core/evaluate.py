@@ -19,6 +19,7 @@ import json
 import os
 import signal
 import sys
+import time
 from typing import Optional
 
 import psutil
@@ -39,6 +40,7 @@ from nemo_evaluator.core.resources import (
 )
 from nemo_evaluator.core.utils import run_command
 from nemo_evaluator.logging import get_logger
+from nemo_evaluator.package_info import __version__
 
 logger = get_logger(__name__)
 
@@ -85,30 +87,21 @@ def parse_output(evaluation: Evaluation) -> EvaluationResult:
         ) from e
 
 
-def evaluate(
-    eval_cfg: EvaluationConfig,
+def _run_evaluation(
+    evaluation: Evaluation,
     target_cfg: EvaluationTarget,
-    metadata: Optional[EvaluationMetadata] = None,
+    metadata: Optional[EvaluationMetadata],
 ) -> EvaluationResult:
-    """
-    Run an evaluation using configuration objects.
+    """Core evaluation logic.
 
     Args:
-        eval_cfg: Evaluation configuration object containing output directory,
-                  parameters, and evaluation type
-        target_cfg: Target configuration object containing API endpoint details
-                    and adapter configuration
+        evaluation: Validated evaluation object.
+        target_cfg: Target configuration.
+        metadata: Optional evaluation metadata.
 
     Returns:
-        EvaluationResult: Evaluation results and metadata
+        EvaluationResult: Evaluation results and metadata.
     """
-    run_config = {
-        "config": eval_cfg.model_dump(),
-        "target": target_cfg.model_dump(),
-    }
-    evaluation = validate_configuration(run_config)
-    prepare_output_directory(evaluation)
-
     metadata_block = _persist_metadata_and_build_results_block(
         evaluation.config.output_dir, metadata
     )
@@ -314,6 +307,89 @@ def evaluate(
         yaml.dump(evaluation_result_dict, f)
 
     return evaluation_result
+
+
+def evaluate(
+    eval_cfg: EvaluationConfig,
+    target_cfg: EvaluationTarget,
+    metadata: Optional[EvaluationMetadata] = None,
+) -> EvaluationResult:
+    """
+    Run an evaluation using configuration objects.
+
+    Args:
+        eval_cfg: Evaluation configuration object containing output directory,
+                  parameters, and evaluation type
+        target_cfg: Target configuration object containing API endpoint details
+                    and adapter configuration
+
+    Returns:
+        EvaluationResult: Evaluation results and metadata
+    """
+    from nemo_evaluator.config import TelemetryLevel
+    from nemo_evaluator.telemetry import (
+        EvaluationTaskEvent,
+        StatusEnum,
+        TelemetryHandler,
+        get_session_id,
+        get_telemetry_level,
+    )
+
+    start_time = time.time()
+    telemetry_handler = None
+    telemetry_level = get_telemetry_level()
+
+    if telemetry_level != TelemetryLevel.OFF:
+        telemetry_handler = TelemetryHandler(
+            source_client_version=__version__,
+            session_id=get_session_id(),
+            telemetry_level=telemetry_level,
+        )
+        telemetry_handler.start()
+
+    run_config = {
+        "config": eval_cfg.model_dump(),
+        "target": target_cfg.model_dump(),
+    }
+    evaluation = validate_configuration(run_config)
+    prepare_output_directory(evaluation)
+
+    model_name = (
+        target_cfg.api_endpoint.model_id
+        if target_cfg.api_endpoint and target_cfg.api_endpoint.model_id
+        else "unknown"
+    )
+    model_name_for_telemetry = (
+        model_name if telemetry_level == TelemetryLevel.DEFAULT else "redacted"
+    )
+
+    if telemetry_handler:
+        telemetry_handler.enqueue(
+            EvaluationTaskEvent(
+                task=eval_cfg.type,
+                framework_name=evaluation.framework_name,
+                model=model_name_for_telemetry,
+                status=StatusEnum.STARTED,
+            )
+        )
+
+    status = StatusEnum.FAILURE
+    try:
+        result = _run_evaluation(evaluation, target_cfg, metadata)
+        status = StatusEnum.SUCCESS
+        return result
+    finally:
+        if telemetry_handler:
+            telemetry_handler.enqueue(
+                EvaluationTaskEvent(
+                    task=eval_cfg.type,
+                    framework_name=evaluation.framework_name,
+                    model=model_name_for_telemetry,
+                    execution_duration_seconds=time.time() - start_time,
+                    status=status,
+                )
+            )
+            telemetry_handler.stop()
 
 
 def _write_with_versioning_header(
