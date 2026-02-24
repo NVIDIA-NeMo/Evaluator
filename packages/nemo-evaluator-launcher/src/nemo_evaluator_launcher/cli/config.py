@@ -19,8 +19,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from simple_parsing import field
-
 from nemo_evaluator.config import (
     CONFIG_FILE,
     TelemetryLevel,
@@ -28,6 +26,8 @@ from nemo_evaluator.config import (
     save_config,
 )
 from nemo_evaluator.telemetry import get_telemetry_level
+from simple_parsing import field
+
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 

@@ -44,9 +44,7 @@ class _SendTracker:
         tracker = self
 
         def _tracking_add_to_dlq(handler_self, events):
-            tracker.failures.append(
-                f"{len(events)} event(s) moved to DLQ"
-            )
+            tracker.failures.append(f"{len(events)} event(s) moved to DLQ")
             return original_add_to_dlq(handler_self, events)
 
         return patch.object(TelemetryHandler, "_add_to_dlq", _tracking_add_to_dlq)

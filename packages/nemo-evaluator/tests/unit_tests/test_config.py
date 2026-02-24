@@ -22,14 +22,24 @@ class TestLoadConfig:
     """Tests for load_config."""
 
     def test_returns_defaults_when_no_file(self, tmp_path):
-        from nemo_evaluator.config import NemoEvaluatorConfig, TelemetryLevel, load_config
+        from nemo_evaluator.config import (
+            NemoEvaluatorConfig,
+            TelemetryLevel,
+            load_config,
+        )
 
         cfg = load_config(path=tmp_path / "nonexistent.yaml")
         assert isinstance(cfg, NemoEvaluatorConfig)
         assert cfg.telemetry.level == TelemetryLevel.DEFAULT
 
     def test_reads_valid_file(self, tmp_path):
-        from nemo_evaluator.config import TelemetryLevel, load_config, save_config, NemoEvaluatorConfig, TelemetryConfig
+        from nemo_evaluator.config import (
+            NemoEvaluatorConfig,
+            TelemetryConfig,
+            TelemetryLevel,
+            load_config,
+            save_config,
+        )
 
         config_file = tmp_path / "config.yaml"
         save_config(
@@ -86,7 +96,12 @@ class TestSaveConfig:
     def test_produces_valid_yaml(self, tmp_path):
         import yaml
 
-        from nemo_evaluator.config import NemoEvaluatorConfig, TelemetryConfig, TelemetryLevel, save_config
+        from nemo_evaluator.config import (
+            NemoEvaluatorConfig,
+            TelemetryConfig,
+            TelemetryLevel,
+            save_config,
+        )
 
         config_file = tmp_path / "config.yaml"
         save_config(

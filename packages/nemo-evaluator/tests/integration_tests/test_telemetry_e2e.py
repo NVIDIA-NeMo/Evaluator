@@ -28,8 +28,6 @@ After running, verify events appear in the staging telemetry dashboard.
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from nemo_evaluator.api.api_dataclasses import (
     ConfigParams,
     Evaluation,

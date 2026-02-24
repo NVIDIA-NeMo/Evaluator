@@ -28,7 +28,6 @@ After running, verify events appear in the staging telemetry dashboard.
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 from omegaconf import OmegaConf
 
 from nemo_evaluator_launcher.api.functional import run_eval
