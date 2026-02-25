@@ -95,7 +95,7 @@ evaluation:
         parallelism: 512 # Number of parallel requests (higher for data parallel deployment)
         temperature: 0.6 # Sampling temperature
         top_p: 0.95 # Nucleus sampling parameter
-        max_tokens: 32768 # Maximum number of tokens to generate (32k)
+        max_new_tokens: 32768 # Maximum number of tokens to generate (32k)
         request_timeout: 3600 # Timeout for API requests in seconds
     target:
       api_endpoint:
