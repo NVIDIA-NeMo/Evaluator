@@ -195,6 +195,7 @@ class WandBExporter(BaseExporter):
         artifact,
     ) -> List[str]:
         """Log evaluation artifacts to WandB."""
+
         try:
             artifacts_dir = data.artifacts_dir
             if not artifacts_dir.exists():
@@ -227,12 +228,12 @@ class WandBExporter(BaseExporter):
 
                 logged_names.append(fname)
 
-            if self.config.only_required:
+            if self.config.only_required and self.config.copy_artifacts:
                 # Upload only specific required files
                 for p in get_available_artifacts(artifacts_dir):
                     artifact.add_file(str(p), name=f"{artifact_root}/artifacts/{p}")
                     logged_names.append(p)
-            else:
+            elif self.config.copy_artifacts:
                 # Upload all artifacts with recursive exclusion
                 with tempfile.TemporaryDirectory() as tmp:
                     staged = Path(tmp) / "artifacts"

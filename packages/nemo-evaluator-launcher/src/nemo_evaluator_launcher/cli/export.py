@@ -81,7 +81,11 @@ class ExportCmd:
         alias=["--copy-logs"],
         help="Export log files (if exporter allows it) (default: False).",
     )
-
+    copy_artifacts: bool = field(
+        default=True,
+        alias=["--copy-artifacts"],
+        help="Export artifact files (if exporter allows it) (default: True).",
+    )
     log_metrics: List[str] = field(
         default_factory=list,
         alias=["--log-metrics"],
@@ -90,7 +94,8 @@ class ExportCmd:
     only_required: bool = field(
         default=True,
         alias=["--only-required"],
-        help="Copy only required artifacts. Set to False to copy all available artifacts.",
+        help="Copy only required artifacts. Set to False to copy all available artifacts. "
+        "This flag is ignored if --copy-artifacts is False.",
     )
 
     job_dirs: Optional[List[str]] = field(
@@ -127,6 +132,7 @@ class ExportCmd:
         # CLI arguments override config file values
         # Always set copy_logs from CLI
         config["copy_logs"] = self.copy_logs
+        config["copy_artifacts"] = self.copy_artifacts
         config["only_required"] = self.only_required
 
         # Output handling

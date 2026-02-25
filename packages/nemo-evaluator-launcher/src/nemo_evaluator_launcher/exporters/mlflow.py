@@ -284,7 +284,7 @@ class MLflowExporter(BaseExporter):
         # Choose files to upload
         artifact_path = f"{job_data.harness}.{job_data.task}"
         logged_names = []
-        if self.config.only_required:
+        if self.config.only_required and self.config.copy_artifacts:
             # Upload only specific required files
             for fname in get_available_artifacts(job_data.artifacts_dir):
                 p = job_data.artifacts_dir / fname
@@ -295,7 +295,7 @@ class MLflowExporter(BaseExporter):
                     )
                     logged_names.append(fname)
                     logger.debug(f"mlflow upload artifact: {fname}")
-        else:
+        elif self.config.copy_artifacts:
             # Upload all artifacts with recursive exclusion
             # Stage to temp dir with exclusions, then upload
             with tempfile.TemporaryDirectory() as tmp:
