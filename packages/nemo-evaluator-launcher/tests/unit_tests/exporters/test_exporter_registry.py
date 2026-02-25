@@ -34,7 +34,7 @@ class TestExporterRegistry:
         assert isinstance(exporter, GSheetsExporter)
 
     def test_create_exporter_wandb(self):
-        exporter = create_exporter("wandb")
+        exporter = create_exporter("wandb", {"entity": "e", "project": "p"})
         assert isinstance(exporter, WandBExporter)
 
     def test_create_exporter_mlflow(self):

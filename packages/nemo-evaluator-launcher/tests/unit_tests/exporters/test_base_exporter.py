@@ -43,41 +43,39 @@ class TestBaseExporter:
         job_dir = tmp_path / "jobs"
         job_dir.mkdir()
         config = {
-            "format": "json",
-            "output_dir": "/tmp/test",
             "job_dirs": [str(job_dir)],
             "copy_logs": True,
-            "copy_artifacts": False,
             "only_required": False,
         }
         exporter = ConcreteExporter(config)
-        assert exporter.config == config
         assert exporter.db is not None
         assert exporter.job_dirs == [job_dir]
         assert exporter.copy_logs is True
-        assert exporter.copy_artifacts is False
         assert exporter.only_required is False
 
     def test_base_exporter_init_without_config(self):
         """Test BaseExporter initialization without config."""
+        from nemo_evaluator_launcher.exporters.base import ExportConfig
+
         exporter = ConcreteExporter()
-        assert exporter.config == {}
+        assert isinstance(exporter.config, ExportConfig)
         assert exporter.db is not None
         assert exporter.job_dirs == []
         assert exporter.copy_logs is False
-        assert exporter.copy_artifacts is True
         assert exporter.only_required is True
 
     def test_base_exporter_init_with_none_config(self):
         """Test BaseExporter initialization with None config."""
+        from nemo_evaluator_launcher.exporters.base import ExportConfig
+
         exporter = ConcreteExporter(None)
-        assert exporter.config == {}
+        assert isinstance(exporter.config, ExportConfig)
         assert exporter.db is not None
 
     def test_base_exporter_init_with_invalid_job_dir(self):
         """Test BaseExporter initialization with non-existent job directory."""
         config = {"job_dirs": ["/nonexistent/path"]}
-        with pytest.raises(FileNotFoundError, match="Job directory .* not found"):
+        with pytest.raises(FileNotFoundError, match="Job directories not found"):
             ConcreteExporter(config)
 
     def test_abstract_methods_enforcement(self):

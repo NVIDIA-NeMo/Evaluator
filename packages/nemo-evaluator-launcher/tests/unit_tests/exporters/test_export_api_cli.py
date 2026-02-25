@@ -116,7 +116,7 @@ def test_single_invocation_calls_exporter(mock_execdb, monkeypatch, tmp_path):
     inv = "a1b2c3d4"
     _execdb_add_job(inv, 0, tmp_path)
 
-    res = export_results(inv, dest="dummy", config={"k": 1})
+    res = export_results(inv, dest="dummy", config={})
 
     assert res["success"] is True
     # New API returns simplified metadata
@@ -130,7 +130,7 @@ def test_single_job_calls_exporter(mock_execdb, monkeypatch, tmp_path):
     inv = "d4c3b2a1"
     jd = _execdb_add_job(inv, 0, tmp_path)
 
-    res = export_results(jd.job_id, dest="dummy", config={"x": 2})
+    res = export_results(jd.job_id, dest="dummy", config={})
 
     assert res["success"] is True
     # New API returns simplified metadata
@@ -213,7 +213,6 @@ def test_cli_arg_mapping_and_format_note(monkeypatch, capsys):
     assert called["config"]["output_filename"] == "x.json"
     assert called["config"]["copy_logs"] is True
     assert called["config"]["only_required"] is False
-    assert called["config"]["format"] == "json"  # carried but unused by dest
     assert called["config"]["log_metrics"] == ["score"]
 
 

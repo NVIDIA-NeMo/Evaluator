@@ -56,7 +56,7 @@ class TestMLflowExporter:
         )
         ExecutionDB().write_job(jd)
 
-        exp = MLflowExporter({"tracking_uri": "http://mlflow", "log_artifacts": False})
+        exp = MLflowExporter({"tracking_uri": "http://mlflow"})
 
         result = exp.export([jd.job_id])
         assert result.successful_jobs == [jd.job_id]
@@ -151,51 +151,6 @@ class TestMLflowExporter:
         result = exp.export([jd.job_id])
         assert result.successful_jobs == [jd.job_id]
 
-    def test_log_artifacts_disabled(
-        self, monkeypatch, mlflow_fake, tmp_path: Path, mock_execdb
-    ):
-        _ML, _RunCtx = mlflow_fake
-        inv = "test003"
-
-        # Create job with artifacts
-        artifacts_dir = tmp_path / inv / f"{inv}.0" / "artifacts"
-        artifacts_dir.mkdir(parents=True)
-
-        (artifacts_dir / "run_config.yml").write_text(
-            "framework_name: test-harness\nconfig:\n  type: test_task\ntarget:\n  api_endpoint:\n    model_id: test-model\n"
-        )
-        (artifacts_dir / "results.yml").write_text(
-            "results:\n  tasks:\n    test_task:\n      metrics:\n        accuracy:\n          scores:\n            accuracy:\n              value: 0.9\nconfig: {}\n"
-        )
-
-        jd = JobData(
-            inv,
-            f"{inv}.0",
-            0.0,
-            "local",
-            {"output_dir": str(tmp_path / inv / f"{inv}.0")},
-            {},
-        )
-        ExecutionDB().write_job(jd)
-
-        logged_artifacts = []
-
-        def mock_log_artifact(path, artifact_path=None):
-            logged_artifacts.append((path, artifact_path))
-
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.mlflow.mlflow.log_artifact",
-            mock_log_artifact,
-            raising=True,
-        )
-
-        exp = MLflowExporter({"tracking_uri": "http://mlflow", "log_artifacts": False})
-
-        result = exp.export([jd.job_id])
-        assert result.successful_jobs == [jd.job_id]
-        # When log_artifacts is False, no artifacts should be logged
-        assert len(logged_artifacts) == 0
-
     def test_log_config_params_flattens_config(
         self, monkeypatch, mlflow_fake, tmp_path: Path, mock_execdb
     ):
@@ -247,7 +202,6 @@ class TestMLflowExporter:
             {
                 "tracking_uri": "http://mlflow",
                 "log_config_params": True,
-                "log_artifacts": False,
             }
         )
 
@@ -302,7 +256,6 @@ class TestMLflowExporter:
                 "tracking_uri": "http://mlflow",
                 "log_config_params": True,
                 "log_config_params_max_depth": 2,
-                "log_artifacts": False,
             }
         )
 

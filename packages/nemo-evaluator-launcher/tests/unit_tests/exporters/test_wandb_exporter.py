@@ -44,7 +44,9 @@ class TestWandBExporter:
                 timestamp=1234567890.0,
                 job_data={},
             )
-            successful, failed, skipped = WandBExporter().export_jobs([data])
+            successful, failed, skipped = WandBExporter(
+                {"entity": "e", "project": "p"}
+            ).export_jobs([data])
             assert len(successful) == 0
             assert len(failed) == 1
             assert failed[0] == "test1234.0"
@@ -124,7 +126,6 @@ class TestWandBExporter:
                 "entity": "e",
                 "project": "p",
                 "log_mode": "per_task",
-                "log_artifacts": False,
             }
         )
         monkeypatch.setattr(exp, "_create_wandb_run", capture_create, raising=False)
@@ -192,7 +193,6 @@ class TestWandBExporter:
                 "entity": "e",
                 "project": "p",
                 "log_mode": "multi_task",
-                "log_artifacts": False,
             }
         )
         monkeypatch.setattr(exp, "_check_existing_run", lambda *a, **k: None)
@@ -233,7 +233,6 @@ class TestWandBExporter:
                     "entity": "e",
                     "project": "p",
                     "log_mode": log_mode,
-                    "log_artifacts": False,
                 }
             )
             monkeypatch.setattr(
@@ -245,7 +244,6 @@ class TestWandBExporter:
                     "entity": "e",
                     "project": "p",
                     "log_mode": log_mode,
-                    "log_artifacts": False,
                 }
             )
 
@@ -276,7 +274,6 @@ class TestWandBExporter:
                 "entity": "e",
                 "project": "p",
                 "log_mode": "per_task",
-                "log_artifacts": False,
             }
         ).export_jobs([data])
         assert len(successful) == 1
@@ -304,7 +301,6 @@ class TestWandBExporter:
                 "entity": "e",
                 "project": "p",
                 "log_mode": "multi_task",
-                "log_artifacts": False,
             }
         )
         monkeypatch.setattr(
@@ -461,9 +457,9 @@ class TestWandBExporter:
             job_data={},
         )
 
-        exp = WandBExporter({"log_artifacts": True})
+        exp = WandBExporter({"entity": "e", "project": "p"})
         logged = exp._log_artifacts(data, _Artifact())
-        # wandb logs config.yaml fallback + results.yml when log_artifacts is True
+        # wandb logs config.yaml fallback + results.yml
         assert "config.yml" in logged
         assert "results.yml" in logged
         assert len(calls["added"]) == 2  # config.yaml + results.yml
@@ -490,7 +486,7 @@ class TestWandBExporter:
             job_data={},
         )
 
-        exp = WandBExporter({"log_artifacts": True})
+        exp = WandBExporter({"entity": "e", "project": "p"})
         logged = exp._log_artifacts(
             data,
             types.SimpleNamespace(add_file=lambda *a, **k: None),
@@ -516,40 +512,9 @@ class TestWandBExporter:
             timestamp=0.0,
             job_data={},
         )
-        exp = WandBExporter({"entity": None, "project": None})
+        exp = WandBExporter({"entity": "", "project": ""})
         run_id = exp._check_existing_run("ident", data)
         assert run_id is None
-
-    def test_check_existing_run_webhook_id(self, monkeypatch, wandb_fake, tmp_path):
-        _W, _Run = wandb_fake
-        api = types.SimpleNamespace(
-            run=lambda path: types.SimpleNamespace(id="abc123"), runs=lambda *_: []
-        )
-        fake_wandb = types.SimpleNamespace(Api=lambda: api)
-        monkeypatch.setitem(sys.modules, "wandb", fake_wandb)
-
-        data = DataForExport(
-            artifacts_dir=tmp_path / "artifacts",
-            logs_dir=None,
-            config={},
-            model_id="test-model",
-            metrics={"acc": 0.9},
-            harness="lm-eval",
-            task="mmlu",
-            container="test:latest",
-            executor="local",
-            invocation_id="wD",
-            job_id="wD.0",
-            timestamp=0.0,
-            job_data={
-                "webhook_metadata": {"webhook_source": "wandb", "run_id": "abc123"}
-            },
-        )
-        exp = WandBExporter(
-            {"entity": "e", "project": "p", "triggered_by_webhook": True}
-        )
-        run_id = exp._check_existing_run("ident", data)
-        assert run_id == "abc123"
 
     def test_check_existing_run_name_match(self, monkeypatch, wandb_fake, tmp_path):
         _W, _Run = wandb_fake

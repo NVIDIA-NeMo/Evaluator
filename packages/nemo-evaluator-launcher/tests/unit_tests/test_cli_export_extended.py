@@ -100,8 +100,8 @@ class TestExportCmdConfiguration:
         assert "output_filename" not in config
         assert "format" not in config
         assert config["copy_logs"] is False
-        assert "only_required" not in config
-        assert "log_metrics" not in config  # Empty list should not be included
+        assert config["only_required"] is True
+        assert "log_metrics" not in config
 
 
 class TestExportCmdOutputMessages:
@@ -376,8 +376,8 @@ class TestExportCmdOverrides:
                 invocation_ids=["test123"],
                 dest="wandb",
                 override=[
-                    "entity=org-name",
-                    "project=proj-name",
+                    "export.wandb.entity=org-name",
+                    "export.wandb.project=proj-name",
                 ],
             )
             cmd.execute()
@@ -415,9 +415,10 @@ class TestExportCmdOverrides:
 
         call_args = mock_export.call_args
         config = call_args[0][2]
+        print(config)
 
         # Verify list parsing works correctly
-        assert isinstance(config["tags"], list)
+        assert len(config["tags"]) == 2
         assert "exp1" in config["tags"]
         assert "model1" in config["tags"]
         assert config["log_metrics"] == ["accuracy", "pass@1"]
@@ -476,13 +477,10 @@ class TestExportCmdOverrides:
             )
             cmd.execute()
 
-        # Should error with clear message, and not call export_results
-        captured = capsys.readouterr()
-        assert "Error:" in captured.out
-        assert "export.wandb" in captured.out
-        assert "mlflow" in captured.out
-        # Validation should prevent export_results from being called
-        mock_export.assert_not_called()
+            call_args = mock_export.call_args
+            config = call_args[0][2]
+            assert config["tracking_uri"] == "http://mlflow:5000"
+            assert "entity" not in config
 
     def test_override_merges_with_existing_flags(self, capsys):
         """Test that overrides merge with existing CLI flags."""
@@ -667,35 +665,6 @@ class TestExportCmdOverrideEdgeCases:
         config = mock_export.call_args[0][2]
         assert config["tracking_uri"] == "http://mlflow.example.com:5000/api/v2"
 
-    def test_override_destination_mismatch_raises_err(self, capsys):
-        """Test that override for wrong destination raises clear error."""
-        with patch(
-            "nemo_evaluator_launcher.api.functional.export_results"
-        ) as mock_export:
-            mock_export.return_value = {
-                "success": True,
-                "metadata": {
-                    "successful_jobs": 1,
-                    "failed_jobs": 0,
-                    "skipped_jobs": 0,
-                },
-            }
-
-            cmd = ExportCmd(
-                invocation_ids=["test123"],
-                dest="mlflow",
-                override=["export.wandb.entity=wrong"],  # Wrong dest!
-            )
-            cmd.execute()
-
-        captured = capsys.readouterr()
-        # Should raise error msg
-        assert "Error:" in captured.out
-        assert "export.wandb" in captured.out
-        assert "mlflow" in captured.out
-        # Should NOT call export_results due to validation error
-        mock_export.assert_not_called()
-
     def test_override_nested_metadata_paths(self, capsys):
         """Test deep nested paths for complex metadata."""
         with patch(
@@ -744,8 +713,8 @@ class TestExportCmdOverrideEdgeCases:
                 invocation_ids=["test123"],
                 dest="mlflow",
                 override=[
-                    "tracking_uri=http://mlflow:5000",
-                    "experiment_name=my-exp",
+                    "export.mlflow.tracking_uri=http://mlflow:5000",
+                    "export.mlflow.experiment_name=my-exp",
                 ],
             )
             cmd.execute()
@@ -805,35 +774,3 @@ class TestExportCmdOverrideEdgeCases:
         # Should call with dest="local"
         call_args = mock_export.call_args
         assert call_args[0][1] == "local"
-
-    def test_override_only_for_different_dest_raises_error(self, capsys):
-        """Test that ALL overrides for different destination raise error (no fallback merge)."""
-        with patch(
-            "nemo_evaluator_launcher.api.functional.export_results"
-        ) as mock_export:
-            mock_export.return_value = {
-                "success": True,
-                "metadata": {
-                    "successful_jobs": 1,
-                    "failed_jobs": 0,
-                    "skipped_jobs": 0,
-                },
-            }
-
-            cmd = ExportCmd(
-                invocation_ids=["test123"],
-                dest="mlflow",
-                override=[
-                    "export.wandb.entity=my-org",  # Wrong destination
-                    "export.wandb.project=my-proj",
-                ],
-            )
-            cmd.execute()
-
-        captured = capsys.readouterr()
-        # Validation should error and prevent export
-        assert "Error:" in captured.out
-        assert "export.wandb" in captured.out
-        assert "mlflow" in captured.out
-        # Should NOT call export_results
-        mock_export.assert_not_called()

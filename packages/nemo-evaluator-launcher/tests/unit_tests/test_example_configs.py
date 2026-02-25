@@ -63,6 +63,8 @@ class TestExampleConfigs:
                 overrides.extend(
                     [
                         "++export.mlflow.tracking_uri=http://test-mlflow:5000",
+                        "++export.gsheets.service_account_file=/tmp/test-service-account.json",
+                        "++export.gsheets.spreadsheet_id=test-spreadsheet-id",
                     ]
                 )
 
