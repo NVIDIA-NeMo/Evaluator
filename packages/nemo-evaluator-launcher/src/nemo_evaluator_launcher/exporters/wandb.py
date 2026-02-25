@@ -195,9 +195,6 @@ class WandBExporter(BaseExporter):
         artifact,
     ) -> List[str]:
         """Log evaluation artifacts to WandB."""
-        if not self.config.log_artifacts:
-            return []
-
         try:
             artifacts_dir = data.artifacts_dir
             if not artifacts_dir.exists():

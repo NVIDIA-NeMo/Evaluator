@@ -261,9 +261,6 @@ class MLflowExporter(BaseExporter):
     ) -> List[str]:
         """Log evaluation artifacts to MLflow using LocalExporter for transfer."""
 
-        if not self.config.log_artifacts:
-            return []
-
         # Log config at root level (or synthesize)
         fname = "config.yml"
         p = job_data.artifacts_dir / fname

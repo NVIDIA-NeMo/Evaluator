@@ -42,7 +42,6 @@ class ExportConfig(BaseModel):
 
     job_dirs: Optional[List[Path]] = Field(default_factory=list)
     copy_logs: bool = Field(default=False)
-    copy_artifacts: bool = Field(default=True)
     only_required: bool = Field(default=True)
     log_metrics: List[str] = Field(default_factory=list)
     log_logs: Optional[bool] = Field(default=None, exclude=True)
@@ -86,7 +85,6 @@ class BaseExporter(ABC):
         self.config = config
         self.job_dirs = self.config.job_dirs
         self.copy_logs = self.config.copy_logs
-        self.copy_artifacts = self.config.copy_artifacts
         self.only_required = self.config.only_required
         self.log_metrics = self.config.log_metrics
         self.db = ExecutionDB()
@@ -101,9 +99,6 @@ class BaseExporter(ABC):
         # copy artifacts to temporary directory
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_dir = Path(temp_dir)
-            # here we don't respect copy_artifacts flag - we need to copy at least required artifacts to the temporary directory
-            # to extract metrics and other information. later we'll use this flag to decide whether artifacts should be
-            # copied to the final destination.
             jobs_data, copy_failed_jobs = copy_artifacts(
                 jobs_data,
                 export_dir=temp_dir,
