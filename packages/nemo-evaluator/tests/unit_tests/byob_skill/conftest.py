@@ -34,10 +34,6 @@ SKILL_PROMPT_PATH = os.path.join(REPO_ROOT, ".claude", "commands", "byob.md")
 
 TEMPLATES = [
     "math_reasoning",
-    "multichoice",
-    "open_qa",
-    "classification",
-    "safety",
     "code_generation",
 ]
 

@@ -15,7 +15,7 @@
 
 """Template compilation tests.
 
-Tests T007-T012: Verify each of the 6 templates compiles independently
+Tests T007-T012: Verify each template compiles independently
 and produces valid namespace package structure.
 """
 
