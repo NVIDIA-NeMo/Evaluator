@@ -13,7 +13,7 @@ Create custom evaluation benchmarks for NeMo Evaluator in ~12 lines of Python.
 ### Step 1: Write your benchmark
 
 ```python
-from nemo_evaluator.contrib.byob import benchmark, scorer
+from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
 
 @benchmark(
     name="my-qa",
@@ -22,8 +22,8 @@ from nemo_evaluator.contrib.byob import benchmark, scorer
     target_field="answer",
 )
 @scorer
-def check(response: str, target: str, metadata: dict) -> dict:
-    return {"correct": target.lower() in response.lower()}
+def check(sample: ScorerInput) -> dict:
+    return {"correct": sample.target.lower() in sample.response.lower()}
 ```
 
 ### Step 2: Compile
@@ -32,10 +32,11 @@ def check(response: str, target: str, metadata: dict) -> dict:
 nemo-evaluator-byob my_benchmark.py
 ```
 
+This compiles and auto-installs the package via `pip install -e` (no PYTHONPATH setup needed).
+
 ### Step 3: Run
 
 ```bash
-export PYTHONPATH="~/.nemo-evaluator/byob_packages:$PYTHONPATH"
 nemo-evaluator run_eval \
   --eval_type byob_my_qa.my-qa \
   --model_url http://localhost:8000 \
@@ -45,14 +46,23 @@ nemo-evaluator run_eval \
 ## CLI Commands
 
 ```bash
-# Compile a benchmark
+# Compile a benchmark (auto-installs)
 nemo-evaluator-byob my_benchmark.py
 
 # Validate without installing
 nemo-evaluator-byob my_benchmark.py --dry-run
 
+# Compile without auto-install (manual PYTHONPATH required)
+nemo-evaluator-byob my_benchmark.py --no-install
+
 # List installed benchmarks
 nemo-evaluator-byob --list
+
+# Containerize a benchmark
+nemo-evaluator-byob my_benchmark.py --containerize
+
+# Containerize and push to registry
+nemo-evaluator-byob my_benchmark.py --push registry.example.com/my-bench:latest
 
 # Show version
 nemo-evaluator-byob --version
@@ -64,10 +74,15 @@ Import from `nemo_evaluator.contrib.byob.scorers`:
 
 | Scorer | Returns | Description |
 |--------|---------|-------------|
-| `contains` | `{"correct": bool}` | Case-insensitive substring match |
 | `exact_match` | `{"correct": bool}` | Case-insensitive, whitespace-stripped equality |
+| `contains` | `{"correct": bool}` | Case-insensitive substring match |
 | `f1_token` | `{"f1": float, "precision": float, "recall": float}` | Token-level F1 |
 | `regex_match` | `{"correct": bool}` | Regex pattern match (target is the pattern) |
+| `bleu` | `{"bleu_1"..4: float}` | Sentence-level BLEU-1 through BLEU-4 |
+| `rouge` | `{"rouge_1": float, "rouge_2": float, "rouge_l": float}` | ROUGE-1, ROUGE-2, ROUGE-L F1 |
+| `retrieval_metrics` | `{"precision_at_k": float, ...}` | Retrieval quality metrics (P@k, R@k, MRR, NDCG) |
+
+All built-in scorers accept a single `ScorerInput` argument.
 
 ### Scorer Composition
 
@@ -81,6 +96,27 @@ lenient = any_of(contains, exact_match)
 # Correct only if BOTH scorers match
 strict = all_of(contains, exact_match)
 ```
+
+## LLM-as-Judge
+
+Use `judge_score()` for subjective evaluation powered by a judge model:
+
+```python
+from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
+from nemo_evaluator.contrib.byob.judge import judge_score
+
+@benchmark(
+    name="qa-judge",
+    dataset="qa.jsonl",
+    prompt="Answer: {question}",
+    judge={"url": "https://integrate.api.nvidia.com/v1", "model_id": "meta/llama-3.1-70b-instruct", "api_key": "NVIDIA_API_KEY"},
+)
+@scorer
+def qa_judge(sample: ScorerInput) -> dict:
+    return judge_score(sample, template="binary_qa", criteria="Factual accuracy")
+```
+
+Built-in templates: `binary_qa`, `binary_qa_partial`, `likert_5`, `safety`. Custom templates support `**template_kwargs` for arbitrary placeholders.
 
 ## Coding Agent Integration
 
@@ -103,7 +139,9 @@ The agent walks you through 5 steps: understand the task, read data, generate pr
 
 ## Dataset Format
 
-BYOB uses JSONL (JSON Lines) format. Each line is a JSON object:
+BYOB accepts JSONL (JSON Lines) files or HuggingFace dataset URIs (`hf://org/dataset`).
+
+Each JSONL line is a JSON object:
 
 ```jsonl
 {"question": "Is the sky blue?", "answer": "yes"}
@@ -112,12 +150,23 @@ BYOB uses JSONL (JSON Lines) format. Each line is a JSON object:
 
 Your prompt template uses `{field}` placeholders that match your dataset fields.
 
+Use `field_mapping` to rename dataset columns:
+
+```python
+@benchmark(
+    name="my-bench",
+    dataset="data.jsonl",
+    prompt="{question}\nA) {a}\nB) {b}",
+    field_mapping={"option_a": "a", "option_b": "b"},
+)
+```
+
 ## CI/CD Integration
 
 See [ci-cd-example.yml](./ci-cd-example.yml) for a complete GitHub Actions workflow that compiles and runs BYOB benchmarks in CI. The example shows how to:
 - Accept model endpoints as workflow inputs
 - Set up the Python environment and install dependencies
-- Compile benchmarks and configure PYTHONPATH
+- Compile benchmarks (auto-installed, no PYTHONPATH setup needed)
 - Run evaluations and upload results as artifacts
 
 ## Troubleshooting
@@ -126,16 +175,27 @@ See [ci-cd-example.yml](./ci-cd-example.yml) for a complete GitHub Actions workf
 Install the package: `cd packages/nemo-evaluator && pip install -e .`
 
 ### "Benchmark not found"
-After compiling, add the install directory to PYTHONPATH:
+Compilation auto-installs via `pip install -e`. If you used `--no-install`, add the package to PYTHONPATH:
 ```bash
-export PYTHONPATH="~/.nemo-evaluator/byob_packages:$PYTHONPATH"
+export PYTHONPATH="~/.nemo-evaluator/byob_packages/byob_<name>:$PYTHONPATH"
 ```
 
 ### "Dataset file not found"
 Use absolute paths or `os.path.join(os.path.dirname(__file__), "data.jsonl")` for paths relative to your benchmark file.
 
 ### "Sample N missing field X"
-Your prompt template references a field not in the dataset. Check that `{field}` placeholders match your JSONL keys.
+Your prompt template references a field not in the dataset. Check that `{field}` placeholders match your JSONL keys. Use `field_mapping` to rename columns if needed.
+
+### Scorer signature error
+BYOB scorers accept a single `ScorerInput` argument. Migrate from the old 3-argument pattern:
+```python
+# Old (no longer supported):
+# def my_scorer(response, target, metadata): ...
+
+# New:
+def my_scorer(sample: ScorerInput) -> dict:
+    return {"correct": sample.target.lower() in sample.response.lower()}
+```
 
 ### "Connection refused" or "Model timeout"
 Check that your model endpoint is running and accessible. Use `curl` to verify:

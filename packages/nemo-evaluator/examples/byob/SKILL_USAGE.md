@@ -11,7 +11,7 @@ The BYOB skill is an interactive workflow that walks you through creating a cust
 
 - An AI coding agent ([Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://openai.com/index/codex/), or similar)
 - NeMo Evaluator installed: `pip install -e .` from `packages/nemo-evaluator`
-- A dataset file (JSONL, CSV, or JSON array)
+- A dataset file (JSONL, CSV, JSON array, or HuggingFace `hf://` URI)
 
 ## How to invoke
 
@@ -26,7 +26,7 @@ In any Claude Code session within the NeMo Evaluator repo, type:
 You can optionally provide a description upfront to skip the opening questions:
 
 ```
-/byob I have a yes/no QA dataset at /data/boolq.jsonl with fields passage, question, answer
+/byob I have a yes/no QA dataset at /data/qa.jsonl with fields passage, question, answer
 ```
 
 ### Codex
@@ -34,7 +34,7 @@ You can optionally provide a description upfront to skip the opening questions:
 Open a Codex session in the NeMo Evaluator repo. Codex automatically picks up the instructions from `examples/byob/AGENTS.md`. Ask it to create a benchmark in natural language:
 
 ```
-Create a BYOB benchmark for my yes/no QA dataset at /data/boolq.jsonl with fields passage, question, answer
+Create a BYOB benchmark for my yes/no QA dataset at /data/qa.jsonl with fields passage, question, answer
 ```
 
 ### Other coding agents
@@ -129,9 +129,9 @@ The agent picks a built-in scorer if possible, otherwise generates a custom one.
 │ yes/no from the model response and compares to the target.  │
 │                                                             │
 │ Smoke testing scorer...                                     │
-│  ✓ scorer("Yes, that is correct", "true", {}) → correct: T │
-│  ✓ scorer("No", "false", {})                  → correct: T │
-│  ✓ scorer("I'm not sure", "true", {})         → correct: F │
+│  ✓ scorer(ScorerInput("Yes, correct", "true", {})) → T     │
+│  ✓ scorer(ScorerInput("No", "false", {}))           → T    │
+│  ✓ scorer(ScorerInput("I'm not sure", "true", {}))  → F    │
 │ All smoke tests passed.                                     │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -145,7 +145,9 @@ The agent writes the benchmark file, compiles it, and gives you the run command.
 │ Agent: [Step 5/5: Ship]                                     │
 │ Writing benchmark to ./my_qa_benchmark.py:                  │
 │                                                             │
-│   from nemo_evaluator.contrib.byob import benchmark, scorer         │
+│   from nemo_evaluator.contrib.byob import (                 │
+│       benchmark, scorer, ScorerInput,                       │
+│   )                                                         │
 │                                                             │
 │   @benchmark(                                               │
 │       name="my-qa",                                         │
@@ -154,14 +156,13 @@ The agent writes the benchmark file, compiles it, and gives you the run command.
 │       target_field="answer",                                │
 │   )                                                         │
 │   @scorer                                                   │
-│   def qa_scorer(response, target, metadata):                │
+│   def qa_scorer(sample: ScorerInput) -> dict:               │
 │       ...                                                   │
 │                                                             │
 │ Compiling...                                                │
-│ ✓ Installed to ~/.nemo-evaluator/byob_packages/byob_my_qa/ │
+│ ✓ Compiled and installed byob_my_qa                         │
 │                                                             │
 │ To run:                                                     │
-│   export PYTHONPATH="~/.nemo-evaluator/byob_packages:$PATH" │
 │   nemo-evaluator run_eval \                                 │
 │     --eval_type byob_my_qa.my-qa \                          │
 │     --target.api_endpoint.url http://localhost:8000 \        │
@@ -193,6 +194,7 @@ After the workflow completes you'll have:
 | Compiled package | `~/.nemo-evaluator/byob_packages/byob_<name>/` |
 | Dataset copy | Frozen inside the compiled package |
 | Config | `config.yaml` generated inside the package |
+| pip install | Auto-installed via `pip install -e` (immediately discoverable) |
 
 ## Examples of things you can ask
 
@@ -201,8 +203,9 @@ After the workflow completes you'll have:
 | `/byob` (Claude Code) or "Create a BYOB benchmark" (Codex) | Opens the guided 5-step wizard |
 | "I have a CSV at data.csv" | Starts at step 2 — reads and converts the CSV |
 | "AIME 2025 math problems" | Recognizes math type, uses number-extraction scorer |
-| "safety benchmark, data at prompts.jsonl" | Uses the safety template (pass-through prompt) |
+| "safety benchmark, data at prompts.jsonl" | Uses a safety prompt pattern (direct pass-through) |
 | "exact match QA, data at qa.jsonl, target is answer" | Picks built-in `exact_match`, skips most questions |
+| "Judge-based evaluation of summaries" | Uses `judge_score()` with `likert_5` template |
 
 ## Available built-in scorers
 
@@ -214,6 +217,10 @@ The skill prefers built-in scorers when possible. These are chosen automatically
 | `contains` | You say "target appears in response", "substring" |
 | `f1_token` | You say "partial credit", "token overlap", "F1" |
 | `regex_match` | You say "regex", "pattern match" |
+| `bleu` | You say "BLEU score", "translation quality" |
+| `rouge` | You say "ROUGE score", "summarization quality" |
+| `retrieval_metrics` | You say "retrieval quality", "RAG evaluation", "precision@k" |
+| `judge_score()` | You say "subjective", "judge", "quality rating", "LLM-as-judge" |
 | Custom | Math extraction, letter extraction, yes/no, or any described custom logic |
 
 ## Troubleshooting
