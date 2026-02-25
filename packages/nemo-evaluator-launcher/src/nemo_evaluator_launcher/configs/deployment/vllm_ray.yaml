@@ -30,8 +30,8 @@
 # OmegaConf escaping note:
 #   $VAR           → passed through as literal (safe for bash)
 #   ${key}         → resolved as Hydra interpolation
-#   $${bash_var}   → resolved to literal ${bash_var} (needed for bash arrays)
-#   $$(cmd)        → resolved to literal $(cmd) (needed for bash command substitution)
+#   `cmd`          → use backticks for bash command substitution (OmegaConf rejects $())
+#   let "x = a/b"  → use let for arithmetic (OmegaConf rejects $(()))
 defaults:
   - vllm
   - _self_
@@ -52,15 +52,16 @@ command: |
 
   NUM_NODES=${execution.num_nodes}
   NUM_INSTANCES=${execution.num_instances}
-  NODES_PER_INSTANCE=$$((NUM_NODES / NUM_INSTANCES))
+  let "NODES_PER_INSTANCE = NUM_NODES / NUM_INSTANCES"
 
   # Determine mode: multi-instance (NUM_INSTANCES > 1) or single-instance
   if [ "$NUM_INSTANCES" -gt 1 ]; then
       # Multi-instance mode: compute per-task instance vars from SLURM_PROCID
-      export INSTANCE_ID=$$((SLURM_PROCID / NODES_PER_INSTANCE))
-      export INSTANCE_RANK=$$((SLURM_PROCID % NODES_PER_INSTANCE))
-      HEAD_FIELD=$$((INSTANCE_ID * NODES_PER_INSTANCE + 1))
-      export INSTANCE_MASTER_IP=$$(echo "$ALL_NODE_IPS" | cut -d',' -f"$HEAD_FIELD")
+      let "INSTANCE_ID = SLURM_PROCID / NODES_PER_INSTANCE" || true
+      let "INSTANCE_RANK = SLURM_PROCID % NODES_PER_INSTANCE" || true
+      export INSTANCE_ID INSTANCE_RANK
+      let "HEAD_FIELD = INSTANCE_ID * NODES_PER_INSTANCE + 1"
+      export INSTANCE_MASTER_IP=`echo "$ALL_NODE_IPS" | cut -d',' -f"$HEAD_FIELD"`
       export MASTER_IP="$INSTANCE_MASTER_IP"
       RANK="$INSTANCE_RANK"
       EXPECTED_NODES="$NODES_PER_INSTANCE"
@@ -75,18 +76,18 @@ command: |
       echo "SLURM_PROCID=$SLURM_PROCID, MASTER_IP=$MASTER_IP"
       echo "SLURM_NTASKS=$SLURM_NTASKS"
   fi
-  echo "Hostname: $$(hostname)"
+  echo "Hostname: `hostname`"
 
   if [ "$RANK" -eq 0 ]; then
       # HEAD node
       export VLLM_HOST_IP=$MASTER_IP
-      echo "Starting Ray HEAD on $$(hostname) with VLLM_HOST_IP=$VLLM_HOST_IP"
+      echo "Starting Ray HEAD on `hostname` with VLLM_HOST_IP=$VLLM_HOST_IP"
       ray start --head --port=$RAY_PORT $RAY_FIXED_PORTS
 
       export RAY_ADDRESS=$MASTER_IP:$RAY_PORT
       echo "RAY_ADDRESS=$RAY_ADDRESS — waiting for $EXPECTED_NODES node(s) to join..."
 
-      until [ "$$(ray status 2>/dev/null | grep -c 'node_')" -ge "$EXPECTED_NODES" ]; do
+      until [ "`ray status 2>/dev/null | grep -c 'node_'`" -ge "$EXPECTED_NODES" ]; do
           sleep 10
       done
 
@@ -97,8 +98,8 @@ command: |
       ${deployment.base_command} --distributed-executor-backend ${deployment.distributed_executor_backend}
   else
       # WORKER node
-      export VLLM_HOST_IP=$$(python3 -c "import socket; s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('8.8.8.8', 80)); print(s.getsockname()[0])")
-      echo "Starting Ray WORKER on $$(hostname) with VLLM_HOST_IP=$VLLM_HOST_IP"
+      export VLLM_HOST_IP=`python3 -c "import socket; s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('8.8.8.8', 80)); print(s.getsockname()[0])"`
+      echo "Starting Ray WORKER on `hostname` with VLLM_HOST_IP=$VLLM_HOST_IP"
       echo "Connecting to Ray head at $MASTER_IP:$RAY_PORT..."
 
       # Retry loop in case head is still starting
