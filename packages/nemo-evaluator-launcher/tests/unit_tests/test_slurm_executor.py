@@ -2436,9 +2436,11 @@ class TestSlurmExecutorSystemCalls:
         # Mock file reads
         monkeypatch.setattr(
             "nemo_evaluator_launcher.executors.slurm.executor._read_files_from_remote",
-            lambda paths, user, host, sock: ["100", "config: test"]
-            if "progress" in str(paths[0])
-            else ["framework_name: test\nconfig:\n  type: test"],
+            lambda paths, user, host, sock: (
+                ["100", "config: test"]
+                if "progress" in str(paths[0])
+                else ["framework_name: test\nconfig:\n  type: test"]
+            ),
             raising=True,
         )
 

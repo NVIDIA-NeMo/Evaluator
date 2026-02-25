@@ -27,7 +27,10 @@ import sys
 
 import pytest
 
-from nemo_evaluator.contrib.byob.decorators import clear_registry, get_registered_benchmarks
+from nemo_evaluator.contrib.byob.decorators import (
+    clear_registry,
+    get_registered_benchmarks,
+)
 
 from .conftest import TEMPLATE_DIR, TEMPLATES
 
@@ -81,8 +84,7 @@ def test_template_prompt_fields_match_data(template_name):
         rows = [json.loads(line) for line in f if line.strip()]
 
     assert len(rows) > 0, (
-        f"Data file is empty: {data_path}. "
-        f"Expected at least one JSONL row."
+        f"Data file is empty: {data_path}. Expected at least one JSONL row."
     )
 
     # Validate every field in prompt exists in every data row
@@ -166,9 +168,7 @@ def test_template_data_is_valid_jsonl(template_name):
     and is a dict (JSON object).
     """
     data_path = os.path.join(TEMPLATE_DIR, f"{template_name}_data.jsonl")
-    assert os.path.isfile(data_path), (
-        f"Data file not found: {data_path}"
-    )
+    assert os.path.isfile(data_path), f"Data file not found: {data_path}"
 
     with open(data_path) as f:
         lines = [line for line in f if line.strip()]

@@ -20,8 +20,6 @@ T065-T069 are semi-automated (check keywords in prompt).
 T070-T071 are fully automated scorer smoke tests.
 """
 
-import pytest
-
 from nemo_evaluator.contrib.byob.decorators import ScorerInput
 from nemo_evaluator.contrib.byob.scorers import exact_match, contains
 
@@ -134,6 +132,7 @@ def test_custom_scorer_smoke_test_detects_wrong_type():
 
     Demonstrates how to detect a scorer that returns the wrong type.
     """
+
     def bad_scorer(sample):
         return "correct"  # BUG: returns string instead of dict
 
@@ -149,9 +148,5 @@ def test_custom_scorer_smoke_test_detects_wrong_type():
         return {"correct": True}
 
     result = good_scorer("test")
-    assert isinstance(result, dict), (
-        "good_scorer should return dict"
-    )
-    assert "correct" in result, (
-        "good_scorer should have 'correct' key"
-    )
+    assert isinstance(result, dict), "good_scorer should return dict"
+    assert "correct" in result, "good_scorer should have 'correct' key"

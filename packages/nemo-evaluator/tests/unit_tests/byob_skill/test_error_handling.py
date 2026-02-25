@@ -64,8 +64,7 @@ def test_field_mismatch_raises_keyerror():
 
     # Verify the error message contains the field name
     assert "question" in str(exc_info.value), (
-        f"KeyError should mention the missing field 'question'. "
-        f"Got: {exc_info.value}"
+        f"KeyError should mention the missing field 'question'. Got: {exc_info.value}"
     )
 
 
@@ -74,6 +73,7 @@ def test_scorer_type_error_detected():
 
     A scorer returning non-dict can be detected programmatically.
     """
+
     def bad_scorer(sample):
         return "correct"  # Wrong type
 
@@ -133,10 +133,7 @@ def test_dataset_file_not_found_at_runtime(tmp_path):
     clear_registry()
 
     @benchmark(
-        name="test-bench",
-        dataset=nonexistent_path,
-        prompt="Q: {q}",
-        target_field="a"
+        name="test-bench", dataset=nonexistent_path, prompt="Q: {q}", target_field="a"
     )
     @scorer
     def test_scorer(sample):
@@ -162,6 +159,7 @@ def test_registration_collision():
 
     # Attempt to register with same normalized name (my_qa)
     with pytest.raises(ValueError, match="already registered"):
+
         @benchmark(name="my-qa", dataset="d.jsonl", prompt="Q: {q}")
         @scorer
         def scorer2(sample):

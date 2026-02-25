@@ -22,13 +22,14 @@ from typing import Callable
 
 import pytest
 
-from nemo_evaluator.contrib.byob.decorators import clear_registry, get_registered_benchmarks
+from nemo_evaluator.contrib.byob.decorators import (
+    clear_registry,
+    get_registered_benchmarks,
+)
 
 
 # Resolve paths - REPO_ROOT points to packages/nemo-evaluator/
-REPO_ROOT = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..")
-)
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 TEMPLATE_DIR = os.path.join(REPO_ROOT, "examples", "byob", "templates")
 SKILL_PROMPT_PATH = os.path.join(REPO_ROOT, ".claude", "commands", "byob.md")
 

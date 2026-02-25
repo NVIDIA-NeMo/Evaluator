@@ -287,7 +287,9 @@ def test_json_with_no_array_raises_error(tmp_path):
 
         if array is None:
             # No array found - this should raise an error
-            with pytest.raises(ValueError, match="[Nn]o array|[Nn]ot found|[Cc]ould not find"):
+            with pytest.raises(
+                ValueError, match="[Nn]o array|[Nn]ot found|[Cc]ould not find"
+            ):
                 raise ValueError(
                     f"Could not find an array in JSON file. "
                     f"Expected a top-level array or a dict with keys: {array_keys}. "

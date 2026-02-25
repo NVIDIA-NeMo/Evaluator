@@ -22,7 +22,6 @@ This module tests the full BYOB workflow including:
 """
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -42,7 +41,15 @@ def _get_boolq_benchmark_path():
 
     # Try relative to test file (go up to repo root)
     repo_root = test_file.parent.parent.parent.parent.parent.parent
-    candidate = repo_root / "packages" / "nemo-evaluator" / "examples" / "byob" / "boolq" / "benchmark.py"
+    candidate = (
+        repo_root
+        / "packages"
+        / "nemo-evaluator"
+        / "examples"
+        / "byob"
+        / "boolq"
+        / "benchmark.py"
+    )
     if candidate.exists():
         return candidate
 
@@ -54,6 +61,7 @@ def _get_boolq_benchmark_path():
     # Try relative to package root
     try:
         import nemo_evaluator
+
         pkg_root = Path(nemo_evaluator.__file__).parent.parent
         candidate = pkg_root / "examples" / "byob" / "boolq" / "benchmark.py"
         if candidate.exists():
@@ -69,7 +77,10 @@ def _load_boolq_scorer():
     boolq_benchmark_path = _get_boolq_benchmark_path()
 
     import importlib.util
-    spec = importlib.util.spec_from_file_location("boolq_benchmark", boolq_benchmark_path)
+
+    spec = importlib.util.spec_from_file_location(
+        "boolq_benchmark", boolq_benchmark_path
+    )
     boolq_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(boolq_module)
 
@@ -82,20 +93,36 @@ class TestBoolQScorer:
     def test_yes_true(self):
         """BoolQ scorer: 'Yes' response with target 'true' should be correct."""
         scorer = _load_boolq_scorer()
-        result = scorer(ScorerInput(response="Yes, they do speak the same language.", target="true", metadata={}))
+        result = scorer(
+            ScorerInput(
+                response="Yes, they do speak the same language.",
+                target="true",
+                metadata={},
+            )
+        )
         assert result["correct"] is True, "Expected 'Yes' + target='true' to be correct"
 
     def test_no_false(self):
         """BoolQ scorer: 'No' response with target 'false' should be correct."""
         scorer = _load_boolq_scorer()
-        result = scorer(ScorerInput(response="No, it is not based on a true story.", target="false", metadata={}))
+        result = scorer(
+            ScorerInput(
+                response="No, it is not based on a true story.",
+                target="false",
+                metadata={},
+            )
+        )
         assert result["correct"] is True, "Expected 'No' + target='false' to be correct"
 
     def test_yes_false_is_wrong(self):
         """BoolQ scorer: 'Yes' response with target 'false' should be incorrect."""
         scorer = _load_boolq_scorer()
-        result = scorer(ScorerInput(response="Yes, it is.", target="false", metadata={}))
-        assert result["correct"] is False, "Expected 'Yes' + target='false' to be incorrect"
+        result = scorer(
+            ScorerInput(response="Yes, it is.", target="false", metadata={})
+        )
+        assert result["correct"] is False, (
+            "Expected 'Yes' + target='false' to be incorrect"
+        )
 
 
 class TestCompilerIntegration:
@@ -109,7 +136,9 @@ class TestCompilerIntegration:
         result = compile_benchmark(str(boolq_benchmark_path))
 
         # Validate FDF structure
-        assert "boolq" in result, f"Expected 'boolq' key in compiled result, got: {list(result.keys())}"
+        assert "boolq" in result, (
+            f"Expected 'boolq' key in compiled result, got: {list(result.keys())}"
+        )
         fdf = result["boolq"]
 
         # Framework section
@@ -119,7 +148,10 @@ class TestCompilerIntegration:
         # Evaluations section
         assert len(fdf["evaluations"]) == 1
         assert fdf["evaluations"][0]["name"] == "boolq"
-        assert "chat" in fdf["evaluations"][0]["defaults"]["config"]["supported_endpoint_types"]
+        assert (
+            "chat"
+            in fdf["evaluations"][0]["defaults"]["config"]["supported_endpoint_types"]
+        )
 
     def test_install_boolq(self, tmp_path):
         """Install the BoolQ benchmark and validate package structure."""
@@ -134,25 +166,33 @@ class TestCompilerIntegration:
             pkg_path = Path(pkg_dir)
 
             # Validate directory structure
-            assert (pkg_path / "core_evals" / "byob_boolq" / "framework.yml").is_file(), \
-                "framework.yml should exist"
-            assert (pkg_path / "core_evals" / "byob_boolq" / "output.py").is_file(), \
+            assert (
+                pkg_path / "core_evals" / "byob_boolq" / "framework.yml"
+            ).is_file(), "framework.yml should exist"
+            assert (pkg_path / "core_evals" / "byob_boolq" / "output.py").is_file(), (
                 "output.py should exist"
-            assert (pkg_path / "pyproject.toml").is_file(), \
+            )
+            assert (pkg_path / "pyproject.toml").is_file(), (
                 "pyproject.toml should exist"
+            )
 
             # Validate framework.yml is valid YAML
             import yaml
+
             with open(pkg_path / "core_evals" / "byob_boolq" / "framework.yml") as f:
                 fw = yaml.safe_load(f)
             assert fw is not None, "framework.yml should be valid YAML"
 
             # Validate output.py contains parse_output function
-            output_content = (pkg_path / "core_evals" / "byob_boolq" / "output.py").read_text()
-            assert "def parse_output" in output_content, \
+            output_content = (
+                pkg_path / "core_evals" / "byob_boolq" / "output.py"
+            ).read_text()
+            assert "def parse_output" in output_content, (
                 "output.py should contain parse_output function"
-            assert "byob_results.json" in output_content, \
+            )
+            assert "byob_results.json" in output_content, (
                 "output.py should reference byob_results.json"
+            )
 
 
 class TestRunnerE2E:
@@ -162,7 +202,7 @@ class TestRunnerE2E:
         """Full lifecycle: create benchmark, dataset, call mock server, verify output."""
         # Create a temporary benchmark file
         benchmark_file = tmp_path / "test_benchmark.py"
-        benchmark_file.write_text('''
+        benchmark_file.write_text("""
 from nemo_evaluator.contrib.byob import benchmark, scorer
 
 @benchmark(
@@ -175,7 +215,7 @@ from nemo_evaluator.contrib.byob import benchmark, scorer
 @scorer
 def simple_scorer(sample):
     return {"correct": sample.target.lower() in sample.response.lower()}
-''')
+""")
 
         # Create a temporary JSONL dataset
         dataset_file = tmp_path / "test_data.jsonl"
@@ -188,23 +228,33 @@ def simple_scorer(sample):
         # Run the benchmark via subprocess
         result = subprocess.run(
             [
-                sys.executable, "-m", "nemo_evaluator.contrib.byob.runner",
-                "--benchmark-module", str(benchmark_file),
-                "--benchmark-name", "test_e2e",
-                "--dataset", str(dataset_file),
-                "--output-dir", str(output_dir),
-                "--model-url", mock_model_server.url,
-                "--model-id", "test-model",
-                "--model-type", "chat",
+                sys.executable,
+                "-m",
+                "nemo_evaluator.contrib.byob.runner",
+                "--benchmark-module",
+                str(benchmark_file),
+                "--benchmark-name",
+                "test_e2e",
+                "--dataset",
+                str(dataset_file),
+                "--output-dir",
+                str(output_dir),
+                "--model-url",
+                mock_model_server.url,
+                "--model-id",
+                "test-model",
+                "--model-type",
+                "chat",
             ],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
         )
 
         # Validate exit code
-        assert result.returncode == 0, \
+        assert result.returncode == 0, (
             f"Runner failed with exit code {result.returncode}. Stderr: {result.stderr}"
+        )
 
         # Validate output file exists
         results_path = output_dir / "byob_results.json"
@@ -217,14 +267,18 @@ def simple_scorer(sample):
         assert "tasks" in output, "Output should contain 'tasks' key"
         assert "test_e2e" in output["tasks"], "Output should contain 'test_e2e' task"
         assert "metrics" in output["tasks"]["test_e2e"], "Task should contain 'metrics'"
-        assert "pass@1" in output["tasks"]["test_e2e"]["metrics"], "Metrics should contain 'pass@1'"
+        assert "pass@1" in output["tasks"]["test_e2e"]["metrics"], (
+            "Metrics should contain 'pass@1'"
+        )
 
         scores = output["tasks"]["test_e2e"]["metrics"]["pass@1"]["scores"]
         assert "correct" in scores, "Scores should contain 'correct' key"
-        assert isinstance(scores["correct"]["value"], (int, float)), \
+        assert isinstance(scores["correct"]["value"], (int, float)), (
             f"Score value should be numeric, got: {type(scores['correct']['value'])}"
-        assert isinstance(scores["correct"]["count"], int), \
+        )
+        assert isinstance(scores["correct"]["count"], int), (
             f"Score count should be int, got: {type(scores['correct']['count'])}"
+        )
         assert scores["correct"]["count"] > 0, "Score count should be > 0"
 
     def test_runner_cli_help(self):
@@ -233,11 +287,11 @@ def simple_scorer(sample):
             [sys.executable, "-m", "nemo_evaluator.contrib.byob.runner", "--help"],
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=10,
         )
 
         assert result.returncode == 0, f"--help should exit 0, got: {result.returncode}"
-        assert "--benchmark-module" in result.stdout, \
+        assert "--benchmark-module" in result.stdout, (
             "Help output should mention --benchmark-module"
-        assert "--model-url" in result.stdout, \
-            "Help output should mention --model-url"
+        )
+        assert "--model-url" in result.stdout, "Help output should mention --model-url"

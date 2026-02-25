@@ -63,7 +63,7 @@ def _register_dummy(monkeypatch):
     # Force factory to return dummy exporter
     monkeypatch.setattr(
         "nemo_evaluator_launcher.exporters.get_exporter",
-        lambda name: (lambda cfg=None: _DummyExporter(cfg)),
+        lambda name: lambda cfg=None: _DummyExporter(cfg),
         raising=True,
     )
 
@@ -141,7 +141,7 @@ def test_mixed_ids_no_consolidation(mock_execdb, monkeypatch):
 
     monkeypatch.setattr(
         "nemo_evaluator_launcher.exporters.get_exporter",
-        lambda name: (lambda cfg=None: _TraceExporter(cfg)),
+        lambda name: lambda cfg=None: _TraceExporter(cfg),
         raising=True,
     )
 
@@ -205,7 +205,7 @@ def test_handles_exporter_exception(monkeypatch):
 
     monkeypatch.setattr(
         "nemo_evaluator_launcher.exporters.get_exporter",
-        lambda name: (lambda cfg=None: _Boom()),
+        lambda name: lambda cfg=None: _Boom(),
         raising=True,
     )
     res = export_results("abcdef12", dest="dummy", config={})

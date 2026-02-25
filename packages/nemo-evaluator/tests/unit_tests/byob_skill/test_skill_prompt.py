@@ -22,8 +22,6 @@ contains all required sections.
 import os
 import re
 
-import pytest
-
 
 def estimate_tokens(text: str) -> int:
     """Rough token estimate: words * 1.3 (GPT-family average)."""
@@ -124,8 +122,7 @@ def test_skill_prompt_contains_required_sections(skill_prompt_path):
 
     # Section 4: Dataset handling
     assert "jsonl" in content_lower, (
-        "Skill prompt missing 'jsonl' keyword. "
-        "Expected dataset format documentation."
+        "Skill prompt missing 'jsonl' keyword. Expected dataset format documentation."
     )
 
     # Section 5: Prompt patterns (check for benchmark type keywords)
@@ -175,7 +172,7 @@ def test_skill_prompt_file_references_exist(skill_prompt_path):
 
     # Extract file paths that look like examples/byob/...
     # Pattern: examples/byob/WORD/*.EXTENSION
-    paths = re.findall(r'(examples/byob/\S+\.(?:py|jsonl))', content)
+    paths = re.findall(r"(examples/byob/\S+\.(?:py|jsonl))", content)
     assert len(paths) >= 6, (
         f"Expected at least 6 file references in skill prompt, found {len(paths)}. "
         f"Check that all 6 templates are referenced. Found: {paths}"
@@ -204,9 +201,9 @@ def test_skill_prompt_contains_version_marker(skill_prompt_path):
 
     # Check for version patterns: "v1.0", "version 1.0", "byob-skill v1.0", etc.
     version_patterns = [
-        r'v\d+\.\d+',  # v1.0, v2.3
-        r'version\s+\d+\.\d+',  # version 1.0
-        r'byob-skill\s+v\d+',  # byob-skill v1
+        r"v\d+\.\d+",  # v1.0, v2.3
+        r"version\s+\d+\.\d+",  # version 1.0
+        r"byob-skill\s+v\d+",  # byob-skill v1
     ]
 
     has_version = any(re.search(pattern, content_lower) for pattern in version_patterns)

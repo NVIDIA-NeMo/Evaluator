@@ -66,12 +66,10 @@ def test_template_compiles_independently(template_name, tmp_path):
     for normalized_name, fdf in compiled.items():
         # Validate FDF structure
         assert "framework" in fdf, (
-            f"FDF for {template_name} missing 'framework' key. "
-            f"Keys: {list(fdf.keys())}"
+            f"FDF for {template_name} missing 'framework' key. Keys: {list(fdf.keys())}"
         )
         assert "defaults" in fdf, (
-            f"FDF for {template_name} missing 'defaults' key. "
-            f"Keys: {list(fdf.keys())}"
+            f"FDF for {template_name} missing 'defaults' key. Keys: {list(fdf.keys())}"
         )
         assert "evaluations" in fdf, (
             f"FDF for {template_name} missing 'evaluations' key. "
@@ -139,7 +137,9 @@ def test_template_compiles_independently(template_name, tmp_path):
             f"Expected at: {pkg_init}"
         )
 
-        framework_yml_path = os.path.join(pkg_dir, "core_evals", pkg_name_dir, "framework.yml")
+        framework_yml_path = os.path.join(
+            pkg_dir, "core_evals", pkg_name_dir, "framework.yml"
+        )
         assert os.path.isfile(framework_yml_path), (
             f"Template {template_name} installation missing framework.yml. "
             f"Expected at: {framework_yml_path}"
@@ -165,7 +165,10 @@ def test_template_compiles_independently(template_name, tmp_path):
         with open(output_py_path) as f:
             output_py_content = f.read()
 
-        assert "def parse_output" in output_py_content or "parse_output =" in output_py_content, (
+        assert (
+            "def parse_output" in output_py_content
+            or "parse_output =" in output_py_content
+        ), (
             f"Template {template_name} output.py missing parse_output function. "
             f"This function is required by the evaluation framework."
         )

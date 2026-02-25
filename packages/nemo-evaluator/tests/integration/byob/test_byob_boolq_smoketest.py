@@ -32,7 +32,11 @@ from pathlib import Path
 import pytest
 
 from nemo_evaluator.contrib.byob.eval_logic import import_benchmark, run_eval_loop
-from nemo_evaluator.contrib.byob.runner import aggregate_scores, call_model_chat, load_dataset
+from nemo_evaluator.contrib.byob.runner import (
+    aggregate_scores,
+    call_model_chat,
+    load_dataset,
+)
 
 _NVIDIA_API_URL = "https://integrate.api.nvidia.com/v1"
 _NVIDIA_MODEL_ID = "nvidia/nemotron-3-nano-30b-a3b"
@@ -55,7 +59,9 @@ def _get_boolq_dir():
     """Resolve the BoolQ example directory."""
     test_file = Path(__file__).resolve()
     repo_root = test_file.parent.parent.parent.parent.parent.parent
-    boolq_dir = repo_root / "packages" / "nemo-evaluator" / "examples" / "byob" / "boolq"
+    boolq_dir = (
+        repo_root / "packages" / "nemo-evaluator" / "examples" / "byob" / "boolq"
+    )
     if not boolq_dir.exists():
         pytest.skip(f"BoolQ example directory not found at {boolq_dir}")
     return boolq_dir
@@ -139,7 +145,7 @@ class TestBoolQSmoketest:
 
     def test_boolq_subprocess_runner(self, tmp_path):
         """Run the BoolQ benchmark via the subprocess runner CLI."""
-        api_key = _get_api_key()
+        _get_api_key()
         boolq_dir = _get_boolq_dir()
 
         output_dir = tmp_path / "output"
@@ -147,18 +153,31 @@ class TestBoolQSmoketest:
 
         result = subprocess.run(
             [
-                sys.executable, "-m", "nemo_evaluator.contrib.byob.runner",
-                "--benchmark-module", str(boolq_dir / "benchmark.py"),
-                "--benchmark-name", "boolq",
-                "--dataset", str(boolq_dir / "data.jsonl"),
-                "--output-dir", str(output_dir),
-                "--model-url", _NVIDIA_API_URL,
-                "--model-id", _NVIDIA_MODEL_ID,
-                "--model-type", "chat",
-                "--temperature", "0.2",
-                "--max-tokens", str(_MAX_TOKENS),
-                "--limit-samples", str(_SAMPLE_LIMIT),
-                "--api-key-name", "NVIDIA_API_KEY",
+                sys.executable,
+                "-m",
+                "nemo_evaluator.contrib.byob.runner",
+                "--benchmark-module",
+                str(boolq_dir / "benchmark.py"),
+                "--benchmark-name",
+                "boolq",
+                "--dataset",
+                str(boolq_dir / "data.jsonl"),
+                "--output-dir",
+                str(output_dir),
+                "--model-url",
+                _NVIDIA_API_URL,
+                "--model-id",
+                _NVIDIA_MODEL_ID,
+                "--model-type",
+                "chat",
+                "--temperature",
+                "0.2",
+                "--max-tokens",
+                str(_MAX_TOKENS),
+                "--limit-samples",
+                str(_SAMPLE_LIMIT),
+                "--api-key-name",
+                "NVIDIA_API_KEY",
             ],
             capture_output=True,
             text=True,
