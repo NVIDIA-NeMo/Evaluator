@@ -367,16 +367,16 @@ def create_client_model_call_fn(
     import asyncio
 
     from nemo_evaluator.client import NeMoEvaluatorClient
-    from nemo_evaluator.client.config import EndpointModelConfig
+    from nemo_evaluator.api.api_dataclasses import EndpointModelConfig
 
     endpoint_config = EndpointModelConfig(
         url=args.model_url,
         model_id=args.model_id,
-        api_key=api_key,
+        api_key_name=args.api_key_name,
         temperature=args.temperature,
-        max_tokens=args.max_tokens,
+        max_new_tokens=args.max_tokens,
     )
-    client = NeMoEvaluatorClient(endpoint_config)
+    client = NeMoEvaluatorClient(endpoint_config, output_dir=args.output_dir)
 
     def model_call_fn(prompt: str, endpoint_type: str, *, system_prompt: Optional[str] = None) -> str:
         if endpoint_type == "chat":
@@ -530,9 +530,16 @@ def main():
     cleanup_fn = None
     try:
         model_call_fn, cleanup_fn = create_client_model_call_fn(args, api_key)
-        logger.info("Using NeMoEvaluatorClient for model calls")
-    except ImportError:
-        logger.info("NeMoEvaluatorClient not available, using raw HTTP requests")
+        logger.info(
+            "Using NeMoEvaluatorClient for model calls",
+            model_url=args.model_url,
+            model_id=args.model_id,
+        )
+    except ImportError as e:
+        logger.info(
+            "NeMoEvaluatorClient not available, using raw HTTP requests",
+            reason=str(e),
+        )
         session = create_session(
             max_retries=args.max_retries,
             backoff_factor=args.retry_backoff,
