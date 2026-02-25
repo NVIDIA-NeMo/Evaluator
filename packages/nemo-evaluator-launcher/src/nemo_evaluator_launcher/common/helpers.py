@@ -23,6 +23,7 @@ import yaml
 from omegaconf import DictConfig, OmegaConf
 
 from nemo_evaluator_launcher.cli.version import get_versions
+from nemo_evaluator_launcher.common.env_vars import SecretsEnvResult
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 CONTAINER_RESULTS_DIR = "/results"
@@ -42,6 +43,9 @@ class CmdAndReadableComment:
     # downstream callers who want to raise exceptions e.g. when a script was
     # saved that would execute this command.
     is_potentially_unsafe: bool = False
+    # Optional secrets env result. When set, the caller writes
+    # secrets_env_result.secrets_content to .secrets.env alongside the script.
+    secrets_env_result: SecretsEnvResult | None = None
 
 
 def _str_to_echo_command(str_to_save: str, filename: str) -> CmdAndReadableComment:
@@ -212,12 +216,13 @@ def get_eval_factory_command(
         ["config", "output_dir"],
         CONTAINER_RESULTS_DIR,
     )
-    # FIXME(martas): update to api_key_name after 25.12 is released
-    _set_nested_optionally_overriding(
-        merged_nemo_evaluator_config,
-        ["target", "api_endpoint", "api_key"],
-        "API_KEY",
-    )
+    api_key_name = get_api_key_name(cfg)
+    if api_key_name:
+        _set_nested_optionally_overriding(
+            merged_nemo_evaluator_config,
+            ["target", "api_endpoint", "api_key_name"],
+            api_key_name,
+        )
     _set_nested_optionally_overriding(
         merged_nemo_evaluator_config,
         [

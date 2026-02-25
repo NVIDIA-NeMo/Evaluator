@@ -81,7 +81,7 @@ target:
   api_endpoint:
     model_id: meta-llama/Llama-3.1-8B
     url: https://your-endpoint.com/v1/completions
-    api_key_name: API_KEY # API Key with access to provided url
+    api_key_name: NGC_API_KEY # API Key with access to provided url
 
 # specify the benchmarks to evaluate
 evaluation:

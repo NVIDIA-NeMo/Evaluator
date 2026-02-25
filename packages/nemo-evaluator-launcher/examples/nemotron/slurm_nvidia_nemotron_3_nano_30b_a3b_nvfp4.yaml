@@ -43,8 +43,8 @@ target:
 
 evaluation:
   env_vars:
-    HF_TOKEN: HF_TOKEN
-    JUDGE_API_KEY: JUDGE_API_KEY # API Key with access to gpt-4o for HLE
+    HF_TOKEN: host:HF_TOKEN
+    JUDGE_API_KEY: host:JUDGE_API_KEY # API Key with access to gpt-4o for HLE
   nemo_evaluator_config:
     config:
       params:
@@ -129,8 +129,8 @@ evaluation:
   - name: ns_wmt24pp
   - name: tau2_bench_telecom
     env_vars:
-      JUDGE_API_KEY: NGC_API_KEY
-      USER_API_KEY: NGC_API_KEY
+      JUDGE_API_KEY: host:NGC_API_KEY
+      USER_API_KEY: host:NGC_API_KEY
     nemo_evaluator_config:
       config:
         params:
@@ -176,7 +176,7 @@ evaluation:
             params_to_add: {"chat_template_kwargs": {"enable_thinking": false}, "skip_special_tokens": false}
   - name: aa_lcr
     env_vars:
-      JUDGE_API_KEY: NGC_API_KEY
+      JUDGE_API_KEY: host:NGC_API_KEY
     nemo_evaluator_config:
       config:
         params:

@@ -72,5 +72,5 @@ evaluation:
                 model_id: "llama-3.1-nemoguard-8b-content-safety"
                 url: ???   # set to match your judge base url, e.g. https://my-judge-endpoint.com/v1
       env_vars:
-        HF_TOKEN: HF_TOKEN_FOR_AEGIS_V2  # use token with access to https://huggingface.co/datasets/nvidia/Aegis-AI-Content-Safety-Dataset-2.0 and https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct
-        JUDGE_API_KEY: JUDGE_API_KEY  # API Key with access to your judge endpoint, skip if not gated
+        HF_TOKEN: host:HF_TOKEN_FOR_AEGIS_V2  # use token with access to https://huggingface.co/datasets/nvidia/Aegis-AI-Content-Safety-Dataset-2.0 and https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct
+        JUDGE_API_KEY: host:JUDGE_API_KEY  # API Key with access to your judge endpoint, skip if not gated

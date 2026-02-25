@@ -14,11 +14,11 @@
 # limitations under the License.
 #
 # Each slurm cluster has its own flavour, below we provide some defaults that might meet one's needs.
-type: slurm              # Executor is chosen based on this field
-hostname: ???            # SLURM headnode (login) hostname (required)
+type: slurm # Executor is chosen based on this field
+hostname: ??? # SLURM headnode (login) hostname (required)
 username: ${oc.env:USER} # Defaults to $USER env var
-account: ???             # SLURM account allocation (required)
-output_dir: ???          # Absolute path accessible on compute nodes (required)
+account: ??? # SLURM account allocation (required)
+output_dir: ??? # Absolute path accessible on compute nodes (required)
 partition: batch
 num_nodes: 1
 ntasks_per_node: 1
@@ -26,15 +26,12 @@ gres: gpu:8
 walltime: 01:00:00
 max_walltime: "120:00:00" # Maximum total runtime across all resumes. Set to null for unlimited.
 subproject: nemo-evaluator-launcher
-sbatch_comment: null  # Optional comment for SLURM job (translates to #SBATCH --comment='...')
+sbatch_comment: null # Optional comment for SLURM job (translates to #SBATCH --comment='...')
 
 # Deployment-specific SLURM configuration
 deployment:
-  n_tasks: 1             # Number of tasks for deployment srun (default: 1, for multi-instance set to num_nodes)
+  n_tasks: 1 # Number of tasks for deployment srun (default: 1, for multi-instance set to num_nodes)
 
-env_vars:
-  deployment: {}
-  evaluation: {}
 mounts:
   deployment: {}
   evaluation: {}

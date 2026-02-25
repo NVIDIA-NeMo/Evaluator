@@ -30,9 +30,6 @@ execution:
   mounts:
     evaluation:
       ./hf_cache: /root/.cache/huggingface
-  env_vars:
-    evaluation: {}
-
 target:
   api_endpoint:
     model_id: nvidia/nemotron-3-nano-30b-a3b
@@ -41,8 +38,8 @@ target:
 
 evaluation:
   env_vars:
-    HF_TOKEN: HF_TOKEN
-    HF_HOME: HF_HOME
+    HF_TOKEN: host:HF_TOKEN
+    HF_HOME: host:HF_HOME
   nemo_evaluator_config:
     config:
       params:
