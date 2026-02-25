@@ -38,7 +38,7 @@ class TestExporterRegistry:
         assert isinstance(exporter, WandBExporter)
 
     def test_create_exporter_mlflow(self):
-        exporter = create_exporter("mlflow")
+        exporter = create_exporter("mlflow", {"tracking_uri": "http://mlflow"})
         assert isinstance(exporter, MLflowExporter)
 
     def test_create_exporter_invalid(self):

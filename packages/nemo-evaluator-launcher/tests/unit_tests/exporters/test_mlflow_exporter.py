@@ -18,6 +18,9 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+from pydantic import ValidationError
+
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.exporters.mlflow import MLflowExporter
 
@@ -70,10 +73,10 @@ class TestMLflowExporter:
             raising=True,
         )
 
-        exporter = MLflowExporter({})
-        result = exporter.export(["test123.0"])
-        assert not result.successful_jobs
-        assert result.failed_jobs == ["test123.0"]
+        with pytest.raises(
+            ValidationError, match="MLflow requires 'tracking_uri' to be configured."
+        ):
+            MLflowExporter()
 
     def test_export_with_skip_existing(
         self, mock_execdb, monkeypatch, mlflow_fake, tmp_path: Path
