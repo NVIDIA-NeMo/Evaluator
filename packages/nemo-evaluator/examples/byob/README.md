@@ -96,8 +96,10 @@ The agent walks you through 5 steps: understand the task, read data, generate pr
 
 ## Examples
 
-- [BoolQ](./boolq/) - Yes/No question answering from SuperGLUE
-- [Template Library](./templates/) - 6 ready-to-use templates for math, multichoice, QA, classification, safety, and code generation
+- [MedMCQA](./medmcqa/) - Medical multiple-choice QA with HuggingFace dataset and field mapping
+- [Global MMLU Lite](./global_mmlu_lite/) - Multilingual MMLU with per-category scoring breakdown
+- [TruthfulQA](./truthfulqa/) - LLM-as-Judge evaluation with custom template and `**template_kwargs`
+- Templates: [Math Reasoning](./templates/math_reasoning.py) (numeric extraction + tolerance), [Code Generation](./templates/code_generation.py) (syntax check + execution)
 
 ## Dataset Format
 
