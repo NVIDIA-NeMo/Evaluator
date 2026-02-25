@@ -82,6 +82,10 @@ execution:
   gres: gpu:8                          # GPU resources
   walltime: "01:00:00"                 # Wall time limit (HH:MM:SS)
   
+  # Multi-node topology (see Multi-Node Deployment section below)
+  num_nodes_per_instance: 1            # Nodes per deployment instance (default: 1)
+  num_instances: 1                     # Number of independent deployment instances (default: 1)
+
   # Environment variables and mounts
   env_vars:
     deployment: {}                     # Environment variables for deployment container
@@ -94,6 +98,81 @@ execution:
 
 :::{note}
 The `gpus_per_node` parameter can be used as an alternative to `gres` for specifying GPU resources. However, `gres` is the default in the base configuration.
+:::
+
+## Multi-Node Deployment
+
+The launcher supports deploying models across multiple SLURM nodes. Two execution parameters control the multi-node topology:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `num_nodes_per_instance` | 1 | Nodes per deployment instance. When > 1, Ray is auto-injected for cross-node coordination (vLLM only). |
+| `num_instances` | 1 | Number of independent deployment instances. When > 1, HAProxy is auto-started to load-balance requests across instances. |
+
+Total SLURM nodes allocated = `num_nodes_per_instance × num_instances`.
+
+### Single Instance, Multiple Nodes (Ray)
+
+Use when a model is too large for a single node and requires tensor/pipeline parallelism across nodes.
+
+```yaml
+execution:
+  num_nodes_per_instance: 2  # Instance spans 2 nodes → Ray auto-injected
+
+deployment:
+  tensor_parallel_size: 8    # Within-node GPU parallelism
+  pipeline_parallel_size: 2  # Cross-node model parallelism
+```
+
+The launcher automatically:
+- Injects a Ray cluster setup script (head on node 0, workers on remaining nodes)
+- Adds `--distributed-executor-backend ray` to vLLM args
+- Sets SLURM `--ntasks` to match total nodes
+
+See: `examples/slurm_vllm_multinode_ray_tp_pp.yaml`
+
+### Multiple Single-Node Instances (HAProxy)
+
+Use when a model fits on a single node but you want to scale throughput with independent replicas behind a load balancer.
+
+```yaml
+execution:
+  num_instances: 2  # 2 independent instances → HAProxy auto-enabled
+
+deployment:
+  data_parallel_size: 8  # Each node uses all 8 GPUs for data parallelism
+```
+
+The launcher automatically:
+- Starts HAProxy to distribute requests across all instances
+- Sets SLURM `--ntasks` to match total nodes
+
+See: `examples/slurm_vllm_multinode_dp_haproxy.yaml`
+
+### Multiple Multi-Node Instances (Ray + HAProxy)
+
+Use for very large models that need cross-node parallelism **and** multiple replicas for throughput.
+
+```yaml
+execution:
+  num_nodes_per_instance: 2  # Each instance spans 2 nodes → Ray auto-injected
+  num_instances: 2           # 2 instances → HAProxy auto-enabled
+  # Total: 4 SLURM nodes
+
+deployment:
+  tensor_parallel_size: 8
+  pipeline_parallel_size: 2
+```
+
+The launcher automatically:
+- Sets up a Ray cluster within each instance
+- Starts HAProxy to load-balance across instances
+- Sets SLURM `--ntasks` to match total nodes (4)
+
+See: `examples/slurm_vllm_multinode_multiinstance_ray_tp_pp.yaml`
+
+:::{note}
+Multi-node deployment (num_nodes_per_instance > 1) is only supported for vLLM deployments. The launcher auto-injects Ray and the `--distributed-executor-backend ray` flag — you do not need to configure these manually.
 :::
 
 ## Configuration Examples

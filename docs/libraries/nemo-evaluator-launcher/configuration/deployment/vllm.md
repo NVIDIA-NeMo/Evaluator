@@ -88,5 +88,8 @@ The following example configuration files are available in the `examples/` direc
 - `lepton_vllm_llama_3_1_8b_instruct.yaml` - vLLM deployment on Lepton platform
 - `slurm_llama_3_1_8b_instruct.yaml` - vLLM deployment on SLURM cluster
 - `slurm_llama_3_1_8b_instruct_hf.yaml` - vLLM deployment using HuggingFace model ID
+- `slurm_vllm_multinode_ray_tp_pp.yaml` - Single multi-node instance with Ray TP+PP
+- `slurm_vllm_multinode_dp_haproxy.yaml` - Multiple single-node instances with HAProxy
+- `slurm_vllm_multinode_multiinstance_ray_tp_pp.yaml` - Multiple multi-node instances with Ray TP+PP and HAProxy
 
 Use `nemo-evaluator-launcher run --dry-run` to check your configuration before running.

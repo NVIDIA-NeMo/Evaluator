@@ -142,27 +142,49 @@ Show tasks in the current config. Loop until the user confirms the task list is 
   ```
   For the None (External) deployment the `api_key_name` should be already defined. The `DUMMY_API_KEY` export is handled in Step 8.
 
-**Step 6: Advanced - Multi-node (Data Parallel)**
+**Step 6: Advanced - Multi-node**
 
-Only if model >120B parameters, suggest multi-node. Explain: "This is DP multi-node - the weights are copied (not distributed) across nodes. One deployment instance per node will be run with HAProxy load-balancing requests."
+Two multi-node topologies are available:
 
-Ask if user wants multi-node. If yes, ask for node count and configure:
+**Option A: Multiple independent instances (HAProxy load-balancing)**
+
+Use when the model fits on a single node but you want more throughput. Each node runs an independent deployment instance, and HAProxy distributes requests across them.
 
 ```yaml
 execution:
-    num_nodes: 4  # 4 nodes = 4 independent deployment instances = 4x throughput
-    deployment:
-        n_tasks: ${execution.num_nodes}  # Must match num_nodes for multi-instance deployment
+    num_instances: 4  # 4 independent single-node instances → HAProxy auto-enabled
+```
+
+**Option B: Single instance spanning multiple nodes (Ray)**
+
+Use when the model is too large for a single node and requires tensor/pipeline parallelism across nodes (vLLM only).
+
+```yaml
+execution:
+    num_nodes_per_instance: 2  # Instance spans 2 nodes → Ray auto-injected
 
 deployment:
-    multiple_instances: true
+    tensor_parallel_size: 8    # Within-node GPU parallelism
+    pipeline_parallel_size: 2  # Cross-node model parallelism
 ```
+
+**Option C: Multiple multi-node instances (Ray + HAProxy)**
+
+Combines both: each instance spans multiple nodes (Ray), and multiple instances are load-balanced (HAProxy).
+
+```yaml
+execution:
+    num_nodes_per_instance: 2  # Each instance spans 2 nodes
+    num_instances: 2           # 2 instances → HAProxy auto-enabled
+```
+
+Total SLURM nodes = `num_nodes_per_instance × num_instances`. The launcher auto-computes SLURM `--ntasks` and injects Ray/HAProxy as needed.
 
 **Common Confusions**
 
-- **This is different from `data_parallel_size`**, which controls DP replicas *within* a single node/deployment instance.
-- Global data parallelism is `num_nodes x data_parallel_size` (e.g., 2 nodes x 4 DP each = 8 replicas for max throughput).
-- With multi-node, `parallelism` in task config is the total concurrent requests across all instances, not per-instance.
+- **`num_instances` is different from `data_parallel_size`**: `data_parallel_size` controls DP replicas *within* a single deployment instance. `num_instances` controls how many independent instances are created.
+- Global data parallelism is `num_instances x data_parallel_size` (e.g., 2 instances x 8 DP each = 16 replicas for max throughput).
+- With multi-instance, `parallelism` in task config is the total concurrent requests across all instances, not per-instance.
 
 **Step 7: Advanced - Interceptors**
 

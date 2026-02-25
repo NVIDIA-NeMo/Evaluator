@@ -31,6 +31,8 @@ from nemo_evaluator_launcher.executors.slurm.executor import (
     SlurmExecutor,
     _create_slurm_sbatch_script,
     _generate_autoresume_handler,
+    _generate_deployment_srun_command,
+    _resolve_multi_node_config,
 )
 
 
@@ -505,7 +507,8 @@ class TestSlurmExecutorFeatures:
         [
             (1, 1, 1, False),  # Single instance, no proxy
             (4, 4, 4, True),  # Multi-instance with matching n_tasks, needs proxy
-            (2, 1, 1, False),  # Multiple nodes but single task, no proxy
+            # n_tasks is auto-set to total_nodes for vLLM (overrides user value)
+            (2, 1, 2, False),  # 2 nodes, user sets n_tasks=1, but vLLM forces n_tasks=2
             (3, 3, 3, True),  # Multi-instance with 3 nodes, needs proxy
         ],
     )
@@ -548,8 +551,9 @@ class TestSlurmExecutorFeatures:
     def test_deployment_n_tasks_default_value(
         self, base_config, mock_task, mock_dependencies
     ):
-        """Test deployment.n_tasks defaults to 1 when not specified."""
-        # Don't set deployment.n_tasks - should default to 1
+        """Test deployment.n_tasks auto-set to total_nodes for vLLM when not specified."""
+        # Don't set deployment.n_tasks explicitly.
+        # For vLLM, n_tasks is auto-set to total_nodes (num_nodes_per_instance × num_instances).
         base_config["execution"]["num_nodes"] = 2
 
         cfg = OmegaConf.create(base_config)
@@ -563,11 +567,8 @@ class TestSlurmExecutorFeatures:
             job_id="test123.0",
         ).cmd
 
-        # Check that deployment srun defaults to --ntasks 1
-        assert "--nodes 2 --ntasks 1" in script
-
-        # Check that no proxy is set up (since n_tasks=1, even though num_nodes=2)
-        assert "proxy" not in script.lower()
+        # vLLM auto-sets n_tasks = total_nodes = 2
+        assert "--nodes 2 --ntasks 2" in script
 
 
 class TestMaxWalltimeFeature:
@@ -808,7 +809,16 @@ class TestSlurmExecutorHelperFunctions:
         [
             (1, 1, False, True, 1, 1, False),  # Single node, no mounts, mount home
             (4, 4, False, True, 4, 4, False),  # Multi-node, no mounts, mount home
-            (2, 1, True, True, 2, 1, False),  # Multi-node single task with mounts
+            # n_tasks is auto-set to total_nodes for vLLM (overrides user value)
+            (
+                2,
+                1,
+                True,
+                True,
+                2,
+                2,
+                False,
+            ),  # 2 nodes, user sets n_tasks=1, but vLLM forces n_tasks=2
             (1, 1, False, False, 1, 1, True),  # Single node, no mount home
             (3, 3, True, False, 3, 3, True),  # Multi-node with mounts, no mount home
         ],
@@ -826,6 +836,7 @@ class TestSlurmExecutorHelperFunctions:
         """Test _generate_deployment_srun_command with various configurations."""
         from nemo_evaluator_launcher.executors.slurm.executor import (
             _generate_deployment_srun_command,
+            _resolve_multi_node_config,
         )
 
         # Create config
@@ -842,6 +853,7 @@ class TestSlurmExecutorHelperFunctions:
             },
         }
         cfg = OmegaConf.create(config)
+        _resolve_multi_node_config(cfg)
 
         # Create mounts list
         mounts_list = ["/host/path:/container/path"] if has_mounts else []
@@ -2590,3 +2602,479 @@ class TestSlurmExecutorKillJob:
 
         with pytest.raises(RuntimeError, match="Could not find or kill job"):
             SlurmExecutor.kill_job("fail123.0")
+
+
+class TestMultiNodeConfig:
+    """Comprehensive tests for the multi-node config redesign.
+
+    Covers _resolve_multi_node_config, Ray auto-injection,
+    HAProxy auto-enablement, and n_tasks auto-set for vLLM.
+    """
+
+    @pytest.fixture
+    def base_config(self):
+        """Minimal config without num_nodes/num_nodes_per_instance/num_instances.
+
+        Each test sets exactly the fields it needs.
+        """
+        return {
+            "deployment": {
+                "type": "vllm",
+                "image": "test-image:latest",
+                "command": "python -m vllm.entrypoints.openai.api_server --model /model",
+                "served_model_name": "test-model",
+                "port": 8000,
+                "endpoints": {"health": "/health"},
+            },
+            "execution": {
+                "type": "slurm",
+                "output_dir": "/test/output",
+                "walltime": "01:00:00",
+                "account": "test-account",
+                "partition": "test-partition",
+                "ntasks_per_node": 1,
+                "subproject": "test-subproject",
+            },
+            "evaluation": {"env_vars": {}},
+            "target": {"api_endpoint": {"url": "http://localhost:8000/v1"}},
+        }
+
+    @pytest.fixture
+    def mock_task(self):
+        return OmegaConf.create({"name": "test_task"})
+
+    @pytest.fixture
+    def mock_dependencies(self):
+        """Mock external dependencies used by _create_slurm_sbatch_script."""
+        with (
+            patch(
+                "nemo_evaluator_launcher.executors.slurm.executor.load_tasks_mapping"
+            ) as mock_load_tasks,
+            patch(
+                "nemo_evaluator_launcher.executors.slurm.executor.get_task_definition_for_job"
+            ) as mock_get_task_def,
+            patch(
+                "nemo_evaluator_launcher.common.helpers.get_eval_factory_command"
+            ) as mock_get_eval_command,
+            patch(
+                "nemo_evaluator_launcher.common.helpers.get_served_model_name"
+            ) as mock_get_model_name,
+        ):
+            mock_load_tasks.return_value = {}
+            mock_get_task_def.return_value = {
+                "container": "test-eval-container:latest",
+                "required_env_vars": [],
+                "endpoint_type": "openai",
+                "task": "test_task",
+            }
+            from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+            mock_get_eval_command.return_value = CmdAndReadableComment(
+                cmd="nemo-evaluator run_eval --test", debug="# Test command"
+            )
+            mock_get_model_name.return_value = "test-model"
+            yield
+
+    # ------------------------------------------------------------------ #
+    # Category 1a: New-style configs
+    # ------------------------------------------------------------------ #
+    @pytest.mark.parametrize(
+        "npi_in,ni_in,expected_npi,expected_ni",
+        [
+            (None, None, 1, 1),  # defaults
+            (4, None, 4, 1),  # NPI only
+            (None, 3, 1, 3),  # NI only
+            (2, 3, 2, 3),  # both
+        ],
+        ids=["defaults", "npi_only", "ni_only", "both"],
+    )
+    def test_resolve_new_style(
+        self, base_config, npi_in, ni_in, expected_npi, expected_ni
+    ):
+        if npi_in is not None:
+            base_config["execution"]["num_nodes_per_instance"] = npi_in
+        if ni_in is not None:
+            base_config["execution"]["num_instances"] = ni_in
+
+        cfg = OmegaConf.create(base_config)
+        _resolve_multi_node_config(cfg)
+
+        assert cfg.execution.num_nodes_per_instance == expected_npi
+        assert cfg.execution.num_instances == expected_ni
+        # vLLM: n_tasks should equal total nodes
+        assert cfg.execution.deployment.n_tasks == expected_npi * expected_ni
+
+    # ------------------------------------------------------------------ #
+    # Category 1b: Deprecated num_nodes resolution
+    # ------------------------------------------------------------------ #
+    @pytest.mark.parametrize(
+        "nn,npi_in,ni_in,expected_npi,expected_ni",
+        [
+            (2, None, None, 2, 1),  # NN alone → NPI=NN, NI=1
+            (4, None, None, 4, 1),  # NN alone (larger)
+            (6, 2, None, 2, 3),  # NN+NPI → NI derived
+            (6, None, 3, 2, 3),  # NN+NI → NPI derived
+            (6, 2, 3, 2, 3),  # NN+NPI+NI → consistency check
+        ],
+        ids=["nn_alone_2", "nn_alone_4", "nn_npi", "nn_ni", "nn_npi_ni"],
+    )
+    def test_resolve_deprecated_num_nodes(
+        self, base_config, nn, npi_in, ni_in, expected_npi, expected_ni
+    ):
+        base_config["execution"]["num_nodes"] = nn
+        if npi_in is not None:
+            base_config["execution"]["num_nodes_per_instance"] = npi_in
+        if ni_in is not None:
+            base_config["execution"]["num_instances"] = ni_in
+
+        cfg = OmegaConf.create(base_config)
+        _resolve_multi_node_config(cfg)
+
+        assert cfg.execution.num_nodes_per_instance == expected_npi
+        assert cfg.execution.num_instances == expected_ni
+        # num_nodes should be deleted
+        assert cfg.execution.get("num_nodes") is None
+
+    # ------------------------------------------------------------------ #
+    # Category 1c: Deprecated num_nodes errors
+    # ------------------------------------------------------------------ #
+    @pytest.mark.parametrize(
+        "nn,npi_in,ni_in,match",
+        [
+            (7, 2, None, "must be divisible by.*num_nodes_per_instance"),
+            (7, None, 3, "must be divisible by.*num_instances"),
+            (
+                6,
+                2,
+                2,
+                r"num_nodes \(6\) != .*num_nodes_per_instance \(2\) \* .*num_instances \(2\)",
+            ),
+        ],
+        ids=["nn_npi_indivisible", "nn_ni_indivisible", "nn_npi_ni_inconsistent"],
+    )
+    def test_resolve_deprecated_num_nodes_errors(
+        self, base_config, nn, npi_in, ni_in, match
+    ):
+        base_config["execution"]["num_nodes"] = nn
+        if npi_in is not None:
+            base_config["execution"]["num_nodes_per_instance"] = npi_in
+        if ni_in is not None:
+            base_config["execution"]["num_instances"] = ni_in
+
+        cfg = OmegaConf.create(base_config)
+        with pytest.raises(ValueError, match=match):
+            _resolve_multi_node_config(cfg)
+
+    # ------------------------------------------------------------------ #
+    # Category 1d: Deprecated multiple_instances
+    # ------------------------------------------------------------------ #
+    def test_mi_true_with_nn(self, base_config):
+        """MI=True + NN=4 → NPI=1, NI=4."""
+        base_config["deployment"]["multiple_instances"] = True
+        base_config["execution"]["num_nodes"] = 4
+
+        cfg = OmegaConf.create(base_config)
+        _resolve_multi_node_config(cfg)
+
+        assert cfg.execution.num_nodes_per_instance == 1
+        assert cfg.execution.num_instances == 4
+        assert cfg.deployment.get("multiple_instances") is None
+
+    def test_mi_true_no_nn_error(self, base_config):
+        """MI=True without NN or NI → ValueError."""
+        base_config["deployment"]["multiple_instances"] = True
+
+        cfg = OmegaConf.create(base_config)
+        with pytest.raises(ValueError, match="Set execution.num_instances instead"):
+            _resolve_multi_node_config(cfg)
+
+    def test_mi_true_ni_set_ignored(self, base_config):
+        """MI=True + NI=2 already set → MI ignored, NI=2."""
+        base_config["deployment"]["multiple_instances"] = True
+        base_config["execution"]["num_instances"] = 2
+
+        cfg = OmegaConf.create(base_config)
+        _resolve_multi_node_config(cfg)
+
+        assert cfg.execution.num_instances == 2
+        assert cfg.execution.num_nodes_per_instance == 1
+        assert cfg.deployment.get("multiple_instances") is None
+
+    def test_mi_true_npi_set_ignored(self, base_config):
+        """MI=True + NPI=2 already set → MI ignored, NPI=2."""
+        base_config["deployment"]["multiple_instances"] = True
+        base_config["execution"]["num_nodes_per_instance"] = 2
+
+        cfg = OmegaConf.create(base_config)
+        _resolve_multi_node_config(cfg)
+
+        assert cfg.execution.num_nodes_per_instance == 2
+        assert cfg.execution.num_instances == 1
+        assert cfg.deployment.get("multiple_instances") is None
+
+    def test_mi_false_warns(self, base_config):
+        """MI=False → warns, NPI=1, NI=1."""
+        base_config["deployment"]["multiple_instances"] = False
+
+        cfg = OmegaConf.create(base_config)
+        with patch(
+            "nemo_evaluator_launcher.executors.slurm.executor.logger"
+        ) as mock_logger:
+            _resolve_multi_node_config(cfg)
+            mock_logger.warning.assert_called()
+
+        assert cfg.execution.num_nodes_per_instance == 1
+        assert cfg.execution.num_instances == 1
+        assert cfg.deployment.get("multiple_instances") is None
+
+    # ------------------------------------------------------------------ #
+    # Category 1e: n_tasks auto-set
+    # ------------------------------------------------------------------ #
+    @pytest.mark.parametrize(
+        "deploy_type,n_tasks_in,npi,ni,expected_n_tasks",
+        [
+            ("vllm", None, 2, 3, 6),  # vLLM, unset → auto-set
+            ("vllm", 1, 2, 3, 6),  # vLLM, wrong value → overwritten
+            ("vllm", 6, 2, 3, 6),  # vLLM, already correct
+            ("trtllm", None, 1, 1, 1),  # non-vLLM, unset → default 1
+            ("trtllm", 4, 1, 1, 4),  # non-vLLM, explicit → respected
+        ],
+        ids=[
+            "vllm_unset",
+            "vllm_wrong",
+            "vllm_correct",
+            "nonvllm_unset",
+            "nonvllm_explicit",
+        ],
+    )
+    def test_n_tasks_auto_set(
+        self, base_config, deploy_type, n_tasks_in, npi, ni, expected_n_tasks
+    ):
+        base_config["deployment"]["type"] = deploy_type
+        base_config["execution"]["num_nodes_per_instance"] = npi
+        base_config["execution"]["num_instances"] = ni
+        if n_tasks_in is not None:
+            base_config["execution"]["deployment"] = {"n_tasks": n_tasks_in}
+
+        cfg = OmegaConf.create(base_config)
+        _resolve_multi_node_config(cfg)
+
+        assert cfg.execution.deployment.n_tasks == expected_n_tasks
+
+    # ------------------------------------------------------------------ #
+    # Category 1f: Idempotency
+    # ------------------------------------------------------------------ #
+    def test_idempotency_new_style(self, base_config):
+        """Calling _resolve_multi_node_config twice with new-style gives same result."""
+        base_config["execution"]["num_nodes_per_instance"] = 2
+        base_config["execution"]["num_instances"] = 3
+
+        cfg = OmegaConf.create(base_config)
+        _resolve_multi_node_config(cfg)
+        first_npi = cfg.execution.num_nodes_per_instance
+        first_ni = cfg.execution.num_instances
+        first_n_tasks = cfg.execution.deployment.n_tasks
+
+        _resolve_multi_node_config(cfg)
+        assert cfg.execution.num_nodes_per_instance == first_npi
+        assert cfg.execution.num_instances == first_ni
+        assert cfg.execution.deployment.n_tasks == first_n_tasks
+
+    def test_idempotency_after_deprecated_num_nodes(self, base_config):
+        """Calling twice after deprecated num_nodes deletion doesn't crash."""
+        base_config["execution"]["num_nodes"] = 4
+
+        cfg = OmegaConf.create(base_config)
+        _resolve_multi_node_config(cfg)
+        # num_nodes is now deleted; second call should work
+        _resolve_multi_node_config(cfg)
+
+        assert cfg.execution.num_nodes_per_instance == 4
+        assert cfg.execution.num_instances == 1
+
+    # ------------------------------------------------------------------ #
+    # Category 2: Deprecation warnings
+    # ------------------------------------------------------------------ #
+    def test_deprecation_warning_num_nodes(self, base_config):
+        base_config["execution"]["num_nodes"] = 2
+
+        cfg = OmegaConf.create(base_config)
+        with patch(
+            "nemo_evaluator_launcher.executors.slurm.executor.logger"
+        ) as mock_logger:
+            _resolve_multi_node_config(cfg)
+            calls = [str(c) for c in mock_logger.warning.call_args_list]
+            assert any("num_nodes is deprecated" in c for c in calls)
+
+    def test_deprecation_warning_multiple_instances(self, base_config):
+        base_config["deployment"]["multiple_instances"] = True
+        base_config["execution"]["num_nodes"] = 2
+
+        cfg = OmegaConf.create(base_config)
+        with patch(
+            "nemo_evaluator_launcher.executors.slurm.executor.logger"
+        ) as mock_logger:
+            _resolve_multi_node_config(cfg)
+            calls = [str(c) for c in mock_logger.warning.call_args_list]
+            assert any("multiple_instances is deprecated" in c for c in calls)
+
+    def test_deprecation_warning_mi_false(self, base_config):
+        base_config["deployment"]["multiple_instances"] = False
+
+        cfg = OmegaConf.create(base_config)
+        with patch(
+            "nemo_evaluator_launcher.executors.slurm.executor.logger"
+        ) as mock_logger:
+            _resolve_multi_node_config(cfg)
+            calls = [str(c) for c in mock_logger.warning.call_args_list]
+            assert any("multiple_instances is deprecated" in c for c in calls)
+
+    def test_no_deprecation_warning_new_style(self, base_config):
+        base_config["execution"]["num_nodes_per_instance"] = 2
+        base_config["execution"]["num_instances"] = 3
+
+        cfg = OmegaConf.create(base_config)
+        with patch(
+            "nemo_evaluator_launcher.executors.slurm.executor.logger"
+        ) as mock_logger:
+            _resolve_multi_node_config(cfg)
+            mock_logger.warning.assert_not_called()
+
+    # ------------------------------------------------------------------ #
+    # Category 3: Ray injection in _generate_deployment_srun_command
+    # ------------------------------------------------------------------ #
+    def test_ray_injected_for_multi_node_vllm(self, base_config):
+        """NPI>1 + vLLM → Ray injected."""
+        base_config["execution"]["num_nodes_per_instance"] = 2
+        base_config["execution"]["num_instances"] = 1
+
+        cfg = OmegaConf.create(base_config)
+        _resolve_multi_node_config(cfg)
+
+        cmd, _, _ = _generate_deployment_srun_command(cfg, [], Path("/test/remote"))
+
+        assert "ray_setup.sh" in cmd
+        assert "--distributed-executor-backend ray" in cfg.deployment.extra_args
+        # The ray_setup command must be wrapped in bash -c so pipes run inside the container
+        assert "bash -c '" in cmd
+
+    def test_no_ray_for_single_node(self, base_config):
+        """NPI=1 → no Ray."""
+        base_config["execution"]["num_nodes_per_instance"] = 1
+        base_config["execution"]["num_instances"] = 1
+
+        cfg = OmegaConf.create(base_config)
+        _resolve_multi_node_config(cfg)
+
+        cmd, _, _ = _generate_deployment_srun_command(cfg, [], Path("/test/remote"))
+
+        assert "ray_setup.sh" not in cmd
+        assert "--distributed-executor-backend ray" not in cmd
+
+    def test_ray_error_for_non_vllm_multi_node(self, base_config):
+        """NPI>1 + non-vLLM → ValueError."""
+        base_config["deployment"]["type"] = "trtllm"
+        base_config["execution"]["num_nodes_per_instance"] = 2
+        base_config["execution"]["num_instances"] = 1
+
+        cfg = OmegaConf.create(base_config)
+        _resolve_multi_node_config(cfg)
+
+        with pytest.raises(ValueError, match="only supported for vLLM"):
+            _generate_deployment_srun_command(cfg, [], Path("/test/remote"))
+
+    def test_ray_preserves_existing_extra_args(self, base_config):
+        """Existing extra_args preserved when Ray appended."""
+        base_config["deployment"]["extra_args"] = "--tensor-parallel-size 4"
+        base_config["execution"]["num_nodes_per_instance"] = 2
+        base_config["execution"]["num_instances"] = 1
+
+        cfg = OmegaConf.create(base_config)
+        _resolve_multi_node_config(cfg)
+
+        _generate_deployment_srun_command(cfg, [], Path("/test/remote"))
+
+        assert "--tensor-parallel-size 4" in cfg.deployment.extra_args
+        assert "--distributed-executor-backend ray" in cfg.deployment.extra_args
+
+    def test_srun_nodes_and_ntasks(self, base_config):
+        """srun uses correct --nodes {NPI*NI} --ntasks {n_tasks}."""
+        base_config["execution"]["num_nodes_per_instance"] = 2
+        base_config["execution"]["num_instances"] = 3
+
+        cfg = OmegaConf.create(base_config)
+        _resolve_multi_node_config(cfg)
+
+        cmd, _, _ = _generate_deployment_srun_command(cfg, [], Path("/test/remote"))
+
+        assert "--nodes 6 --ntasks 6" in cmd
+
+    # ------------------------------------------------------------------ #
+    # Category 4: SBATCH script integration via _create_slurm_sbatch_script
+    # ------------------------------------------------------------------ #
+    @pytest.mark.parametrize(
+        "npi,ni",
+        [(1, 1), (2, 1), (1, 3), (2, 3)],
+        ids=["1x1", "2x1", "1x3", "2x3"],
+    )
+    def test_sbatch_nodes_header(
+        self, base_config, mock_task, mock_dependencies, npi, ni
+    ):
+        """SBATCH --nodes = NPI*NI."""
+        base_config["execution"]["num_nodes_per_instance"] = npi
+        base_config["execution"]["num_instances"] = ni
+
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert f"#SBATCH --nodes {npi * ni}\n" in script
+
+    def test_sbatch_multi_instance_has_haproxy(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """NI>1 → HAProxy in script, HEAD_NODE_IPS used, PROXY_PID killed."""
+        base_config["execution"]["num_nodes_per_instance"] = 1
+        base_config["execution"]["num_instances"] = 3
+
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert "HEAD_NODE_IPS" in script
+        assert "PROXY_PID" in script
+        assert "haproxy" in script.lower()
+        assert "kill $PROXY_PID" in script
+
+    def test_sbatch_single_instance_no_haproxy(
+        self, base_config, mock_task, mock_dependencies
+    ):
+        """NI=1 → no HAProxy, 127.0.0.1 used, no PROXY_PID."""
+        base_config["execution"]["num_nodes_per_instance"] = 1
+        base_config["execution"]["num_instances"] = 1
+
+        cfg = OmegaConf.create(base_config)
+        script = _create_slurm_sbatch_script(
+            cfg=cfg,
+            task=mock_task,
+            eval_image="test-eval-container:latest",
+            remote_task_subdir=Path("/test/remote"),
+            invocation_id="test123",
+            job_id="test123.0",
+        ).cmd
+
+        assert '"127.0.0.1"' in script
+        assert "PROXY_PID" not in script
+        assert "haproxy" not in script.lower()

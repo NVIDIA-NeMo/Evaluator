@@ -20,7 +20,9 @@ username: ${oc.env:USER} # Defaults to $USER env var
 account: ???             # SLURM account allocation (required)
 output_dir: ???          # Absolute path accessible on compute nodes (required)
 partition: batch
-num_nodes: 1
+num_nodes: null          # DEPRECATED: use num_nodes_per_instance instead
+num_nodes_per_instance: null   # Nodes per deployment instance (total nodes = this × num_instances; default: 1)
+num_instances: null            # Number of independent deployment instances (default: 1)
 ntasks_per_node: 1
 gres: gpu:8
 walltime: 01:00:00
@@ -30,7 +32,7 @@ sbatch_comment: null  # Optional comment for SLURM job (translates to #SBATCH --
 
 # Deployment-specific SLURM configuration
 deployment:
-  n_tasks: 1             # Number of tasks for deployment srun (default: 1, for multi-instance set to num_nodes)
+  n_tasks: null            # SLURM --ntasks value (auto-set to total nodes for vLLM; defaults to 1 for others)
 
 env_vars:
   deployment: {}
