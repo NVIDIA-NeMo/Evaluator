@@ -17,6 +17,7 @@
 
 import importlib
 import os
+import pkgutil
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -32,6 +33,9 @@ from nemo_evaluator.contrib.byob.defaults import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
 )
+from nemo_evaluator.logging import get_logger
+
+_logger = get_logger(__name__)
 
 
 # Jinja2 command template for runner invocation
@@ -130,6 +134,39 @@ def _build_fdf(
     }
 
 
+def check_existing_benchmarks(normalized_name: str) -> Optional[str]:
+    """Check if a benchmark name collides with an already-installed core_evals package.
+
+    Scans both ``core_evals`` and ``nemo_evaluator`` namespaces for installed
+    harness packages whose name matches the proposed BYOB package.
+
+    Args:
+        normalized_name: The normalized benchmark name (e.g. ``"global_mmlu"``).
+
+    Returns:
+        The name of the conflicting package if found, or None.
+    """
+    pkg_name = f"byob_{normalized_name}"
+    existing_names: List[str] = []
+
+    # Scan core_evals namespace
+    try:
+        import core_evals
+        for importer, modname, ispkg in pkgutil.iter_modules(core_evals.__path__):
+            existing_names.append(modname)
+    except (ImportError, AttributeError):
+        pass
+
+    # Check for exact match or name collision (e.g. user creates "global_mmlu"
+    # but "global_mmlu" already exists as a non-BYOB core eval)
+    if pkg_name in existing_names:
+        return pkg_name
+    if normalized_name in existing_names:
+        return normalized_name
+
+    return None
+
+
 def compile_benchmark(module_path: str) -> Dict[str, dict]:
     """
     Import a user's benchmark module and generate Framework Definition Format (FDF) dicts.
@@ -184,6 +221,25 @@ def compile_benchmark(module_path: str) -> Dict[str, dict]:
                 f"No benchmarks found in module '{module_path}'. "
                 "Did you use @benchmark and @scorer decorators?"
             )
+
+        # Check for collisions with existing core_evals packages
+        for normalized_name in benchmarks:
+            collision = check_existing_benchmarks(normalized_name)
+            if collision:
+                _logger.warning(
+                    "Benchmark name collides with an existing core_evals package. "
+                    "The existing benchmark may already provide this evaluation.",
+                    byob_name=f"byob_{normalized_name}",
+                    existing=collision,
+                )
+                import warnings
+                warnings.warn(
+                    f"WARNING: '{normalized_name}' collides with existing "
+                    f"core_evals package '{collision}'. If this benchmark "
+                    f"already exists in NeMo Evaluator, consider using the "
+                    f"built-in version instead. Use --force to override.",
+                    stacklevel=2,
+                )
 
         # Build FDF dict for each benchmark
         compiled = {}

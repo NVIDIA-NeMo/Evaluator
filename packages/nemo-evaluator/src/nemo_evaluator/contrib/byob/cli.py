@@ -26,6 +26,28 @@ from nemo_evaluator.contrib.byob.compiler import compile_benchmark, install_benc
 from nemo_evaluator.contrib.byob.defaults import DEFAULT_BASE_IMAGE
 
 
+def _pip_install_editable(pkg_dir: str) -> None:
+    """Install a compiled BYOB package in editable mode.
+
+    Uses ``pip install -e`` (or ``uv pip install -e`` if available) so the
+    package is immediately importable without PYTHONPATH manipulation.
+    """
+    import shutil
+    import subprocess
+
+    uv_bin = shutil.which("uv")
+    if uv_bin:
+        cmd = [uv_bin, "pip", "install", "-e", pkg_dir]
+    else:
+        cmd = [sys.executable, "-m", "pip", "install", "-e", pkg_dir]
+
+    try:
+        subprocess.run(cmd, capture_output=True, text=True, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"  WARNING: Auto-install failed: {e.stderr.strip()}", file=sys.stderr)
+        print(f"  Fallback: export PYTHONPATH=\"{pkg_dir}:$PYTHONPATH\"", file=sys.stderr)
+
+
 def _get_version():
     try:
         from nemo_evaluator.package_info import __version__
@@ -63,6 +85,12 @@ def byob_compile(args=None):
         action="store_true",
         default=False,
         help="After compilation, verify all declared requirements are importable",
+    )
+    parser.add_argument(
+        "--no-install",
+        action="store_true",
+        default=False,
+        help="Skip automatic pip install after compilation (requires manual PYTHONPATH setup)",
     )
     parser.add_argument(
         "--containerize",
@@ -169,9 +197,18 @@ def byob_compile(args=None):
         eval_type = f"{pkg_name}.{fdf['evaluations'][0]['name']}"
 
         print(f"  Location:  {pkg_dir}")
+
+        # Auto-install the package so it's immediately discoverable
+        if not parsed.no_install:
+            _pip_install_editable(pkg_dir)
+            print(f"  Installed: {pkg_name} (discoverable by nemo-evaluator)")
+        else:
+            print(f"")
+            print(f"  NOTE: --no-install specified. To make discoverable, run:")
+            print(f"    export PYTHONPATH=\"{pkg_dir}:$PYTHONPATH\"")
+
         print(f"")
         print(f"  To run this benchmark:")
-        print(f"    export PYTHONPATH=\"{pkg_dir}:$PYTHONPATH\"")
         print(f"    nemo-evaluator run_eval \\")
         print(f"      --eval_type {eval_type} \\")
         print(f"      --model_url <YOUR_MODEL_URL> \\")
