@@ -79,14 +79,19 @@ class ExportCmd:
     copy_logs: bool = field(
         default=False,
         alias=["--copy-logs"],
-        help="Include logs when copying locally (default: False).",
+        help="Export log files (if exporter allows it) (default: False).",
+    )
+    copy_artifacts: bool = field(
+        default=False,
+        alias=["--copy-artifacts"],
+        help="Export artifact files (if exporter allows it) (default: False).",
     )
     log_metrics: List[str] = field(
         default_factory=list,
         alias=["--log-metrics"],
         help="Filter metrics by name (repeatable). Examples: score, f1, mmlu_score_micro.",
     )
-    only_required: Optional[bool] = field(
+    only_required: bool = field(
         default=True,
         alias=["--only-required"],
         help="Copy only required artifacts. Set to False to copy all available artifacts.",
@@ -126,6 +131,8 @@ class ExportCmd:
         # CLI arguments override config file values
         # Always set copy_logs from CLI
         config["copy_logs"] = self.copy_logs
+        config["copy_artifacts"] = self.copy_artifacts
+        config["only_required"] = self.only_required
 
         # Output handling
         if self.output_dir:
@@ -138,10 +145,6 @@ class ExportCmd:
             config["format"] = self.format
         if self.log_metrics:
             config["log_metrics"] = self.log_metrics
-
-        # Add only_required if explicitly passed via CLI
-        if self.only_required is not None:
-            config["only_required"] = self.only_required
 
         # Add job_dirs if explicitly passed via CLI
         if self.job_dirs:
