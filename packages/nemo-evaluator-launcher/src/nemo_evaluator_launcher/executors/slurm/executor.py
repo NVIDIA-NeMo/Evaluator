@@ -908,7 +908,7 @@ def _generate_auto_export_section(
     s += f"        cd {remote_task_subdir}/artifacts\n"
     for dest in destinations:
         s += f'        echo "Exporting to {dest}..."\n'
-        s += f'        nemo-evaluator-launcher export {job_id} --dest {dest} --config export_config.yml --job-dirs {remote_task_subdir} || echo "Export to {dest} failed"\n'
+        s += f'        nemo-evaluator-launcher export {job_id} --dest {dest} --config export_config.yml --job-dirs {cfg.execution.output_dir} || echo "Export to {dest} failed"\n'
     s += "'\n"
     s += "    echo 'Auto-export completed.'\n"
     s += "else\n"

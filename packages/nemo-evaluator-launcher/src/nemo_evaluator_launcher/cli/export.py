@@ -96,6 +96,7 @@ class ExportCmd:
         "local database (e.g. during auto-export on a remote machine or executed by a different user). "
         "If privided, it is used to search for sub-directories with results for specified invocation ID "
         "and the jobs information is inferred from the metadata stored in the job artifacts directories. "
+        "It should match the value passed as execution.output_dir in the run config. "
         "Can be specified multiple times to search in multiple directories.",
     )
 
