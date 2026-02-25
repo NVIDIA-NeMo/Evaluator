@@ -250,16 +250,17 @@ class TestScorerInput:
         assert inp.response == "hello", (
             f"Expected response='hello', got {inp.response!r}"
         )
-        assert inp.target == "world", (
-            f"Expected target='world', got {inp.target!r}"
-        )
+        assert inp.target == "world", f"Expected target='world', got {inp.target!r}"
         assert inp.metadata == {"key": "val"}, (
             f"Expected metadata={{'key': 'val'}}, got {inp.metadata!r}"
         )
 
     def test_construction_all_fields(self):
         """Validate ScorerInput can be constructed with all fields."""
-        call_fn = lambda prompt: "mocked response"
+
+        def call_fn(prompt):
+            return "mocked response"
+
         conversation = [{"role": "user", "content": "hi"}]
 
         inp = ScorerInput(
@@ -272,12 +273,8 @@ class TestScorerInput:
             turn_index=2,
         )
 
-        assert inp.response == "resp", (
-            f"Expected response='resp', got {inp.response!r}"
-        )
-        assert inp.target == "tgt", (
-            f"Expected target='tgt', got {inp.target!r}"
-        )
+        assert inp.response == "resp", f"Expected response='resp', got {inp.response!r}"
+        assert inp.target == "tgt", f"Expected target='tgt', got {inp.target!r}"
         assert inp.metadata == {"m": 1}, (
             f"Expected metadata={{'m': 1}}, got {inp.metadata!r}"
         )
@@ -290,9 +287,7 @@ class TestScorerInput:
         assert inp.conversation == conversation, (
             f"Expected conversation={conversation!r}, got {inp.conversation!r}"
         )
-        assert inp.turn_index == 2, (
-            f"Expected turn_index=2, got {inp.turn_index!r}"
-        )
+        assert inp.turn_index == 2, f"Expected turn_index=2, got {inp.turn_index!r}"
 
     def test_default_values_for_optional_fields(self):
         """Validate optional fields have correct default values."""
@@ -301,9 +296,7 @@ class TestScorerInput:
         assert inp.model_call_fn is None, (
             f"Expected model_call_fn=None, got {inp.model_call_fn!r}"
         )
-        assert inp.config == {}, (
-            f"Expected config={{}}, got {inp.config!r}"
-        )
+        assert inp.config == {}, f"Expected config={{}}, got {inp.config!r}"
         assert inp.conversation is None, (
             f"Expected conversation=None, got {inp.conversation!r}"
         )
@@ -368,14 +361,14 @@ class TestPromptFileResolution:
 
         result = _resolve_prompt("template.jinja", tmp_path)
 
-        assert result == "{{ user_input }}", (
-            f"Expected file content, got {result!r}"
-        )
+        assert result == "{{ user_input }}", f"Expected file content, got {result!r}"
 
     def test_jinja2_file_is_read(self, tmp_path):
         """Validate a .jinja2 file path is read and its content returned."""
         prompt_file = tmp_path / "template.jinja2"
-        prompt_file.write_text("{% for item in items %}{{ item }}{% endfor %}", encoding="utf-8")
+        prompt_file.write_text(
+            "{% for item in items %}{{ item }}{% endfor %}", encoding="utf-8"
+        )
 
         result = _resolve_prompt("template.jinja2", tmp_path)
 
@@ -432,12 +425,8 @@ class TestRequirementsResolution:
         original = ["numpy>=1.0", "pandas"]
         result = _resolve_requirements(original, Path("/any"))
 
-        assert result == ["numpy>=1.0", "pandas"], (
-            f"Expected list copy, got {result!r}"
-        )
-        assert result is not original, (
-            "Expected a copy, not the same list object"
-        )
+        assert result == ["numpy>=1.0", "pandas"], f"Expected list copy, got {result!r}"
+        assert result is not original, "Expected a copy, not the same list object"
 
     def test_string_path_reads_requirements_file(self, tmp_path):
         """Validate string path to requirements.txt is read and parsed."""
@@ -577,9 +566,9 @@ class TestBenchmarkWithPromptFile:
 
         resolved = _resolve_prompt("prompt.txt", tmp_path)
 
-        assert resolved == "You are a helpful assistant.\nQuestion: {question}\nAnswer:", (
-            f"Expected file content as resolved prompt, got {resolved!r}"
-        )
+        assert (
+            resolved == "You are a helpful assistant.\nQuestion: {question}\nAnswer:"
+        ), f"Expected file content as resolved prompt, got {resolved!r}"
 
     def test_prompt_literal_not_resolved_as_file(self):
         """Validate a literal prompt string (no file extension) is never file-resolved."""
@@ -621,9 +610,7 @@ class TestScorerSignatureValidation:
         def fn(sample):
             return {}
 
-        assert hasattr(fn, "_is_scorer"), (
-            "Expected @scorer to set _is_scorer attribute"
-        )
+        assert hasattr(fn, "_is_scorer"), "Expected @scorer to set _is_scorer attribute"
         assert fn._is_scorer is True
 
     def test_two_arg_scorer_accepted(self):
@@ -633,9 +620,7 @@ class TestScorerSignatureValidation:
         def fn(sample, config):
             return {}
 
-        assert hasattr(fn, "_is_scorer"), (
-            "Expected @scorer to set _is_scorer attribute"
-        )
+        assert hasattr(fn, "_is_scorer"), "Expected @scorer to set _is_scorer attribute"
         assert fn._is_scorer is True
 
     def test_zero_arg_scorer_rejected(self):
@@ -716,8 +701,10 @@ class TestResponseField:
     def test_response_field_default_none(self):
         """Validate response_field defaults to None."""
         defn = BenchmarkDefinition(
-            name="test", normalized_name="test",
-            dataset="d.jsonl", prompt="{x}",
+            name="test",
+            normalized_name="test",
+            dataset="d.jsonl",
+            prompt="{x}",
             scorer_fn=lambda inp: {},
         )
         assert defn.response_field is None
@@ -813,8 +800,10 @@ class TestSystemPromptDecorator:
     def test_system_prompt_default_none(self):
         """Validate system_prompt defaults to None."""
         defn = BenchmarkDefinition(
-            name="test", normalized_name="test",
-            dataset="d.jsonl", prompt="{x}",
+            name="test",
+            normalized_name="test",
+            dataset="d.jsonl",
+            prompt="{x}",
             scorer_fn=lambda inp: {},
         )
         assert defn.system_prompt is None

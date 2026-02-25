@@ -152,6 +152,7 @@ def check_existing_benchmarks(normalized_name: str) -> Optional[str]:
     # Scan core_evals namespace
     try:
         import core_evals
+
         for importer, modname, ispkg in pkgutil.iter_modules(core_evals.__path__):
             existing_names.append(modname)
     except (ImportError, AttributeError):
@@ -201,12 +202,16 @@ def compile_benchmark(module_path: str) -> Dict[str, dict]:
                 sys.path.insert(0, parent_dir)
 
             resolved_module = module_name
-            benchmark_module_ref = abs_path  # Use absolute path for subprocess invocation
+            benchmark_module_ref = (
+                abs_path  # Use absolute path for subprocess invocation
+            )
         else:
             # It's a dotted module name
             module_name = module_path
             resolved_module = module_name
-            benchmark_module_ref = module_name  # Use module name for subprocess invocation
+            benchmark_module_ref = (
+                module_name  # Use module name for subprocess invocation
+            )
 
         # Import or reload module (triggers decorator execution)
         if resolved_module in sys.modules:
@@ -289,7 +294,13 @@ def install_benchmark(
     os.makedirs(pkg_dir, exist_ok=True)
 
     # Extract user requirements from FDF
-    user_reqs = fdf.get("defaults", {}).get("config", {}).get("params", {}).get("extra", {}).get("requirements", [])
+    user_reqs = (
+        fdf.get("defaults", {})
+        .get("config", {})
+        .get("params", {})
+        .get("extra", {})
+        .get("requirements", [])
+    )
 
     # Write pyproject.toml
     pyproject_path = os.path.join(pkg_dir, "pyproject.toml")
@@ -373,14 +384,16 @@ def parse_output(output_dir: str) -> EvaluationResult:
 '''
 
 
-def _generate_pyproject_toml(pkg_name: str, user_requirements: Optional[List[str]] = None) -> str:
+def _generate_pyproject_toml(
+    pkg_name: str, user_requirements: Optional[List[str]] = None
+) -> str:
     """Generate pyproject.toml content for the namespace package."""
     deps = ["nemo-evaluator"]
     if user_requirements:
         deps.extend(user_requirements)
     deps_str = ", ".join(f'"{d}"' for d in deps)
 
-    return f'''[build-system]
+    return f"""[build-system]
 requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
@@ -395,4 +408,4 @@ include = ["core_evals", "core_evals.*"]
 
 [tool.setuptools.package-data]
 "core_evals.{pkg_name}" = ["framework.yml"]
-'''
+"""

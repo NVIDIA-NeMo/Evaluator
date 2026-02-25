@@ -42,6 +42,7 @@ def _get_jinja2_env():
     global _jinja2_env
     if _jinja2_env is None:
         import jinja2
+
         _jinja2_env = jinja2.Environment(undefined=jinja2.StrictUndefined)
     return _jinja2_env
 
@@ -87,9 +88,7 @@ class SampleResult:
     metadata: dict = field(default_factory=dict)
 
 
-def import_benchmark(
-    benchmark_module: str, benchmark_name: str
-) -> BenchmarkDefinition:
+def import_benchmark(benchmark_module: str, benchmark_name: str) -> BenchmarkDefinition:
     """Import benchmark module and look up benchmark by name.
 
     Handles both file paths and module names. Clears registry first
@@ -172,9 +171,14 @@ class StandardStrategy:
         except KeyError as e:
             target = row.get(bench.target_field, "")
             return None, SampleResult(
-                sample_id=idx, prompt="", response=None,
-                target=target, scores=None,
-                status="skipped_missing_field", error=str(e), metadata=row,
+                sample_id=idx,
+                prompt="",
+                response=None,
+                target=target,
+                scores=None,
+                status="skipped_missing_field",
+                error=str(e),
+                metadata=row,
             )
 
         # Render system prompt if configured
@@ -185,18 +189,28 @@ class StandardStrategy:
                     bench.system_prompt, row, bench._is_system_prompt_jinja2
                 )
             except KeyError as e:
-                logger.warning("System prompt rendering failed, skipping",
-                               sample_id=idx, error=str(e))
+                logger.warning(
+                    "System prompt rendering failed, skipping",
+                    sample_id=idx,
+                    error=str(e),
+                )
 
         # Call model
         try:
-            response = model_call_fn(prompt, endpoint_type, system_prompt=rendered_system_prompt)
+            response = model_call_fn(
+                prompt, endpoint_type, system_prompt=rendered_system_prompt
+            )
         except Exception as e:
             target = row.get(bench.target_field, "")
             return None, SampleResult(
-                sample_id=idx, prompt=prompt, response=None,
-                target=target, scores=None,
-                status="skipped_model_error", error=str(e), metadata=row,
+                sample_id=idx,
+                prompt=prompt,
+                response=None,
+                target=target,
+                scores=None,
+                status="skipped_model_error",
+                error=str(e),
+                metadata=row,
             )
 
         # Score using ScorerInput
@@ -212,15 +226,24 @@ class StandardStrategy:
             sample_scores = bench.scorer_fn(scorer_input)
         except Exception as e:
             return None, SampleResult(
-                sample_id=idx, prompt=prompt, response=response,
-                target=target, scores=None,
-                status="skipped_scorer_error", error=str(e), metadata=row,
+                sample_id=idx,
+                prompt=prompt,
+                response=response,
+                target=target,
+                scores=None,
+                status="skipped_scorer_error",
+                error=str(e),
+                metadata=row,
             )
 
         prediction = SampleResult(
-            sample_id=idx, prompt=prompt, response=response,
-            target=target, scores=sample_scores,
-            status="scored", metadata=row,
+            sample_id=idx,
+            prompt=prompt,
+            response=response,
+            target=target,
+            scores=sample_scores,
+            status="scored",
+            metadata=row,
         )
         return sample_scores, prediction
 
@@ -243,8 +266,11 @@ class EvalOnlyStrategy:
         if self.response_field not in row:
             target = row.get(bench.target_field, "")
             return None, SampleResult(
-                sample_id=idx, prompt="", response=None,
-                target=target, scores=None,
+                sample_id=idx,
+                prompt="",
+                response=None,
+                target=target,
+                scores=None,
                 status="skipped_missing_field",
                 error=f"Response field '{self.response_field}' not found in row",
                 metadata=row,
@@ -271,15 +297,24 @@ class EvalOnlyStrategy:
             sample_scores = bench.scorer_fn(scorer_input)
         except Exception as e:
             return None, SampleResult(
-                sample_id=idx, prompt=prompt, response=response,
-                target=target, scores=None,
-                status="skipped_scorer_error", error=str(e), metadata=row,
+                sample_id=idx,
+                prompt=prompt,
+                response=response,
+                target=target,
+                scores=None,
+                status="skipped_scorer_error",
+                error=str(e),
+                metadata=row,
             )
 
         prediction = SampleResult(
-            sample_id=idx, prompt=prompt, response=response,
-            target=target, scores=sample_scores,
-            status="scored", metadata=row,
+            sample_id=idx,
+            prompt=prompt,
+            response=response,
+            target=target,
+            scores=sample_scores,
+            status="scored",
+            metadata=row,
         )
         return sample_scores, prediction
 
@@ -389,11 +424,20 @@ def _run_eval_loop_sequential(
             consecutive_errors += 1
             if save_predictions and prediction:
                 all_predictions.append(prediction)
-            msg = f"Sample {idx} failed: {prediction.error if prediction else 'unknown'}"
-            logger.warning("Sample failed", sample_id=idx, error=prediction.error if prediction else "unknown")
+            msg = (
+                f"Sample {idx} failed: {prediction.error if prediction else 'unknown'}"
+            )
+            logger.warning(
+                "Sample failed",
+                sample_id=idx,
+                error=prediction.error if prediction else "unknown",
+            )
             if fail_on_skip:
                 raise RuntimeError(msg)
-            if max_consecutive_errors > 0 and consecutive_errors >= max_consecutive_errors:
+            if (
+                max_consecutive_errors > 0
+                and consecutive_errors >= max_consecutive_errors
+            ):
                 raise RuntimeError(
                     f"Aborting: {consecutive_errors} consecutive errors "
                     f"reached limit of {max_consecutive_errors}"
@@ -413,15 +457,19 @@ def _run_eval_loop_sequential(
             if processed % progress_interval == 0 or processed == total:
                 logger.info(
                     "Evaluation progress",
-                    processed=processed, total=total,
+                    processed=processed,
+                    total=total,
                     pct=round((processed / total) * 100),
-                    scored=scored_count, skipped=skipped_count,
+                    scored=scored_count,
+                    skipped=skipped_count,
                 )
 
     if show_progress:
         logger.info(
             "Evaluation complete",
-            scored=scored_count, skipped=skipped_count, total=total,
+            scored=scored_count,
+            skipped=skipped_count,
+            total=total,
         )
 
     return all_scores, all_predictions
@@ -447,7 +495,9 @@ def _run_eval_loop_parallel(
     total = len(dataset)
 
     # Pre-allocate result slots indexed by sample position
-    results: List[Optional[Tuple[Optional[Dict], Optional[SampleResult]]]] = [None] * total
+    results: List[Optional[Tuple[Optional[Dict], Optional[SampleResult]]]] = [
+        None
+    ] * total
 
     # Thread-safe counters
     lock = threading.Lock()
@@ -458,7 +508,9 @@ def _run_eval_loop_parallel(
 
     progress_interval = max(1, min(10, total // 10)) if total > 0 else 1
 
-    def evaluate_one(idx: int, row: Dict) -> Tuple[int, Optional[Dict], Optional[SampleResult]]:
+    def evaluate_one(
+        idx: int, row: Dict
+    ) -> Tuple[int, Optional[Dict], Optional[SampleResult]]:
         scores, prediction = strategy.evaluate_sample(
             idx, row, bench, model_call_fn, endpoint_type
         )
@@ -478,9 +530,13 @@ def _run_eval_loop_parallel(
                 # Unexpected exception from the thread itself
                 scores = None
                 prediction = SampleResult(
-                    sample_id=idx, prompt="", response=None,
-                    target="", scores=None,
-                    status="skipped_model_error", error=str(e),
+                    sample_id=idx,
+                    prompt="",
+                    response=None,
+                    target="",
+                    scores=None,
+                    status="skipped_model_error",
+                    error=str(e),
                 )
 
             results[idx] = (scores, prediction)
@@ -490,12 +546,18 @@ def _run_eval_loop_parallel(
                     skipped_count += 1
                     consecutive_errors += 1
                     msg = f"Sample {idx} failed: {prediction.error if prediction else 'unknown'}"
-                    logger.warning("Sample failed", sample_id=idx, error=prediction.error if prediction else "unknown")
+                    logger.warning(
+                        "Sample failed",
+                        sample_id=idx,
+                        error=prediction.error if prediction else "unknown",
+                    )
                     if fail_on_skip and abort_error is None:
                         abort_error = RuntimeError(msg)
-                    if (max_consecutive_errors > 0
-                            and consecutive_errors >= max_consecutive_errors
-                            and abort_error is None):
+                    if (
+                        max_consecutive_errors > 0
+                        and consecutive_errors >= max_consecutive_errors
+                        and abort_error is None
+                    ):
                         abort_error = RuntimeError(
                             f"Aborting: {consecutive_errors} consecutive errors "
                             f"reached limit of {max_consecutive_errors}"
@@ -509,9 +571,11 @@ def _run_eval_loop_parallel(
                     if processed % progress_interval == 0 or processed == total:
                         logger.info(
                             "Evaluation progress",
-                            processed=processed, total=total,
+                            processed=processed,
+                            total=total,
                             pct=round((processed / total) * 100),
-                            scored=scored_count, skipped=skipped_count,
+                            scored=scored_count,
+                            skipped=skipped_count,
                         )
 
     # Check for abort conditions after all futures complete
@@ -534,7 +598,9 @@ def _run_eval_loop_parallel(
     if show_progress:
         logger.info(
             "Evaluation complete",
-            scored=scored_count, skipped=skipped_count, total=total,
+            scored=scored_count,
+            skipped=skipped_count,
+            total=total,
         )
 
     return all_scores, all_predictions

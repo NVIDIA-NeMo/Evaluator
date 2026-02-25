@@ -21,6 +21,7 @@ Scoring: Extract final numeric answer from model response, compare to integer/fl
 Dataset fields: problem (str), answer (str or number)
 Target field: answer
 """
+
 import os
 
 from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
@@ -55,14 +56,14 @@ def math_scorer(sample: ScorerInput) -> dict:
     import re
 
     # Extract all numbers (including negative and decimal)
-    numbers = re.findall(r'-?\d+\.?\d*', sample.response)
+    numbers = re.findall(r"-?\d+\.?\d*", sample.response)
     if not numbers:
         return {"correct": False, "parsed": False}
 
-    predicted = numbers[-1].rstrip('.')
+    predicted = numbers[-1].rstrip(".")
 
     # Normalize target (strip whitespace, handle string numbers)
-    target_clean = str(sample.target).strip().rstrip('.')
+    target_clean = str(sample.target).strip().rstrip(".")
 
     # Compare as strings first (handles integers)
     if predicted == target_clean:

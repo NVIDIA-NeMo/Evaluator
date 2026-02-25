@@ -17,13 +17,12 @@
 
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from nemo_evaluator.contrib.byob.dataset import (
-    DatasetFetcher,
     FetchResult,
     HuggingFaceFetcher,
     LocalFetcher,
@@ -113,18 +112,12 @@ class TestLoadJsonl:
 
         data = load_jsonl(path)
         assert len(data) == 3, f"Expected 3 records, got {len(data)}"
-        assert data == records, f"Loaded data does not match written records"
+        assert data == records, "Loaded data does not match written records"
 
     def test_empty_lines_skipped(self, tmp_path: Path) -> None:
         """Validate blank lines interspersed in the file are silently skipped."""
         path = tmp_path / "data.jsonl"
-        content = (
-            '{"a": 1}\n'
-            "\n"
-            "   \n"
-            '{"b": 2}\n'
-            "\n"
-        )
+        content = '{"a": 1}\n\n   \n{"b": 2}\n\n'
         path.write_text(content, encoding="utf-8")
 
         data = load_jsonl(path)
@@ -157,9 +150,7 @@ class TestLoadJsonl:
         )
 
         data = load_jsonl(path, limit=100)
-        assert len(data) == 3, (
-            f"Expected all 3 records with limit=100, got {len(data)}"
-        )
+        assert len(data) == 3, f"Expected all 3 records with limit=100, got {len(data)}"
 
     def test_non_dict_line_raises_value_error(self, tmp_path: Path) -> None:
         """Validate that a JSON line that is not a dict raises ValueError."""
@@ -219,17 +210,13 @@ class TestLoadCsv:
 
         data = load_csv(path, delimiter="\t")
         assert len(data) == 2, f"Expected 2 rows, got {len(data)}"
-        assert data[0] == {"name": "Alice", "score": "95"}, (
-            f"Row 0 mismatch: {data[0]}"
-        )
-        assert data[1] == {"name": "Bob", "score": "87"}, (
-            f"Row 1 mismatch: {data[1]}"
-        )
+        assert data[0] == {"name": "Alice", "score": "95"}, f"Row 0 mismatch: {data[0]}"
+        assert data[1] == {"name": "Bob", "score": "87"}, f"Row 1 mismatch: {data[1]}"
 
     def test_limit(self, tmp_path: Path) -> None:
         """Validate limit parameter stops reading after N rows."""
         path = tmp_path / "data.csv"
-        lines = ["id,value"] + [f"{i},{i*10}" for i in range(10)]
+        lines = ["id,value"] + [f"{i},{i * 10}" for i in range(10)]
         path.write_text("\n".join(lines), encoding="utf-8")
 
         data = load_csv(path, delimiter=",", limit=3)
@@ -242,9 +229,7 @@ class TestLoadCsv:
         path.write_text("col_a,col_b\n", encoding="utf-8")
 
         data = load_csv(path, delimiter=",")
-        assert data == [], (
-            f"Expected empty list for header-only CSV, got {data}"
-        )
+        assert data == [], f"Expected empty list for header-only CSV, got {data}"
 
     def test_completely_empty_csv(self, tmp_path: Path) -> None:
         """Validate a completely empty CSV returns an empty list."""
@@ -252,9 +237,7 @@ class TestLoadCsv:
         path.write_text("", encoding="utf-8")
 
         data = load_csv(path, delimiter=",")
-        assert data == [], (
-            f"Expected empty list for completely empty CSV, got {data}"
-        )
+        assert data == [], f"Expected empty list for completely empty CSV, got {data}"
 
 
 # ---------------------------------------------------------------------------
@@ -296,9 +279,7 @@ class TestLocalFetcher:
         assert result.local_path == path, (
             f"Expected local_path={path}, got {result.local_path}"
         )
-        assert result.format == "csv", (
-            f"Expected format='csv', got {result.format!r}"
-        )
+        assert result.format == "csv", f"Expected format='csv', got {result.format!r}"
         assert result.metadata == {"source": "local"}, (
             f"Expected metadata={{'source': 'local'}}, got {result.metadata}"
         )
@@ -331,9 +312,7 @@ class TestLocalFetcher:
         path.write_text("a\tb\n1\t2\n", encoding="utf-8")
 
         result = LocalFetcher().fetch(str(path))
-        assert result.format == "tsv", (
-            f"Expected format='tsv', got {result.format!r}"
-        )
+        assert result.format == "tsv", f"Expected format='tsv', got {result.format!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -346,9 +325,7 @@ class TestFetcherRegistry:
 
     def test_default_registry_contains_local_fetcher(self) -> None:
         """Validate the default registry contains exactly one LocalFetcher."""
-        local_fetchers = [
-            f for f in _FETCHER_REGISTRY if isinstance(f, LocalFetcher)
-        ]
+        local_fetchers = [f for f in _FETCHER_REGISTRY if isinstance(f, LocalFetcher)]
         assert len(local_fetchers) >= 1, (
             f"Expected at least one LocalFetcher in registry, "
             f"found: {[type(f).__name__ for f in _FETCHER_REGISTRY]}"
@@ -397,8 +374,7 @@ class TestFetcherRegistry:
 
         fetcher = get_fetcher_for_uri("custom://my-dataset")
         assert isinstance(fetcher, CustomFetcher), (
-            f"Expected CustomFetcher for 'custom://' URI, "
-            f"got {type(fetcher).__name__}"
+            f"Expected CustomFetcher for 'custom://' URI, got {type(fetcher).__name__}"
         )
 
     def test_get_fetcher_for_uri_raises_for_unsupported(self) -> None:
@@ -426,7 +402,9 @@ class TestFetcherRegistry:
 
             def fetch(self, uri: str, cache_dir: Optional[Path] = None) -> FetchResult:
                 return FetchResult(
-                    local_path=Path("/tmp/a"), format="jsonl", metadata={"source": "A"},
+                    local_path=Path("/tmp/a"),
+                    format="jsonl",
+                    metadata={"source": "A"},
                 )
 
         class FetcherB:
@@ -435,7 +413,9 @@ class TestFetcherRegistry:
 
             def fetch(self, uri: str, cache_dir: Optional[Path] = None) -> FetchResult:
                 return FetchResult(
-                    local_path=Path("/tmp/b"), format="jsonl", metadata={"source": "B"},
+                    local_path=Path("/tmp/b"),
+                    format="jsonl",
+                    metadata={"source": "B"},
                 )
 
         register_fetcher(FetcherA())
@@ -476,9 +456,7 @@ class TestLoadDataset:
 
         data = load_dataset(str(path))
         assert len(data) == 2, f"Expected 2 rows, got {len(data)}"
-        assert data[0] == {"name": "Alice", "age": "30"}, (
-            f"Row 0 mismatch: {data[0]}"
-        )
+        assert data[0] == {"name": "Alice", "age": "30"}, f"Row 0 mismatch: {data[0]}"
 
     def test_load_tsv_dataset(self, tmp_path: Path) -> None:
         """Validate load_dataset with a TSV file returns parsed rows."""
@@ -487,9 +465,7 @@ class TestLoadDataset:
 
         data = load_dataset(str(path))
         assert len(data) == 1, f"Expected 1 row, got {len(data)}"
-        assert data[0] == {"col1": "val1", "col2": "val2"}, (
-            f"Row 0 mismatch: {data[0]}"
-        )
+        assert data[0] == {"col1": "val1", "col2": "val2"}, f"Row 0 mismatch: {data[0]}"
 
     def test_load_dataset_with_limit(self, tmp_path: Path) -> None:
         """Validate load_dataset respects the limit parameter end-to-end."""
@@ -591,6 +567,7 @@ class TestHuggingFaceFetcher:
         """Validate clear ImportError when 'datasets' package is not installed."""
         fetcher = HuggingFaceFetcher()
         import builtins
+
         original_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -676,15 +653,11 @@ class TestFieldRemapping:
         result = _remap_fields(records, {"nonexistent": "new_name"})
 
         assert len(result) == 1, f"Expected 1 record, got {len(result)}"
-        assert "existing" in result[0], (
-            "Expected 'existing' key to be preserved"
-        )
+        assert "existing" in result[0], "Expected 'existing' key to be preserved"
         assert "new_name" not in result[0], (
             "Expected 'new_name' not in result when source key is missing"
         )
-        assert "nonexistent" not in result[0], (
-            "Expected 'nonexistent' not in result"
-        )
+        assert "nonexistent" not in result[0], "Expected 'nonexistent' not in result"
 
     def test_remap_integration(self, tmp_path: Path) -> None:
         """Validate load_dataset with field_mapping parameter end-to-end."""

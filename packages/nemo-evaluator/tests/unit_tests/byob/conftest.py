@@ -17,7 +17,7 @@
 
 import pytest
 from nemo_evaluator.contrib.byob.decorators import clear_registry
-from nemo_evaluator.contrib.byob.dataset import _FETCHER_REGISTRY, LocalFetcher
+from nemo_evaluator.contrib.byob.dataset import _FETCHER_REGISTRY
 
 
 @pytest.fixture(autouse=True)

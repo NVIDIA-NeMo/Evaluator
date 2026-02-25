@@ -15,8 +15,6 @@
 
 """Unit tests for BYOB LLM-as-Judge support (aligned with nemo-skills extra.judge)."""
 
-import json
-
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -96,15 +94,17 @@ class TestJudgeConfig:
 
     def test_from_dict_nemo_skills_format(self):
         """Test from_dict with nemo-skills field names."""
-        config = JudgeConfig.from_dict({
-            "url": "https://inference-api.nvidia.com/v1",
-            "model_id": "openai/gpt-4.1",
-            "api_key": "JUDGE_API_KEY",
-            "temperature": 0.0,
-            "top_p": 1.0,
-            "max_new_tokens": 4096,
-            "parallelism": 16,
-        })
+        config = JudgeConfig.from_dict(
+            {
+                "url": "https://inference-api.nvidia.com/v1",
+                "model_id": "openai/gpt-4.1",
+                "api_key": "JUDGE_API_KEY",
+                "temperature": 0.0,
+                "top_p": 1.0,
+                "max_new_tokens": 4096,
+                "parallelism": 16,
+            }
+        )
         assert config.url == "https://inference-api.nvidia.com/v1"
         assert config.model_id == "openai/gpt-4.1"
         assert config.api_key == "JUDGE_API_KEY"
@@ -112,31 +112,37 @@ class TestJudgeConfig:
         assert config.parallelism == 16
 
     def test_from_dict_defaults(self):
-        config = JudgeConfig.from_dict({
-            "url": "http://judge:8000/v1",
-            "model_id": "nemotron",
-        })
+        config = JudgeConfig.from_dict(
+            {
+                "url": "http://judge:8000/v1",
+                "model_id": "nemotron",
+            }
+        )
         assert config.temperature == 0.0
         assert config.max_new_tokens == 4096
         assert config.max_retries == 16
 
     def test_from_dict_legacy_field_names(self):
         """Test backward compat: api_key_name -> api_key, max_tokens -> max_new_tokens."""
-        config = JudgeConfig.from_dict({
-            "url": "http://judge:8000/v1",
-            "model_id": "nemotron",
-            "api_key_name": "MY_KEY",
-            "max_tokens": 1024,
-        })
+        config = JudgeConfig.from_dict(
+            {
+                "url": "http://judge:8000/v1",
+                "model_id": "nemotron",
+                "api_key_name": "MY_KEY",
+                "max_tokens": 1024,
+            }
+        )
         assert config.api_key == "MY_KEY"
         assert config.max_new_tokens == 1024
 
     def test_from_dict_extra_keys_ignored(self):
-        config = JudgeConfig.from_dict({
-            "url": "http://judge:8000/v1",
-            "model_id": "nemotron",
-            "extra_field": "should be ignored",
-        })
+        config = JudgeConfig.from_dict(
+            {
+                "url": "http://judge:8000/v1",
+                "model_id": "nemotron",
+                "extra_field": "should be ignored",
+            }
+        )
         assert config.url == "http://judge:8000/v1"
 
 
@@ -213,7 +219,8 @@ class TestJudgeCall:
 
     def test_call_uses_request_timeout(self):
         config = JudgeConfig(
-            url="http://judge:8000/v1", model_id="nemotron",
+            url="http://judge:8000/v1",
+            model_id="nemotron",
             request_timeout=30,
         )
         mock_session = MagicMock()
@@ -249,7 +256,9 @@ class TestParseGrade:
     """Tests for parse_grade function."""
 
     def test_binary_correct(self):
-        assert parse_grade("The answer is correct.\nGRADE: C", r"GRADE:\s*([CI])") == "C"
+        assert (
+            parse_grade("The answer is correct.\nGRADE: C", r"GRADE:\s*([CI])") == "C"
+        )
 
     def test_binary_incorrect(self):
         assert parse_grade("Wrong answer.\nGRADE: I", r"GRADE:\s*([CI])") == "I"
@@ -258,10 +267,16 @@ class TestParseGrade:
         assert parse_grade("Good quality.\nGRADE: 4", r"GRADE:\s*([1-5])") == "4"
 
     def test_safety_safe(self):
-        assert parse_grade("This is fine.\nGRADE: SAFE", r"GRADE:\s*(SAFE|UNSAFE)") == "SAFE"
+        assert (
+            parse_grade("This is fine.\nGRADE: SAFE", r"GRADE:\s*(SAFE|UNSAFE)")
+            == "SAFE"
+        )
 
     def test_safety_unsafe(self):
-        assert parse_grade("Harmful content.\nGRADE: UNSAFE", r"GRADE:\s*(SAFE|UNSAFE)") == "UNSAFE"
+        assert (
+            parse_grade("Harmful content.\nGRADE: UNSAFE", r"GRADE:\s*(SAFE|UNSAFE)")
+            == "UNSAFE"
+        )
 
     def test_yes_no(self):
         assert parse_grade("GRADE: YES", r"GRADE:\s*(YES|NO)") == "YES"
@@ -446,10 +461,12 @@ class TestJudgeScore:
         """Test that _judge_session from config is used when available."""
         mock_call.return_value = "GRADE: C"
         mock_session = MagicMock()
-        sample = self._make_sample(extra_config={
-            "judge": JUDGE_DICT,
-            "_judge_session": mock_session,
-        })
+        sample = self._make_sample(
+            extra_config={
+                "judge": JUDGE_DICT,
+                "_judge_session": mock_session,
+            }
+        )
         judge_score(sample, template="binary_qa")
         call_kwargs = mock_call.call_args
         assert call_kwargs[1].get("session") is mock_session
@@ -515,30 +532,36 @@ class TestJudgeTemplates:
 
     def test_all_templates_have_required_placeholders(self):
         for name, template in TEMPLATES.items():
-            assert "{response}" in template, \
+            assert "{response}" in template, (
                 f"Template '{name}' missing placeholder '{{response}}'"
+            )
         for name, template in TEMPLATES.items():
             if name != "safety":
-                assert "{reference}" in template, \
+                assert "{reference}" in template, (
                     f"Template '{name}' missing placeholder '{{reference}}'"
+                )
 
     def test_all_templates_have_criteria_placeholder(self):
         for name, template in TEMPLATES.items():
-            assert "{criteria}" in template, \
+            assert "{criteria}" in template, (
                 f"Template '{name}' missing '{{criteria}}' placeholder"
+            )
 
     def test_all_templates_have_default_pattern(self):
         for name in TEMPLATES:
-            assert name in DEFAULT_PATTERNS, \
+            assert name in DEFAULT_PATTERNS, (
                 f"Template '{name}' missing default pattern"
+            )
 
     def test_all_templates_have_default_score_mapping(self):
         for name in TEMPLATES:
-            assert name in DEFAULT_SCORE_MAPPINGS, \
+            assert name in DEFAULT_SCORE_MAPPINGS, (
                 f"Template '{name}' missing default score mapping"
+            )
 
     def test_binary_qa_pattern_matches(self):
         import re
+
         pattern = DEFAULT_PATTERNS["binary_qa"]
         assert re.search(pattern, "GRADE: C")
         assert re.search(pattern, "GRADE: I")
@@ -546,6 +569,7 @@ class TestJudgeTemplates:
 
     def test_likert_5_pattern_matches(self):
         import re
+
         pattern = DEFAULT_PATTERNS["likert_5"]
         for i in range(1, 6):
             assert re.search(pattern, f"GRADE: {i}")
@@ -554,6 +578,7 @@ class TestJudgeTemplates:
 
     def test_safety_pattern_matches(self):
         import re
+
         pattern = DEFAULT_PATTERNS["safety"]
         assert re.search(pattern, "GRADE: SAFE")
         assert re.search(pattern, "GRADE: UNSAFE")
@@ -561,8 +586,18 @@ class TestJudgeTemplates:
 
     def test_score_mappings_cover_all_grades(self):
         assert set(DEFAULT_SCORE_MAPPINGS["binary_qa"].keys()) == {"C", "I"}
-        assert set(DEFAULT_SCORE_MAPPINGS["binary_qa_partial"].keys()) == {"C", "P", "I"}
-        assert set(DEFAULT_SCORE_MAPPINGS["likert_5"].keys()) == {"1", "2", "3", "4", "5"}
+        assert set(DEFAULT_SCORE_MAPPINGS["binary_qa_partial"].keys()) == {
+            "C",
+            "P",
+            "I",
+        }
+        assert set(DEFAULT_SCORE_MAPPINGS["likert_5"].keys()) == {
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+        }
         assert set(DEFAULT_SCORE_MAPPINGS["safety"].keys()) == {"SAFE", "UNSAFE"}
 
     def test_templates_renderable(self):
@@ -627,6 +662,7 @@ class TestJudgeIntegration:
             return {"score": 1.0}
 
         from nemo_evaluator.contrib.byob.decorators import get_registered_benchmarks
+
         bench = get_registered_benchmarks()["judge_input_test"]
 
         strategy = StandardStrategy()
@@ -646,9 +682,10 @@ class TestJudgeIntegration:
     def test_judge_support_flag_in_fdf(self):
         """Verify compiler sets judge_support: true in FDF when judge is present."""
         from nemo_evaluator.contrib.byob.compiler import compile_benchmark
-        import tempfile, os
+        import tempfile
+        import os
 
-        code = '''
+        code = """
 from nemo_evaluator.contrib.byob import benchmark, scorer
 @benchmark(
     name="fdf-judge",
@@ -659,7 +696,7 @@ from nemo_evaluator.contrib.byob import benchmark, scorer
 @scorer
 def s(sample):
     return {"score": 1.0}
-'''
+"""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write(code)
             f.flush()
@@ -681,9 +718,10 @@ def s(sample):
     def test_multi_judge_in_fdf(self):
         """Verify multiple judge configs flow to FDF."""
         from nemo_evaluator.contrib.byob.compiler import compile_benchmark
-        import tempfile, os
+        import tempfile
+        import os
 
-        code = '''
+        code = """
 from nemo_evaluator.contrib.byob import benchmark, scorer
 @benchmark(
     name="multi-judge",
@@ -695,7 +733,7 @@ from nemo_evaluator.contrib.byob import benchmark, scorer
 @scorer
 def s(sample):
     return {"score": 1.0}
-'''
+"""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write(code)
             f.flush()
@@ -736,7 +774,9 @@ class TestStructuredJudgeOutput:
         mock_session.post.return_value = mock_response
 
         response_format = {"type": "json_object"}
-        judge_call(config, "Test prompt", session=mock_session, response_format=response_format)
+        judge_call(
+            config, "Test prompt", session=mock_session, response_format=response_format
+        )
 
         payload = mock_session.post.call_args[1]["json"]
         assert "response_format" in payload
@@ -792,7 +832,9 @@ class TestStructuredJudgeOutput:
             metadata={"question": "What is the answer?"},
             config={"judge": JUDGE_DICT},
         )
-        judge_score(sample, template="binary_qa", response_format={"type": "json_object"})
+        judge_score(
+            sample, template="binary_qa", response_format={"type": "json_object"}
+        )
         assert mock_call.call_args[1].get("response_format") == {"type": "json_object"}
 
     @patch("nemo_evaluator.contrib.byob.judge.judge_call")

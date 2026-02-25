@@ -27,6 +27,7 @@ Dataset fields (HF): question, opa, opb, opc, opd, cop (0-3), subject_name,
 Usage:
   python -m nemo_evaluator.contrib.byob.cli examples/byob/medmcqa/benchmark.py
 """
+
 import re
 
 from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
@@ -74,7 +75,7 @@ def medmcqa_scorer(sample: ScorerInput) -> dict:
     else:
         # Try: find "answer is X" or standalone letter
         match = re.search(
-            r'(?:answer\s+is\s+|^\s*\(?)\s*([A-Da-d])\b',
+            r"(?:answer\s+is\s+|^\s*\(?)\s*([A-Da-d])\b",
             response_clean,
             re.IGNORECASE,
         )
@@ -82,7 +83,7 @@ def medmcqa_scorer(sample: ScorerInput) -> dict:
             predicted = match.group(1).upper()
         else:
             # Last resort: find any standalone A-D in first 50 chars
-            match = re.search(r'\b([A-Da-d])\b', response_clean[:50])
+            match = re.search(r"\b([A-Da-d])\b", response_clean[:50])
             predicted = match.group(1).upper() if match else ""
 
     # Convert HF integer target (0-3) to letter (A-D)

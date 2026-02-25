@@ -59,18 +59,22 @@ class TestAggregateScores:
         score_data = task["metrics"]["pass@1"]["scores"]["correct"]
 
         assert score_data["count"] == 3, f"Expected count=3, got {score_data['count']}"
-        assert abs(score_data["value"] - 66.6667) < 0.01, \
+        assert abs(score_data["value"] - 66.6667) < 0.01, (
             f"Expected value~66.6667, got {score_data['value']}"
-        assert abs(score_data["mean"] - 66.6667) < 0.01, \
+        )
+        assert abs(score_data["mean"] - 66.6667) < 0.01, (
             f"Expected mean~66.6667, got {score_data['mean']}"
+        )
         # stderr also scaled by 100 for binary metrics (population variance: divide by n)
         # Population variance: ((1-0.667)^2 + (0-0.667)^2 + (1-0.667)^2) / 3 = 0.2222
         # Population stddev = sqrt(0.2222) = 0.4714, scaled = 47.14
         # Population stderr = 47.14 / sqrt(3) = 27.22
-        assert abs(score_data["stderr"] - 27.2166) < 0.1, \
+        assert abs(score_data["stderr"] - 27.2166) < 0.1, (
             f"Expected stderr~27.2166, got {score_data['stderr']}"
-        assert abs(score_data["stddev"] - 47.1405) < 0.1, \
+        )
+        assert abs(score_data["stddev"] - 47.1405) < 0.1, (
             f"Expected stddev~47.1405, got {score_data['stddev']}"
+        )
 
     def test_aggregate_continuous_scores(self):
         """Test aggregation of continuous (non-binary) scores without scaling.
@@ -92,14 +96,18 @@ class TestAggregateScores:
         score_data = task["metrics"]["pass@1"]["scores"]["f1"]
 
         assert score_data["count"] == 3
-        assert abs(score_data["value"] - 0.9) < 0.0001, \
+        assert abs(score_data["value"] - 0.9) < 0.0001, (
             f"Expected value=0.9, got {score_data['value']}"
-        assert abs(score_data["mean"] - 0.9) < 0.0001, \
+        )
+        assert abs(score_data["mean"] - 0.9) < 0.0001, (
             f"Expected mean=0.9, got {score_data['mean']}"
-        assert abs(score_data["stddev"] - 0.08165) < 0.001, \
+        )
+        assert abs(score_data["stddev"] - 0.08165) < 0.001, (
             f"Expected stddev~0.08165, got {score_data['stddev']}"
-        assert abs(score_data["stderr"] - 0.04714) < 0.001, \
+        )
+        assert abs(score_data["stderr"] - 0.04714) < 0.001, (
             f"Expected stderr~0.04714, got {score_data['stderr']}"
+        )
 
     def test_aggregate_empty(self):
         """Test that empty score list returns empty dict."""
@@ -118,18 +126,28 @@ class TestAggregateScores:
         scores = [{"correct": True}]
         result = aggregate_scores(scores, "single_bench")
 
-        score_data = result["tasks"]["single_bench"]["metrics"]["pass@1"]["scores"]["correct"]
+        score_data = result["tasks"]["single_bench"]["metrics"]["pass@1"]["scores"][
+            "correct"
+        ]
         assert score_data["count"] == 1
-        assert score_data["value"] == 100.0, f"Expected value=100.0, got {score_data['value']}"
-        assert score_data["stddev"] == 0.0, f"Expected stddev=0.0, got {score_data['stddev']}"
-        assert score_data["stderr"] == 0.0, f"Expected stderr=0.0, got {score_data['stderr']}"
+        assert score_data["value"] == 100.0, (
+            f"Expected value=100.0, got {score_data['value']}"
+        )
+        assert score_data["stddev"] == 0.0, (
+            f"Expected stddev=0.0, got {score_data['stddev']}"
+        )
+        assert score_data["stderr"] == 0.0, (
+            f"Expected stderr=0.0, got {score_data['stderr']}"
+        )
 
     def test_aggregate_all_true(self):
         """Test all True boolean scores -> value=100.0."""
         scores = [{"correct": True}, {"correct": True}, {"correct": True}]
         result = aggregate_scores(scores, "all_true_bench")
 
-        score_data = result["tasks"]["all_true_bench"]["metrics"]["pass@1"]["scores"]["correct"]
+        score_data = result["tasks"]["all_true_bench"]["metrics"]["pass@1"]["scores"][
+            "correct"
+        ]
         assert score_data["value"] == 100.0
         assert score_data["mean"] == 100.0
         assert score_data["stddev"] == 0.0
@@ -140,7 +158,9 @@ class TestAggregateScores:
         scores = [{"correct": False}, {"correct": False}, {"correct": False}]
         result = aggregate_scores(scores, "all_false_bench")
 
-        score_data = result["tasks"]["all_false_bench"]["metrics"]["pass@1"]["scores"]["correct"]
+        score_data = result["tasks"]["all_false_bench"]["metrics"]["pass@1"]["scores"][
+            "correct"
+        ]
         assert score_data["value"] == 0.0
         assert score_data["mean"] == 0.0
         assert score_data["stddev"] == 0.0
@@ -161,13 +181,15 @@ class TestAggregateScores:
         scores_out = result["tasks"]["mixed_bench"]["metrics"]["pass@1"]["scores"]
 
         # "correct" should have count=3 (all samples have it)
-        assert scores_out["correct"]["count"] == 3, \
+        assert scores_out["correct"]["count"] == 3, (
             f"Expected correct count=3, got {scores_out['correct']['count']}"
+        )
 
         # "parsed" should have count=2 (only 2 samples have it)
         assert "parsed" in scores_out, "Missing 'parsed' key in output"
-        assert scores_out["parsed"]["count"] == 2, \
+        assert scores_out["parsed"]["count"] == 2, (
             f"Expected parsed count=2, got {scores_out['parsed']['count']}"
+        )
 
     def test_aggregate_output_structure(self):
         """Contract test: validate output dict structure matches expected schema."""
@@ -178,11 +200,16 @@ class TestAggregateScores:
         assert "tasks" in result, "Missing 'tasks' key"
         assert "schema_bench" in result["tasks"], "Missing benchmark in tasks"
         assert "metrics" in result["tasks"]["schema_bench"], "Missing 'metrics' key"
-        assert "pass@1" in result["tasks"]["schema_bench"]["metrics"], "Missing 'pass@1' key"
-        assert "scores" in result["tasks"]["schema_bench"]["metrics"]["pass@1"], \
+        assert "pass@1" in result["tasks"]["schema_bench"]["metrics"], (
+            "Missing 'pass@1' key"
+        )
+        assert "scores" in result["tasks"]["schema_bench"]["metrics"]["pass@1"], (
             "Missing 'scores' key"
+        )
 
-        score = result["tasks"]["schema_bench"]["metrics"]["pass@1"]["scores"]["correct"]
+        score = result["tasks"]["schema_bench"]["metrics"]["pass@1"]["scores"][
+            "correct"
+        ]
 
         # Validate all required keys are present
         required_keys = ["value", "count", "mean", "stderr", "stddev"]
@@ -199,11 +226,11 @@ class TestLoadDataset:
         dataset_file = tmp_path / "test.jsonl"
         lines = [
             '{"question": "q1", "answer": "a1"}',
-            '',  # blank line -- should be skipped
+            "",  # blank line -- should be skipped
             '{"question": "q2", "answer": "a2"}',
             '{"question": "q3", "answer": "a3"}',
         ]
-        dataset_file.write_text('\n'.join(lines))
+        dataset_file.write_text("\n".join(lines))
 
         # Test without limit
         data = load_dataset(str(dataset_file))
@@ -226,7 +253,7 @@ class TestLoadDataset:
         """Test that limit=0 or limit=None returns all data."""
         dataset_file = tmp_path / "test.jsonl"
         lines = [f'{{"id": {i}}}' for i in range(5)]
-        dataset_file.write_text('\n'.join(lines))
+        dataset_file.write_text("\n".join(lines))
 
         # Test limit=0
         data = load_dataset(str(dataset_file), limit=0)
@@ -265,7 +292,9 @@ class TestSavePredictions:
             {"question": "Is water dry?", "answer": "no"},
         ]
 
-    def test_save_predictions_creates_jsonl_file(self, tmp_path, mock_benchmark, sample_dataset):
+    def test_save_predictions_creates_jsonl_file(
+        self, tmp_path, mock_benchmark, sample_dataset
+    ):
         """Test that running with --save-predictions creates byob_predictions.jsonl.
 
         Validates:
@@ -288,21 +317,24 @@ class TestSavePredictions:
 
         # Manually write predictions like runner.py does
         from dataclasses import asdict
+
         predictions_path = tmp_path / "byob_predictions.jsonl"
         with open(predictions_path, "w", encoding="utf-8") as f:
             for pred in predictions:
                 f.write(json.dumps(asdict(pred)) + "\n")
 
         # Verify file exists
-        assert predictions_path.exists(), \
+        assert predictions_path.exists(), (
             f"Expected byob_predictions.jsonl to exist at {predictions_path}"
+        )
 
         # Verify file contains correct number of lines
-        lines = predictions_path.read_text().strip().split('\n')
-        assert len(lines) == 2, \
-            f"Expected 2 lines (one per sample), got {len(lines)}"
+        lines = predictions_path.read_text().strip().split("\n")
+        assert len(lines) == 2, f"Expected 2 lines (one per sample), got {len(lines)}"
 
-    def test_save_predictions_content_structure(self, tmp_path, mock_benchmark, sample_dataset):
+    def test_save_predictions_content_structure(
+        self, tmp_path, mock_benchmark, sample_dataset
+    ):
         """Test that each prediction has required fields.
 
         Validates structure:
@@ -329,6 +361,7 @@ class TestSavePredictions:
 
         # Write and read back predictions
         from dataclasses import asdict
+
         predictions_path = tmp_path / "byob_predictions.jsonl"
         with open(predictions_path, "w", encoding="utf-8") as f:
             for pred in predictions:
@@ -340,25 +373,41 @@ class TestSavePredictions:
                 pred_dict = json.loads(line)
 
                 # Check all required fields are present
-                required_fields = ["sample_id", "prompt", "response", "target",
-                                   "scores", "status", "error", "metadata"]
+                required_fields = [
+                    "sample_id",
+                    "prompt",
+                    "response",
+                    "target",
+                    "scores",
+                    "status",
+                    "error",
+                    "metadata",
+                ]
                 for field in required_fields:
-                    assert field in pred_dict, \
+                    assert field in pred_dict, (
                         f"Line {line_num}: missing required field '{field}'"
+                    )
 
                 # Check types
-                assert isinstance(pred_dict["sample_id"], int), \
+                assert isinstance(pred_dict["sample_id"], int), (
                     f"Line {line_num}: sample_id should be int"
-                assert isinstance(pred_dict["prompt"], str), \
+                )
+                assert isinstance(pred_dict["prompt"], str), (
                     f"Line {line_num}: prompt should be str"
-                assert isinstance(pred_dict["target"], str), \
+                )
+                assert isinstance(pred_dict["target"], str), (
                     f"Line {line_num}: target should be str"
-                assert isinstance(pred_dict["status"], str), \
+                )
+                assert isinstance(pred_dict["status"], str), (
                     f"Line {line_num}: status should be str"
-                assert isinstance(pred_dict["metadata"], dict), \
+                )
+                assert isinstance(pred_dict["metadata"], dict), (
                     f"Line {line_num}: metadata should be dict"
+                )
 
-    def test_save_predictions_scored_sample(self, tmp_path, mock_benchmark, sample_dataset):
+    def test_save_predictions_scored_sample(
+        self, tmp_path, mock_benchmark, sample_dataset
+    ):
         """Test that a successfully scored sample has correct status and fields.
 
         Validates:
@@ -380,6 +429,7 @@ class TestSavePredictions:
         )
 
         from dataclasses import asdict
+
         predictions_path = tmp_path / "byob_predictions.jsonl"
         with open(predictions_path, "w", encoding="utf-8") as f:
             for pred in predictions:
@@ -389,18 +439,24 @@ class TestSavePredictions:
         with open(predictions_path, "r", encoding="utf-8") as f:
             first_pred = json.loads(f.readline())
 
-        assert first_pred["status"] == "scored", \
+        assert first_pred["status"] == "scored", (
             f"Expected status='scored', got '{first_pred['status']}'"
-        assert first_pred["response"] is not None, \
+        )
+        assert first_pred["response"] is not None, (
             "Expected non-null response for scored sample"
-        assert isinstance(first_pred["response"], str), \
+        )
+        assert isinstance(first_pred["response"], str), (
             f"Expected response to be str, got {type(first_pred['response'])}"
-        assert first_pred["scores"] is not None, \
+        )
+        assert first_pred["scores"] is not None, (
             "Expected non-null scores for scored sample"
-        assert isinstance(first_pred["scores"], dict), \
+        )
+        assert isinstance(first_pred["scores"], dict), (
             f"Expected scores to be dict, got {type(first_pred['scores'])}"
-        assert first_pred["error"] is None, \
+        )
+        assert first_pred["error"] is None, (
             f"Expected null error for scored sample, got '{first_pred['error']}'"
+        )
 
     def test_save_predictions_skipped_sample(self, tmp_path, mock_benchmark):
         """Test that a skipped sample has correct status and null fields.
@@ -420,10 +476,12 @@ class TestSavePredictions:
         ]
 
         # Mock model that fails on second call
-        mock_model_call_fn = MagicMock(side_effect=[
-            "Response 1",  # First sample succeeds
-            Exception("Model timeout"),  # Second sample fails
-        ])
+        mock_model_call_fn = MagicMock(
+            side_effect=[
+                "Response 1",  # First sample succeeds
+                Exception("Model timeout"),  # Second sample fails
+            ]
+        )
 
         _scores, predictions = run_eval_loop(
             bench=mock_benchmark,
@@ -434,6 +492,7 @@ class TestSavePredictions:
         )
 
         from dataclasses import asdict
+
         predictions_path = tmp_path / "byob_predictions.jsonl"
         with open(predictions_path, "w", encoding="utf-8") as f:
             for pred in predictions:
@@ -444,18 +503,24 @@ class TestSavePredictions:
             _first = f.readline()
             second_pred = json.loads(f.readline())
 
-        assert second_pred["status"] == "skipped_model_error", \
+        assert second_pred["status"] == "skipped_model_error", (
             f"Expected status='skipped_model_error', got '{second_pred['status']}'"
-        assert second_pred["response"] is None, \
+        )
+        assert second_pred["response"] is None, (
             f"Expected null response for skipped sample, got '{second_pred['response']}'"
-        assert second_pred["scores"] is None, \
+        )
+        assert second_pred["scores"] is None, (
             f"Expected null scores for skipped sample, got '{second_pred['scores']}'"
-        assert second_pred["error"] is not None, \
+        )
+        assert second_pred["error"] is not None, (
             "Expected non-null error for skipped sample"
-        assert isinstance(second_pred["error"], str), \
+        )
+        assert isinstance(second_pred["error"], str), (
             f"Expected error to be str, got {type(second_pred['error'])}"
-        assert "timeout" in second_pred["error"].lower(), \
+        )
+        assert "timeout" in second_pred["error"].lower(), (
             f"Expected error to mention timeout, got: {second_pred['error']}"
+        )
 
 
 class TestTimeoutPerSample:
@@ -468,7 +533,7 @@ class TestTimeoutPerSample:
         - call_model_chat uses timeout=120 by default
         - call_model_completions uses timeout=120 by default
         """
-        with patch('nemo_evaluator.contrib.byob.runner.requests.post') as mock_post:
+        with patch("nemo_evaluator.contrib.byob.runner.requests.post") as mock_post:
             # Mock successful response
             mock_response = MagicMock()
             mock_response.json.return_value = {
@@ -478,17 +543,16 @@ class TestTimeoutPerSample:
 
             # Call without explicit timeout
             call_model_chat(
-                url="http://localhost:8000",
-                model_id="test-model",
-                prompt="Test prompt"
+                url="http://localhost:8000", model_id="test-model", prompt="Test prompt"
             )
 
             # Verify timeout=120 was passed to requests.post
             mock_post.assert_called_once()
             _args, kwargs = mock_post.call_args
             assert "timeout" in kwargs, "Expected timeout to be passed to requests.post"
-            assert kwargs["timeout"] == 120, \
+            assert kwargs["timeout"] == 120, (
                 f"Expected default timeout=120, got {kwargs['timeout']}"
+            )
 
     def test_timeout_per_sample_custom_value(self):
         """Test that custom timeout is passed through to requests.post.
@@ -497,7 +561,7 @@ class TestTimeoutPerSample:
         - Custom timeout value is used in HTTP call
         - Works for both chat and completions endpoints
         """
-        with patch('nemo_evaluator.contrib.byob.runner.requests.post') as mock_post:
+        with patch("nemo_evaluator.contrib.byob.runner.requests.post") as mock_post:
             # Mock successful response for chat
             mock_response = MagicMock()
             mock_response.json.return_value = {
@@ -510,21 +574,20 @@ class TestTimeoutPerSample:
                 url="http://localhost:8000",
                 model_id="test-model",
                 prompt="Test prompt",
-                timeout=300
+                timeout=300,
             )
 
             # Verify custom timeout was passed
             _args, kwargs = mock_post.call_args
-            assert kwargs["timeout"] == 300, \
+            assert kwargs["timeout"] == 300, (
                 f"Expected timeout=300, got {kwargs['timeout']}"
+            )
 
         # Test completions endpoint
-        with patch('nemo_evaluator.contrib.byob.runner.requests.post') as mock_post:
+        with patch("nemo_evaluator.contrib.byob.runner.requests.post") as mock_post:
             # Mock successful response for completions
             mock_response = MagicMock()
-            mock_response.json.return_value = {
-                "choices": [{"text": "Response"}]
-            }
+            mock_response.json.return_value = {"choices": [{"text": "Response"}]}
             mock_post.return_value = mock_response
 
             # Call with custom timeout
@@ -532,13 +595,14 @@ class TestTimeoutPerSample:
                 url="http://localhost:8000",
                 model_id="test-model",
                 prompt="Test prompt",
-                timeout=60
+                timeout=60,
             )
 
             # Verify custom timeout was passed
             _args, kwargs = mock_post.call_args
-            assert kwargs["timeout"] == 60, \
+            assert kwargs["timeout"] == 60, (
                 f"Expected timeout=60, got {kwargs['timeout']}"
+            )
 
     def test_timeout_per_sample_cli_parsing(self):
         """Test that CLI argument is parsed correctly.
@@ -549,27 +613,41 @@ class TestTimeoutPerSample:
         - Default is 120
         """
         from nemo_evaluator.contrib.byob.runner import main
-        import sys
 
         # Test with custom timeout
         test_args = [
             "runner.py",
-            "--benchmark-module", "test.py",
-            "--benchmark-name", "test",
-            "--dataset", "test.jsonl",
-            "--output-dir", "/tmp/out",
-            "--model-url", "http://localhost:8000",
-            "--model-id", "test-model",
-            "--timeout-per-sample", "300"
+            "--benchmark-module",
+            "test.py",
+            "--benchmark-name",
+            "test",
+            "--dataset",
+            "test.jsonl",
+            "--output-dir",
+            "/tmp/out",
+            "--model-url",
+            "http://localhost:8000",
+            "--model-id",
+            "test-model",
+            "--timeout-per-sample",
+            "300",
         ]
 
-        with patch.object(sys, 'argv', test_args):
-            with patch('nemo_evaluator.contrib.byob.runner.import_benchmark') as mock_import:
-                with patch('nemo_evaluator.contrib.byob.runner.load_dataset') as mock_load:
-                    with patch('nemo_evaluator.contrib.byob.runner.run_eval_loop') as mock_run:
-                        with patch('nemo_evaluator.contrib.byob.runner.aggregate_scores') as mock_agg:
-                            with patch('builtins.open', MagicMock()):
-                                with patch('os.makedirs'):
+        with patch.object(sys, "argv", test_args):
+            with patch(
+                "nemo_evaluator.contrib.byob.runner.import_benchmark"
+            ) as mock_import:
+                with patch(
+                    "nemo_evaluator.contrib.byob.runner.load_dataset"
+                ) as mock_load:
+                    with patch(
+                        "nemo_evaluator.contrib.byob.runner.run_eval_loop"
+                    ) as mock_run:
+                        with patch(
+                            "nemo_evaluator.contrib.byob.runner.aggregate_scores"
+                        ) as mock_agg:
+                            with patch("builtins.open", MagicMock()):
+                                with patch("os.makedirs"):
                                     # Setup mocks
                                     mock_benchmark = MagicMock()
                                     mock_import.return_value = mock_benchmark
@@ -585,26 +663,42 @@ class TestTimeoutPerSample:
 
                                     # Verify timeout was passed to model_call_fn
                                     # The timeout is captured in the closure
-                                    assert mock_run.called, "Expected run_eval_loop to be called"
+                                    assert mock_run.called, (
+                                        "Expected run_eval_loop to be called"
+                                    )
 
         # Test default timeout
         test_args_default = [
             "runner.py",
-            "--benchmark-module", "test.py",
-            "--benchmark-name", "test",
-            "--dataset", "test.jsonl",
-            "--output-dir", "/tmp/out",
-            "--model-url", "http://localhost:8000",
-            "--model-id", "test-model"
+            "--benchmark-module",
+            "test.py",
+            "--benchmark-name",
+            "test",
+            "--dataset",
+            "test.jsonl",
+            "--output-dir",
+            "/tmp/out",
+            "--model-url",
+            "http://localhost:8000",
+            "--model-id",
+            "test-model",
         ]
 
-        with patch.object(sys, 'argv', test_args_default):
-            with patch('nemo_evaluator.contrib.byob.runner.import_benchmark') as mock_import:
-                with patch('nemo_evaluator.contrib.byob.runner.load_dataset') as mock_load:
-                    with patch('nemo_evaluator.contrib.byob.runner.run_eval_loop') as mock_run:
-                        with patch('nemo_evaluator.contrib.byob.runner.aggregate_scores') as mock_agg:
-                            with patch('builtins.open', MagicMock()):
-                                with patch('os.makedirs'):
+        with patch.object(sys, "argv", test_args_default):
+            with patch(
+                "nemo_evaluator.contrib.byob.runner.import_benchmark"
+            ) as mock_import:
+                with patch(
+                    "nemo_evaluator.contrib.byob.runner.load_dataset"
+                ) as mock_load:
+                    with patch(
+                        "nemo_evaluator.contrib.byob.runner.run_eval_loop"
+                    ) as mock_run:
+                        with patch(
+                            "nemo_evaluator.contrib.byob.runner.aggregate_scores"
+                        ) as mock_agg:
+                            with patch("builtins.open", MagicMock()):
+                                with patch("os.makedirs"):
                                     # Setup mocks
                                     mock_benchmark = MagicMock()
                                     mock_import.return_value = mock_benchmark
@@ -619,7 +713,9 @@ class TestTimeoutPerSample:
                                         pass
 
                                     # Verify default timeout of 120 is used
-                                    assert mock_run.called, "Expected run_eval_loop to be called"
+                                    assert mock_run.called, (
+                                        "Expected run_eval_loop to be called"
+                                    )
 
 
 class TestFailOnSkip:
@@ -658,10 +754,12 @@ class TestFailOnSkip:
         ]
 
         # Mock model that fails on second call
-        mock_model_call_fn = MagicMock(side_effect=[
-            "Response 1",  # First sample succeeds
-            Exception("Model timeout"),  # Second sample fails
-        ])
+        mock_model_call_fn = MagicMock(
+            side_effect=[
+                "Response 1",  # First sample succeeds
+                Exception("Model timeout"),  # Second sample fails
+            ]
+        )
 
         # With fail_on_skip=True, should raise RuntimeError
         with pytest.raises(RuntimeError) as exc_info:
@@ -675,10 +773,12 @@ class TestFailOnSkip:
 
         # Verify error message contains useful context
         error_msg = str(exc_info.value)
-        assert "sample" in error_msg.lower(), \
+        assert "sample" in error_msg.lower(), (
             f"Expected error to mention 'sample', got: {error_msg}"
-        assert "failed" in error_msg.lower(), \
+        )
+        assert "failed" in error_msg.lower(), (
             f"Expected error to mention 'failed', got: {error_msg}"
+        )
 
     def test_fail_on_skip_false_skips_gracefully(self, mock_benchmark):
         """Test that fail_on_skip=False skips errors gracefully.
@@ -698,11 +798,13 @@ class TestFailOnSkip:
         ]
 
         # Mock model that fails on second call
-        mock_model_call_fn = MagicMock(side_effect=[
-            "Response 1",  # First sample succeeds
-            Exception("Model timeout"),  # Second sample fails
-            "Response 3",  # Third sample succeeds
-        ])
+        mock_model_call_fn = MagicMock(
+            side_effect=[
+                "Response 1",  # First sample succeeds
+                Exception("Model timeout"),  # Second sample fails
+                "Response 3",  # Third sample succeeds
+            ]
+        )
 
         # With fail_on_skip=False, should not raise
         all_scores, _all_predictions = run_eval_loop(
@@ -714,15 +816,16 @@ class TestFailOnSkip:
         )
 
         # Verify only 2 samples were scored (skipped sample not included)
-        assert len(all_scores) == 2, \
+        assert len(all_scores) == 2, (
             f"Expected 2 scored samples (1 skipped), got {len(all_scores)}"
+        )
 
         # Verify both scored samples have valid scores
         for i, scores in enumerate(all_scores):
-            assert "correct" in scores, \
-                f"Score {i} missing 'correct' key: {scores}"
-            assert isinstance(scores["correct"], bool), \
+            assert "correct" in scores, f"Score {i} missing 'correct' key: {scores}"
+            assert isinstance(scores["correct"], bool), (
                 f"Score {i} 'correct' should be bool, got {type(scores['correct'])}"
+            )
 
     def test_fail_on_skip_raises_on_missing_field(self, mock_benchmark):
         """Test that fail_on_skip=True raises RuntimeError on missing field.
@@ -753,10 +856,12 @@ class TestFailOnSkip:
 
         # Verify error message contains useful context
         error_msg = str(exc_info.value)
-        assert "sample" in error_msg.lower(), \
+        assert "sample" in error_msg.lower(), (
             f"Expected error to mention 'sample', got: {error_msg}"
-        assert "failed" in error_msg.lower(), \
+        )
+        assert "failed" in error_msg.lower(), (
             f"Expected error to mention 'failed', got: {error_msg}"
+        )
 
 
 class TestSessionPooling:
@@ -823,9 +928,7 @@ class TestRetrySession:
         adapter = session.get_adapter("http://test.com")
         retry = adapter.max_retries
 
-        assert retry.total == 5, (
-            f"Expected max_retries total=5, got {retry.total}"
-        )
+        assert retry.total == 5, f"Expected max_retries total=5, got {retry.total}"
         assert retry.backoff_factor == 1.0, (
             f"Expected backoff_factor=1.0, got {retry.backoff_factor}"
         )
@@ -833,14 +936,22 @@ class TestRetrySession:
     def test_retry_cli_args(self):
         """Validate --max-retries and --retry-backoff are accepted by argparse."""
         test_args = [
-            "--benchmark-module", "test.py",
-            "--benchmark-name", "test",
-            "--dataset", "test.jsonl",
-            "--output-dir", "/tmp/out",
-            "--model-url", "http://localhost:8000",
-            "--model-id", "test-model",
-            "--max-retries", "7",
-            "--retry-backoff", "2.5",
+            "--benchmark-module",
+            "test.py",
+            "--benchmark-name",
+            "test",
+            "--dataset",
+            "test.jsonl",
+            "--output-dir",
+            "/tmp/out",
+            "--model-url",
+            "http://localhost:8000",
+            "--model-id",
+            "test-model",
+            "--max-retries",
+            "7",
+            "--retry-backoff",
+            "2.5",
         ]
 
         parser = argparse.ArgumentParser()
@@ -855,9 +966,7 @@ class TestRetrySession:
 
         args = parser.parse_args(test_args)
 
-        assert args.max_retries == 7, (
-            f"Expected max_retries=7, got {args.max_retries}"
-        )
+        assert args.max_retries == 7, f"Expected max_retries=7, got {args.max_retries}"
         assert args.retry_backoff == 2.5, (
             f"Expected retry_backoff=2.5, got {args.retry_backoff}"
         )
@@ -893,12 +1002,16 @@ class TestSystemPromptInCalls:
         payload = kwargs["json"]
         messages = payload["messages"]
 
-        assert len(messages) == 2, \
+        assert len(messages) == 2, (
             f"Expected 2 messages (system + user), got {len(messages)}"
-        assert messages[0] == {"role": "system", "content": "You are a helpful assistant."}, \
-            f"Expected system message first, got {messages[0]}"
-        assert messages[1] == {"role": "user", "content": "User question"}, \
+        )
+        assert messages[0] == {
+            "role": "system",
+            "content": "You are a helpful assistant.",
+        }, f"Expected system message first, got {messages[0]}"
+        assert messages[1] == {"role": "user", "content": "User question"}, (
             f"Expected user message second, got {messages[1]}"
+        )
 
     def test_chat_no_system_message_when_none(self):
         """Validate that no system message is included when system_prompt is None."""
@@ -920,17 +1033,16 @@ class TestSystemPromptInCalls:
         payload = kwargs["json"]
         messages = payload["messages"]
 
-        assert len(messages) == 1, \
+        assert len(messages) == 1, (
             f"Expected 1 message (user only), got {len(messages)}"
+        )
         assert messages[0]["role"] == "user"
 
     def test_completions_system_prepended(self):
         """Validate that system_prompt is prepended to the prompt text for completions."""
         mock_session = MagicMock()
         mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "choices": [{"text": "response"}]
-        }
+        mock_response.json.return_value = {"choices": [{"text": "response"}]}
         mock_session.post.return_value = mock_response
 
         call_model_completions(
@@ -945,16 +1057,15 @@ class TestSystemPromptInCalls:
         payload = kwargs["json"]
         prompt = payload["prompt"]
 
-        assert prompt == "System instructions\nUser question", \
+        assert prompt == "System instructions\nUser question", (
             f"Expected system prompt prepended, got '{prompt}'"
+        )
 
     def test_completions_no_system_prompt(self):
         """Validate that prompt is unchanged when system_prompt is None for completions."""
         mock_session = MagicMock()
         mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "choices": [{"text": "response"}]
-        }
+        mock_response.json.return_value = {"choices": [{"text": "response"}]}
         mock_session.post.return_value = mock_response
 
         call_model_completions(
@@ -968,8 +1079,7 @@ class TestSystemPromptInCalls:
         payload = kwargs["json"]
         prompt = payload["prompt"]
 
-        assert prompt == "User question", \
-            f"Expected unchanged prompt, got '{prompt}'"
+        assert prompt == "User question", f"Expected unchanged prompt, got '{prompt}'"
 
     def test_backward_compat_no_system_prompt(self):
         """Validate backward compatibility: existing callers without system_prompt still work."""
@@ -1019,6 +1129,7 @@ class TestNRepeats:
     def test_n_repeats_default_is_one(self):
         """Test that --n-repeats defaults to 1."""
         import argparse
+
         parser = argparse.ArgumentParser()
         parser.add_argument("--n-repeats", type=int, default=1)
         args = parser.parse_args([])
@@ -1054,9 +1165,13 @@ class TestNRepeats:
             all_predictions.extend(predictions)
 
         assert len(all_scores) == 6, f"Expected 6 scores, got {len(all_scores)}"
-        assert len(all_predictions) == 6, f"Expected 6 predictions, got {len(all_predictions)}"
+        assert len(all_predictions) == 6, (
+            f"Expected 6 predictions, got {len(all_predictions)}"
+        )
 
-    def test_n_repeats_predictions_have_unique_ids_and_repeat_metadata(self, mock_benchmark):
+    def test_n_repeats_predictions_have_unique_ids_and_repeat_metadata(
+        self, mock_benchmark
+    ):
         """Test that predictions have unique IDs and _repeat metadata."""
         from nemo_evaluator.contrib.byob.eval_logic import run_eval_loop
 
@@ -1086,7 +1201,9 @@ class TestNRepeats:
         assert len(ids) == len(set(ids)), f"IDs not unique: {ids}"
 
         for pred in all_predictions:
-            assert "_repeat" in pred.metadata, f"Missing _repeat in metadata: {pred.metadata}"
+            assert "_repeat" in pred.metadata, (
+                f"Missing _repeat in metadata: {pred.metadata}"
+            )
 
         assert all_predictions[0].metadata["_repeat"] == 0
         assert all_predictions[1].metadata["_repeat"] == 1
@@ -1107,7 +1224,7 @@ class TestClientAutoDetect:
             max_tokens=4096,
         )
 
-        with patch.dict('sys.modules', {'nemo_evaluator.client': None}):
+        with patch.dict("sys.modules", {"nemo_evaluator.client": None}):
             with pytest.raises((ImportError, ModuleNotFoundError)):
                 create_client_model_call_fn(args, api_key=None)
 
@@ -1118,5 +1235,6 @@ class TestCommandTemplateExtensions:
     def test_command_template_contains_n_repeats(self):
         """Test that COMMAND_TEMPLATE includes --n-repeats conditional."""
         from nemo_evaluator.contrib.byob.compiler import COMMAND_TEMPLATE
+
         assert "n_repeats" in COMMAND_TEMPLATE
         assert "--n-repeats" in COMMAND_TEMPLATE

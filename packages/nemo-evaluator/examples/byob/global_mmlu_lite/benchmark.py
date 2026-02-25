@@ -29,6 +29,7 @@ Dataset fields (HF): question, option_a, option_b, option_c, option_d,
 Usage:
   python -m nemo_evaluator.contrib.byob.cli examples/byob/global_mmlu_lite/benchmark.py
 """
+
 import re
 
 from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
@@ -76,7 +77,7 @@ def global_mmlu_lite_scorer(sample: ScorerInput) -> dict:
     else:
         # Try: find "answer is X" or standalone letter
         match = re.search(
-            r'(?:answer\s+is\s+|^\s*\(?)\s*([A-Da-d])\b',
+            r"(?:answer\s+is\s+|^\s*\(?)\s*([A-Da-d])\b",
             response_clean,
             re.IGNORECASE,
         )
@@ -84,7 +85,7 @@ def global_mmlu_lite_scorer(sample: ScorerInput) -> dict:
             predicted = match.group(1).upper()
         else:
             # Last resort: find any standalone A-D in first 50 chars
-            match = re.search(r'\b([A-Da-d])\b', response_clean[:50])
+            match = re.search(r"\b([A-Da-d])\b", response_clean[:50])
             predicted = match.group(1).upper() if match else ""
 
     is_correct = predicted == sample.target.strip().upper()

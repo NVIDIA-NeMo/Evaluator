@@ -15,7 +15,6 @@
 
 """Unit tests for BYOB requirements validation."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 from nemo_evaluator.contrib.byob.runner import check_requirements, ensure_requirements
@@ -27,7 +26,9 @@ class TestCheckRequirements:
     @patch("importlib.metadata.version")
     def test_all_present(self, mock_version):
         """Test that no warnings are emitted when all packages are installed."""
-        mock_version.side_effect = lambda pkg: {"numpy": "1.24.0", "pandas": "2.0.0"}[pkg]
+        mock_version.side_effect = lambda pkg: {"numpy": "1.24.0", "pandas": "2.0.0"}[
+            pkg
+        ]
         warnings = check_requirements(["numpy", "pandas"])
         assert warnings == []
 
@@ -35,7 +36,10 @@ class TestCheckRequirements:
     def test_missing_package(self, mock_version):
         """Test that a missing package produces a warning."""
         import importlib.metadata
-        mock_version.side_effect = importlib.metadata.PackageNotFoundError("nonexistent")
+
+        mock_version.side_effect = importlib.metadata.PackageNotFoundError(
+            "nonexistent"
+        )
         warnings = check_requirements(["nonexistent-pkg"])
         assert len(warnings) == 1
         assert "Missing package" in warnings[0]

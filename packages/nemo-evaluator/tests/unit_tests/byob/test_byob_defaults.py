@@ -65,7 +65,10 @@ class TestDefaultConstants:
         Inspects the function signatures to confirm that the default values
         for temperature, max_tokens, and timeout originate from defaults.py.
         """
-        from nemo_evaluator.contrib.byob.runner import call_model_chat, call_model_completions
+        from nemo_evaluator.contrib.byob.runner import (
+            call_model_chat,
+            call_model_completions,
+        )
 
         for fn in (call_model_chat, call_model_completions):
             sig = inspect.signature(fn)
@@ -111,7 +114,9 @@ class TestDefaultConstants:
         The runner re-exports aggregate_scores for backward compatibility, so
         both import paths should resolve to the same function object.
         """
-        from nemo_evaluator.contrib.byob.aggregation import aggregate_scores as from_aggregation
+        from nemo_evaluator.contrib.byob.aggregation import (
+            aggregate_scores as from_aggregation,
+        )
         from nemo_evaluator.contrib.byob.runner import aggregate_scores as from_runner
 
         assert from_aggregation is from_runner, (

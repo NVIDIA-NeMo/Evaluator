@@ -15,11 +15,7 @@
 
 """Unit tests for BYOB containerization module."""
 
-import json
-import os
-
 import pytest
-import yaml
 from unittest.mock import MagicMock, patch
 
 from nemo_evaluator.contrib.byob.containerize import (
@@ -47,8 +43,8 @@ class TestGenerateDockerfile:
     def test_dockerfile_has_labels(self):
         """Test that Dockerfile includes launcher-compliant labels."""
         content = generate_dockerfile("byob_boolq")
-        assert 'com.nvidia.nemo-evaluator.pkg-name' in content
-        assert 'com.nvidia.nemo-evaluator.integration-type' in content
+        assert "com.nvidia.nemo-evaluator.pkg-name" in content
+        assert "com.nvidia.nemo-evaluator.integration-type" in content
         assert '"byob_boolq"' in content
 
     def test_dockerfile_with_custom_base_image(self):
@@ -63,7 +59,9 @@ class TestGenerateDockerfile:
 
     def test_dockerfile_with_user_requirements(self):
         """Test Dockerfile installs user requirements via requirements.txt."""
-        content = generate_dockerfile("byob_boolq", user_requirements=["numpy>=1.20", "pandas"])
+        content = generate_dockerfile(
+            "byob_boolq", user_requirements=["numpy>=1.20", "pandas"]
+        )
         assert "requirements.txt" in content
         assert "pip install" in content
 
@@ -84,7 +82,7 @@ class TestGenerateDockerfile:
     def test_dockerfile_verify_import(self):
         """Test Dockerfile verifies package import."""
         content = generate_dockerfile("byob_test_pkg")
-        assert 'import core_evals.byob_test_pkg' in content
+        assert "import core_evals.byob_test_pkg" in content
 
 
 class TestRewriteFdfPaths:
@@ -278,6 +276,7 @@ class TestCLIContainerizeFlags:
     def test_push_implies_containerize(self):
         """Test that --push flag implies --containerize."""
         import argparse
+
         parser = argparse.ArgumentParser()
         parser.add_argument("--containerize", action="store_true", default=False)
         parser.add_argument("--push", type=str, default=None)
@@ -293,6 +292,7 @@ class TestCLIContainerizeFlags:
     def test_containerize_standalone(self):
         """Test that --containerize works without --push."""
         import argparse
+
         parser = argparse.ArgumentParser()
         parser.add_argument("--containerize", action="store_true", default=False)
         parser.add_argument("--push", type=str, default=None)

@@ -24,6 +24,7 @@ trusted test cases. Never run on untrusted input.
 Dataset fields: prompt (str), test (str), entry_point (str)
 Target field: test
 """
+
 import os
 
 from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
@@ -52,7 +53,7 @@ def code_scorer(sample: ScorerInput) -> dict:
     import re
 
     # Extract code from markdown block if present
-    code_match = re.search(r'```(?:python)?\n(.*?)```', sample.response, re.DOTALL)
+    code_match = re.search(r"```(?:python)?\n(.*?)```", sample.response, re.DOTALL)
     code = code_match.group(1) if code_match else sample.response
 
     # Clean up common artifacts

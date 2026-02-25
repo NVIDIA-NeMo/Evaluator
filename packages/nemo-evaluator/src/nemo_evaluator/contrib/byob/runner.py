@@ -221,6 +221,7 @@ def check_requirements(requirements: List[str]) -> List[str]:
             try:
                 from packaging.version import Version
                 from packaging.specifiers import SpecifierSet
+
                 spec = SpecifierSet(version_spec)
                 if Version(installed_version) not in spec:
                     warnings.append(
@@ -259,6 +260,7 @@ def ensure_requirements(requirements: List[str]) -> None:
             raise ValueError(f"Invalid requirement (looks like a flag): {req_str}")
         # Check if this specific requirement triggered a warning
         import re
+
         match = re.match(r"^([a-zA-Z0-9_.-]+)", req_str)
         if not match:
             continue
@@ -275,6 +277,7 @@ def ensure_requirements(requirements: List[str]) -> None:
     )
     # Try uv pip first (for uv-managed environments), fall back to pip
     import shutil
+
     uv_bin = shutil.which("uv")
     if uv_bin:
         cmd = [uv_bin, "pip", "install", *to_install]
@@ -282,14 +285,18 @@ def ensure_requirements(requirements: List[str]) -> None:
         cmd = [sys.executable, "-m", "pip", "install", *to_install]
 
     try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, check=True,
+        subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         logger.info("Requirements installed successfully", packages=to_install)
     except subprocess.CalledProcessError as e:
         logger.error(
             "Failed to install requirements",
-            packages=to_install, cmd=" ".join(cmd),
+            packages=to_install,
+            cmd=" ".join(cmd),
             stderr=e.stderr.strip() if e.stderr else "",
         )
         raise RuntimeError(
@@ -315,7 +322,9 @@ def _create_session_model_call_fn(
     """
     timeout = args.timeout_per_sample
 
-    def model_call_fn(prompt: str, endpoint_type: str, *, system_prompt: Optional[str] = None) -> str:
+    def model_call_fn(
+        prompt: str, endpoint_type: str, *, system_prompt: Optional[str] = None
+    ) -> str:
         if endpoint_type == "chat":
             return call_model_chat(
                 url=args.model_url,
@@ -378,7 +387,9 @@ def create_client_model_call_fn(
     )
     client = NeMoEvaluatorClient(endpoint_config, output_dir=args.output_dir)
 
-    def model_call_fn(prompt: str, endpoint_type: str, *, system_prompt: Optional[str] = None) -> str:
+    def model_call_fn(
+        prompt: str, endpoint_type: str, *, system_prompt: Optional[str] = None
+    ) -> str:
         if endpoint_type == "chat":
             messages = []
             if system_prompt:
@@ -522,7 +533,8 @@ def main():
 
     # Load dataset
     dataset = load_dataset(
-        args.dataset, limit=args.limit_samples,
+        args.dataset,
+        limit=args.limit_samples,
         field_mapping=bench.field_mapping,
     )
 
@@ -590,6 +602,7 @@ def main():
     # Write predictions if requested
     if args.save_predictions and all_predictions:
         from dataclasses import asdict
+
         predictions_path = Path(args.output_dir) / "byob_predictions.jsonl"
         with open(predictions_path, "w", encoding="utf-8") as f:
             for pred in all_predictions:

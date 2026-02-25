@@ -128,7 +128,7 @@ BYOB works with AI coding agents that can read files and run shell commands. Sup
 | **Codex** | `examples/byob/AGENTS.md` | Ask "create a BYOB benchmark" in the repo |
 | **Other agents** | `examples/byob/AGENTS.md` | Point the agent at the file or at a template |
 
-The agent walks you through 5 steps: understand the task, read data, generate prompt, pick scorer, compile and ship. See [SKILL_USAGE.md](./SKILL_USAGE.md) for the full walkthrough.
+The agent walks you through 5 steps: understand the task, read data, generate prompt, pick scorer, compile and ship. See [SKILL-USAGE.md](./SKILL-USAGE.md) for the full walkthrough.
 
 ## Examples
 

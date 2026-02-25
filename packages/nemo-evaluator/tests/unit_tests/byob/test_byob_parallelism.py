@@ -15,8 +15,6 @@
 
 """Unit tests for BYOB parallel evaluation."""
 
-import time
-
 import pytest
 from unittest.mock import MagicMock
 
@@ -43,10 +41,7 @@ class TestParallelism:
 
     @pytest.fixture
     def dataset(self):
-        return [
-            {"question": f"Question {i}", "answer": "yes"}
-            for i in range(10)
-        ]
+        return [{"question": f"Question {i}", "answer": "yes"} for i in range(10)]
 
     @pytest.fixture
     def mock_model_call_fn(self):
@@ -85,8 +80,7 @@ class TestParallelism:
             parallelism=4,
         )
 
-        assert len(scores) == 10, \
-            f"Expected 10 scores, got {len(scores)}"
+        assert len(scores) == 10, f"Expected 10 scores, got {len(scores)}"
         assert mock_model_call_fn.call_count == 10
 
     def test_parallel_results_match_sequential(
@@ -128,7 +122,11 @@ class TestParallelism:
 
         def ordering_scorer(sample: ScorerInput):
             scorer_calls.append(sample.response)
-            return {"idx": float(sample.response.split("_")[-1]) if "_" in sample.response else 0.0}
+            return {
+                "idx": float(sample.response.split("_")[-1])
+                if "_" in sample.response
+                else 0.0
+            }
 
         bench = BenchmarkDefinition(
             name="test-order",
@@ -156,8 +154,9 @@ class TestParallelism:
 
         # Predictions should be in sample_id order
         for i, pred in enumerate(predictions):
-            assert pred.sample_id == i, \
+            assert pred.sample_id == i, (
                 f"Expected prediction {i} to have sample_id={i}, got {pred.sample_id}"
+            )
 
     def test_parallel_errors_dont_corrupt_others(self, simple_benchmark):
         """Test that model errors in parallel don't corrupt other samples."""
@@ -170,10 +169,7 @@ class TestParallelism:
                 raise RuntimeError("Transient error")
             return "Yes, correct."
 
-        dataset = [
-            {"question": f"Q{i}", "answer": "yes"}
-            for i in range(9)
-        ]
+        dataset = [{"question": f"Q{i}", "answer": "yes"} for i in range(9)]
 
         scores, predictions = run_eval_loop(
             bench=simple_benchmark,
@@ -185,13 +181,14 @@ class TestParallelism:
         )
 
         # 3 out of 9 should fail (indices 1, 4, 7)
-        assert len(scores) == 6, \
-            f"Expected 6 scores (3 failed), got {len(scores)}"
-        assert len(predictions) == 9, \
+        assert len(scores) == 6, f"Expected 6 scores (3 failed), got {len(scores)}"
+        assert len(predictions) == 9, (
             f"Expected 9 predictions (incl. failures), got {len(predictions)}"
+        )
 
     def test_parallel_fail_on_skip(self, simple_benchmark):
         """Test that fail_on_skip raises RuntimeError in parallel mode."""
+
         def failing_model(prompt, endpoint_type, **kwargs):
             raise RuntimeError("Model down")
 
@@ -212,13 +209,11 @@ class TestParallelism:
 
     def test_parallel_max_consecutive_errors(self, simple_benchmark):
         """Test that max_consecutive_errors is tracked in parallel mode."""
+
         def always_failing_model(prompt, endpoint_type, **kwargs):
             raise RuntimeError("Always fails")
 
-        dataset = [
-            {"question": f"Q{i}", "answer": "yes"}
-            for i in range(10)
-        ]
+        dataset = [{"question": f"Q{i}", "answer": "yes"} for i in range(10)]
 
         with pytest.raises(RuntimeError, match="consecutive errors"):
             run_eval_loop(
@@ -249,9 +244,7 @@ class TestParallelism:
             assert pred.status == "scored"
             assert pred.scores is not None
 
-    def test_parallel_empty_dataset(
-        self, simple_benchmark, mock_model_call_fn
-    ):
+    def test_parallel_empty_dataset(self, simple_benchmark, mock_model_call_fn):
         """Test that empty dataset works with parallelism > 1."""
         scores, predictions = run_eval_loop(
             bench=simple_benchmark,

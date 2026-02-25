@@ -206,7 +206,9 @@ def judge_call(
 
     http = session or requests
     response = http.post(
-        endpoint, json=payload, headers=headers,
+        endpoint,
+        json=payload,
+        headers=headers,
         timeout=config.request_timeout,
     )
     response.raise_for_status()
@@ -361,7 +363,9 @@ def judge_score(
     # Resolve template
     if template in TEMPLATES:
         template_str = TEMPLATES[template]
-        resolved_pattern = grade_pattern or DEFAULT_PATTERNS.get(template, r"GRADE:\s*(\S+)")
+        resolved_pattern = grade_pattern or DEFAULT_PATTERNS.get(
+            template, r"GRADE:\s*(\S+)"
+        )
         resolved_mapping = score_mapping or DEFAULT_SCORE_MAPPINGS.get(template, {})
     else:
         template_str = template
@@ -384,7 +388,10 @@ def judge_score(
     # Call judge
     try:
         judge_response = judge_call(
-            config, prompt, session=session, response_format=response_format,
+            config,
+            prompt,
+            session=session,
+            response_format=response_format,
         )
     except Exception:
         logger.warning("Judge call failed", judge_key=judge_key, url=config.url)
@@ -392,12 +399,15 @@ def judge_score(
 
     # Parse grade
     grade = parse_grade(
-        judge_response, resolved_pattern, structured=response_format is not None,
+        judge_response,
+        resolved_pattern,
+        structured=response_format is not None,
     )
     if grade is None:
         logger.warning(
             "Could not parse grade from judge response",
-            pattern=resolved_pattern, response_preview=judge_response[:200],
+            pattern=resolved_pattern,
+            response_preview=judge_response[:200],
         )
         return {"judge_score": 0.0, "judge_grade": "PARSE_ERROR"}
 

@@ -30,7 +30,9 @@ from nemo_evaluator.contrib.byob.scorers import (
 )
 
 
-def _make_input(response: str = "", target: str = "", metadata: dict | None = None) -> ScorerInput:
+def _make_input(
+    response: str = "", target: str = "", metadata: dict | None = None
+) -> ScorerInput:
     """Helper to construct a ScorerInput with sensible defaults."""
     return ScorerInput(response=response, target=target, metadata=metadata or {})
 
@@ -47,7 +49,9 @@ class TestContainsScorer:
 
     def test_contains_substring(self):
         """Validate substring detection with multiple words."""
-        result = contains(_make_input(response="The cat sat on the mat", target="cat sat"))
+        result = contains(
+            _make_input(response="The cat sat on the mat", target="cat sat")
+        )
         assert result == {"correct": True}, (
             f"Expected contains to find 'cat sat' substring, got {result}"
         )
@@ -113,7 +117,9 @@ class TestF1TokenScorer:
         - recall = 3/4 = 0.75
         - f1 = 2 * 0.75 * 0.75 / (0.75 + 0.75) = 0.75
         """
-        result = f1_token(_make_input(response="the big cat sat", target="the cat sat down"))
+        result = f1_token(
+            _make_input(response="the big cat sat", target="the cat sat down")
+        )
         assert abs(result["f1"] - 0.75) < 0.0001, (
             f"Expected f1=0.75, got {result['f1']}"
         )
@@ -181,7 +187,9 @@ class TestAnyOfCombinator:
     def test_any_of_first_matches(self):
         """Validate any_of returns correct=True when first scorer matches."""
         combined = any_of(contains, exact_match)
-        result = combined(_make_input(response="The cat sat on the mat", target="cat sat"))
+        result = combined(
+            _make_input(response="The cat sat on the mat", target="cat sat")
+        )
         assert result["correct"] is True, (
             f"Expected any_of to return correct=True when contains matches, got {result}"
         )
@@ -297,7 +305,10 @@ class TestScorerInputDefaults:
 
     def test_optional_fields_can_be_set(self):
         """Validate optional fields can be explicitly provided."""
-        mock_fn = lambda prompt: "response"
+
+        def mock_fn(prompt):
+            return "response"
+
         sample = ScorerInput(
             response="a",
             target="b",
@@ -331,7 +342,11 @@ class TestBleuScorer:
 
     def test_bleu_perfect_match(self):
         """Validate identical response and target produce bleu_1 close to 1.0."""
-        result = bleu(_make_input(response="the cat sat on the mat", target="the cat sat on the mat"))
+        result = bleu(
+            _make_input(
+                response="the cat sat on the mat", target="the cat sat on the mat"
+            )
+        )
         assert abs(result["bleu_1"] - 1.0) < 0.01, (
             f"Expected bleu_1 close to 1.0 for perfect match, got {result['bleu_1']}"
         )
@@ -350,10 +365,12 @@ class TestBleuScorer:
 
     def test_bleu_partial_overlap(self):
         """Validate partial overlap produces bleu values strictly between 0 and 1."""
-        result = bleu(_make_input(
-            response="the cat sat on the mat",
-            target="the cat played on the rug",
-        ))
+        result = bleu(
+            _make_input(
+                response="the cat sat on the mat",
+                target="the cat played on the rug",
+            )
+        )
         for key in ("bleu_1", "bleu_2", "bleu_3", "bleu_4"):
             assert 0.0 < result[key] < 1.0, (
                 f"Expected 0 < {key} < 1 for partial overlap, got {result[key]}"
@@ -396,7 +413,11 @@ class TestRougeScorer:
 
     def test_rouge_perfect_match(self):
         """Validate identical texts produce rouge_1 == rouge_2 == rouge_l == 1.0."""
-        result = rouge(_make_input(response="the cat sat on the mat", target="the cat sat on the mat"))
+        result = rouge(
+            _make_input(
+                response="the cat sat on the mat", target="the cat sat on the mat"
+            )
+        )
         assert result["rouge_1"] == 1.0, (
             f"Expected rouge_1 == 1.0, got {result['rouge_1']}"
         )
@@ -422,10 +443,12 @@ class TestRougeScorer:
 
     def test_rouge_partial_overlap(self):
         """Validate some shared tokens produce values between 0 and 1."""
-        result = rouge(_make_input(
-            response="the cat sat on the mat",
-            target="the cat played on the rug",
-        ))
+        result = rouge(
+            _make_input(
+                response="the cat sat on the mat",
+                target="the cat played on the rug",
+            )
+        )
         for key in ("rouge_1", "rouge_2", "rouge_l"):
             assert 0.0 < result[key] < 1.0, (
                 f"Expected 0 < {key} < 1 for partial overlap, got {result[key]}"
@@ -468,10 +491,12 @@ class TestRetrievalMetrics:
 
     def test_retrieval_perfect(self):
         """Validate all retrieved are relevant produces perfect scores."""
-        sample = _make_input(metadata={
-            "retrieved": ["a", "b", "c"],
-            "relevant": ["a", "b", "c"],
-        })
+        sample = _make_input(
+            metadata={
+                "retrieved": ["a", "b", "c"],
+                "relevant": ["a", "b", "c"],
+            }
+        )
         result = retrieval_metrics(sample)
         assert result["precision_at_k"] == 1.0, (
             f"Expected precision_at_k == 1.0, got {result['precision_at_k']}"
@@ -479,19 +504,17 @@ class TestRetrievalMetrics:
         assert result["recall_at_k"] == 1.0, (
             f"Expected recall_at_k == 1.0, got {result['recall_at_k']}"
         )
-        assert result["mrr"] == 1.0, (
-            f"Expected mrr == 1.0, got {result['mrr']}"
-        )
-        assert result["ndcg"] == 1.0, (
-            f"Expected ndcg == 1.0, got {result['ndcg']}"
-        )
+        assert result["mrr"] == 1.0, f"Expected mrr == 1.0, got {result['mrr']}"
+        assert result["ndcg"] == 1.0, f"Expected ndcg == 1.0, got {result['ndcg']}"
 
     def test_retrieval_none_relevant(self):
         """Validate no retrieved item is relevant produces all 0.0."""
-        sample = _make_input(metadata={
-            "retrieved": ["x", "y", "z"],
-            "relevant": ["a", "b", "c"],
-        })
+        sample = _make_input(
+            metadata={
+                "retrieved": ["x", "y", "z"],
+                "relevant": ["a", "b", "c"],
+            }
+        )
         result = retrieval_metrics(sample)
         assert result["precision_at_k"] == 0.0, (
             f"Expected precision_at_k == 0.0, got {result['precision_at_k']}"
@@ -499,12 +522,8 @@ class TestRetrievalMetrics:
         assert result["recall_at_k"] == 0.0, (
             f"Expected recall_at_k == 0.0, got {result['recall_at_k']}"
         )
-        assert result["mrr"] == 0.0, (
-            f"Expected mrr == 0.0, got {result['mrr']}"
-        )
-        assert result["ndcg"] == 0.0, (
-            f"Expected ndcg == 0.0, got {result['ndcg']}"
-        )
+        assert result["mrr"] == 0.0, f"Expected mrr == 0.0, got {result['mrr']}"
+        assert result["ndcg"] == 0.0, f"Expected ndcg == 0.0, got {result['ndcg']}"
 
     def test_retrieval_partial(self):
         """Validate some hits produce expected precision and recall.
@@ -513,10 +532,12 @@ class TestRetrievalMetrics:
         k = 3 (default), hits = 2
         precision@k = 2/3, recall@k = 2/2 = 1.0
         """
-        sample = _make_input(metadata={
-            "retrieved": ["a", "x", "b"],
-            "relevant": ["a", "b"],
-        })
+        sample = _make_input(
+            metadata={
+                "retrieved": ["a", "x", "b"],
+                "relevant": ["a", "b"],
+            }
+        )
         result = retrieval_metrics(sample)
         assert abs(result["precision_at_k"] - 2.0 / 3.0) < 0.001, (
             f"Expected precision_at_k close to 0.667, got {result['precision_at_k']}"
@@ -527,10 +548,12 @@ class TestRetrievalMetrics:
 
     def test_retrieval_mrr_position(self):
         """Validate first relevant item at position 3 produces mrr == 1/3."""
-        sample = _make_input(metadata={
-            "retrieved": ["x", "y", "a", "b"],
-            "relevant": ["a", "b"],
-        })
+        sample = _make_input(
+            metadata={
+                "retrieved": ["x", "y", "a", "b"],
+                "relevant": ["a", "b"],
+            }
+        )
         result = retrieval_metrics(sample)
         assert abs(result["mrr"] - 1.0 / 3.0) < 0.001, (
             f"Expected mrr close to 0.333, got {result['mrr']}"
@@ -583,9 +606,7 @@ class TestMultiTurnConversation:
             metadata={},
             turn_index=5,
         )
-        assert inp.turn_index == 5, (
-            f"Expected turn_index == 5, got {inp.turn_index}"
-        )
+        assert inp.turn_index == 5, f"Expected turn_index == 5, got {inp.turn_index}"
 
     def test_scorer_receives_conversation_in_eval(self):
         """Validate a scorer that reads conversation receives it through ScorerInput."""

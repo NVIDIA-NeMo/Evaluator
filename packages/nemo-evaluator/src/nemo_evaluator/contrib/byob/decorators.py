@@ -49,6 +49,7 @@ class ScorerInput:
     Standard scorers use response, target, and metadata.
     Advanced scorers (judge, multi-turn) use the optional fields.
     """
+
     response: str
     target: Any
     metadata: dict
@@ -111,7 +112,11 @@ def _resolve_requirements(requirements, base_dir: Path) -> List[str]:
     if requirements is None:
         return []
     if isinstance(requirements, str):
-        path = (base_dir / requirements) if not Path(requirements).is_absolute() else Path(requirements)
+        path = (
+            (base_dir / requirements)
+            if not Path(requirements).is_absolute()
+            else Path(requirements)
+        )
         if not path.exists():
             raise FileNotFoundError(f"Requirements file not found: {path}")
         return [
@@ -134,10 +139,19 @@ def _is_jinja2_template(prompt: str, source_extension: str = "") -> bool:
     return "{%" in prompt or "{#" in prompt
 
 
-def benchmark(name: str, dataset: str, prompt: str,
-              target_field: str = "target", endpoint_type: str = "chat",
-              requirements=None, field_mapping=None, extra=None,
-              response_field=None, system_prompt=None, **kwargs):
+def benchmark(
+    name: str,
+    dataset: str,
+    prompt: str,
+    target_field: str = "target",
+    endpoint_type: str = "chat",
+    requirements=None,
+    field_mapping=None,
+    extra=None,
+    response_field=None,
+    system_prompt=None,
+    **kwargs,
+):
     """Decorator that registers a function as a BYOB benchmark.
 
     Args:
@@ -166,6 +180,7 @@ def benchmark(name: str, dataset: str, prompt: str,
         **kwargs: Also merged into extra config (for backward compat).
                   ``extra`` takes precedence over ``**kwargs`` on conflicts.
     """
+
     def decorator(fn):
         normalized = _normalize_name(name)
         if not normalized:
@@ -189,7 +204,11 @@ def benchmark(name: str, dataset: str, prompt: str,
         resolved_reqs = _resolve_requirements(requirements, base_dir)
 
         # Detect Jinja2 template
-        source_ext = Path(prompt).suffix if any(prompt.endswith(ext) for ext in (".jinja", ".jinja2")) else ""
+        source_ext = (
+            Path(prompt).suffix
+            if any(prompt.endswith(ext) for ext in (".jinja", ".jinja2"))
+            else ""
+        )
         is_jinja2 = _is_jinja2_template(resolved_prompt, source_ext)
 
         # Resolve system prompt (same as user prompt: file or inline, Jinja2 detect)
@@ -197,8 +216,14 @@ def benchmark(name: str, dataset: str, prompt: str,
         is_system_prompt_jinja2 = False
         if system_prompt is not None:
             resolved_system_prompt = _resolve_prompt(system_prompt, base_dir)
-            sys_ext = Path(system_prompt).suffix if any(system_prompt.endswith(ext) for ext in (".jinja", ".jinja2")) else ""
-            is_system_prompt_jinja2 = _is_jinja2_template(resolved_system_prompt, sys_ext)
+            sys_ext = (
+                Path(system_prompt).suffix
+                if any(system_prompt.endswith(ext) for ext in (".jinja", ".jinja2"))
+                else ""
+            )
+            is_system_prompt_jinja2 = _is_jinja2_template(
+                resolved_system_prompt, sys_ext
+            )
 
         # Merge extra config: kwargs (backward compat) + extra (preferred)
         merged_extra = dict(kwargs)
@@ -253,13 +278,17 @@ def _validate_scorer_signature(fn: Callable) -> None:
         return
 
     params = [
-        p for p in sig.parameters.values()
+        p
+        for p in sig.parameters.values()
         if p.default is inspect.Parameter.empty
-        and p.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+        and p.kind
+        not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
     ]
     total_params = [
-        p for p in sig.parameters.values()
-        if p.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+        p
+        for p in sig.parameters.values()
+        if p.kind
+        not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
     ]
 
     n_required = len(params)

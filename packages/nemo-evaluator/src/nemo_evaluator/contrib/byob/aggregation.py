@@ -129,12 +129,6 @@ def aggregate_scores(scores: List[Dict], benchmark_name: str) -> Dict:
 
     return {
         "tasks": {
-            benchmark_name: {
-                "metrics": {
-                    "pass@1": {
-                        "scores": aggregated_scores
-                    }
-                }
-            }
+            benchmark_name: {"metrics": {"pass@1": {"scores": aggregated_scores}}}
         }
     }

@@ -43,6 +43,7 @@ def _find_nemo_evaluator_package_root() -> Optional[Path]:
     """
     try:
         import nemo_evaluator
+
         pkg_init = Path(nemo_evaluator.__file__)
         # Walk up: __init__.py -> nemo_evaluator/ -> src/ -> package root
         for parent in pkg_init.parents:
@@ -133,7 +134,9 @@ def rewrite_fdf_paths(fdf: dict, pkg_name: str) -> dict:
         extra["benchmark_module"] = f"/nemo_run/code/{filename}"
 
     dataset = extra.get("dataset", "")
-    if dataset and not dataset.startswith(("hf://", "s3://", "gs://", "http://", "https://")):
+    if dataset and not dataset.startswith(
+        ("hf://", "s3://", "gs://", "http://", "https://")
+    ):
         filename = os.path.basename(dataset)
         extra["dataset"] = f"/nemo_run/data/{filename}"
 
@@ -180,7 +183,9 @@ def prepare_build_context(
     code_dir.mkdir(parents=True, exist_ok=True)
     benchmark_module = extra.get("benchmark_module", "")
     if benchmark_module and os.path.isfile(benchmark_module):
-        shutil.copy2(benchmark_module, str(code_dir / os.path.basename(benchmark_module)))
+        shutil.copy2(
+            benchmark_module, str(code_dir / os.path.basename(benchmark_module))
+        )
 
     # Copy or fetch dataset to data/
     data_dir = context / "data"
@@ -193,6 +198,7 @@ def prepare_build_context(
         elif dataset.startswith(("hf://", "s3://", "gs://", "http://", "https://")):
             # Remote URI — fetch via dataset fetcher, then copy the result
             from nemo_evaluator.contrib.byob.dataset import get_fetcher_for_uri
+
             try:
                 fetcher = get_fetcher_for_uri(dataset)
                 result = fetcher.fetch(dataset, cache_dir=data_dir)
@@ -202,8 +208,11 @@ def prepare_build_context(
                 # Move/copy if fetched to a different location than data_dir
                 if result.local_path.parent != data_dir:
                     shutil.copy2(str(result.local_path), str(data_dir / local_name))
-                logger.info("Fetched remote dataset for containerization",
-                            uri=dataset, local=str(data_dir / local_name))
+                logger.info(
+                    "Fetched remote dataset for containerization",
+                    uri=dataset,
+                    local=str(data_dir / local_name),
+                )
             except Exception as e:
                 raise RuntimeError(
                     f"Cannot fetch dataset '{dataset}' for containerization: {e}"
@@ -216,10 +225,16 @@ def prepare_build_context(
         if nemo_dest.exists():
             shutil.rmtree(nemo_dest)
         shutil.copytree(
-            nemo_eval_pkg_dir, str(nemo_dest),
+            nemo_eval_pkg_dir,
+            str(nemo_dest),
             ignore=shutil.ignore_patterns(
-                "__pycache__", "*.pyc", ".git", "*.egg-info",
-                "tests", "test_*", ".pytest_cache",
+                "__pycache__",
+                "*.pyc",
+                ".git",
+                "*.egg-info",
+                "tests",
+                "test_*",
+                ".pytest_cache",
             ),
         )
 

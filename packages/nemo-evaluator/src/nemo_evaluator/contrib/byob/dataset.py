@@ -130,7 +130,10 @@ class HuggingFaceFetcher:
         self,
         default_cache_dir: Optional[Path] = None,
     ) -> None:
-        self._default_cache_dir = default_cache_dir or Path.home() / ".cache" / "nemo_evaluator" / "hf_datasets"
+        self._default_cache_dir = (
+            default_cache_dir
+            or Path.home() / ".cache" / "nemo_evaluator" / "hf_datasets"
+        )
 
     # -- protocol methods --------------------------------------------------
 
@@ -188,7 +191,9 @@ class HuggingFaceFetcher:
 
         logger.info(
             "Downloading HuggingFace dataset",
-            dataset=dataset_name, config=config, split=split,
+            dataset=dataset_name,
+            config=config,
+            split=split,
         )
 
         load_kwargs: Dict[str, str] = {}
@@ -203,7 +208,9 @@ class HuggingFaceFetcher:
         # In that case take the first available split.
         if isinstance(ds, hf_datasets.DatasetDict):
             first_split = next(iter(ds))
-            logger.info("No split specified; using first available split", split=first_split)
+            logger.info(
+                "No split specified; using first available split", split=first_split
+            )
             ds = ds[first_split]
 
         # Write out as JSONL.
@@ -211,7 +218,11 @@ class HuggingFaceFetcher:
             for record in ds:
                 fout.write(json.dumps(record, ensure_ascii=False) + "\n")
 
-        logger.info("Converted HuggingFace dataset to JSONL", path=str(out_path), records=len(ds))
+        logger.info(
+            "Converted HuggingFace dataset to JSONL",
+            path=str(out_path),
+            records=len(ds),
+        )
 
         return FetchResult(
             local_path=out_path,
@@ -260,7 +271,7 @@ class HuggingFaceFetcher:
             body, query = body.split("?", 1)
             for param in query.split("&"):
                 if param.startswith("split="):
-                    query_split = param[len("split="):]
+                    query_split = param[len("split=") :]
 
         segments = [s for s in body.split("/") if s]
         if not segments:
@@ -327,7 +338,9 @@ def load_jsonl(path: Path, limit: Optional[int] = None) -> List[Dict]:
     return data
 
 
-def load_csv(path: Path, delimiter: str = ",", limit: Optional[int] = None) -> List[Dict]:
+def load_csv(
+    path: Path, delimiter: str = ",", limit: Optional[int] = None
+) -> List[Dict]:
     """Load a CSV/TSV file into a list of dicts.
 
     Uses csv.DictReader so the first row is treated as column headers.
@@ -461,7 +474,8 @@ def load_dataset(
     result = fetcher.fetch(uri)
     logger.info(
         "Fetched dataset",
-        path=str(result.local_path), format=result.format,
+        path=str(result.local_path),
+        format=result.format,
         source=result.metadata.get("source", "unknown"),
     )
 
@@ -473,7 +487,9 @@ def load_dataset(
         )
 
     data = loader(result.local_path, limit=limit)
-    logger.info("Loaded dataset records", records=len(data), path=str(result.local_path))
+    logger.info(
+        "Loaded dataset records", records=len(data), path=str(result.local_path)
+    )
 
     if field_mapping is not None:
         data = _remap_fields(data, field_mapping)

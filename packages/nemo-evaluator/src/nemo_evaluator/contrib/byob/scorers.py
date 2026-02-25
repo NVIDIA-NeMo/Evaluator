@@ -80,7 +80,9 @@ def f1_token(sample: ScorerInput) -> dict:
 def regex_match(sample: ScorerInput) -> dict:
     """Check if target regex pattern matches anywhere in response."""
     try:
-        return {"correct": bool(re.search(sample.target, sample.response, re.IGNORECASE))}
+        return {
+            "correct": bool(re.search(sample.target, sample.response, re.IGNORECASE))
+        }
     except re.error:
         return {"correct": False}
 
@@ -93,6 +95,7 @@ def any_of(*scorer_fns):
         from nemo_evaluator.contrib.byob.scorers import contains, exact_match, any_of
         combined = any_of(contains, exact_match)
     """
+
     def combined(sample: ScorerInput) -> dict:
         results = {}
         any_correct = False
@@ -104,6 +107,7 @@ def any_of(*scorer_fns):
                 any_correct = True
         results["correct"] = any_correct
         return results
+
     combined.__name__ = f"any_of({', '.join(f.__name__ for f in scorer_fns)})"
     return combined
 
@@ -116,6 +120,7 @@ def all_of(*scorer_fns):
         from nemo_evaluator.contrib.byob.scorers import contains, exact_match, all_of
         combined = all_of(contains, exact_match)
     """
+
     def combined(sample: ScorerInput) -> dict:
         results = {}
         all_correct = True
@@ -127,6 +132,7 @@ def all_of(*scorer_fns):
                 all_correct = False
         results["correct"] = all_correct
         return results
+
     combined.__name__ = f"all_of({', '.join(f.__name__ for f in scorer_fns)})"
     return combined
 
@@ -154,7 +160,11 @@ def bleu(sample: ScorerInput) -> dict:
         return {"bleu_1": 0.0, "bleu_2": 0.0, "bleu_3": 0.0, "bleu_4": 0.0}
 
     # Brevity penalty
-    bp = math.exp(1 - len(ref_tokens) / len(pred_tokens)) if len(pred_tokens) < len(ref_tokens) else 1.0
+    bp = (
+        math.exp(1 - len(ref_tokens) / len(pred_tokens))
+        if len(pred_tokens) < len(ref_tokens)
+        else 1.0
+    )
 
     scores: dict[str, float] = {}
     log_avg = 0.0

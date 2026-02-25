@@ -45,12 +45,13 @@ def _pip_install_editable(pkg_dir: str) -> None:
         subprocess.run(cmd, capture_output=True, text=True, check=True)
     except subprocess.CalledProcessError as e:
         print(f"  WARNING: Auto-install failed: {e.stderr.strip()}", file=sys.stderr)
-        print(f"  Fallback: export PYTHONPATH=\"{pkg_dir}:$PYTHONPATH\"", file=sys.stderr)
+        print(f'  Fallback: export PYTHONPATH="{pkg_dir}:$PYTHONPATH"', file=sys.stderr)
 
 
 def _get_version():
     try:
         from nemo_evaluator.package_info import __version__
+
         return __version__
     except ImportError:
         return "unknown"
@@ -61,8 +62,12 @@ def byob_compile(args=None):
     parser = argparse.ArgumentParser(
         description="Compile a BYOB benchmark into a NeMo Evaluator plugin"
     )
-    parser.add_argument("module", nargs="?", help="Path to Python file with @benchmark decorators")
-    parser.add_argument("--install-dir", default=None, help="Custom installation directory")
+    parser.add_argument(
+        "module", nargs="?", help="Path to Python file with @benchmark decorators"
+    )
+    parser.add_argument(
+        "--install-dir", default=None, help="Custom installation directory"
+    )
     parser.add_argument(
         "--version",
         action="version",
@@ -133,7 +138,9 @@ def byob_compile(args=None):
             sys.exit(0)
 
         packages = []
-        for fw_yml in glob.glob(os.path.join(search_dir, "*/core_evals/*/framework.yml")):
+        for fw_yml in glob.glob(
+            os.path.join(search_dir, "*/core_evals/*/framework.yml")
+        ):
             try:
                 with open(fw_yml) as f:
                     fw = yaml.safe_load(f)
@@ -141,7 +148,11 @@ def byob_compile(args=None):
                     name = fw.get("framework", {}).get("name", "unknown")
                     evals = fw.get("evaluations", [])
                     for ev in evals:
-                        eval_type = ev.get("defaults", {}).get("config", {}).get("type", "unknown")
+                        eval_type = (
+                            ev.get("defaults", {})
+                            .get("config", {})
+                            .get("type", "unknown")
+                        )
                         packages.append((name, eval_type))
             except Exception:
                 continue
@@ -203,16 +214,16 @@ def byob_compile(args=None):
             _pip_install_editable(pkg_dir)
             print(f"  Installed: {pkg_name} (discoverable by nemo-evaluator)")
         else:
-            print(f"")
-            print(f"  NOTE: --no-install specified. To make discoverable, run:")
-            print(f"    export PYTHONPATH=\"{pkg_dir}:$PYTHONPATH\"")
+            print("")
+            print("  NOTE: --no-install specified. To make discoverable, run:")
+            print(f'    export PYTHONPATH="{pkg_dir}:$PYTHONPATH"')
 
-        print(f"")
-        print(f"  To run this benchmark:")
-        print(f"    nemo-evaluator run_eval \\")
+        print("")
+        print("  To run this benchmark:")
+        print("    nemo-evaluator run_eval \\")
         print(f"      --eval_type {eval_type} \\")
-        print(f"      --model_url <YOUR_MODEL_URL> \\")
-        print(f"      --model_id <YOUR_MODEL_ID>")
+        print("      --model_url <YOUR_MODEL_URL> \\")
+        print("      --model_id <YOUR_MODEL_ID>")
 
     # Containerization if requested
     if parsed.containerize:
@@ -226,11 +237,18 @@ def byob_compile(args=None):
         for name, fdf in compiled.items():
             pkg_name = f"byob_{name}"
             pkg_dir = os.path.join(
-                parsed.install_dir or os.path.expanduser("~/.nemo-evaluator/byob_packages/"),
+                parsed.install_dir
+                or os.path.expanduser("~/.nemo-evaluator/byob_packages/"),
                 pkg_name,
             )
             tag = parsed.tag or parsed.push or f"{pkg_name}:latest"
-            user_reqs = fdf.get("defaults", {}).get("config", {}).get("params", {}).get("extra", {}).get("requirements", [])
+            user_reqs = (
+                fdf.get("defaults", {})
+                .get("config", {})
+                .get("params", {})
+                .get("extra", {})
+                .get("requirements", [])
+            )
 
             with tempfile.TemporaryDirectory() as context_dir:
                 prepare_build_context(pkg_dir, fdf, context_dir)
@@ -247,6 +265,7 @@ def byob_compile(args=None):
                     push_tag = parsed.push
                     if push_tag != tag:
                         import subprocess
+
                         subprocess.run(["docker", "tag", tag, push_tag], check=True)
                     push_image(push_tag)
                     print(f"  Docker image pushed: {push_tag}")
