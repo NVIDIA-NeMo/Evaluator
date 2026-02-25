@@ -25,8 +25,8 @@ import os
 import pytest
 
 from nemo_evaluator.contrib.byob.decorators import ScorerInput
-from .conftest import TEMPLATE_DIR, TEMPLATES, import_scorer
 
+from .conftest import TEMPLATE_DIR, TEMPLATES, import_scorer
 
 # ============================================================================
 # Math Reasoning Scorer Tests (T017-T023)

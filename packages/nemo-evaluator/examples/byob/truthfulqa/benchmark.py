@@ -39,7 +39,7 @@ Usage:
     --overrides "config.params.limit_samples=10"
 """
 
-from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
+from nemo_evaluator.contrib.byob import ScorerInput, benchmark, scorer
 from nemo_evaluator.contrib.byob.judge import judge_score
 
 # Custom judge template for TruthfulQA.

@@ -16,8 +16,9 @@
 """Shared fixtures for BYOB unit tests."""
 
 import pytest
-from nemo_evaluator.contrib.byob.decorators import clear_registry
+
 from nemo_evaluator.contrib.byob.dataset import _FETCHER_REGISTRY
+from nemo_evaluator.contrib.byob.decorators import clear_registry
 
 
 @pytest.fixture(autouse=True)

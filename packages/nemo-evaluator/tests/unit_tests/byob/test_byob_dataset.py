@@ -18,15 +18,15 @@
 import json
 from pathlib import Path
 from typing import Optional
-
-import pytest
 from unittest.mock import patch
 
+import pytest
+
 from nemo_evaluator.contrib.byob.dataset import (
+    _FETCHER_REGISTRY,
     FetchResult,
     HuggingFaceFetcher,
     LocalFetcher,
-    _FETCHER_REGISTRY,
     _detect_format,
     _remap_fields,
     get_fetcher_for_uri,
@@ -35,7 +35,6 @@ from nemo_evaluator.contrib.byob.dataset import (
     load_jsonl,
     register_fetcher,
 )
-
 
 # ---------------------------------------------------------------------------
 # TestDetectFormat

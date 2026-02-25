@@ -23,10 +23,12 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
 import requests
-from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
-from nemo_evaluator.contrib.byob.aggregation import aggregate_scores  # noqa: F401 — re-export for backward compat
+from nemo_evaluator.contrib.byob.aggregation import (
+    aggregate_scores,  # noqa: F401 — re-export for backward compat
+)
 from nemo_evaluator.contrib.byob.dataset import load_dataset
 from nemo_evaluator.contrib.byob.defaults import (
     DEFAULT_MAX_TOKENS,
@@ -219,8 +221,8 @@ def check_requirements(requirements: List[str]) -> List[str]:
 
         if version_spec:
             try:
-                from packaging.version import Version
                 from packaging.specifiers import SpecifierSet
+                from packaging.version import Version
 
                 spec = SpecifierSet(version_spec)
                 if Version(installed_version) not in spec:
@@ -375,8 +377,8 @@ def create_client_model_call_fn(
     """
     import asyncio
 
-    from nemo_evaluator.client import NeMoEvaluatorClient
     from nemo_evaluator.api.api_dataclasses import EndpointModelConfig
+    from nemo_evaluator.client import NeMoEvaluatorClient
 
     endpoint_config = EndpointModelConfig(
         url=args.model_url,

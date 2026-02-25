@@ -15,8 +15,9 @@
 
 """Unit tests for BYOB LLM-as-Judge support (aligned with nemo-skills extra.judge)."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from nemo_evaluator.contrib.byob.decorators import ScorerInput
 from nemo_evaluator.contrib.byob.judge import (
@@ -624,8 +625,8 @@ class TestJudgeIntegration:
         """Verify judge={...} flows through @benchmark **kwargs."""
         from nemo_evaluator.contrib.byob.decorators import (
             benchmark,
-            scorer,
             get_registered_benchmarks,
+            scorer,
         )
 
         @benchmark(
@@ -681,9 +682,10 @@ class TestJudgeIntegration:
 
     def test_judge_support_flag_in_fdf(self):
         """Verify compiler sets judge_support: true in FDF when judge is present."""
-        from nemo_evaluator.contrib.byob.compiler import compile_benchmark
-        import tempfile
         import os
+        import tempfile
+
+        from nemo_evaluator.contrib.byob.compiler import compile_benchmark
 
         code = """
 from nemo_evaluator.contrib.byob import benchmark, scorer
@@ -717,9 +719,10 @@ def s(sample):
 
     def test_multi_judge_in_fdf(self):
         """Verify multiple judge configs flow to FDF."""
-        from nemo_evaluator.contrib.byob.compiler import compile_benchmark
-        import tempfile
         import os
+        import tempfile
+
+        from nemo_evaluator.contrib.byob.compiler import compile_benchmark
 
         code = """
 from nemo_evaluator.contrib.byob import benchmark, scorer

@@ -15,8 +15,9 @@
 
 """Unit tests for BYOB containerization module."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from nemo_evaluator.contrib.byob.containerize import (
     build_image,

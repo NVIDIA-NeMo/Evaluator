@@ -30,7 +30,7 @@ Usage:
 
 import re
 
-from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
+from nemo_evaluator.contrib.byob import ScorerInput, benchmark, scorer
 
 # Map HF integer answer codes to letters
 _COP_TO_LETTER = {"0": "A", "1": "B", "2": "C", "3": "D"}

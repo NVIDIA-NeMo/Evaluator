@@ -228,6 +228,7 @@ def byob_compile(args=None):
     # Containerization if requested
     if parsed.containerize:
         import tempfile
+
         from nemo_evaluator.contrib.byob.containerize import (
             build_image,
             prepare_build_context,

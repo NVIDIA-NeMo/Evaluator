@@ -15,8 +15,9 @@
 
 """Unit tests for BYOB eval_logic shared between subprocess and native modes."""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from nemo_evaluator.contrib.byob.decorators import (
     BenchmarkDefinition,

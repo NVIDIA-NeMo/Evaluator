@@ -32,7 +32,7 @@ Usage:
 
 import re
 
-from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
+from nemo_evaluator.contrib.byob import ScorerInput, benchmark, scorer
 
 
 @benchmark(

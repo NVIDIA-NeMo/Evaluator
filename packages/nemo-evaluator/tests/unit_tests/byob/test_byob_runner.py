@@ -18,10 +18,10 @@
 import argparse
 import json
 import sys
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
-from unittest.mock import MagicMock, patch
 
 from nemo_evaluator.contrib.byob.runner import (
     aggregate_scores,
@@ -1214,8 +1214,9 @@ class TestClientAutoDetect:
 
     def test_create_client_model_call_fn_import_error(self):
         """Test that ImportError is raised when nemo_evaluator.client is unavailable."""
-        from nemo_evaluator.contrib.byob.runner import create_client_model_call_fn
         import argparse
+
+        from nemo_evaluator.contrib.byob.runner import create_client_model_call_fn
 
         args = argparse.Namespace(
             model_url="http://localhost:8000",

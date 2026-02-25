@@ -21,7 +21,7 @@ T070-T071 are fully automated scorer smoke tests.
 """
 
 from nemo_evaluator.contrib.byob.decorators import ScorerInput
-from nemo_evaluator.contrib.byob.scorers import exact_match, contains
+from nemo_evaluator.contrib.byob.scorers import contains, exact_match
 
 
 def test_scorer_selection_exact_match_keyword(skill_prompt_path):

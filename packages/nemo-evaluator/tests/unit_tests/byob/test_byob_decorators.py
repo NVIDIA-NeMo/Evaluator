@@ -18,6 +18,7 @@
 from pathlib import Path
 
 import pytest
+
 from nemo_evaluator.contrib.byob.decorators import (
     BenchmarkDefinition,
     ScorerInput,

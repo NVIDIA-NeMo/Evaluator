@@ -15,8 +15,9 @@
 
 """Unit tests for BYOB parallel evaluation."""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from nemo_evaluator.contrib.byob.decorators import BenchmarkDefinition, ScorerInput
 from nemo_evaluator.contrib.byob.eval_logic import SampleResult, run_eval_loop
