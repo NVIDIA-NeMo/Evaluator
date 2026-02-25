@@ -63,7 +63,7 @@ def _register_dummy(monkeypatch):
     # Force factory to return dummy exporter
     monkeypatch.setattr(
         "nemo_evaluator_launcher.exporters.get_exporter",
-        lambda name: (lambda cfg=None: _DummyExporter(cfg),
+        lambda name: (lambda cfg=None: _DummyExporter(cfg)),
         raising=True,
     )
 
