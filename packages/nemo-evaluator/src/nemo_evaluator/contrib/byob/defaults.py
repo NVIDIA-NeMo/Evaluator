@@ -22,4 +22,4 @@ to avoid duplicated magic numbers across runner.py and compiler.py.
 DEFAULT_MAX_TOKENS: int = 4096
 DEFAULT_TEMPERATURE: float = 0.0
 DEFAULT_TIMEOUT_SECONDS: float = 120.0
-DEFAULT_BASE_IMAGE: str = "nvcr.io/nvidia/base/ubuntu:noble-20250415.1"
+DEFAULT_BASE_IMAGE: str = "python:3.12-slim"

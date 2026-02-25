@@ -306,6 +306,7 @@ def judge_score(
     score_mapping: Optional[Dict[str, float]] = None,
     judge_key: str = "judge",
     response_format: Optional[Dict[str, Any]] = None,
+    **template_kwargs: Any,
 ) -> dict:
     """Score a sample using an LLM judge.
 
@@ -331,6 +332,10 @@ def judge_score(
             decoding (e.g. ``{"type": "json_object"}``).  When set, it is
             passed to ``judge_call()`` and ``parse_grade()`` uses structured
             JSON parsing.
+        **template_kwargs: Extra template variables passed through to
+            ``render_judge_prompt()``.  These override the default variables
+            (``question``, ``response``, ``reference``, ``criteria``),
+            allowing custom templates with arbitrary placeholders.
 
     Returns:
         Dict with ``judge_score`` (float) and ``judge_grade`` (str) keys.
@@ -360,14 +365,15 @@ def judge_score(
         resolved_pattern = grade_pattern or r"GRADE:\s*(\S+)"
         resolved_mapping = score_mapping or {}
 
-    # Render prompt
-    prompt = render_judge_prompt(
-        template_str,
-        question=sample.metadata.get("question", sample.metadata.get("prompt", "")),
-        response=sample.response,
-        reference=sample.target,
-        criteria=f"Evaluation criteria: {criteria}" if criteria else "",
-    )
+    # Render prompt — defaults can be overridden by template_kwargs
+    prompt_vars = {
+        "question": sample.metadata.get("question", sample.metadata.get("prompt", "")),
+        "response": sample.response,
+        "reference": sample.target,
+        "criteria": f"Evaluation criteria: {criteria}" if criteria else "",
+    }
+    prompt_vars.update(template_kwargs)
+    prompt = render_judge_prompt(template_str, **prompt_vars)
 
     # Get session (prefer internal session from config, fall back to per-URL session)
     session = sample.config.get("_judge_session") or _get_judge_session(config)

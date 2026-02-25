@@ -808,3 +808,26 @@ class TestStructuredJudgeOutput:
         assert result["judge_grade"] == "C"
         assert result["judge_score"] == 1.0
         assert mock_call.call_args[1].get("response_format") is None
+
+    @patch("nemo_evaluator.contrib.byob.judge.judge_call")
+    def test_custom_template_kwargs_passed_through(self, mock_call):
+        """Test that **template_kwargs are passed to render_judge_prompt."""
+        mock_call.return_value = "GRADE: C"
+        custom_tpl = "Q: {question}\nCorrect: {correct_answers}\nResponse: {response}\n{reference}\n{criteria}\nGRADE:"
+        sample = ScorerInput(
+            response="answer",
+            target="ref",
+            metadata={"question": "Q?"},
+            config={"judge": JUDGE_DICT},
+        )
+        judge_score(
+            sample,
+            template=custom_tpl,
+            grade_pattern=r"GRADE:\s*([CI])",
+            score_mapping={"C": 1.0, "I": 0.0},
+            correct_answers="- yes\n- correct",
+        )
+        # Verify the custom variable was rendered into the prompt
+        prompt_sent = mock_call.call_args[0][1]
+        assert "- yes" in prompt_sent
+        assert "- correct" in prompt_sent

@@ -86,7 +86,8 @@ def medmcqa_scorer(sample: ScorerInput) -> dict:
             predicted = match.group(1).upper() if match else ""
 
     # Convert HF integer target (0-3) to letter (A-D)
-    target_letter = _COP_TO_LETTER.get(sample.target.strip(), sample.target.strip().upper())
+    target_str = str(sample.target).strip()
+    target_letter = _COP_TO_LETTER.get(target_str, target_str.upper())
 
     return {
         "correct": predicted == target_letter,
