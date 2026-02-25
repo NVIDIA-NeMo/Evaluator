@@ -16,9 +16,12 @@
 """Export evaluation results to specified target."""
 
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import List, Optional
 
+from omegaconf import OmegaConf
 from simple_parsing import field
+
+from nemo_evaluator_launcher.common.logging_utils import logger
 
 
 @dataclass
@@ -84,9 +87,9 @@ class ExportCmd:
         help="Filter metrics by name (repeatable). Examples: score, f1, mmlu_score_micro.",
     )
     only_required: Optional[bool] = field(
-        default=None,
+        default=True,
         alias=["--only-required"],
-        help="Copy only required+optional artifacts (default: True). Set to False to copy all available artifacts.",
+        help="Copy only required artifacts. Set to False to copy all available artifacts.",
     )
 
     job_dirs: Optional[List[str]] = field(
@@ -103,9 +106,6 @@ class ExportCmd:
     def execute(self) -> None:
         """Execute export."""
         # Import heavy dependencies only when needed
-        import os
-
-        from omegaconf import OmegaConf
 
         from nemo_evaluator_launcher.api.functional import export_results
 
@@ -118,9 +118,10 @@ class ExportCmd:
             return
 
         # Load configuration from file if provided
-        config: dict[str, Any] = {}
         if self.config:
             config = self._load_config_from_file(self.config)
+        else:
+            config = OmegaConf.create({})
 
         # CLI arguments override config file values
         # Always set copy_logs from CLI
@@ -147,54 +148,12 @@ class ExportCmd:
             config["job_dirs"] = self.job_dirs
 
         # Parse and validate overrides
-        if self.override:
-            # FIXME(martas): this looks over-complicated.
-            # Flatten possible list-of-lists from parser
-            flat_overrides: list[str] = []
-            for item in self.override:
-                if isinstance(item, list):
-                    flat_overrides.extend(str(x) for x in item)
-                else:
-                    flat_overrides.append(str(item))
-
-            try:
-                self._validate_overrides(flat_overrides, self.dest)
-            except ValueError as e:
-                print(f"Error: {e}")
-                return
-
-            # Expand env vars in override vals ($VAR / ${VAR})
-            import os
-
-            from omegaconf import OmegaConf
-
-            expanded_overrides: list[str] = []
-            for ov in flat_overrides:
-                if "=" in ov:
-                    k, v = ov.split("=", 1)
-                    expanded_overrides.append(f"{k}={os.path.expandvars(v)}")
-                else:
-                    expanded_overrides.append(os.path.expandvars(ov))
-
-            dot_cfg = OmegaConf.from_dotlist(expanded_overrides)
-            as_dict = OmegaConf.to_container(dot_cfg, resolve=True) or {}
-            if isinstance(as_dict, dict) and "export" in as_dict:
-                export_map = as_dict.get("export") or {}
-                if isinstance(export_map, dict) and self.dest in export_map:
-                    config.update(export_map[self.dest] or {})
-                else:
-                    config.update(as_dict)
-            else:
-                config.update(as_dict)
+        self._apply_overrides(config)
 
         if self.format and self.dest != "local":
             print(
                 "Note: --format is only used by --dest local. It will be ignored for other destinations."
             )
-
-        # FIXME(martas): why is this needed? why we added it to the config?
-        if "only_required" in config and self.only_required is True:
-            config.pop("only_required", None)
 
         print(
             f"Exporting {len(self.invocation_ids)} {'invocations' if len(self.invocation_ids) > 1 else 'invocation'} to {self.dest}..."
@@ -210,18 +169,17 @@ class ExportCmd:
             print("Some jobs failed to export. See logs above for more details.")
             return
 
-    def _load_config_from_file(self, config_path: str) -> dict[str, Any]:
+    def _load_config_from_file(self, config_path: str) -> OmegaConf:
         """Load export configuration from a file.
 
         Args:
             config_path: Path to the config file
 
         Returns:
-            Dictionary containing the export configuration
+            OmegaConf object containing the export configuration
         """
         import yaml
 
-        # Load config file directly
         with open(config_path, "r") as f:
             config_dict = yaml.safe_load(f)
 
@@ -231,55 +189,70 @@ class ExportCmd:
             )
 
         # If config has an 'export.<dest>' structure, extract the relevant section
-        if "export" in config_dict and isinstance(config_dict["export"], dict):
-            if self.dest in config_dict["export"]:
+        export_config = config_dict.get("export", {})
+        if export_config:
+            if self.dest in export_config:
                 # Use destination-specific config
-                dest_config = config_dict["export"][self.dest] or {}
-                # Also merge in any top-level export keys (as fallback)
-                result = {
-                    k: v
-                    for k, v in config_dict.items()
-                    if k != "export" and not k.startswith("_")
-                }
-                result.update(dest_config)
-                return result
+                return OmegaConf.create(export_config[self.dest])
+
             else:
-                # No destination-specific config, use top-level
-                return {
-                    k: v
-                    for k, v in config_dict.items()
-                    if k != "export" and not k.startswith("_")
-                }
+                raise ValueError(
+                    f"Export destination {self.dest} not found in config file {config_path}"
+                )
         else:
             # Flat config structure
-            return config_dict
+            logger.warning(
+                f"Config file {config_path} does not have an 'export' section. Using top-level config."
+            )
+            return OmegaConf.create(config_dict)
 
-    def _validate_overrides(self, overrides: List[str], dest: str) -> None:
-        """Validate override list for destination consistency.
+    def _apply_overrides(self, config: OmegaConf) -> None:
+        import re
 
-        Raises:
-            ValueError: If overrides specify wrong destination or have other issues.
-        """
-        # FIXME(martas): we should just let hydra handle this
-        if not overrides:
-            return  # nothing to validate
+        # matches ~export.dest.key and +export.dest.key and ++export.dest.key
+        hydra_pattern = re.compile(rf"^(?:~|\+\+|\+)?export\.{self.dest}\.(.+)$")
+        if not self.override:
+            return
 
-        # Check each override for destination mismatch
-        for override_str in overrides:
-            if override_str.startswith(
-                "export."
-            ):  # check if override starts with export.
-                # Extract destination from override path
-                try:
-                    key_part = override_str.split("=")[0]  # Get left side before =
-                    parts = key_part.split(".")
-                    if len(parts) >= 2:
-                        override_dest = parts[1]
-                        if override_dest != dest:
-                            raise ValueError(
-                                f"Override destination mismatch: override specifies 'export.{override_dest}' but --dest is '{dest}'. "
-                                f"Either change --dest to '{override_dest}' or use 'export.{dest}' in overrides."
-                            )
-                except (IndexError, AttributeError):
-                    # miconstructed override -> OmegaConf handles this
-                    pass
+        to_del = []
+        fileterd_overrides = []
+        for override in self.override:
+            match = hydra_pattern.match(override)
+            if not match:
+                logger.debug("Ignoring non-applicable override", override=override)
+                continue
+            rest = match.group(1)
+            if override.startswith("~"):
+                to_del.append(rest)
+                logger.debug(
+                    "Adding to delete list", config_key=rest, override=override
+                )
+                continue
+            logger.debug("Adding to update list", config_key=rest, override=override)
+            fileterd_overrides.append(rest)
+
+        config_updates = OmegaConf.from_dotlist(fileterd_overrides)
+
+        if config_updates:
+            config.update(config_updates)
+
+        for key_to_remove in to_del:
+            *parent_path, leaf_key = key_to_remove.rsplit(".", 1)
+
+            if len(parent_path) == 0:
+                # top-level key
+                config.pop(leaf_key, None)
+            elif len(parent_path) == 1:
+                # key deeper in the config
+                parent = OmegaConf.select(config, parent_path[0])
+                if parent is not None:
+                    del parent[leaf_key]
+                else:
+                    logger.warning(
+                        f"Could not remove {key_to_remove} from the config (key not found)"
+                    )
+            else:
+                # impossible unless someone changes the line where we split the key
+                raise RuntimeError(f"Invalid key to remove: {key_to_remove}")
+
+        logger.debug("Final config after applying overrides", config=config)
