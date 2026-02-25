@@ -633,39 +633,45 @@ class TestTimeoutPerSample:
             "300",
         ]
 
+        mock_client_fn = MagicMock(return_value="response")
+
         with patch.object(sys, "argv", test_args):
             with patch(
-                "nemo_evaluator.contrib.byob.runner.import_benchmark"
-            ) as mock_import:
+                "nemo_evaluator.contrib.byob.runner.create_client_model_call_fn",
+                return_value=(mock_client_fn, None),
+            ):
                 with patch(
-                    "nemo_evaluator.contrib.byob.runner.load_dataset"
-                ) as mock_load:
+                    "nemo_evaluator.contrib.byob.runner.import_benchmark"
+                ) as mock_import:
                     with patch(
-                        "nemo_evaluator.contrib.byob.runner.run_eval_loop"
-                    ) as mock_run:
+                        "nemo_evaluator.contrib.byob.runner.load_dataset"
+                    ) as mock_load:
                         with patch(
-                            "nemo_evaluator.contrib.byob.runner.aggregate_scores"
-                        ) as mock_agg:
-                            with patch("builtins.open", MagicMock()):
-                                with patch("os.makedirs"):
-                                    # Setup mocks
-                                    mock_benchmark = MagicMock()
-                                    mock_import.return_value = mock_benchmark
-                                    mock_load.return_value = []
-                                    mock_run.return_value = ([], [])
-                                    mock_agg.return_value = {"tasks": {}}
+                            "nemo_evaluator.contrib.byob.runner.run_eval_loop"
+                        ) as mock_run:
+                            with patch(
+                                "nemo_evaluator.contrib.byob.runner.aggregate_scores"
+                            ) as mock_agg:
+                                with patch("builtins.open", MagicMock()):
+                                    with patch("os.makedirs"):
+                                        # Setup mocks
+                                        mock_benchmark = MagicMock()
+                                        mock_import.return_value = mock_benchmark
+                                        mock_load.return_value = []
+                                        mock_run.return_value = ([], [])
+                                        mock_agg.return_value = {"tasks": {}}
 
-                                    # Run main
-                                    try:
-                                        main()
-                                    except SystemExit:
-                                        pass
+                                        # Run main
+                                        try:
+                                            main()
+                                        except SystemExit:
+                                            pass
 
-                                    # Verify timeout was passed to model_call_fn
-                                    # The timeout is captured in the closure
-                                    assert mock_run.called, (
-                                        "Expected run_eval_loop to be called"
-                                    )
+                                        # Verify timeout was passed to model_call_fn
+                                        # The timeout is captured in the closure
+                                        assert mock_run.called, (
+                                            "Expected run_eval_loop to be called"
+                                        )
 
         # Test default timeout
         test_args_default = [
@@ -686,36 +692,40 @@ class TestTimeoutPerSample:
 
         with patch.object(sys, "argv", test_args_default):
             with patch(
-                "nemo_evaluator.contrib.byob.runner.import_benchmark"
-            ) as mock_import:
+                "nemo_evaluator.contrib.byob.runner.create_client_model_call_fn",
+                return_value=(mock_client_fn, None),
+            ):
                 with patch(
-                    "nemo_evaluator.contrib.byob.runner.load_dataset"
-                ) as mock_load:
+                    "nemo_evaluator.contrib.byob.runner.import_benchmark"
+                ) as mock_import:
                     with patch(
-                        "nemo_evaluator.contrib.byob.runner.run_eval_loop"
-                    ) as mock_run:
+                        "nemo_evaluator.contrib.byob.runner.load_dataset"
+                    ) as mock_load:
                         with patch(
-                            "nemo_evaluator.contrib.byob.runner.aggregate_scores"
-                        ) as mock_agg:
-                            with patch("builtins.open", MagicMock()):
-                                with patch("os.makedirs"):
-                                    # Setup mocks
-                                    mock_benchmark = MagicMock()
-                                    mock_import.return_value = mock_benchmark
-                                    mock_load.return_value = []
-                                    mock_run.return_value = ([], [])
-                                    mock_agg.return_value = {"tasks": {}}
+                            "nemo_evaluator.contrib.byob.runner.run_eval_loop"
+                        ) as mock_run:
+                            with patch(
+                                "nemo_evaluator.contrib.byob.runner.aggregate_scores"
+                            ) as mock_agg:
+                                with patch("builtins.open", MagicMock()):
+                                    with patch("os.makedirs"):
+                                        # Setup mocks
+                                        mock_benchmark = MagicMock()
+                                        mock_import.return_value = mock_benchmark
+                                        mock_load.return_value = []
+                                        mock_run.return_value = ([], [])
+                                        mock_agg.return_value = {"tasks": {}}
 
-                                    # Run main
-                                    try:
-                                        main()
-                                    except SystemExit:
-                                        pass
+                                        # Run main
+                                        try:
+                                            main()
+                                        except SystemExit:
+                                            pass
 
-                                    # Verify default timeout of 120 is used
-                                    assert mock_run.called, (
-                                        "Expected run_eval_loop to be called"
-                                    )
+                                        # Verify default timeout of 120 is used
+                                        assert mock_run.called, (
+                                            "Expected run_eval_loop to be called"
+                                        )
 
 
 class TestFailOnSkip:
