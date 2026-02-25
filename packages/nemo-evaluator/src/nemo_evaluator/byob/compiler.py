@@ -1,0 +1,316 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""BYOB compiler: transforms user benchmark modules into core_evals namespace packages."""
+
+import importlib
+import os
+import sys
+from pathlib import Path
+from typing import Dict, Optional
+
+import yaml
+
+from nemo_evaluator.byob.decorators import clear_registry, get_registered_benchmarks
+
+
+# Jinja2 command template for runner invocation
+# NOTE: Use plain string concatenation to avoid f-string escaping issues with {{ }}
+COMMAND_TEMPLATE = (
+    "python -m nemo_evaluator.byob.runner"
+    " --benchmark-module {{config.params.extra.benchmark_module}}"
+    " --benchmark-name {{config.params.extra.benchmark_name}}"
+    " --dataset {{config.params.extra.dataset}}"
+    " --output-dir {{config.output_dir}}"
+    " --model-url {{target.api_endpoint.url}}"
+    " --model-id {{target.api_endpoint.model_id}}"
+    " --model-type {{target.api_endpoint.type}}"
+    " --temperature {{config.params.temperature}}"
+    " --max-tokens {{config.params.max_new_tokens}}"
+    "{% if config.params.limit_samples is not none %}"
+    " --limit-samples {{config.params.limit_samples}}"
+    "{% endif %}"
+    "{% if target.api_endpoint.api_key_name is not none %}"
+    " --api-key-name {{target.api_endpoint.api_key_name}}"
+    "{% endif %}"
+)
+
+
+def compile_benchmark(module_path: str, execution_mode: str = "subprocess") -> Dict[str, dict]:
+    """
+    Import a user's benchmark module and generate Framework Definition Format (FDF) dicts.
+
+    Args:
+        module_path: Path to .py file or Python module name
+        execution_mode: "subprocess" (default) or "native"
+
+    Returns:
+        Dict mapping normalized benchmark names to FDF dicts
+
+    Raises:
+        ValueError: If no benchmarks found in module
+    """
+    # Clear registry for fresh state
+    clear_registry()
+
+    # Resolve module path
+    if os.path.exists(module_path):
+        # It's a file path
+        abs_path = os.path.abspath(module_path)
+        parent_dir = os.path.dirname(abs_path)
+        module_name = Path(abs_path).stem
+
+        # Add parent directory to sys.path for import resolution
+        if parent_dir not in sys.path:
+            sys.path.insert(0, parent_dir)
+
+        resolved_module = module_name
+        benchmark_module_ref = abs_path  # Use absolute path for subprocess invocation
+    else:
+        # It's a dotted module name
+        module_name = module_path
+        resolved_module = module_name
+        benchmark_module_ref = module_name  # Use module name for subprocess invocation
+
+    # Import or reload module (triggers decorator execution)
+    if resolved_module in sys.modules:
+        importlib.reload(sys.modules[resolved_module])
+    else:
+        importlib.import_module(resolved_module)
+
+    # Read registered benchmarks
+    benchmarks = get_registered_benchmarks()
+    if not benchmarks:
+        raise ValueError(
+            f"No benchmarks found in module '{module_path}'. "
+            "Did you use @benchmark and @scorer decorators?"
+        )
+
+    # Build FDF dict for each benchmark
+    compiled = {}
+    for normalized_name, bench in benchmarks.items():
+        # Resolve dataset path to absolute if it's a file
+        if os.path.exists(bench.dataset):
+            dataset_path = os.path.abspath(bench.dataset)
+        else:
+            dataset_path = bench.dataset
+
+        # Construct FDF dict
+        # CRITICAL: Place benchmark_module, benchmark_name, dataset in FRAMEWORK-level defaults
+        # to work around engine fallback lookup path (see architecture doc Section 4.1.4)
+        if execution_mode == "native":
+            fdf = {
+                "framework": {
+                    "name": f"byob_{normalized_name}",
+                    "pkg_name": f"byob_{normalized_name}",
+                },
+                "defaults": {
+                    "execution_mode": "native",
+                    # NOTE: No "command" field for native mode
+                    "config": {
+                        "params": {
+                            "limit_samples": None,
+                            "max_new_tokens": 4096,
+                            "temperature": 0,
+                            "extra": {
+                                "benchmark_module": benchmark_module_ref,
+                                "benchmark_name": normalized_name,
+                                "dataset": dataset_path,
+                            },
+                        },
+                    },
+                    "target": {"api_endpoint": {}},
+                },
+                "evaluations": [
+                    {
+                        "name": bench.name,
+                        "description": f"BYOB benchmark: {bench.name}",
+                        "defaults": {
+                            "config": {
+                                "type": f"byob_{normalized_name}.{bench.name}",
+                                "supported_endpoint_types": [bench.endpoint_type],
+                            }
+                        },
+                    }
+                ],
+            }
+        else:
+            # Subprocess mode (default)
+            fdf = {
+                "framework": {
+                    "name": f"byob_{normalized_name}",
+                    "pkg_name": f"byob_{normalized_name}",
+                },
+                "defaults": {
+                    "command": COMMAND_TEMPLATE,
+                    "config": {
+                        "params": {
+                            "limit_samples": None,
+                            "max_new_tokens": 4096,
+                            "temperature": 0,
+                            "extra": {
+                                "benchmark_module": benchmark_module_ref,
+                                "benchmark_name": normalized_name,
+                                "dataset": dataset_path,
+                            },
+                        },
+                    },
+                    "target": {"api_endpoint": {}},
+                },
+                "evaluations": [
+                    {
+                        "name": bench.name,
+                        "description": f"BYOB benchmark: {bench.name}",
+                        "defaults": {
+                            "config": {
+                                "type": f"byob_{normalized_name}.{bench.name}",
+                                "supported_endpoint_types": [bench.endpoint_type],
+                            }
+                        },
+                    }
+                ],
+            }
+
+        compiled[normalized_name] = fdf
+
+    return compiled
+
+
+def install_benchmark(
+    normalized_name: str, fdf: dict, install_dir: Optional[str] = None
+) -> str:
+    """
+    Install a compiled benchmark as a core_evals namespace package.
+
+    Args:
+        normalized_name: Normalized benchmark name
+        fdf: Framework Definition Format dict
+        install_dir: Installation directory (default: ~/.nemo-evaluator/byob_packages/)
+
+    Returns:
+        Path to the installed package directory
+    """
+    # Resolve install directory
+    if install_dir is None:
+        install_dir = os.path.expanduser("~/.nemo-evaluator/byob_packages/")
+
+    pkg_name = f"byob_{normalized_name}"
+    pkg_dir = os.path.join(install_dir, pkg_name)
+
+    # Create directory structure
+    os.makedirs(pkg_dir, exist_ok=True)
+
+    # Write pyproject.toml
+    pyproject_path = os.path.join(pkg_dir, "pyproject.toml")
+    with open(pyproject_path, "w") as f:
+        f.write(_generate_pyproject_toml(pkg_name))
+
+    # Create core_evals namespace package
+    core_evals_dir = os.path.join(pkg_dir, "core_evals")
+    os.makedirs(core_evals_dir, exist_ok=True)
+
+    # Write core_evals/__init__.py (pkgutil namespace)
+    core_evals_init = os.path.join(core_evals_dir, "__init__.py")
+    with open(core_evals_init, "w") as f:
+        f.write("__path__ = __import__('pkgutil').extend_path(__path__, __name__)\n")
+
+    # Create byob_{name} sub-package
+    benchmark_pkg_dir = os.path.join(core_evals_dir, pkg_name)
+    os.makedirs(benchmark_pkg_dir, exist_ok=True)
+
+    # Write byob_{name}/__init__.py (empty)
+    benchmark_init = os.path.join(benchmark_pkg_dir, "__init__.py")
+    with open(benchmark_init, "w") as f:
+        f.write("")
+
+    # Write framework.yml
+    framework_yml = os.path.join(benchmark_pkg_dir, "framework.yml")
+    with open(framework_yml, "w") as f:
+        yaml.safe_dump(fdf, f, default_flow_style=False, sort_keys=False)
+
+    # Write output.py ONLY for subprocess mode
+    execution_mode = fdf.get("defaults", {}).get("execution_mode", "subprocess")
+    if execution_mode != "native":
+        output_py = os.path.join(benchmark_pkg_dir, "output.py")
+        with open(output_py, "w") as f:
+            f.write(_generate_output_py())
+
+    return pkg_dir
+
+
+def _generate_output_py() -> str:
+    """Generate output.py content for parsing byob_results.json."""
+    return '''"""Output parser for BYOB benchmark."""
+import json
+import os
+
+from nemo_evaluator.api.api_dataclasses import (
+    EvaluationResult,
+    MetricResult,
+    Score,
+    ScoreStats,
+    TaskResult,
+)
+
+
+def parse_output(output_dir: str) -> EvaluationResult:
+    """Parse BYOB runner output into EvaluationResult."""
+    results_path = os.path.join(output_dir, "byob_results.json")
+    with open(results_path) as f:
+        raw = json.load(f)
+
+    tasks = {}
+    for task_name, task_data in raw.get("tasks", {}).items():
+        metrics = {}
+        for metric_name, metric_data in task_data.get("metrics", {}).items():
+            scores = {}
+            for score_name, score_data in metric_data.get("scores", {}).items():
+                # Construct ScoreStats with available fields
+                # NOTE: Score.stats is NON-OPTIONAL in real Pydantic model
+                scores[score_name] = Score(
+                    value=score_data["value"],
+                    stats=ScoreStats(
+                        count=score_data.get("count"),
+                        mean=score_data.get("mean"),
+                        stderr=score_data.get("stderr"),
+                        stddev=score_data.get("stddev"),
+                        # Other ScoreStats fields default to None
+                    ),
+                )
+            metrics[metric_name] = MetricResult(scores=scores)
+        tasks[task_name] = TaskResult(metrics=metrics)
+
+    return EvaluationResult(tasks=tasks)
+'''
+
+
+def _generate_pyproject_toml(pkg_name: str) -> str:
+    """Generate pyproject.toml content for the namespace package."""
+    return f'''[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "core-evals-{pkg_name}"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = ["nemo-evaluator"]
+
+[tool.setuptools.packages.find]
+include = ["core_evals", "core_evals.*"]
+
+[tool.setuptools.package-data]
+"core_evals.{pkg_name}" = ["framework.yml"]
+'''
