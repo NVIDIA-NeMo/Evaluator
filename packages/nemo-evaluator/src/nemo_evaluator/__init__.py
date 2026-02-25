@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from nemo_evaluator.api import evaluate, show_available_tasks
+from nemo_evaluator.gym_harness import GymHarness
 from nemo_evaluator.api.api_dataclasses import (
     ApiEndpoint,
     ConfigParams,
@@ -39,6 +40,7 @@ from nemo_evaluator.package_info import (
 )
 
 __all__ = [
+    "GymHarness",
     "ApiEndpoint",
     "ConfigParams",
     "EndpointType",
