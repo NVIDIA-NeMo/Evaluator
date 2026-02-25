@@ -85,7 +85,7 @@ NeMo Evaluator supports three telemetry levels:
 * - `NEMO_EVALUATOR_TELEMETRY_LEVEL=2`
   - Enables full telemetry (default).
 * - `nemo-evaluator-launcher config set telemetry.level <0|1|2>`
-  - Persists telemetry level to the config file. See {ref}`configuration`.
+  - Persists telemetry level to the config file. See {ref}`evaluator-configuration`.
 ```
 
 **Priority:** environment variable > config file > default (2).

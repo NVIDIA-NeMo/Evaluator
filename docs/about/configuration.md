@@ -1,4 +1,4 @@
-(configuration)=
+(evaluator-configuration)=
 
 # Configuration
 
