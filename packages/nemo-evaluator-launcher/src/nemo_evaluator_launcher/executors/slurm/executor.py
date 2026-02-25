@@ -1755,7 +1755,8 @@ def _generate_deployment_srun_command(
             )
         )
         ray_setup_echo_cmd = _str_to_echo_command(ray_setup, filename="ray_setup.sh")
-        cfg.deployment.command = f"{ray_setup_echo_cmd.cmd} && bash ray_setup.sh"
+        escaped_ray_setup = ray_setup_echo_cmd.cmd.replace("'", "'\"'\"'")
+        cfg.deployment.command = f"bash -c '{escaped_ray_setup} && bash ray_setup.sh'"
         logger.info("Auto-injecting built-in Ray setup script for multi-node vLLM.")
 
     # Extract pre_cmd for later use inside container

@@ -2955,6 +2955,8 @@ class TestMultiNodeConfig:
 
         assert "ray_setup.sh" in cmd
         assert "--distributed-executor-backend ray" in cfg.deployment.extra_args
+        # The ray_setup command must be wrapped in bash -c so pipes run inside the container
+        assert "bash -c '" in cmd
 
     def test_no_ray_for_single_node(self, base_config):
         """NPI=1 → no Ray."""
