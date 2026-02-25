@@ -39,7 +39,9 @@ class TestGenerateGymConfig:
         assert rs["host"] == "localhost"
         assert rs["port"] == 9000
 
-        agent = config["nemo_evaluator_simple_agent"]["responses_api_agents"]["simple_agent"]
+        agent = config["nemo_evaluator_simple_agent"]["responses_api_agents"][
+            "simple_agent"
+        ]
         assert agent["resources_server"]["name"] == "nemo_evaluator"
         assert agent["datasets"][0]["jsonl_fpath"] == "/tmp/test_data/AIME_2025.jsonl"
 

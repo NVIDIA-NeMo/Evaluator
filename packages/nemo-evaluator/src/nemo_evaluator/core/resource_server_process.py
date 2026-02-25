@@ -50,7 +50,9 @@ def _find_free_port(host: str = DEFAULT_HOST) -> int:
         return s.getsockname()[1]
 
 
-def _wait_for_server(host: str, port: int, max_wait: float = 120, interval: float = 0.5) -> bool:
+def _wait_for_server(
+    host: str, port: int, max_wait: float = 120, interval: float = 0.5
+) -> bool:
     deadline = time.time() + max_wait
     while time.time() < deadline:
         try:
@@ -91,7 +93,10 @@ class ResourceServerProcess:
         # Build judge config from defaults (if present)
         defaults = framework_config.get("defaults", {})
         judge_defaults = (
-            defaults.get("config", {}).get("params", {}).get("extra", {}).get("judge", {})
+            defaults.get("config", {})
+            .get("params", {})
+            .get("extra", {})
+            .get("judge", {})
         )
         self.harness_kwargs: dict[str, Any] = {}
         if judge_defaults and judge_defaults.get("url"):
@@ -108,7 +113,9 @@ class ResourceServerProcess:
         return f"http://{self.host}:{self.port}"
 
     def __enter__(self) -> ResourceServerProcess:
-        exe = shutil.which("ne_resource_server") or shutil.which("nemo_evaluator_resource_server")
+        exe = shutil.which("ne_resource_server") or shutil.which(
+            "nemo_evaluator_resource_server"
+        )
         if exe is None:
             raise RuntimeError(
                 "Cannot find ne_resource_server or nemo_evaluator_resource_server on PATH. "
@@ -117,11 +124,16 @@ class ResourceServerProcess:
 
         cmd = [
             exe,
-            "--harness_package", self.harness_package,
-            "--eval_type", self.eval_type,
-            "--host", self.host,
-            "--port", str(self.port),
-            "--data_dir", self.data_dir,
+            "--harness_package",
+            self.harness_package,
+            "--eval_type",
+            self.eval_type,
+            "--host",
+            self.host,
+            "--port",
+            str(self.port),
+            "--data_dir",
+            self.data_dir,
         ]
         if self.harness_kwargs:
             cmd += ["--harness_kwargs_json", json.dumps(self.harness_kwargs)]
@@ -143,7 +155,9 @@ class ResourceServerProcess:
             try:
                 self._process.wait(timeout=10)
             except subprocess.TimeoutExpired:
-                logger.warning("Force-killing resource server (pid=%s)", self._process.pid)
+                logger.warning(
+                    "Force-killing resource server (pid=%s)", self._process.pid
+                )
                 self._process.kill()
                 self._process.wait()
         return False
