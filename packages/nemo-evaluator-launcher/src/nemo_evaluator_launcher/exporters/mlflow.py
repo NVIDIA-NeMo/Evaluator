@@ -19,7 +19,9 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+from pydantic import Field, model_validator
 
 try:
     import mlflow
@@ -29,7 +31,7 @@ except ImportError:
     MLFLOW_AVAILABLE = False
 
 from nemo_evaluator_launcher.common.logging_utils import logger
-from nemo_evaluator_launcher.exporters.base import BaseExporter
+from nemo_evaluator_launcher.exporters.base import BaseExporter, ExportConfig
 from nemo_evaluator_launcher.exporters.registry import register_exporter
 from nemo_evaluator_launcher.exporters.utils import (
     DataForExport,
@@ -39,12 +41,46 @@ from nemo_evaluator_launcher.exporters.utils import (
     mlflow_sanitize,
 )
 
+DEFAULT_EXPERIMENT_NAME = "nemo-evaluator-launcher"
+
+
+class MLflowExporterConfig(ExportConfig):
+    """Configuration for MLflowExporter."""
+
+    tracking_uri: Optional[str] = Field(default=None)
+    experiment_name: str = Field(default=DEFAULT_EXPERIMENT_NAME)
+    log_config_params: bool = Field(default=False)
+    log_config_params_max_depth: int = Field(default=10)
+    skip_existing: bool = Field(default=False)
+    run_name: Optional[str] = Field(default=None)
+    description: Optional[str] = Field(default=None)
+    tags: Optional[Dict[str, str]] = Field(default=None)
+    extra_metadata: Optional[Dict[str, Any]] = Field(default=None)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _validate_tracking_uri(cls, data: Any) -> Any:
+        tracking_uri = data.get("tracking_uri")
+        if not tracking_uri:
+            tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
+        # allow env var name
+        if tracking_uri and "://" not in tracking_uri:
+            tracking_uri = os.getenv(tracking_uri, tracking_uri)
+        if not tracking_uri:
+            raise ValueError(
+                "MLflow requires 'tracking_uri' to be configured. "
+                "Set export.mlflow.tracking_uri field in the config "
+                "or MLFLOW_TRACKING_URI environment variable."
+            )
+        data["tracking_uri"] = tracking_uri
+        return data
+
 
 @register_exporter("mlflow")
 class MLflowExporter(BaseExporter):
     """Export accuracy metrics to MLflow tracking server."""
 
-    DEFAULT_EXPERIMENT_NAME = "nemo-evaluator-launcher"
+    config_class = MLflowExporterConfig
 
     def is_available(self) -> bool:
         return MLFLOW_AVAILABLE
@@ -91,15 +127,7 @@ class MLflowExporter(BaseExporter):
         failed_jobs = []
         skipped_jobs = []
 
-        # Extract config using common utility
-        tracking_uri = self.config.get("tracking_uri")
-        if not tracking_uri:
-            tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
-        # allow env var name
-        if tracking_uri and "://" not in tracking_uri:
-            tracking_uri = os.getenv(tracking_uri, tracking_uri)
-
-        if not tracking_uri:
+        if not self.config.tracking_uri:
             logger.error(
                 "MLflow requires 'tracking_uri' to be configured. "
                 "Set export.mlflow.tracking_uri field in the config "
@@ -108,14 +136,10 @@ class MLflowExporter(BaseExporter):
             return [], [data.job_id for data in data_for_export], []
 
         # Set up MLflow
-        tracking_uri = tracking_uri.rstrip("/")
-        mlflow.set_tracking_uri(tracking_uri)
+        mlflow.set_tracking_uri(self.config.tracking_uri.rstrip("/"))
 
         # Set experiment
-        experiment_name = self.config.get(
-            "experiment_name", self.DEFAULT_EXPERIMENT_NAME
-        )
-        mlflow.set_experiment(experiment_name)
+        mlflow.set_experiment(self.config.experiment_name)
         for data in data_for_export:
             try:
                 result = self._export_one_job(data)
@@ -140,15 +164,15 @@ class MLflowExporter(BaseExporter):
         }
 
         # Add extra metadata if provided
-        if self.config.get("extra_metadata"):
-            all_params.update(self.config["extra_metadata"])
+        if self.config.extra_metadata:
+            all_params.update(self.config.extra_metadata)
 
         # Add flattened config as params if enabled
-        if self.config.get("log_config_params", False):
+        if self.config.log_config_params:
             config_params = flatten_config(
                 job_data.config or {},
                 parent_key="config",
-                max_depth=self.config.get("log_config_params_max_depth", 10),
+                max_depth=self.config.log_config_params_max_depth,
             )
             all_params.update(config_params)
 
@@ -168,8 +192,8 @@ class MLflowExporter(BaseExporter):
             "harness": job_data.harness,
             "executor": job_data.executor,
         }
-        if self.config.get("tags"):
-            tags.update({k: v for k, v in self.config["tags"].items() if v})
+        if self.config.tags:
+            tags.update({k: v for k, v in self.config.tags.items() if v})
 
         # Sanitize tags
         safe_tags = {
@@ -179,13 +203,11 @@ class MLflowExporter(BaseExporter):
         }
 
         # skip run if it already exists
-        existing_run_id = None
-        skip_existing = self.config.get("skip_existing", False)
         existing_run_id = self._get_existing_run_id(
             job_data.job_id,
-            self.config.get("experiment_name", self.DEFAULT_EXPERIMENT_NAME),
+            self.config.experiment_name,
         )
-        if existing_run_id and skip_existing:
+        if existing_run_id and self.config.skip_existing:
             return "skipped"
 
         # run
@@ -197,16 +219,16 @@ class MLflowExporter(BaseExporter):
 
                 # Set run name
                 run_name = (
-                    self.config.get("run_name")
+                    self.config.run_name
                     or f"eval-{job_data.invocation_id}-{job_data.task}"
                 )
                 mlflow.set_tag("mlflow.runName", mlflow_sanitize(run_name, "tag_value"))
 
                 # Set description only if provided
-                description = self.config.get("description")
-                if description:
+                if self.config.description:
                     mlflow.set_tag(
-                        "mlflow.note.content", mlflow_sanitize(description, "tag_value")
+                        "mlflow.note.content",
+                        mlflow_sanitize(self.config.description, "tag_value"),
                     )
 
                 # Log parameters
@@ -233,8 +255,7 @@ class MLflowExporter(BaseExporter):
     ) -> List[str]:
         """Log evaluation artifacts to MLflow using LocalExporter for transfer."""
 
-        # Check if artifacts should be logged (default: True)
-        if not self.config.get("log_artifacts", True):
+        if not self.config.log_artifacts:
             return []
 
         # Log config at root level (or synthesize)
@@ -260,7 +281,7 @@ class MLflowExporter(BaseExporter):
         # Choose files to upload
         artifact_path = f"{job_data.harness}.{job_data.task}"
         logged_names = []
-        if self.config.get("only_required", True):
+        if self.config.only_required:
             # Upload only specific required files
             for fname in get_available_artifacts(job_data.artifacts_dir):
                 p = job_data.artifacts_dir / fname
@@ -292,7 +313,7 @@ class MLflowExporter(BaseExporter):
                 )
 
         # Optionally upload logs under "<harness.task>/logs"
-        if self.config.get("log_logs", False) and job_data.logs_dir.exists():
+        if self.config.copy_logs and job_data.logs_dir and job_data.logs_dir.exists():
             for p in job_data.logs_dir.iterdir():
                 if p.is_file():
                     rel = p.name
@@ -301,7 +322,7 @@ class MLflowExporter(BaseExporter):
                     logger.debug(f"mlflow upload log: {rel}")
 
         logger.info(
-            f"MLflow upload summary: files={len(logged_names)}, only_required={self.config.get('only_required', True)}, log_logs={self.config.get('log_logs', False)}"
+            f"MLflow upload summary: files={len(logged_names)}, only_required={self.config.only_required}, copy_logs={self.config.copy_logs}"
         )
 
         return logged_names

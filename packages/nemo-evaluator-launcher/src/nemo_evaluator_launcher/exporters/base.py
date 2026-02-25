@@ -18,7 +18,9 @@
 import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, ClassVar, Dict, List, Optional, Tuple
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData, generate_job_id
 from nemo_evaluator_launcher.common.logging_utils import logger
@@ -33,21 +35,60 @@ from nemo_evaluator_launcher.exporters.utils import (
 )
 
 
+class ExportConfig(BaseModel):
+    """Configuration for an export operation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    job_dirs: Optional[List[Path]] = Field(default_factory=list)
+    copy_logs: bool = Field(default=False)
+    copy_artifacts: bool = Field(default=True)
+    only_required: bool = Field(default=True)
+    log_metrics: List[str] = Field(default_factory=list)
+    log_logs: Optional[bool] = Field(default=None, exclude=True)
+
+    @field_validator("job_dirs", mode="after")
+    @classmethod
+    def _validate_job_dirs(cls, dirs: Optional[List[Path]]) -> Optional[List[Path]]:
+        if not dirs:
+            return dirs
+        missing = [d for d in dirs if not d.exists()]
+        if missing:
+            raise FileNotFoundError(f"Job directories not found: {missing}")
+        return dirs
+
+    @model_validator(mode="before")
+    @classmethod
+    def _handle_deprecated_log_logs(cls, data: Any) -> Any:
+        if isinstance(data, dict) and data.get("log_logs") is not None:
+            logger.warning(
+                "'log_logs' is deprecated and will be removed in a future version. "
+                "Use 'copy_logs' instead."
+            )
+            data.setdefault("copy_logs", data["log_logs"])
+        return data
+
+
 class BaseExporter(ABC):
     """Base interface for result exporters."""
 
-    def __init__(self, config: Dict[str, Any] = None):
-        self.config = config or {}
-        self.job_dirs = [Path(dir) for dir in self.config.get("job_dirs", [])]
-        # FIXME(martas): unify copy_logs and log_logs flags
-        self.copy_logs = self.config.get("copy_logs", False) or self.config.get(
-            "log_logs", False
-        )
-        self.copy_artifacts = self.config.get("copy_artifacts", True)
-        self.only_required = self.config.get("only_required", True)
-        for job_dir in self.job_dirs:
-            if not job_dir.exists():
-                raise FileNotFoundError(f"Job directory {job_dir} not found")
+    config_class: ClassVar[type[ExportConfig]] = ExportConfig
+
+    def __init__(self, config: ExportConfig | dict | None = None):
+        if config is None:
+            config = self.config_class()
+        elif isinstance(config, dict):
+            config = self.config_class.model_validate(config)
+        elif not isinstance(config, self.config_class):
+            raise TypeError(
+                f"Invalid config type: {type(config)}. Expected {self.config_class}"
+            )
+        self.config = config
+        self.job_dirs = self.config.job_dirs
+        self.copy_logs = self.config.copy_logs
+        self.copy_artifacts = self.config.copy_artifacts
+        self.only_required = self.config.only_required
+        self.log_metrics = self.config.log_metrics
         self.db = ExecutionDB()
 
     def export(self, invocation_or_job_ids: List[str]) -> ExportResult:

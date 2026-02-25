@@ -15,22 +15,34 @@
 #
 """Exporter registration and factory."""
 
-from nemo_evaluator_launcher.exporters.gsheets import GSheetsExporter
-from nemo_evaluator_launcher.exporters.local import LocalExporter
-from nemo_evaluator_launcher.exporters.mlflow import MLflowExporter
+from nemo_evaluator_launcher.exporters.base import ExportConfig
+from nemo_evaluator_launcher.exporters.gsheets import (
+    GSheetsExporter,
+    GSheetsExporterConfig,
+)
+from nemo_evaluator_launcher.exporters.local import LocalExporter, LocalExporterConfig
+from nemo_evaluator_launcher.exporters.mlflow import (
+    MLflowExporter,
+    MLflowExporterConfig,
+)
 from nemo_evaluator_launcher.exporters.registry import available_exporters, get_exporter
-from nemo_evaluator_launcher.exporters.wandb import WandBExporter
+from nemo_evaluator_launcher.exporters.wandb import WandBExporter, WandBExporterConfig
 
 
 def create_exporter(name: str, config: dict = None):
-    return get_exporter(name)(config or {})
+    return get_exporter(name)(config)
 
 
 __all__ = [
+    "ExportConfig",
     "GSheetsExporter",
+    "GSheetsExporterConfig",
     "LocalExporter",
+    "LocalExporterConfig",
     "MLflowExporter",
+    "MLflowExporterConfig",
     "WandBExporter",
+    "WandBExporterConfig",
     "available_exporters",
     "get_exporter",
 ]

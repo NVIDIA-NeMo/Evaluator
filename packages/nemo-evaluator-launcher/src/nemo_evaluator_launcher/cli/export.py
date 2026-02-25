@@ -58,7 +58,7 @@ class ExportCmd:
         help="Hydra-style overrides for exporter config. Use `export.<dest>.key=value` (e.g., -o export.wandb.entity=org-name).",
     )
     output_dir: Optional[str] = field(
-        default=".",
+        default=None,
         alias=["--output-dir", "-out"],
         help="Output directory (default: current directory).",
     )
@@ -133,7 +133,7 @@ class ExportCmd:
             config["output_filename"] = self.output_filename
 
         # Format and filters
-        if self.format:
+        if self.format and self.dest == "local":
             config["format"] = self.format
         if self.log_metrics:
             config["log_metrics"] = self.log_metrics
@@ -200,7 +200,9 @@ class ExportCmd:
             f"Exporting {len(self.invocation_ids)} {'invocations' if len(self.invocation_ids) > 1 else 'invocation'} to {self.dest}..."
         )
 
-        result = export_results(self.invocation_ids, self.dest, config)
+        result = export_results(
+            self.invocation_ids, self.dest, OmegaConf.to_container(config)
+        )
 
         # Success path
         print(f"Export completed: {result['metadata']}")

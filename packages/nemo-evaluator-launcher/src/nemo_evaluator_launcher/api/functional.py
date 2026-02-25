@@ -585,7 +585,7 @@ def export_results(
         if isinstance(invocation_ids, str):
             invocation_ids = [invocation_ids]
 
-        exporter = create_exporter(dest, config or {})
+        exporter = create_exporter(dest, config)
         export_result = exporter.export(invocation_ids)
 
         return {

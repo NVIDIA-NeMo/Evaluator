@@ -18,12 +18,24 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Literal, Optional, Tuple
+
+from pydantic import Field
 
 from nemo_evaluator_launcher.common.logging_utils import logger
-from nemo_evaluator_launcher.exporters.base import BaseExporter
+from nemo_evaluator_launcher.exporters.base import BaseExporter, ExportConfig
 from nemo_evaluator_launcher.exporters.registry import register_exporter
 from nemo_evaluator_launcher.exporters.utils import DataForExport
+
+SUPPORTED_FORMATS = ["json", "csv"]
+
+
+class LocalExporterConfig(ExportConfig):
+    """Configuration for LocalExporter."""
+
+    output_dir: str = Field(default="./nemo-evaluator-launcher-results")
+    format: Literal["json", "csv"] = Field(default="json")
+    output_filename: Optional[str] = Field(default=None)
 
 
 @register_exporter("local")
@@ -39,7 +51,7 @@ class LocalExporter(BaseExporter):
       output_filename (str): Overrides default processed_results.json/csv filename
     """
 
-    SUPPORTED_FORMATS = ["json", "csv"]
+    config_class = LocalExporterConfig
 
     def export_jobs(
         self, data_for_export: List[DataForExport]
@@ -49,9 +61,7 @@ class LocalExporter(BaseExporter):
         failed_jobs = []
         skipped_jobs = []
 
-        output_dir = Path(
-            self.config.get("output_dir", "./nemo-evaluator-launcher-results")
-        )
+        output_dir = Path(self.config.output_dir)
         for data in data_for_export:
             job_export_dir = output_dir / data.invocation_id / data.job_id
             job_export_dir.mkdir(parents=True, exist_ok=True)
@@ -81,11 +91,8 @@ class LocalExporter(BaseExporter):
     ) -> List[str]:
         """Read per-job artifacts, extract metrics, and update invocation-level summary."""
 
-        fmt = self.config.get("format")
-        filename = self.config.get(
-            "output_filename",
-            f"processed_results.{fmt}",
-        )
+        fmt = self.config.format
+        filename = self.config.output_filename or f"processed_results.{fmt}"
         out_path = (output_dir / filename).resolve()
 
         if fmt == "json":

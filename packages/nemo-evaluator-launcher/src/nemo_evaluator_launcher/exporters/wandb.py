@@ -18,7 +18,9 @@
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
+
+from pydantic import Field
 
 try:
     import wandb
@@ -28,13 +30,30 @@ except ImportError:
     WANDB_AVAILABLE = False
 
 from nemo_evaluator_launcher.common.logging_utils import logger
-from nemo_evaluator_launcher.exporters.base import BaseExporter
+from nemo_evaluator_launcher.exporters.base import BaseExporter, ExportConfig
 from nemo_evaluator_launcher.exporters.registry import register_exporter
 from nemo_evaluator_launcher.exporters.utils import (
     DataForExport,
     get_available_artifacts,
     get_copytree_ignore,
 )
+
+LOG_MODES = ["per_task", "multi_task"]
+
+
+class WandBExporterConfig(ExportConfig):
+    """Configuration for WandBExporter."""
+
+    entity: str
+    project: str
+    log_mode: Literal["per_task", "multi_task"] = Field(default="per_task")
+    name: Optional[str] = Field(default=None)
+    group: Optional[str] = Field(default=None)
+    job_type: str = Field(default="evaluation")
+    tags: Optional[List[str]] = Field(default=None)
+    description: Optional[str] = Field(default=None)
+    extra_metadata: Dict[str, Any] = Field(default_factory=dict)
+    run_id: Optional[str] = Field(default=None)
 
 
 @register_exporter("wandb")
@@ -46,7 +65,7 @@ class WandBExporter(BaseExporter):
       project (str): W&B project name (required)
       log_mode (str): "per_task" (one run per task) or "multi_task" (one run per invocation) (default: "per_task")
       log_artifacts (bool): Whether to log artifacts to W&B (default: True)
-      log_logs (bool): Whether to log log files (default: False)
+      copy_logs (bool): Whether to log log files (default: False)
       only_required (bool): Log only required+optional artifacts (default: True)
       name (str): Custom run name (optional)
       group (str): Run group (default: invocation_id)
@@ -55,6 +74,8 @@ class WandBExporter(BaseExporter):
       description (str): Run description/notes
       extra_metadata (dict): Additional metadata to include in run config
     """
+
+    config_class = WandBExporterConfig
 
     def is_available(self) -> bool:
         return WANDB_AVAILABLE
@@ -74,12 +95,9 @@ class WandBExporter(BaseExporter):
         failed_jobs = []
         skipped_jobs = []
 
-        # Get log_mode from config
-        log_mode = self.config.get("log_mode", "per_task")
-        if log_mode not in ["per_task", "multi_task"]:
-            logger.error(
-                f"Invalid log_mode: {log_mode}. Valid modes are: per_task, multi_task"
-            )
+        log_mode = self.config.log_mode
+        if log_mode not in LOG_MODES:
+            logger.error(f"Invalid log_mode: {log_mode}. Valid modes are: {LOG_MODES}")
             return [], [data.job_id for data in data_for_export], []
 
         try:
@@ -177,7 +195,7 @@ class WandBExporter(BaseExporter):
         artifact,
     ) -> List[str]:
         """Log evaluation artifacts to WandB."""
-        if not self.config.get("log_artifacts", True):
+        if not self.config.log_artifacts:
             return []
 
         try:
@@ -212,7 +230,7 @@ class WandBExporter(BaseExporter):
 
                 logged_names.append(fname)
 
-            if self.config.get("only_required", True):
+            if self.config.only_required:
                 # Upload only specific required files
                 for p in get_available_artifacts(artifacts_dir):
                     artifact.add_file(str(p), name=f"{artifact_root}/artifacts/{p}")
@@ -232,7 +250,7 @@ class WandBExporter(BaseExporter):
                     # Count items for logging
                     logged_names.extend([p.name for p in staged.iterdir()])
 
-            if self.config.get("log_logs", False) and logs_dir:
+            if self.config.copy_logs and logs_dir:
                 if not logs_dir.exists():
                     logger.error(f"Logs directory {logs_dir} does not exist")
                     return logged_names
@@ -253,8 +271,8 @@ class WandBExporter(BaseExporter):
             import wandb
 
             api = wandb.Api()
-            entity = self.config.get("entity")
-            project = self.config.get("project")
+            entity = self.config.entity
+            project = self.config.project
             if not (entity and project):
                 logger.error(
                     "W&B requires 'entity' and 'project' to be configured. "
@@ -263,10 +281,10 @@ class WandBExporter(BaseExporter):
                 return None
 
             # Check explicit name first
-            if self.config.get("name"):
+            if self.config.name:
                 runs = api.runs(f"{entity}/{project}")
                 for run in runs:
-                    if run.display_name == self.config["name"]:
+                    if run.display_name == self.config.name:
                         return run.id
 
             # Check default pattern
@@ -288,7 +306,7 @@ class WandBExporter(BaseExporter):
         existing_run_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create or resume W&B run for job(s)."""
-        log_mode = self.config.get("log_mode", "per_task")
+        log_mode = self.config.log_mode
         if log_mode == "per_task" and len(data) > 1:
             raise RuntimeError(
                 "Log mode 'per_task' does not support multiple data items"
@@ -306,8 +324,8 @@ class WandBExporter(BaseExporter):
         executor = {job_data.executor for job_data in data}
         executor = ", ".join(executor)
 
-        if self.config.get("name"):
-            run_name = self.config["name"]
+        if self.config.name:
+            run_name = self.config.name
         else:
             run_name = (
                 f"eval-{data[0].invocation_id}-{data[0].task}"
@@ -316,18 +334,18 @@ class WandBExporter(BaseExporter):
             )
 
         run_args = {
-            "entity": self.config.get("entity"),
-            "project": self.config.get("project"),
+            "entity": self.config.entity,
+            "project": self.config.project,
             "name": run_name,
-            "group": self.config.get("group", invocation_id),
-            "job_type": self.config.get("job_type", "evaluation"),
-            "tags": self.config.get("tags"),
-            "notes": self.config.get("description"),
+            "group": self.config.group or invocation_id,
+            "job_type": self.config.job_type,
+            "tags": self.config.tags,
+            "notes": self.config.description,
         }
 
         # resume for multi_task runs
         if log_mode == "multi_task":
-            stable_id = self.config.get("run_id") or identifier  # invocation_id
+            stable_id = self.config.run_id or identifier  # invocation_id
             run_args["id"] = stable_id
             run_args["resume"] = "allow"
         elif existing_run_id:
@@ -345,7 +363,7 @@ class WandBExporter(BaseExporter):
             run_config["harness"] = data[0].harness
             run_config["benchmark"] = data[0].task
 
-        run_config.update(self.config.get("extra_metadata", {}))
+        run_config.update(self.config.extra_metadata)
         run_args["config"] = run_config
 
         # Initialize

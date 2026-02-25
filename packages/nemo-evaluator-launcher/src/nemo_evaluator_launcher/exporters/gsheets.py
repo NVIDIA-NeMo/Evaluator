@@ -16,7 +16,10 @@
 """Google Sheets evaluation results exporter."""
 
 import os
-from typing import List, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple
+
+from pydantic import Field
 
 try:
     import gspread
@@ -25,17 +28,26 @@ try:
 except ImportError:
     GSPREAD_AVAILABLE = False
 
-from pathlib import Path
-
 from nemo_evaluator_launcher.common.logging_utils import logger
-from nemo_evaluator_launcher.exporters.base import BaseExporter
+from nemo_evaluator_launcher.exporters.base import BaseExporter, ExportConfig
 from nemo_evaluator_launcher.exporters.registry import register_exporter
 from nemo_evaluator_launcher.exporters.utils import DataForExport
+
+
+class GSheetsExporterConfig(ExportConfig):
+    """Configuration for GSheetsExporter."""
+
+    service_account_file: Optional[str] = Field(default=None)
+    oauth_file: Optional[str] = Field(default=None)
+    spreadsheet_id: Optional[str] = Field(default=None)
+    spreadsheet_name: str = Field(default="NeMo Evaluator Launcher Results")
 
 
 @register_exporter("gsheets")
 class GSheetsExporter(BaseExporter):
     """Export accuracy metrics to Google Sheets with multi-invocation support."""
+
+    config_class = GSheetsExporterConfig
 
     def is_available(self) -> bool:
         return GSPREAD_AVAILABLE
@@ -62,12 +74,11 @@ class GSheetsExporter(BaseExporter):
         try:
             # Connect to Google Sheets
             service_account_file = (
-                self.config.get("service_account_file")
+                self.config.service_account_file
                 or gspread.auth.DEFAULT_SERVICE_ACCOUNT_FILENAME
             )
             user_credentials_file = (
-                self.config.get("oauth_file")
-                or gspread.auth.DEFAULT_CREDENTIALS_FILENAME
+                self.config.oauth_file or gspread.auth.DEFAULT_CREDENTIALS_FILENAME
             )
             if service_account_file and Path(service_account_file).exists():
                 gc = gspread.service_account(
@@ -87,42 +98,35 @@ class GSheetsExporter(BaseExporter):
                 )
             else:
                 logger.error(
-                    "No service account or user credentials file found. Please authenticate with ."
+                    "No service account or user credentials file found. Please authenticate with gspread."
                 )
                 return [], [data.job_id for data in data_for_export], []
 
             # Get or create spreadsheet
-            spreadsheet_id = self.config.get("spreadsheet_id")
-            if spreadsheet_id:
+            if self.config.spreadsheet_id:
                 # NOTE(martas): we don't try-except here because if user-provided spreadsheet_id is invalid
                 # we want to raise an exception and fail the export
-                sh = gc.open_by_key(spreadsheet_id)
+                sh = gc.open_by_key(self.config.spreadsheet_id)
                 spreadsheet_name = sh.title
                 logger.info(
                     "Opened existing spreadsheet",
-                    spreadsheet_id=spreadsheet_id,
+                    spreadsheet_id=self.config.spreadsheet_id,
                     spreadsheet_name=spreadsheet_name,
                 )
             else:
-                spreadsheet_name = self.config.get(
-                    "spreadsheet_name", "NeMo Evaluator Launcher Results"
-                )
-
                 try:
-                    sh = gc.open(spreadsheet_name)
-                    spreadsheet_id = sh.id
+                    sh = gc.open(self.config.spreadsheet_name)
                     logger.info(
                         "Opened existing spreadsheet",
-                        spreadsheet_id=spreadsheet_id,
-                        spreadsheet_name=spreadsheet_name,
+                        spreadsheet_id=sh.id,
+                        spreadsheet_name=self.config.spreadsheet_name,
                     )
                 except gspread.SpreadsheetNotFound:
-                    sh = gc.create(spreadsheet_name)
-                    spreadsheet_id = sh.id
+                    sh = gc.create(self.config.spreadsheet_name)
                     logger.info(
                         "Created new spreadsheet",
-                        spreadsheet_id=spreadsheet_id,
-                        spreadsheet_name=spreadsheet_name,
+                        spreadsheet_id=sh.id,
+                        spreadsheet_name=self.config.spreadsheet_name,
                     )
 
             worksheet = sh.sheet1
