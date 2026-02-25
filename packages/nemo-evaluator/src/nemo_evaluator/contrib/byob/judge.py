@@ -62,6 +62,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
@@ -286,16 +287,18 @@ def render_judge_prompt(template: str, **kwargs: Any) -> str:
 
 # Module-level sessions keyed by judge URL for connection reuse
 _judge_sessions: Dict[str, requests.Session] = {}
+_judge_sessions_lock = threading.Lock()
 
 
 def _get_judge_session(config: JudgeConfig) -> requests.Session:
     """Return a session for the given judge config (created on first call)."""
     key = config.url
-    if key not in _judge_sessions:
-        _judge_sessions[key] = _create_judge_session(
-            max_retries=config.max_retries,
-        )
-    return _judge_sessions[key]
+    with _judge_sessions_lock:
+        if key not in _judge_sessions:
+            _judge_sessions[key] = _create_judge_session(
+                max_retries=config.max_retries,
+            )
+        return _judge_sessions[key]
 
 
 def judge_score(

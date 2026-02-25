@@ -227,18 +227,9 @@ def compile_benchmark(module_path: str) -> Dict[str, dict]:
             collision = check_existing_benchmarks(normalized_name)
             if collision:
                 _logger.warning(
-                    "Benchmark name collides with an existing core_evals package. "
-                    "The existing benchmark may already provide this evaluation.",
+                    "Benchmark name collides with existing core_evals package",
                     byob_name=f"byob_{normalized_name}",
                     existing=collision,
-                )
-                import warnings
-                warnings.warn(
-                    f"WARNING: '{normalized_name}' collides with existing "
-                    f"core_evals package '{collision}'. If this benchmark "
-                    f"already exists in NeMo Evaluator, consider using the "
-                    f"built-in version instead. Use --force to override.",
-                    stacklevel=2,
                 )
 
         # Build FDF dict for each benchmark

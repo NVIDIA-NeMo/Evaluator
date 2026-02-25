@@ -20,7 +20,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import requests
 from urllib3.util.retry import Retry
@@ -254,6 +254,9 @@ def ensure_requirements(requirements: List[str]) -> None:
         req_str = req_str.strip()
         if not req_str:
             continue
+        # Reject strings that look like pip flags (security: prevent argument injection)
+        if req_str.startswith("-"):
+            raise ValueError(f"Invalid requirement (looks like a flag): {req_str}")
         # Check if this specific requirement triggered a warning
         import re
         match = re.match(r"^([a-zA-Z0-9_.-]+)", req_str)
@@ -528,7 +531,8 @@ def main():
     try:
         model_call_fn, cleanup_fn = create_client_model_call_fn(args, api_key)
         logger.info("Using NeMoEvaluatorClient for model calls")
-    except (ImportError, Exception):
+    except ImportError:
+        logger.info("NeMoEvaluatorClient not available, using raw HTTP requests")
         session = create_session(
             max_retries=args.max_retries,
             backoff_factor=args.retry_backoff,

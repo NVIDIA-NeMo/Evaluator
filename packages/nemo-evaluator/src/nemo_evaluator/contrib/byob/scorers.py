@@ -38,20 +38,28 @@ if TYPE_CHECKING:
     from nemo_evaluator.contrib.byob.decorators import ScorerInput
 
 
+def _to_str(value) -> str:
+    """Coerce a target value to string for text-based scoring."""
+    return str(value) if not isinstance(value, str) else value
+
+
 def contains(sample: ScorerInput) -> dict:
     """Check if target string is contained in response (case-insensitive)."""
-    return {"correct": sample.target.lower().strip() in sample.response.lower()}
+    target = _to_str(sample.target)
+    return {"correct": target.lower().strip() in sample.response.lower()}
 
 
 def exact_match(sample: ScorerInput) -> dict:
     """Check if response exactly matches target (case-insensitive, whitespace-stripped)."""
-    return {"correct": sample.response.strip().lower() == sample.target.strip().lower()}
+    target = _to_str(sample.target)
+    return {"correct": sample.response.strip().lower() == target.strip().lower()}
 
 
 def f1_token(sample: ScorerInput) -> dict:
     """Compute token-level F1 score between response and target."""
+    target = _to_str(sample.target)
     pred_tokens = sample.response.lower().split()
-    ref_tokens = sample.target.lower().split()
+    ref_tokens = target.lower().split()
 
     if not pred_tokens or not ref_tokens:
         return {"f1": 0.0, "precision": 0.0, "recall": 0.0}

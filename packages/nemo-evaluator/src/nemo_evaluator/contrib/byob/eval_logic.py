@@ -23,13 +23,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple
 
-from nemo_evaluator.api.api_dataclasses import (
-    EvaluationResult,
-    MetricResult,
-    Score,
-    ScoreStats,
-    TaskResult,
-)
 from nemo_evaluator.contrib.byob.decorators import (
     BenchmarkDefinition,
     ScorerInput,
@@ -191,8 +184,9 @@ class StandardStrategy:
                 rendered_system_prompt = render_prompt(
                     bench.system_prompt, row, bench._is_system_prompt_jinja2
                 )
-            except KeyError:
-                pass  # Best-effort: skip system prompt if fields missing
+            except KeyError as e:
+                logger.warning("System prompt rendering failed, skipping",
+                               sample_id=idx, error=str(e))
 
         # Call model
         try:
@@ -332,6 +326,11 @@ def run_eval_loop(
             strategy = StandardStrategy()
 
     if parallelism > 1 and len(dataset) > 1:
+        if max_consecutive_errors > 0:
+            logger.warning(
+                "max_consecutive_errors is unreliable with parallelism > 1 "
+                "(completion order != sample order)"
+            )
         return _run_eval_loop_parallel(
             bench=bench,
             dataset=dataset,
@@ -539,39 +538,3 @@ def _run_eval_loop_parallel(
         )
 
     return all_scores, all_predictions
-
-
-def build_evaluation_result(
-    scores: List[Dict],
-    benchmark_name: str,
-) -> EvaluationResult:
-    """Convert aggregated scores into an EvaluationResult.
-
-    Uses runner.aggregate_scores() for statistics computation, then constructs
-    proper Pydantic models matching the engine's expected structure.
-    """
-    from nemo_evaluator.contrib.byob.aggregation import aggregate_scores
-
-    raw = aggregate_scores(scores, benchmark_name)
-    if not raw or "tasks" not in raw:
-        return EvaluationResult(tasks={})
-
-    tasks = {}
-    for task_name, task_data in raw["tasks"].items():
-        metrics = {}
-        for metric_name, metric_data in task_data.get("metrics", {}).items():
-            metric_scores = {}
-            for score_name, score_data in metric_data.get("scores", {}).items():
-                metric_scores[score_name] = Score(
-                    value=score_data["value"],
-                    stats=ScoreStats(
-                        count=score_data.get("count"),
-                        mean=score_data.get("mean"),
-                        stderr=score_data.get("stderr"),
-                        stddev=score_data.get("stddev"),
-                    ),
-                )
-            metrics[metric_name] = MetricResult(scores=metric_scores)
-        tasks[task_name] = TaskResult(metrics=metrics)
-
-    return EvaluationResult(tasks=tasks)

@@ -18,7 +18,6 @@
 import pytest
 from unittest.mock import MagicMock
 
-from nemo_evaluator.api.api_dataclasses import EvaluationResult
 from nemo_evaluator.contrib.byob.decorators import (
     BenchmarkDefinition,
     ScorerInput,
@@ -29,7 +28,6 @@ from nemo_evaluator.contrib.byob.eval_logic import (
     EvalStrategy,
     SampleResult,
     StandardStrategy,
-    build_evaluation_result,
     import_benchmark,
     render_prompt,
     run_eval_loop,
@@ -884,148 +882,6 @@ class TestRunEvalLoopWithStrategy:
             f"Expected 3 scores, got {len(scores)}"
         assert predictions == [], \
             f"Expected empty predictions when save_predictions=False, got {len(predictions)}"
-
-
-class TestBuildEvaluationResult:
-    """Tests for build_evaluation_result function."""
-
-    def test_build_evaluation_result_structure(self):
-        """Test that build_evaluation_result produces correct EvaluationResult structure.
-
-        Contract:
-        - Returns EvaluationResult instance
-        - Contains tasks dict
-        - Each task has metrics dict
-        - Each metric has scores dict
-        - Each score has value and stats
-        """
-        # Sample scores matching aggregate_scores output
-        scores = [
-            {"correct": True},
-            {"correct": False},
-            {"correct": True},
-        ]
-
-        result = build_evaluation_result(scores, "test-bench")
-
-        assert isinstance(result, EvaluationResult), \
-            f"Expected EvaluationResult, got {type(result)}"
-        assert "test-bench" in result.tasks, \
-            f"Expected 'test-bench' in tasks, got {list(result.tasks.keys())}"
-
-        task = result.tasks["test-bench"]
-        assert "pass@1" in task.metrics, \
-            f"Expected 'pass@1' in metrics, got {list(task.metrics.keys())}"
-
-        metric = task.metrics["pass@1"]
-        assert "correct" in metric.scores, \
-            f"Expected 'correct' in scores, got {list(metric.scores.keys())}"
-
-        score = metric.scores["correct"]
-        assert hasattr(score, "value"), "Score missing 'value' attribute"
-        assert hasattr(score, "stats"), "Score missing 'stats' attribute"
-        assert hasattr(score.stats, "count"), "Stats missing 'count'"
-        assert hasattr(score.stats, "mean"), "Stats missing 'mean'"
-        assert hasattr(score.stats, "stderr"), "Stats missing 'stderr'"
-        assert hasattr(score.stats, "stddev"), "Stats missing 'stddev'"
-
-    def test_build_evaluation_result_empty_scores(self):
-        """Test that empty score list produces empty EvaluationResult."""
-        result = build_evaluation_result([], "empty-bench")
-
-        assert isinstance(result, EvaluationResult), \
-            f"Expected EvaluationResult even for empty, got {type(result)}"
-        assert len(result.tasks) == 0, \
-            f"Expected empty tasks for empty scores, got {list(result.tasks.keys())}"
-
-    def test_build_evaluation_result_values_match_aggregation(self):
-        """Test that values in EvaluationResult match aggregate_scores output.
-
-        Hand-computed values for [True, False, True]:
-        - mean = 2/3 = 0.6667
-        - Binary detected -> scaled to 66.67
-        """
-        scores = [
-            {"correct": True},
-            {"correct": False},
-            {"correct": True},
-        ]
-
-        result = build_evaluation_result(scores, "value-test")
-
-        score = result.tasks["value-test"].metrics["pass@1"].scores["correct"]
-
-        # Binary scores should be scaled to percentage
-        assert abs(score.value - 66.6667) < 0.01, \
-            f"Expected value~66.6667 (binary percentage), got {score.value}"
-        assert score.stats.count == 3, \
-            f"Expected count=3, got {score.stats.count}"
-        assert abs(score.stats.mean - 66.6667) < 0.01, \
-            f"Expected mean~66.6667, got {score.stats.mean}"
-
-    def test_build_evaluation_result_multiple_score_keys(self):
-        """Test that multiple score keys are all included in result."""
-        scores = [
-            {"correct": True, "parsed": True},
-            {"correct": False, "parsed": True},
-            {"correct": True, "parsed": False},
-        ]
-
-        result = build_evaluation_result(scores, "multi-key")
-
-        metric = result.tasks["multi-key"].metrics["pass@1"]
-        assert "correct" in metric.scores, \
-            "Expected 'correct' in scores"
-        assert "parsed" in metric.scores, \
-            "Expected 'parsed' in scores"
-
-        # Both should have count=3
-        assert metric.scores["correct"].stats.count == 3
-        assert metric.scores["parsed"].stats.count == 3
-
-    def test_build_evaluation_result_continuous_scores(self):
-        """Test that continuous (non-binary) scores are NOT scaled.
-
-        Continuous scores (e.g., F1 0.8, 0.9, 1.0) should not be scaled by 100.
-        """
-        scores = [
-            {"f1": 0.8},
-            {"f1": 0.9},
-            {"f1": 1.0},
-        ]
-
-        result = build_evaluation_result(scores, "continuous-bench")
-
-        score = result.tasks["continuous-bench"].metrics["pass@1"].scores["f1"]
-
-        # Continuous scores should NOT be scaled (mean = 0.9, not 90)
-        assert abs(score.value - 0.9) < 0.0001, \
-            f"Expected value~0.9 (no scaling for continuous), got {score.value}"
-        assert abs(score.stats.mean - 0.9) < 0.0001, \
-            f"Expected mean~0.9, got {score.stats.mean}"
-
-    def test_build_evaluation_result_single_sample(self):
-        """Test single sample produces stderr=0, stddev=0.
-
-        Hand-computed:
-        - n=1, binary, mean=1.0
-        - stddev=0, stderr=0 (n<=1 special case)
-        - Binary -> value=100.0
-        """
-        scores = [{"correct": True}]
-
-        result = build_evaluation_result(scores, "single-bench")
-
-        score = result.tasks["single-bench"].metrics["pass@1"].scores["correct"]
-
-        assert score.stats.count == 1, \
-            f"Expected count=1, got {score.stats.count}"
-        assert score.value == 100.0, \
-            f"Expected value=100.0 (binary True), got {score.value}"
-        assert score.stats.stddev == 0.0, \
-            f"Expected stddev=0.0 (n=1), got {score.stats.stddev}"
-        assert score.stats.stderr == 0.0, \
-            f"Expected stderr=0.0 (n=1), got {score.stats.stderr}"
 
 
 # ---------------------------------------------------------------------------

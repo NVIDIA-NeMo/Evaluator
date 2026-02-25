@@ -62,10 +62,9 @@ class TestGenerateDockerfile:
         assert f"FROM {DEFAULT_BASE_IMAGE}" in content
 
     def test_dockerfile_with_user_requirements(self):
-        """Test Dockerfile installs user requirements."""
+        """Test Dockerfile installs user requirements via requirements.txt."""
         content = generate_dockerfile("byob_boolq", user_requirements=["numpy>=1.20", "pandas"])
-        assert "numpy>=1.20" in content
-        assert "pandas" in content
+        assert "requirements.txt" in content
         assert "pip install" in content
 
     def test_dockerfile_without_user_requirements(self):

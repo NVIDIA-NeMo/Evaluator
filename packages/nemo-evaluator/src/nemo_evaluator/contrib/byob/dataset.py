@@ -117,10 +117,7 @@ class HuggingFaceFetcher:
     dependency -- only users who actually reference ``hf://`` URIs need it
     installed.
 
-    This fetcher is **not** auto-registered.  To enable it call::
-
-        from nemo_evaluator.contrib.byob.dataset import register_fetcher
-        register_fetcher(HuggingFaceFetcher())
+    This fetcher is auto-registered in the default fetcher registry.
 
     Args:
         default_cache_dir: Directory for downloaded/converted files.
