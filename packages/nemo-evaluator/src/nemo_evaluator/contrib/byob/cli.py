@@ -23,6 +23,7 @@ import sys
 import yaml
 
 from nemo_evaluator.contrib.byob.compiler import compile_benchmark, install_benchmark
+from nemo_evaluator.contrib.byob.defaults import DEFAULT_BASE_IMAGE
 
 
 def _get_version():
@@ -63,7 +64,36 @@ def byob_compile(args=None):
         default=False,
         help="After compilation, verify all declared requirements are importable",
     )
+    parser.add_argument(
+        "--containerize",
+        action="store_true",
+        default=False,
+        help="Build a Docker image from the compiled benchmark",
+    )
+    parser.add_argument(
+        "--push",
+        type=str,
+        default=None,
+        metavar="REGISTRY/IMAGE:TAG",
+        help="Push the built image to a registry (implies --containerize)",
+    )
+    parser.add_argument(
+        "--base-image",
+        type=str,
+        default=DEFAULT_BASE_IMAGE,
+        help=f"Base Docker image for containerization (default: {DEFAULT_BASE_IMAGE})",
+    )
+    parser.add_argument(
+        "--tag",
+        type=str,
+        default=None,
+        help="Docker image tag (default: byob_<name>:latest)",
+    )
     parsed = parser.parse_args(args)
+
+    # --push implies --containerize
+    if parsed.push:
+        parsed.containerize = True
 
     # --list: show installed benchmarks
     if parsed.list:
@@ -146,6 +176,43 @@ def byob_compile(args=None):
         print(f"      --eval_type {eval_type} \\")
         print(f"      --model_url <YOUR_MODEL_URL> \\")
         print(f"      --model_id <YOUR_MODEL_ID>")
+
+    # Containerization if requested
+    if parsed.containerize:
+        import tempfile
+        from nemo_evaluator.contrib.byob.containerize import (
+            build_image,
+            prepare_build_context,
+            push_image,
+        )
+
+        for name, fdf in compiled.items():
+            pkg_name = f"byob_{name}"
+            pkg_dir = os.path.join(
+                parsed.install_dir or os.path.expanduser("~/.nemo-evaluator/byob_packages/"),
+                pkg_name,
+            )
+            tag = parsed.tag or parsed.push or f"{pkg_name}:latest"
+            user_reqs = fdf.get("defaults", {}).get("config", {}).get("params", {}).get("extra", {}).get("requirements", [])
+
+            with tempfile.TemporaryDirectory() as context_dir:
+                prepare_build_context(pkg_dir, fdf, context_dir)
+                build_image(
+                    context_dir=context_dir,
+                    tag=tag,
+                    base_image=parsed.base_image,
+                    pkg_name=pkg_name,
+                    user_requirements=user_reqs or None,
+                )
+                print(f"  Docker image built: {tag}")
+
+                if parsed.push:
+                    push_tag = parsed.push
+                    if push_tag != tag:
+                        import subprocess
+                        subprocess.run(["docker", "tag", tag, push_tag], check=True)
+                    push_image(push_tag)
+                    print(f"  Docker image pushed: {push_tag}")
 
     # Check requirements if requested
     if parsed.check_requirements:

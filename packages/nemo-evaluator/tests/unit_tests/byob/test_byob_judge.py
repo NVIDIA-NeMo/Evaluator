@@ -714,3 +714,97 @@ def s(sample):
             finally:
                 os.unlink(f.name)
                 os.unlink(ds_path)
+
+
+# ---------------------------------------------------------------------------
+# TestStructuredJudgeOutput — response_format and structured parsing
+# ---------------------------------------------------------------------------
+
+
+class TestStructuredJudgeOutput:
+    """Tests for structured judge output (response_format + structured parse)."""
+
+    def test_response_format_in_payload_when_set(self):
+        """Test that response_format is included in HTTP payload when provided."""
+        config = JudgeConfig(url="http://judge:8000/v1", model_id="nemotron")
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": '{"grade": "C"}'}}]
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_session = MagicMock()
+        mock_session.post.return_value = mock_response
+
+        response_format = {"type": "json_object"}
+        judge_call(config, "Test prompt", session=mock_session, response_format=response_format)
+
+        payload = mock_session.post.call_args[1]["json"]
+        assert "response_format" in payload
+        assert payload["response_format"] == {"type": "json_object"}
+
+    def test_response_format_absent_when_none(self):
+        """Test that response_format is NOT in HTTP payload when None."""
+        config = JudgeConfig(url="http://judge:8000/v1", model_id="nemotron")
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "GRADE: C"}}]
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_session = MagicMock()
+        mock_session.post.return_value = mock_response
+
+        judge_call(config, "Test prompt", session=mock_session)
+
+        payload = mock_session.post.call_args[1]["json"]
+        assert "response_format" not in payload
+
+    def test_structured_parse_extracts_grade_from_json(self):
+        response = '{"grade": "C", "reasoning": "correct answer"}'
+        result = parse_grade(response, r"GRADE:\s*([CI])", structured=True)
+        assert result == "C"
+
+    def test_structured_parse_extracts_score_key(self):
+        response = '{"score": 4, "explanation": "good"}'
+        result = parse_grade(response, r"NONEXISTENT", structured=True)
+        assert result == "4"
+
+    def test_structured_parse_extracts_verdict_key(self):
+        response = '{"verdict": "SAFE"}'
+        result = parse_grade(response, r"NONEXISTENT", structured=True)
+        assert result == "SAFE"
+
+    def test_structured_parse_falls_back_to_regex(self):
+        response = "Not valid JSON. GRADE: C"
+        result = parse_grade(response, r"GRADE:\s*([CI])", structured=True)
+        assert result == "C"
+
+    def test_unstructured_parse_unchanged(self):
+        response = "The answer is correct.\nGRADE: C"
+        result = parse_grade(response, r"GRADE:\s*([CI])")
+        assert result == "C"
+
+    @patch("nemo_evaluator.contrib.byob.judge.judge_call")
+    def test_judge_score_with_response_format(self, mock_call):
+        mock_call.return_value = '{"grade": "C"}'
+        sample = ScorerInput(
+            response="The answer is 42",
+            target="42",
+            metadata={"question": "What is the answer?"},
+            config={"judge": JUDGE_DICT},
+        )
+        judge_score(sample, template="binary_qa", response_format={"type": "json_object"})
+        assert mock_call.call_args[1].get("response_format") == {"type": "json_object"}
+
+    @patch("nemo_evaluator.contrib.byob.judge.judge_call")
+    def test_judge_score_without_response_format(self, mock_call):
+        mock_call.return_value = "The answer matches.\nGRADE: C"
+        sample = ScorerInput(
+            response="The answer is 42",
+            target="42",
+            metadata={"question": "What is the answer?"},
+            config={"judge": JUDGE_DICT},
+        )
+        result = judge_score(sample, template="binary_qa")
+        assert result["judge_grade"] == "C"
+        assert result["judge_score"] == 1.0
+        assert mock_call.call_args[1].get("response_format") is None

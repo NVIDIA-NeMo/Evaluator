@@ -56,6 +56,9 @@ COMMAND_TEMPLATE = (
     "{% if config.params.parallelism is not none %}"
     " --parallelism {{config.params.parallelism}}"
     "{% endif %}"
+    "{% if config.params.extra.n_repeats is defined %}"
+    " --n-repeats {{config.params.extra.n_repeats}}"
+    "{% endif %}"
 )
 
 

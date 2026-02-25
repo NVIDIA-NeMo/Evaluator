@@ -168,6 +168,7 @@ def judge_call(
     config: JudgeConfig,
     prompt: str,
     session: Optional[requests.Session] = None,
+    response_format: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Call the judge model and return the response text.
 
@@ -175,6 +176,9 @@ def judge_call(
         config: Judge endpoint configuration.
         prompt: The full judge prompt to send.
         session: Optional requests.Session for connection pooling.
+        response_format: Optional response format dict for constrained decoding
+            (e.g. ``{"type": "json_object"}``).  When set, it is included in
+            the HTTP payload so that NIM endpoints apply constrained decoding.
 
     Returns:
         The judge model's response text.
@@ -189,13 +193,15 @@ def judge_call(
     if api_key_value:
         headers["Authorization"] = f"Bearer {api_key_value}"
 
-    payload = {
+    payload: Dict[str, Any] = {
         "model": config.model_id,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": config.temperature,
         "top_p": config.top_p,
         "max_tokens": config.max_new_tokens,
     }
+    if response_format is not None:
+        payload["response_format"] = response_format
 
     http = session or requests
     response = http.post(
@@ -207,25 +213,43 @@ def judge_call(
     return response.json()["choices"][0]["message"]["content"]
 
 
-def parse_grade(response: str, grade_pattern: str) -> Optional[str]:
-    """Extract a grade from the judge response using regex.
+def parse_grade(
+    response: str,
+    grade_pattern: str,
+    structured: bool = False,
+) -> Optional[str]:
+    """Extract a grade from the judge response using regex or JSON parsing.
 
-    Searches the response for the pattern and returns the first capture
-    group match.  Falls back to JSON extraction if regex fails.
+    When ``structured=True`` the response is assumed to be a JSON object
+    produced by constrained decoding.  The function tries ``json.loads()``
+    first and looks for common keys (``grade``, ``score``, ``rating``,
+    ``verdict``).  If JSON parsing fails it falls back to regex.
 
     Args:
         response: Full judge response text.
         grade_pattern: Regex pattern with one capture group for the grade.
+        structured: If True, try full JSON parse before regex.
 
     Returns:
         The extracted grade string, or None if no match found.
     """
-    # Try regex first
+    # When structured, try full JSON parse first
+    if structured:
+        try:
+            parsed = json.loads(response)
+            if isinstance(parsed, dict):
+                for key in ("grade", "score", "rating", "verdict"):
+                    if key in parsed:
+                        return str(parsed[key])
+        except (json.JSONDecodeError, ValueError, TypeError):
+            pass
+
+    # Try regex
     match = re.search(grade_pattern, response)
     if match:
         return match.group(1)
 
-    # Fallback: try JSON extraction
+    # Fallback: try JSON extraction from embedded JSON
     try:
         json_match = re.search(r"\{[^}]+\}", response)
         if json_match:
@@ -281,6 +305,7 @@ def judge_score(
     grade_pattern: Optional[str] = None,
     score_mapping: Optional[Dict[str, float]] = None,
     judge_key: str = "judge",
+    response_format: Optional[Dict[str, Any]] = None,
 ) -> dict:
     """Score a sample using an LLM judge.
 
@@ -302,6 +327,10 @@ def judge_score(
         judge_key: Key in ``sample.config`` containing the judge config dict.
             Defaults to ``"judge"`` (single judge).  For multi-judge setups
             use ``"judge_1"``, ``"judge_2"``, etc.
+        response_format: Optional response format dict for constrained
+            decoding (e.g. ``{"type": "json_object"}``).  When set, it is
+            passed to ``judge_call()`` and ``parse_grade()`` uses structured
+            JSON parsing.
 
     Returns:
         Dict with ``judge_score`` (float) and ``judge_grade`` (str) keys.
@@ -345,13 +374,17 @@ def judge_score(
 
     # Call judge
     try:
-        judge_response = judge_call(config, prompt, session=session)
+        judge_response = judge_call(
+            config, prompt, session=session, response_format=response_format,
+        )
     except Exception:
         logger.warning("Judge call failed", judge_key=judge_key, url=config.url)
         return {"judge_score": 0.0, "judge_grade": "CALL_ERROR"}
 
     # Parse grade
-    grade = parse_grade(judge_response, resolved_pattern)
+    grade = parse_grade(
+        judge_response, resolved_pattern, structured=response_format is not None,
+    )
     if grade is None:
         logger.warning(
             "Could not parse grade from judge response",

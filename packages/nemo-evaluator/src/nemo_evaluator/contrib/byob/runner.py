@@ -20,7 +20,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import requests
 from urllib3.util.retry import Retry
@@ -295,6 +295,107 @@ def ensure_requirements(requirements: List[str]) -> None:
         ) from e
 
 
+def _create_session_model_call_fn(
+    args: argparse.Namespace,
+    api_key: Optional[str],
+    session: requests.Session,
+) -> Callable:
+    """Create a model call function backed by raw HTTP requests.
+
+    Args:
+        args: Parsed CLI arguments.
+        api_key: Resolved API key value.
+        session: Configured requests.Session.
+
+    Returns:
+        Callable matching model_call_fn(prompt, endpoint_type, *, system_prompt=None) -> str.
+    """
+    timeout = args.timeout_per_sample
+
+    def model_call_fn(prompt: str, endpoint_type: str, *, system_prompt: Optional[str] = None) -> str:
+        if endpoint_type == "chat":
+            return call_model_chat(
+                url=args.model_url,
+                model_id=args.model_id,
+                prompt=prompt,
+                temperature=args.temperature,
+                max_tokens=args.max_tokens,
+                api_key=api_key,
+                timeout=timeout,
+                session=session,
+                system_prompt=system_prompt,
+            )
+        else:
+            return call_model_completions(
+                url=args.model_url,
+                model_id=args.model_id,
+                prompt=prompt,
+                temperature=args.temperature,
+                max_tokens=args.max_tokens,
+                api_key=api_key,
+                timeout=timeout,
+                session=session,
+                system_prompt=system_prompt,
+            )
+
+    return model_call_fn
+
+
+def create_client_model_call_fn(
+    args: argparse.Namespace,
+    api_key: Optional[str],
+) -> tuple:
+    """Create a model call function backed by NeMoEvaluatorClient.
+
+    Lazily imports ``nemo_evaluator.client`` to avoid hard dependency on
+    ``openai``, ``tenacity``, and ``tqdm``.  Callers should catch
+    ``ImportError`` and fall back to raw HTTP requests.
+
+    Args:
+        args: Parsed CLI arguments (model_url, model_id, temperature, max_tokens).
+        api_key: Resolved API key value.
+
+    Returns:
+        Tuple of (model_call_fn, cleanup_fn).
+
+    Raises:
+        ImportError: If nemo_evaluator.client is not available.
+    """
+    import asyncio
+
+    from nemo_evaluator.client import NeMoEvaluatorClient
+    from nemo_evaluator.client.config import EndpointModelConfig
+
+    endpoint_config = EndpointModelConfig(
+        url=args.model_url,
+        model_id=args.model_id,
+        api_key=api_key,
+        temperature=args.temperature,
+        max_tokens=args.max_tokens,
+    )
+    client = NeMoEvaluatorClient(endpoint_config)
+
+    def model_call_fn(prompt: str, endpoint_type: str, *, system_prompt: Optional[str] = None) -> str:
+        if endpoint_type == "chat":
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
+            result = asyncio.run(client.chat_completion(messages))
+        else:
+            full_prompt = f"{system_prompt}\n{prompt}" if system_prompt else prompt
+            result = asyncio.run(client.completion(full_prompt))
+        return result
+
+    def cleanup_fn():
+        try:
+            asyncio.run(client.aclose())
+        except Exception:
+            pass
+
+    return model_call_fn, cleanup_fn
+
+
 def main():
     """CLI entrypoint for BYOB runner."""
     parser = argparse.ArgumentParser(
@@ -395,6 +496,12 @@ def main():
         default=1,
         help="Number of concurrent evaluation threads (default: 1, sequential)",
     )
+    parser.add_argument(
+        "--n-repeats",
+        type=int,
+        default=1,
+        help="Number of times to repeat the evaluation (default: 1)",
+    )
 
     args = parser.parse_args()
 
@@ -416,52 +523,49 @@ def main():
         field_mapping=bench.field_mapping,
     )
 
-    # Create session with connection pooling and retry
-    session = create_session(
-        max_retries=args.max_retries,
-        backoff_factor=args.retry_backoff,
-    )
+    # Create model call function — try NeMoEvaluatorClient, fall back to raw HTTP
+    cleanup_fn = None
+    try:
+        model_call_fn, cleanup_fn = create_client_model_call_fn(args, api_key)
+        logger.info("Using NeMoEvaluatorClient for model calls")
+    except (ImportError, Exception):
+        session = create_session(
+            max_retries=args.max_retries,
+            backoff_factor=args.retry_backoff,
+        )
+        model_call_fn = _create_session_model_call_fn(args, api_key, session)
 
-    # Create model_call_fn that wraps the HTTP calls
-    timeout = args.timeout_per_sample
+    # Run evaluation loop (with n-repeats support)
+    all_scores: List[Dict] = []
+    all_predictions: List = []
 
-    def model_call_fn(prompt: str, endpoint_type: str, *, system_prompt: Optional[str] = None) -> str:
-        """Model call function that routes through subprocess HTTP calls."""
-        if endpoint_type == "chat":
-            return call_model_chat(
-                url=args.model_url,
-                model_id=args.model_id,
-                prompt=prompt,
-                temperature=args.temperature,
-                max_tokens=args.max_tokens,
-                api_key=api_key,
-                timeout=timeout,
-                session=session,
-                system_prompt=system_prompt,
-            )
-        else:
-            return call_model_completions(
-                url=args.model_url,
-                model_id=args.model_id,
-                prompt=prompt,
-                temperature=args.temperature,
-                max_tokens=args.max_tokens,
-                api_key=api_key,
-                timeout=timeout,
-                session=session,
-                system_prompt=system_prompt,
-            )
+    for repeat_idx in range(args.n_repeats):
+        if args.n_repeats > 1:
+            logger.info("Starting repeat", repeat=repeat_idx + 1, total=args.n_repeats)
 
-    # Run evaluation loop using shared logic
-    all_scores, all_predictions = run_eval_loop(
-        bench=bench,
-        dataset=dataset,
-        model_call_fn=model_call_fn,
-        endpoint_type=args.model_type,
-        save_predictions=args.save_predictions,
-        fail_on_skip=args.fail_on_skip,
-        parallelism=args.parallelism,
-    )
+        scores, predictions = run_eval_loop(
+            bench=bench,
+            dataset=dataset,
+            model_call_fn=model_call_fn,
+            endpoint_type=args.model_type,
+            save_predictions=args.save_predictions,
+            fail_on_skip=args.fail_on_skip,
+            parallelism=args.parallelism,
+        )
+
+        # Offset sample_id and add _repeat metadata for repeats
+        if args.n_repeats > 1:
+            offset = repeat_idx * len(dataset)
+            for pred in predictions:
+                pred.sample_id = pred.sample_id + offset
+                pred.metadata = {**pred.metadata, "_repeat": repeat_idx}
+
+        all_scores.extend(scores)
+        all_predictions.extend(predictions)
+
+    # Clean up client resources if applicable
+    if cleanup_fn is not None:
+        cleanup_fn()
 
     # Aggregate scores
     results = aggregate_scores(all_scores, args.benchmark_name)

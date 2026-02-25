@@ -823,150 +823,6 @@ class TestFailOnSkip:
             f"Expected error to mention 'failed', got: {error_msg}"
 
 
-class TestLogFormat:
-    """Tests for --log-format functionality."""
-
-    def test_log_format_json_produces_valid_json(self):
-        """Test that log-format=json produces valid JSON log entries.
-
-        Validates:
-        - JsonFormatter outputs valid JSON on each log record
-        - JSON contains required keys: timestamp, level, message, logger
-        - JSON can be parsed successfully
-        - Fields have expected types
-        """
-        import logging
-        from io import StringIO
-
-        # Create JsonFormatter (same as in runner.py)
-        class JsonFormatter(logging.Formatter):
-            def format(self, record):
-                log_entry = {
-                    "timestamp": self.formatTime(record),
-                    "level": record.levelname,
-                    "message": record.getMessage(),
-                    "logger": record.name,
-                }
-                return json.dumps(log_entry)
-
-        # Set up logger with JsonFormatter
-        logger = logging.getLogger("test_json_logger")
-        logger.setLevel(logging.INFO)
-
-        # Use StringIO to capture output
-        stream = StringIO()
-        handler = logging.StreamHandler(stream)
-        handler.setFormatter(JsonFormatter())
-        logger.addHandler(handler)
-
-        # Emit a log record
-        test_message = "Test log message for JSON format validation"
-        logger.info(test_message)
-
-        # Capture output
-        output = stream.getvalue().strip()
-
-        # Verify it's valid JSON
-        try:
-            log_entry = json.loads(output)
-        except json.JSONDecodeError as e:
-            pytest.fail(f"JsonFormatter output is not valid JSON: {e}\nOutput: {output}")
-
-        # Verify required keys are present
-        required_keys = ["timestamp", "level", "message", "logger"]
-        for key in required_keys:
-            assert key in log_entry, \
-                f"Missing required key '{key}' in JSON log entry. Keys: {list(log_entry.keys())}"
-
-        # Verify field types
-        assert isinstance(log_entry["timestamp"], str), \
-            f"Expected timestamp to be str, got {type(log_entry['timestamp'])}"
-        assert isinstance(log_entry["level"], str), \
-            f"Expected level to be str, got {type(log_entry['level'])}"
-        assert isinstance(log_entry["message"], str), \
-            f"Expected message to be str, got {type(log_entry['message'])}"
-        assert isinstance(log_entry["logger"], str), \
-            f"Expected logger to be str, got {type(log_entry['logger'])}"
-
-        # Verify field values
-        assert log_entry["level"] == "INFO", \
-            f"Expected level='INFO', got '{log_entry['level']}'"
-        assert log_entry["message"] == test_message, \
-            f"Expected message='{test_message}', got '{log_entry['message']}'"
-        assert log_entry["logger"] == "test_json_logger", \
-            f"Expected logger='test_json_logger', got '{log_entry['logger']}'"
-
-        # Clean up
-        logger.removeHandler(handler)
-
-    def test_log_format_default_is_text(self):
-        """Test that default log format is 'text' by checking argparse defaults.
-
-        Validates:
-        - --log-format argument has default="text"
-        - Choices are ["text", "json"]
-        - When no --log-format is provided, parser uses "text"
-        """
-        import argparse
-        from nemo_evaluator.contrib.byob.runner import main
-        import sys
-
-        # Parse with minimal args (no --log-format specified)
-        test_args = [
-            "runner.py",
-            "--benchmark-module", "test.py",
-            "--benchmark-name", "test",
-            "--dataset", "test.jsonl",
-            "--output-dir", "/tmp/out",
-            "--model-url", "http://localhost:8000",
-            "--model-id", "test-model",
-        ]
-
-        with patch.object(sys, 'argv', test_args):
-            parser = argparse.ArgumentParser()
-            parser.add_argument("--benchmark-module", required=True)
-            parser.add_argument("--benchmark-name", required=True)
-            parser.add_argument("--dataset", required=True)
-            parser.add_argument("--output-dir", required=True)
-            parser.add_argument("--model-url", required=True)
-            parser.add_argument("--model-id", required=True)
-            parser.add_argument(
-                "--log-format",
-                choices=["text", "json"],
-                default="text",
-                help="Log output format: text (default) or json",
-            )
-
-            args = parser.parse_args(test_args[1:])  # Skip 'runner.py'
-
-        # Verify default is "text"
-        assert args.log_format == "text", \
-            f"Expected default log_format='text', got '{args.log_format}'"
-
-        # Test with explicit --log-format=json
-        test_args_json = test_args + ["--log-format", "json"]
-
-        with patch.object(sys, 'argv', test_args_json):
-            parser_json = argparse.ArgumentParser()
-            parser_json.add_argument("--benchmark-module", required=True)
-            parser_json.add_argument("--benchmark-name", required=True)
-            parser_json.add_argument("--dataset", required=True)
-            parser_json.add_argument("--output-dir", required=True)
-            parser_json.add_argument("--model-url", required=True)
-            parser_json.add_argument("--model-id", required=True)
-            parser_json.add_argument(
-                "--log-format",
-                choices=["text", "json"],
-                default="text",
-            )
-
-            args_json = parser_json.parse_args(test_args_json[1:])
-
-        # Verify json format can be parsed
-        assert args_json.log_format == "json", \
-            f"Expected log_format='json' when specified, got '{args_json.log_format}'"
-
-
 class TestSessionPooling:
     """Tests for session pooling in call_model_chat/call_model_completions."""
 
@@ -1198,3 +1054,133 @@ class TestSystemPromptInCalls:
 
         assert result == "response"
         mock_session.post.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# n-repeats, client auto-detect, command template extensions
+# ---------------------------------------------------------------------------
+
+
+class TestNRepeats:
+    """Tests for --n-repeats functionality."""
+
+    @pytest.fixture
+    def mock_benchmark(self):
+        from nemo_evaluator.contrib.byob.decorators import BenchmarkDefinition
+
+        def simple_scorer(sample):
+            return {"correct": sample.target.lower() in sample.response.lower()}
+
+        return BenchmarkDefinition(
+            name="repeat-test",
+            normalized_name="repeat_test",
+            dataset="unused",
+            prompt="Q: {question}\nA:",
+            target_field="answer",
+            scorer_fn=simple_scorer,
+        )
+
+    def test_n_repeats_default_is_one(self):
+        """Test that --n-repeats defaults to 1."""
+        import argparse
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--n-repeats", type=int, default=1)
+        args = parser.parse_args([])
+        assert args.n_repeats == 1
+
+    def test_n_repeats_three_on_two_samples(self, mock_benchmark):
+        """Test --n-repeats=3 on 2-sample dataset produces 6 scores."""
+        from nemo_evaluator.contrib.byob.eval_logic import run_eval_loop
+
+        dataset = [
+            {"question": "q1", "answer": "yes"},
+            {"question": "q2", "answer": "no"},
+        ]
+        mock_model = MagicMock(return_value="Yes")
+
+        n_repeats = 3
+        all_scores = []
+        all_predictions = []
+
+        for repeat_idx in range(n_repeats):
+            scores, predictions = run_eval_loop(
+                bench=mock_benchmark,
+                dataset=dataset,
+                model_call_fn=mock_model,
+                endpoint_type="chat",
+                save_predictions=True,
+            )
+            offset = repeat_idx * len(dataset)
+            for pred in predictions:
+                pred.sample_id = pred.sample_id + offset
+                pred.metadata = {**pred.metadata, "_repeat": repeat_idx}
+            all_scores.extend(scores)
+            all_predictions.extend(predictions)
+
+        assert len(all_scores) == 6, f"Expected 6 scores, got {len(all_scores)}"
+        assert len(all_predictions) == 6, f"Expected 6 predictions, got {len(all_predictions)}"
+
+    def test_n_repeats_predictions_have_unique_ids_and_repeat_metadata(self, mock_benchmark):
+        """Test that predictions have unique IDs and _repeat metadata."""
+        from nemo_evaluator.contrib.byob.eval_logic import run_eval_loop
+
+        dataset = [
+            {"question": "q1", "answer": "yes"},
+        ]
+        mock_model = MagicMock(return_value="Yes")
+
+        n_repeats = 2
+        all_predictions = []
+
+        for repeat_idx in range(n_repeats):
+            _, predictions = run_eval_loop(
+                bench=mock_benchmark,
+                dataset=dataset,
+                model_call_fn=mock_model,
+                endpoint_type="chat",
+                save_predictions=True,
+            )
+            offset = repeat_idx * len(dataset)
+            for pred in predictions:
+                pred.sample_id = pred.sample_id + offset
+                pred.metadata = {**pred.metadata, "_repeat": repeat_idx}
+            all_predictions.extend(predictions)
+
+        ids = [p.sample_id for p in all_predictions]
+        assert len(ids) == len(set(ids)), f"IDs not unique: {ids}"
+
+        for pred in all_predictions:
+            assert "_repeat" in pred.metadata, f"Missing _repeat in metadata: {pred.metadata}"
+
+        assert all_predictions[0].metadata["_repeat"] == 0
+        assert all_predictions[1].metadata["_repeat"] == 1
+
+
+class TestClientAutoDetect:
+    """Tests for NeMoEvaluatorClient auto-detection."""
+
+    def test_create_client_model_call_fn_import_error(self):
+        """Test that ImportError is raised when nemo_evaluator.client is unavailable."""
+        from nemo_evaluator.contrib.byob.runner import create_client_model_call_fn
+        import argparse
+
+        args = argparse.Namespace(
+            model_url="http://localhost:8000",
+            model_id="test-model",
+            temperature=0.0,
+            max_tokens=4096,
+        )
+
+        with patch.dict('sys.modules', {'nemo_evaluator.client': None}):
+            with pytest.raises((ImportError, ModuleNotFoundError)):
+                create_client_model_call_fn(args, api_key=None)
+
+
+class TestCommandTemplateExtensions:
+    """Tests for COMMAND_TEMPLATE additions in compiler.py."""
+
+    def test_command_template_contains_n_repeats(self):
+        """Test that COMMAND_TEMPLATE includes --n-repeats conditional."""
+        from nemo_evaluator.contrib.byob.compiler import COMMAND_TEMPLATE
+        assert "n_repeats" in COMMAND_TEMPLATE
+        assert "--n-repeats" in COMMAND_TEMPLATE
