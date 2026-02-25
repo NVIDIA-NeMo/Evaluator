@@ -232,7 +232,13 @@ class MLflowExporter(BaseExporter):
                     )
 
                 # Log parameters
-                mlflow.log_params(safe_params)
+                if not existing_run_id:
+                    mlflow.log_params(safe_params)
+                else:
+                    logger.warning(
+                        f"Skipping parameter logging for existing run {existing_run_id}. "
+                        "Changing param values is not allowed in MLflow."
+                    )
 
                 # Sanitize metric keys before logging
                 safe_metrics = {
