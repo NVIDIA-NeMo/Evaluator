@@ -43,17 +43,16 @@
 # - pipeline_parallel_size: 2 (across node parallelism)
 #
 # Multi-Node Configuration:
-# - execution.num_nodes_per_instance: 2 (instance spans 2 nodes → Ray auto-injected)
-# - execution.num_instances: 1 (default, single instance)
+# - execution.num_nodes: 2 (single instance spanning 2 nodes)
 # - deployment.tensor_parallel_size: GPU parallelism within a single node
 # - deployment.pipeline_parallel_size: Model parallelism across multiple nodes
 #
-# The launcher auto-injects a built-in Ray setup script when num_nodes_per_instance > 1.
+# The vllm_ray deployment config handles Ray cluster setup automatically
 # ==============================================================================
 
 defaults:
   - execution: slurm/default
-  - deployment: vllm
+  - deployment: vllm_ray
   - _self_
 
 # Override default execution arguments
@@ -66,13 +65,13 @@ execution:
   partition: batch
   walltime: 02:00:00
 
-  num_nodes_per_instance: 2 # Instance spans 2 nodes → Ray auto-injected
+  num_nodes: 2 # Number of SLURM nodes for multi-node deployment
 
   mounts:
     mount_home: false # Whether to mount home directory (default: true)
 
 # Override default deployment arguments
-# Ray cluster setup is auto-injected by the launcher when num_nodes_per_instance > 1 (no pre_cmd needed)
+# Ray cluster setup is handled by the vllm_ray deployment config (no pre_cmd needed)
 deployment:
   image: vllm/vllm-openai:v0.15.1
   checkpoint_path: null
@@ -83,8 +82,6 @@ deployment:
   data_parallel_size: 1
   port: 8000
   extra_args: "--disable-custom-all-reduce --enforce-eager"
-  env_vars:
-    VLLM_USE_RAY_COMPILED_DAG_CHANNEL_TYPE: 'shm'
 
 # Specify the benchmarks to evaluate
 evaluation:

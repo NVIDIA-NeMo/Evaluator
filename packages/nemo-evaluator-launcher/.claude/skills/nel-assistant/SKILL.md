@@ -144,47 +144,57 @@ Show tasks in the current config. Loop until the user confirms the task list is 
 
 **Step 6: Advanced - Multi-node**
 
-Two multi-node topologies are available:
+There are two multi-node patterns. Ask the user which applies:
 
-**Option A: Multiple independent instances (HAProxy load-balancing)**
+**Pattern A: Multi-instance (independent instances with HAProxy)**
 
-Use when the model fits on a single node but you want more throughput. Each node runs an independent deployment instance, and HAProxy distributes requests across them.
+Only if model >120B parameters or user wants more throughput. Explain: "Each node runs an independent deployment instance. HAProxy load-balances requests across all instances."
 
 ```yaml
 execution:
-    num_instances: 4  # 4 independent single-node instances → HAProxy auto-enabled
+    num_nodes: 4       # Total nodes
+    num_instances: 4   # 4 independent instances → HAProxy auto-enabled
 ```
 
-**Option B: Single instance spanning multiple nodes (Ray)**
+**Pattern B: Multi-node single instance (Ray TP/PP across nodes)**
 
-Use when the model is too large for a single node and requires tensor/pipeline parallelism across nodes (vLLM only).
+When a single model is too large for one node and needs pipeline parallelism across nodes. Use `vllm_ray` deployment config:
 
 ```yaml
+defaults:
+  - deployment: vllm_ray   # Built-in Ray cluster setup (replaces manual pre_cmd)
+
 execution:
-    num_nodes_per_instance: 2  # Instance spans 2 nodes → Ray auto-injected
+    num_nodes: 2           # Single instance spanning 2 nodes
 
 deployment:
-    tensor_parallel_size: 8    # Within-node GPU parallelism
-    pipeline_parallel_size: 2  # Cross-node model parallelism
+    tensor_parallel_size: 8
+    pipeline_parallel_size: 2
 ```
 
-**Option C: Multiple multi-node instances (Ray + HAProxy)**
+**Pattern A+B combined: Multi-instance with multi-node instances**
 
-Combines both: each instance spans multiple nodes (Ray), and multiple instances are load-balanced (HAProxy).
+For very large models needing both cross-node parallelism AND multiple instances:
 
 ```yaml
-execution:
-    num_nodes_per_instance: 2  # Each instance spans 2 nodes
-    num_instances: 2           # 2 instances → HAProxy auto-enabled
-```
+defaults:
+  - deployment: vllm_ray
 
-Total SLURM nodes = `num_nodes_per_instance × num_instances`. The launcher auto-computes SLURM `--ntasks` and injects Ray/HAProxy as needed.
+execution:
+    num_nodes: 4       # Total nodes
+    num_instances: 2   # 2 instances of 2 nodes each → HAProxy auto-enabled
+
+deployment:
+    tensor_parallel_size: 8
+    pipeline_parallel_size: 2
+```
 
 **Common Confusions**
 
-- **`num_instances` is different from `data_parallel_size`**: `data_parallel_size` controls DP replicas *within* a single deployment instance. `num_instances` controls how many independent instances are created.
-- Global data parallelism is `num_instances x data_parallel_size` (e.g., 2 instances x 8 DP each = 16 replicas for max throughput).
+- **`num_instances`** controls independent deployment instances with HAProxy. **`data_parallel_size`** controls DP replicas *within* a single instance.
+- Global data parallelism is `num_instances x data_parallel_size` (e.g., 2 instances x 8 DP each = 16 replicas).
 - With multi-instance, `parallelism` in task config is the total concurrent requests across all instances, not per-instance.
+- `num_nodes` must be divisible by `num_instances`.
 
 **Step 7: Advanced - Interceptors**
 

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -51,19 +51,19 @@
 # - pipeline_parallel_size: 2 (across node parallelism within each instance)
 #
 # Multi-Node Multi-Instance Configuration:
-# - execution.num_nodes_per_instance: 2 (each instance spans 2 nodes → Ray auto-injected)
+# - execution.num_nodes: 4 (total SLURM nodes)
 # - execution.num_instances: 2 (2 instances → HAProxy auto-enabled)
-# - Total SLURM nodes = num_nodes_per_instance × num_instances = 4
+# - num_nodes_per_instance = num_nodes / num_instances = 2
 # - deployment.tensor_parallel_size: GPU parallelism within a single node
 # - deployment.pipeline_parallel_size: Model parallelism across nodes within an instance
 #
-# The launcher auto-injects a built-in Ray setup script when num_nodes_per_instance > 1.
+# The vllm_ray deployment config contains a built-in Ray setup script.
 # The script computes per-instance variables (INSTANCE_ID, INSTANCE_RANK, etc.) internally.
 # ==============================================================================
 
 defaults:
   - execution: slurm/default
-  - deployment: vllm
+  - deployment: vllm_ray
   - _self_
 
 execution:
@@ -71,18 +71,17 @@ execution:
   username: ${oc.env:USER}
   account: ???  # SLURM account allocation (required)
   output_dir: ???  # ABSOLUTE path accessible to SLURM compute nodes (required)
-  num_nodes_per_instance: 2  # Each instance spans 2 nodes (total = 2 × 2 = 4)
-  num_instances: 2           # 2 instances → HAProxy auto-enabled
+  num_nodes: 4     # 4 total SLURM nodes (2 per instance × 2 instances)
+  num_instances: 2 # 2 instances → HAProxy auto-enabled
   mounts:
     deployment:
       /path/to/hf_home: /root/.cache/huggingface
     mount_home: false
   env_vars:
     deployment:
-      VLLM_USE_RAY_COMPILED_DAG_CHANNEL_TYPE: 'shm'
       HF_TOKEN: ${oc.env:HF_TOKEN}
 
-# Ray cluster setup is auto-injected by the launcher when num_nodes_per_instance > 1 (no pre_cmd needed)
+# Ray cluster setup is handled by the vllm_ray deployment config (no pre_cmd needed)
 deployment:
   image: vllm/vllm-openai:v0.15.1
   checkpoint_path: null
@@ -93,7 +92,7 @@ deployment:
   data_parallel_size: 1
   gpu_memory_utilization: 0.90
   port: 8000
-  extra_args: "--disable-custom-all-reduce"
+  extra_args: "--disable-custom-all-reduce --enforce-eager"
 
 evaluation:
   nemo_evaluator_config:

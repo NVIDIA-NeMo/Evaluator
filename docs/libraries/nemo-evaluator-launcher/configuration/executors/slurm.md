@@ -115,6 +115,30 @@ API keys are handled the same way as environment variables - store them as envir
 - **File Permissions**: Ensure configuration files have appropriate permissions (not world-readable).
 - **Public Clusters**: Secrets in `execution.env_vars` are stored in plain text in the batch script and saved under `output_dir` on the login node. Use caution when handling sensitive data on public clusters.
 
+### Multi-Node and Multi-Instance
+
+Configure multi-node deployments using `num_nodes` and `num_instances`:
+
+```yaml
+execution:
+  num_nodes: 4              # Total SLURM nodes
+  num_instances: 2          # Independent deployment instances (default: 1)
+```
+
+- **`num_nodes`**: Total number of SLURM nodes to allocate
+- **`num_instances`**: Number of independent deployment instances. When `> 1`, HAProxy is automatically configured to load-balance across instances. `num_nodes` must be divisible by `num_instances`.
+
+For multi-node deployments requiring Ray (e.g., pipeline parallelism across nodes), use the `vllm_ray` deployment config instead of `vllm`:
+
+```yaml
+defaults:
+  - deployment: vllm_ray     # Built-in Ray cluster setup
+```
+
+:::{note}
+The deprecated `deployment.multiple_instances` field is still accepted but will be removed in a future release. Use `execution.num_instances` instead.
+:::
+
 ### Mounting and Storage
 
 The Slurm executor provides sophisticated mounting capabilities:
@@ -137,67 +161,6 @@ execution:
 - **Evaluation Mounts**: For input data, additional artifacts, and evaluation-specific files
 - **Home Mount**: Optional mounting of user home directory (enabled by default)
 
-
-## Multi-Node Deployment
-
-For models that don't fit on a single node or when you need higher throughput, the launcher supports multi-node topologies controlled by two parameters under `execution`:
-
-| Parameter | Default | Description |
-|---|---|---|
-| `num_nodes_per_instance` | 1 | Nodes per deployment instance. When > 1, the launcher auto-injects a Ray cluster setup script for cross-node coordination. |
-| `num_instances` | 1 | Number of independent deployment instances. When > 1, the launcher auto-starts HAProxy to load-balance requests across instances. |
-
-Total SLURM nodes = `num_nodes_per_instance × num_instances`.
-
-:::{note}
-Multi-node deployment (`num_nodes_per_instance > 1`) is only supported for vLLM deployments. The launcher automatically injects Ray and the `--distributed-executor-backend ray` flag — no manual configuration needed.
-:::
-
-### Scenario 1: Single Multi-Node Instance (Ray)
-
-A single model instance spanning multiple nodes using tensor and/or pipeline parallelism:
-
-```yaml
-execution:
-  num_nodes_per_instance: 2  # Instance spans 2 nodes → Ray auto-injected
-
-deployment:
-  tensor_parallel_size: 8    # GPU parallelism within each node
-  pipeline_parallel_size: 2  # Model parallelism across nodes
-```
-
-See: `examples/slurm_vllm_multinode_ray_tp_pp.yaml`
-
-### Scenario 2: Multiple Single-Node Instances (HAProxy)
-
-Independent model instances on separate nodes with HAProxy load balancing:
-
-```yaml
-execution:
-  num_instances: 2  # 2 independent instances → HAProxy auto-enabled
-
-deployment:
-  data_parallel_size: 8  # Each node uses all 8 GPUs
-```
-
-See: `examples/slurm_vllm_multinode_dp_haproxy.yaml`
-
-### Scenario 3: Multiple Multi-Node Instances (Ray + HAProxy)
-
-Multiple model instances, each spanning multiple nodes — combines Ray for cross-node parallelism with HAProxy for load balancing:
-
-```yaml
-execution:
-  num_nodes_per_instance: 2  # Each instance spans 2 nodes
-  num_instances: 2           # 2 instances → HAProxy auto-enabled
-  # Total: 4 SLURM nodes
-
-deployment:
-  tensor_parallel_size: 8
-  pipeline_parallel_size: 2
-```
-
-See: `examples/slurm_vllm_multinode_multiinstance_ray_tp_pp.yaml`
 
 ## Complete Configuration Example
 

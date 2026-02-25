@@ -1,0 +1,109 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Multi-node vLLM deployment with Ray.
+#
+# Use this config when num_nodes / num_instances > 1.  It inherits every field
+# from vllm.yaml and overrides `command` with a built-in Ray cluster setup
+# script that:
+#   - Starts a Ray head on rank 0, waits for all workers to join, then
+#     launches vLLM with --distributed-executor-backend (default: ray).
+#   - Starts a Ray worker on every other rank (blocks forever so only the
+#     head runs the deployment command).
+#
+# Supports both single-instance (NUM_INSTANCES == 1, SLURM_PROCID for rank)
+# and multi-instance (NUM_INSTANCES > 1, instance-local ranks computed from
+# SLURM_PROCID).
+#
+# OmegaConf escaping note:
+#   $VAR           → passed through as literal (safe for bash)
+#   ${key}         → resolved as Hydra interpolation
+#   $${bash_var}   → resolved to literal ${bash_var} (needed for bash arrays)
+#   $$(cmd)        → resolved to literal $(cmd) (needed for bash command substitution)
+defaults:
+  - vllm
+  - _self_
+
+distributed_executor_backend: ray
+ray_compiled_dag_channel_type: shm  # "auto", "shm", or "nccl" (default in vLLM: auto)
+
+command: |
+  #!/bin/bash
+  set -euo pipefail
+
+  export VLLM_USE_RAY_COMPILED_DAG_CHANNEL_TYPE=${deployment.ray_compiled_dag_channel_type}
+
+  RAY_PORT=6379
+  NODE_PORT=8266
+  OBJ_PORT=8267
+  RAY_FIXED_PORTS="--node-manager-port=$NODE_PORT --object-manager-port=$OBJ_PORT --metrics-export-port=8269 --dashboard-agent-grpc-port=8270 --dashboard-agent-listen-port=8271 --runtime-env-agent-port=8272"
+
+  NUM_NODES=${execution.num_nodes}
+  NUM_INSTANCES=${execution.num_instances}
+  NODES_PER_INSTANCE=$$((NUM_NODES / NUM_INSTANCES))
+
+  # Determine mode: multi-instance (NUM_INSTANCES > 1) or single-instance
+  if [ "$NUM_INSTANCES" -gt 1 ]; then
+      # Multi-instance mode: compute per-task instance vars from SLURM_PROCID
+      export INSTANCE_ID=$$((SLURM_PROCID / NODES_PER_INSTANCE))
+      export INSTANCE_RANK=$$((SLURM_PROCID % NODES_PER_INSTANCE))
+      HEAD_FIELD=$$((INSTANCE_ID * NODES_PER_INSTANCE + 1))
+      export INSTANCE_MASTER_IP=$$(echo "$ALL_NODE_IPS" | cut -d',' -f"$HEAD_FIELD")
+      export MASTER_IP="$INSTANCE_MASTER_IP"
+      RANK="$INSTANCE_RANK"
+      EXPECTED_NODES="$NODES_PER_INSTANCE"
+      echo "=== Multi-Instance Ray Setup ==="
+      echo "INSTANCE_ID=$INSTANCE_ID, INSTANCE_RANK=$INSTANCE_RANK, MASTER_IP=$MASTER_IP"
+      echo "NODES_PER_INSTANCE=$NODES_PER_INSTANCE, NUM_INSTANCES=$NUM_INSTANCES"
+  else
+      # Single-instance mode: use SLURM_PROCID
+      RANK="$SLURM_PROCID"
+      EXPECTED_NODES="$SLURM_NTASKS"
+      echo "=== Single-Instance Ray Setup ==="
+      echo "SLURM_PROCID=$SLURM_PROCID, MASTER_IP=$MASTER_IP"
+      echo "SLURM_NTASKS=$SLURM_NTASKS"
+  fi
+  echo "Hostname: $$(hostname)"
+
+  if [ "$RANK" -eq 0 ]; then
+      # HEAD node
+      export VLLM_HOST_IP=$MASTER_IP
+      echo "Starting Ray HEAD on $$(hostname) with VLLM_HOST_IP=$VLLM_HOST_IP"
+      ray start --head --port=$RAY_PORT $RAY_FIXED_PORTS
+
+      export RAY_ADDRESS=$MASTER_IP:$RAY_PORT
+      echo "RAY_ADDRESS=$RAY_ADDRESS — waiting for $EXPECTED_NODES node(s) to join..."
+
+      until [ "$$(ray status 2>/dev/null | grep -c 'node_')" -ge "$EXPECTED_NODES" ]; do
+          sleep 10
+      done
+
+      echo "=== Ray cluster ready ==="
+      ray status
+
+      # Run the deployment command
+      ${deployment.base_command} --distributed-executor-backend ${deployment.distributed_executor_backend}
+  else
+      # WORKER node
+      export VLLM_HOST_IP=$$(python3 -c "import socket; s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('8.8.8.8', 80)); print(s.getsockname()[0])")
+      echo "Starting Ray WORKER on $$(hostname) with VLLM_HOST_IP=$VLLM_HOST_IP"
+      echo "Connecting to Ray head at $MASTER_IP:$RAY_PORT..."
+
+      # Retry loop in case head is still starting
+      until ray start --address=$MASTER_IP:$RAY_PORT $RAY_FIXED_PORTS --block 2>/dev/null; do
+          echo "Retrying connection to Ray head at $MASTER_IP:$RAY_PORT..."
+          sleep 5
+      done
+  fi
