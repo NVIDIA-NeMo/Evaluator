@@ -104,7 +104,12 @@ class LocalFetcher:
 class HuggingFaceFetcher:
     """Fetcher for HuggingFace datasets using ``hf://`` URIs.
 
-    URI format::
+    URI format (preferred — query-param style)::
+
+        hf://org/dataset?split=test
+        hf://org/dataset/config?split=test
+
+    URI format (positional — also supported)::
 
         hf://dataset_name
         hf://dataset_name/config
