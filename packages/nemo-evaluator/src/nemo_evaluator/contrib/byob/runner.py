@@ -328,7 +328,11 @@ def _create_session_model_call_fn(
     Returns:
         Callable matching model_call_fn(prompt, endpoint_type, *, system_prompt=None) -> str.
     """
-    timeout = args.request_timeout if args.request_timeout is not None else args.timeout_per_sample
+    timeout = (
+        args.request_timeout
+        if args.request_timeout is not None
+        else args.timeout_per_sample
+    )
 
     def model_call_fn(
         prompt: str, endpoint_type: str, *, system_prompt: Optional[str] = None
