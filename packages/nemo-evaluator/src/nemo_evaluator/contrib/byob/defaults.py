@@ -21,5 +21,6 @@ to avoid duplicated magic numbers across runner.py and compiler.py.
 
 DEFAULT_MAX_TOKENS: int = 4096
 DEFAULT_TEMPERATURE: float = 0.0
+DEFAULT_TOP_P: float = 1.0
 DEFAULT_TIMEOUT_SECONDS: float = 120.0
 DEFAULT_BASE_IMAGE: str = "python:3.12-slim"

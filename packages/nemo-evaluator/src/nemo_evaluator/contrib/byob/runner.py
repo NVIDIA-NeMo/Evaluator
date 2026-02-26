@@ -34,6 +34,7 @@ from nemo_evaluator.contrib.byob.defaults import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
     DEFAULT_TIMEOUT_SECONDS,
+    DEFAULT_TOP_P,
 )
 from nemo_evaluator.contrib.byob.eval_logic import import_benchmark, run_eval_loop
 from nemo_evaluator.logging import get_logger
@@ -533,8 +534,8 @@ def main():
     parser.add_argument(
         "--top-p",
         type=float,
-        default=None,
-        help="Top-p (nucleus) sampling parameter (default: None, use server default)",
+        default=DEFAULT_TOP_P,
+        help=f"Top-p (nucleus) sampling parameter (default: {DEFAULT_TOP_P})",
     )
     parser.add_argument(
         "--request-timeout",

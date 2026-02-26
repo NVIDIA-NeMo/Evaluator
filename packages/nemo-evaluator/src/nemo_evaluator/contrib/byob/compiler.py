@@ -32,6 +32,7 @@ from nemo_evaluator.contrib.byob.decorators import (
 from nemo_evaluator.contrib.byob.defaults import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
+    DEFAULT_TOP_P,
 )
 from nemo_evaluator.logging import get_logger
 
@@ -50,6 +51,7 @@ COMMAND_TEMPLATE = (
     " --model-id {{target.api_endpoint.model_id}}"
     " --model-type {{target.api_endpoint.type}}"
     " --temperature {{config.params.temperature}}"
+    " --top-p {{config.params.top_p}}"
     " --max-tokens {{config.params.max_new_tokens}}"
     "{% if config.params.limit_samples is not none %}"
     " --limit-samples {{config.params.limit_samples}}"
@@ -62,9 +64,6 @@ COMMAND_TEMPLATE = (
     "{% endif %}"
     "{% if config.params.extra.n_repeats is defined %}"
     " --n-repeats {{config.params.extra.n_repeats}}"
-    "{% endif %}"
-    "{% if config.params.top_p is not none %}"
-    " --top-p {{config.params.top_p}}"
     "{% endif %}"
     "{% if config.params.request_timeout is not none %}"
     " --request-timeout {{config.params.request_timeout}}"
@@ -112,6 +111,7 @@ def _build_fdf(
                 "limit_samples": None,
                 "max_new_tokens": DEFAULT_MAX_TOKENS,
                 "temperature": DEFAULT_TEMPERATURE,
+                "top_p": DEFAULT_TOP_P,
                 "extra": extra_params,
             },
         },
