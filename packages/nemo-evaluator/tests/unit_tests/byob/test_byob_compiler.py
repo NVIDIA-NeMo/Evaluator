@@ -86,12 +86,10 @@ def check(sample):
         ], (
             f"Expected ['chat'], got {eval_entry['defaults']['config']['supported_endpoint_types']}"
         )
-        # Extra params are in framework-level defaults (not evaluation-level)
-        # per architecture doc Section 4.1.4 (engine fallback lookup path)
-        assert (
-            fdf["defaults"]["config"]["params"]["extra"]["benchmark_name"]
-            == "test_compile"
-        ), "Benchmark name should be 'test_compile' in framework-level extra params"
+        # Task name is at config.params.task (used by COMMAND_TEMPLATE as --benchmark-name)
+        assert fdf["defaults"]["config"]["params"]["task"] == "test_compile", (
+            "Task name should be 'test_compile' in framework-level params"
+        )
 
         # Command template has correct Jinja2 placeholders
         cmd = fdf["defaults"]["command"]

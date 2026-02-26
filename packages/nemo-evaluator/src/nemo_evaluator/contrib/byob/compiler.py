@@ -44,7 +44,7 @@ _logger = get_logger(__name__)
 COMMAND_TEMPLATE = (
     "python -m nemo_evaluator.contrib.byob.runner"
     " --benchmark-module {{config.params.extra.benchmark_module}}"
-    " --benchmark-name {{config.params.extra.benchmark_name}}"
+    " --benchmark-name {{config.params.task}}"
     " --dataset {{config.params.extra.dataset}}"
     " --output-dir {{config.output_dir}}"
     " --model-url {{target.api_endpoint.url}}"
@@ -90,7 +90,6 @@ def _build_fdf(
     """
     extra_params: dict = {
         "benchmark_module": benchmark_module_ref,
-        "benchmark_name": normalized_name,
         "dataset": dataset_path,
         "requirements": bench.requirements,
     }
