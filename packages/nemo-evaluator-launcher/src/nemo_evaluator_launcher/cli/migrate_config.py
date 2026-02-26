@@ -407,6 +407,9 @@ def _relocate_execution_env_vars(text: str) -> tuple[str, list[str]]:
             # Check if deployment.env_vars already exists
             deploy_env_line = _find_child_key(lines, "env_vars", deploy_line, 0)
             if deploy_env_line is not None:
+                # If env_vars is a flow mapping (e.g. "env_vars: {}"), convert to block
+                if lines[deploy_env_line].rstrip().endswith(": {}"):
+                    lines[deploy_env_line] = lines[deploy_env_line].rstrip()[:-3] + ":"
                 # Append entries after the last existing entry
                 insert_at = _find_insert_point(lines, deploy_env_line)
                 new_lines = [f"    {k}: {v}" for k, v in deploy_to_insert.items()]
@@ -433,6 +436,9 @@ def _relocate_execution_env_vars(text: str) -> tuple[str, list[str]]:
     if eval_to_insert:
         top_env_line = _find_top_level_key(lines, "env_vars")
         if top_env_line is not None:
+            # If env_vars is a flow mapping (e.g. "env_vars: {}"), convert to block
+            if lines[top_env_line].rstrip().endswith(": {}"):
+                lines[top_env_line] = lines[top_env_line].rstrip()[:-3] + ":"
             # Append entries after the last existing entry
             insert_at = _find_insert_point(lines, top_env_line)
             new_lines = [f"  {k}: {v}" for k, v in eval_to_insert.items()]
