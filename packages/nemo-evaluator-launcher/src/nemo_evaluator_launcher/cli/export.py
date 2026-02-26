@@ -76,23 +76,23 @@ class ExportCmd:
         choices=["json", "csv"],
         help="Summary format for --dest local. Omit to only copy artifacts.",
     )
-    copy_logs: bool = field(
-        default=False,
+    copy_logs: Optional[bool] = field(
+        default=None,
         alias=["--copy-logs"],
         help="Export log files (if exporter allows it) (default: False).",
     )
-    copy_artifacts: bool = field(
-        default=True,
+    copy_artifacts: Optional[bool] = field(
+        default=None,
         alias=["--copy-artifacts"],
         help="Export artifact files (if exporter allows it) (default: True).",
     )
-    log_metrics: List[str] = field(
-        default_factory=list,
+    log_metrics: Optional[List[str]] = field(
+        default=None,
         alias=["--log-metrics"],
         help="Filter metrics by name (repeatable). Examples: score, f1, mmlu_score_micro.",
     )
-    only_required: bool = field(
-        default=True,
+    only_required: Optional[bool] = field(
+        default=None,
         alias=["--only-required"],
         help="Copy only required artifacts. Set to False to copy all available artifacts. "
         "This flag is ignored if --copy-artifacts is False.",
@@ -130,25 +130,29 @@ class ExportCmd:
             config = OmegaConf.create({})
 
         # CLI arguments override config file values
-        # Always set copy_logs from CLI
-        config["copy_logs"] = self.copy_logs
-        config["copy_artifacts"] = self.copy_artifacts
-        config["only_required"] = self.only_required
+        # We default to None to avoid overriding the config file values if not explicitly passed via CLI
+        if self.copy_logs is not None:
+            config["copy_logs"] = self.copy_logs
+        if self.copy_artifacts is not None:
+            config["copy_artifacts"] = self.copy_artifacts
+        if self.only_required is not None:
+            config["only_required"] = self.only_required
 
         # Output handling
-        if self.output_dir:
+        if self.output_dir is not None:
             config["output_dir"] = self.output_dir
-        if self.output_filename:
+        if self.output_filename is not None:
             config["output_filename"] = self.output_filename
 
         # Format and filters
         if self.format and self.dest == "local":
             config["format"] = self.format
-        if self.log_metrics:
+
+        if self.log_metrics is not None:
             config["log_metrics"] = self.log_metrics
 
         # Add job_dirs if explicitly passed via CLI
-        if self.job_dirs:
+        if self.job_dirs is not None:
             config["job_dirs"] = self.job_dirs
 
         # Parse and validate overrides
