@@ -114,6 +114,13 @@ class LegacyAdapterConfig(BaseModel):
     log_failed_requests: bool = Field(default=False, description="Log failed requests")
     endpoint_type: str = Field(default="chat", description="Endpoint type")
     caching_dir: str | None = Field(default=None, description="Caching directory")
+    seed_cache_dir: str | None = Field(
+        default=None,
+        description="Optional seed cache directory for cross-run cache reuse. "
+        "On cache miss in the primary cache, the interceptor falls back to this directory. "
+        "Useful for reusing cached responses from a previous evaluation run "
+        "(e.g., when migrating between clusters).",
+    )
 
     # Optional string/dict configuration parameters
     custom_system_prompt: str | None = Field(
@@ -515,6 +522,9 @@ class AdapterConfig(BaseModel):
                 config["max_saved_requests"] = max_saved_requests
             if max_saved_responses is not None:
                 config["max_saved_responses"] = max_saved_responses
+
+            if legacy_config["seed_cache_dir"] is not None:
+                config["seed_cache_dir"] = legacy_config["seed_cache_dir"]
 
             interceptors.append(
                 InterceptorConfig(

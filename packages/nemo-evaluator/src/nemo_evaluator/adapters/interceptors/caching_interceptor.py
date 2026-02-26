@@ -17,6 +17,7 @@
 
 import hashlib
 import json
+import os
 import re
 import threading
 from typing import Any, final
@@ -50,6 +51,13 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
 
         cache_dir: str = Field(
             default="/tmp", description="Directory to store cache files"
+        )
+        seed_cache_dir: str | None = Field(
+            default=None,
+            description="Optional read-only seed cache directory. On cache miss in the primary "
+            "cache, the interceptor falls back to this directory. Useful for reusing cached "
+            "responses from a previous evaluation run (e.g., when migrating between clusters). "
+            "New responses are always written to the primary cache only.",
         )
         reuse_cached_responses: bool = Field(
             default=False,
@@ -86,6 +94,22 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
         self.responses_cache = Cache(directory=f"{params.cache_dir}/responses")
         self.requests_cache = Cache(directory=f"{params.cache_dir}/requests")
         self.headers_cache = Cache(directory=f"{params.cache_dir}/headers")
+
+        # Initialize seed caches for cross-run cache reuse
+        if params.seed_cache_dir:
+            seed_dir = params.seed_cache_dir
+            seed_responses_dir = f"{seed_dir}/responses"
+            seed_headers_dir = f"{seed_dir}/headers"
+            if os.path.isdir(seed_responses_dir) and os.path.isdir(seed_headers_dir):
+                self.seed_responses_cache = Cache(directory=seed_responses_dir)
+                self.seed_headers_cache = Cache(directory=seed_headers_dir)
+            else:
+                self.seed_responses_cache = None
+                self.seed_headers_cache = None
+        else:
+            self.seed_responses_cache = None
+            self.seed_headers_cache = None
+
         self.reuse_cached_responses = params.reuse_cached_responses
         self.save_requests = params.save_requests
 
@@ -112,6 +136,8 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
         self.logger.info(
             "Caching interceptor initialized",
             cache_dir=params.cache_dir,
+            seed_cache_dir=params.seed_cache_dir,
+            seed_cache_active=self.seed_responses_cache is not None,
             reuse_cached_responses=self.reuse_cached_responses,
             save_requests=self.save_requests,
             save_responses=self.save_responses,
@@ -201,20 +227,39 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
         """
         Attempt to retrieve content and headers from cache.
 
+        Checks the primary cache first, then falls back to the seed cache
+        (if configured) on a miss.
+
         Args:
             cache_key (str): Cache key to lookup
 
         Returns:
             Optional[tuple[Any, Any]]: Tuple of (content, headers) if found, None if not
         """
+        # Try primary cache first
         try:
             cached_content = self.responses_cache[cache_key]
             cached_headers = self.headers_cache[cache_key]
-            self.logger.debug("Cache hit", cache_key=cache_key[:8] + "...")
+            self.logger.debug("Cache hit (primary)", cache_key=cache_key[:8] + "...")
             return cached_content, cached_headers
         except KeyError:
-            self.logger.debug("Cache miss", cache_key=cache_key[:8] + "...")
-            return None
+            pass
+
+        # Fall back to seed cache
+        if (
+            self.seed_responses_cache is not None
+            and self.seed_headers_cache is not None
+        ):
+            try:
+                cached_content = self.seed_responses_cache[cache_key]
+                cached_headers = self.seed_headers_cache[cache_key]
+                self.logger.debug("Cache hit (seed)", cache_key=cache_key[:8] + "...")
+                return cached_content, cached_headers
+            except KeyError:
+                pass
+
+        self.logger.debug("Cache miss", cache_key=cache_key[:8] + "...")
+        return None
 
     def _save_to_cache(self, cache_key: str, content: Any, headers: Any) -> None:
         """
