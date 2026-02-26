@@ -149,6 +149,102 @@ def run_eval(
     return get_executor(cfg.execution.type).execute_eval(cfg, dry_run)
 
 
+def resume_eval(invocation_id: str) -> str:
+    """Resume an evaluation by re-executing existing scripts.
+
+    Automates the manual process of navigating to the execution directory
+    and re-executing ``bash run.sh`` (local) or ``sbatch run.sub`` (SLURM).
+
+    Args:
+        invocation_id: The invocation ID to resume (supports partial IDs).
+
+    Returns:
+        str: The resolved invocation ID.
+
+    Raises:
+        ValueError: If invocation not found or executor unsupported.
+        FileNotFoundError: If run scripts no longer exist on disk.
+        RuntimeError: If script execution fails immediately.
+    """
+    import platform
+    import shlex
+    import subprocess
+    import time
+
+    from nemo_evaluator_launcher.common.logging_utils import logger
+
+    db = ExecutionDB()
+    jobs = db.get_jobs(invocation_id)
+
+    if not jobs:
+        raise ValueError(
+            f"Invocation '{invocation_id}' not found in execution database. "
+            f"Use 'nel ls runs' to see available invocations."
+        )
+
+    first_job = next(iter(jobs.values()))
+    executor_cls = get_executor(first_job.executor)
+    resolved_id = first_job.invocation_id
+
+    logger.info(
+        f"Resuming invocation {resolved_id}",
+        num_jobs=len(jobs),
+        executor=first_job.executor,
+    )
+
+    # Local sequential mode: run_all.sequential.sh instead of per-job resume
+    if first_job.executor == "local":
+        any_task_dir = Path(next(iter(jobs.values())).data["output_dir"])
+        invocation_dir = any_task_dir.parent
+
+        # Remove stage files so the resumed run starts with a clean state
+        for job in jobs.values():
+            task_output_dir = Path(job.data["output_dir"])
+            logs_dir = task_output_dir / "logs"
+            for stage_file in ("stage.pre-start", "stage.running", "stage.exit"):
+                (logs_dir / stage_file).unlink(missing_ok=True)
+
+        if (invocation_dir / "run_all.sequential.sh").exists():
+            logger.info("Detected sequential mode, executing run_all.sequential.sh")
+
+            os_name = platform.system()
+            if os_name == "Windows":
+                proc = subprocess.Popen(
+                    shlex.split("bash run_all.sequential.sh"),
+                    cwd=invocation_dir,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                )
+            else:
+                proc = subprocess.Popen(
+                    shlex.split("bash run_all.sequential.sh"),
+                    cwd=invocation_dir,
+                    start_new_session=True,
+                )
+            for job in jobs.values():
+                job.data["resumed_at"] = time.time()
+                job.data.pop("killed", None)
+                db.write_job(job)
+
+            # Check for immediate startup failure
+            time.sleep(0.3)
+            exit_code = proc.poll()
+            if exit_code is not None and exit_code != 0:
+                raise RuntimeError(
+                    f"Script run_all.sequential.sh failed immediately with exit code {exit_code}. "
+                    f"Check logs in {invocation_dir}/logs/"
+                )
+
+            logger.info(f"Resumed invocation {resolved_id} successfully")
+            return resolved_id
+
+    # Standard per-job resume
+    for job_id in jobs:
+        executor_cls.resume_job(job_id)
+
+    logger.info(f"Resumed invocation {resolved_id} successfully")
+    return resolved_id
+
+
 def get_status(ids_or_prefixes: list[str]) -> list[dict[str, Any]]:
     """Get status of jobs by their IDs or invocation IDs.
 
