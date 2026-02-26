@@ -85,6 +85,12 @@ class TestGenerateDockerfile:
         content = generate_dockerfile("byob_test_pkg")
         assert "import core_evals.byob_test_pkg" in content
 
+    def test_dockerfile_has_metadata_layer(self):
+        """Test Dockerfile includes _copy_fdfs metadata layer."""
+        content = generate_dockerfile("byob_test_pkg")
+        assert "_copy_fdfs" in content
+        assert "/opt/metadata/" in content
+
 
 class TestRewriteFdfPaths:
     """Tests for rewrite_fdf_paths function."""

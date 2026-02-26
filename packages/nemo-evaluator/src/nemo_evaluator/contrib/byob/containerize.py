@@ -103,6 +103,9 @@ COPY data/ /nemo_run/data/
 # Install user requirements
 {user_reqs_line}
 
+# Copy framework metadata for harness discovery
+RUN python -c "from nemo_evaluator.core.input import _copy_fdfs; _copy_fdfs('/opt/metadata/')"
+
 # Verify package import
 RUN python -c "import core_evals.{pkg_name}; import nemo_evaluator.contrib.byob.runner"
 
