@@ -748,7 +748,15 @@ class TestRunEvalLoopWithStrategy:
         call_count = 0
 
         class FailingStrategy:
-            def evaluate_sample(self, idx, row, bench, model_call_fn, endpoint_type):
+            def evaluate_sample(
+                self,
+                idx,
+                row,
+                bench,
+                model_call_fn,
+                endpoint_type,
+                request_timeout=None,
+            ):
                 nonlocal call_count
                 call_count += 1
                 if idx == 0:
@@ -804,7 +812,15 @@ class TestRunEvalLoopWithStrategy:
         """
 
         class SkipFirstStrategy:
-            def evaluate_sample(self, idx, row, bench, model_call_fn, endpoint_type):
+            def evaluate_sample(
+                self,
+                idx,
+                row,
+                bench,
+                model_call_fn,
+                endpoint_type,
+                request_timeout=None,
+            ):
                 if idx == 0:
                     return (
                         None,

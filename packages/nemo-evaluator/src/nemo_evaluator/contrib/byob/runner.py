@@ -327,17 +327,22 @@ def _create_session_model_call_fn(
         session: Configured requests.Session.
 
     Returns:
-        Callable matching model_call_fn(prompt, endpoint_type, *, system_prompt=None) -> str.
+        Callable matching model_call_fn(prompt, endpoint_type, *, system_prompt=None, timeout=None) -> str.
     """
-    timeout = (
+    default_timeout = (
         args.request_timeout
         if args.request_timeout is not None
         else args.timeout_per_sample
     )
 
     def model_call_fn(
-        prompt: str, endpoint_type: str, *, system_prompt: Optional[str] = None
+        prompt: str,
+        endpoint_type: str,
+        *,
+        system_prompt: Optional[str] = None,
+        timeout: Optional[float] = None,
     ) -> str:
+        effective_timeout = timeout if timeout is not None else default_timeout
         if endpoint_type == "chat":
             return call_model_chat(
                 url=args.model_url,
@@ -347,23 +352,22 @@ def _create_session_model_call_fn(
                 max_tokens=args.max_tokens,
                 top_p=args.top_p,
                 api_key=api_key,
-                timeout=timeout,
+                timeout=effective_timeout,
                 session=session,
                 system_prompt=system_prompt,
             )
-        else:
-            return call_model_completions(
-                url=args.model_url,
-                model_id=args.model_id,
-                prompt=prompt,
-                temperature=args.temperature,
-                max_tokens=args.max_tokens,
-                top_p=args.top_p,
-                api_key=api_key,
-                timeout=timeout,
-                session=session,
-                system_prompt=system_prompt,
-            )
+        return call_model_completions(
+            url=args.model_url,
+            model_id=args.model_id,
+            prompt=prompt,
+            temperature=args.temperature,
+            max_tokens=args.max_tokens,
+            top_p=args.top_p,
+            api_key=api_key,
+            timeout=effective_timeout,
+            session=session,
+            system_prompt=system_prompt,
+        )
 
     return model_call_fn
 
@@ -403,7 +407,11 @@ def create_client_model_call_fn(
     client = NeMoEvaluatorClient(endpoint_config, output_dir=args.output_dir)
 
     def model_call_fn(
-        prompt: str, endpoint_type: str, *, system_prompt: Optional[str] = None
+        prompt: str,
+        endpoint_type: str,
+        *,
+        system_prompt: Optional[str] = None,
+        timeout: Optional[float] = None,
     ) -> str:
         if endpoint_type == "chat":
             messages = []
@@ -601,6 +609,11 @@ def main():
             save_predictions=args.save_predictions,
             fail_on_skip=args.fail_on_skip,
             parallelism=args.parallelism,
+            request_timeout=(
+                args.request_timeout
+                if args.request_timeout is not None
+                else args.timeout_per_sample
+            ),
         )
 
         # Offset sample_id and add _repeat metadata for repeats

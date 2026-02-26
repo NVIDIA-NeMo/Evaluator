@@ -144,6 +144,7 @@ class EvalStrategy(Protocol):
         bench: BenchmarkDefinition,
         model_call_fn: Callable[[str, str], str],
         endpoint_type: str,
+        request_timeout: Optional[float] = None,
     ) -> Tuple[Optional[Dict], Optional[SampleResult]]:
         """Evaluate a single sample.
 
@@ -164,6 +165,7 @@ class StandardStrategy:
         bench: BenchmarkDefinition,
         model_call_fn: Callable[[str, str], str],
         endpoint_type: str,
+        request_timeout: Optional[float] = None,
     ) -> Tuple[Optional[Dict], Optional[SampleResult]]:
         # Render prompt
         try:
@@ -198,7 +200,10 @@ class StandardStrategy:
         # Call model
         try:
             response = model_call_fn(
-                prompt, endpoint_type, system_prompt=rendered_system_prompt
+                prompt,
+                endpoint_type,
+                system_prompt=rendered_system_prompt,
+                timeout=request_timeout,
             )
         except Exception as e:
             target = row.get(bench.target_field, "")
@@ -261,6 +266,7 @@ class EvalOnlyStrategy:
         bench: BenchmarkDefinition,
         model_call_fn: Callable[[str, str], str],
         endpoint_type: str,
+        request_timeout: Optional[float] = None,
     ) -> Tuple[Optional[Dict], Optional[SampleResult]]:
         # Get pre-generated response from dataset
         if self.response_field not in row:
@@ -330,6 +336,7 @@ def run_eval_loop(
     max_consecutive_errors: int = 0,
     fail_on_skip: bool = False,
     parallelism: int = 1,
+    request_timeout: Optional[float] = None,
 ) -> Tuple[List[Dict], List[SampleResult]]:
     """Core evaluation loop shared between subprocess and native modes.
 
@@ -350,6 +357,8 @@ def run_eval_loop(
         fail_on_skip: If True, raise RuntimeError on any skipped sample.
         parallelism: Number of concurrent evaluation threads. When > 1,
             samples are evaluated in parallel using a ThreadPoolExecutor.
+        request_timeout: Per-request timeout in seconds, passed to
+            model_call_fn as the HTTP timeout for each model call.
 
     Returns:
         Tuple of (all_scores, all_predictions).
@@ -377,6 +386,7 @@ def run_eval_loop(
             max_consecutive_errors=max_consecutive_errors,
             fail_on_skip=fail_on_skip,
             parallelism=parallelism,
+            request_timeout=request_timeout,
         )
 
     return _run_eval_loop_sequential(
@@ -389,6 +399,7 @@ def run_eval_loop(
         show_progress=show_progress,
         max_consecutive_errors=max_consecutive_errors,
         fail_on_skip=fail_on_skip,
+        request_timeout=request_timeout,
     )
 
 
@@ -402,8 +413,11 @@ def _run_eval_loop_sequential(
     show_progress: bool = True,
     max_consecutive_errors: int = 0,
     fail_on_skip: bool = False,
+    request_timeout: Optional[float] = None,
 ) -> Tuple[List[Dict], List[SampleResult]]:
     """Sequential evaluation loop (original behavior)."""
+    if request_timeout is not None:
+        logger.info("Per-request timeout", request_timeout=request_timeout)
     all_scores = []
     all_predictions: List[SampleResult] = []
     total = len(dataset)
@@ -415,7 +429,7 @@ def _run_eval_loop_sequential(
 
     for idx, row in enumerate(dataset):
         scores, prediction = strategy.evaluate_sample(
-            idx, row, bench, model_call_fn, endpoint_type
+            idx, row, bench, model_call_fn, endpoint_type, request_timeout
         )
 
         if scores is None:
@@ -486,12 +500,15 @@ def _run_eval_loop_parallel(
     max_consecutive_errors: int = 0,
     fail_on_skip: bool = False,
     parallelism: int = 4,
+    request_timeout: Optional[float] = None,
 ) -> Tuple[List[Dict], List[SampleResult]]:
     """Parallel evaluation loop using ThreadPoolExecutor.
 
     Maintains sample ordering in results regardless of completion order.
     Thread-safe bookkeeping via a lock for counters and error tracking.
     """
+    if request_timeout is not None:
+        logger.info("Per-request timeout", request_timeout=request_timeout)
     total = len(dataset)
 
     # Pre-allocate result slots indexed by sample position
@@ -512,7 +529,7 @@ def _run_eval_loop_parallel(
         idx: int, row: Dict
     ) -> Tuple[int, Optional[Dict], Optional[SampleResult]]:
         scores, prediction = strategy.evaluate_sample(
-            idx, row, bench, model_call_fn, endpoint_type
+            idx, row, bench, model_call_fn, endpoint_type, request_timeout
         )
         return idx, scores, prediction
 
