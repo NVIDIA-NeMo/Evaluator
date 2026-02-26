@@ -40,7 +40,10 @@ This compiles and auto-installs the package via `pip install -e` (no PYTHONPATH 
 nemo-evaluator run_eval \
   --eval_type byob_my_qa.my-qa \
   --model_url http://localhost:8000 \
-  --model_id my-model
+  --model_id my-model \
+  --model_type chat \
+  --output_dir ./results \
+  --api_key_name API_KEY
 ```
 
 ## CLI Commands
@@ -135,7 +138,7 @@ The agent walks you through 5 steps: understand the task, read data, generate pr
 - [MedMCQA](./medmcqa/) - Medical multiple-choice QA with HuggingFace dataset and field mapping
 - [Global MMLU Lite](./global_mmlu_lite/) - Multilingual MMLU with per-category scoring breakdown
 - [TruthfulQA](./truthfulqa/) - LLM-as-Judge evaluation with custom template and `**template_kwargs`
-- Templates: [Math Reasoning](./templates/math_reasoning.py) (numeric extraction + tolerance), [Code Generation](./templates/code_generation.py) (syntax check + execution)
+- Templates: [Math Reasoning](./templates/math_reasoning.py) (numeric extraction + tolerance)
 
 ## Dataset Format
 
