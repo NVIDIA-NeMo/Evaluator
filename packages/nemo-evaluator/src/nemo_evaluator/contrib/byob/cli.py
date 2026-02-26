@@ -27,19 +27,24 @@ from nemo_evaluator.contrib.byob.defaults import DEFAULT_BASE_IMAGE
 
 
 def _pip_install_editable(pkg_dir: str) -> None:
-    """Install a compiled BYOB package in editable mode.
+    """Install a compiled BYOB package.
 
-    Uses ``pip install -e`` (or ``uv pip install -e`` if available) so the
+    Uses ``pip install`` (or ``uv pip install`` if available) so the
     package is immediately importable without PYTHONPATH manipulation.
+
+    Note: non-editable install is required for correct namespace package
+    merging when multiple BYOB packages share the ``core_evals`` namespace.
+    Editable installs (``-e``) create per-package finders that shadow each
+    other, breaking multi-package discovery.
     """
     import shutil
     import subprocess
 
     uv_bin = shutil.which("uv")
     if uv_bin:
-        cmd = [uv_bin, "pip", "install", "-e", pkg_dir]
+        cmd = [uv_bin, "pip", "install", pkg_dir]
     else:
-        cmd = [sys.executable, "-m", "pip", "install", "-e", pkg_dir]
+        cmd = [sys.executable, "-m", "pip", "install", pkg_dir]
 
     try:
         subprocess.run(cmd, capture_output=True, text=True, check=True)
