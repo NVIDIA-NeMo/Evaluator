@@ -33,8 +33,6 @@ def aggregate_scores(scores: List[Dict], benchmark_name: str) -> Dict:
        - Convert booleans to 0.0/1.0.
        - Compute: mean, population variance (/n), stddev, stderr = stddev / sqrt(n).
        - If n <= 1: variance=0, stderr=0.
-       - Detect binary: is_binary = all(v in (0.0, 1.0) for v in values).
-       - Binary metrics: scale display values by 100 (percentage).
        - Round all values to 4 decimal places.
     3. Output structure conforms to engine expectations.
 
@@ -103,28 +101,13 @@ def aggregate_scores(scores: List[Dict], benchmark_name: str) -> Dict:
             stddev = math.sqrt(variance)
             stderr = stddev / math.sqrt(n)
 
-        # Detect binary (all values in {0.0, 1.0})
-        is_binary = all(v in (0.0, 1.0) for v in values)
-
-        # Scale binary metrics to percentage (0-100)
-        if is_binary:
-            display_value = mean_val * 100
-            display_mean = mean_val * 100
-            display_stderr = stderr * 100
-            display_stddev = stddev * 100
-        else:
-            display_value = mean_val
-            display_mean = mean_val
-            display_stderr = stderr
-            display_stddev = stddev
-
         # Round to 4 decimal places
         aggregated_scores[key] = {
-            "value": round(display_value, 4),
+            "value": round(mean_val, 4),
             "count": n,
-            "mean": round(display_mean, 4),
-            "stderr": round(display_stderr, 4),
-            "stddev": round(display_stddev, 4),
+            "mean": round(mean_val, 4),
+            "stderr": round(stderr, 4),
+            "stddev": round(stddev, 4),
         }
 
     return {
