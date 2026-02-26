@@ -21,10 +21,11 @@ Defines the abstract interface for all executor implementations and common statu
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Iterator, Optional, Tuple
+from typing import Any, Dict, Iterator, Optional, Tuple
 
 from omegaconf import DictConfig
 
+from nemo_evaluator_launcher.common.execdb import JobData
 from nemo_evaluator_launcher.common.logging_utils import logger
 
 
@@ -99,19 +100,31 @@ class BaseExecutor(ABC):
         raise NotImplementedError("Subclasses must implement this method")
 
     @staticmethod
-    @abstractmethod
     def resume_job(job_id: str) -> None:
-        """Resume a job by its ID.
+        """Resume a single job by its ID.
 
         Args:
             job_id: The job ID to resume.
 
         Raises:
-            ValueError: If job is not found or invalid.
-            RuntimeError: If job cannot be resumed.
             NotImplementedError: If not implemented by a subclass.
         """
-        raise NotImplementedError("Subclasses must implement this method")
+        raise NotImplementedError("Subclasses optionally implement this method")
+
+    @classmethod
+    def resume_invocation(cls, invocation_id: str, jobs: Dict[str, JobData]) -> None:
+        """Resume all jobs in an invocation.
+
+        Default implementation calls ``resume_job`` for each job.  Executors
+        that need invocation-level logic (e.g. local sequential mode) should
+        override this method.
+
+        Args:
+            invocation_id: The resolved invocation ID.
+            jobs: Mapping of job_id -> JobData for every job in the invocation.
+        """
+        for job_id in jobs:
+            cls.resume_job(job_id)
 
     @staticmethod
     def get_kill_failure_message(

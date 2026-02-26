@@ -156,21 +156,16 @@ def resume_eval(invocation_id: str) -> str:
     and re-executing ``bash run.sh`` (local) or ``sbatch run.sub`` (SLURM).
 
     Args:
-        invocation_id: The invocation ID to resume (supports partial IDs).
+        invocation_id: The invocation ID to resume. Supports partial IDs.
 
     Returns:
-        str: The resolved invocation ID.
+        str: The resumed invocation ID.
 
     Raises:
-        ValueError: If invocation not found or executor unsupported.
+        ValueError: If invocation not found.
         FileNotFoundError: If run scripts no longer exist on disk.
         RuntimeError: If script execution fails immediately.
     """
-    import platform
-    import shlex
-    import subprocess
-    import time
-
     from nemo_evaluator_launcher.common.logging_utils import logger
 
     db = ExecutionDB()
@@ -192,54 +187,7 @@ def resume_eval(invocation_id: str) -> str:
         executor=first_job.executor,
     )
 
-    # Local sequential mode: run_all.sequential.sh instead of per-job resume
-    if first_job.executor == "local":
-        any_task_dir = Path(next(iter(jobs.values())).data["output_dir"])
-        invocation_dir = any_task_dir.parent
-
-        # Remove stage files so the resumed run starts with a clean state
-        for job in jobs.values():
-            task_output_dir = Path(job.data["output_dir"])
-            logs_dir = task_output_dir / "logs"
-            for stage_file in ("stage.pre-start", "stage.running", "stage.exit"):
-                (logs_dir / stage_file).unlink(missing_ok=True)
-
-        if (invocation_dir / "run_all.sequential.sh").exists():
-            logger.info("Detected sequential mode, executing run_all.sequential.sh")
-
-            os_name = platform.system()
-            if os_name == "Windows":
-                proc = subprocess.Popen(
-                    shlex.split("bash run_all.sequential.sh"),
-                    cwd=invocation_dir,
-                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
-                )
-            else:
-                proc = subprocess.Popen(
-                    shlex.split("bash run_all.sequential.sh"),
-                    cwd=invocation_dir,
-                    start_new_session=True,
-                )
-            for job in jobs.values():
-                job.data["resumed_at"] = time.time()
-                job.data.pop("killed", None)
-                db.write_job(job)
-
-            # Check for immediate startup failure
-            time.sleep(0.3)
-            exit_code = proc.poll()
-            if exit_code is not None and exit_code != 0:
-                raise RuntimeError(
-                    f"Script run_all.sequential.sh failed immediately with exit code {exit_code}. "
-                    f"Check logs in {invocation_dir}/logs/"
-                )
-
-            logger.info(f"Resumed invocation {resolved_id} successfully")
-            return resolved_id
-
-    # Standard per-job resume
-    for job_id in jobs:
-        executor_cls.resume_job(job_id)
+    executor_cls.resume_invocation(resolved_id, jobs)
 
     logger.info(f"Resumed invocation {resolved_id} successfully")
     return resolved_id

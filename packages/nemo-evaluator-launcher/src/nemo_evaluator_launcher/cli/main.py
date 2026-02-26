@@ -214,7 +214,7 @@ def create_parser() -> ArgumentParser:
     resume_parser = subparsers.add_parser(
         "resume",
         help="Resume an evaluation.",
-        description="Resume an evaluation by re-executing previously launched commands",
+        description="Resume an evaluation by re-executing existing scripts in output directories",
     )
     resume_parser.add_arguments(resume.Cmd, dest="resume")
 
