@@ -40,6 +40,7 @@ class TestGenerateDockerfile:
         assert "COPY pkg/" in content
         assert "COPY code/" in content
         assert "COPY data/" in content
+        assert "_copy_fdfs" in content
 
     def test_dockerfile_has_labels(self):
         """Test that Dockerfile includes launcher-compliant labels."""
