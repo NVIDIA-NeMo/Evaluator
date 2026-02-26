@@ -563,7 +563,7 @@ def main():
             f.write(new_text)
         print(f"\nWritten to {args.output}", file=sys.stderr)
     else:
-        print(new_text)
+        sys.stdout.write(new_text)
 
 
 if __name__ == "__main__":
