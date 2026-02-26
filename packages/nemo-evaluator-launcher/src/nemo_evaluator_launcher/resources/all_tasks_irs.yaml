@@ -16843,7 +16843,7 @@ tasks:
     command: cd /nemo_run/code && {% if config.params.extra.use_sandbox %}python -m
       nemo_skills.code_execution.local_sandbox.local_sandbox_server > {{config.output_dir}}/sandbox.log
       2>&1 & SANDBOX_PID=$! && sleep 3 && {% endif %}{% if not config.params.task.startswith('ruler')
-      %} ns prepare_data {{config.params.task}} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}}
+      %} ns prepare_data {{config.params.task}} {% if config.params.extra.dataset_split is not none %}--split={{config.params.extra.dataset_split}}{% endif %} {% else %} mkdir -p {{config.params.extra.ruler.data_dir}}
       && ln -sf {{config.params.extra.ruler.data_dir}} /nemo_run/code/ruler_data &&  ns
       prepare_data ruler --data_dir={{config.params.extra.ruler.data_dir}} --cluster={{config.params.extra.ruler.cluster}}
       --setup={{config.params.extra.ruler.setup}} --max_seq_length={{config.params.extra.ruler.max_seq_length}}
