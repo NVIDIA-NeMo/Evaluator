@@ -165,8 +165,11 @@ The agent writes the benchmark file, compiles it, and gives you the run command.
 │ To run:                                                     │
 │   nemo-evaluator run_eval \                                 │
 │     --eval_type byob_my_qa.my-qa \                          │
-│     --target.api_endpoint.url http://localhost:8000 \        │
-│     --target.api_endpoint.model_id my-model                 │
+│     --model_url http://localhost:8000 \                      │
+│     --model_id my-model \                                    │
+│     --model_type chat \                                      │
+│     --output_dir ./results \                                 │
+│     --api_key_name API_KEY                                   │
 └─────────────────────────────────────────────────────────────┘
 ```
 

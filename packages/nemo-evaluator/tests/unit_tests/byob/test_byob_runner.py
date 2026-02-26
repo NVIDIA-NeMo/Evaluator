@@ -46,8 +46,7 @@ class TestAggregateScores:
         -                     = (0.1111 + 0.4445 + 0.1111) / 3 = 0.2222
         - stddev = sqrt(0.2222) = 0.4714
         - stderr = 0.4714 / sqrt(3) = 0.2722
-        - Binary detected -> scale by 100
-        - value = 66.6667, stddev = 47.1405, stderr = 27.2166
+        - Values reported as fractions (0.0-1.0), no percentage scaling
         """
         scores = [{"correct": True}, {"correct": False}, {"correct": True}]
         result = aggregate_scores(scores, "test_bench")
@@ -59,21 +58,20 @@ class TestAggregateScores:
         score_data = task["metrics"]["pass@1"]["scores"]["correct"]
 
         assert score_data["count"] == 3, f"Expected count=3, got {score_data['count']}"
-        assert abs(score_data["value"] - 66.6667) < 0.01, (
-            f"Expected value~66.6667, got {score_data['value']}"
+        assert abs(score_data["value"] - 0.6667) < 0.001, (
+            f"Expected value~0.6667, got {score_data['value']}"
         )
-        assert abs(score_data["mean"] - 66.6667) < 0.01, (
-            f"Expected mean~66.6667, got {score_data['mean']}"
+        assert abs(score_data["mean"] - 0.6667) < 0.001, (
+            f"Expected mean~0.6667, got {score_data['mean']}"
         )
-        # stderr also scaled by 100 for binary metrics (population variance: divide by n)
         # Population variance: ((1-0.667)^2 + (0-0.667)^2 + (1-0.667)^2) / 3 = 0.2222
-        # Population stddev = sqrt(0.2222) = 0.4714, scaled = 47.14
-        # Population stderr = 47.14 / sqrt(3) = 27.22
-        assert abs(score_data["stderr"] - 27.2166) < 0.1, (
-            f"Expected stderr~27.2166, got {score_data['stderr']}"
+        # Population stddev = sqrt(0.2222) = 0.4714
+        # Population stderr = 0.4714 / sqrt(3) = 0.2722
+        assert abs(score_data["stderr"] - 0.2722) < 0.01, (
+            f"Expected stderr~0.2722, got {score_data['stderr']}"
         )
-        assert abs(score_data["stddev"] - 47.1405) < 0.1, (
-            f"Expected stddev~47.1405, got {score_data['stddev']}"
+        assert abs(score_data["stddev"] - 0.4714) < 0.01, (
+            f"Expected stddev~0.4714, got {score_data['stddev']}"
         )
 
     def test_aggregate_continuous_scores(self):
@@ -121,7 +119,7 @@ class TestAggregateScores:
         - n = 1, binary, mean = 1.0
         - variance = 0 (n <= 1 special case)
         - stddev = 0, stderr = 0
-        - Binary -> value = 100.0
+        - Values reported as fractions (0.0-1.0)
         """
         scores = [{"correct": True}]
         result = aggregate_scores(scores, "single_bench")
@@ -130,8 +128,8 @@ class TestAggregateScores:
             "correct"
         ]
         assert score_data["count"] == 1
-        assert score_data["value"] == 100.0, (
-            f"Expected value=100.0, got {score_data['value']}"
+        assert score_data["value"] == 1.0, (
+            f"Expected value=1.0, got {score_data['value']}"
         )
         assert score_data["stddev"] == 0.0, (
             f"Expected stddev=0.0, got {score_data['stddev']}"
@@ -141,15 +139,15 @@ class TestAggregateScores:
         )
 
     def test_aggregate_all_true(self):
-        """Test all True boolean scores -> value=100.0."""
+        """Test all True boolean scores -> value=1.0."""
         scores = [{"correct": True}, {"correct": True}, {"correct": True}]
         result = aggregate_scores(scores, "all_true_bench")
 
         score_data = result["tasks"]["all_true_bench"]["metrics"]["pass@1"]["scores"][
             "correct"
         ]
-        assert score_data["value"] == 100.0
-        assert score_data["mean"] == 100.0
+        assert score_data["value"] == 1.0
+        assert score_data["mean"] == 1.0
         assert score_data["stddev"] == 0.0
         assert score_data["stderr"] == 0.0
 
