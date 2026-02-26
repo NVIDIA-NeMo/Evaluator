@@ -119,7 +119,7 @@ Additional CLI flags:
 - `--push REGISTRY/IMAGE:TAG` — push built image to registry (implies `--containerize`)
 - `--check-requirements` — verify declared requirements are importable
 
-Run: `nemo-evaluator run_eval --eval_type byob_NAME.NAME --target.api_endpoint.url URL --target.api_endpoint.model_id MODEL`
+Run: `nemo-evaluator run_eval --eval_type byob_NAME.NAME --model_url URL --model_id MODEL --model_type chat --output_dir ./results --api_key_name API_KEY`
 
 **Scorer smoke test (ALWAYS run before compile):**
 Test scorer with 2-3 synthetic inputs via `python3 -c "..."`. Verify returns dict with bool/float.
@@ -156,4 +156,3 @@ Test scorer with 2-3 synthetic inputs via `python3 -c "..."`. Verify returns dic
 
 If available, read template files for reference patterns:
 - `examples/byob/templates/math_reasoning.py`
-- `examples/byob/templates/code_generation.py`
