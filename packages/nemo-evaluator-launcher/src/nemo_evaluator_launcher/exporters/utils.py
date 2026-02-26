@@ -633,7 +633,7 @@ def _safe_set_metric(
     if key in container:
         # Allow exact matches; warn and keep existing
         if container[key] == float(new_value):
-            logger.warning(
+            logger.debug(
                 f"Metric rewrite{context}: '{key}' has identical value; keeping existing. value={container[key]}"
             )
             return

@@ -293,7 +293,8 @@ class WandBExporter(BaseExporter):
                     return run.id
 
             return None
-        except Exception:
+        except Exception as e:
+            logger.error(f"Error checking existing run {identifier}: {e}")
             return None
 
     def _create_wandb_run(

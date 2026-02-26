@@ -110,23 +110,23 @@ class GSheetsExporter(BaseExporter):
                 spreadsheet_name = sh.title
                 logger.info(
                     "Opened existing spreadsheet",
-                    spreadsheet_id=self.config.spreadsheet_id,
-                    spreadsheet_name=spreadsheet_name,
+                    name=spreadsheet_name,
+                    url=sh.url,
                 )
             else:
                 try:
                     sh = gc.open(self.config.spreadsheet_name)
                     logger.info(
                         "Opened existing spreadsheet",
-                        spreadsheet_id=sh.id,
-                        spreadsheet_name=self.config.spreadsheet_name,
+                        name=self.config.spreadsheet_name,
+                        url=sh.url,
                     )
                 except gspread.SpreadsheetNotFound:
                     sh = gc.create(self.config.spreadsheet_name)
                     logger.info(
                         "Created new spreadsheet",
-                        spreadsheet_id=sh.id,
-                        spreadsheet_name=self.config.spreadsheet_name,
+                        name=self.config.spreadsheet_name,
+                        url=sh.url,
                     )
 
             worksheet = sh.sheet1
