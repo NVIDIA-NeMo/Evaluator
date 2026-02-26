@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""BYOB compiler: transforms user benchmark modules into core_evals namespace packages."""
+"""BYOB compiler: transforms user benchmark modules into nemo_evaluator namespace packages."""
 
 import importlib
 import os
@@ -276,11 +276,108 @@ def compile_benchmark(module_path: str) -> Dict[str, dict]:
                 sys.modules.pop(mod_name, None)
 
 
+_PTH_FILENAME = "nemo_evaluator_byob.pth"
+
+
+def _make_pth_line(install_dir: str) -> str:
+    """Build a single ``.pth`` line that extends ``nemo_evaluator.__path__``.
+
+    Each line is a self-contained Python snippet that globs
+    ``<install_dir>/*/nemo_evaluator`` and appends any matches to
+    ``nemo_evaluator.__path__``.  Multiple lines (one per distinct
+    ``--install-dir``) can coexist in the same ``.pth`` file.
+    """
+    # Normalize to absolute so the .pth line is stable across cwd changes
+    abs_dir = os.path.abspath(install_dir)
+    return (
+        "import os, glob, nemo_evaluator; "
+        "[nemo_evaluator.__path__.append(d) "
+        f"for d in glob.glob(os.path.join({abs_dir!r}, '*', 'nemo_evaluator')) "
+        "if d not in nemo_evaluator.__path__]"
+    )
+
+
+def _ensure_pth_file(install_dir: str) -> Optional[str]:
+    """Ensure the ``.pth`` file in site-packages contains a line for *install_dir*.
+
+    The ``.pth`` file extends ``nemo_evaluator.__path__`` at Python startup
+    so the harness discovery code finds BYOB sub-packages — even when the
+    main nemo-evaluator is installed in editable (development) mode.
+
+    Each unique ``--install-dir`` adds one line.  Repeated compilations with
+    the same directory are idempotent (the line is not duplicated).
+
+    Args:
+        install_dir: The BYOB package install directory to register.
+
+    Returns:
+        Path to the ``.pth`` file, or None if site-packages could not
+        be determined.
+    """
+    import site
+
+    # Find a writable site-packages directory
+    candidates = []
+    try:
+        candidates.append(site.getusersitepackages())
+    except AttributeError:
+        pass
+    try:
+        candidates.extend(site.getsitepackages())
+    except AttributeError:
+        pass
+
+    site_dir = None
+    for sp in candidates:
+        if os.path.isdir(sp):
+            site_dir = sp
+            break
+
+    if site_dir is None:
+        return None
+
+    pth_path = os.path.join(site_dir, _PTH_FILENAME)
+    new_line = _make_pth_line(install_dir)
+
+    # Read existing lines (if any) to avoid duplicates
+    existing_lines: List[str] = []
+    if os.path.exists(pth_path):
+        with open(pth_path) as f:
+            existing_lines = [ln.rstrip("\n") for ln in f.readlines()]
+
+    if new_line in existing_lines:
+        return pth_path  # already registered
+
+    try:
+        os.makedirs(site_dir, exist_ok=True)
+        with open(pth_path, "a") as f:
+            f.write(new_line + "\n")
+        _logger.info(
+            "Registered BYOB install dir in .pth file",
+            pth=pth_path,
+            install_dir=install_dir,
+        )
+        return pth_path
+    except OSError as e:
+        _logger.warning(
+            "Could not write .pth file (BYOB packages may need manual setup)",
+            path=pth_path,
+            error=str(e),
+        )
+        return None
+
+
 def install_benchmark(
     normalized_name: str, fdf: dict, install_dir: Optional[str] = None
 ) -> str:
     """
-    Install a compiled benchmark as a core_evals namespace package.
+    Install a compiled benchmark as a nemo_evaluator namespace sub-package.
+
+    The compiled package creates ``nemo_evaluator/byob_<name>/`` inside the
+    install directory.  A ``.pth`` file in site-packages extends
+    ``nemo_evaluator.__path__`` at Python startup so the harness discovery
+    code (``core/input.py:_get_harness_packages``) finds the sub-package
+    without any changes to ``nemo_evaluator/__init__.py``.
 
     Args:
         normalized_name: Normalized benchmark name
@@ -314,17 +411,12 @@ def install_benchmark(
     with open(pyproject_path, "w") as f:
         f.write(_generate_pyproject_toml(pkg_name, user_requirements=user_reqs))
 
-    # Create core_evals namespace package
-    core_evals_dir = os.path.join(pkg_dir, "core_evals")
-    os.makedirs(core_evals_dir, exist_ok=True)
-
-    # Write core_evals/__init__.py (pkgutil namespace)
-    core_evals_init = os.path.join(core_evals_dir, "__init__.py")
-    with open(core_evals_init, "w") as f:
-        f.write("__path__ = __import__('pkgutil').extend_path(__path__, __name__)\n")
+    # Create nemo_evaluator namespace directory (no __init__.py — main package owns it)
+    ns_dir = os.path.join(pkg_dir, "nemo_evaluator")
+    os.makedirs(ns_dir, exist_ok=True)
 
     # Create byob_{name} sub-package
-    benchmark_pkg_dir = os.path.join(core_evals_dir, pkg_name)
+    benchmark_pkg_dir = os.path.join(ns_dir, pkg_name)
     os.makedirs(benchmark_pkg_dir, exist_ok=True)
 
     # Write byob_{name}/__init__.py (empty)
@@ -341,6 +433,9 @@ def install_benchmark(
     output_py = os.path.join(benchmark_pkg_dir, "output.py")
     with open(output_py, "w") as f:
         f.write(_generate_output_py())
+
+    # Ensure the .pth file registers this install_dir for namespace merging
+    _ensure_pth_file(install_dir)
 
     return pkg_dir
 
@@ -405,14 +500,14 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "core-evals-{pkg_name}"
+name = "nemo-evaluator-{pkg_name}"
 version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = [{deps_str}]
 
-[tool.setuptools.packages.find]
-include = ["core_evals", "core_evals.*"]
+[tool.setuptools.packages]
+find = {{namespaces = true, include = ["nemo_evaluator.{pkg_name}"]}}
 
 [tool.setuptools.package-data]
-"core_evals.{pkg_name}" = ["framework.yml"]
+"nemo_evaluator.{pkg_name}" = ["framework.yml"]
 """

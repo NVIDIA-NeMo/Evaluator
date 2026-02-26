@@ -65,7 +65,7 @@ def generate_dockerfile(
 
     - ``/nemo_run/code/`` — benchmark Python module(s)
     - ``/nemo_run/data/``  — dataset file(s)
-    - ``/opt/byob_pkg/``   — compiled core_evals namespace package
+    - ``/opt/byob_pkg/``   — compiled nemo_evaluator namespace package
 
     Args:
         pkg_name: Package name (e.g. ``byob_boolq``).
@@ -107,7 +107,7 @@ COPY data/ /nemo_run/data/
 RUN python -c "from nemo_evaluator.core.input import _copy_fdfs; _copy_fdfs('/opt/metadata/')"
 
 # Verify package import
-RUN python -c "import core_evals.{pkg_name}; import nemo_evaluator.contrib.byob.runner"
+RUN python -c "import nemo_evaluator.{pkg_name}; import nemo_evaluator.contrib.byob.runner"
 
 # Labels for launcher compliance
 LABEL com.nvidia.nemo-evaluator.pkg-name="{pkg_name}"
@@ -244,7 +244,7 @@ def prepare_build_context(
     # Rewrite FDF and write into the copied package
     pkg_name = fdf.get("framework", {}).get("pkg_name", "")
     rewritten_fdf = rewrite_fdf_paths(fdf, pkg_name)
-    framework_yml_candidates = list((pkg_dest / "core_evals").rglob("framework.yml"))
+    framework_yml_candidates = list((pkg_dest / "nemo_evaluator").rglob("framework.yml"))
     for fw_path in framework_yml_candidates:
         with open(fw_path, "w") as f:
             yaml.safe_dump(rewritten_fdf, f, default_flow_style=False, sort_keys=False)

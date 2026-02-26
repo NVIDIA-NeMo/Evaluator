@@ -33,7 +33,7 @@ def _pip_install_editable(pkg_dir: str) -> None:
     package is immediately importable without PYTHONPATH manipulation.
 
     Note: non-editable install is required for correct namespace package
-    merging when multiple BYOB packages share the ``core_evals`` namespace.
+    merging when multiple BYOB packages share the ``nemo_evaluator`` namespace.
     Editable installs (``-e``) create per-package finders that shadow each
     other, breaking multi-package discovery.
     """
@@ -144,7 +144,7 @@ def byob_compile(args=None):
 
         packages = []
         for fw_yml in glob.glob(
-            os.path.join(search_dir, "*/core_evals/*/framework.yml")
+            os.path.join(search_dir, "*/nemo_evaluator/*/framework.yml")
         ):
             try:
                 with open(fw_yml) as f:

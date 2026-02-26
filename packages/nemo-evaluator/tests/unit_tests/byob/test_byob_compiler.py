@@ -205,34 +205,34 @@ class TestInstallBenchmark:
 
         # Validate directory structure
         assert (pkg_path / "pyproject.toml").is_file(), "Missing pyproject.toml"
-        assert (pkg_path / "core_evals" / "__init__.py").is_file(), (
-            "Missing core_evals/__init__.py"
+        # nemo_evaluator/ dir exists but has NO __init__.py (main package owns it)
+        assert (pkg_path / "nemo_evaluator").is_dir(), (
+            "Missing nemo_evaluator/ namespace directory"
         )
-        assert (pkg_path / "core_evals" / "byob_test_pkg" / "__init__.py").is_file(), (
-            "Missing core_evals/byob_test_pkg/__init__.py"
+        assert not (pkg_path / "nemo_evaluator" / "__init__.py").exists(), (
+            "nemo_evaluator/__init__.py should NOT exist — main package owns it"
         )
         assert (
-            pkg_path / "core_evals" / "byob_test_pkg" / "framework.yml"
+            pkg_path / "nemo_evaluator" / "byob_test_pkg" / "__init__.py"
+        ).is_file(), "Missing nemo_evaluator/byob_test_pkg/__init__.py"
+        assert (
+            pkg_path / "nemo_evaluator" / "byob_test_pkg" / "framework.yml"
         ).is_file(), "Missing framework.yml"
-        assert (pkg_path / "core_evals" / "byob_test_pkg" / "output.py").is_file(), (
-            "Missing output.py"
-        )
+        assert (
+            pkg_path / "nemo_evaluator" / "byob_test_pkg" / "output.py"
+        ).is_file(), "Missing output.py"
 
         # Validate framework.yml is valid YAML
-        with open(pkg_path / "core_evals" / "byob_test_pkg" / "framework.yml") as f:
+        with open(
+            pkg_path / "nemo_evaluator" / "byob_test_pkg" / "framework.yml"
+        ) as f:
             fw = yaml.safe_load(f)
         assert fw is not None, "framework.yml failed to parse"
         assert "framework" in fw, "framework.yml missing 'framework' key"
 
-        # Validate core_evals/__init__.py contains pkgutil.extend_path
-        init_content = (pkg_path / "core_evals" / "__init__.py").read_text()
-        assert "extend_path" in init_content, (
-            "core_evals/__init__.py should use pkgutil.extend_path for namespace"
-        )
-
         # Validate output.py contains parse_output function
         output_content = (
-            pkg_path / "core_evals" / "byob_test_pkg" / "output.py"
+            pkg_path / "nemo_evaluator" / "byob_test_pkg" / "output.py"
         ).read_text()
         assert "def parse_output" in output_content, (
             "output.py should define parse_output function"
@@ -241,10 +241,13 @@ class TestInstallBenchmark:
             "output.py should reference byob_results.json"
         )
 
-        # Validate pyproject.toml contains correct package name
+        # Validate pyproject.toml uses find_namespace_packages (no __init__.py shipped)
         toml_content = (pkg_path / "pyproject.toml").read_text()
-        assert "core-evals-byob_test_pkg" in toml_content, (
-            "pyproject.toml should contain package name core-evals-byob_test_pkg"
+        assert "nemo-evaluator-byob_test_pkg" in toml_content, (
+            "pyproject.toml should contain package name nemo-evaluator-byob_test_pkg"
+        )
+        assert "namespaces = true" in toml_content, (
+            "pyproject.toml should use find_namespace_packages"
         )
 
 

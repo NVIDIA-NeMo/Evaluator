@@ -83,7 +83,7 @@ class TestGenerateDockerfile:
     def test_dockerfile_verify_import(self):
         """Test Dockerfile verifies package import."""
         content = generate_dockerfile("byob_test_pkg")
-        assert "import core_evals.byob_test_pkg" in content
+        assert "import nemo_evaluator.byob_test_pkg" in content
 
     def test_dockerfile_has_metadata_layer(self):
         """Test Dockerfile includes _copy_fdfs metadata layer."""
@@ -150,12 +150,12 @@ class TestPrepareBuildContext:
 
     def test_creates_directory_layout(self, tmp_path):
         """Test that build context has pkg/, code/, data/ directories."""
-        # Create a mock compiled package
+        # Create a mock compiled package (nemo_evaluator namespace, no __init__.py)
         pkg_dir = tmp_path / "byob_test"
-        core_evals_dir = pkg_dir / "core_evals" / "byob_test"
-        core_evals_dir.mkdir(parents=True)
-        (core_evals_dir / "framework.yml").write_text("framework: test")
-        (core_evals_dir / "__init__.py").write_text("")
+        ns_dir = pkg_dir / "nemo_evaluator" / "byob_test"
+        ns_dir.mkdir(parents=True)
+        (ns_dir / "framework.yml").write_text("framework: test")
+        (ns_dir / "__init__.py").write_text("")
         (pkg_dir / "pyproject.toml").write_text("[project]\nname = 'test'")
 
         # Create mock benchmark and dataset files
