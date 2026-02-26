@@ -244,7 +244,9 @@ def prepare_build_context(
     # Rewrite FDF and write into the copied package
     pkg_name = fdf.get("framework", {}).get("pkg_name", "")
     rewritten_fdf = rewrite_fdf_paths(fdf, pkg_name)
-    framework_yml_candidates = list((pkg_dest / "nemo_evaluator").rglob("framework.yml"))
+    framework_yml_candidates = list(
+        (pkg_dest / "nemo_evaluator").rglob("framework.yml")
+    )
     for fw_path in framework_yml_candidates:
         with open(fw_path, "w") as f:
             yaml.safe_dump(rewritten_fdf, f, default_flow_style=False, sort_keys=False)

@@ -223,9 +223,7 @@ class TestInstallBenchmark:
         ).is_file(), "Missing output.py"
 
         # Validate framework.yml is valid YAML
-        with open(
-            pkg_path / "nemo_evaluator" / "byob_test_pkg" / "framework.yml"
-        ) as f:
+        with open(pkg_path / "nemo_evaluator" / "byob_test_pkg" / "framework.yml") as f:
             fw = yaml.safe_load(f)
         assert fw is not None, "framework.yml failed to parse"
         assert "framework" in fw, "framework.yml missing 'framework' key"
