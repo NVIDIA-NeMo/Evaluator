@@ -242,8 +242,11 @@ Compiles and auto-installs via `pip install -e` (no PYTHONPATH setup needed).
 ```bash
 nemo-evaluator run_eval \
   --eval_type byob_NAME.NAME \
-  --target.api_endpoint.url http://localhost:8000 \
-  --target.api_endpoint.model_id my-model
+  --model_url http://localhost:8000 \
+  --model_id my-model \
+  --model_type chat \
+  --output_dir ./results \
+  --api_key_name API_KEY
 ```
 
 ### Scorer smoke test (ALWAYS run before compile)
@@ -293,7 +296,6 @@ Test scorer with 2-3 synthetic inputs via `python3 -c "..."`. Verify returns dic
 
 If available, read template files for reference patterns:
 - `examples/byob/templates/math_reasoning.py`
-- `examples/byob/templates/code_generation.py`
 
 ## Examples
 
