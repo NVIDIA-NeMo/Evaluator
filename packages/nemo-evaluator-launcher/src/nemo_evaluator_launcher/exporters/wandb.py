@@ -159,9 +159,7 @@ class WandBExporter(BaseExporter):
                             continue
 
                         # Check if run exists
-                        run_id = self._check_existing_run(
-                            invocation_id, inv_data_list[0]
-                        )
+                        run_id = self._check_existing_run(invocation_id)
 
                         # Use first job data as template
                         result = self._create_wandb_run(
@@ -231,10 +229,13 @@ class WandBExporter(BaseExporter):
             if self.config.only_required and self.config.copy_artifacts:
                 # Upload only specific required files
                 for p in get_available_artifacts(artifacts_dir):
-                    artifact.add_file(str(p), name=f"{artifact_root}/artifacts/{p}")
+                    artifact.add_file(
+                        str(artifacts_dir / p), name=f"{artifact_root}/artifacts/{p}"
+                    )
                     logged_names.append(p)
             elif self.config.copy_artifacts:
                 # Upload all artifacts with recursive exclusion
+
                 with tempfile.TemporaryDirectory() as tmp:
                     staged = Path(tmp) / "artifacts"
                     shutil.copytree(
@@ -263,7 +264,7 @@ class WandBExporter(BaseExporter):
             logger.error(f"Error logging artifacts: {e}")
             return []
 
-    def _check_existing_run(self, identifier: str, data: DataForExport) -> str | None:
+    def _check_existing_run(self, identifier: str) -> str | None:
         """Check if run exists based on name patterns."""
         try:
             import wandb
