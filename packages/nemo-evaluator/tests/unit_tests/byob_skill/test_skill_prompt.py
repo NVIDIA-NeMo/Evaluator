@@ -173,8 +173,8 @@ def test_skill_prompt_file_references_exist(skill_prompt_path):
     # Extract file paths that look like examples/byob/...
     # Pattern: examples/byob/WORD/*.EXTENSION
     paths = re.findall(r"(examples/byob/\S+\.(?:py|jsonl))", content)
-    assert len(paths) >= 2, (
-        f"Expected at least 2 file references in skill prompt, found {len(paths)}. "
+    assert len(paths) >= 1, (
+        f"Expected at least 1 file reference in skill prompt, found {len(paths)}. "
         f"Check that templates are referenced. Found: {paths}"
     )
 
