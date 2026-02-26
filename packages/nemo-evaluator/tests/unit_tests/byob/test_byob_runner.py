@@ -56,22 +56,23 @@ class TestAggregateScores:
 
         task = result["tasks"]["test_bench"]
         score_data = task["metrics"]["pass@1"]["scores"]["correct"]
+        stats = score_data["stats"]
 
-        assert score_data["count"] == 3, f"Expected count=3, got {score_data['count']}"
+        assert stats["count"] == 3, f"Expected count=3, got {stats['count']}"
         assert abs(score_data["value"] - 0.6667) < 0.001, (
             f"Expected value~0.6667, got {score_data['value']}"
         )
-        assert abs(score_data["mean"] - 0.6667) < 0.001, (
-            f"Expected mean~0.6667, got {score_data['mean']}"
+        assert abs(stats["mean"] - 0.6667) < 0.001, (
+            f"Expected mean~0.6667, got {stats['mean']}"
         )
         # Population variance: ((1-0.667)^2 + (0-0.667)^2 + (1-0.667)^2) / 3 = 0.2222
         # Population stddev = sqrt(0.2222) = 0.4714
         # Population stderr = 0.4714 / sqrt(3) = 0.2722
-        assert abs(score_data["stderr"] - 0.2722) < 0.01, (
-            f"Expected stderr~0.2722, got {score_data['stderr']}"
+        assert abs(stats["stderr"] - 0.2722) < 0.01, (
+            f"Expected stderr~0.2722, got {stats['stderr']}"
         )
-        assert abs(score_data["stddev"] - 0.4714) < 0.01, (
-            f"Expected stddev~0.4714, got {score_data['stddev']}"
+        assert abs(stats["stddev"] - 0.4714) < 0.01, (
+            f"Expected stddev~0.4714, got {stats['stddev']}"
         )
 
     def test_aggregate_continuous_scores(self):
@@ -92,19 +93,20 @@ class TestAggregateScores:
 
         task = result["tasks"]["continuous_bench"]
         score_data = task["metrics"]["pass@1"]["scores"]["f1"]
+        stats = score_data["stats"]
 
-        assert score_data["count"] == 3
+        assert stats["count"] == 3
         assert abs(score_data["value"] - 0.9) < 0.0001, (
             f"Expected value=0.9, got {score_data['value']}"
         )
-        assert abs(score_data["mean"] - 0.9) < 0.0001, (
-            f"Expected mean=0.9, got {score_data['mean']}"
+        assert abs(stats["mean"] - 0.9) < 0.0001, (
+            f"Expected mean=0.9, got {stats['mean']}"
         )
-        assert abs(score_data["stddev"] - 0.08165) < 0.001, (
-            f"Expected stddev~0.08165, got {score_data['stddev']}"
+        assert abs(stats["stddev"] - 0.08165) < 0.001, (
+            f"Expected stddev~0.08165, got {stats['stddev']}"
         )
-        assert abs(score_data["stderr"] - 0.04714) < 0.001, (
-            f"Expected stderr~0.04714, got {score_data['stderr']}"
+        assert abs(stats["stderr"] - 0.04714) < 0.001, (
+            f"Expected stderr~0.04714, got {stats['stderr']}"
         )
 
     def test_aggregate_empty(self):
@@ -127,16 +129,13 @@ class TestAggregateScores:
         score_data = result["tasks"]["single_bench"]["metrics"]["pass@1"]["scores"][
             "correct"
         ]
-        assert score_data["count"] == 1
+        stats = score_data["stats"]
+        assert stats["count"] == 1
         assert score_data["value"] == 1.0, (
             f"Expected value=1.0, got {score_data['value']}"
         )
-        assert score_data["stddev"] == 0.0, (
-            f"Expected stddev=0.0, got {score_data['stddev']}"
-        )
-        assert score_data["stderr"] == 0.0, (
-            f"Expected stderr=0.0, got {score_data['stderr']}"
-        )
+        assert stats["stddev"] == 0.0, f"Expected stddev=0.0, got {stats['stddev']}"
+        assert stats["stderr"] == 0.0, f"Expected stderr=0.0, got {stats['stderr']}"
 
     def test_aggregate_all_true(self):
         """Test all True boolean scores -> value=1.0."""
@@ -146,10 +145,11 @@ class TestAggregateScores:
         score_data = result["tasks"]["all_true_bench"]["metrics"]["pass@1"]["scores"][
             "correct"
         ]
+        stats = score_data["stats"]
         assert score_data["value"] == 1.0
-        assert score_data["mean"] == 1.0
-        assert score_data["stddev"] == 0.0
-        assert score_data["stderr"] == 0.0
+        assert stats["mean"] == 1.0
+        assert stats["stddev"] == 0.0
+        assert stats["stderr"] == 0.0
 
     def test_aggregate_all_false(self):
         """Test all False boolean scores -> value=0.0."""
@@ -159,10 +159,11 @@ class TestAggregateScores:
         score_data = result["tasks"]["all_false_bench"]["metrics"]["pass@1"]["scores"][
             "correct"
         ]
+        stats = score_data["stats"]
         assert score_data["value"] == 0.0
-        assert score_data["mean"] == 0.0
-        assert score_data["stddev"] == 0.0
-        assert score_data["stderr"] == 0.0
+        assert stats["mean"] == 0.0
+        assert stats["stddev"] == 0.0
+        assert stats["stderr"] == 0.0
 
     def test_aggregate_mixed_keys(self):
         """Test samples with different keys are handled gracefully.
@@ -179,14 +180,14 @@ class TestAggregateScores:
         scores_out = result["tasks"]["mixed_bench"]["metrics"]["pass@1"]["scores"]
 
         # "correct" should have count=3 (all samples have it)
-        assert scores_out["correct"]["count"] == 3, (
-            f"Expected correct count=3, got {scores_out['correct']['count']}"
+        assert scores_out["correct"]["stats"]["count"] == 3, (
+            f"Expected correct count=3, got {scores_out['correct']['stats']['count']}"
         )
 
         # "parsed" should have count=2 (only 2 samples have it)
         assert "parsed" in scores_out, "Missing 'parsed' key in output"
-        assert scores_out["parsed"]["count"] == 2, (
-            f"Expected parsed count=2, got {scores_out['parsed']['count']}"
+        assert scores_out["parsed"]["stats"]["count"] == 2, (
+            f"Expected parsed count=2, got {scores_out['parsed']['stats']['count']}"
         )
 
     def test_aggregate_output_structure(self):
@@ -209,10 +210,12 @@ class TestAggregateScores:
             "correct"
         ]
 
-        # Validate all required keys are present
-        required_keys = ["value", "count", "mean", "stderr", "stddev"]
-        for key in required_keys:
-            assert key in score, f"Missing required key '{key}' in score output"
+        # Validate structure: value at top level, stats nested
+        assert "value" in score, "Missing required key 'value' in score output"
+        assert "stats" in score, "Missing required key 'stats' in score output"
+        stats_keys = ["count", "mean", "stderr", "stddev"]
+        for key in stats_keys:
+            assert key in score["stats"], f"Missing required key '{key}' in stats"
 
 
 class TestLoadDataset:

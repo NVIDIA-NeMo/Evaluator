@@ -446,13 +446,7 @@ def _generate_output_py() -> str:
 import json
 import os
 
-from nemo_evaluator.api.api_dataclasses import (
-    EvaluationResult,
-    MetricResult,
-    Score,
-    ScoreStats,
-    TaskResult,
-)
+from nemo_evaluator.api.api_dataclasses import EvaluationResult
 
 
 def parse_output(output_dir: str) -> EvaluationResult:
@@ -461,28 +455,7 @@ def parse_output(output_dir: str) -> EvaluationResult:
     with open(results_path) as f:
         raw = json.load(f)
 
-    tasks = {}
-    for task_name, task_data in raw.get("tasks", {}).items():
-        metrics = {}
-        for metric_name, metric_data in task_data.get("metrics", {}).items():
-            scores = {}
-            for score_name, score_data in metric_data.get("scores", {}).items():
-                # Construct ScoreStats with available fields
-                # NOTE: Score.stats is NON-OPTIONAL in real Pydantic model
-                scores[score_name] = Score(
-                    value=score_data["value"],
-                    stats=ScoreStats(
-                        count=score_data.get("count"),
-                        mean=score_data.get("mean"),
-                        stderr=score_data.get("stderr"),
-                        stddev=score_data.get("stddev"),
-                        # Other ScoreStats fields default to None
-                    ),
-                )
-            metrics[metric_name] = MetricResult(scores=scores)
-        tasks[task_name] = TaskResult(metrics=metrics)
-
-    return EvaluationResult(tasks=tasks)
+    return EvaluationResult.model_validate(raw)
 '''
 
 

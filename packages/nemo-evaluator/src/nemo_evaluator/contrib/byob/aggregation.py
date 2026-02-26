@@ -101,13 +101,17 @@ def aggregate_scores(scores: List[Dict], benchmark_name: str) -> Dict:
             stddev = math.sqrt(variance)
             stderr = stddev / math.sqrt(n)
 
-        # Round to 4 decimal places
+        # Round to 4 decimal places.
+        # Structure matches Score(value=..., stats=ScoreStats(...)) so that
+        # EvaluationResult.model_validate(raw) works directly in output.py.
         aggregated_scores[key] = {
             "value": round(mean_val, 4),
-            "count": n,
-            "mean": round(mean_val, 4),
-            "stderr": round(stderr, 4),
-            "stddev": round(stddev, 4),
+            "stats": {
+                "count": n,
+                "mean": round(mean_val, 4),
+                "stderr": round(stderr, 4),
+                "stddev": round(stddev, 4),
+            },
         }
 
     return {
