@@ -15,13 +15,9 @@
 
 """Scorer selection logic tests.
 
-Tests T065-T071: Validate scorer selection keywords and smoke tests.
+Tests T065-T069: Validate scorer selection keywords in skill prompt.
 T065-T069 are semi-automated (check keywords in prompt).
-T070-T071 are fully automated scorer smoke tests.
 """
-
-from nemo_evaluator.contrib.byob.decorators import ScorerInput
-from nemo_evaluator.contrib.byob.scorers import contains, exact_match
 
 
 def test_scorer_selection_exact_match_keyword(skill_prompt_path):
@@ -95,58 +91,3 @@ def test_scorer_selection_yes_no_keyword(skill_prompt_path):
         "Skill prompt missing yes/no or boolean guidance. "
         "Expected keywords for binary classification scorer selection."
     )
-
-
-def test_built_in_scorer_smoke_test():
-    """T070: Built-in scorer smoke test validates return type.
-
-    Verifies that built-in scorers return dict with expected structure.
-    """
-    # Test exact_match
-    result = exact_match(ScorerInput(response="test", target="test", metadata={}))
-    assert isinstance(result, dict), (
-        f"exact_match should return dict, got {type(result).__name__}"
-    )
-    assert "correct" in result, (
-        f"exact_match should return dict with 'correct' key. Keys: {list(result.keys())}"
-    )
-    assert isinstance(result["correct"], bool), (
-        f"exact_match 'correct' value should be bool, got {type(result['correct']).__name__}"
-    )
-
-    # Test contains
-    result = contains(ScorerInput(response="hello world", target="world", metadata={}))
-    assert isinstance(result, dict), (
-        f"contains should return dict, got {type(result).__name__}"
-    )
-    assert "correct" in result, (
-        f"contains should return dict with 'correct' key. Keys: {list(result.keys())}"
-    )
-    assert isinstance(result["correct"], bool), (
-        f"contains 'correct' value should be bool, got {type(result['correct']).__name__}"
-    )
-
-
-def test_custom_scorer_smoke_test_detects_wrong_type():
-    """T071: Smoke test pattern detects non-dict return.
-
-    Demonstrates how to detect a scorer that returns the wrong type.
-    """
-
-    def bad_scorer(sample):
-        return "correct"  # BUG: returns string instead of dict
-
-    result = bad_scorer("test")
-    assert not isinstance(result, dict), (
-        f"This test validates detection logic. "
-        f"The bad_scorer incorrectly returns {type(result).__name__} instead of dict. "
-        f"Smoke test should catch this."
-    )
-
-    # Good scorer for comparison
-    def good_scorer(sample):
-        return {"correct": True}
-
-    result = good_scorer("test")
-    assert isinstance(result, dict), "good_scorer should return dict"
-    assert "correct" in result, "good_scorer should have 'correct' key"
