@@ -77,6 +77,7 @@ def call_model_chat(
     prompt: str,
     temperature: float = DEFAULT_TEMPERATURE,
     max_tokens: int = DEFAULT_MAX_TOKENS,
+    top_p: Optional[float] = None,
     api_key: Optional[str] = None,
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
     session: Optional[requests.Session] = None,
@@ -119,6 +120,8 @@ def call_model_chat(
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
+    if top_p is not None:
+        payload["top_p"] = top_p
 
     http = session or requests
     response = http.post(endpoint, json=payload, headers=headers, timeout=timeout)
@@ -133,6 +136,7 @@ def call_model_completions(
     prompt: str,
     temperature: float = DEFAULT_TEMPERATURE,
     max_tokens: int = DEFAULT_MAX_TOKENS,
+    top_p: Optional[float] = None,
     api_key: Optional[str] = None,
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
     session: Optional[requests.Session] = None,
@@ -172,6 +176,8 @@ def call_model_completions(
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
+    if top_p is not None:
+        payload["top_p"] = top_p
 
     http = session or requests
     response = http.post(endpoint, json=payload, headers=headers, timeout=timeout)
@@ -322,7 +328,7 @@ def _create_session_model_call_fn(
     Returns:
         Callable matching model_call_fn(prompt, endpoint_type, *, system_prompt=None) -> str.
     """
-    timeout = args.timeout_per_sample
+    timeout = args.request_timeout if args.request_timeout is not None else args.timeout_per_sample
 
     def model_call_fn(
         prompt: str, endpoint_type: str, *, system_prompt: Optional[str] = None
@@ -334,6 +340,7 @@ def _create_session_model_call_fn(
                 prompt=prompt,
                 temperature=args.temperature,
                 max_tokens=args.max_tokens,
+                top_p=args.top_p,
                 api_key=api_key,
                 timeout=timeout,
                 session=session,
@@ -346,6 +353,7 @@ def _create_session_model_call_fn(
                 prompt=prompt,
                 temperature=args.temperature,
                 max_tokens=args.max_tokens,
+                top_p=args.top_p,
                 api_key=api_key,
                 timeout=timeout,
                 session=session,
@@ -517,6 +525,18 @@ def main():
         type=int,
         default=1,
         help="Number of times to repeat the evaluation (default: 1)",
+    )
+    parser.add_argument(
+        "--top-p",
+        type=float,
+        default=None,
+        help="Top-p (nucleus) sampling parameter (default: None, use server default)",
+    )
+    parser.add_argument(
+        "--request-timeout",
+        type=float,
+        default=None,
+        help="Per-request timeout in seconds (default: None, falls back to --timeout-per-sample)",
     )
 
     args = parser.parse_args()

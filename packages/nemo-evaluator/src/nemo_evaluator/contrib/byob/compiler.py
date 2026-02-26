@@ -63,6 +63,12 @@ COMMAND_TEMPLATE = (
     "{% if config.params.extra.n_repeats is defined %}"
     " --n-repeats {{config.params.extra.n_repeats}}"
     "{% endif %}"
+    "{% if config.params.top_p is not none %}"
+    " --top-p {{config.params.top_p}}"
+    "{% endif %}"
+    "{% if config.params.request_timeout is not none %}"
+    " --request-timeout {{config.params.request_timeout}}"
+    "{% endif %}"
 )
 
 
@@ -102,6 +108,7 @@ def _build_fdf(
     defaults: dict = {
         "config": {
             "params": {
+                "task": normalized_name,
                 "limit_samples": None,
                 "max_new_tokens": DEFAULT_MAX_TOKENS,
                 "temperature": DEFAULT_TEMPERATURE,

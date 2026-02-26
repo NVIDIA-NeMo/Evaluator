@@ -228,7 +228,10 @@ def byob_compile(args=None):
         print("    nemo-evaluator run_eval \\")
         print(f"      --eval_type {eval_type} \\")
         print("      --model_url <YOUR_MODEL_URL> \\")
-        print("      --model_id <YOUR_MODEL_ID>")
+        print("      --model_id <YOUR_MODEL_ID> \\")
+        print("      --model_type chat \\")
+        print("      --output_dir ./results \\")
+        print("      --api_key_name <YOUR_API_KEY_ENV_VAR>")
 
     # Containerization if requested
     if parsed.containerize:
