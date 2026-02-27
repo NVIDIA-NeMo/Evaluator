@@ -164,14 +164,6 @@ Use `field_mapping` to rename dataset columns:
 )
 ```
 
-## CI/CD Integration
-
-See [ci-cd-example.yml](./ci-cd-example.yml) for a complete GitHub Actions workflow that compiles and runs BYOB benchmarks in CI. The example shows how to:
-- Accept model endpoints as workflow inputs
-- Set up the Python environment and install dependencies
-- Compile benchmarks (auto-installed, no PYTHONPATH setup needed)
-- Run evaluations and upload results as artifacts
-
 ## Troubleshooting
 
 ### "command not found: nemo-evaluator-byob"
