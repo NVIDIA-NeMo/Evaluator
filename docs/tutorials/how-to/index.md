@@ -24,6 +24,14 @@ Learn how to switch between execution backends (e.g. convert from local to slurm
 
 :::
 
+:::{grid-item-card} {octicon}`smiley;1.5em;sd-mr-1` Run compliance integrity evaluation
+:link: how-to-compliance-integrity
+:link-type: ref
+
+Learn how to check compliance of llm against custom rules.
+
+:::
+
 ::::
 
 :::{toctree}
@@ -32,4 +40,5 @@ Learn how to switch between execution backends (e.g. convert from local to slurm
 
 reasoning
 local-to-slurm
+compliance-integrity
 :::

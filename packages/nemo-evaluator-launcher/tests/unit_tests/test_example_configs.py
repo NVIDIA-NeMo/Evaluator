@@ -75,6 +75,8 @@ class TestExampleConfigs:
                 overrides.extend(
                     [
                         "++evaluation.tasks.1.nemo_evaluator_config.config.params.extra.judge.url=https://my-judge-endpoint.com/v1",
+                        "++evaluation.tasks.2.nemo_evaluator_config.config.params.extra.judge.url=https://my-judge-endpoint.com/v1",
+                        "++evaluation.tasks.2.nemo_evaluator_config.config.params.extra.judge.model_id=my_model",
                     ]
                 )
 

@@ -46,6 +46,7 @@ MOCK_ENV_VARS = {
     "TEST_KEY": "mock-test-key",
     "HF_TOKEN_FOR_GPQA_DIAMOND": "mock-hf-token-gpqa",
     "HF_TOKEN_FOR_AEGIS_V2": "mock-hf-token-aegis",
+    "COMPLIANCE_JUDGE_SERVICE_API_KEY": "mock-compliance-judge-api-key",
 }
 
 
