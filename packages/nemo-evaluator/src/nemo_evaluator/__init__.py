@@ -28,6 +28,7 @@ from nemo_evaluator.api.api_dataclasses import (
     ScoreStats,
     TaskResult,
 )
+from nemo_evaluator.gym_harness import GymHarness
 from nemo_evaluator.package_info import (
     __contact_emails__,
     __contact_names__,
@@ -39,6 +40,7 @@ from nemo_evaluator.package_info import (
 )
 
 __all__ = [
+    "GymHarness",
     "ApiEndpoint",
     "ConfigParams",
     "EndpointType",
