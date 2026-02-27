@@ -32,7 +32,7 @@ def check(sample: ScorerInput) -> dict:
 nemo-evaluator-byob my_benchmark.py
 ```
 
-This compiles and auto-installs the package via `pip install -e` (no PYTHONPATH setup needed).
+This compiles and auto-installs the package via `pip install` (no PYTHONPATH setup needed).
 
 ### Step 3: Run
 
@@ -170,7 +170,7 @@ Use `field_mapping` to rename dataset columns:
 Install the package: `cd packages/nemo-evaluator && pip install -e .`
 
 ### "Benchmark not found"
-Compilation auto-installs via `pip install -e`. If you used `--no-install`, add the package to PYTHONPATH:
+Compilation auto-installs via `pip install`. If you used `--no-install`, add the package to PYTHONPATH:
 ```bash
 export PYTHONPATH="~/.nemo-evaluator/byob_packages/byob_<name>:$PYTHONPATH"
 ```

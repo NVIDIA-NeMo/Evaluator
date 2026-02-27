@@ -222,7 +222,7 @@ python -m nemo_evaluator.contrib.byob.runner ... --n-repeats 5
 nemo-evaluator-byob /absolute/path/to/benchmark.py
 ```
 
-Compiles and auto-installs via `pip install -e` (no PYTHONPATH setup needed).
+Compiles and auto-installs via `pip install` (no PYTHONPATH setup needed).
 
 ### CLI flags
 

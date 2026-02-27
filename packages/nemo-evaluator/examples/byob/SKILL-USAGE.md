@@ -197,7 +197,7 @@ After the workflow completes you'll have:
 | Compiled package | `~/.nemo-evaluator/byob_packages/byob_<name>/` |
 | Dataset copy | Frozen inside the compiled package |
 | Config | `config.yaml` generated inside the package |
-| pip install | Auto-installed via `pip install -e` (immediately discoverable) |
+| pip install | Auto-installed via `pip install` (immediately discoverable) |
 
 ## Examples of things you can ask
 

@@ -109,7 +109,7 @@ Custom templates support `**template_kwargs` for arbitrary placeholders.
 ## Compilation & Testing
 
 Compile: `nemo-evaluator-byob /absolute/path/to/benchmark.py`
-Auto-installs via `pip install -e` — no PYTHONPATH setup needed.
+Auto-installs via `pip install` — no PYTHONPATH setup needed.
 
 Additional CLI flags:
 - `--dry-run` — validate without installing

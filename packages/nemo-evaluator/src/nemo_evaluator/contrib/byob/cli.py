@@ -26,7 +26,7 @@ from nemo_evaluator.contrib.byob.compiler import compile_benchmark, install_benc
 from nemo_evaluator.contrib.byob.defaults import DEFAULT_BASE_IMAGE
 
 
-def _pip_install_editable(pkg_dir: str) -> None:
+def _pip_install_package(pkg_dir: str) -> None:
     """Install a compiled BYOB package.
 
     Uses ``pip install`` (or ``uv pip install`` if available) so the
@@ -216,7 +216,7 @@ def byob_compile(args=None):
 
         # Auto-install the package so it's immediately discoverable
         if not parsed.no_install:
-            _pip_install_editable(pkg_dir)
+            _pip_install_package(pkg_dir)
             print(f"  Installed: {pkg_name} (discoverable by nemo-evaluator)")
         else:
             print("")

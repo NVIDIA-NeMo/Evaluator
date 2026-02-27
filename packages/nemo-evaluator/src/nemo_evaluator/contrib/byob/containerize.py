@@ -63,8 +63,8 @@ def generate_dockerfile(
 
     The image layout follows the NeMo Evaluator launcher convention:
 
-    - ``/nemo_run/code/`` — benchmark Python module(s)
-    - ``/nemo_run/data/``  — dataset file(s)
+    - ``/opt/byob/code/`` — benchmark Python module(s)
+    - ``/opt/byob/data/``  — dataset file(s)
     - ``/opt/byob_pkg/``   — compiled nemo_evaluator namespace package
 
     Args:
@@ -97,8 +97,8 @@ COPY pkg/ /opt/byob_pkg/
 RUN pip install --no-cache-dir /opt/byob_pkg/
 
 # Copy benchmark code and data
-COPY code/ /nemo_run/code/
-COPY data/ /nemo_run/data/
+COPY code/ /opt/byob/code/
+COPY data/ /opt/byob/data/
 
 # Install user requirements
 {user_reqs_line}
@@ -119,7 +119,7 @@ def rewrite_fdf_paths(fdf: dict, pkg_name: str) -> dict:
     """Rewrite host-local paths in an FDF dict to container paths.
 
     Transforms ``extra.benchmark_module`` and ``extra.dataset`` from
-    absolute host paths to container-relative paths under ``/nemo_run/``.
+    absolute host paths to container-relative paths under ``/opt/byob/``.
 
     Args:
         fdf: Framework Definition Format dict (will NOT be mutated).
@@ -134,14 +134,14 @@ def rewrite_fdf_paths(fdf: dict, pkg_name: str) -> dict:
     benchmark_module = extra.get("benchmark_module", "")
     if benchmark_module:
         filename = os.path.basename(benchmark_module)
-        extra["benchmark_module"] = f"/nemo_run/code/{filename}"
+        extra["benchmark_module"] = f"/opt/byob/code/{filename}"
 
     dataset = extra.get("dataset", "")
     if dataset and not dataset.startswith(
         ("hf://", "s3://", "gs://", "http://", "https://")
     ):
         filename = os.path.basename(dataset)
-        extra["dataset"] = f"/nemo_run/data/{filename}"
+        extra["dataset"] = f"/opt/byob/data/{filename}"
 
     return fdf
 
@@ -205,9 +205,9 @@ def prepare_build_context(
             try:
                 fetcher = get_fetcher_for_uri(dataset)
                 result = fetcher.fetch(dataset, cache_dir=data_dir)
-                # Update the FDF to point to the local filename inside /nemo_run/data/
+                # Update the FDF to point to the local filename inside /opt/byob/data/
                 local_name = result.local_path.name
-                extra["dataset"] = f"/nemo_run/data/{local_name}"
+                extra["dataset"] = f"/opt/byob/data/{local_name}"
                 # Move/copy if fetched to a different location than data_dir
                 if result.local_path.parent != data_dir:
                     shutil.copy2(str(result.local_path), str(data_dir / local_name))

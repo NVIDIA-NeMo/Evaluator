@@ -113,8 +113,8 @@ class TestRewriteFdfPaths:
         }
         result = rewrite_fdf_paths(fdf, "byob_test")
         extra = result["defaults"]["config"]["params"]["extra"]
-        assert extra["benchmark_module"] == "/nemo_run/code/benchmark.py"
-        assert extra["dataset"] == "/nemo_run/data/test.jsonl"
+        assert extra["benchmark_module"] == "/opt/byob/code/benchmark.py"
+        assert extra["dataset"] == "/opt/byob/data/test.jsonl"
 
     def test_does_not_mutate_original(self):
         """Test that original FDF is not mutated."""

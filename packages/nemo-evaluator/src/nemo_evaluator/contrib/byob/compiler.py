@@ -141,9 +141,9 @@ def _build_fdf(
 
 
 def check_existing_benchmarks(normalized_name: str) -> Optional[str]:
-    """Check if a benchmark name collides with an already-installed core_evals package.
+    """Check if a benchmark name collides with an already-installed harness package.
 
-    Scans both ``core_evals`` and ``nemo_evaluator`` namespaces for installed
+    Scans both ``nemo_evaluator`` and ``core_evals`` namespaces for installed
     harness packages whose name matches the proposed BYOB package.
 
     Args:
@@ -155,11 +155,20 @@ def check_existing_benchmarks(normalized_name: str) -> Optional[str]:
     pkg_name = f"byob_{normalized_name}"
     existing_names: List[str] = []
 
-    # Scan core_evals namespace
+    # Scan nemo_evaluator namespace (primary)
+    try:
+        import nemo_evaluator
+
+        for _importer, modname, _ispkg in pkgutil.iter_modules(nemo_evaluator.__path__):
+            existing_names.append(modname)
+    except (ImportError, AttributeError):
+        pass
+
+    # Scan core_evals namespace (legacy fallback)
     try:
         import core_evals
 
-        for importer, modname, ispkg in pkgutil.iter_modules(core_evals.__path__):
+        for _importer, modname, _ispkg in pkgutil.iter_modules(core_evals.__path__):
             existing_names.append(modname)
     except (ImportError, AttributeError):
         pass
