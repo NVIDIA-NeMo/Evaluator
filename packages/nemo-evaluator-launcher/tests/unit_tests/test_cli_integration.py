@@ -15,14 +15,11 @@
 #
 """Integration tests for the complete CLI workflow with dummy backend executor."""
 
-from contextlib import redirect_stdout
-from io import StringIO
 from unittest.mock import patch
 
 import pytest
 from omegaconf import OmegaConf
 
-from nemo_evaluator_launcher.cli.export import ExportCmd
 from nemo_evaluator_launcher.cli.ls_tasks import Cmd as LsCmd
 from nemo_evaluator_launcher.cli.run import Cmd as RunCmd
 from nemo_evaluator_launcher.cli.status import Cmd as StatusCmd
@@ -655,37 +652,6 @@ class TestCLIErrorScenarios:
 
             with pytest.raises(Exception, match="Execution failed"):
                 main()
-
-
-def test_cli_export_missing_metadata(monkeypatch, tmp_path):
-    # Simulate exporter returning per-job dict without "metadata"
-    def fake_export_results(ids, dest, config):
-        return {
-            "success": True,
-            "invocation_id": ids[0],
-            "jobs": {
-                f"{ids[0]}.0": {"success": True, "message": "Updated Output"},
-            },
-        }
-
-    monkeypatch.setattr(
-        "nemo_evaluator_launcher.api.functional.export_results", fake_export_results
-    )
-
-    cmd = ExportCmd(
-        invocation_ids=["2eaceed9"],
-        dest="local",
-        format="json",
-        output_dir=str(tmp_path),
-    )
-
-    buf = StringIO()
-    with redirect_stdout(buf):
-        cmd.execute()
-
-    out = buf.getvalue()
-    assert "Export completed for 2eaceed9" in out
-    assert "2eaceed9.0: Updated Output" in out
 
 
 def test_ls_runs_basic(mock_execdb, capsys):

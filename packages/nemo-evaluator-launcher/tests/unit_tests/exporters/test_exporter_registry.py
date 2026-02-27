@@ -34,11 +34,11 @@ class TestExporterRegistry:
         assert isinstance(exporter, GSheetsExporter)
 
     def test_create_exporter_wandb(self):
-        exporter = create_exporter("wandb")
+        exporter = create_exporter("wandb", {"entity": "e", "project": "p"})
         assert isinstance(exporter, WandBExporter)
 
     def test_create_exporter_mlflow(self):
-        exporter = create_exporter("mlflow")
+        exporter = create_exporter("mlflow", {"tracking_uri": "http://mlflow"})
         assert isinstance(exporter, MLflowExporter)
 
     def test_create_exporter_invalid(self):
@@ -48,35 +48,3 @@ class TestExporterRegistry:
     def test_available_exporters_keys(self):
         keys = set(available_exporters())
         assert {"local", "mlflow", "wandb", "gsheets"}.issubset(keys)
-
-
-class TestExporterConsistency:
-    @pytest.mark.parametrize("exporter_name", ["local", "gsheets", "wandb", "mlflow"])
-    def test_exporter_has_required_methods(self, exporter_name):
-        exporter = create_exporter(exporter_name)
-        assert hasattr(exporter, "export_job")
-        assert hasattr(exporter, "supports_executor")
-        assert callable(exporter.export_job)
-        assert callable(exporter.supports_executor)
-
-    @pytest.mark.parametrize("exporter_name", ["local", "gsheets", "wandb", "mlflow"])
-    def test_exporter_supports_executor_returns_bool(self, exporter_name):
-        exporter = create_exporter(exporter_name)
-        for executor_type in ["local", "slurm", "gitlab", "unknown"]:
-            result = exporter.supports_executor(executor_type)
-            assert isinstance(result, bool)
-
-    def test_local_exporter_supports_all_executors(self):
-        exporter = LocalExporter()
-        assert exporter.supports_executor("local") is True
-        assert exporter.supports_executor("slurm") is True
-        assert exporter.supports_executor("gitlab") is True
-
-    def test_other_exporters_support_local(self):
-        exporters = [
-            GSheetsExporter(),
-            WandBExporter(),
-            MLflowExporter(),
-        ]
-        for exporter in exporters:
-            assert exporter.supports_executor("local") is True

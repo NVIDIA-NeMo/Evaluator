@@ -27,7 +27,11 @@ class TestExportCmdConfiguration:
         """Test basic configuration building with minimal args."""
         mock_result = {
             "success": True,
-            "jobs": {"test123.0": {"success": True, "message": "Success"}},
+            "metadata": {
+                "successful_jobs": 1,
+                "failed_jobs": 0,
+                "skipped_jobs": 0,
+            },
         }
 
         with patch(
@@ -82,9 +86,9 @@ class TestExportCmdConfiguration:
                 output_dir=None,
                 output_filename=None,
                 format=None,
-                copy_logs=False,
-                log_metrics=[],
-                only_required=True,
+                copy_logs=None,
+                log_metrics=None,
+                only_required=None,
             )
             cmd.execute()
 
@@ -95,9 +99,9 @@ class TestExportCmdConfiguration:
         assert "output_dir" not in config
         assert "output_filename" not in config
         assert "format" not in config
-        assert config["copy_logs"] is False
+        assert "copy_logs" not in config
         assert "only_required" not in config
-        assert "log_metrics" not in config  # Empty list should not be included
+        assert "log_metrics" not in config
 
 
 class TestExportCmdOutputMessages:
@@ -107,7 +111,11 @@ class TestExportCmdOutputMessages:
         """Test warning message when format is used with non-local destination."""
         mock_result = {
             "success": True,
-            "jobs": {"test123.0": {"success": True, "message": "Success"}},
+            "metadata": {
+                "successful_jobs": 1,
+                "failed_jobs": 0,
+                "skipped_jobs": 0,
+            },
         }
 
         with patch(
@@ -129,7 +137,11 @@ class TestExportCmdOutputMessages:
         """Test no warning when format is used with local destination."""
         mock_result = {
             "success": True,
-            "jobs": {"test123.0": {"success": True, "message": "Success"}},
+            "metadata": {
+                "successful_jobs": 1,
+                "failed_jobs": 0,
+                "skipped_jobs": 0,
+            },
         }
 
         with patch(
@@ -150,7 +162,11 @@ class TestExportCmdOutputMessages:
         """Test export message for single invocation."""
         mock_result = {
             "success": True,
-            "jobs": {"test123.0": {"success": True, "message": "Success"}},
+            "metadata": {
+                "successful_jobs": 1,
+                "failed_jobs": 0,
+                "skipped_jobs": 0,
+            },
         }
 
         with patch(
@@ -165,7 +181,14 @@ class TestExportCmdOutputMessages:
 
     def test_multiple_invocations_export_message(self, capsys):
         """Test export message for multiple invocations."""
-        mock_result = {"success": True, "invocations": {}}
+        mock_result = {
+            "success": True,
+            "metadata": {
+                "successful_jobs": 1,
+                "failed_jobs": 0,
+                "skipped_jobs": 0,
+            },
+        }
 
         with patch(
             "nemo_evaluator_launcher.api.functional.export_results",
@@ -177,14 +200,16 @@ class TestExportCmdOutputMessages:
         captured = capsys.readouterr()
         assert "Exporting 2 invocations to local" in captured.out
 
-
-class TestExportCmdFailureHandling:
-    """Test export command failure handling."""
-
     def test_export_failure(self, capsys):
         """Test handling of export failure."""
-        mock_result = {"success": False, "error": "Network connection failed"}
-
+        mock_result = mock_result = {
+            "success": False,
+            "metadata": {
+                "successful_jobs": 0,
+                "failed_jobs": 1,
+                "skipped_jobs": 0,
+            },
+        }
         with patch(
             "nemo_evaluator_launcher.api.functional.export_results",
             return_value=mock_result,
@@ -193,39 +218,19 @@ class TestExportCmdFailureHandling:
             cmd.execute()
 
         captured = capsys.readouterr()
-        assert "Export failed: Network connection failed" in captured.out
+        assert (
+            "Some jobs failed to export. See logs above for more details."
+            in captured.out
+        )
 
-    def test_export_failure_no_error_message(self, capsys):
-        """Test handling of export failure without error message."""
-        mock_result = {"success": False}
-
-        with patch(
-            "nemo_evaluator_launcher.api.functional.export_results",
-            return_value=mock_result,
-        ):
-            cmd = ExportCmd(invocation_ids=["test123"], dest="wandb")
-            cmd.execute()
-
-        captured = capsys.readouterr()
-        assert "Export failed: Unknown error" in captured.out
-
-
-class TestExportCmdSingleInvocationResults:
-    """Test export command output for single invocation results."""
-
-    def test_single_invocation_success_with_url(self, capsys):
+    def test_single_invocation_wandb(self, capsys):
         """Test single invocation success output with URL."""
         mock_result = {
             "success": True,
-            "jobs": {
-                "test123.0": {
-                    "success": True,
-                    "message": "Exported successfully",
-                    "metadata": {
-                        "run_url": "https://wandb.ai/test/project/runs/test123",
-                        "summary_path": "/path/to/summary.json",
-                    },
-                }
+            "metadata": {
+                "successful_jobs": 1,
+                "failed_jobs": 0,
+                "skipped_jobs": 0,
             },
         }
 
@@ -237,17 +242,20 @@ class TestExportCmdSingleInvocationResults:
             cmd.execute()
 
         captured = capsys.readouterr()
-        assert "Export completed for test123" in captured.out
-        assert "test123.0: Exported successfully" in captured.out
-        assert "URL: https://wandb.ai/test/project/runs/test123" in captured.out
-        assert "Summary: /path/to/summary.json" in captured.out
+        assert "Exporting 1 invocation to wandb..." in captured.out
+        assert (
+            "Export completed: {'successful_jobs': 1, 'failed_jobs': 0, 'skipped_jobs': 0}"
+            in captured.out
+        )
 
-    def test_single_invocation_success_without_metadata(self, capsys):
+    def test_single_invocation_local(self, capsys):
         """Test single invocation success output without metadata."""
         mock_result = {
             "success": True,
-            "jobs": {
-                "test123.0": {"success": True, "message": "Exported successfully"}
+            "metadata": {
+                "successful_jobs": 1,
+                "failed_jobs": 0,
+                "skipped_jobs": 0,
             },
         }
 
@@ -259,74 +267,20 @@ class TestExportCmdSingleInvocationResults:
             cmd.execute()
 
         captured = capsys.readouterr()
-        assert "Export completed for test123" in captured.out
-        assert "test123.0: Exported successfully" in captured.out
-        assert "URL:" not in captured.out
-        assert "Summary:" not in captured.out
+        assert "Exporting 1 invocation to local..." in captured.out
+        assert (
+            "Export completed: {'successful_jobs': 1, 'failed_jobs': 0, 'skipped_jobs': 0}"
+            in captured.out
+        )
 
-    def test_single_invocation_job_failure(self, capsys):
-        """Test single invocation with job failure."""
-        mock_result = {
-            "success": True,
-            "jobs": {"test123.0": {"success": False, "message": "Job export failed"}},
-        }
-
-        with patch(
-            "nemo_evaluator_launcher.api.functional.export_results",
-            return_value=mock_result,
-        ):
-            cmd = ExportCmd(invocation_ids=["test123"], dest="wandb")
-            cmd.execute()
-
-        captured = capsys.readouterr()
-        assert "Export completed for test123" in captured.out
-        assert "test123.0 failed: Job export failed" in captured.out
-
-    def test_single_invocation_multiple_jobs(self, capsys):
-        """Test single invocation with multiple jobs."""
-        mock_result = {
-            "success": True,
-            "jobs": {
-                "test123.0": {"success": True, "message": "Job 0 exported"},
-                "test123.1": {
-                    "success": True,
-                    "message": "Job 1 exported",
-                    "metadata": {"run_url": "https://example.com/run1"},
-                },
-                "test123.2": {"success": False, "message": "Job 2 failed"},
-            },
-        }
-
-        with patch(
-            "nemo_evaluator_launcher.api.functional.export_results",
-            return_value=mock_result,
-        ):
-            cmd = ExportCmd(invocation_ids=["test123"], dest="wandb")
-            cmd.execute()
-
-        captured = capsys.readouterr()
-        assert "Export completed for test123" in captured.out
-        assert "test123.0: Job 0 exported" in captured.out
-        assert "test123.1: Job 1 exported" in captured.out
-        assert "URL: https://example.com/run1" in captured.out
-        assert "test123.2 failed: Job 2 failed" in captured.out
-
-
-class TestExportCmdMultipleInvocationsResults:
-    """Test export command output for multiple invocations results."""
-
-    def test_multiple_invocations_success(self, capsys):
+    def test_multiple_invocations_local(self, capsys):
         """Test multiple invocations success output."""
         mock_result = {
             "success": True,
             "metadata": {
-                "successful_invocations": 2,
-                "total_invocations": 2,
-                "summary_path": "/path/to/combined_summary.json",
-            },
-            "invocations": {
-                "test123": {"success": True, "jobs": {"test123.0": {"success": True}}},
-                "test456": {"success": True, "jobs": {"test456.0": {"success": True}}},
+                "successful_jobs": 2,
+                "failed_jobs": 0,
+                "skipped_jobs": 0,
             },
         }
 
@@ -338,116 +292,22 @@ class TestExportCmdMultipleInvocationsResults:
             cmd.execute()
 
         captured = capsys.readouterr()
-        assert "Export completed: 2/2 successful" in captured.out
-        assert "Summary: /path/to/combined_summary.json" in captured.out
-        assert "test123: 1 jobs" in captured.out
-        assert "test456: 1 jobs" in captured.out
-
-    def test_multiple_invocations_partial_success(self, capsys):
-        """Test multiple invocations with partial success."""
-        mock_result = {
-            "success": True,
-            "metadata": {"successful_invocations": 1, "total_invocations": 2},
-            "invocations": {
-                "test123": {
-                    "success": True,
-                    "jobs": {
-                        "test123.0": {"success": True},
-                        "test123.1": {"success": True},
-                    },
-                },
-                "test456": {"success": False, "error": "Invocation not found"},
-            },
-        }
-
-        with patch(
-            "nemo_evaluator_launcher.api.functional.export_results",
-            return_value=mock_result,
-        ):
-            cmd = ExportCmd(invocation_ids=["test123", "test456"], dest="local")
-            cmd.execute()
-
-        captured = capsys.readouterr()
-        assert "Export completed: 1/2 successful" in captured.out
-        assert "test123: 2 jobs" in captured.out
-        assert "test456: failed, Invocation not found" in captured.out
-
-    def test_multiple_invocations_no_summary_path(self, capsys):
-        """Test multiple invocations without summary path in metadata."""
-        mock_result = {
-            "success": True,
-            "metadata": {"successful_invocations": 1, "total_invocations": 1},
-            "invocations": {
-                "test123": {"success": True, "jobs": {"test123.0": {"success": True}}}
-            },
-        }
-
-        with patch(
-            "nemo_evaluator_launcher.api.functional.export_results",
-            return_value=mock_result,
-        ):
-            cmd = ExportCmd(
-                invocation_ids=["test123", "test456"], dest="wandb"
-            )  # Multiple invocations
-            cmd.execute()
-
-        captured = capsys.readouterr()
-        assert "Export completed: 1/1 successful" in captured.out
-        assert "Summary:" not in captured.out
-
-    def test_multiple_invocations_missing_metadata(self, capsys):
-        """Test multiple invocations with missing metadata fields."""
-        mock_result = {
-            "success": True,
-            "metadata": {},  # Missing required fields
-            "invocations": {"test123": {"success": True, "jobs": {}}},
-        }
-
-        with patch(
-            "nemo_evaluator_launcher.api.functional.export_results",
-            return_value=mock_result,
-        ):
-            cmd = ExportCmd(
-                invocation_ids=["test123", "test456"], dest="local"
-            )  # Multiple invocations
-            cmd.execute()
-
-        captured = capsys.readouterr()
-        assert "Export completed: 0/0 successful" in captured.out
-
-    def test_multiple_invocations_failure_without_error(self, capsys):
-        """Test multiple invocations with failure but no error message."""
-        mock_result = {
-            "success": True,
-            "metadata": {"successful_invocations": 0, "total_invocations": 1},
-            "invocations": {
-                "test123": {
-                    "success": False
-                    # Missing error field
-                }
-            },
-        }
-
-        with patch(
-            "nemo_evaluator_launcher.api.functional.export_results",
-            return_value=mock_result,
-        ):
-            cmd = ExportCmd(
-                invocation_ids=["test123", "test456"], dest="local"
-            )  # Multiple invocations
-            cmd.execute()
-
-        captured = capsys.readouterr()
-        assert "Export completed: 0/1 successful" in captured.out
-        assert "test123: failed, Unknown error" in captured.out
-
-
-class TestExportCmdEdgeCases:
-    """Test edge cases and special scenarios."""
+        assert "Exporting 2 invocations to local..." in captured.out
+        assert (
+            "Export completed: {'successful_jobs': 2, 'failed_jobs': 0, 'skipped_jobs': 0}"
+            in captured.out
+        )
 
     def test_empty_invocation_ids_list(self, capsys):
         """Test with empty invocation IDs list."""
-        mock_result = {"success": True, "invocations": {}}
+        mock_result = {
+            "success": True,
+            "metadata": {
+                "successful_jobs": 0,
+                "failed_jobs": 0,
+                "skipped_jobs": 0,
+            },
+        }
 
         with patch(
             "nemo_evaluator_launcher.api.functional.export_results",
@@ -461,65 +321,6 @@ class TestExportCmdEdgeCases:
         assert "Error: No IDs provided" in captured.out
         assert "Usage:" in captured.out
 
-    def test_single_invocation_no_jobs_in_result(self, capsys):
-        """Test single invocation with no jobs in result."""
-        mock_result = {"success": True, "jobs": {}}
-
-        with patch(
-            "nemo_evaluator_launcher.api.functional.export_results",
-            return_value=mock_result,
-        ):
-            cmd = ExportCmd(invocation_ids=["test123"], dest="local")
-            cmd.execute()
-
-        captured = capsys.readouterr()
-        assert "Export completed for test123" in captured.out
-
-    def test_result_missing_expected_fields(self, capsys):
-        """Test handling of result missing expected fields."""
-        mock_result = {
-            "success": True,
-            "jobs": {},
-        }  # Missing some jobs but has jobs key
-
-        with patch(
-            "nemo_evaluator_launcher.api.functional.export_results",
-            return_value=mock_result,
-        ):
-            cmd = ExportCmd(invocation_ids=["test123"], dest="local")
-            cmd.execute()
-
-        captured = capsys.readouterr()
-        # Should handle gracefully without crashing
-        assert "Export completed" in captured.out
-
-    def test_job_metadata_missing_fields(self, capsys):
-        """Test job with partial metadata."""
-        mock_result = {
-            "success": True,
-            "jobs": {
-                "test123.0": {
-                    "success": True,
-                    "message": "Success",
-                    "metadata": {
-                        "run_url": "https://example.com/run"
-                        # Missing summary_path
-                    },
-                }
-            },
-        }
-
-        with patch(
-            "nemo_evaluator_launcher.api.functional.export_results",
-            return_value=mock_result,
-        ):
-            cmd = ExportCmd(invocation_ids=["test123"], dest="wandb")
-            cmd.execute()
-
-        captured = capsys.readouterr()
-        assert "URL: https://example.com/run" in captured.out
-        assert "Summary:" not in captured.out
-
 
 class TestExportCmdOverrides:
     """Test export command override functionality."""
@@ -531,7 +332,11 @@ class TestExportCmdOverrides:
         ) as mock_export:
             mock_export.return_value = {
                 "success": True,
-                "jobs": {"test123.0": {"success": True, "message": "Success"}},
+                "metadata": {
+                    "successful_jobs": 1,
+                    "failed_jobs": 0,
+                    "skipped_jobs": 0,
+                },
             }
 
             cmd = ExportCmd(
@@ -560,15 +365,19 @@ class TestExportCmdOverrides:
         ) as mock_export:
             mock_export.return_value = {
                 "success": True,
-                "jobs": {"test123.0": {"success": True, "message": "Success"}},
+                "metadata": {
+                    "successful_jobs": 1,
+                    "failed_jobs": 0,
+                    "skipped_jobs": 0,
+                },
             }
 
             cmd = ExportCmd(
                 invocation_ids=["test123"],
                 dest="wandb",
                 override=[
-                    "entity=org-name",
-                    "project=proj-name",
+                    "export.wandb.entity=org-name",
+                    "export.wandb.project=proj-name",
                 ],
             )
             cmd.execute()
@@ -586,7 +395,11 @@ class TestExportCmdOverrides:
         ) as mock_export:
             mock_export.return_value = {
                 "success": True,
-                "jobs": {"test123.0": {"success": True, "message": "Success"}},
+                "metadata": {
+                    "successful_jobs": 1,
+                    "failed_jobs": 0,
+                    "skipped_jobs": 0,
+                },
             }
 
             cmd = ExportCmd(
@@ -602,9 +415,10 @@ class TestExportCmdOverrides:
 
         call_args = mock_export.call_args
         config = call_args[0][2]
+        print(config)
 
         # Verify list parsing works correctly
-        assert isinstance(config["tags"], list)
+        assert len(config["tags"]) == 2
         assert "exp1" in config["tags"]
         assert "model1" in config["tags"]
         assert config["log_metrics"] == ["accuracy", "pass@1"]
@@ -616,7 +430,11 @@ class TestExportCmdOverrides:
         ) as mock_export:
             mock_export.return_value = {
                 "success": True,
-                "jobs": {"test123.0": {"success": True, "message": "Success"}},
+                "metadata": {
+                    "successful_jobs": 1,
+                    "failed_jobs": 0,
+                    "skipped_jobs": 0,
+                },
             }
 
             cmd = ExportCmd(
@@ -642,7 +460,11 @@ class TestExportCmdOverrides:
         ) as mock_export:
             mock_export.return_value = {
                 "success": True,
-                "jobs": {"test123.0": {"success": True, "message": "Success"}},
+                "metadata": {
+                    "successful_jobs": 1,
+                    "failed_jobs": 0,
+                    "skipped_jobs": 0,
+                },
             }
 
             cmd = ExportCmd(
@@ -655,13 +477,10 @@ class TestExportCmdOverrides:
             )
             cmd.execute()
 
-        # Should error with clear message, and not call export_results
-        captured = capsys.readouterr()
-        assert "Error:" in captured.out
-        assert "export.wandb" in captured.out
-        assert "mlflow" in captured.out
-        # Validation should prevent export_results from being called
-        mock_export.assert_not_called()
+            call_args = mock_export.call_args
+            config = call_args[0][2]
+            assert config["tracking_uri"] == "http://mlflow:5000"
+            assert "entity" not in config
 
     def test_override_merges_with_existing_flags(self, capsys):
         """Test that overrides merge with existing CLI flags."""
@@ -670,7 +489,11 @@ class TestExportCmdOverrides:
         ) as mock_export:
             mock_export.return_value = {
                 "success": True,
-                "jobs": {"test123.0": {"success": True, "message": "Success"}},
+                "metadata": {
+                    "successful_jobs": 1,
+                    "failed_jobs": 0,
+                    "skipped_jobs": 0,
+                },
             }
 
             cmd = ExportCmd(
@@ -701,7 +524,11 @@ class TestExportCmdOverrides:
         ) as mock_export:
             mock_export.return_value = {
                 "success": True,
-                "jobs": {"test123.0": {"success": True, "message": "Success"}},
+                "metadata": {
+                    "successful_jobs": 1,
+                    "failed_jobs": 0,
+                    "skipped_jobs": 0,
+                },
             }
 
             cmd = ExportCmd(
@@ -727,7 +554,11 @@ class TestExportCmdOverrides:
         ) as mock_export:
             mock_export.return_value = {
                 "success": True,
-                "jobs": {"test123.0": {"success": True, "message": "Success"}},
+                "metadata": {
+                    "successful_jobs": 1,
+                    "failed_jobs": 0,
+                    "skipped_jobs": 0,
+                },
             }
 
             cmd = ExportCmd(
@@ -753,7 +584,11 @@ class TestExportCmdOverrides:
         ) as mock_export:
             mock_export.return_value = {
                 "success": True,
-                "jobs": {"test123.0": {"success": True, "message": "Success"}},
+                "metadata": {
+                    "successful_jobs": 1,
+                    "failed_jobs": 0,
+                    "skipped_jobs": 0,
+                },
             }
 
             cmd = ExportCmd(
@@ -779,7 +614,11 @@ class TestExportCmdOverrides:
         ) as mock_export:
             mock_export.return_value = {
                 "success": True,
-                "jobs": {"test123.0": {"success": True, "message": "Success"}},
+                "metadata": {
+                    "successful_jobs": 1,
+                    "failed_jobs": 0,
+                    "skipped_jobs": 0,
+                },
             }
 
             cmd = ExportCmd(
@@ -794,76 +633,7 @@ class TestExportCmdOverrides:
         call_args = mock_export.call_args
         config = call_args[0][2]
         assert config["output_dir"] == "/tmp"
-        assert len(config) >= 2  # At least output_dir + standard flags
-
-
-class TestExportCmdErrorMessages:
-    """Test improved error messages for common issues."""
-
-    def test_mlflow_tracking_uri_error_message(self, capsys):
-        """Test helpful message when MLflow tracking_uri is missing."""
-        mock_result = {
-            "success": False,
-            "error": "tracking_uri is required",
-        }
-
-        with patch(
-            "nemo_evaluator_launcher.api.functional.export_results",
-            return_value=mock_result,
-        ):
-            cmd = ExportCmd(invocation_ids=["test123"], dest="mlflow")
-            cmd.execute()
-
-        captured = capsys.readouterr()
-        assert "Export failed: tracking_uri is required" in captured.out
-        assert "MLflow requires 'tracking_uri'" in captured.out
-        assert "export.mlflow.tracking_uri=" in captured.out
-
-    def test_wandb_entity_error_message(self, capsys):
-        """Test helpful message when W&B entity/project is missing."""
-        mock_result = {
-            "success": False,
-            "error": "entity and project are required",
-        }
-
-        with patch(
-            "nemo_evaluator_launcher.api.functional.export_results",
-            return_value=mock_result,
-        ):
-            cmd = ExportCmd(invocation_ids=["test123"], dest="wandb")
-            cmd.execute()
-
-        captured = capsys.readouterr()
-        assert "Export failed:" in captured.out
-        assert "W&B requires 'entity' and 'project'" in captured.out
-        assert "export.wandb.entity=" in captured.out
-
-    def test_package_not_installed_error_message(self, capsys):
-        """Test helpful message when exporter package is not installed."""
-        mock_result = {
-            "success": False,
-            "error": "mlflow package not installed",
-        }
-
-        with patch(
-            "nemo_evaluator_launcher.api.functional.export_results",
-            return_value=mock_result,
-        ):
-            cmd = ExportCmd(invocation_ids=["test123"], dest="mlflow")
-            cmd.execute()
-
-        captured = capsys.readouterr()
-        assert "MLflow package not installed" in captured.out
-        assert "pip install nemo-evaluator-launcher[mlflow]" in captured.out
-
-    def test_empty_ids_validation_message(self, capsys):
-        """Test validation message when no IDs are provided."""
-        cmd = ExportCmd(invocation_ids=[], dest="local")
-        cmd.execute()
-
-        captured = capsys.readouterr()
-        assert "Error: No IDs provided" in captured.out
-        assert "Usage: nemo-evaluator-launcher export" in captured.out
+        assert len(config) >= 1  # At least output_dir
 
 
 class TestExportCmdOverrideEdgeCases:
@@ -876,7 +646,11 @@ class TestExportCmdOverrideEdgeCases:
         ) as mock_export:
             mock_export.return_value = {
                 "success": True,
-                "jobs": {"t.0": {"success": True, "message": "ok"}},
+                "metadata": {
+                    "successful_jobs": 1,
+                    "failed_jobs": 0,
+                    "skipped_jobs": 0,
+                },
             }
 
             cmd = ExportCmd(
@@ -891,31 +665,6 @@ class TestExportCmdOverrideEdgeCases:
         config = mock_export.call_args[0][2]
         assert config["tracking_uri"] == "http://mlflow.example.com:5000/api/v2"
 
-    def test_override_destination_mismatch_raises_err(self, capsys):
-        """Test that override for wrong destination raises clear error."""
-        with patch(
-            "nemo_evaluator_launcher.api.functional.export_results"
-        ) as mock_export:
-            mock_export.return_value = {
-                "success": True,
-                "jobs": {"t.0": {"success": True, "message": "ok"}},
-            }
-
-            cmd = ExportCmd(
-                invocation_ids=["test123"],
-                dest="mlflow",
-                override=["export.wandb.entity=wrong"],  # Wrong dest!
-            )
-            cmd.execute()
-
-        captured = capsys.readouterr()
-        # Should raise error msg
-        assert "Error:" in captured.out
-        assert "export.wandb" in captured.out
-        assert "mlflow" in captured.out
-        # Should NOT call export_results due to validation error
-        mock_export.assert_not_called()
-
     def test_override_nested_metadata_paths(self, capsys):
         """Test deep nested paths for complex metadata."""
         with patch(
@@ -923,7 +672,11 @@ class TestExportCmdOverrideEdgeCases:
         ) as mock_export:
             mock_export.return_value = {
                 "success": True,
-                "jobs": {"t.0": {"success": True, "message": "ok"}},
+                "metadata": {
+                    "successful_jobs": 1,
+                    "failed_jobs": 0,
+                    "skipped_jobs": 0,
+                },
             }
 
             cmd = ExportCmd(
@@ -949,15 +702,19 @@ class TestExportCmdOverrideEdgeCases:
         ) as mock_export:
             mock_export.return_value = {
                 "success": True,
-                "jobs": {"t.0": {"success": True, "message": "ok"}},
+                "metadata": {
+                    "successful_jobs": 1,
+                    "failed_jobs": 0,
+                    "skipped_jobs": 0,
+                },
             }
 
             cmd = ExportCmd(
                 invocation_ids=["test123"],
                 dest="mlflow",
                 override=[
-                    "tracking_uri=http://mlflow:5000",
-                    "experiment_name=my-exp",
+                    "export.mlflow.tracking_uri=http://mlflow:5000",
+                    "export.mlflow.experiment_name=my-exp",
                 ],
             )
             cmd.execute()
@@ -973,7 +730,11 @@ class TestExportCmdOverrideEdgeCases:
         ) as mock_export:
             mock_export.return_value = {
                 "success": True,
-                "jobs": {"t.0": {"success": True, "message": "ok"}},
+                "metadata": {
+                    "successful_jobs": 1,
+                    "failed_jobs": 0,
+                    "skipped_jobs": 0,
+                },
             }
 
             cmd = ExportCmd(
@@ -995,7 +756,11 @@ class TestExportCmdOverrideEdgeCases:
         ) as mock_export:
             mock_export.return_value = {
                 "success": True,
-                "jobs": {"t.0": {"success": True, "message": "ok"}},
+                "metadata": {
+                    "successful_jobs": 1,
+                    "failed_jobs": 0,
+                    "skipped_jobs": 0,
+                },
             }
 
             # Don't specify --dest, should default to "local"
@@ -1009,31 +774,3 @@ class TestExportCmdOverrideEdgeCases:
         # Should call with dest="local"
         call_args = mock_export.call_args
         assert call_args[0][1] == "local"
-
-    def test_override_only_for_different_dest_raises_error(self, capsys):
-        """Test that ALL overrides for different destination raise error (no fallback merge)."""
-        with patch(
-            "nemo_evaluator_launcher.api.functional.export_results"
-        ) as mock_export:
-            mock_export.return_value = {
-                "success": True,
-                "jobs": {"test123.0": {"success": True, "message": "Success"}},
-            }
-
-            cmd = ExportCmd(
-                invocation_ids=["test123"],
-                dest="mlflow",
-                override=[
-                    "export.wandb.entity=my-org",  # Wrong destination
-                    "export.wandb.project=my-proj",
-                ],
-            )
-            cmd.execute()
-
-        captured = capsys.readouterr()
-        # Validation should error and prevent export
-        assert "Error:" in captured.out
-        assert "export.wandb" in captured.out
-        assert "mlflow" in captured.out
-        # Should NOT call export_results
-        mock_export.assert_not_called()

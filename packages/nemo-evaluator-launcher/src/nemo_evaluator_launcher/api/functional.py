@@ -19,10 +19,8 @@ This module provides the main functional entry points for running evaluations, q
 """
 
 import copy
-from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
-import yaml
 from omegaconf import DictConfig, OmegaConf
 
 from nemo_evaluator_launcher.api.types import RunConfig
@@ -587,242 +585,20 @@ def export_results(
         if isinstance(invocation_ids, str):
             invocation_ids = [invocation_ids]
 
-        exporter = create_exporter(dest, config or {})
+        exporter = create_exporter(dest, config)
+        export_result = exporter.export(invocation_ids)
 
-        if len(invocation_ids) == 1:
-            # Single id (job or invocation)
-            single_id = invocation_ids[0]
-
-            if "." in single_id:  # job_id
-                # Try reading config from artifacts working dir (auto-export on remote node)
-                cfg_file = None
-                for name in ("config.yml", "run_config.yml"):
-                    p = Path(name)
-                    if p.exists():
-                        cfg_file = p
-                        break
-
-                md_job_data = None
-                if cfg_file:
-                    try:
-                        cfg_yaml = (
-                            yaml.safe_load(cfg_file.read_text(encoding="utf-8")) or {}
-                        )
-
-                        # Merge exporter override file if present
-                        ypath_export = Path("export_config.yml")
-                        if ypath_export.exists():
-                            exp_yaml = (
-                                yaml.safe_load(ypath_export.read_text(encoding="utf-8"))
-                                or {}
-                            )
-                            exec_cfg = cfg_yaml.get("execution") or {}
-                            auto_exp = (exp_yaml.get("execution") or {}).get(
-                                "auto_export"
-                            )
-                            if auto_exp is not None:
-                                exec_cfg["auto_export"] = auto_exp
-                                cfg_yaml["execution"] = exec_cfg
-                            if "export" in exp_yaml:
-                                cfg_yaml["export"] = exp_yaml["export"]
-                            if "evaluation" in exp_yaml and exp_yaml["evaluation"]:
-                                eval_cfg = cfg_yaml.get("evaluation") or {}
-                                eval_cfg.update(exp_yaml["evaluation"])
-                                cfg_yaml["evaluation"] = eval_cfg
-
-                        executor_name = (cfg_yaml.get("execution") or {}).get(
-                            "type", "local"
-                        )
-                        md_job_data = JobData(
-                            invocation_id=single_id.split(".")[0],
-                            job_id=single_id,
-                            timestamp=0.0,
-                            executor=executor_name,  # ensures slurm tag is preserved
-                            data={
-                                "output_dir": str(Path.cwd().parent),
-                                "storage_type": "remote_local",  # no SSH in auto-export path
-                            },
-                            config=cfg_yaml,
-                        )
-                    except Exception:
-                        md_job_data = None
-
-                job_data = md_job_data or ExecutionDB().get_job(single_id)
-                if job_data is None:
-                    return {
-                        "success": False,
-                        "error": f"Job {single_id} not found in ExecutionDB",
-                    }
-
-                job_result = exporter.export_job(job_data)
-                return {
-                    "success": job_result.success,
-                    "invocation_id": job_data.invocation_id,
-                    "jobs": {
-                        job_data.job_id: {
-                            "success": job_result.success,
-                            "message": job_result.message,
-                            "metadata": job_result.metadata or {},
-                            "dest": getattr(job_result, "dest", None),
-                        }
-                    },
-                    "metadata": job_result.metadata or {},
-                }
-
-            elif single_id.isdigit():  # pipeline_id
-                db = ExecutionDB()
-                for job_id, job_data in db._jobs.items():
-                    if job_data.data.get("pipeline_id") == int(single_id):
-                        job_result = exporter.export_job(job_data)
-                        return {
-                            "success": job_result.success,
-                            "invocation_id": job_data.invocation_id,
-                            "jobs": {
-                                job_data.job_id: {
-                                    "success": job_result.success,
-                                    "message": job_result.message,
-                                    "metadata": job_result.metadata or {},
-                                }
-                            },
-                            "metadata": job_result.metadata or {},
-                        }
-                return {"success": False, "error": f"Pipeline {single_id} not found"}
-
-            else:  # invocation_id
-                result = exporter.export_invocation(single_id)
-                if "jobs" in result:
-                    for job_id, job_result in result["jobs"].items():
-                        job_result.setdefault("metadata", {})
-                return result
-        else:
-            # Multiple IDs - parse and group
-            db = ExecutionDB()
-            grouped_jobs: dict[
-                str, dict[str, Any]
-            ] = {}  # invocation_id -> {job_id: job_data}
-            invocation_only = set()  # invocation_ids with no specific jobs
-            all_jobs_for_consolidated = {}  # job_id -> job_data (for consolidated export)
-
-            # Parse and group IDs
-            for id_str in invocation_ids:
-                if "." in id_str:  # job_id
-                    job_data = db.get_job(id_str)
-                    if job_data:
-                        inv_id = job_data.invocation_id
-                        if inv_id not in grouped_jobs:
-                            grouped_jobs[inv_id] = {}
-                        grouped_jobs[inv_id][id_str] = job_data
-                        all_jobs_for_consolidated[id_str] = job_data
-                elif id_str.isdigit():  # pipeline_id
-                    # Find job by pipeline_id and add to group
-                    for job_id, job_data in db._jobs.items():
-                        if job_data.data.get("pipeline_id") == int(id_str):
-                            inv_id = job_data.invocation_id
-                            if inv_id not in grouped_jobs:
-                                grouped_jobs[inv_id] = {}
-                            grouped_jobs[inv_id][job_id] = job_data
-                            all_jobs_for_consolidated[job_id] = job_data
-                            break
-                else:  # invocation_id
-                    invocation_only.add(id_str)
-                    # Add all jobs from this invocation for consolidated export
-                    invocation_jobs = db.get_jobs(id_str)
-                    all_jobs_for_consolidated.update(invocation_jobs)
-
-            # Check if we should use consolidated export (local + json/csv format)
-            should_consolidate = (
-                dest == "local"
-                and config
-                and config.get("format") in ["json", "csv"]
-                and (
-                    len(invocation_only) > 1
-                    or (len(invocation_only) == 1 and len(grouped_jobs) > 0)
-                )
-            )
-
-            if should_consolidate and hasattr(exporter, "export_multiple_invocations"):
-                # Use consolidated export for local exporter with JSON/CSV format
-                all_invocation_ids = list(invocation_only)
-                # Add invocations from grouped jobs
-                all_invocation_ids.extend(
-                    set(
-                        job_data.invocation_id
-                        for jobs in grouped_jobs.values()
-                        for job_data in jobs.values()
-                    )
-                )
-                all_invocation_ids = list(set(all_invocation_ids))  # remove duplicates
-
-                try:
-                    consolidated_result = exporter.export_multiple_invocations(
-                        all_invocation_ids
-                    )
-                    return consolidated_result  # type: ignore[no-any-return]
-                except Exception as e:
-                    return {
-                        "success": False,
-                        "error": f"Consolidated export failed: {str(e)}",
-                    }
-
-            # Regular multi-invocation export
-            all_results = {}
-            overall_success = True
-
-            # Export grouped jobs (partial invocations)
-            for inv_id, jobs in grouped_jobs.items():
-                try:
-                    # Create a custom partial invocation export
-                    results = {}
-                    for job_id, job_data in jobs.items():
-                        job_result = exporter.export_job(job_data)
-                        results[job_id] = {
-                            "success": job_result.success,
-                            "message": job_result.message,
-                            "metadata": job_result.metadata or {},
-                        }
-                        if not job_result.success:
-                            overall_success = False
-
-                    all_results[inv_id] = {
-                        "success": all(r["success"] for r in results.values()),
-                        "invocation_id": inv_id,
-                        "jobs": results,
-                        "partial": True,  # indicate this was partial invocation
-                    }
-                except Exception as e:
-                    all_results[inv_id] = {
-                        "success": False,
-                        "error": f"Partial invocation export failed: {str(e)}",
-                    }
-                    overall_success = False
-
-            # Export full invocations
-            for inv_id in invocation_only:
-                result = exporter.export_invocation(inv_id)
-                # Ensure metadata is present in job results to prevent KeyError
-                if "jobs" in result:
-                    for job_id, job_result in result["jobs"].items():
-                        if "metadata" not in job_result:
-                            job_result["metadata"] = {}
-                all_results[inv_id] = result
-                if not result.get("success", False):
-                    overall_success = False
-
-            return {
-                "success": overall_success,
-                "invocations": all_results,
-                "metadata": {
-                    "total_invocations": len(all_results),
-                    "successful_invocations": sum(
-                        1 for r in all_results.values() if r.get("success")
-                    ),
-                    "mixed_export": len(grouped_jobs)
-                    > 0,  # indicates mixed job/invocation export
-                },
-            }
+        return {
+            "success": len(export_result.failed_jobs) == 0,
+            "metadata": {
+                "successful_jobs": len(export_result.successful_jobs),
+                "failed_jobs": len(export_result.failed_jobs),
+                "skipped_jobs": len(export_result.skipped_jobs),
+            },
+        }
 
     except Exception as e:
-        return {"success": False, "error": f"Export failed: {str(e)}"}
+        return {"success": False, "metadata": {"error": f"Export failed: {str(e)}"}}
 
 
 def _check_api_endpoint_when_deployment_is_configured(cfg: RunConfig) -> None:

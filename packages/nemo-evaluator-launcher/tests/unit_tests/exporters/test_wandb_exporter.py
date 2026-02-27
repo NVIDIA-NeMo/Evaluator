@@ -22,44 +22,210 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
+from nemo_evaluator_launcher.exporters.utils import DataForExport
 from nemo_evaluator_launcher.exporters.wandb import WandBExporter
 
 
 class TestWandBExporter:
-    def test_not_available(self):
+    def test_not_available(self, tmp_path):
         with patch("nemo_evaluator_launcher.exporters.wandb.WANDB_AVAILABLE", False):
-            res = WandBExporter().export_job(Mock())
-            assert not res.success
-            assert "not installed" in res.message
+            data = DataForExport(
+                artifacts_dir=tmp_path / "artifacts",
+                logs_dir=None,
+                config={},
+                model_id="test-model",
+                metrics={"acc": 0.9},
+                harness="lm-eval",
+                task="mmlu",
+                container="test:latest",
+                executor="local",
+                invocation_id="test1234",
+                job_id="test1234.0",
+                timestamp=1234567890.0,
+                job_data={},
+            )
+            successful, failed, skipped = WandBExporter(
+                {"entity": "e", "project": "p"}
+            ).export_jobs([data])
+            assert len(successful) == 0
+            assert len(failed) == 1
+            assert failed[0] == "test1234.0"
 
-    def test_wandb_export_no_metrics(self):
-        job_data = JobData(
-            invocation_id="test1234",
-            job_id="test1234.0",
-            timestamp=1234567890.0,
-            executor="local",
-            data={"output_dir": "/tmp/test"},
-        )
+    def test_wandb_export_no_metrics(self, tmp_path):
         with patch("nemo_evaluator_launcher.exporters.wandb.WANDB_AVAILABLE", True):
-            with patch(
-                "nemo_evaluator_launcher.exporters.wandb.extract_accuracy_metrics",
-                return_value={},
-            ):
-                exporter = WandBExporter({"entity": "test", "project": "test"})
-                result = exporter.export_job(job_data)
-                assert not result.success
-                assert "No metrics found" in result.message
+            data = DataForExport(
+                artifacts_dir=tmp_path / "artifacts",
+                logs_dir=None,
+                config={},
+                model_id="test-model",
+                metrics={},  # No metrics
+                harness="lm-eval",
+                task="mmlu",
+                container="test:latest",
+                executor="local",
+                invocation_id="test1234",
+                job_id="test1234.0",
+                timestamp=1234567890.0,
+                job_data={},
+            )
+            exporter = WandBExporter({"entity": "test", "project": "test"})
+            successful, failed, skipped = exporter.export_jobs([data])
+            assert len(successful) == 0
+            assert len(skipped) == 1
+            assert skipped[0] == "test1234.0"
+
+    def test_log_mode_per_task_creates_one_run_per_job(
+        self, monkeypatch, wandb_fake, tmp_path
+    ):
+        """per_task: one W&B run per job, identifier is invocation_id-task."""
+        _W, _Run = wandb_fake
+        create_calls = []
+
+        def capture_create(*, identifier, metrics, data, existing_run_id=None):
+            create_calls.append(
+                {
+                    "identifier": identifier,
+                    "metrics": metrics,
+                    "job_ids": [job_data.job_id for job_data in data],
+                }
+            )
+            return {"run_url": "http://wandb/run/123"}
+
+        data1 = DataForExport(
+            artifacts_dir=tmp_path / "a1",
+            logs_dir=None,
+            config={},
+            model_id="m",
+            metrics={"acc": 0.9},
+            harness="lm-eval",
+            task="mmlu",
+            container="c",
+            executor="local",
+            invocation_id="inv1",
+            job_id="inv1.0",
+            timestamp=0.0,
+            job_data={},
+        )
+        data2 = DataForExport(
+            artifacts_dir=tmp_path / "a2",
+            logs_dir=None,
+            config={},
+            model_id="m",
+            metrics={"f1": 0.8},
+            harness="lm-eval",
+            task="gsm8k",
+            container="c",
+            executor="local",
+            invocation_id="inv1",
+            job_id="inv1.1",
+            timestamp=0.0,
+            job_data={},
+        )
+        exp = WandBExporter(
+            {
+                "entity": "e",
+                "project": "p",
+                "log_mode": "per_task",
+            }
+        )
+        monkeypatch.setattr(exp, "_create_wandb_run", capture_create, raising=False)
+
+        successful, failed, skipped = exp.export_jobs([data1, data2])
+
+        assert len(create_calls) == 2
+        assert create_calls[0]["identifier"] == "inv1-mmlu"
+        assert create_calls[0]["metrics"] == {"acc": 0.9}
+        assert create_calls[1]["identifier"] == "inv1-gsm8k"
+        assert create_calls[1]["metrics"] == {"f1": 0.8}
+        assert set(successful) == {"inv1.0", "inv1.1"}
+        assert len(failed) == 0
+        assert len(skipped) == 0
+
+    def test_log_mode_multi_task_creates_one_run_per_invocation(
+        self, monkeypatch, wandb_fake, tmp_path
+    ):
+        """multi_task: one W&B run per invocation with aggregated metrics."""
+        _W, _Run = wandb_fake
+        create_calls = []
+
+        def capture_create(*, identifier, metrics, data, existing_run_id=None):
+            create_calls.append(
+                {
+                    "identifier": identifier,
+                    "metrics": metrics,
+                    "job_ids": [job_data.job_id for job_data in data],
+                }
+            )
+            return {"run_url": "http://wandb/run/123"}
+
+        data1 = DataForExport(
+            artifacts_dir=tmp_path / "a1",
+            logs_dir=None,
+            config={},
+            model_id="m",
+            metrics={"acc": 0.9},
+            harness="lm-eval",
+            task="mmlu",
+            container="c",
+            executor="local",
+            invocation_id="inv2",
+            job_id="inv2.0",
+            timestamp=0.0,
+            job_data={},
+        )
+        data2 = DataForExport(
+            artifacts_dir=tmp_path / "a2",
+            logs_dir=None,
+            config={},
+            model_id="m",
+            metrics={"f1": 0.8},
+            harness="lm-eval",
+            task="gsm8k",
+            container="c",
+            executor="local",
+            invocation_id="inv2",
+            job_id="inv2.1",
+            timestamp=0.0,
+            job_data={},
+        )
+        exp = WandBExporter(
+            {
+                "entity": "e",
+                "project": "p",
+                "log_mode": "multi_task",
+            }
+        )
+        monkeypatch.setattr(exp, "_check_existing_run", lambda *a, **k: None)
+        monkeypatch.setattr(exp, "_create_wandb_run", capture_create, raising=False)
+
+        successful, failed, skipped = exp.export_jobs([data1, data2])
+
+        assert len(create_calls) == 1
+        assert create_calls[0]["identifier"] == "inv2"
+        assert create_calls[0]["metrics"] == {"acc": 0.9, "f1": 0.8}
+        assert set(successful) == {"inv2.0", "inv2.1"}
+        assert len(failed) == 0
+        assert len(skipped) == 0
 
     @pytest.mark.parametrize("log_mode", ["per_task", "multi_task"])
-    def test_export_job_ok(self, monkeypatch, wandb_fake, log_mode):
+    def test_export_jobs_ok(self, monkeypatch, wandb_fake, log_mode, tmp_path):
         _W, _Run = wandb_fake
-        jd = JobData("i1", "i1.0", 0.0, "local", {"output_dir": "/tmp"}, {})
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.wandb.extract_accuracy_metrics",
-            lambda *_: {"demo_accuracy": 0.9},
-            raising=True,
+        data = DataForExport(
+            artifacts_dir=tmp_path / "artifacts",
+            logs_dir=None,
+            config={},
+            model_id="test-model",
+            metrics={"demo_accuracy": 0.9},
+            harness="lm-eval",
+            task="mmlu",
+            container="test:latest",
+            executor="local",
+            invocation_id="i1",
+            job_id="i1.0",
+            timestamp=0.0,
+            job_data={},
         )
+
         if log_mode == "multi_task":
             # Mock the check_existing_run for multi_task mode
             exp = WandBExporter(
@@ -67,11 +233,10 @@ class TestWandBExporter:
                     "entity": "e",
                     "project": "p",
                     "log_mode": log_mode,
-                    "log_artifacts": False,
                 }
             )
             monkeypatch.setattr(
-                exp, "_check_existing_run", lambda *a, **k: (False, None), raising=False
+                exp, "_check_existing_run", lambda *a, **k: None, raising=False
             )
         else:
             exp = WandBExporter(
@@ -79,59 +244,89 @@ class TestWandBExporter:
                     "entity": "e",
                     "project": "p",
                     "log_mode": log_mode,
-                    "log_artifacts": False,
                 }
             )
 
-        res = exp.export_job(jd)
-        assert res.success
-        assert res.metadata.get("run_id")
+        successful, failed, skipped = exp.export_jobs([data])
+        assert len(successful) == 1
+        assert successful[0] == "i1.0"
+        assert len(failed) == 0
 
-    def test_per_task_ok(self, monkeypatch, wandb_fake):
+    def test_per_task_ok(self, monkeypatch, wandb_fake, tmp_path):
         _W, _Run = wandb_fake
-        jd = JobData("i1", "i1.0", 0.0, "local", {"output_dir": "/tmp"}, {})
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.wandb.extract_accuracy_metrics",
-            lambda *_: {"demo_accuracy": 0.9},
-            raising=True,
+        data = DataForExport(
+            artifacts_dir=tmp_path / "artifacts",
+            logs_dir=None,
+            config={},
+            model_id="test-model",
+            metrics={"demo_accuracy": 0.9},
+            harness="lm-eval",
+            task="mmlu",
+            container="test:latest",
+            executor="local",
+            invocation_id="i1",
+            job_id="i1.0",
+            timestamp=0.0,
+            job_data={},
         )
-        res = WandBExporter(
+        successful, failed, skipped = WandBExporter(
             {
                 "entity": "e",
                 "project": "p",
                 "log_mode": "per_task",
-                "log_artifacts": False,
             }
-        ).export_job(jd)
-        assert res.success
-        assert res.metadata.get("run_id")
+        ).export_jobs([data])
+        assert len(successful) == 1
+        assert successful[0] == "i1.0"
 
-    def test_multi_task_resume(self, monkeypatch, wandb_fake):
+    def test_multi_task_resume(self, monkeypatch, wandb_fake, tmp_path):
         _W, _Run = wandb_fake
-        jd = JobData("i2", "i2.1", 0.0, "local", {"output_dir": "/tmp"}, {})
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.wandb.extract_accuracy_metrics",
-            lambda *_: {"x": 1.0},
-            raising=True,
+        data = DataForExport(
+            artifacts_dir=tmp_path / "artifacts",
+            logs_dir=None,
+            config={},
+            model_id="test-model",
+            metrics={"x": 1.0},
+            harness="lm-eval",
+            task="mmlu",
+            container="test:latest",
+            executor="local",
+            invocation_id="i2",
+            job_id="i2.1",
+            timestamp=0.0,
+            job_data={},
         )
         exp = WandBExporter(
             {
                 "entity": "e",
                 "project": "p",
                 "log_mode": "multi_task",
-                "log_artifacts": False,
             }
         )
         monkeypatch.setattr(
-            exp, "_check_existing_run", lambda *a, **k: (True, "rid"), raising=False
+            exp, "_check_existing_run", lambda *a, **k: "rid", raising=False
         )
-        res = exp.export_job(jd)
-        assert res.success
-        assert res.metadata.get("run_id")
+        successful, failed, skipped = exp.export_jobs([data])
+        assert len(successful) == 1
+        assert successful[0] == "i2.1"
 
-    def test_config_update_exception_handling(self, monkeypatch, wandb_fake):
+    def test_config_update_exception_handling(self, monkeypatch, wandb_fake, tmp_path):
         _W, _Run = wandb_fake
-        jd = JobData("i3", "i3.0", 0.0, "local", {"output_dir": "/tmp"}, {})
+        data = DataForExport(
+            artifacts_dir=tmp_path / "artifacts",
+            logs_dir=None,
+            config={},
+            model_id="test-model",
+            metrics={"demo_accuracy": 0.9},
+            harness="lm-eval",
+            task="mmlu",
+            container="test:latest",
+            executor="local",
+            invocation_id="i3",
+            job_id="i3.0",
+            timestamp=0.0,
+            job_data={},
+        )
 
         # Make config.update raise
         class _RunWithBrokenConfig:
@@ -146,62 +341,79 @@ class TestWandBExporter:
             def define_metric(self, *a, **k): ...
             def log(self, *a, **k): ...
             def log_artifact(self, *a, **k): ...
+            def finish(self): ...
 
         _W.init = staticmethod(lambda **kwargs: _RunWithBrokenConfig())
 
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.wandb.extract_accuracy_metrics",
-            lambda *_: {"demo_accuracy": 0.9},
-            raising=True,
-        )
-
         exp = WandBExporter({"entity": "e", "project": "p", "log_mode": "multi_task"})
-        res = exp.export_job(jd)
-        assert res.success  # Should still succeed despite config update failure
+        successful, failed, skipped = exp.export_jobs([data])
+        assert (
+            len(successful) == 1
+        )  # Should still succeed despite config update failure
 
-    def test_export_job_exception_path(self, monkeypatch, wandb_fake):
+    def test_export_jobs_exception_path(self, monkeypatch, wandb_fake, tmp_path):
         _W, _Run = wandb_fake
-        jd = JobData("w1", "w1.0", 0.0, "local", {"output_dir": "/tmp"}, {})
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.wandb.extract_accuracy_metrics",
-            lambda *_: {"acc": 1.0},
-            raising=True,
+        data = DataForExport(
+            artifacts_dir=tmp_path / "artifacts",
+            logs_dir=None,
+            config={},
+            model_id="test-model",
+            metrics={"acc": 1.0},
+            harness="lm-eval",
+            task="mmlu",
+            container="test:latest",
+            executor="local",
+            invocation_id="w1",
+            job_id="w1.0",
+            timestamp=0.0,
+            job_data={},
         )
-        # Force an exception inside export_job after metrics extraction
+        # Force an exception inside export_jobs after metrics extraction
         monkeypatch.setattr(
             "nemo_evaluator_launcher.exporters.wandb.WandBExporter._create_wandb_run",
             lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")),
             raising=True,
         )
-        res = WandBExporter({"entity": "e", "project": "p"}).export_job(jd)
-        assert not res.success
-        assert "Failed" in res.message
+        successful, failed, skipped = WandBExporter(
+            {"entity": "e", "project": "p"}
+        ).export_jobs([data])
+        assert len(failed) == 1
+        assert failed[0] == "w1.0"
 
-    def test_export_invocation_no_jobs_early_return_wandb(self, wandb_fake):
-        _W, _Run = wandb_fake
-        res = WandBExporter({"entity": "e", "project": "p"}).export_invocation(
-            "missing1234"
-        )
-        assert res["success"] is False
-        assert "No jobs found" in res["error"]
-
-    def test_export_invocation_exception_path_wandb(
-        self, mock_execdb, monkeypatch, wandb_fake, tmp_path: Path
+    def test_export_jobs_multi_task_exception_path(
+        self, monkeypatch, wandb_fake, tmp_path: Path
     ):
         _W, _Run = wandb_fake
-        inv = "cafebabe"
-        db = ExecutionDB()
-        for i in range(2):
-            db.write_job(
-                JobData(
-                    inv, f"{inv}.{i}", 0.0, "local", {"output_dir": str(tmp_path)}, {}
-                )
-            )
-        # Ensure non-empty metrics so we reach _create_wandb_run
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.wandb.extract_accuracy_metrics",
-            lambda *_: {"acc": 0.9},
-            raising=True,
+        # Create multiple data objects for the same invocation
+        data1 = DataForExport(
+            artifacts_dir=tmp_path / "artifacts1",
+            logs_dir=None,
+            config={},
+            model_id="test-model",
+            metrics={"acc": 0.9},
+            harness="lm-eval",
+            task="mmlu",
+            container="test:latest",
+            executor="local",
+            invocation_id="cafebabe",
+            job_id="cafebabe.0",
+            timestamp=0.0,
+            job_data={},
+        )
+        data2 = DataForExport(
+            artifacts_dir=tmp_path / "artifacts2",
+            logs_dir=None,
+            config={},
+            model_id="test-model",
+            metrics={"f1": 0.8},
+            harness="lm-eval",
+            task="gsm8k",
+            container="test:latest",
+            executor="local",
+            invocation_id="cafebabe",
+            job_id="cafebabe.1",
+            timestamp=0.0,
+            job_data={},
         )
         # Make the invocation path raise inside the try block
         monkeypatch.setattr(
@@ -209,23 +421,19 @@ class TestWandBExporter:
             lambda *a, **k: (_ for _ in ()).throw(RuntimeError("invoke failed")),
             raising=True,
         )
-        res = WandBExporter({"entity": "e", "project": "p"}).export_invocation(inv)
-        assert res["success"] is False
-        assert "W&B export failed" in res["error"]
+        successful, failed, skipped = WandBExporter(
+            {"entity": "e", "project": "p", "log_mode": "multi_task"}
+        ).export_jobs([data1, data2])
+        assert len(failed) == 2
+        assert "cafebabe.0" in failed
+        assert "cafebabe.1" in failed
 
     def test_log_artifacts_success(self, monkeypatch, wandb_fake, tmp_path: Path):
         _W, _Run = wandb_fake
-        # Stage artifacts returned by LocalExporter
-        stage_dir = tmp_path / "stage"
-        (stage_dir / "artifacts").mkdir(parents=True, exist_ok=True)
-        (stage_dir / "artifacts" / "results.yml").write_text("ok", encoding="utf-8")
-
-        class _LE:
-            def __init__(self, *_a, **_k): ...
-            def export_job(self, *_a, **_k):
-                return types.SimpleNamespace(
-                    success=True, message="ok", dest=str(stage_dir)
-                )
+        # Create artifacts directory with files
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        (artifacts_dir / "results.yml").write_text("ok", encoding="utf-8")
 
         calls = {"added": []}
 
@@ -233,25 +441,26 @@ class TestWandBExporter:
             def add_file(self, path, name=None):
                 calls["added"].append((Path(path).name, name))
 
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.wandb.LocalExporter", _LE, raising=True
-        )
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.wandb.get_available_artifacts",
-            lambda *_: ["results.yml"],
-            raising=True,
-        )
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.wandb.get_task_name",
-            lambda *_: "taskX",
-            raising=True,
+        data = DataForExport(
+            artifacts_dir=artifacts_dir,
+            logs_dir=None,
+            config={"test": "config"},
+            model_id="test-model",
+            metrics={"acc": 0.9},
+            harness="lm-eval",
+            task="taskX",
+            container="test:latest",
+            executor="local",
+            invocation_id="wA",
+            job_id="wA.0",
+            timestamp=0.0,
+            job_data={},
         )
 
-        jd = JobData("wA", "wA.0", 0.0, "local", {"output_dir": str(tmp_path)}, {})
-        exp = WandBExporter({})
-        logged = exp._log_artifacts(jd, {"log_artifacts": True}, _Artifact())
-        # wandb logs config.yaml fallback + results.yml when log_artifacts is True
-        assert "config.yaml" in logged
+        exp = WandBExporter({"entity": "e", "project": "p"})
+        logged = exp._log_artifacts(data, _Artifact())
+        # wandb logs config.yaml fallback + results.yml
+        assert "config.yml" in logged
         assert "results.yml" in logged
         assert len(calls["added"]) == 2  # config.yaml + results.yml
 
@@ -260,60 +469,36 @@ class TestWandBExporter:
     ):
         _W, _Run = wandb_fake
 
-        class _LE:
-            def __init__(self, *_a, **_k): ...
-            def export_job(self, *_a, **_k):
-                raise RuntimeError("boom")
-
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.wandb.LocalExporter", _LE, raising=True
+        # Create data with non-existent artifacts directory to trigger exception
+        data = DataForExport(
+            artifacts_dir=tmp_path / "nonexistent",  # This directory doesn't exist
+            logs_dir=None,
+            config={},
+            model_id="test-model",
+            metrics={"acc": 0.9},
+            harness="lm-eval",
+            task="taskX",
+            container="test:latest",
+            executor="local",
+            invocation_id="wB",
+            job_id="wB.0",
+            timestamp=0.0,
+            job_data={},
         )
 
-        jd = JobData("wB", "wB.0", 0.0, "local", {"output_dir": str(tmp_path)}, {})
-        exp = WandBExporter({})
+        exp = WandBExporter({"entity": "e", "project": "p"})
         logged = exp._log_artifacts(
-            jd,
-            {"log_artifacts": True},
+            data,
             types.SimpleNamespace(add_file=lambda *a, **k: None),
         )
         assert logged == []
 
-    def test_check_existing_run_missing_entity_project(self, monkeypatch, wandb_fake):
-        _W, _Run = wandb_fake
-        jd = JobData("wC", "wC.0", 0.0, "local", {"output_dir": "/tmp"}, {})
-        exp = WandBExporter({})
-        exists, run_id = exp._check_existing_run(
-            "ident", jd, {"entity": None, "project": None}
-        )
-        assert exists is False and run_id is None
-
-    def test_check_existing_run_webhook_id(self, monkeypatch, wandb_fake):
-        _W, _Run = wandb_fake
-        api = types.SimpleNamespace(
-            run=lambda path: types.SimpleNamespace(id="abc123"), runs=lambda *_: []
-        )
-        fake_wandb = types.SimpleNamespace(Api=lambda: api)
-        monkeypatch.setitem(sys.modules, "wandb", fake_wandb)
-
-        jd = JobData(
-            "wD",
-            "wD.0",
-            0.0,
-            "local",
-            {
-                "output_dir": "/tmp",
-                "webhook_metadata": {"webhook_source": "wandb", "run_id": "abc123"},
-            },
-            {},
-        )
-        exp = WandBExporter({})
-        exists, run_id = exp._check_existing_run(
-            "ident", jd, {"entity": "e", "project": "p", "triggered_by_webhook": True}
-        )
-        assert exists is True and run_id == "abc123"
+    def test_check_existing_run_missing_entity_project(self):
+        exp = WandBExporter({"entity": "", "project": ""})
+        run_id = exp._check_existing_run("ident")
+        assert run_id is None
 
     def test_check_existing_run_name_match(self, monkeypatch, wandb_fake):
-        _W, _Run = wandb_fake
         api = types.SimpleNamespace(
             run=lambda *_: types.SimpleNamespace(id="noop"),
             runs=lambda *_: [types.SimpleNamespace(display_name="my-name", id="rid1")],
@@ -321,15 +506,11 @@ class TestWandBExporter:
         fake_wandb = types.SimpleNamespace(Api=lambda: api)
         monkeypatch.setitem(sys.modules, "wandb", fake_wandb)
 
-        jd = JobData("wE", "wE.0", 0.0, "local", {"output_dir": "/tmp"}, {})
-        exp = WandBExporter({})
-        exists, run_id = exp._check_existing_run(
-            "ident", jd, {"entity": "e", "project": "p", "name": "my-name"}
-        )
-        assert exists is True and run_id == "rid1"
+        exp = WandBExporter({"entity": "e", "project": "p", "name": "my-name"})
+        run_id = exp._check_existing_run("ident")
+        assert run_id == "rid1"
 
     def test_check_existing_run_default_pattern_match(self, monkeypatch, wandb_fake):
-        _W, _Run = wandb_fake
         api = types.SimpleNamespace(
             run=lambda *_: types.SimpleNamespace(id="noop"),
             runs=lambda *_: [
@@ -339,15 +520,11 @@ class TestWandBExporter:
         fake_wandb = types.SimpleNamespace(Api=lambda: api)
         monkeypatch.setitem(sys.modules, "wandb", fake_wandb)
 
-        jd = JobData("wF", "wF.0", 0.0, "local", {"output_dir": "/tmp"}, {})
-        exp = WandBExporter({})
-        exists, run_id = exp._check_existing_run(
-            "ident", jd, {"entity": "e", "project": "p"}
-        )
-        assert exists is True and run_id == "rid2"
+        exp = WandBExporter({"entity": "e", "project": "p"})
+        run_id = exp._check_existing_run("ident")
+        assert run_id == "rid2"
 
     def test_check_existing_run_no_match(self, monkeypatch, wandb_fake):
-        _W, _Run = wandb_fake
         api = types.SimpleNamespace(
             run=lambda *_: types.SimpleNamespace(id="noop"), runs=lambda *_: []
         )
@@ -356,9 +533,6 @@ class TestWandBExporter:
             lambda: api,
             raising=True,
         )
-        jd = JobData("wG", "wG.0", 0.0, "local", {"output_dir": "/tmp"}, {})
-        exp = WandBExporter({})
-        exists, run_id = exp._check_existing_run(
-            "ident", jd, {"entity": "e", "project": "p"}
-        )
-        assert exists is False and run_id is None
+        exp = WandBExporter({"entity": "e", "project": "p"})
+        run_id = exp._check_existing_run("ident")
+        assert run_id is None

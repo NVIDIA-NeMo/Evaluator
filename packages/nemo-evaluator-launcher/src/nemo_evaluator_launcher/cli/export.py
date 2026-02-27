@@ -16,9 +16,12 @@
 """Export evaluation results to specified target."""
 
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import List, Optional
 
+from omegaconf import OmegaConf
 from simple_parsing import field
+
+from nemo_evaluator_launcher.common.logging_utils import logger
 
 
 @dataclass
@@ -30,6 +33,7 @@ class ExportCmd:
     #   nemo-evaluator-launcher export 8abcd123 --dest local --format json --out .
     #   nemo-evaluator-launcher export 8abcd123.0 9ef01234 --dest local --format csv --out results/ -fname processed_results.csv
     #   nemo-evaluator-launcher export 8abcd123 --dest jet
+    #   nemo-evaluator-launcher export 8abcd123 --config export_config.yaml --dest wandb
 
     invocation_ids: List[str] = field(
         positional=True,
@@ -41,6 +45,13 @@ class ExportCmd:
         choices=["local", "wandb", "mlflow", "gsheets", "jet"],
         help="Export destination.",
     )
+    config: Optional[str] = field(
+        default=None,
+        alias=["--config"],
+        help="Path to export config file. The config should contain exporter settings (e.g., output_dir, format, copy_logs). "
+        "CLI arguments override config file values.",
+    )
+
     # overrides for exporter config; use -o similar to run command
     override: List[str] = field(
         default_factory=list,
@@ -50,7 +61,7 @@ class ExportCmd:
         help="Hydra-style overrides for exporter config. Use `export.<dest>.key=value` (e.g., -o export.wandb.entity=org-name).",
     )
     output_dir: Optional[str] = field(
-        default=".",
+        default=None,
         alias=["--output-dir", "-out"],
         help="Output directory (default: current directory).",
     )
@@ -65,26 +76,42 @@ class ExportCmd:
         choices=["json", "csv"],
         help="Summary format for --dest local. Omit to only copy artifacts.",
     )
-    copy_logs: bool = field(
-        default=False,
+    copy_logs: Optional[bool] = field(
+        default=None,
         alias=["--copy-logs"],
-        help="Include logs when copying locally (default: False).",
+        help="Export log files (if exporter allows it) (default: False).",
     )
-    log_metrics: List[str] = field(
-        default_factory=list,
+    copy_artifacts: Optional[bool] = field(
+        default=None,
+        alias=["--copy-artifacts"],
+        help="Export artifact files (if exporter allows it) (default: True).",
+    )
+    log_metrics: Optional[List[str]] = field(
+        default=None,
         alias=["--log-metrics"],
         help="Filter metrics by name (repeatable). Examples: score, f1, mmlu_score_micro.",
     )
     only_required: Optional[bool] = field(
         default=None,
         alias=["--only-required"],
-        help="Copy only required+optional artifacts (default: True). Set to False to copy all available artifacts.",
+        help="Copy only required artifacts. Set to False to copy all available artifacts. "
+        "This flag is ignored if --copy-artifacts is False.",
+    )
+
+    job_dirs: Optional[List[str]] = field(
+        default=None,
+        alias=["--job-dirs"],
+        help="Directories used to search for job artifacts and logs. Allows to export results for jobs not stored in the "
+        "local database (e.g. during auto-export on a remote machine or executed by a different user). "
+        "If privided, it is used to search for sub-directories with results for specified invocation ID "
+        "and the jobs information is inferred from the metadata stored in the job artifacts directories. "
+        "It should match the value passed as execution.output_dir in the run config. "
+        "Can be specified multiple times to search in multiple directories.",
     )
 
     def execute(self) -> None:
         """Execute export."""
         # Import heavy dependencies only when needed
-        from omegaconf import OmegaConf
 
         from nemo_evaluator_launcher.api.functional import export_results
 
@@ -96,172 +123,144 @@ class ExportCmd:
             )
             return
 
-        config: dict[str, Any] = {
-            "copy_logs": self.copy_logs,
-        }
+        # Load configuration from file if provided
+        if self.config:
+            config = self._load_config_from_file(self.config)
+        else:
+            config = OmegaConf.create({})
 
-        # Output handling
-        if self.output_dir:
-            config["output_dir"] = self.output_dir
-        if self.output_filename:
-            config["output_filename"] = self.output_filename
-
-        # Format and filters
-        if self.format:
-            config["format"] = self.format
-        if self.log_metrics:
-            config["log_metrics"] = self.log_metrics
-
-        # Add only_required if explicitly passed via CLI
+        # CLI arguments override config file values
+        # We default to None to avoid overriding the config file values if not explicitly passed via CLI
+        if self.copy_logs is not None:
+            config["copy_logs"] = self.copy_logs
+        if self.copy_artifacts is not None:
+            config["copy_artifacts"] = self.copy_artifacts
         if self.only_required is not None:
             config["only_required"] = self.only_required
 
+        # Output handling
+        if self.output_dir is not None:
+            config["output_dir"] = self.output_dir
+        if self.output_filename is not None:
+            config["output_filename"] = self.output_filename
+
+        # Format and filters
+        if self.format and self.dest == "local":
+            config["format"] = self.format
+
+        if self.log_metrics is not None:
+            config["log_metrics"] = self.log_metrics
+
+        # Add job_dirs if explicitly passed via CLI
+        if self.job_dirs is not None:
+            config["job_dirs"] = self.job_dirs
+
         # Parse and validate overrides
-        if self.override:
-            # Flatten possible list-of-lists from parser
-            flat_overrides: list[str] = []
-            for item in self.override:
-                if isinstance(item, list):
-                    flat_overrides.extend(str(x) for x in item)
-                else:
-                    flat_overrides.append(str(item))
-
-            try:
-                self._validate_overrides(flat_overrides, self.dest)
-            except ValueError as e:
-                print(f"Error: {e}")
-                return
-
-            # Expand env vars in override vals ($VAR / ${VAR})
-            import os
-
-            from omegaconf import OmegaConf
-
-            expanded_overrides: list[str] = []
-            for ov in flat_overrides:
-                if "=" in ov:
-                    k, v = ov.split("=", 1)
-                    expanded_overrides.append(f"{k}={os.path.expandvars(v)}")
-                else:
-                    expanded_overrides.append(os.path.expandvars(ov))
-
-            dot_cfg = OmegaConf.from_dotlist(expanded_overrides)
-            as_dict = OmegaConf.to_container(dot_cfg, resolve=True) or {}
-            if isinstance(as_dict, dict) and "export" in as_dict:
-                export_map = as_dict.get("export") or {}
-                if isinstance(export_map, dict) and self.dest in export_map:
-                    config.update(export_map[self.dest] or {})
-                else:
-                    config.update(as_dict)
-            else:
-                config.update(as_dict)
+        self._apply_overrides(config)
 
         if self.format and self.dest != "local":
             print(
                 "Note: --format is only used by --dest local. It will be ignored for other destinations."
             )
 
-        if "only_required" in config and self.only_required is True:
-            config.pop("only_required", None)
-
         print(
             f"Exporting {len(self.invocation_ids)} {'invocations' if len(self.invocation_ids) > 1 else 'invocation'} to {self.dest}..."
         )
 
-        result = export_results(self.invocation_ids, self.dest, config)
-
-        if not result.get("success", False):
-            err = result.get("error", "Unknown error")
-            print(f"\nExport failed: {err}")
-            # Provide actionable guidance for common configuration issues
-            if self.dest == "mlflow":
-                if "tracking_uri" in str(err).lower():
-                    print("\nMLflow requires 'tracking_uri' to be configured.")
-                    print(
-                        "Set it via: -o export.mlflow.tracking_uri=http://mlflow-server:5000"
-                    )
-                elif "not installed" in str(err).lower():
-                    print("\nMLflow package not installed.")
-                    print("Install via: pip install nemo-evaluator-launcher[mlflow]")
-            elif self.dest == "wandb":
-                if "entity" in str(err).lower() or "project" in str(err).lower():
-                    print("\nW&B requires 'entity' and 'project' to be configured.")
-                    print(
-                        "Set via: -o export.wandb.entity=my-org -o export.wandb.project=my-proj"
-                    )
-                elif "not installed" in str(err).lower():
-                    print("\nW&B package not installed.")
-                    print("Install via: pip install nemo-evaluator-launcher[wandb]")
-            elif self.dest == "gsheets":
-                if "not installed" in str(err).lower():
-                    print("\nGoogle Sheets package not installed.")
-                    print("Install via: pip install nemo-evaluator-launcher[gsheets]")
-            return
+        result = export_results(
+            self.invocation_ids, self.dest, OmegaConf.to_container(config)
+        )
 
         # Success path
-        if len(self.invocation_ids) == 1:
-            # Single invocation
-            invocation_id = self.invocation_ids[0]
-            print(f"Export completed for {invocation_id}")
+        print(f"Export completed: {result['metadata']}")
+        if not result.get("success", False):
+            print("Some jobs failed to export. See logs above for more details.")
+            return
 
-            for job_id, job_result in result["jobs"].items():
-                if job_result.get("success"):
-                    print(f"  {job_id}: {job_result.get('message', '')}")
-                    metadata = job_result.get("metadata", {})
-                    if metadata.get("run_url"):
-                        print(f"    URL: {metadata['run_url']}")
-                    if metadata.get("summary_path"):
-                        print(f"    Summary: {metadata['summary_path']}")
-                    path_hint = job_result.get("dest") or metadata.get("output_dir")
-                    if self.dest == "local" and path_hint:
-                        print(f"    Path: {path_hint}")
-                else:
-                    print(f"  {job_id} failed: {job_result.get('message', '')}")
-        else:
-            # Multiple invocations
-            metadata = result.get("metadata", {})
-            print(
-                f"Export completed: {metadata.get('successful_invocations', 0)}/{metadata.get('total_invocations', 0)} successful"
+    def _load_config_from_file(self, config_path: str) -> OmegaConf:
+        """Load export configuration from a file.
+
+        Args:
+            config_path: Path to the config file
+
+        Returns:
+            OmegaConf object containing the export configuration
+        """
+        import yaml
+
+        with open(config_path, "r") as f:
+            config_dict = yaml.safe_load(f)
+
+        if not isinstance(config_dict, dict):
+            raise ValueError(
+                f"Config file {config_path} must contain a dictionary at the root level"
             )
 
-            # Show summary path if available
-            if metadata.get("summary_path"):
-                print(f"Summary: {metadata['summary_path']}")
-            # Show per-invocation status
-            for invocation_id, inv_result in result["invocations"].items():
-                if inv_result.get("success"):
-                    job_count = len(inv_result.get("jobs", {}))
-                    print(f"  {invocation_id}: {job_count} jobs")
+        # If config has an 'export.<dest>' structure, extract the relevant section
+        export_config = config_dict.get("export", {})
+        if export_config:
+            if self.dest in export_config:
+                # Use destination-specific config
+                return OmegaConf.create(export_config[self.dest])
+
+            else:
+                raise ValueError(
+                    f"Export destination {self.dest} not found in config file {config_path}"
+                )
+        else:
+            # Flat config structure
+            logger.warning(
+                f"Config file {config_path} does not have an 'export' section. Using top-level config."
+            )
+            return OmegaConf.create(config_dict)
+
+    def _apply_overrides(self, config: OmegaConf) -> None:
+        import re
+
+        # matches ~export.dest.key and +export.dest.key and ++export.dest.key
+        hydra_pattern = re.compile(rf"^(?:~|\+\+|\+)?export\.{self.dest}\.(.+)$")
+        if not self.override:
+            return
+
+        to_del = []
+        fileterd_overrides = []
+        for override in self.override:
+            match = hydra_pattern.match(override)
+            if not match:
+                logger.debug("Ignoring non-applicable override", override=override)
+                continue
+            rest = match.group(1)
+            if override.startswith("~"):
+                to_del.append(rest)
+                logger.debug(
+                    "Adding to delete list", config_key=rest, override=override
+                )
+                continue
+            logger.debug("Adding to update list", config_key=rest, override=override)
+            fileterd_overrides.append(rest)
+
+        config_updates = OmegaConf.from_dotlist(fileterd_overrides)
+
+        if config_updates:
+            config.update(config_updates)
+
+        for key_to_remove in to_del:
+            *parent_path, leaf_key = key_to_remove.rsplit(".", 1)
+
+            if len(parent_path) == 0:
+                # top-level key
+                config.pop(leaf_key, None)
+            elif len(parent_path) == 1:
+                # key deeper in the config
+                parent = OmegaConf.select(config, parent_path[0])
+                if parent is not None:
+                    del parent[leaf_key]
                 else:
-                    print(
-                        f"  {invocation_id}: failed, {inv_result.get('error', 'Unknown error')}"
+                    logger.warning(
+                        f"Could not remove {key_to_remove} from the config (key not found)"
                     )
+            else:
+                # impossible unless someone changes the line where we split the key
+                raise RuntimeError(f"Invalid key to remove: {key_to_remove}")
 
-    def _validate_overrides(self, overrides: List[str], dest: str) -> None:
-        """Validate override list for destination consistency.
-
-        Raises:
-            ValueError: If overrides specify wrong destination or have other issues.
-        """
-        if not overrides:
-            return  # nothing to validate
-
-        # Check each override for destination mismatch
-        for override_str in overrides:
-            if override_str.startswith(
-                "export."
-            ):  # check if override starts with export.
-                # Extract destination from override path
-                try:
-                    key_part = override_str.split("=")[0]  # Get left side before =
-                    parts = key_part.split(".")
-                    if len(parts) >= 2:
-                        override_dest = parts[1]
-                        if override_dest != dest:
-                            raise ValueError(
-                                f"Override destination mismatch: override specifies 'export.{override_dest}' but --dest is '{dest}'. "
-                                f"Either change --dest to '{override_dest}' or use 'export.{dest}' in overrides."
-                            )
-                except (IndexError, AttributeError):
-                    # miconstructed override -> OmegaConf handles this
-                    pass
+        logger.debug("Final config after applying overrides", config=config)

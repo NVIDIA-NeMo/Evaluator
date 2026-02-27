@@ -15,192 +15,381 @@
 #
 """Tests for local functionality."""
 
-import csv
-import json
 from pathlib import Path
+from typing import List, Tuple
+from unittest.mock import patch
 
-from nemo_evaluator_launcher.api.functional import export_results
 from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.exporters.local import LocalExporter
 
 
-def _make_job(inv_id: str, idx: int, task_name: str) -> JobData:
-    # Build a config where the idx-th task has the given name
-    tasks = [{"name": None} for _ in range(idx + 1)]
-    tasks[idx] = {"name": task_name}
-    return JobData(
-        invocation_id=inv_id,
-        job_id=f"{inv_id}.{idx}",
+def test_export_with_format_json(tmp_path: Path, mock_execdb, prepare_local_job):
+    """Test export with JSON format."""
+    inv = "test0001"
+    j1 = JobData(
+        invocation_id=inv,
+        job_id=f"{inv}.0",
         timestamp=0.0,
         executor="local",
-        data={},  # output_dir is set by prepare_local_job fixture
-        config={"evaluation": {"tasks": tasks}},
+        data={},
+        config={"evaluation": {"tasks": [{"name": "simple_evals.mmlu"}]}},
     )
 
+    prepare_local_job(j1, with_required=True, with_optional=True)
+    ExecutionDB().write_job(j1)
 
-class TestConsolidatedLocalExports:
-    def test_export_results_consolidated_mixed_inputs_json(
-        self, tmp_path: Path, mock_execdb, make_job_fs, prepare_local_job
+    output_dir = tmp_path / "output"
+    exporter = LocalExporter({"format": "json", "output_dir": str(output_dir)})
+
+    with (
+        patch(
+            "nemo_evaluator_launcher.exporters.base.extract_accuracy_metrics",
+            return_value={"accuracy": 0.9},
+        ),
+        patch(
+            "nemo_evaluator_launcher.exporters.base.load_benchmark_info",
+            return_value=("test-harness", "simple_evals.mmlu"),
+        ),
+        patch(
+            "nemo_evaluator_launcher.exporters.base.get_model_id",
+            return_value="test-model",
+        ),
     ):
-        # Arrange jobs across 3 invocations: inv1(2 jobs), inv2(1 job), inv3(1 job for standalone)
-        inv1, inv2, inv3 = "aaa11111", "bbb22222", "ccc33333"
-        j11 = _make_job(inv1, 0, "simple_evals.mmlu")
-        j12 = _make_job(inv1, 1, "simple_evals.humaneval")
-        j21 = _make_job(inv2, 0, "simple_evals.mmlu")
-        j31 = _make_job(inv3, 0, "simple_evals.hle")
+        result = exporter.export([j1.job_id])
 
-        # Materialize per-job artifacts under <tmp>/<inv>/<job>/artifacts
-        # and point job.data['output_dir'] to <tmp>/<inv> (as LocalExporter expects)
-        for jd in (j11, j12, j21, j31):
-            _, job_dir = prepare_local_job(jd, with_required=True, with_optional=True)
-            # Ensure structure is <tmp>/<inv>/<job>/...
-            assert job_dir.parent.name == jd.invocation_id
+    assert result.successful_jobs == [j1.job_id]
+    assert result.failed_jobs == []
 
-        # Register jobs in the ExecutionDB
-        db = ExecutionDB()
-        for jd in (j11, j12, j21, j31):
-            db.write_job(jd)
+    # Check that output directory was created with artifacts
+    job_export_dir = output_dir / inv / j1.job_id
+    assert job_export_dir.exists()
 
-        # Act: mixed inputs (two invocations + one explicit job id) with consolidated JSON
-        res = export_results(
-            [inv1, inv2, j31.job_id],
-            dest="local",
-            config={"format": "json", "output_dir": str(tmp_path)},
+
+def test_export_with_format_csv(tmp_path: Path, mock_execdb, prepare_local_job):
+    """Test export with CSV format."""
+    inv = "test0002"
+    j1 = JobData(
+        invocation_id=inv,
+        job_id=f"{inv}.0",
+        timestamp=0.0,
+        executor="local",
+        data={},
+        config={"evaluation": {"tasks": [{"name": "simple_evals.mmlu"}]}},
+    )
+
+    prepare_local_job(j1, with_required=True, with_optional=True)
+    ExecutionDB().write_job(j1)
+
+    output_dir = tmp_path / "output"
+    exporter = LocalExporter({"format": "csv", "output_dir": str(output_dir)})
+
+    with (
+        patch(
+            "nemo_evaluator_launcher.exporters.base.extract_accuracy_metrics",
+            return_value={"accuracy": 0.9},
+        ),
+        patch(
+            "nemo_evaluator_launcher.exporters.base.load_benchmark_info",
+            return_value=("test-harness", "simple_evals.mmlu"),
+        ),
+        patch(
+            "nemo_evaluator_launcher.exporters.base.get_model_id",
+            return_value="test-model",
+        ),
+    ):
+        result = exporter.export([j1.job_id])
+
+    assert result.successful_jobs == [j1.job_id]
+    assert result.failed_jobs == []
+
+
+class TestLocalExporterManualScenarios:
+    """Test cases based on manual testing scenarios."""
+
+    def test_successful_export_multiple_jobs(
+        self, tmp_path: Path, mock_execdb, prepare_local_job
+    ):
+        """Test case 1: Successful export of 2 jobs with CSV format.
+
+        Simulates: uv run nel export d96db8.1 38015bbf34550e78 --output_dir ./test-export-local --format csv
+        Expected: {'successful_jobs': 2, 'failed_jobs': 0, 'skipped_jobs': 0}
+        """
+        # Create two jobs from different invocations
+        inv1, inv2 = "invocation1", "invocation2"
+        j1 = JobData(
+            invocation_id=inv1,
+            job_id=f"{inv1}.1",
+            timestamp=1234567890.0,
+            executor="local",
+            data={},
+            config={"evaluation": {"tasks": [None, {"name": "simple_evals.mmlu"}]}},
+        )
+        j2 = JobData(
+            invocation_id=inv2,
+            job_id=f"{inv2}.0",
+            timestamp=1234567891.0,
+            executor="local",
+            data={},
+            config={"evaluation": {"tasks": [{"name": "simple_evals.humaneval"}]}},
         )
 
-        # Assert: success and summary file exists
-        assert res["success"] is True
-        summary_path = Path(res["metadata"]["summary_path"])
-        assert summary_path.exists()
-        data = json.loads(summary_path.read_text(encoding="utf-8"))
-
-        # Collect all job_ids present in the summary payload
-        seen_job_ids = set()
-        for bench in (data.get("benchmarks") or {}).values():
-            for model_entries in (bench.get("models") or {}).values():
-                for entry in model_entries:
-                    jid = entry.get("job_id")
-                    if jid:
-                        seen_job_ids.add(jid)
-
-        # All jobs from inv1, inv2, and the standalone job must be present
-        expected = {j11.job_id, j12.job_id, j21.job_id, j31.job_id}
-        assert expected.issubset(seen_job_ids)
-
-    def test_export_results_consolidated_mixed_inputs_csv(
-        self, tmp_path: Path, mock_execdb, make_job_fs, prepare_local_job
-    ):
-        # Arrange: reuse a smaller set to validate CSV path
-        inv1, inv2 = "ddd44444", "eee55555"
-        j11 = _make_job(inv1, 0, "simple_evals.mmlu")
-        j12 = _make_job(inv1, 1, "simple_evals.humaneval")
-        j21 = _make_job(inv2, 0, "simple_evals.hle")
-
-        for jd in (j11, j12, j21):
+        # Create artifacts for both jobs
+        for jd in [j1, j2]:
             _, job_dir = prepare_local_job(jd, with_required=True, with_optional=True)
-            assert job_dir.parent.name == jd.invocation_id
+            artifacts_dir = job_dir / "artifacts"
+            # Add required files
+            (artifacts_dir / "run_config.yml").write_text(
+                "framework_name: test-harness\nconfig:\n  type: test_task\ntarget:\n  api_endpoint:\n    model_id: test-model\n"
+            )
+            (artifacts_dir / "results.yml").write_text(
+                "results:\n  tasks:\n    test_task:\n      metrics:\n        accuracy:\n          scores:\n            accuracy:\n              value: 0.9\nconfig: {}\n"
+            )
+            ExecutionDB().write_job(jd)
 
-        db = ExecutionDB()
-        for jd in (j11, j12, j21):
-            db.write_job(jd)
+        output_dir = tmp_path / "test-export-local"
+        exporter = LocalExporter({"format": "csv", "output_dir": str(output_dir)})
 
-        res = export_results(
-            [inv1, j21.job_id],
-            dest="local",
-            config={"format": "csv", "output_dir": str(tmp_path)},
+        result = exporter.export([j1.job_id, j2.job_id])
+
+        assert len(result.successful_jobs) == 2
+        assert j1.job_id in result.successful_jobs
+        assert j2.job_id in result.successful_jobs
+        assert result.failed_jobs == []
+        assert result.skipped_jobs == []
+
+    def test_partial_failure_missing_artifacts(
+        self, tmp_path: Path, mock_execdb, prepare_local_job
+    ):
+        """Test case 2: Export with one successful and one failed job.
+
+        Simulates: uv run nel export d96db8 --output_dir ./test-export-local --format json
+        Expected: {'successful_jobs': 1, 'failed_jobs': 1}
+        Error: No such file or directory: '.../artifacts/results.yml'
+        """
+        inv1 = "invocation1"
+
+        # Job 1: Successful
+        j1 = JobData(
+            invocation_id=inv1,
+            job_id=f"{inv1}.0",
+            timestamp=1234567890.0,
+            executor="local",
+            data={},
+            config={"evaluation": {"tasks": [{"name": "simple_evals.mmlu"}]}},
         )
-        assert res["success"] is True
-        summary_path = Path(res["metadata"]["summary_path"])
-        assert summary_path.exists()
+        _, job_dir = prepare_local_job(j1, with_required=True, with_optional=True)
+        artifacts_dir = job_dir / "artifacts"
+        (artifacts_dir / "run_config.yml").write_text(
+            "framework_name: test-harness\nconfig:\n  type: test_task\ntarget:\n  api_endpoint:\n    model_id: test-model\n"
+        )
+        (artifacts_dir / "results.yml").write_text(
+            "results:\n  tasks:\n    test_task:\n      metrics:\n        accuracy:\n          scores:\n            accuracy:\n              value: 0.9\nconfig: {}\n"
+        )
+        ExecutionDB().write_job(j1)
 
-        # Parse CSV and assert all job_ids are present
-        rows = summary_path.read_text(encoding="utf-8").strip().splitlines()
-        reader = csv.reader(rows)
-        headers = next(reader)
-        idx_job = headers.index("Job ID")
-        csv_job_ids = {r[idx_job] for r in reader}
+        # Job 2: Failed - missing artifacts/results.yml
+        j2 = JobData(
+            invocation_id=inv1,
+            job_id=f"{inv1}.1",
+            timestamp=1234567891.0,
+            executor="local",
+            data={},
+            config={
+                "evaluation": {"tasks": [None, {"name": "simple_evals.humaneval"}]}
+            },
+        )
+        _, job_dir2 = prepare_local_job(j2, with_required=False, with_optional=False)
+        # Create artifacts dir but don't add results.yml
+        artifacts_dir2 = job_dir2 / "artifacts"
+        artifacts_dir2.mkdir(parents=True, exist_ok=True)
+        ExecutionDB().write_job(j2)
 
-        expected = {j11.job_id, j12.job_id, j21.job_id}
-        assert expected.issubset(csv_job_ids)
+        output_dir = tmp_path / "test-export-local"
+        output_dir.mkdir(parents=True)
 
+        # Export both jobs - j1 succeeds, j2 fails
+        exporter = LocalExporter({"format": "json", "output_dir": str(output_dir)})
+        result = exporter.export([j1.job_id, j2.job_id])
 
-def test_copy_all_tree(tmp_path: Path):
-    artifacts_dir = tmp_path / "in" / "artifacts"
-    logs_dir = tmp_path / "in" / "logs"
-    (artifacts_dir / "a").mkdir(parents=True, exist_ok=True)
-    (artifacts_dir / "a" / "a.txt").write_text("x")
-    (artifacts_dir / "extra.json").write_text("{}")
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    (logs_dir / "log.txt").write_text("l")
+        assert len(result.successful_jobs) == 1
+        assert j1.job_id in result.successful_jobs
+        assert len(result.failed_jobs) == 1
+        assert j2.job_id in result.failed_jobs
 
-    exporter = LocalExporter({"only_required": False, "copy_logs": True})
-    out_dir = tmp_path / "out"
-    files = exporter._copy_local_artifacts(
-        {
-            "artifacts_dir": artifacts_dir,
-            "logs_dir": logs_dir,
-            "storage_type": "local_filesystem",
-        },
-        out_dir,
-        exporter.config,
-    )
+    def test_non_existing_job_id(self, tmp_path: Path, mock_execdb, prepare_local_job):
+        """Test case 3: Export with non-existing job ID.
 
-    assert (out_dir / "artifacts" / "a" / "a.txt").exists()
-    assert (out_dir / "artifacts" / "extra.json").exists()
-    assert (out_dir / "logs" / "log.txt").exists()
-    assert str(out_dir / "artifacts" / "extra.json") in files
+        Simulates: uv run nel export d96db8.1 38015bbf34550e78 12345 --output_dir ./test-export-local --format csv
+        Expected: {'successful_jobs': 0, 'failed_jobs': 1, 'skipped_jobs': 2}
+        Error: Invocation 12345 not found in ExecutionDB nor job directories
+        """
+        inv1, inv2 = "invocation1", "invocation2"
 
+        # Create two valid jobs
+        j1 = JobData(
+            invocation_id=inv1,
+            job_id=f"{inv1}.1",
+            timestamp=1234567890.0,
+            executor="local",
+            data={},
+            config={"evaluation": {"tasks": [None, {"name": "simple_evals.mmlu"}]}},
+        )
+        j2 = JobData(
+            invocation_id=inv2,
+            job_id=f"{inv2}.0",
+            timestamp=1234567891.0,
+            executor="local",
+            data={},
+            config={"evaluation": {"tasks": [{"name": "simple_evals.humaneval"}]}},
+        )
 
-def test_copy_all_tree_excludes_caches(tmp_path: Path):
-    """Test that only_required=False excludes cache directories and files."""
-    artifacts_dir = tmp_path / "in" / "artifacts"
-    logs_dir = tmp_path / "in" / "logs"
+        for jd in [j1, j2]:
+            _, job_dir = prepare_local_job(jd, with_required=True, with_optional=True)
+            artifacts_dir = job_dir / "artifacts"
+            (artifacts_dir / "run_config.yml").write_text(
+                "framework_name: test-harness\nconfig:\n  type: test_task\ntarget:\n  api_endpoint:\n    model_id: test-model\n"
+            )
+            (artifacts_dir / "results.yml").write_text(
+                "results:\n  tasks:\n    test_task:\n      metrics:\n        accuracy:\n          scores:\n            accuracy:\n              value: 0.9\nconfig: {}\n"
+            )
+            ExecutionDB().write_job(jd)
 
-    # Create normal files that should be copied
-    (artifacts_dir / "task_output").mkdir(parents=True, exist_ok=True)
-    (artifacts_dir / "task_output" / "result.json").write_text("{}")
-    (artifacts_dir / "results.yml").write_text("x")
-    (artifacts_dir / "report.json").write_text("{}")
+        output_dir = tmp_path / "test-export-local"
+        output_dir.mkdir(parents=True)
 
-    # Create files/dirs that should be EXCLUDED
-    (artifacts_dir / "cache").mkdir(parents=True, exist_ok=True)
-    (artifacts_dir / "cache" / "data.txt").write_text("cached")
-    (artifacts_dir / "response_stats_cache").mkdir(parents=True, exist_ok=True)
-    (artifacts_dir / "response_stats_cache" / "stats.txt").write_text("stats")
-    (artifacts_dir / "data.db").write_text("db")
-    (artifacts_dir / "tb.lock").write_text("lock")
-    (artifacts_dir / "synthetic").mkdir(parents=True, exist_ok=True)
-    (artifacts_dir / "synthetic" / "generated.txt").write_text("generated")
-    # Nested exclusions
-    (artifacts_dir / "task_output" / "cache").mkdir(parents=True, exist_ok=True)
-    (artifacts_dir / "task_output" / "cache" / "nested.txt").write_text("nested cache")
+        # Pre-export to make them skipped
+        exporter_pre = LocalExporter({"format": "csv", "output_dir": str(output_dir)})
+        exporter_pre.export([j1.job_id, j2.job_id])
 
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    (logs_dir / "log.txt").write_text("l")
+        # Try to export with a non-existing ID
+        exporter = LocalExporter({"format": "csv", "output_dir": str(output_dir)})
+        result = exporter.export([j1.job_id, j2.job_id, "12345"])
 
-    exporter = LocalExporter({"only_required": False, "copy_logs": True})
-    out_dir = tmp_path / "out"
-    exporter._copy_local_artifacts(
-        {
-            "artifacts_dir": artifacts_dir,
-            "logs_dir": logs_dir,
-            "storage_type": "local_filesystem",
-        },
-        out_dir,
-        exporter.config,
-    )
+        assert len(result.successful_jobs) == 0
+        assert len(result.failed_jobs) == 1
+        assert "12345" in result.failed_jobs
+        assert len(result.skipped_jobs) == 2
 
-    # Should exist (not excluded)
-    assert (out_dir / "artifacts" / "task_output" / "result.json").exists()
-    assert (out_dir / "artifacts" / "results.yml").exists()
-    assert (out_dir / "artifacts" / "report.json").exists()
-    assert (out_dir / "logs" / "log.txt").exists()
+    def test_remote_job_export_with_copy(
+        self, tmp_path: Path, mock_execdb, monkeypatch
+    ):
+        """Test case 4: Export remote job that requires copying artifacts.
 
-    # Should NOT exist (excluded by patterns)
-    assert not (out_dir / "artifacts" / "cache").exists()
-    assert not (out_dir / "artifacts" / "response_stats_cache").exists()
-    assert not (out_dir / "artifacts" / "data.db").exists()
-    assert not (out_dir / "artifacts" / "tb.lock").exists()
-    assert not (out_dir / "artifacts" / "synthetic").exists()
-    # Nested cache should also be excluded
-    assert not (out_dir / "artifacts" / "task_output" / "cache").exists()
+        Simulates: uv run nel export a64bf890f4d84c12 --output_dir ./test-export-local-from-slurm --format csv
+        Expected: {'successful_jobs': 4, 'failed_jobs': 1, 'skipped_jobs': 0}
+        Error: No such file or directory: '/tmp/.../artifacts/results.yml' (after copy)
+        """
+        inv = "invocation1"
+
+        # Create 5 remote jobs (4 successful, 1 will fail after copy)
+        jobs = []
+        for i in range(5):
+            jd = JobData(
+                invocation_id=inv,
+                job_id=f"{inv}.{i}",
+                timestamp=1234567890.0 + i,
+                executor="slurm",
+                data={
+                    "remote_rundir_path": f"/remote/path/job{i}",
+                    "hostname": "slurm-server.example.com",
+                    "username": "testuser",
+                },
+                config={
+                    "evaluation": {
+                        "tasks": [{"name": f"task{i}"} for _ in range(i + 1)]
+                    }
+                },
+            )
+            jobs.append(jd)
+            ExecutionDB().write_job(jd)
+
+        def mock_copy_artifacts(
+            jobs_data: List[JobData],
+            export_dir: Path,
+            copy_local: bool = False,
+            only_required: bool = True,
+            copy_logs: bool = False,
+            copy_artifacts: bool = True,
+        ) -> Tuple[List[JobData], List[str]]:
+            # Simulate successful copy for jobs 0, 1, 3, 4
+            # Job 2 will fail (no artifacts copied)
+            prepared_jobs_data = []
+            failed_job_ids = []
+
+            for job_data in jobs_data:
+                job_num = int(job_data.job_id.split(".")[-1])
+
+                if job_num == 2:
+                    # Job 2 fails - no artifacts copied
+                    failed_job_ids.append(job_data.job_id)
+                    continue
+
+                # Create artifacts for successful jobs
+                job_local_dir = export_dir / job_data.job_id
+                artifacts_dir = job_local_dir / "artifacts"
+                artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+                (artifacts_dir / "run_config.yml").write_text(
+                    "framework_name: test-harness\nconfig:\n  type: test_task\ntarget:\n  api_endpoint:\n    model_id: test-model\n"
+                )
+                (artifacts_dir / "results.yml").write_text(
+                    "results:\n  tasks:\n    test_task:\n      metrics:\n        accuracy:\n          scores:\n            accuracy:\n              value: 0.9\nconfig: {}\n"
+                )
+                (artifacts_dir / "eval_factory_metrics.json").write_text("{}")
+
+                # Update job data with output_dir
+                job_data.data["output_dir"] = str(job_local_dir)
+                prepared_jobs_data.append(job_data)
+
+            return prepared_jobs_data, failed_job_ids
+
+        monkeypatch.setattr(
+            "nemo_evaluator_launcher.exporters.base.copy_artifacts",
+            mock_copy_artifacts,
+        )
+
+        output_dir = tmp_path / "test-export-local-from-slurm"
+        exporter = LocalExporter({"format": "csv", "output_dir": str(output_dir)})
+
+        result = exporter.export([jd.job_id for jd in jobs])
+
+        assert len(result.successful_jobs) == 4
+        assert len(result.failed_jobs) == 1
+        assert f"{inv}.2" in result.failed_jobs
+        assert result.skipped_jobs == []
+
+    def test_json_format_updates_existing_file(
+        self, tmp_path: Path, mock_execdb, prepare_local_job
+    ):
+        """Test that JSON format properly updates existing results file."""
+        inv = "test0003"
+        j1 = JobData(
+            invocation_id=inv,
+            job_id=f"{inv}.0",
+            timestamp=1234567890.0,
+            executor="local",
+            data={},
+            config={"evaluation": {"tasks": [{"name": "simple_evals.mmlu"}]}},
+        )
+
+        _, job_dir = prepare_local_job(j1, with_required=True, with_optional=True)
+        artifacts_dir = job_dir / "artifacts"
+        (artifacts_dir / "run_config.yml").write_text(
+            "framework_name: test-harness\nconfig:\n  type: test_task\ntarget:\n  api_endpoint:\n    model_id: test-model\n"
+        )
+        (artifacts_dir / "results.yml").write_text(
+            "results:\n  tasks:\n    test_task:\n      metrics:\n        accuracy:\n          scores:\n            accuracy:\n              value: 0.9\nconfig: {}\n"
+        )
+        ExecutionDB().write_job(j1)
+
+        output_dir = tmp_path / "output"
+        exporter = LocalExporter({"format": "json", "output_dir": str(output_dir)})
+
+        # First export
+        result1 = exporter.export([j1.job_id])
+        assert result1.successful_jobs == [j1.job_id]
+
+        # Second export of same job (should be skipped)
+        result2 = exporter.export([j1.job_id])
+        assert result2.skipped_jobs == [j1.job_id]
+        assert result2.successful_jobs == []

@@ -25,7 +25,6 @@ from omegaconf import OmegaConf
 
 import nemo_evaluator_launcher.api.functional as F
 from nemo_evaluator_launcher.api.functional import (
-    export_results,
     get_status,
     kill_job_or_invocation,
 )
@@ -33,21 +32,23 @@ from nemo_evaluator_launcher.common.execdb import ExecutionDB, JobData
 from nemo_evaluator_launcher.exporters import utils as U
 from nemo_evaluator_launcher.exporters.utils import (
     EXCLUDED_PATTERNS,
+    METADATA_CONFIG_KEY,
+    METADATA_FILE,
+    NE_CONFIG_FILE,
     OPTIONAL_ARTIFACTS,
     REQUIRED_ARTIFACTS,
     MetricConflictError,
     _safe_update_metrics,
+    copy_artifacts,
     extract_accuracy_metrics,
     flatten_config,
     get_available_artifacts,
-    get_benchmark_info,
-    get_container_from_mapping,
     get_copytree_ignore,
-    get_model_name,
-    get_pipeline_id,
+    get_model_id,
     get_relevant_artifacts,
+    load_benchmark_info,
+    load_config_from_metadata,
     should_exclude_artifact,
-    validate_artifacts,
 )
 
 
@@ -146,24 +147,6 @@ class TestArtifactUtils:
         assert "eval_factory_metrics.json" in all_artifacts
         assert "omni-info.json" in all_artifacts
 
-    def test_validate_artifacts_missing_dir(self):
-        result = validate_artifacts(Path("/nonexistent"))
-        assert result["can_export"] is False
-        assert result["missing_required"] == REQUIRED_ARTIFACTS
-        assert result["missing_optional"] == OPTIONAL_ARTIFACTS
-        assert "not found" in result["message"]
-
-    def test_validate_artifacts_all_present(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            artifacts_dir = Path(tmpdir)
-            for artifact in get_relevant_artifacts():
-                (artifacts_dir / artifact).touch()
-            result = validate_artifacts(artifacts_dir)
-            assert result["can_export"] is True
-            assert result["missing_required"] == []
-            assert result["missing_optional"] == []
-            assert "All artifacts available" in result["message"]
-
     def test_get_available_artifacts(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             artifacts_dir = Path(tmpdir)
@@ -174,6 +157,103 @@ class TestArtifactUtils:
             assert "omni-info.json" in available
             assert "eval_factory_metrics.json" not in available
 
+    def test_copy_remote_artifacts(self, tmp_path):
+        """Test copy_artifacts for remote jobs."""
+        export_dir = tmp_path / "export"
+        export_dir.mkdir()
+
+        remote_job_data = JobData(
+            invocation_id="test123",
+            job_id="test123.0",
+            timestamp=123.0,
+            executor="slurm",
+            data={
+                "remote_rundir_path": "/remote/path",
+                "hostname": "server.com",
+                "username": "user",
+            },
+            config={},
+        )
+
+        jobs_data = [remote_job_data]
+
+        with (
+            patch(
+                "nemo_evaluator_launcher.exporters.utils.ssh_setup_masters",
+                return_value={("user", "server.com"): "control_path"},
+            ),
+            patch(
+                "nemo_evaluator_launcher.exporters.utils.ssh_download_artifacts",
+                return_value=["artifacts/results.yml"],  # No files copied
+            ),
+            patch("nemo_evaluator_launcher.exporters.utils.ssh_cleanup_masters"),
+        ):
+            prepared_jobs, failed_jobs = copy_artifacts(jobs_data, export_dir)
+
+            assert len(prepared_jobs) == 1
+            assert prepared_jobs[0].job_id == "test123.0"
+            assert prepared_jobs[0].data["output_dir"] == str(export_dir / "test123.0")
+            assert failed_jobs == []
+
+    def test_copy_remote_artifacts_no_files_copied(self, tmp_path):
+        """Test _copy_remote_artifacts when no artifacts are copied."""
+        export_dir = tmp_path / "export"
+        export_dir.mkdir()
+
+        remote_job_data = JobData(
+            invocation_id="test123",
+            job_id="test123.0",
+            timestamp=123.0,
+            executor="slurm",
+            data={
+                "remote_rundir_path": "/remote/path",
+                "hostname": "server.com",
+                "username": "user",
+            },
+            config={},
+        )
+
+        jobs_data = [remote_job_data]
+
+        with (
+            patch(
+                "nemo_evaluator_launcher.exporters.utils.ssh_setup_masters",
+                return_value={("user", "server.com"): "control_path"},
+            ),
+            patch(
+                "nemo_evaluator_launcher.exporters.utils.ssh_download_artifacts",
+                return_value=[],  # No files copied
+            ),
+            patch("nemo_evaluator_launcher.exporters.utils.ssh_cleanup_masters"),
+        ):
+            prepared_jobs, failed_jobs = copy_artifacts(jobs_data, export_dir)
+
+            assert len(prepared_jobs) == 0
+            assert "test123.0" in failed_jobs
+
+    def test_copy_remote_artifacts_local_job(self, tmp_path):
+        """Test _copy_remote_artifacts with local job (no copying needed)."""
+        export_dir = tmp_path / "export"
+        export_dir.mkdir()
+
+        local_job_data = JobData(
+            invocation_id="test123",
+            job_id="test123.0",
+            timestamp=123.0,
+            executor="local",
+            data={"output_dir": str(tmp_path / "local_output")},
+            config={},
+        )
+
+        jobs_data = [local_job_data]
+
+        prepared_jobs, failed_jobs = copy_artifacts(jobs_data, export_dir)
+
+        # Local job should be returned as-is
+        assert len(prepared_jobs) == 1
+        assert prepared_jobs[0].job_id == "test123.0"
+        assert failed_jobs == []
+
 
 class TestMetricsExtraction:
     def test_merge_and_filter(self, tmp_path: Path):
@@ -183,24 +263,10 @@ class TestMetricsExtraction:
             "results: {tasks: {demo: {metrics: {metric: {scores: {accuracy: {value: 0.9}, f1: {value: 0.5}}}}}}}",
             encoding="utf-8",
         )
-        (artifacts / "foo.json").write_text('{"score": 0.75}', encoding="utf-8")
 
-        jd = JobData(
-            "abcd1234",
-            "abcd1234.0",
-            0.0,
-            "local",
-            {},
-            {"evaluation": {"tasks": [{"name": "lm-eval.mmlu"}]}},
-        )
-
-        def get_paths(_):
-            return {"artifacts_dir": artifacts, "storage_type": "local_filesystem"}
-
-        all_metrics = extract_accuracy_metrics(jd, get_paths)
-        filtered = extract_accuracy_metrics(jd, get_paths, log_metrics=["acc"])
+        all_metrics = extract_accuracy_metrics(artifacts)
+        filtered = extract_accuracy_metrics(artifacts, log_metrics=["acc"])
         assert all_metrics.get("demo_metric_accuracy") == 0.9
-        assert all_metrics.get("foo_score") == 0.75
         assert "demo_metric_f1" in all_metrics
         assert set(filtered.keys()) == {"demo_metric_accuracy"}
 
@@ -211,8 +277,9 @@ class TestMetricsExtraction:
 
     def test_nested_scores_numeric_and_broken(self, tmp_path: Path):
         # results.yml with nested scores, numeric metric, and a broken metric
-        (tmp_path / "artifacts").mkdir(parents=True)
-        (tmp_path / "artifacts" / "results.yml").write_text(
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir(parents=True)
+        (artifacts_dir / "results.yml").write_text(
             """
 results:
   tasks:
@@ -226,30 +293,17 @@ results:
             """.strip(),
             encoding="utf-8",
         )
-        jd = JobData(
-            "i1",
-            "i1.0",
-            0.0,
-            "local",
-            {},
-            {"evaluation": {"tasks": [{"name": "demo"}]}},
-        )
 
-        def get_paths(_):
-            return {
-                "artifacts_dir": tmp_path / "artifacts",
-                "storage_type": "local_filesystem",
-            }
-
-        metrics = extract_accuracy_metrics(jd, get_paths)
+        metrics = extract_accuracy_metrics(artifacts_dir)
         assert metrics["demo_accuracy_macro"] == 0.81
         assert metrics["demo_accuracy_micro"] == 0.86
         # 'broken' is ignored due to ValueError in float cast
 
     def test_nested_groups(self, tmp_path: Path):
-        # results.yml with nested scores, numeric metric, and a broken metric
-        (tmp_path / "artifacts").mkdir(parents=True)
-        (tmp_path / "artifacts" / "results.yml").write_text(
+        # results.yml with nested groups
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir(parents=True)
+        (artifacts_dir / "results.yml").write_text(
             """
 results:
   groups:
@@ -272,132 +326,36 @@ results:
             """.strip(),
             encoding="utf-8",
         )
-        jd = JobData(
-            "i1",
-            "i1.0",
-            0.0,
-            "local",
-            {},
-            {"evaluation": {"tasks": [{"name": "demo"}]}},
-        )
 
-        def get_paths(_):
-            return {
-                "artifacts_dir": tmp_path / "artifacts",
-                "storage_type": "local_filesystem",
-            }
-
-        metrics = extract_accuracy_metrics(jd, get_paths)
+        metrics = extract_accuracy_metrics(artifacts_dir)
 
         assert metrics["demo_accuracy_macro"] == 0.6
         assert metrics["demo_subgroup_one_accuracy_macro"] == 0.4
         assert metrics["demo_subgroup_two_accuracy_macro"] == 0.8
 
-    def test_remote_storage_and_get_paths_error(self, tmp_path: Path):
-        jd = JobData(
-            "i2", "i2.0", 0.0, "local", {}, {"evaluation": {"tasks": [{"name": "x"}]}}
-        )
+    def test_extract_with_missing_artifacts_dir(self, tmp_path: Path):
+        artifacts_dir = tmp_path / "nonexistent"
 
-        # remote_ssh => _get_artifacts_dir returns None => extract returns {}
-        def paths_remote(_):
-            return {"storage_type": "remote_ssh"}
-
-        assert extract_accuracy_metrics(jd, paths_remote) == {}
-
-        # get_paths raises => extract returns {}
-        def paths_raises(_):
-            raise RuntimeError("boom")
-
-        assert extract_accuracy_metrics(jd, paths_raises) == {}
-
-
-class TestMappingHelpers:
-    def test_mapping_lookups(self, monkeypatch):
-        monkeypatch.setattr(
-            "nemo_evaluator_launcher.exporters.utils.load_tasks_mapping",
-            lambda: {
-                ("lm-eval", "mmlu"): {"harness": "lm-eval", "container": "cont:tag"}
-            },
-            raising=True,
-        )
-
-        jd = JobData(
-            "abcd1234",
-            "abcd1234.0",
-            0.0,
-            "local",
-            {"model_id": "foo/bar"},
-            {"evaluation": {"tasks": [{"name": "lm-eval.mmlu"}]}},
-        )
-
-        bench = get_benchmark_info(jd)
-        container = get_container_from_mapping(jd)
-        model = get_model_name(jd, {})
-
-        assert bench["harness"] == "lm-eval"
-        assert bench["benchmark"] == "mmlu"
-        assert container == "cont:tag"
-        assert model in ("foo/bar", f"unknown_model_{jd.job_id}")
-
-    def test_pipeline_and_model_helpers(self):
-        jd = JobData(
-            "xx", "xx", 0.0, "gitlab", {"pipeline_id": 123, "model_name": "x"}, None
-        )
-        assert get_pipeline_id(jd) == 123
-        assert get_model_name(jd) == "x"
+        with pytest.raises(RuntimeError, match="Artifacts directory .* not found"):
+            extract_accuracy_metrics(artifacts_dir)
 
 
 class TestSSHHelpers:
     def test_setup_and_cleanup_masters(self):
-        jobs = {
-            "a.0": JobData(
-                "a",
-                "a.0",
-                0.0,
-                "slurm",
-                {
-                    "paths": {
-                        "storage_type": "remote_ssh",
-                        "username": "user",
-                        "hostname": "host",
-                    }
-                },
-            ),
-            "a.1": JobData(
-                "a",
-                "a.1",
-                0.0,
-                "slurm",
-                {
-                    "paths": {
-                        "storage_type": "remote_ssh",
-                        "username": "user",
-                        "hostname": "host",
-                    }
-                },
-            ),
-            "b.0": JobData(
-                "b",
-                "b.0",
-                0.0,
-                "local",
-                {"paths": {"storage_type": "local_filesystem"}},
-            ),
-        }
+        remotes = [("user", "host"), ("user", "host"), ("other", "otherhost")]
+
         with patch(
             "subprocess.run", return_value=SimpleNamespace(returncode=0)
         ) as mock_run:
-            cp = U.ssh_setup_masters(jobs)
-            assert len(cp) == 1
+            cp = U.ssh_setup_masters(remotes)
+            assert len(cp) == 2  # Two unique remote combinations
             assert ("user", "host") in cp
+            assert ("other", "otherhost") in cp
             assert cp[("user", "host")].endswith("user_host.sock")
             U.ssh_cleanup_masters(cp)
             assert mock_run.call_count >= 2
 
     def test_download_artifacts_only_required_with_logs(self, tmp_path: Path):
-        paths = {"username": "user", "hostname": "host", "remote_path": "/remote"}
-
-        # Mock Popen for the tar+ssh log streaming
         class FakePopen:
             def __init__(self, cmd, stdout=None, stderr=None):
                 self.returncode = 0
@@ -423,9 +381,12 @@ class TestSSHHelpers:
         with patch("subprocess.Popen", FakePopen):
             with patch("subprocess.run", side_effect=fake_run):
                 out = U.ssh_download_artifacts(
-                    paths,
-                    tmp_path,
-                    config={"copy_logs": True, "only_required": True},
+                    username="user",
+                    hostname="host",
+                    remote_path="/remote",
+                    export_dir=tmp_path,
+                    copy_logs=True,
+                    only_required=True,
                     control_paths=None,
                 )
 
@@ -439,11 +400,6 @@ class TestSSHHelpers:
         self, tmp_path: Path
     ):
         """Test only_required=False uses tar+ssh with --exclude to filter artifacts."""
-        paths = {
-            "username": "user",
-            "hostname": "host",
-            "remote_path": "/remote",
-        }
         ssh_commands = []
 
         # Mock Popen for SSH tar streaming
@@ -477,7 +433,12 @@ class TestSSHHelpers:
         with patch("subprocess.Popen", FakePopen):
             with patch("subprocess.run", side_effect=fake_run):
                 out = U.ssh_download_artifacts(
-                    paths, tmp_path, config={"only_required": False}, control_paths=None
+                    username="user",
+                    hostname="host",
+                    remote_path="/remote",
+                    export_dir=tmp_path,
+                    only_required=False,
+                    control_paths=None,
                 )
 
         # Verify SSH command was called with tar and exclusion patterns
@@ -498,7 +459,6 @@ class TestSSHHelpers:
         assert str(tmp_path / "artifacts" / "subdir" / "nested.txt") in out
 
     def test_download_with_control_paths(self, tmp_path: Path, monkeypatch):
-        paths = {"username": "u", "hostname": "h", "remote_path": "/remote"}
         control_paths = {("u", "h"): str(tmp_path / "u_h.sock")}
         calls = []
 
@@ -509,7 +469,12 @@ class TestSSHHelpers:
         monkeypatch.setattr("subprocess.run", fake_run, raising=True)
 
         U.ssh_download_artifacts(
-            paths, tmp_path, config={"only_required": True}, control_paths=control_paths
+            username="u",
+            hostname="h",
+            remote_path="/remote",
+            export_dir=tmp_path,
+            only_required=True,
+            control_paths=control_paths,
         )
 
         # Assert ControlPath option was used in scp commands
@@ -517,28 +482,6 @@ class TestSSHHelpers:
             "-o" in c and any(str(control_paths[("u", "h")]) in part for part in c)
             for c in calls
         )
-
-
-class TestArtifactsDirHelper:
-    def test_get_artifacts_dir_variants(self, tmp_path: Path):
-        # local_filesystem
-        assert (
-            U._get_artifacts_dir(
-                {"storage_type": "local_filesystem", "artifacts_dir": tmp_path}
-            )
-            == tmp_path
-        )
-        # gitlab_ci_local
-        assert (
-            U._get_artifacts_dir(
-                {"storage_type": "gitlab_ci_local", "artifacts_dir": tmp_path}
-            )
-            == tmp_path
-        )
-        # remote_ssh
-        assert U._get_artifacts_dir({"storage_type": "remote_ssh"}) is None
-        # unsupported
-        assert U._get_artifacts_dir({"storage_type": "unsupported"}) is None
 
 
 class TestConfigMissingValidation:
@@ -727,29 +670,6 @@ class TestKillJobOrInvocation:
         assert all(r["status"] == "killed" for r in out)
 
 
-class TestExportResultsInvocationPath:
-    def test_multi_ids_invocation_path_injects_metadata(self, monkeypatch):
-        class FakeExporter:
-            def export_invocation(self, inv_id):
-                return {
-                    "success": True,
-                    "invocation_id": inv_id,
-                    "jobs": {f"{inv_id}.0": {"success": True}},
-                }
-
-        monkeypatch.setattr(F, "create_exporter", lambda *_: FakeExporter())
-        res = export_results(["inv1"], dest="dummy", config={})
-        # Using multiple-IDs path requires >1; ensure it goes through that branch
-        res = export_results(["inv1", "inv2"], dest="dummy", config={})
-        assert res["success"] is True
-        assert "invocations" in res
-        for inv_id, payload in res["invocations"].items():
-            assert payload["success"] is True
-            # metadata injected for each job
-            for job in payload["jobs"].values():
-                assert "metadata" in job
-
-
 class TestFlattenConfig:
     def test_simple_dict(self):
         config = {"a": 1, "b": "hello"}
@@ -831,3 +751,165 @@ class TestFlattenConfig:
         config = {"a": {"b": 1}}
         result = flatten_config(config, sep="/")
         assert result == {"a/b": "1"}
+
+
+class TestConfigLoadingErrorHandling:
+    """Tests for error handling in get_model_id, load_config_from_metadata, and load_benchmark_info."""
+
+    def test_get_model_id_file_not_found(self, tmp_path: Path):
+        """Test get_model_id raises FileNotFoundError when config file doesn't exist."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+
+        with pytest.raises(FileNotFoundError):
+            get_model_id(artifacts_dir)
+
+    def test_get_model_id_not_a_dict(self, tmp_path: Path):
+        """Test get_model_id raises ValueError when YAML is not a dictionary."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        config_file = artifacts_dir / NE_CONFIG_FILE
+        config_file.write_text("[1, 2, 3]", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="it should be a dictionary"):
+            get_model_id(artifacts_dir)
+
+    def test_get_model_id_missing_target(self, tmp_path: Path):
+        """Test get_model_id raises ValueError when 'target' key is missing."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        config_file = artifacts_dir / NE_CONFIG_FILE
+        config_file.write_text("other_key: value", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="no target.api_endpoint.model_id found"):
+            get_model_id(artifacts_dir)
+
+    def test_get_model_id_missing_api_endpoint(self, tmp_path: Path):
+        """Test get_model_id raises ValueError when 'api_endpoint' key is missing."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        config_file = artifacts_dir / NE_CONFIG_FILE
+        config_file.write_text("target:\n  other: value", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="no target.api_endpoint.model_id found"):
+            get_model_id(artifacts_dir)
+
+    def test_get_model_id_missing_model_id(self, tmp_path: Path):
+        """Test get_model_id raises ValueError when 'model_id' key is missing."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        config_file = artifacts_dir / NE_CONFIG_FILE
+        config_file.write_text(
+            "target:\n  api_endpoint:\n    other_key: value", encoding="utf-8"
+        )
+
+        with pytest.raises(ValueError, match="no target.api_endpoint.model_id found"):
+            get_model_id(artifacts_dir)
+
+    def test_get_model_id_success(self, tmp_path: Path):
+        """Test get_model_id returns model_id when config is valid."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        config_file = artifacts_dir / NE_CONFIG_FILE
+        config_file.write_text(
+            "target:\n  api_endpoint:\n    model_id: test-model-123", encoding="utf-8"
+        )
+
+        result = get_model_id(artifacts_dir)
+        assert result == "test-model-123"
+
+    def test_load_config_from_metadata_file_not_found(self, tmp_path: Path):
+        """Test load_config_from_metadata raises FileNotFoundError when metadata file doesn't exist."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+
+        with pytest.raises(FileNotFoundError):
+            load_config_from_metadata(artifacts_dir)
+
+    def test_load_config_from_metadata_not_a_dict(self, tmp_path: Path):
+        """Test load_config_from_metadata raises ValueError when YAML is not a dictionary."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        metadata_file = artifacts_dir / METADATA_FILE
+        metadata_file.write_text("- item1\n- item2", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="it should be a dictionary"):
+            load_config_from_metadata(artifacts_dir)
+
+    def test_load_config_from_metadata_missing_config_key(self, tmp_path: Path):
+        """Test load_config_from_metadata raises ValueError when METADATA_CONFIG_KEY is missing."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        metadata_file = artifacts_dir / METADATA_FILE
+        metadata_file.write_text("other_key: value", encoding="utf-8")
+
+        with pytest.raises(ValueError, match=f"no {METADATA_CONFIG_KEY} section found"):
+            load_config_from_metadata(artifacts_dir)
+
+    def test_load_config_from_metadata_success(self, tmp_path: Path):
+        """Test load_config_from_metadata returns config when metadata is valid."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        metadata_file = artifacts_dir / METADATA_FILE
+        expected_config = {"model": "test", "param": 42}
+        metadata_file.write_text(
+            f"{METADATA_CONFIG_KEY}:\n  model: test\n  param: 42", encoding="utf-8"
+        )
+
+        result = load_config_from_metadata(artifacts_dir)
+        assert result == expected_config
+
+    def test_load_benchmark_info_file_not_found(self, tmp_path: Path):
+        """Test load_benchmark_info raises FileNotFoundError when config file doesn't exist."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+
+        with pytest.raises(FileNotFoundError):
+            load_benchmark_info(artifacts_dir)
+
+    def test_load_benchmark_info_not_a_dict(self, tmp_path: Path):
+        """Test load_benchmark_info raises ValueError when YAML is not a dictionary."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        config_file = artifacts_dir / NE_CONFIG_FILE
+        config_file.write_text("[1, 2, 3]", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="it should be a dictionary"):
+            load_benchmark_info(artifacts_dir)
+
+    def test_load_benchmark_info_missing_keys_returns_none(self, tmp_path: Path):
+        """Test load_benchmark_info returns None for missing keys instead of raising."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        config_file = artifacts_dir / NE_CONFIG_FILE
+        config_file.write_text("other_key: value", encoding="utf-8")
+
+        harness, benchmark = load_benchmark_info(artifacts_dir)
+        assert harness is None
+        assert benchmark is None
+
+    def test_load_benchmark_info_partial_keys(self, tmp_path: Path):
+        """Test load_benchmark_info handles partial keys correctly."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        config_file = artifacts_dir / NE_CONFIG_FILE
+        config_file.write_text(
+            "framework_name: test-framework\nconfig: {}", encoding="utf-8"
+        )
+
+        harness, benchmark = load_benchmark_info(artifacts_dir)
+        assert harness == "test-framework"
+        assert benchmark is None
+
+    def test_load_benchmark_info_success(self, tmp_path: Path):
+        """Test load_benchmark_info returns values when config is valid."""
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        config_file = artifacts_dir / NE_CONFIG_FILE
+        config_file.write_text(
+            "framework_name: lm-eval\nconfig:\n  type: mmlu", encoding="utf-8"
+        )
+
+        harness, benchmark = load_benchmark_info(artifacts_dir)
+        assert harness == "lm-eval"
+        assert benchmark == "mmlu"

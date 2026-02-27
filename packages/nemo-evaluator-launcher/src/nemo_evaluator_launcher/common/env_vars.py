@@ -393,3 +393,31 @@ def collect_deployment_env_vars(cfg: DictConfig) -> dict[str, EnvVarValue]:
             parsed[target_name] = parse_env_var_value(str(raw_value))
 
     return parsed
+
+
+def collect_exporters_env_vars(cfg: DictConfig) -> dict[str, EnvVarValue]:
+    """Collect and parse exporters env vars from config.
+
+    Merges (last wins):
+        cfg.env_vars → cfg.execution.env_vars.export (deprecated)
+        → cfg.deployment.env_vars
+
+    Args:
+        cfg: Full run config.
+
+    Returns:
+        dict mapping target_name → EnvVarValue.
+    """
+    # 1. Top-level env_vars (new unified config) — uses host default
+    top_level_vars = _collect_top_level_env_vars(cfg)
+    parsed: dict[str, EnvVarValue] = {}
+    for target_name, raw_value in top_level_vars.items():
+        parsed[target_name] = parse_env_var_value(str(raw_value))
+
+    # 2. export.env_vars
+    export_vars = cfg.get("export", {}).get("env_vars", {})
+    if export_vars:
+        for target_name, raw_value in export_vars.items():
+            parsed[target_name] = parse_env_var_value(str(raw_value))
+
+    return parsed

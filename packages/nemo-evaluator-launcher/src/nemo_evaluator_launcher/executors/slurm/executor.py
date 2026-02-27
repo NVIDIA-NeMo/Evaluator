@@ -32,9 +32,11 @@ from jinja2 import Environment, FileSystemLoader
 from omegaconf import DictConfig, OmegaConf
 
 from nemo_evaluator_launcher.common.env_vars import (
+    SecretsEnvResult,
     build_reexport_commands,
     collect_deployment_env_vars,
     collect_eval_env_vars,
+    collect_exporters_env_vars,
     generate_secrets_env,
     redact_secrets_env_content,
 )
@@ -615,6 +617,7 @@ def _create_slurm_sbatch_script(
     api_key_name = get_api_key_name(cfg)
     eval_env_vars = collect_eval_env_vars(cfg, task, api_key_name)
     deployment_env_vars = collect_deployment_env_vars(cfg)
+    export_env_vars = collect_exporters_env_vars(cfg)
 
     # Merge all into groups for secrets file generation
     env_groups = {}
@@ -624,10 +627,14 @@ def _create_slurm_sbatch_script(
     # Deployment vars (merged: top-level → exec deployment → deployment.env_vars)
     if deployment_env_vars:
         env_groups["deployment"] = deployment_env_vars
+    # Export vars (merged: top-level → export.env_vars)
+    if export_env_vars:
+        env_groups["export"] = export_env_vars
 
     secrets_result = None
     eval_reexport_cmd = ""
     deploy_reexport_cmd = ""
+
     if env_groups:
         secrets_result = generate_secrets_env(env_groups)
 
@@ -798,9 +805,13 @@ def _create_slurm_sbatch_script(
         destinations = list(ae_cfg.get("destinations", []) or [])
 
     if destinations:
-        export_env = dict(cfg.execution.get("env_vars", {}).get("export", {}) or {})
         s += _generate_auto_export_section(
-            cfg, job_id, destinations, export_env, remote_task_subdir
+            cfg=cfg,
+            job_id=job_id,
+            destinations=destinations,
+            env_var_names=list(export_env_vars),
+            secrets=secrets_result,
+            remote_task_subdir=remote_task_subdir,
         )
 
     debug_str = "\n".join(["# " + line for line in s.splitlines()])
@@ -819,10 +830,12 @@ def _create_slurm_sbatch_script(
 
 
 def _generate_auto_export_section(
+    *,
     cfg: DictConfig,
     job_id: str,
     destinations: list,
-    export_env: dict,
+    env_var_names: list,
+    secrets: SecretsEnvResult,
     remote_task_subdir: Path,
     export_image: str = "python:3.12.7-slim",
 ) -> str:
@@ -836,44 +849,22 @@ def _generate_auto_export_section(
     s += "    echo 'Evaluation completed successfully. Starting auto-export...'\n"
     s += f'    cd "{remote_task_subdir}/artifacts"\n'
 
-    # Work with DictConfig; convert only for YAML at the end
-    exec_type = (
-        cfg.execution.type
-        if hasattr(cfg.execution, "type")
-        else cfg.execution.get("type", "slurm")
-    )
-    eval_tasks = (
-        list(cfg.evaluation.tasks)
-        if hasattr(cfg, "evaluation") and hasattr(cfg.evaluation, "tasks")
-        else list((cfg.get("evaluation", {}) or {}).get("tasks", []) or [])
-    )
-    export_block = cfg.get("export", {}) or {}
+    reexport_cmd = build_reexport_commands("export", secrets)
+    s += f"    {reexport_cmd}\n"
 
-    payload = {
-        "execution": {
-            "auto_export": {
-                "destinations": list(destinations),
-                **({"env_vars": dict(export_env)} if export_env else {}),
-            },
-            "type": exec_type,
-        },
-        "evaluation": {"tasks": eval_tasks},
-    }
-    if export_block:
-        # Convert just this block to plain for YAML
-        payload["export"] = (
-            OmegaConf.to_object(export_block)
-            if OmegaConf.is_config(export_block)
-            else dict(export_block)
-        )
+    # TODO(martas): what happens if there's no config?
+    export_config = {"export": cfg.get("export", {})}
 
     # Final YAML (single conversion at the end)
-    payload_clean = OmegaConf.to_container(OmegaConf.create(payload), resolve=True)
+    payload_clean = OmegaConf.to_container(
+        OmegaConf.create(export_config), resolve=True
+    )
     yaml_str = yaml.safe_dump(payload_clean, sort_keys=False)
     s += "    cat > export_config.yml << 'EOF'\n"
     s += yaml_str
     s += "EOF\n"
 
+    # TODO(martas): do we need this?
     # write launcher config as config.yml for exporters (no core command)
     submitted_yaml = yaml.safe_dump(
         OmegaConf.to_container(cfg, resolve=True), sort_keys=False
@@ -883,12 +874,6 @@ def _generate_auto_export_section(
     s += "EOF\n"
 
     # Export host only env before running auto export
-    for k, v in (export_env or {}).items():
-        if isinstance(v, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", v):
-            s += f'    export {k}="${{{v}}}"\n'
-        else:
-            esc = str(v).replace('"', '\\"')
-            s += f'    export {k}="{esc}"\n'
 
     # Get launcher install command - allows full customization of how to install the launcher.
     # Supports multi-line YAML strings. Example config:
@@ -911,10 +896,10 @@ def _generate_auto_export_section(
     s += "    srun --mpi pmix --overlap "
     s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
     s += "--container-image {} ".format(export_image)
-    if export_env:
-        s += "--container-env {} ".format(",".join(export_env))
-    if not cfg.execution.get("mounts", {}).get("mount_home", True):
-        s += "--no-container-mount-home "
+    s += "--container-env {} ".format(",".join(env_var_names))
+    # never mount home directory for export jobs - this is error prone
+    # and there's no use-case for mounting it
+    s += "--no-container-mount-home "
 
     s += f"--container-mounts {remote_task_subdir}/artifacts:{remote_task_subdir}/artifacts,{remote_task_subdir}/logs:{remote_task_subdir}/logs "
     s += "--output {} ".format(remote_task_subdir / "logs" / "export-%A.log")
@@ -923,7 +908,7 @@ def _generate_auto_export_section(
     s += f"        cd {remote_task_subdir}/artifacts\n"
     for dest in destinations:
         s += f'        echo "Exporting to {dest}..."\n'
-        s += f'        nemo-evaluator-launcher export {job_id} --dest {dest} || echo "Export to {dest} failed"\n'
+        s += f'        nemo-evaluator-launcher export {job_id} --dest {dest} --config export_config.yml --job-dirs {cfg.execution.output_dir} || echo "Export to {dest} failed"\n'
     s += "'\n"
     s += "    echo 'Auto-export completed.'\n"
     s += "else\n"
