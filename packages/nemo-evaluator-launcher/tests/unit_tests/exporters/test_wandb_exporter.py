@@ -493,31 +493,12 @@ class TestWandBExporter:
         )
         assert logged == []
 
-    def test_check_existing_run_missing_entity_project(
-        self, monkeypatch, wandb_fake, tmp_path
-    ):
-        _W, _Run = wandb_fake
-        data = DataForExport(
-            artifacts_dir=tmp_path / "artifacts",
-            logs_dir=None,
-            config={},
-            model_id="test-model",
-            metrics={"acc": 0.9},
-            harness="lm-eval",
-            task="mmlu",
-            container="test:latest",
-            executor="local",
-            invocation_id="wC",
-            job_id="wC.0",
-            timestamp=0.0,
-            job_data={},
-        )
+    def test_check_existing_run_missing_entity_project(self):
         exp = WandBExporter({"entity": "", "project": ""})
-        run_id = exp._check_existing_run("ident", data)
+        run_id = exp._check_existing_run("ident")
         assert run_id is None
 
-    def test_check_existing_run_name_match(self, monkeypatch, wandb_fake, tmp_path):
-        _W, _Run = wandb_fake
+    def test_check_existing_run_name_match(self, monkeypatch, wandb_fake):
         api = types.SimpleNamespace(
             run=lambda *_: types.SimpleNamespace(id="noop"),
             runs=lambda *_: [types.SimpleNamespace(display_name="my-name", id="rid1")],
@@ -525,29 +506,11 @@ class TestWandBExporter:
         fake_wandb = types.SimpleNamespace(Api=lambda: api)
         monkeypatch.setitem(sys.modules, "wandb", fake_wandb)
 
-        data = DataForExport(
-            artifacts_dir=tmp_path / "artifacts",
-            logs_dir=None,
-            config={},
-            model_id="test-model",
-            metrics={"acc": 0.9},
-            harness="lm-eval",
-            task="mmlu",
-            container="test:latest",
-            executor="local",
-            invocation_id="wE",
-            job_id="wE.0",
-            timestamp=0.0,
-            job_data={},
-        )
         exp = WandBExporter({"entity": "e", "project": "p", "name": "my-name"})
-        run_id = exp._check_existing_run("ident", data)
+        run_id = exp._check_existing_run("ident")
         assert run_id == "rid1"
 
-    def test_check_existing_run_default_pattern_match(
-        self, monkeypatch, wandb_fake, tmp_path
-    ):
-        _W, _Run = wandb_fake
+    def test_check_existing_run_default_pattern_match(self, monkeypatch, wandb_fake):
         api = types.SimpleNamespace(
             run=lambda *_: types.SimpleNamespace(id="noop"),
             runs=lambda *_: [
@@ -557,27 +520,11 @@ class TestWandBExporter:
         fake_wandb = types.SimpleNamespace(Api=lambda: api)
         monkeypatch.setitem(sys.modules, "wandb", fake_wandb)
 
-        data = DataForExport(
-            artifacts_dir=tmp_path / "artifacts",
-            logs_dir=None,
-            config={},
-            model_id="test-model",
-            metrics={"acc": 0.9},
-            harness="lm-eval",
-            task="mmlu",
-            container="test:latest",
-            executor="local",
-            invocation_id="wF",
-            job_id="wF.0",
-            timestamp=0.0,
-            job_data={},
-        )
         exp = WandBExporter({"entity": "e", "project": "p"})
-        run_id = exp._check_existing_run("ident", data)
+        run_id = exp._check_existing_run("ident")
         assert run_id == "rid2"
 
-    def test_check_existing_run_no_match(self, monkeypatch, wandb_fake, tmp_path):
-        _W, _Run = wandb_fake
+    def test_check_existing_run_no_match(self, monkeypatch, wandb_fake):
         api = types.SimpleNamespace(
             run=lambda *_: types.SimpleNamespace(id="noop"), runs=lambda *_: []
         )
@@ -586,21 +533,6 @@ class TestWandBExporter:
             lambda: api,
             raising=True,
         )
-        data = DataForExport(
-            artifacts_dir=tmp_path / "artifacts",
-            logs_dir=None,
-            config={},
-            model_id="test-model",
-            metrics={"acc": 0.9},
-            harness="lm-eval",
-            task="mmlu",
-            container="test:latest",
-            executor="local",
-            invocation_id="wG",
-            job_id="wG.0",
-            timestamp=0.0,
-            job_data={},
-        )
         exp = WandBExporter({"entity": "e", "project": "p"})
-        run_id = exp._check_existing_run("ident", data)
+        run_id = exp._check_existing_run("ident")
         assert run_id is None

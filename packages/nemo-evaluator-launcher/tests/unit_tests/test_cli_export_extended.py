@@ -86,9 +86,9 @@ class TestExportCmdConfiguration:
                 output_dir=None,
                 output_filename=None,
                 format=None,
-                copy_logs=False,
-                log_metrics=[],
-                only_required=True,
+                copy_logs=None,
+                log_metrics=None,
+                only_required=None,
             )
             cmd.execute()
 
@@ -99,8 +99,8 @@ class TestExportCmdConfiguration:
         assert "output_dir" not in config
         assert "output_filename" not in config
         assert "format" not in config
-        assert config["copy_logs"] is False
-        assert config["only_required"] is True
+        assert "copy_logs" not in config
+        assert "only_required" not in config
         assert "log_metrics" not in config
 
 
@@ -633,7 +633,7 @@ class TestExportCmdOverrides:
         call_args = mock_export.call_args
         config = call_args[0][2]
         assert config["output_dir"] == "/tmp"
-        assert len(config) >= 2  # At least output_dir + standard flags
+        assert len(config) >= 1  # At least output_dir
 
 
 class TestExportCmdOverrideEdgeCases:
