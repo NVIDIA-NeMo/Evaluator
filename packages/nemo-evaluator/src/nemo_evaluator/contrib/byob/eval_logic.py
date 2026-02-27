@@ -167,6 +167,20 @@ class StandardStrategy:
         endpoint_type: str,
         request_timeout: Optional[float] = None,
     ) -> Tuple[Optional[Dict], Optional[SampleResult]]:
+        """Render prompt, call model, score the response.
+
+        Args:
+            idx: Zero-based sample index.
+            row: Dataset row dict.
+            bench: Benchmark definition with prompt template and scorer.
+            model_call_fn: Callable(prompt, endpoint_type, ...) -> response.
+            endpoint_type: ``"chat"`` or ``"completions"``.
+            request_timeout: Per-request HTTP timeout in seconds.
+
+        Returns:
+            Tuple of (scores_dict, SampleResult) on success, or
+            (None, SampleResult with error status) on failure.
+        """
         # Render prompt
         try:
             prompt = render_prompt(bench.prompt, row, bench._is_jinja2)
@@ -254,9 +268,14 @@ class StandardStrategy:
 
 
 class EvalOnlyStrategy:
-    """Eval-only strategy: use pre-generated responses from the dataset instead of calling the model."""
+    """Eval-only strategy: score pre-generated responses from the dataset."""
 
     def __init__(self, response_field: str):
+        """Initialize eval-only strategy.
+
+        Args:
+            response_field: Name of the dataset field containing pre-generated responses.
+        """
         self.response_field = response_field
 
     def evaluate_sample(
@@ -268,6 +287,20 @@ class EvalOnlyStrategy:
         endpoint_type: str,
         request_timeout: Optional[float] = None,
     ) -> Tuple[Optional[Dict], Optional[SampleResult]]:
+        """Score a pre-generated response from the dataset (no model call).
+
+        Args:
+            idx: Zero-based sample index.
+            row: Dataset row dict (must contain ``response_field``).
+            bench: Benchmark definition with scorer.
+            model_call_fn: Not used (present for protocol compliance).
+            endpoint_type: Not used (present for protocol compliance).
+            request_timeout: Not used (present for protocol compliance).
+
+        Returns:
+            Tuple of (scores_dict, SampleResult) on success, or
+            (None, SampleResult with error status) on failure.
+        """
         # Get pre-generated response from dataset
         if self.response_field not in row:
             target = row.get(bench.target_field, "")
@@ -415,7 +448,7 @@ def _run_eval_loop_sequential(
     fail_on_skip: bool = False,
     request_timeout: Optional[float] = None,
 ) -> Tuple[List[Dict], List[SampleResult]]:
-    """Sequential evaluation loop (original behavior)."""
+    """Sequential evaluation loop. See :func:`run_eval_loop` for parameter docs."""
     if request_timeout is not None:
         logger.info("Per-request timeout", request_timeout=request_timeout)
     all_scores = []
@@ -502,11 +535,7 @@ def _run_eval_loop_parallel(
     parallelism: int = 4,
     request_timeout: Optional[float] = None,
 ) -> Tuple[List[Dict], List[SampleResult]]:
-    """Parallel evaluation loop using ThreadPoolExecutor.
-
-    Maintains sample ordering in results regardless of completion order.
-    Thread-safe bookkeeping via a lock for counters and error tracking.
-    """
+    """Parallel evaluation loop. See :func:`run_eval_loop` for parameter docs."""
     if request_timeout is not None:
         logger.info("Per-request timeout", request_timeout=request_timeout)
     total = len(dataset)

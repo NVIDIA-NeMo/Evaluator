@@ -93,6 +93,7 @@ def call_model_chat(
         prompt: Prompt text to send as user message.
         temperature: Sampling temperature.
         max_tokens: Maximum tokens to generate.
+        top_p: Top-p (nucleus) sampling parameter. None omits from payload.
         api_key: Optional Bearer token for Authorization header.
         timeout: Request timeout in seconds.
         session: Optional requests.Session for connection pooling.
@@ -152,6 +153,7 @@ def call_model_completions(
         prompt: Prompt text.
         temperature: Sampling temperature.
         max_tokens: Maximum tokens to generate.
+        top_p: Top-p (nucleus) sampling parameter. None omits from payload.
         api_key: Optional Bearer token for Authorization header.
         timeout: Request timeout in seconds.
         session: Optional requests.Session for connection pooling.
