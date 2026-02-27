@@ -16,12 +16,13 @@
 
 import warnings
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import jinja2
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from nemo_evaluator.adapters.adapter_config import AdapterConfig
+from nemo_evaluator.api.capabilities import BENCHMARK_CAPABILITIES
 from nemo_evaluator.core.utils import get_jinja2_environment
 
 # NOTE: For ApiEndpoint, EvaluationTarget, ConfigParams, and EvaluationConfig all fields
@@ -36,7 +37,6 @@ class EndpointType(str, Enum):
     UNDEFINED = "undefined"
     CHAT = "chat"
     COMPLETIONS = "completions"
-    VLM = "vlm"
     EMBEDDING = "embedding"
 
 
@@ -202,7 +202,27 @@ class EvaluationConfig(BaseModel):
     supported_endpoint_types: Optional[list[str]] = Field(
         description="Supported endpoint types like chat or completions", default=None
     )
+    required_capabilities: Optional[List[str]] = Field(
+        description="List of required endpoint capabilities.", default=None
+    )
     type: Optional[str] = Field(description="Type of the task", default=None)
+
+    @model_validator(mode="before")
+    @classmethod
+    def handle_benchmark_capabilities(cls, values):
+        """Handle benchmark capabilities."""
+        if isinstance(values, dict):
+            benchmark_capabilities = values.get("required_capabilities")
+            if benchmark_capabilities:
+                invalid_capabilities = []
+                for capability in benchmark_capabilities:
+                    if capability not in BENCHMARK_CAPABILITIES:
+                        invalid_capabilities.append(capability)
+                if invalid_capabilities:
+                    raise ValueError(
+                        f"Invalid endpoint capabilities: {invalid_capabilities}. Available capabilities are: {list(BENCHMARK_CAPABILITIES.keys())}"
+                    )
+        return values
 
 
 class EvaluationMetadata(dict):

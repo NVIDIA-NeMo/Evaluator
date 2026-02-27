@@ -27,6 +27,7 @@ from nemo_evaluator.api.api_dataclasses import (
     EvaluationConfig,
     EvaluationTarget,
 )
+from nemo_evaluator.api.capabilities import BENCHMARK_CAPABILITIES
 from nemo_evaluator.core.utils import (
     MisconfigurationError,
     deep_update,
@@ -592,3 +593,42 @@ def validate_configuration(run_config: dict) -> Evaluation:
     check_type_compatibility(evaluation)
     _logger.info(f"User-invoked config: \n{yaml.dump(evaluation.model_dump())}")
     return evaluation
+
+
+def verify_capabilities(evaluation: Evaluation):
+    import requests
+
+    if not evaluation.config.required_capabilities:
+        # nothing to check
+        return True
+    if not evaluation.target.api_endpoint.url:
+        raise MisconfigurationError(
+            f"target.api_endpoint.url is not provided but the following capabilities are required: {', '.join(evaluation.config.required_capabilities)}"
+        )
+    if not evaluation.target.api_endpoint.model_id:
+        raise MisconfigurationError(
+            f"target.api_endpoint.model_id is not provided but the following capabilities are required: {', '.join(evaluation.config.required_capabilities)}"
+        )
+    url = evaluation.target.api_endpoint.url
+    model_id = evaluation.target.api_endpoint.model_id
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    if evaluation.target.api_endpoint.api_key_name is not None:
+        headers["Authorization"] = (
+            f"Bearer {os.getenv(evaluation.target.api_endpoint.api_key_name)}"
+        )
+    for capability in evaluation.config.required_capabilities:
+        payload = BENCHMARK_CAPABILITIES[capability].payload.copy()
+        payload["model_id"] = model_id
+
+        response = requests.post(url, json=payload, headers=headers)
+        if response.status_code != 200:
+            raise MisconfigurationError(
+                f"Failed to verify capability {capability}. The endpoint returned {response.status_code} error code and response: {response.text}."
+            )
+        else:
+            _logger.debug(f"Capability {capability} verified successfully.")
+
+    return True
