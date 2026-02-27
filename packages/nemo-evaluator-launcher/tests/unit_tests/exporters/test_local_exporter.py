@@ -115,7 +115,7 @@ class TestLocalExporterManualScenarios:
         Expected: {'successful_jobs': 2, 'failed_jobs': 0, 'skipped_jobs': 0}
         """
         # Create two jobs from different invocations
-        inv1, inv2 = "d96db8f1e74c630d", "38015bbf34550e78"
+        inv1, inv2 = "invocation1", "invocation2"
         j1 = JobData(
             invocation_id=inv1,
             job_id=f"{inv1}.1",
@@ -166,7 +166,7 @@ class TestLocalExporterManualScenarios:
         Expected: {'successful_jobs': 1, 'failed_jobs': 1}
         Error: No such file or directory: '.../artifacts/results.yml'
         """
-        inv1 = "d96db8f1e74c630d"
+        inv1 = "invocation1"
 
         # Job 1: Successful
         j1 = JobData(
@@ -223,7 +223,7 @@ class TestLocalExporterManualScenarios:
         Expected: {'successful_jobs': 0, 'failed_jobs': 1, 'skipped_jobs': 2}
         Error: Invocation 12345 not found in ExecutionDB nor job directories
         """
-        inv1, inv2 = "d96db8f1e74c630d", "38015bbf34550e78"
+        inv1, inv2 = "invocation1", "invocation2"
 
         # Create two valid jobs
         j1 = JobData(
@@ -279,7 +279,7 @@ class TestLocalExporterManualScenarios:
         Expected: {'successful_jobs': 4, 'failed_jobs': 1, 'skipped_jobs': 0}
         Error: No such file or directory: '/tmp/.../artifacts/results.yml' (after copy)
         """
-        inv = "a64bf890f4d84c12"
+        inv = "invocation1"
 
         # Create 5 remote jobs (4 successful, 1 will fail after copy)
         jobs = []
