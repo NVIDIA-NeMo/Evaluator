@@ -128,12 +128,20 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
             "finish_reason": {},
             "stop_reason": {},
             "status_codes": {},
+            # Retry deduplication
+            "retry_count": 0,
             # Time tracking
             "inference_time": 0.0,
             "run_id": 0,
             "last_request_time": None,
             "inference_run_times": {},  # {run_id: {"start": time, "end": time, "inference_time": time}}
         }
+
+        # Set of cache_keys (request content hashes) already counted in stats.
+        # Used to detect retries across chain-job allocations: when a job
+        # requeues, previously in-flight requests are re-sent but should not
+        # be double-counted in aggregated statistics.
+        self._seen_cache_keys: set[str] = set()
 
         # Always initialize cache database
         cache_path = Path(self.cache_dir)
@@ -226,8 +234,13 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
                     # Try total_* first (from new save format), then back-compute from avg
                     if total_key in aggregated_stats:
                         aggregated_stats[sum_key] = aggregated_stats.pop(total_key)
-                    elif aggregated_stats.get(avg_key) is not None and successful_count > 0:
-                        aggregated_stats[sum_key] = aggregated_stats[avg_key] * successful_count
+                    elif (
+                        aggregated_stats.get(avg_key) is not None
+                        and successful_count > 0
+                    ):
+                        aggregated_stats[sum_key] = (
+                            aggregated_stats[avg_key] * successful_count
+                        )
                     else:
                         aggregated_stats[sum_key] = 0
 
@@ -238,9 +251,17 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
                 else:
                     aggregated_stats["sum_latency_ms"] = 0.0
 
+            # Backward compatibility: ensure retry_count exists
+            if "retry_count" not in aggregated_stats:
+                aggregated_stats["retry_count"] = 0
+
             # Set current stats to cached data (cached stats already contain accumulated data)
             self._stats = aggregated_stats
             # Note: run_id increment is handled in _save_run_ids_info()
+
+            # Restore seen cache keys for retry deduplication
+            if "seen_cache_keys" in interceptor_state:
+                self._seen_cache_keys = set(interceptor_state["seen_cache_keys"])
 
             self.logger.info(
                 f"Loaded interceptor state with run_id {aggregated_stats.get('run_id', 0)}, count={aggregated_stats.get('count', 0)}"
@@ -438,6 +459,14 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
             return resp
         status_code = resp.r.status_code
 
+        # Detect retries: if we've already counted a successful response for
+        # the same request content (identified by cache_key), this is a retry
+        # from a chain-job requeue. We still track it in count/status_codes
+        # (total API calls) but skip updating token stats and successful_count
+        # to avoid inflating averages.
+        cache_key = getattr(resp.rctx, "cache_key", None)
+        is_retry = cache_key is not None and cache_key in self._seen_cache_keys
+
         # Update time tracking with current timestamp
         current_time = time.time()
         self._update_time_tracking(current_time)
@@ -448,29 +477,46 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
         # Always add basic response stats (count, status_code)
         self._add_basic_response_stats(resp, context)
 
+        if is_retry:
+            with self._lock:
+                self._stats["retry_count"] += 1
+            self.logger.debug(
+                "Detected retry request, skipping token stats update",
+                request_id=resp.rctx.request_id,
+                cache_key=cache_key[:8] + "..." if cache_key else None,
+            )
         # Extract detailed stats once and reuse them
         detailed_stats = None
-        try:
-            # Try to parse response as JSON
-            response_data = resp.r.json()
+        if not is_retry:
+            try:
+                # Try to parse response as JSON
+                response_data = resp.r.json()
 
-            if status_code == 200:
-                detailed_stats = self._extract_detailed_response_stats(response_data)
+                if status_code == 200:
+                    detailed_stats = self._extract_detailed_response_stats(
+                        response_data
+                    )
 
-                # Add detailed stats for aggregation
-                self._update_response_stats(detailed_stats)
+                    # Add detailed stats for aggregation
+                    self._update_response_stats(detailed_stats)
 
-                self.logger.debug(
-                    "Collected detailed response stats",
-                    request_id=resp.rctx.request_id,
-                    response_count=self._stats["count"],
-                    status_code=status_code,
+                    # Mark this cache_key as seen
+                    if cache_key is not None:
+                        self._seen_cache_keys.add(cache_key)
+
+                    self.logger.debug(
+                        "Collected detailed response stats",
+                        request_id=resp.rctx.request_id,
+                        response_count=self._stats["count"],
+                        status_code=status_code,
+                    )
+
+            except (json.JSONDecodeError, Exception) as e:
+                # Handle both JSON parsing errors and other exceptions
+                # In case of any error, only basic stats are collected
+                self.logger.warning(
+                    f"Error parsing response body for token counting: {e}"
                 )
-
-        except (json.JSONDecodeError, Exception) as e:
-            # Handle both JSON parsing errors and other exceptions
-            # In case of any error, only basic stats are collected
-            self.logger.warning(f"Error parsing response body for token counting: {e}")
 
         # Save stats to file if interval reached
         if (
@@ -513,7 +559,12 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
             return
 
         # Round averages to 2 decimal places for display
-        for avg_key in ["avg_prompt_tokens", "avg_total_tokens", "avg_completion_tokens", "avg_latency_ms"]:
+        for avg_key in [
+            "avg_prompt_tokens",
+            "avg_total_tokens",
+            "avg_completion_tokens",
+            "avg_latency_ms",
+        ]:
             if stats[avg_key] is not None:
                 stats[avg_key] = round(stats[avg_key], 2)
 
@@ -635,6 +686,9 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
 
         # Update aggregated stats in interceptor state
         interceptor_state["aggregated_stats"] = stats_to_cache
+
+        # Persist seen cache keys for retry deduplication across allocations
+        interceptor_state["seen_cache_keys"] = list(self._seen_cache_keys)
 
         # Save updated interceptor state
         self._save_interceptor_state(interceptor_state)
