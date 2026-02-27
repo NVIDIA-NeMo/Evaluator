@@ -292,17 +292,6 @@ def ssh_download_artifacts(
         control_path = control_paths.get((username, hostname))
     ssh_opts = ["-o", f"ControlPath={control_path}"] if control_path else []
 
-    def scp_file(remote_path: str, local_path: Path) -> bool:
-        cmd = (
-            ["scp"]
-            + ssh_opts
-            + [
-                f"{username}@{hostname}:{remote_path}",
-                str(local_path),
-            ]
-        )
-        return subprocess.run(cmd, capture_output=True).returncode == 0
-
     export_dir.mkdir(parents=True, exist_ok=True)
 
     # Artifacts
@@ -311,43 +300,41 @@ def ssh_download_artifacts(
         art_dir.mkdir(parents=True, exist_ok=True)
 
         if only_required:
-            for artifact in get_relevant_artifacts():
-                remote_file = f"{remote_path}/artifacts/{artifact}"
-                local_file = art_dir / artifact
-                local_file.parent.mkdir(parents=True, exist_ok=True)
-                if scp_file(remote_file, local_file):
-                    exported_files.append(str(local_file))
-                elif artifact in REQUIRED_ARTIFACTS:
-                    logger.error(
-                        f"Failed to copy required artifact {artifact} from {remote_file} to {local_file}"
-                    )
+            # Bundle only required+optional artifacts; --ignore-failed-read
+            # skips missing optional files without failing
+            artifact_paths = " ".join(
+                f"artifacts/{a}" for a in get_relevant_artifacts()
+            )
+            remote_tar_cmd = (
+                f"cd {remote_path} && tar --ignore-failed-read -czf - {artifact_paths}"
+            )
         else:
-            # Use tar+ssh to bundle many small files into one transfer
-            # This is much faster than rsync for directories with thousands of files
             exclude_args = " ".join(f"--exclude={p}" for p in EXCLUDED_PATTERNS)
-
-            # Build SSH command
-            ssh_cmd = ["ssh"] + ssh_opts
             remote_tar_cmd = f"cd {remote_path} && tar -czf - {exclude_args} artifacts/"
 
-            # Stream tar from remote, extract locally
-            ssh_full = ssh_cmd + [
-                f"{username}@{hostname}",
-                remote_tar_cmd,
-            ]
-            with subprocess.Popen(
-                ssh_full, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-            ) as ssh_proc:
-                tar_extract = subprocess.run(
-                    ["tar", "-xzf", "-", "-C", str(export_dir)],
-                    stdin=ssh_proc.stdout,
-                    capture_output=True,
-                )
-                ssh_proc.wait()
-                if ssh_proc.returncode == 0 and tar_extract.returncode == 0:
-                    exported_files.extend(
-                        [str(f) for f in art_dir.rglob("*") if f.is_file()]
+        # Stream tar from remote and extract locally (single SSH connection for both paths)
+        ssh_full = ["ssh"] + ssh_opts + [f"{username}@{hostname}", remote_tar_cmd]
+        with subprocess.Popen(
+            ssh_full, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        ) as ssh_proc:
+            tar_extract = subprocess.run(
+                ["tar", "-xzf", "-", "-C", str(export_dir)],
+                stdin=ssh_proc.stdout,
+                capture_output=True,
+            )
+            ssh_proc.wait()
+
+        if ssh_proc.returncode == 0 and tar_extract.returncode == 0:
+            exported_files.extend([str(f) for f in art_dir.rglob("*") if f.is_file()])
+            for artifact in REQUIRED_ARTIFACTS:
+                if not (art_dir / artifact).exists():
+                    logger.error(
+                        f"Failed to copy required artifact {artifact} from {remote_path}/artifacts/{artifact}"
                     )
+        else:
+            logger.error(
+                f"Failed to download artifacts via tar+ssh: ssh_rc={ssh_proc.returncode}, tar_rc={tar_extract.returncode}"
+            )
 
     # Logs (top-level files only, streamed via tar+ssh with compression)
     if copy_logs:
