@@ -105,11 +105,16 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
         self._lock = threading.Lock()
         self._adapter_start_time = time.time()  # Record adapter initialization time
         self._stats = {
-            # Average statistics
+            # Average statistics (computed from sums at save time)
             "avg_prompt_tokens": None,
             "avg_total_tokens": None,
             "avg_completion_tokens": None,
             "avg_latency_ms": None,
+            # Exact sum statistics (used to compute precise averages)
+            "sum_prompt_tokens": 0,
+            "sum_total_tokens": 0,
+            "sum_completion_tokens": 0,
+            "sum_latency_ms": 0.0,
             # Maximum statistics
             "max_prompt_tokens": None,
             "max_total_tokens": None,
@@ -209,6 +214,30 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
                         status_codes[key] = value
                 aggregated_stats["status_codes"] = status_codes
 
+            # Backward compatibility: if cached stats lack sum_* fields (from
+            # older versions that used running averages), back-compute sums
+            # from avg * successful_count.
+            successful_count = aggregated_stats.get("successful_count", 0)
+            for token_type in ["prompt_tokens", "total_tokens", "completion_tokens"]:
+                sum_key = f"sum_{token_type}"
+                avg_key = f"avg_{token_type}"
+                total_key = f"total_{token_type}"
+                if sum_key not in aggregated_stats:
+                    # Try total_* first (from new save format), then back-compute from avg
+                    if total_key in aggregated_stats:
+                        aggregated_stats[sum_key] = aggregated_stats.pop(total_key)
+                    elif aggregated_stats.get(avg_key) is not None and successful_count > 0:
+                        aggregated_stats[sum_key] = aggregated_stats[avg_key] * successful_count
+                    else:
+                        aggregated_stats[sum_key] = 0
+
+            if "sum_latency_ms" not in aggregated_stats:
+                avg_latency = aggregated_stats.get("avg_latency_ms")
+                if avg_latency is not None and successful_count > 0:
+                    aggregated_stats["sum_latency_ms"] = avg_latency * successful_count
+                else:
+                    aggregated_stats["sum_latency_ms"] = 0.0
+
             # Set current stats to cached data (cached stats already contain accumulated data)
             self._stats = aggregated_stats
             # Note: run_id increment is handled in _save_run_ids_info()
@@ -256,7 +285,13 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
                 self._stats["inference_time"] += delta
 
     def _update_running_stats(self, stat_name: str, value: float) -> None:
-        """Update running average and max for a given statistic."""
+        """Update sum, average, and max for a given statistic.
+
+        Tracks exact sums to avoid floating-point error accumulation from
+        running averages. The average is recomputed from sum / count at each
+        step for live monitoring, and rounded to 2 decimal places only at
+        file-save time.
+        """
         # Skip if value is not a valid number
         if not isinstance(value, (int, float)):
             self.logger.warning(
@@ -264,18 +299,17 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
             )
             return
 
-        # Calculate running average using current successful count
+        sum_key = f"sum_{stat_name}"
         avg_key = f"avg_{stat_name}"
-        if self._stats[avg_key] is None:
-            self._stats[avg_key] = value
-        else:
-            self._stats[avg_key] = round(
-                (self._stats[avg_key] * self._stats["successful_count"] + value)
-                / (self._stats["successful_count"] + 1),
-                2,
-            )
 
-        # Update max valuename
+        # Accumulate exact sum
+        self._stats[sum_key] += value
+
+        # Compute average from exact sum (successful_count not yet incremented)
+        new_count = self._stats["successful_count"] + 1
+        self._stats[avg_key] = self._stats[sum_key] / new_count
+
+        # Update max value
         max_key = f"max_{stat_name}"
         if self._stats[max_key] is None or value > self._stats[max_key]:
             self._stats[max_key] = value
@@ -477,6 +511,17 @@ class ResponseStatsInterceptor(ResponseInterceptor, PostEvalHook):
         if stats["count"] == 0:
             self.logger.debug("No response statistics collected, skipping file write")
             return
+
+        # Round averages to 2 decimal places for display
+        for avg_key in ["avg_prompt_tokens", "avg_total_tokens", "avg_completion_tokens", "avg_latency_ms"]:
+            if stats[avg_key] is not None:
+                stats[avg_key] = round(stats[avg_key], 2)
+
+        # Expose exact totals as total_* fields and remove internal sum_* fields
+        for token_type in ["prompt_tokens", "total_tokens", "completion_tokens"]:
+            stats[f"total_{token_type}"] = stats.pop(f"sum_{token_type}", 0)
+        # Remove internal sum_latency_ms (not useful as an output field)
+        stats.pop("sum_latency_ms", None)
 
         # Convert timestamps to readable dates in inference_run_times and add time_to_first_request
         if "inference_run_times" in stats:

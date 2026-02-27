@@ -102,6 +102,7 @@ class TestResponseStatsInterceptor:
         # Check stats structure
         assert "count" in interceptor._stats
         assert "avg_prompt_tokens" in interceptor._stats
+        assert "sum_prompt_tokens" in interceptor._stats
         assert "max_prompt_tokens" in interceptor._stats
 
     def test_add_basic_response_stats(self, interceptor, context):
@@ -500,6 +501,115 @@ class TestResponseStatsInterceptor:
         # Verify stats counting behavior
         assert interceptor._stats["count"] == expected_total_responses
         assert interceptor._stats["successful_count"] == expected_successful_responses
+
+
+    def test_average_precision_with_many_requests(self, tmp_path):
+        """Test that averages remain precise over many requests.
+
+        Previously, running averages with round(..., 2) at each step accumulated
+        floating-point error. With sum-based computation, the average should be
+        exact (within floating-point precision of a single division).
+        """
+        cache_dir = tmp_path / "test_cache_precision"
+        interceptor = ResponseStatsInterceptor(
+            ResponseStatsInterceptor.Params(
+                save_individuals=False, cache_dir=str(cache_dir)
+            )
+        )
+        context = AdapterGlobalContext(
+            output_dir=str(tmp_path), url="http://test.api.com/v1/chat/completions"
+        )
+
+        # Simulate 10,000 requests with varying token counts
+        total_completion = 0
+        num_requests = 10000
+        for i in range(num_requests):
+            completion_tokens = 100 + (i % 997)  # Varying values
+            total_completion += completion_tokens
+
+            mock_resp = Mock(spec=requests.Response)
+            mock_resp.status_code = 200
+            mock_resp.headers = {}
+            mock_resp.json.return_value = {
+                "usage": {
+                    "prompt_tokens": 50,
+                    "total_tokens": 50 + completion_tokens,
+                    "completion_tokens": completion_tokens,
+                },
+                "choices": [{"finish_reason": "stop", "message": {}}],
+            }
+            adapter_response = AdapterResponse(
+                r=mock_resp,
+                rctx=AdapterRequestContext(request_id=f"req_{i}"),
+                latency_ms=10.0,
+            )
+            interceptor.intercept_response(adapter_response, context)
+
+        # Verify exact sum
+        assert interceptor._stats["sum_completion_tokens"] == total_completion
+
+        # Verify average is precise (should match exact computation)
+        expected_avg = total_completion / num_requests
+        assert abs(interceptor._stats["avg_completion_tokens"] - expected_avg) < 1e-10
+
+        # Verify count
+        assert interceptor._stats["successful_count"] == num_requests
+
+    def test_total_fields_in_saved_file(self, tmp_path):
+        """Test that saved metrics include exact total_* fields."""
+        cache_dir = tmp_path / "test_cache_totals"
+        interceptor = ResponseStatsInterceptor(
+            ResponseStatsInterceptor.Params(
+                save_individuals=False, cache_dir=str(cache_dir)
+            )
+        )
+        context = AdapterGlobalContext(
+            output_dir=str(tmp_path), url="http://test.api.com/v1/chat/completions"
+        )
+
+        # Process a few requests
+        token_values = [100, 200, 333]
+        for i, ct in enumerate(token_values):
+            mock_resp = Mock(spec=requests.Response)
+            mock_resp.status_code = 200
+            mock_resp.headers = {}
+            mock_resp.json.return_value = {
+                "usage": {
+                    "prompt_tokens": 50,
+                    "total_tokens": 50 + ct,
+                    "completion_tokens": ct,
+                },
+                "choices": [{"finish_reason": "stop", "message": {}}],
+            }
+            adapter_response = AdapterResponse(
+                r=mock_resp,
+                rctx=AdapterRequestContext(request_id=f"req_{i}"),
+                latency_ms=10.0,
+            )
+            interceptor.intercept_response(adapter_response, context)
+
+        # Save to file
+        interceptor.post_eval_hook(context)
+
+        # Read and verify
+        metrics_path = Path(tmp_path) / "eval_factory_metrics.json"
+        with open(metrics_path) as f:
+            metrics = json.load(f)
+
+        rs = metrics["response_stats"]
+
+        # Exact totals should be present
+        assert rs["total_completion_tokens"] == sum(token_values)
+        assert rs["total_prompt_tokens"] == 50 * len(token_values)
+
+        # Averages should be rounded to 2dp
+        expected_avg_ct = round(sum(token_values) / len(token_values), 2)
+        assert rs["avg_completion_tokens"] == expected_avg_ct
+
+        # Internal sum_* fields should NOT be in the output
+        assert "sum_completion_tokens" not in rs
+        assert "sum_prompt_tokens" not in rs
+        assert "sum_latency_ms" not in rs
 
 
 class TestResponseStatsInterceptorCache:
