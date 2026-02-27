@@ -1,0 +1,338 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""BYOB decorators and benchmark registry.
+
+The @benchmark and @scorer decorators are the user-facing API for defining
+custom evaluation benchmarks.
+
+Example::
+
+    from nemo_evaluator.contrib.byob import benchmark, scorer, ScorerInput
+    from nemo_evaluator.contrib.byob.scorers import exact_match
+
+    @benchmark(
+        name="my-qa",
+        dataset="/path/to/data.jsonl",
+        prompt="Question: {question}\\nAnswer:",
+        target_field="answer",
+    )
+    @scorer
+    def my_scorer(inp: ScorerInput):
+        return exact_match(inp.response, inp.target, inp.metadata)
+"""
+
+import inspect
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
+
+
+@dataclass
+class ScorerInput:
+    """All inputs available to a scorer function.
+
+    This is the single argument passed to all BYOB scorer functions.
+    Standard scorers use response, target, and metadata.
+    Advanced scorers (judge, multi-turn) use the optional fields.
+    """
+
+    response: str
+    target: Any
+    metadata: dict
+    # Extensible fields for advanced scorers
+    model_call_fn: Optional[Callable] = None
+    config: Dict[str, Any] = field(default_factory=dict)
+    conversation: Optional[List[dict]] = None
+    turn_index: Optional[int] = None
+
+
+@dataclass
+class BenchmarkDefinition:
+    """Internal representation of a registered BYOB benchmark."""
+
+    name: str
+    normalized_name: str
+    dataset: str
+    prompt: str
+    scorer_fn: Callable
+    target_field: str = "target"
+    endpoint_type: str = "chat"
+    requirements: List[str] = field(default_factory=list)
+    field_mapping: Optional[Dict[str, str]] = None
+    extra_config: Dict[str, Any] = field(default_factory=dict)
+    response_field: Optional[str] = None
+    _is_jinja2: bool = False
+    system_prompt: Optional[str] = None
+    _is_system_prompt_jinja2: bool = False
+
+
+_BENCHMARK_REGISTRY: Dict[str, BenchmarkDefinition] = {}
+
+
+def _normalize_name(name: str) -> str:
+    """Normalize a benchmark name to a valid Python identifier.
+
+    Rules:
+    - Lowercase
+    - Replace non-alphanumeric characters with underscores
+    - Collapse consecutive underscores
+    - Strip leading/trailing underscores
+    - Truncate to 50 characters
+    """
+    normalized = re.sub(r"[^a-z0-9]", "_", name.lower())
+    normalized = re.sub(r"_+", "_", normalized).strip("_")
+    return normalized[:50]
+
+
+def _resolve_prompt(prompt: str, base_dir: Path) -> str:
+    """If prompt ends with a template file extension, read it as a file. Otherwise return as-is."""
+    if any(prompt.endswith(ext) for ext in (".txt", ".md", ".jinja", ".jinja2")):
+        path = (base_dir / prompt) if not Path(prompt).is_absolute() else Path(prompt)
+        if path.exists():
+            return path.read_text(encoding="utf-8")
+    return prompt
+
+
+def _resolve_requirements(requirements, base_dir: Path) -> List[str]:
+    """Resolve requirements: str means file path, list means inline deps, None means no deps."""
+    if requirements is None:
+        return []
+    if isinstance(requirements, str):
+        path = (
+            (base_dir / requirements)
+            if not Path(requirements).is_absolute()
+            else Path(requirements)
+        )
+        if not path.exists():
+            raise FileNotFoundError(f"Requirements file not found: {path}")
+        return [
+            line.strip()
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+    return list(requirements)
+
+
+def _is_jinja2_template(prompt: str, source_extension: str = "") -> bool:
+    """Detect whether a prompt string should be rendered with Jinja2.
+
+    Conservative heuristic: only ``{%`` (block tags) and ``{#`` (comments) trigger
+    Jinja2 detection.  ``{{`` alone is ambiguous (Python brace-escape also uses it),
+    so variable-only Jinja2 templates must use a ``.jinja`` / ``.jinja2`` file extension.
+    """
+    if source_extension in (".jinja", ".jinja2"):
+        return True
+    return "{%" in prompt or "{#" in prompt
+
+
+def benchmark(
+    name: str,
+    dataset: str,
+    prompt: str,
+    target_field: str = "target",
+    endpoint_type: str = "chat",
+    requirements=None,
+    field_mapping=None,
+    extra=None,
+    response_field=None,
+    system_prompt=None,
+    **kwargs,
+):
+    """Decorator that registers a function as a BYOB benchmark.
+
+    Args:
+        name: Human-readable benchmark name.
+        dataset: Path to JSONL dataset file, or a ``hf://`` URI for
+                 HuggingFace datasets downloaded at runtime.
+        prompt: Python format string with {field} placeholders, or path to
+                a template file (.txt, .md, .jinja, .jinja2).
+        target_field: JSONL field containing ground truth.
+        endpoint_type: "chat" or "completions".
+        requirements: Pip dependencies. Either a list of specifiers
+                      (e.g., ["rouge-score>=0.1.2"]) or a path to a
+                      requirements.txt file. None means no extra deps.
+        field_mapping: Optional dict mapping source field names to target
+                       field names (e.g. ``{"opa": "a", "opb": "b"}``).
+                       Applied after loading the dataset.
+        extra: Framework-specific parameters that map directly to
+               ``config.params.extra`` in the generated framework.yml.
+               Use this for judge configuration, custom settings, etc.
+               Example: ``extra={"judge": {"url": "...", "model_id": "..."}}``.
+        response_field: Optional JSONL field containing pre-generated model
+                        responses. When set, the model is not called and
+                        responses are read directly from the dataset (eval-only mode).
+        system_prompt: Optional system prompt string or path to a template file.
+                       When set, a system message is prepended to model calls.
+        **kwargs: Also merged into extra config (for backward compat).
+                  ``extra`` takes precedence over ``**kwargs`` on conflicts.
+    """
+
+    def decorator(fn):
+        normalized = _normalize_name(name)
+        if not normalized:
+            raise ValueError(
+                f"Benchmark name '{name}' normalizes to an empty string. "
+                f"Use a name containing at least one alphanumeric character."
+            )
+        if normalized in _BENCHMARK_REGISTRY:
+            raise ValueError(
+                f"Benchmark '{name}' (normalized: '{normalized}') is already registered."
+            )
+
+        # Resolve base_dir from decorated function's source file
+        try:
+            source_file = inspect.getfile(fn)
+            base_dir = Path(source_file).parent
+        except (TypeError, OSError):
+            base_dir = Path.cwd()
+
+        resolved_prompt = _resolve_prompt(prompt, base_dir)
+        resolved_reqs = _resolve_requirements(requirements, base_dir)
+
+        # Detect Jinja2 template
+        source_ext = (
+            Path(prompt).suffix
+            if any(prompt.endswith(ext) for ext in (".jinja", ".jinja2"))
+            else ""
+        )
+        is_jinja2 = _is_jinja2_template(resolved_prompt, source_ext)
+
+        # Resolve system prompt (same as user prompt: file or inline, Jinja2 detect)
+        resolved_system_prompt = None
+        is_system_prompt_jinja2 = False
+        if system_prompt is not None:
+            resolved_system_prompt = _resolve_prompt(system_prompt, base_dir)
+            sys_ext = (
+                Path(system_prompt).suffix
+                if any(system_prompt.endswith(ext) for ext in (".jinja", ".jinja2"))
+                else ""
+            )
+            is_system_prompt_jinja2 = _is_jinja2_template(
+                resolved_system_prompt, sys_ext
+            )
+
+        # Merge extra config: kwargs (backward compat) + extra (preferred)
+        merged_extra = dict(kwargs)
+        if extra:
+            merged_extra.update(extra)
+
+        defn = BenchmarkDefinition(
+            name=name,
+            normalized_name=normalized,
+            dataset=dataset,
+            prompt=resolved_prompt,
+            scorer_fn=fn,
+            target_field=target_field,
+            endpoint_type=endpoint_type,
+            requirements=resolved_reqs,
+            field_mapping=field_mapping,
+            extra_config=merged_extra,
+            response_field=response_field,
+            _is_jinja2=is_jinja2,
+            system_prompt=resolved_system_prompt,
+            _is_system_prompt_jinja2=is_system_prompt_jinja2,
+        )
+
+        _BENCHMARK_REGISTRY[normalized] = defn
+        fn._benchmark_definition = defn
+        return fn
+
+    return decorator
+
+
+def _validate_scorer_signature(fn: Callable) -> None:
+    """Validate that a scorer function has an acceptable signature.
+
+    Accepted signatures:
+        - 1 parameter: ``def scorer(sample: ScorerInput)``  (preferred)
+        - 2 parameters: ``def scorer(sample, config)``      (flexible)
+
+    Rejected signatures:
+        - 0 parameters: missing required input
+        - 3+ parameters: legacy pattern that should migrate to ScorerInput
+
+    Args:
+        fn: The scorer callable to validate.
+
+    Raises:
+        TypeError: If the scorer signature is invalid.
+    """
+    try:
+        sig = inspect.signature(fn)
+    except (ValueError, TypeError):
+        # If we cannot introspect (e.g. built-in), skip validation.
+        return
+
+    params = [
+        p
+        for p in sig.parameters.values()
+        if p.default is inspect.Parameter.empty
+        and p.kind
+        not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+    ]
+    total_params = [
+        p
+        for p in sig.parameters.values()
+        if p.kind
+        not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+    ]
+
+    n_required = len(params)
+    n_total = len(total_params)
+
+    if n_total == 0:
+        raise TypeError(
+            f"Scorer '{fn.__qualname__}' accepts 0 arguments. "
+            f"BYOB scorers must accept at least one argument — the ScorerInput instance. "
+            f"Example: def {fn.__name__}(sample: ScorerInput) -> dict: ..."
+        )
+
+    if n_required >= 3:
+        raise TypeError(
+            f"Scorer '{fn.__qualname__}' accepts {n_required} required arguments. "
+            f"BYOB scorers now accept a single ScorerInput argument. "
+            f"Migrate from `def scorer(response, target, metadata)` to "
+            f"`def scorer(sample: ScorerInput)`."
+        )
+
+
+def scorer(fn):
+    """Decorator that marks a function as a BYOB scorer.
+
+    Validates the scorer signature and sets ``fn._is_scorer = True``.
+    Used compositionally with ``@benchmark`` (scorer is the inner decorator).
+
+    Accepted scorer signatures:
+        - 1 parameter: ``def scorer(sample: ScorerInput)``
+        - 2 parameters: ``def scorer(sample, config)``
+
+    Raises:
+        TypeError: If the scorer has 0 or 3+ parameters.
+    """
+    _validate_scorer_signature(fn)
+    fn._is_scorer = True
+    return fn
+
+
+def get_registered_benchmarks() -> Dict[str, BenchmarkDefinition]:
+    """Return a copy of the benchmark registry."""
+    return dict(_BENCHMARK_REGISTRY)
+
+
+def clear_registry():
+    """Clear all registered benchmarks."""
+    _BENCHMARK_REGISTRY.clear()
