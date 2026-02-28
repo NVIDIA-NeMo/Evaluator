@@ -400,6 +400,167 @@ class TestProgressTrackingInterceptor:
         finally:
             server.stop()
 
+    def test_skip_initial_requests_skips_sanity_check(self):
+        """Test that skip_initial_requests=1 skips the first request (e.g. sanity check)."""
+        server = FakeProgressTrackingServer(port=8008)
+        server.start()
+
+        try:
+            params = ProgressTrackingInterceptor.Params(
+                progress_tracking_url="http://localhost:8008",
+                progress_tracking_interval=1,
+                skip_initial_requests=1,
+            )
+            interceptor = ProgressTrackingInterceptor(params)
+
+            mock_response = AdapterResponse(
+                r=requests.Response(),
+                rctx=AdapterRequestContext(),
+            )
+            context = AdapterGlobalContext(output_dir="/tmp", url="http://test")
+
+            # First request (sanity check) - should be skipped
+            interceptor.intercept_response(mock_response, context)
+            assert interceptor._samples_processed == 0
+            updates = server.get_updates()
+            assert len(updates) == 0, "sanity check should not trigger progress update"
+
+            # Actual evaluation samples (10 samples)
+            for i in range(10):
+                interceptor.intercept_response(mock_response, context)
+
+            assert interceptor._samples_processed == 10
+            updates = server.get_updates()
+            assert len(updates) == 10
+            assert updates[-1]["samples_processed"] == 10
+
+        finally:
+            server.stop()
+
+    def test_skip_initial_requests_with_interval(self):
+        """Test skip_initial_requests works correctly with progress_tracking_interval."""
+        server = FakeProgressTrackingServer(port=8009)
+        server.start()
+
+        try:
+            params = ProgressTrackingInterceptor.Params(
+                progress_tracking_url="http://localhost:8009",
+                progress_tracking_interval=2,
+                skip_initial_requests=1,
+            )
+            interceptor = ProgressTrackingInterceptor(params)
+
+            mock_response = AdapterResponse(
+                r=requests.Response(),
+                rctx=AdapterRequestContext(),
+            )
+            context = AdapterGlobalContext(output_dir="/tmp", url="http://test")
+
+            # First request (sanity check) - skipped
+            interceptor.intercept_response(mock_response, context)
+
+            # Process 5 actual samples
+            for i in range(5):
+                interceptor.intercept_response(mock_response, context)
+
+            assert interceptor._samples_processed == 5
+            updates = server.get_updates()
+            # With interval=2, updates at samples 2 and 4
+            assert len(updates) == 2
+            assert updates[0]["samples_processed"] == 2
+            assert updates[1]["samples_processed"] == 4
+
+        finally:
+            server.stop()
+
+    def test_skip_initial_requests_post_eval_hook(self):
+        """Test that post_eval_hook reports correct count when skip_initial_requests is used."""
+        server = FakeProgressTrackingServer(port=8010)
+        server.start()
+
+        try:
+            params = ProgressTrackingInterceptor.Params(
+                progress_tracking_url="http://localhost:8010",
+                progress_tracking_interval=3,
+                skip_initial_requests=1,
+            )
+            interceptor = ProgressTrackingInterceptor(params)
+
+            mock_response = AdapterResponse(
+                r=requests.Response(),
+                rctx=AdapterRequestContext(),
+            )
+            context = AdapterGlobalContext(output_dir="/tmp", url="http://test")
+
+            # Sanity check (skipped)
+            interceptor.intercept_response(mock_response, context)
+
+            # 10 actual samples (interval=3 sends at 3, 6, 9; post_eval sends final 10)
+            for i in range(10):
+                interceptor.intercept_response(mock_response, context)
+
+            server.clear_updates()
+            interceptor.post_eval_hook(context)
+
+            updates = server.get_updates()
+            assert len(updates) == 1
+            assert updates[0]["samples_processed"] == 10
+
+        finally:
+            server.stop()
+
+    def test_skip_initial_requests_default_is_zero(self):
+        """Test that skip_initial_requests defaults to 0 (count all requests)."""
+        params = ProgressTrackingInterceptor.Params()
+        assert params.skip_initial_requests == 0
+
+        interceptor = ProgressTrackingInterceptor(params)
+        assert interceptor.skip_initial_requests == 0
+
+    def test_skip_initial_requests_validation(self):
+        """Test that skip_initial_requests rejects negative values."""
+        with pytest.raises(ValidationError):
+            ProgressTrackingInterceptor.Params(
+                skip_initial_requests=-1,
+            )
+
+    def test_skip_multiple_initial_requests(self):
+        """Test skipping more than one initial request."""
+        server = FakeProgressTrackingServer(port=8012)
+        server.start()
+
+        try:
+            params = ProgressTrackingInterceptor.Params(
+                progress_tracking_url="http://localhost:8012",
+                progress_tracking_interval=1,
+                skip_initial_requests=3,
+            )
+            interceptor = ProgressTrackingInterceptor(params)
+
+            mock_response = AdapterResponse(
+                r=requests.Response(),
+                rctx=AdapterRequestContext(),
+            )
+            context = AdapterGlobalContext(output_dir="/tmp", url="http://test")
+
+            # First 3 requests should be skipped
+            for i in range(3):
+                interceptor.intercept_response(mock_response, context)
+            assert interceptor._samples_processed == 0
+
+            # Next 5 requests should be counted
+            for i in range(5):
+                interceptor.intercept_response(mock_response, context)
+            assert interceptor._samples_processed == 5
+
+            updates = server.get_updates()
+            assert len(updates) == 5
+            assert updates[0]["samples_processed"] == 1
+            assert updates[-1]["samples_processed"] == 5
+
+        finally:
+            server.stop()
+
 
 if __name__ == "__main__":
     # Simple test runner for manual testing

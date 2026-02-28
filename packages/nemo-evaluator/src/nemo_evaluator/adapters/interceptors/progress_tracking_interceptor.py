@@ -67,11 +67,21 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
             default=None,
             description="Evaluation output directory. If provided, the progress tracking will be saved to a file in this directory.",
         )
+        skip_initial_requests: Annotated[int, Field(ge=0)] = Field(
+            default=0,
+            description=(
+                "Number of initial requests to skip before counting samples. "
+                "Set to 1 when the evaluation framework sends a warmup or "
+                "sanity-check request through the adapter before actual "
+                "evaluation begins."
+            ),
+        )
 
     progress_tracking_url: Optional[str]
     progress_tracking_interval: int
     progress_filepath: Optional[pathlib.Path]
     request_method: str
+    skip_initial_requests: int
 
     def __init__(self, params: Params):
         """
@@ -83,6 +93,7 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
         self.progress_tracking_url = os.path.expandvars(params.progress_tracking_url)
         self.progress_tracking_interval = params.progress_tracking_interval
         self.request_method = params.request_method
+        self.skip_initial_requests = params.skip_initial_requests
         if params.output_dir is not None:
             output_dir = pathlib.Path(params.output_dir)
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -91,6 +102,7 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
             self.progress_filepath = None
         self._samples_processed = self._initialize_samples_processed()
         self._last_updated_samples_processed = self._samples_processed
+        self._total_requests = 0
         self._lock = threading.Lock()
 
         # Get logger for this interceptor with interceptor context
@@ -116,6 +128,7 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
             progress_tracking_interval_seconds=self.progress_tracking_interval_seconds,
             output_dir=str(self.progress_filepath) if self.progress_filepath else None,
             initial_samples_processed=self._samples_processed,
+            skip_initial_requests=self.skip_initial_requests,
         )
 
     def _initialize_samples_processed(self) -> int:
@@ -207,6 +220,14 @@ class ProgressTrackingInterceptor(ResponseInterceptor, PostEvalHook):
     ) -> AdapterResponse:
         curr_samples = 0
         with self._lock:
+            self._total_requests += 1
+            if self._total_requests <= self.skip_initial_requests:
+                self.logger.debug(
+                    "Skipping initial request from sample count",
+                    total_requests=self._total_requests,
+                    skip_initial_requests=self.skip_initial_requests,
+                )
+                return ar
             self._samples_processed += 1
             curr_samples = self._samples_processed
 
