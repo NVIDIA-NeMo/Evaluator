@@ -54,10 +54,10 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
         )
         seed_cache_dir: str | None = Field(
             default=None,
-            description="Optional read-only seed cache directory. On cache miss in the primary "
-            "cache, the interceptor falls back to this directory. Useful for reusing cached "
-            "responses from a previous evaluation run (e.g., when migrating between clusters). "
-            "New responses are always written to the primary cache only.",
+            description="Optional seed cache directory for cross-run cache reuse. On cache miss "
+            "in the primary cache, the interceptor falls back to this directory. Seed cache hits "
+            "are automatically promoted into the primary cache, so the output cache is always "
+            "self-contained. Useful for resuming evaluations or migrating between clusters.",
         )
         reuse_cached_responses: bool = Field(
             default=False,
@@ -254,6 +254,8 @@ class CachingInterceptor(RequestToResponseInterceptor, ResponseInterceptor):
                 cached_content = self.seed_responses_cache[cache_key]
                 cached_headers = self.seed_headers_cache[cache_key]
                 self.logger.debug("Cache hit (seed)", cache_key=cache_key[:8] + "...")
+                # Promote seed entry into primary cache so the output cache is self-contained
+                self._save_to_cache(cache_key, cached_content, cached_headers)
                 return cached_content, cached_headers
             except KeyError:
                 pass
