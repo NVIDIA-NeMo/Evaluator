@@ -46,7 +46,7 @@ class TestSeedCacheFallback:
     """Test that seed cache is used as a read-only fallback."""
 
     def test_seed_cache_hit_on_primary_miss(self, tmp_path):
-        """Primary cache miss + seed cache hit → returns seed data."""
+        """Primary cache miss + seed cache hit → returns seed data and promotes to primary."""
         primary_dir = str(tmp_path / "primary")
         seed_dir = str(tmp_path / "seed")
 
@@ -73,6 +73,47 @@ class TestSeedCacheFallback:
         content, headers = result
         assert content == seed_content
         assert headers == seed_headers
+
+        # Verify seed hit was promoted to primary cache
+        assert interceptor.responses_cache[cache_key] == seed_content
+        assert interceptor.headers_cache[cache_key] == seed_headers
+
+    def test_seed_hit_promoted_to_primary(self, tmp_path):
+        """Seed cache hit is promoted: second lookup hits primary, not seed."""
+        primary_dir = str(tmp_path / "primary")
+        seed_dir = str(tmp_path / "seed")
+
+        request_data = {
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "promote me"}],
+        }
+        cache_key = _make_cache_key(request_data)
+        seed_content = b'{"choices": [{"message": {"content": "promoted"}}]}'
+        seed_headers = {"content-type": "application/json"}
+
+        _populate_seed_cache(seed_dir, {cache_key: (seed_content, seed_headers)})
+
+        interceptor = CachingInterceptor(
+            CachingInterceptor.Params(
+                cache_dir=primary_dir,
+                seed_cache_dir=seed_dir,
+                reuse_cached_responses=True,
+            )
+        )
+
+        # First call: seed hit, promoted to primary
+        result1 = interceptor._get_from_cache(cache_key)
+        assert result1 is not None
+
+        # Remove seed cache to prove second call uses primary
+        interceptor.seed_responses_cache = None
+        interceptor.seed_headers_cache = None
+
+        # Second call: should still work via primary
+        result2 = interceptor._get_from_cache(cache_key)
+        assert result2 is not None
+        assert result2[0] == seed_content
+        assert result2[1] == seed_headers
 
     def test_primary_cache_takes_precedence(self, tmp_path):
         """Primary cache hit → returns primary data, seed not used."""
@@ -200,7 +241,7 @@ class TestSeedCacheFallback:
             _ = interceptor.seed_headers_cache[cache_key]
 
     def test_seed_cache_not_modified(self, tmp_path):
-        """Verify seed cache is never written to during normal operation."""
+        """Verify seed cache is never written to during normal operation (promotions go to primary)."""
         primary_dir = str(tmp_path / "primary")
         seed_dir = str(tmp_path / "seed")
 
@@ -223,7 +264,7 @@ class TestSeedCacheFallback:
             )
         )
 
-        # Read from seed (populates nothing in seed)
+        # Read from seed (promotes to primary, but seed itself is untouched)
         result = interceptor._get_from_cache(cache_key)
         assert result is not None
 
@@ -237,6 +278,10 @@ class TestSeedCacheFallback:
         assert interceptor.seed_responses_cache[cache_key] == seed_content
         with pytest.raises(KeyError):
             _ = interceptor.seed_responses_cache[other_key]
+
+        # But primary now has both the promoted entry AND the new entry
+        assert interceptor.responses_cache[cache_key] == seed_content
+        assert interceptor.responses_cache[other_key] == b"other"
 
 
 class TestSeedCacheLegacyConfig:
