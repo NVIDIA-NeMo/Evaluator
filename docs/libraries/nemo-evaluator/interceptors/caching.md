@@ -86,3 +86,19 @@ Each cache uses a SHA256 hash of the request data as the lookup key. When a cach
 2. **Response received** from model API
 3. **Store response** in cache with generated key
 4. **Continue processing** with response interceptors
+
+## Seed Cache
+
+Use `seed_cache_dir` to reuse cached responses from a previous run — e.g., when resuming after a timeout or migrating between clusters.
+
+```yaml
+target:
+  api_endpoint:
+    adapter_config:
+      use_caching: true
+      seed_cache_dir: /path/to/previous/run/cache
+```
+
+On a primary cache miss, the interceptor falls back to the seed cache. Seed hits are **automatically promoted** into the primary cache, so the output cache is self-contained. The seed cache is never modified.
+
+Cache keys are SHA-256 hashes of the request JSON body — portable across clusters as long as the request data is identical.
