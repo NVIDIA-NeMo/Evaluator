@@ -261,6 +261,82 @@ class TestLocalExecutorDryRun:
                 if env_var in os.environ:
                     del os.environ[env_var]
 
+    def test_execute_eval_dry_run_no_docker_generates_host_commands(
+        self, sample_config, mock_tasks_mapping
+    ):
+        """When execution.use_docker=false, generated scripts should run on host."""
+        sample_config.execution.use_docker = False
+        os.environ["TEST_API_KEY"] = "test_key_value"
+        os.environ["GLOBAL_VALUE"] = "global_env_value"
+        os.environ["TASK_VALUE"] = "task_env_value"
+
+        try:
+            with (
+                patch(
+                    "nemo_evaluator_launcher.executors.local.executor.load_tasks_mapping"
+                ) as mock_load_mapping,
+                patch(
+                    "nemo_evaluator_launcher.executors.local.executor.get_task_definition_for_job"
+                ) as mock_get_task_def,
+                patch(
+                    "nemo_evaluator_launcher.executors.local.executor.get_eval_factory_command"
+                ) as mock_get_command,
+                patch("builtins.print"),
+            ):
+                mock_load_mapping.return_value = mock_tasks_mapping
+
+                def mock_get_task_def_side_effect(*_args, **kwargs):
+                    task_name = kwargs.get("task_query")
+                    mapping = kwargs.get("base_mapping", {})
+                    for (_harness, name), definition in mapping.items():
+                        if name == task_name:
+                            return definition
+                    raise KeyError(f"Task {task_name} not found")
+
+                mock_get_task_def.side_effect = mock_get_task_def_side_effect
+                from nemo_evaluator_launcher.common.helpers import CmdAndReadableComment
+
+                mock_get_command.return_value = CmdAndReadableComment(
+                    cmd="nemo-evaluator run_eval --run_config config_ef.yaml",
+                    debug="# Host command",
+                )
+
+                invocation_id = LocalExecutor.execute_eval(sample_config, dry_run=True)
+
+                output_base = pathlib.Path(sample_config.execution.output_dir)
+                output_dir = None
+                for item in output_base.iterdir():
+                    if item.is_dir() and item.name.endswith(f"-{invocation_id}"):
+                        output_dir = item
+                        break
+                assert output_dir is not None
+
+                run_script = (output_dir / "test_task_1" / "run.sh").read_text()
+                assert "docker run" not in run_script
+                assert "docker not found" not in run_script
+                assert (
+                    'nemo-evaluator run_eval --run_config config_ef.yaml > "$logs_dir/client_stdout.log" 2>&1'
+                    in run_script
+                )
+
+                for call in mock_get_command.call_args_list:
+                    assert call.kwargs["output_dir"].endswith("/artifacts")
+        finally:
+            for env_var in ["TEST_API_KEY", "GLOBAL_VALUE", "TASK_VALUE"]:
+                if env_var in os.environ:
+                    del os.environ[env_var]
+
+    def test_execute_eval_no_docker_with_deployment_raises(self, sample_config):
+        """No-docker mode only supports deployment.type=none."""
+        sample_config.execution.use_docker = False
+        sample_config.deployment.type = "vllm"
+
+        with pytest.raises(
+            ValueError,
+            match="execution.use_docker=false is only supported with deployment.type=none",
+        ):
+            LocalExecutor.execute_eval(sample_config, dry_run=True)
+
 
 class TestLocalExecutorGetStatus:
     """Test LocalExecutor get_status functionality."""

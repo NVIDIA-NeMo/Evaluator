@@ -16,6 +16,7 @@
 import base64
 import datetime
 import os
+import shlex
 from dataclasses import dataclass
 from typing import Optional
 
@@ -61,8 +62,9 @@ def _str_to_echo_command(str_to_save: str, filename: str) -> CmdAndReadableComme
     debug_str = "\n".join(
         [f"# Contents of {filename}"] + ["# " + s for s in str_to_save.splitlines()]
     )
+    quoted_filename = shlex.quote(filename)
     return CmdAndReadableComment(
-        cmd=f'echo "{str_to_save_b64}" | base64 -d > {filename}', debug=debug_str
+        cmd=f'echo "{str_to_save_b64}" | base64 -d > {quoted_filename}', debug=debug_str
     )
 
 
@@ -167,6 +169,7 @@ def get_eval_factory_command(
     cfg: DictConfig,
     user_task_config: DictConfig,
     task_definition: dict,
+    output_dir: str = CONTAINER_RESULTS_DIR,
 ) -> CmdAndReadableComment:
     # This gets the eval_factory_config merged from both top-level and task-level.
     merged_nemo_evaluator_config = get_eval_factory_config(
@@ -214,7 +217,7 @@ def get_eval_factory_command(
     _set_nested_optionally_overriding(
         merged_nemo_evaluator_config,
         ["config", "output_dir"],
-        CONTAINER_RESULTS_DIR,
+        output_dir,
     )
     api_key_name = get_api_key_name(cfg)
     if api_key_name:
@@ -275,7 +278,7 @@ def get_eval_factory_command(
     if config_path:
         create_unresolved_config_cmd = _str_to_echo_command(
             open(config_path, "r").read(),
-            filename=f"{CONTAINER_RESULTS_DIR}/launcher_unresolved_config.yaml",
+            filename=f"{output_dir}/launcher_unresolved_config.yaml",
         )
         commands.append(create_unresolved_config_cmd.cmd)
         debug.append(create_unresolved_config_cmd.debug)

@@ -14,8 +14,10 @@
 # limitations under the License.
 
 
-# check if docker exists
+# check if docker exists when any task uses docker
+{% if has_docker_tasks %}
 command -v docker >/dev/null 2>&1 || { echo 'docker not found'; exit 1; }
+{% endif %}
 
 # Initialize: remove killed jobs file from previous runs
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -57,14 +59,17 @@ else
     # Debug contents of the eval factory command's config
     {{ task.eval_factory_command_debug_comment | indent(4) }}
 
-    # Docker run with eval factory command
+    # Execute evaluation task
     (
         {% if task.secrets_env_content -%}
-        # Source secrets (scoped to subshell); re-exports happen before each docker run
+        # Source secrets (scoped to subshell)
         source "$task_dir/.secrets.env"
         {% endif -%}
 
+        echo "$$" > "$logs_dir/stage.pid"
+        trap 'rm -f "$logs_dir/stage.pid"' EXIT
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$logs_dir/stage.running"
+        {% if task.run_with_docker %}
         {% if task.deployment %}
         {% if task.deployment_reexport_cmd -%}
         # Re-export deployment env vars to original names
@@ -126,9 +131,19 @@ else
         echo "Container completed successfully" >&2;
         exit 0;
       ' > "$logs_dir/client_stdout.log" 2>&1
-    exit_code=$?
+        {% else %}
+        {% if task.eval_reexport_cmd -%}
+        # Re-export eval env vars to original names
+        {{ task.eval_reexport_cmd }}
+        {% endif -%}
+        {% if task.dataset_env_var_value -%}
+        export NEMO_EVALUATOR_DATASET_DIR="{{ task.dataset_env_var_value }}"
+        {% endif -%}
+        {{ task.eval_factory_command }} > "$logs_dir/client_stdout.log" 2>&1
+        {% endif %}
+        exit_code=$?
 
-    {% if task.deployment %}
+    {% if task.run_with_docker and task.deployment %}
     # Stop the server
     docker stop $SERVER_CONTAINER_NAME 2>/dev/null || true
     {% endif %}
