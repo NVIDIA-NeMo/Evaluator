@@ -102,8 +102,7 @@ _TELEMETRY_TAG = "\033[1;33m[TELEMETRY]\033[0m"
 def show_telemetry_notification() -> None:
     """Log how to change the telemetry level."""
     logger.warning(
-        f"{_TELEMETRY_TAG} Set {TELEMETRY_LEVEL_ENV_VAR}=<0|1|2> or run"
-        " 'nemo-evaluator-launcher config set telemetry.level <0|1|2>' to change."
+        f"{_TELEMETRY_TAG} Set {TELEMETRY_LEVEL_ENV_VAR}=<0|1|2> to change the telemetry level."
     )
 
 
@@ -187,6 +186,8 @@ def build_payload(
     session_id: str = "undefined",
 ) -> dict[str, Any]:
     """Build the telemetry payload for sending to the endpoint."""
+    if not events:
+        raise ValueError("events must not be empty")
     return {
         "browserType": "undefined",  # do not change
         "clientId": CLIENT_ID,

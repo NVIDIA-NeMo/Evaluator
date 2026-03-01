@@ -24,9 +24,7 @@ from unittest.mock import patch
 
 import pytest
 
-NEMO_TELEMETRY_STAGING_ENDPOINT = (
-    "https://events.telemetry.data-uat.nvidia.com/v1.1/events/json"
-)
+from tests.conftest import NEMO_TELEMETRY_STAGING_ENDPOINT
 
 
 class _SendTracker:
