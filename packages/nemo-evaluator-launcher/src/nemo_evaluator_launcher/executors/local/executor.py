@@ -219,9 +219,9 @@ class LocalExecutor(BaseExecutor):
                 )
 
             # Add telemetry env vars for propagation to containers
-            from nemo_evaluator.config import TELEMETRY_LEVEL_ENV_VAR
             from nemo_evaluator.telemetry import (
                 TELEMETRY_ENDPOINT_ENV_VAR,
+                TELEMETRY_LEVEL_ENV_VAR,
                 TELEMETRY_SESSION_ID_ENV_VAR,
             )
 
@@ -231,7 +231,7 @@ class LocalExecutor(BaseExecutor):
                 TELEMETRY_ENDPOINT_ENV_VAR,
             ):
                 if os.getenv(tel_var):
-                    env_vars_list.append(f"{tel_var}={os.getenv(tel_var)}")
+                    eval_env_var_names.append(tel_var)
 
             eval_image = task_definition["container"]
             if "container" in task:

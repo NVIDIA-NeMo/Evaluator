@@ -19,7 +19,6 @@ import os
 
 from simple_parsing import ArgumentParser
 
-import nemo_evaluator_launcher.cli.config as config
 import nemo_evaluator_launcher.cli.export as export
 import nemo_evaluator_launcher.cli.info as info
 import nemo_evaluator_launcher.cli.kill as kill

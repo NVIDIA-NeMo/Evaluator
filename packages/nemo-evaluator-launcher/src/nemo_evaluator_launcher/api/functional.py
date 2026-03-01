@@ -150,8 +150,9 @@ def run_eval(
     _check_api_endpoint_when_deployment_is_configured(cfg)
 
     # Set up telemetry
-    from nemo_evaluator.config import TELEMETRY_LEVEL_ENV_VAR, TelemetryLevel
+    from nemo_evaluator.config import TelemetryLevel
     from nemo_evaluator.telemetry import (
+        TELEMETRY_LEVEL_ENV_VAR,
         TELEMETRY_SESSION_ID_ENV_VAR,
         StatusEnum,
         TelemetryHandler,
