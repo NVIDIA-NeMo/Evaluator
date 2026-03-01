@@ -676,6 +676,7 @@ class SshTunnel:
 def build_ssh_sidecar_container(
     sidecar_cfg: SshSidecarConfig,
     *,
+    public_key_value: str,
     max_lifetime_sec: int,
     log_group: str | None = None,
     log_region: str = "us-east-1",
@@ -685,7 +686,8 @@ def build_ssh_sidecar_container(
 
     The sidecar:
     - Installs openssh-server on Alpine (< 2 s).
-    - Injects the SSH public key via ECS ``secrets`` from Secrets Manager.
+    - Receives the SSH public key as a plain environment variable
+      (downloaded by the orchestrator from Secrets Manager).
     - Runs sshd as PID 1 (foreground) with a background watchdog for TTL.
     - Has a health check (``nc -z localhost <port>``).
     """
@@ -735,8 +737,8 @@ def build_ssh_sidecar_container(
         "essential": True,
         "entryPoint": ["sh", "-c"],
         "command": [sshd_cmd],
-        "secrets": [
-            {"name": "SSH_PUBLIC_KEY", "valueFrom": sidecar_cfg.public_key_secret_arn},
+        "environment": [
+            {"name": "SSH_PUBLIC_KEY", "value": public_key_value},
         ],
         "healthCheck": {
             "command": ["CMD-SHELL", f"nc -z localhost {port} || exit 1"],
@@ -1490,13 +1492,20 @@ class EcsFargateSandbox:
         # 2. Resolve image
         image = self._resolve_image(built_image)
 
-        # 3. Download SSH private key
+        # 3. Download SSH keys (orchestrator-side, no extra IAM needed on execution role)
         if not sidecar.private_key_secret_arn:
             raise ValueError(
                 "ssh_sidecar.private_key_secret_arn is required (pre-provisioned keys only)"
             )
+        if not sidecar.public_key_secret_arn:
+            raise ValueError(
+                "ssh_sidecar.public_key_secret_arn is required (pre-provisioned keys only)"
+            )
         self._ssh_key_file = download_secret_to_file(
             sidecar.private_key_secret_arn, cfg.region
+        )
+        ssh_public_key_value = download_secret_to_string(
+            sidecar.public_key_secret_arn, cfg.region
         )
 
         # 4. Resolve tunnel port for agent-server mode
@@ -1519,6 +1528,7 @@ class EcsFargateSandbox:
         log_region = cfg.region or os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
         sidecar_def = build_ssh_sidecar_container(
             sidecar,
+            public_key_value=ssh_public_key_value,
             max_lifetime_sec=cfg.max_task_lifetime_sec,
             log_group=cfg.log_group,
             log_region=log_region,
