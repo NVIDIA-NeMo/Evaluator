@@ -276,10 +276,10 @@ def simple_scorer(sample):
         assert isinstance(scores["correct"]["value"], (int, float)), (
             f"Score value should be numeric, got: {type(scores['correct']['value'])}"
         )
-        assert isinstance(scores["correct"]["count"], int), (
-            f"Score count should be int, got: {type(scores['correct']['count'])}"
+        assert isinstance(scores["correct"]["stats"]["count"], int), (
+            f"Score count should be int, got: {type(scores['correct']['stats']['count'])}"
         )
-        assert scores["correct"]["count"] > 0, "Score count should be > 0"
+        assert scores["correct"]["stats"]["count"] > 0, "Score count should be > 0"
 
     def test_runner_cli_help(self):
         """Smoke test: --help should exit 0 and show expected flags."""

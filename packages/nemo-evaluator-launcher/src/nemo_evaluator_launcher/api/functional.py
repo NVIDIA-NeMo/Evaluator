@@ -149,6 +149,50 @@ def run_eval(
     return get_executor(cfg.execution.type).execute_eval(cfg, dry_run)
 
 
+def resume_eval(invocation_id: str) -> str:
+    """Resume an evaluation by re-executing existing scripts.
+
+    Automates the manual process of navigating to the execution directory
+    and re-executing ``bash run.sh`` (local) or ``sbatch run.sub`` (SLURM).
+
+    Args:
+        invocation_id: The invocation ID to resume. Supports partial IDs.
+
+    Returns:
+        str: The resumed invocation ID.
+
+    Raises:
+        ValueError: If invocation not found.
+        FileNotFoundError: If run scripts no longer exist on disk.
+        RuntimeError: If script execution fails immediately.
+    """
+    from nemo_evaluator_launcher.common.logging_utils import logger
+
+    db = ExecutionDB()
+    jobs = db.get_jobs(invocation_id)
+
+    if not jobs:
+        raise ValueError(
+            f"Invocation '{invocation_id}' not found in execution database. "
+            f"Use 'nel ls runs' to see available invocations."
+        )
+
+    first_job = next(iter(jobs.values()))
+    executor_cls = get_executor(first_job.executor)
+    resolved_id = first_job.invocation_id
+
+    logger.info(
+        f"Resuming invocation {resolved_id}",
+        num_jobs=len(jobs),
+        executor=first_job.executor,
+    )
+
+    executor_cls.resume_invocation(resolved_id, jobs)
+
+    logger.info(f"Resumed invocation {resolved_id} successfully")
+    return resolved_id
+
+
 def get_status(ids_or_prefixes: list[str]) -> list[dict[str, Any]]:
     """Get status of jobs by their IDs or invocation IDs.
 

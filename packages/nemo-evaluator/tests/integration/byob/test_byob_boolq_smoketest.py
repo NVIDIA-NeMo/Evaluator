@@ -139,9 +139,8 @@ class TestBoolQSmoketest:
         assert "boolq" in results["tasks"]
         metrics = results["tasks"]["boolq"]["metrics"]["pass@1"]["scores"]
         assert "correct" in metrics
-        assert metrics["correct"]["count"] == _SAMPLE_LIMIT
-        # Value is scaled to 0-100 for binary metrics
-        assert 0 <= metrics["correct"]["value"] <= 100
+        assert metrics["correct"]["stats"]["count"] == _SAMPLE_LIMIT
+        assert 0 <= metrics["correct"]["value"] <= 1.0
 
     def test_boolq_subprocess_runner(self, tmp_path):
         """Run the BoolQ benchmark via the subprocess runner CLI."""
@@ -201,8 +200,8 @@ class TestBoolQSmoketest:
         assert "boolq" in output["tasks"]
         scores = output["tasks"]["boolq"]["metrics"]["pass@1"]["scores"]
         assert "correct" in scores
-        assert scores["correct"]["count"] == _SAMPLE_LIMIT
-        assert 0 <= scores["correct"]["value"] <= 100
-        assert isinstance(scores["correct"]["mean"], (int, float))
-        assert isinstance(scores["correct"]["stderr"], (int, float))
-        assert isinstance(scores["correct"]["stddev"], (int, float))
+        assert scores["correct"]["stats"]["count"] == _SAMPLE_LIMIT
+        assert 0 <= scores["correct"]["value"] <= 1.0
+        assert isinstance(scores["correct"]["stats"]["mean"], (int, float))
+        assert isinstance(scores["correct"]["stats"]["stderr"], (int, float))
+        assert isinstance(scores["correct"]["stats"]["stddev"], (int, float))

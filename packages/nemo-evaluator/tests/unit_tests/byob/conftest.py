@@ -15,6 +15,8 @@
 
 """Shared fixtures for BYOB unit tests."""
 
+from unittest.mock import patch
+
 import pytest
 
 from nemo_evaluator.contrib.byob.dataset import _FETCHER_REGISTRY
@@ -47,3 +49,17 @@ def _reset_fetcher_registry():
     yield
     _FETCHER_REGISTRY.clear()
     _FETCHER_REGISTRY.extend(saved)
+
+
+@pytest.fixture(autouse=True)
+def _mock_pth_file():
+    """Prevent tests from writing to the real .pth file in site-packages.
+
+    install_benchmark() calls _ensure_pth_file() which appends lines to
+    the real nemo_evaluator_byob.pth. Without this mock, every test run
+    pollutes the .pth file with stale /tmp/pytest-* paths.
+    """
+    with patch(
+        "nemo_evaluator.contrib.byob.compiler._ensure_pth_file", return_value=None
+    ):
+        yield
