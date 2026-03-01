@@ -23,7 +23,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol, Self
+from typing import Protocol
+
+from typing_extensions import Self
 
 
 @dataclass

@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import atexit
 import base64
+import hashlib
 import io
 import json
 import logging
@@ -934,38 +935,29 @@ class ExecClient:
         )
 
     def download(self, remote_path: str, *, max_retries: int = 3) -> bytes:
-        import urllib.error
-        import urllib.request
+        import urllib.parse
 
-        url = f"{self._base}/download?path={urllib.request.quote(remote_path)}"
-        last_err: Exception | None = None
-        for attempt in range(1, max_retries + 1):
-            try:
-                req = urllib.request.Request(url, method="GET")
-                with urllib.request.urlopen(req, timeout=self._timeout) as resp:
-                    return resp.read()
-            except urllib.error.HTTPError as exc:
-                body = exc.read().decode(errors="replace")
-                raise RuntimeError(
-                    f"download {remote_path} failed (HTTP {exc.code}): {body}"
-                ) from exc
-            except (*_TRANSIENT_ERRORS, urllib.error.URLError) as exc:
-                last_err = exc
-                if attempt < max_retries:
-                    time.sleep(min(10.0, 2.0 ** (attempt - 1)))
-                    continue
-                raise ConnectionError(
-                    f"download {remote_path} failed: {last_err}"
-                ) from last_err
-        raise ConnectionError(f"download {remote_path} unreachable")
+        url = f"{self._base}/download?path={urllib.parse.quote(remote_path)}"
+        return self._request(
+            label=f"download {remote_path}",
+            url=url,
+            method="GET",
+            timeout=self._timeout,
+            max_retries=max_retries,
+        )
 
     def health(self) -> bool:
         try:
-            import urllib.request
-
-            req = urllib.request.Request(f"{self._base}/health", method="GET")
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                return resp.status == 200
+            return (
+                self._request(
+                    label="health",
+                    url=f"{self._base}/health",
+                    method="GET",
+                    timeout=5,
+                    max_retries=1,
+                )
+                is not None
+            )
         except Exception:
             return False
 
@@ -977,9 +969,6 @@ class ExecClient:
         timeout_override: float | None = None,
         max_retries: int = 4,
     ) -> dict[str, Any]:
-        import urllib.error
-        import urllib.request
-
         url = f"{self._base}{path}"
         payload = json.dumps(body).encode()
 
@@ -993,29 +982,56 @@ class ExecClient:
                 else self._timeout
             )
 
+        raw = self._request(
+            label=f"POST {path}",
+            url=url,
+            method="POST",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=http_timeout,
+            max_retries=max_retries,
+        )
+        return json.loads(raw)
+
+    def _request(
+        self,
+        *,
+        label: str,
+        url: str,
+        method: str,
+        data: bytes | None = None,
+        headers: dict[str, str] | None = None,
+        timeout: float,
+        max_retries: int,
+    ) -> bytes:
+        """Issue an HTTP request with retries on transient errors.
+
+        Returns the raw response body as bytes.  Raises ``RuntimeError``
+        on HTTP errors and ``ConnectionError`` when all retries are
+        exhausted.
+        """
+        import urllib.error
+        import urllib.request
+
         last_err: Exception | None = None
         for attempt in range(1, max_retries + 1):
-            req = urllib.request.Request(
-                url,
-                data=payload,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
+            req = urllib.request.Request(url, data=data, method=method)
+            if headers:
+                for k, v in headers.items():
+                    req.add_header(k, v)
             try:
-                with urllib.request.urlopen(req, timeout=http_timeout) as resp:
-                    return json.loads(resp.read())
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    return resp.read()
             except urllib.error.HTTPError as exc:
-                raw = exc.read().decode(errors="replace")
-                raise RuntimeError(
-                    f"POST {path} failed (HTTP {exc.code}): {raw}"
-                ) from exc
+                body = exc.read().decode(errors="replace")
+                raise RuntimeError(f"{label} failed (HTTP {exc.code}): {body}") from exc
             except (*_TRANSIENT_ERRORS, urllib.error.URLError) as exc:
                 last_err = exc
                 if attempt < max_retries:
                     wait = min(15.0, 2.0 ** (attempt - 1))
                     log.warning(
-                        "POST %s attempt %d/%d: %s — retry in %.1fs",
-                        path,
+                        "%s attempt %d/%d: %s — retry in %.1fs",
+                        label,
                         attempt,
                         max_retries,
                         exc,
@@ -1024,9 +1040,9 @@ class ExecClient:
                     time.sleep(wait)
                     continue
                 raise ConnectionError(
-                    f"POST {path} failed after {max_retries} attempts: {last_err}"
+                    f"{label} failed after {max_retries} attempts: {last_err}"
                 ) from last_err
-        raise ConnectionError(f"POST {path} unreachable")
+        raise ConnectionError(f"{label} unreachable")
 
 
 # =====================================================================
@@ -1051,10 +1067,14 @@ class ImageBuilder:
     @staticmethod
     def get_ecr_image_tag(environment_dir: str | Path, environment_name: str) -> str:
         """``<name>__<content_hash[:8]>`` — deterministic, cache-friendly."""
-        from dirhash import dirhash as _dirhash
-
-        content_hash = _dirhash(str(environment_dir), "sha256")[:8]
-        return f"{environment_name}__{content_hash}"
+        h = hashlib.sha256()
+        root = Path(environment_dir)
+        for p in sorted(root.rglob("*")):
+            if not p.is_file():
+                continue
+            h.update(str(p.relative_to(root)).encode())
+            h.update(p.read_bytes())
+        return f"{environment_name}__{h.hexdigest()[:8]}"
 
     @staticmethod
     def image_exists_in_ecr(
@@ -1162,24 +1182,15 @@ class ImageBuilder:
 
         return image_url
 
-    @classmethod
-    def _build_and_push(
-        cls,
-        *,
+    @staticmethod
+    def _upload_build_context(
         cfg: EcsFargateConfig,
         environment_name: str,
-        tag: str,
-        image_url: str,
-    ) -> None:
-        boto3, _, ClientError = _require_aws_sdks()
-        ecr_repo = cfg.ecr_repository or ""
-        ecr_registry = ecr_repo.split("/")[0]
-        repo_name = ecr_repo.split("/", 1)[1] if "/" in ecr_repo else ecr_repo
+        nonce: str,
+    ) -> str:
+        """ZIP the environment dir and upload to S3.  Returns the S3 key."""
+        boto3, *_ = _require_aws_sdks()
         env_dir = Path(cfg.environment_dir or ".")
-
-        log.info("Building image via CodeBuild: %s", image_url)
-
-        # 1. Upload build context (ZIP) to S3
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
             for item in env_dir.rglob("*"):
@@ -1189,39 +1200,54 @@ class ImageBuilder:
 
         s3 = boto3.client("s3", region_name=cfg.region)
         s3_prefix = cfg.s3_prefix or "ecs-sandbox"
-        nonce = uuid.uuid4().hex[:8]
         s3_key = f"{s3_prefix}/codebuild/{environment_name}-{nonce}.zip"
         s3.put_object(Bucket=cfg.s3_bucket, Key=s3_key, Body=buf.read())
+        return s3_key
 
-        # 2. Resolve or create CodeBuild project
-        cb = boto3.client("codebuild", region_name=cfg.region)
+    @staticmethod
+    def _resolve_codebuild_project(
+        cfg: EcsFargateConfig,
+        cb: Any,
+        nonce: str,
+    ) -> str:
+        """Return an existing or freshly created CodeBuild project name."""
+        _, _, ClientError = _require_aws_sdks()
         if cfg.codebuild_project:
-            project_name = cfg.codebuild_project
-        else:
-            if not cfg.codebuild_service_role:
-                raise RuntimeError(
-                    "codebuild_project or codebuild_service_role is required"
-                )
-            project_name = f"ecs-sandbox-build-{nonce}"
-            try:
-                cb.create_project(
-                    name=project_name,
-                    source={"type": "NO_SOURCE", "buildspec": "version: 0.2"},
-                    artifacts={"type": "NO_ARTIFACTS"},
-                    environment={
-                        "type": "LINUX_CONTAINER",
-                        "image": "aws/codebuild/amazonlinux-x86_64-standard:5.0",
-                        "computeType": cfg.codebuild_compute_type,
-                        "privilegedMode": True,
-                    },
-                    serviceRole=cfg.codebuild_service_role,
-                    timeoutInMinutes=cfg.codebuild_build_timeout,
-                )
-            except ClientError as e:
-                if "already exists" not in str(e).lower():
-                    raise
+            return cfg.codebuild_project
 
-        # 3. Inline buildspec
+        if not cfg.codebuild_service_role:
+            raise RuntimeError(
+                "codebuild_project or codebuild_service_role is required"
+            )
+        project_name = f"ecs-sandbox-build-{nonce}"
+        try:
+            cb.create_project(
+                name=project_name,
+                source={"type": "NO_SOURCE", "buildspec": "version: 0.2"},
+                artifacts={"type": "NO_ARTIFACTS"},
+                environment={
+                    "type": "LINUX_CONTAINER",
+                    "image": "aws/codebuild/amazonlinux-x86_64-standard:5.0",
+                    "computeType": cfg.codebuild_compute_type,
+                    "privilegedMode": True,
+                },
+                serviceRole=cfg.codebuild_service_role,
+                timeoutInMinutes=cfg.codebuild_build_timeout,
+            )
+        except ClientError as e:
+            if "already exists" not in str(e).lower():
+                raise
+        return project_name
+
+    @staticmethod
+    def _generate_buildspec(
+        cfg: EcsFargateConfig,
+        repo_name: str,
+        tag: str,
+        image_url: str,
+    ) -> str:
+        """Return an inline CodeBuild buildspec YAML string."""
+        ecr_registry = (cfg.ecr_repository or "").split("/")[0]
         pre_build_cmds = [
             f"aws ecr get-login-password --region $AWS_DEFAULT_REGION"
             f" | docker login --username AWS --password-stdin {ecr_registry}",
@@ -1242,29 +1268,16 @@ class ImageBuilder:
             f"for i in 1 2 3; do docker build -t {repo_name}:{tag} . && break; "
             f'echo "build failed ($i/3), retry in 30s"; sleep 30; done'
         )
-        buildspec = (
+        return (
             "version: 0.2\nphases:\n  pre_build:\n    commands:\n"
             f"{pre_yaml}\n  build:\n    commands:\n"
             f"      - {build_cmd}\n      - docker tag {repo_name}:{tag} {image_url}\n"
             f"  post_build:\n    commands:\n      - docker push {image_url}\n"
         )
 
-        # 4. Start build
-        resp = cb.start_build(
-            projectName=project_name,
-            sourceTypeOverride="S3",
-            sourceLocationOverride=f"{cfg.s3_bucket}/{s3_key}",
-            buildspecOverride=buildspec,
-            timeoutInMinutesOverride=cfg.codebuild_build_timeout,
-            privilegedModeOverride=True,
-            environmentTypeOverride="LINUX_CONTAINER",
-            imageOverride="aws/codebuild/amazonlinux-x86_64-standard:5.0",
-            computeTypeOverride=cfg.codebuild_compute_type,
-        )
-        build_id = resp["build"]["id"]
-        log.info("CodeBuild started: %s", build_id)
-
-        # 5. Poll until complete
+    @staticmethod
+    def _poll_codebuild(cb: Any, build_id: str, image_url: str) -> None:
+        """Block until CodeBuild finishes; raise on failure."""
         while True:
             time.sleep(10)
             status_resp = cb.batch_get_builds(ids=[build_id])
@@ -1294,6 +1307,44 @@ class ImageBuilder:
                 status,
             )
 
+    @classmethod
+    def _build_and_push(
+        cls,
+        *,
+        cfg: EcsFargateConfig,
+        environment_name: str,
+        tag: str,
+        image_url: str,
+    ) -> None:
+        boto3, *_ = _require_aws_sdks()
+        ecr_repo = cfg.ecr_repository or ""
+        repo_name = ecr_repo.split("/", 1)[1] if "/" in ecr_repo else ecr_repo
+        nonce = uuid.uuid4().hex[:8]
+
+        log.info("Building image via CodeBuild: %s", image_url)
+
+        s3_key = cls._upload_build_context(cfg, environment_name, nonce)
+
+        cb = boto3.client("codebuild", region_name=cfg.region)
+        project_name = cls._resolve_codebuild_project(cfg, cb, nonce)
+        buildspec = cls._generate_buildspec(cfg, repo_name, tag, image_url)
+
+        resp = cb.start_build(
+            projectName=project_name,
+            sourceTypeOverride="S3",
+            sourceLocationOverride=f"{cfg.s3_bucket}/{s3_key}",
+            buildspecOverride=buildspec,
+            timeoutInMinutesOverride=cfg.codebuild_build_timeout,
+            privilegedModeOverride=True,
+            environmentTypeOverride="LINUX_CONTAINER",
+            imageOverride="aws/codebuild/amazonlinux-x86_64-standard:5.0",
+            computeTypeOverride=cfg.codebuild_compute_type,
+        )
+        build_id = resp["build"]["id"]
+        log.info("CodeBuild started: %s", build_id)
+
+        cls._poll_codebuild(cb, build_id, image_url)
+
 
 # =====================================================================
 # Core sandbox — ECS task lifecycle + SSH connectivity
@@ -1312,7 +1363,9 @@ def _emergency_cleanup() -> None:
             try:
                 sb.stop()
             except Exception:
-                pass
+                log.debug(
+                    "Emergency cleanup failed for sandbox %s", id(sb), exc_info=True
+                )
 
 
 class EcsFargateSandbox:
@@ -2129,7 +2182,7 @@ class EcsFargateSandbox:
             try:
                 self._ssh_tunnel.close()
             except Exception:
-                pass
+                log.debug("Failed to close SSH tunnel", exc_info=True)
             self._ssh_tunnel = None
 
         if self._task_arn and self._ecs:
@@ -2166,7 +2219,11 @@ class EcsFargateSandbox:
             try:
                 os.remove(self._ssh_key_file)
             except Exception:
-                pass
+                log.debug(
+                    "Failed to remove SSH key file %s",
+                    self._ssh_key_file,
+                    exc_info=True,
+                )
             self._ssh_key_file = None
 
     def _require_exec_client(self) -> None:
