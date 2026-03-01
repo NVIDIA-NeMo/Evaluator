@@ -401,6 +401,12 @@ class TelemetryHandler:
             source_client_version=self._source_client_version,
             session_id=self._session_id,
         )
+        import json as _json
+
+        logger.warning(
+            "Telemetry payload (debug)",
+            payload=_json.dumps(payload, indent=2, default=str),
+        )
         try:
             response = await client.post(NEMO_TELEMETRY_ENDPOINT, json=payload)
             # 2xx, 400, 422 are all considered complete (no retry)
