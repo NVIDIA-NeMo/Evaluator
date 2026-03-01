@@ -708,6 +708,21 @@ def _create_slurm_sbatch_script(
         eval_reexport_cmd = build_reexport_commands(task.name, secrets_result)
         deploy_reexport_cmd = build_reexport_commands("deployment", secrets_result)
 
+    # Add telemetry env vars for propagation to containers
+    from nemo_evaluator.telemetry import (
+        TELEMETRY_ENDPOINT_ENV_VAR,
+        TELEMETRY_LEVEL_ENV_VAR,
+        TELEMETRY_SESSION_ID_ENV_VAR,
+    )
+
+    for tel_var in (
+        TELEMETRY_SESSION_ID_ENV_VAR,
+        TELEMETRY_LEVEL_ENV_VAR,
+        TELEMETRY_ENDPOINT_ENV_VAR,
+    ):
+        if os.getenv(tel_var):
+            s += f"export {tel_var}={os.getenv(tel_var)}\n"
+
     # auto resume after timeout (with optional max_walltime enforcement)
     max_walltime = cfg.execution.get("max_walltime", "120:00:00")
     s += _generate_autoresume_handler(remote_task_subdir, max_walltime)
@@ -838,8 +853,17 @@ def _create_slurm_sbatch_script(
     s += "srun --mpi pmix --overlap "
     s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
     s += "--container-image {} ".format(eval_image)
-    if eval_env_vars:
-        s += "--container-env {} ".format(",".join(sorted(eval_env_vars.keys())))
+    # Add telemetry env vars to container env list
+    eval_container_env_keys = set(eval_env_vars.keys()) if eval_env_vars else set()
+    for tel_var in (
+        TELEMETRY_SESSION_ID_ENV_VAR,
+        TELEMETRY_LEVEL_ENV_VAR,
+        TELEMETRY_ENDPOINT_ENV_VAR,
+    ):
+        if os.getenv(tel_var):
+            eval_container_env_keys.add(tel_var)
+    if eval_container_env_keys:
+        s += "--container-env {} ".format(",".join(sorted(eval_container_env_keys)))
     if not cfg.execution.get("mounts", {}).get("mount_home", True):
         s += "--no-container-mount-home "
 
