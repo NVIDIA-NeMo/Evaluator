@@ -580,7 +580,12 @@ class TestSlurmExecutorFeatures:
         ids=["gres_gpu8", "gres_none", "gres_empty", "gres_absent"],
     )
     def test_gres_sbatch_directive(
-        self, base_config, mock_task, mock_dependencies, gres_value, expect_gres_in_script
+        self,
+        base_config,
+        mock_task,
+        mock_dependencies,
+        gres_value,
+        expect_gres_in_script,
     ):
         """Test that #SBATCH --gres is only emitted when gres has a truthy value."""
         if gres_value == "UNSET":
