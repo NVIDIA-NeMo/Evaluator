@@ -96,5 +96,10 @@ source = [
 ]
 
 
+[tool.pytest.ini_options]
+markers = [
+    "network: tests that require network access to staging endpoints",
+]
+
 [tool.ruff.lint.isort]
 known-first-party = ["nemo_evaluator"]

@@ -28,6 +28,8 @@ After running, verify events appear in the staging telemetry dashboard.
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from nemo_evaluator.api.api_dataclasses import (
     ConfigParams,
     Evaluation,
@@ -35,6 +37,8 @@ from nemo_evaluator.api.api_dataclasses import (
     EvaluationTarget,
 )
 from nemo_evaluator.core.evaluate import evaluate
+
+pytestmark = pytest.mark.network
 
 
 def _mock_eval(tmp_path):
@@ -62,8 +66,21 @@ def _mock_eval(tmp_path):
 
 def test_evaluate_sends_telemetry_at_default_level(tmp_path):
     """Full evaluate() call at level 2 — events include model name."""
+    from nemo_evaluator.telemetry import TelemetryHandler
+
+    enqueued_events = []
+    original_enqueue = TelemetryHandler.enqueue
+
+    def spy_enqueue(self, event):
+        enqueued_events.append(event)
+        return original_enqueue(self, event)
+
     mock_validate, mock_monitor = _mock_eval(tmp_path)
-    with mock_validate, mock_monitor:
+    with (
+        mock_validate,
+        mock_monitor,
+        patch.object(TelemetryHandler, "enqueue", spy_enqueue),
+    ):
         evaluate(
             eval_cfg=EvaluationConfig(
                 output_dir=str(tmp_path),
@@ -73,12 +90,30 @@ def test_evaluate_sends_telemetry_at_default_level(tmp_path):
             target_cfg=EvaluationTarget(),
         )
 
+    assert len(enqueued_events) == 2
+    models = [e.model for e in enqueued_events]
+    assert all(m != "redacted" for m in models)
+
 
 def test_evaluate_sends_telemetry_at_minimal_level(tmp_path, monkeypatch):
     """Full evaluate() call at level 1 — model should be 'redacted'."""
+    from nemo_evaluator.telemetry import TelemetryHandler
+
     monkeypatch.setenv("NEMO_EVALUATOR_TELEMETRY_LEVEL", "1")
+
+    enqueued_events = []
+    original_enqueue = TelemetryHandler.enqueue
+
+    def spy_enqueue(self, event):
+        enqueued_events.append(event)
+        return original_enqueue(self, event)
+
     mock_validate, mock_monitor = _mock_eval(tmp_path)
-    with mock_validate, mock_monitor:
+    with (
+        mock_validate,
+        mock_monitor,
+        patch.object(TelemetryHandler, "enqueue", spy_enqueue),
+    ):
         evaluate(
             eval_cfg=EvaluationConfig(
                 output_dir=str(tmp_path),
@@ -87,3 +122,7 @@ def test_evaluate_sends_telemetry_at_minimal_level(tmp_path, monkeypatch):
             ),
             target_cfg=EvaluationTarget(),
         )
+
+    assert len(enqueued_events) == 2
+    models = [e.model for e in enqueued_events]
+    assert all(m == "redacted" for m in models)

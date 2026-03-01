@@ -19,6 +19,8 @@ import os
 import uuid
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 
 class TestTelemetryLevel:
     """Tests for get_telemetry_level function."""
@@ -118,7 +120,7 @@ class TestSessionId:
         from nemo_evaluator.telemetry import _generate_session_id
 
         session_id = _generate_session_id()
-        uuid.UUID(session_id)
+        assert uuid.UUID(session_id)
 
     def test_session_id_uniqueness(self):
         """Test that each call generates a unique session ID."""
@@ -148,7 +150,7 @@ class TestSessionId:
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop(TELEMETRY_SESSION_ID_ENV_VAR, None)
             session_id = get_session_id()
-            uuid.UUID(session_id)
+            assert uuid.UUID(session_id)
 
 
 class TestEventSerialization:
@@ -257,6 +259,13 @@ class TestTelemetryHandler:
 
 class TestBuildPayload:
     """Tests for payload building."""
+
+    def test_build_payload_empty_events_raises(self):
+        """Test that build_payload raises ValueError when events is empty."""
+        from nemo_evaluator.telemetry import build_payload
+
+        with pytest.raises(ValueError, match="events must not be empty"):
+            build_payload([], session_id="x", source_client_version="1.0")
 
     def test_build_payload_structure(self):
         """Test that build_payload creates correct structure."""
