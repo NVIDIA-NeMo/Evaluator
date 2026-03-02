@@ -19,6 +19,30 @@ Comprehensive reference for configuring evaluation tasks in {{ product_name_shor
 
 All evaluation tasks in {{ product_name_short }} use the {ref}`ConfigParams <modelling-inout>` class for configuration. This provides a consistent interface across different evaluation harnesses while allowing framework-specific customization through the `extra` parameter. Default configuration (including which parameters a task uses) is defined in the **Framework Definition File (FDF)** for each framework; see {ref}`framework-definition-file` for details.
 
+
+```python
+from nemo_evaluator.api.api_dataclasses import ConfigParams
+
+# Basic configuration
+params = ConfigParams(
+    temperature=0,
+    top_p=1.0,
+    max_new_tokens=256,
+    limit_samples=100
+)
+
+# With framework-specific parameters (extra)
+params = ConfigParams(
+    temperature=0,
+    parallelism=8,
+    extra={
+        "num_fewshot": 5,
+        "tokenizer": "/path/to/tokenizer",
+        "custom_prompt": "Answer the question:"
+    }
+)
+```
+
 :::{admonition} How to see possible parameters for a given task
 :class: important
 
@@ -56,29 +80,6 @@ The `--dry_run` output prints the merged configuration (YAML) and the rendered c
 
 **Launcher** — If you use the launcher, `nemo-evaluator-launcher ls task <task_name>` (or `harness.task_name`) prints task details including **Defaults** with `config.params` and `config.params.extra`. List all tasks with `nemo-evaluator-launcher ls tasks`.
 :::
-
-```python
-from nemo_evaluator.api.api_dataclasses import ConfigParams
-
-# Basic configuration
-params = ConfigParams(
-    temperature=0,
-    top_p=1.0,
-    max_new_tokens=256,
-    limit_samples=100
-)
-
-# With framework-specific parameters (extra)
-params = ConfigParams(
-    temperature=0,
-    parallelism=8,
-    extra={
-        "num_fewshot": 5,
-        "tokenizer": "/path/to/tokenizer",
-        "custom_prompt": "Answer the question:"
-    }
-)
-```
 
 ## Universal Parameters
 
