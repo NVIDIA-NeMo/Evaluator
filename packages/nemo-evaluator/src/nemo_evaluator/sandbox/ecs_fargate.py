@@ -35,7 +35,6 @@ import base64
 import hashlib
 import io
 import json
-import logging
 import os
 import random
 import re
@@ -53,9 +52,11 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, TypeVar
 from urllib.parse import urlparse
 
-from .base import ExecResult
+import structlog
 
-log = logging.getLogger(__name__)
+from nemo_evaluator.sandbox.base import ExecResult
+
+log = structlog.get_logger(__name__)
 T = TypeVar("T")
 
 
@@ -88,14 +89,14 @@ def _require_aws_sdks():
 # =====================================================================
 
 
-def _coerce_list(value: Any, name: str) -> list[str]:
+def _coerce_list(value: Any) -> list[str]:
     if value is None:
         return []
     if isinstance(value, list):
         return [str(v) for v in value]
     if isinstance(value, str):
         return [value]
-    raise ValueError(f"{name} must be a list, got {type(value)!r}")
+    raise TypeError(f"expected list or str, got {type(value)!r}")
 
 
 def _sanitize_id(value: str, max_len: int = 100) -> str:
@@ -230,8 +231,8 @@ class EcsFargateConfig:
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> EcsFargateConfig:
-        subnets = _coerce_list(raw.get("subnets"), "subnets")
-        sgs = _coerce_list(raw.get("security_groups"), "security_groups")
+        subnets = _coerce_list(raw.get("subnets"))
+        sgs = _coerce_list(raw.get("security_groups"))
         has_sidecar = isinstance(raw.get("ssh_sidecar"), Mapping)
         assign_public_ip = bool(raw.get("assign_public_ip", False)) or has_sidecar
 
@@ -310,9 +311,9 @@ _RETRYABLE_CODES = frozenset(
 )
 
 _RETRYABLE_MESSAGES = (
-    "Capacity is unavailable",
-    "Rate exceeded",
-    "Too many concurrent",
+    "capacity is unavailable",
+    "rate exceeded",
+    "too many concurrent",
     "throttl",
     "connect timeout",
     "read timeout",
@@ -321,7 +322,7 @@ _RETRYABLE_MESSAGES = (
 )
 
 
-def is_retryable_error(exc: Exception) -> bool:
+def _is_retryable_error(exc: Exception) -> bool:
     """Return *True* if *exc* looks like a transient AWS error."""
     msg = str(exc).lower()
     code = ""
@@ -330,30 +331,31 @@ def is_retryable_error(exc: Exception) -> bool:
     return code in _RETRYABLE_CODES or any(m in msg for m in _RETRYABLE_MESSAGES)
 
 
-def retry_with_backoff(
+def _retry_with_backoff(
     func: Callable[[], T],
     *,
     operation_name: str,
-    max_retries: int = 0,
+    max_retries: int | None = None,
     base_delay: float = 1.0,
     max_delay: float = 60.0,
     jitter: float = 0.5,
 ) -> T:
     """Call *func* with exponential back-off on retryable errors.
 
-    *max_retries* = 0 means infinite retries.
+    *max_retries* = ``None`` means retry indefinitely, ``0`` means no retries
+    (single attempt only).
     """
     attempt = 0
     while True:
         try:
             return func()
         except Exception as exc:
-            if not is_retryable_error(exc):
+            if not _is_retryable_error(exc):
                 raise
             attempt += 1
-            if 0 < max_retries <= attempt:
+            if max_retries is not None and attempt > max_retries:
                 log.error(
-                    "%s failed after %d retries: %s", operation_name, attempt, exc
+                    "%s failed after %d retries: %s", operation_name, attempt - 1, exc
                 )
                 raise
             delay = min(base_delay * (2 ** (attempt - 1)), max_delay)
@@ -385,11 +387,7 @@ def download_secret_to_file(secret_arn: str, region: str | None = None) -> str:
 
     The caller is responsible for deleting the file.
     """
-    boto3, *_ = _require_aws_sdks()
-    sm = boto3.client("secretsmanager", region_name=region)
-    resp = sm.get_secret_value(SecretId=secret_arn)
-    key_material: str = resp["SecretString"]
-
+    key_material = download_secret_to_string(secret_arn, region=region)
     fd, path = tempfile.mkstemp(prefix="ecs-ssh-", suffix=".key")
     try:
         os.write(fd, key_material.encode())
@@ -1931,7 +1929,7 @@ class EcsFargateSandbox:
                 log.info("Registered task def: %s", arn)
                 return arn
             except Exception as exc:
-                if not is_retryable_error(exc) or attempt >= max_retries:
+                if not _is_retryable_error(exc) or attempt >= max_retries:
                     raise RuntimeError(
                         f"register_task_definition failed: {exc}"
                     ) from exc
@@ -1972,12 +1970,12 @@ class EcsFargateSandbox:
         last_failures: Any = None
         for attempt in range(1, cfg.run_task_max_retries + 1):
             try:
-                resp = retry_with_backoff(
+                resp = _retry_with_backoff(
                     lambda: self._ecs.run_task(**run_kwargs),
                     operation_name="run_task",
                 )
             except Exception as exc:
-                if not is_retryable_error(exc) or attempt >= cfg.run_task_max_retries:
+                if not _is_retryable_error(exc) or attempt >= cfg.run_task_max_retries:
                     raise
                 delay = min(60.0, 2.0 ** min(6, attempt - 1)) + random.random() * 2
                 log.warning(
@@ -2002,7 +2000,7 @@ class EcsFargateSandbox:
             last_failures = failures
             reasons = " | ".join(str(f.get("reason", "")) for f in failures)
             if (
-                not any(m in reasons for m in _RETRYABLE_MESSAGES)
+                not any(m in reasons.lower() for m in _RETRYABLE_MESSAGES)
                 or attempt >= cfg.run_task_max_retries
             ):
                 raise RuntimeError(f"run_task failures: {failures}")
@@ -2038,7 +2036,7 @@ class EcsFargateSandbox:
                     cluster=cfg.cluster, tasks=[self._task_arn]
                 )
             except Exception as exc:
-                if is_retryable_error(exc):
+                if _is_retryable_error(exc):
                     time.sleep(poll + random.random() * 3)
                     continue
                 raise
@@ -2107,7 +2105,7 @@ class EcsFargateSandbox:
             except Exception as exc:
                 if attempt >= max_retries:
                     raise
-                if is_retryable_error(exc):
+                if _is_retryable_error(exc):
                     time.sleep(min(15.0, 2.0**attempt + random.random()))
                 else:
                     log.warning(
@@ -2187,7 +2185,7 @@ class EcsFargateSandbox:
 
         if self._task_arn and self._ecs:
             try:
-                retry_with_backoff(
+                _retry_with_backoff(
                     lambda: self._ecs.stop_task(
                         cluster=self._cfg.cluster,
                         task=self._task_arn,
@@ -2202,7 +2200,7 @@ class EcsFargateSandbox:
 
         if self._task_def_arn and self._ecs:
             try:
-                retry_with_backoff(
+                _retry_with_backoff(
                     lambda: self._ecs.deregister_task_definition(
                         taskDefinition=self._task_def_arn
                     ),

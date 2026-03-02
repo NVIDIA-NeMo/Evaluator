@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base import ExecResult, Sandbox
-from .ecs_fargate import (
+from nemo_evaluator.sandbox.base import ExecResult, Sandbox
+from nemo_evaluator.sandbox.ecs_fargate import (
     EcsFargateConfig,
     EcsFargateSandbox,
     EnvVarSpec,
