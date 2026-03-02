@@ -48,41 +48,6 @@ execution:
 
 When using `use_docker: false`, the requested benchmark task must be available from locally installed NeMo Evaluator packages (harness wheels). The launcher now validates this before execution and fails early if the harness/task is not installed.
 
-### No-Docker Dependency Management
-
-`--no-docker` does not install benchmark harnesses automatically. Install and pin the harness packages in your runtime environment (for example, in your pod image build).
-
-`requirements.txt` example:
-
-```text
-nemo-evaluator-launcher
-nvidia-simple-evals
-nvidia-lm-eval
-nvidia-livecodebench
-# nemo-skills: install from your internal wheel/source if available in your environment
-```
-
-`pyproject.toml` example:
-
-```toml
-[project]
-dependencies = [
-  "nemo-evaluator-launcher",
-  "nvidia-simple-evals",
-  "nvidia-lm-eval",
-  "nvidia-livecodebench",
-  # nemo-skills harness dependency (if available in your environment)
-]
-```
-
-Quick preflight validation:
-
-```bash
-nemo-evaluator ls
-```
-
-If a task (for example from `nemo-skills`) is not installed locally, launcher will fail early in no-docker mode with an installation hint.
-
 ## Environment Variables and Secrets
 
 Environment variables use the unified prefix syntax (`$host:`, `$lit:`, `$runtime:`) described in {ref}`env-vars-configuration`. Declare them at the top-level `env_vars:` section, at `evaluation.env_vars`, or per-task. Secret values are stored in a `.secrets.env` file alongside the generated `run.sh` and sourced at runtime — they never appear in the script itself.
