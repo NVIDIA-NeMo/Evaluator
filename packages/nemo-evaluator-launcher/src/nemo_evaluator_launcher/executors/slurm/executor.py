@@ -838,11 +838,8 @@ def _create_slurm_sbatch_script(
     s += "srun --mpi pmix --overlap "
     s += '--nodelist "${PRIMARY_NODE}" --nodes 1 --ntasks 1 '
     s += "--container-image {} ".format(eval_image)
-    # Add telemetry env vars to container env list
-    eval_container_env_keys = set(eval_env_vars.keys()) if eval_env_vars else set()
-
-    if eval_container_env_keys:
-        s += "--container-env {} ".format(",".join(sorted(eval_container_env_keys)))
+    if eval_env_vars:
+        s += "--container-env {} ".format(",".join(sorted(eval_env_vars.keys())))
     if not cfg.execution.get("mounts", {}).get("mount_home", True):
         s += "--no-container-mount-home "
 
