@@ -366,14 +366,13 @@ class TestSlurmExecutorFeatures:
 
         # Deployment vars (top-level + deployment.env_vars) passed to deployment container
         assert "--container-env" in script
-        # NEW_VAR and OLD_VAR are deployment vars; EVAL_VAR also flows to deployment
-        # (top-level flows everywhere)
-        for var in ["NEW_VAR", "OLD_VAR", "EVAL_VAR"]:
-            # Each should appear in the deployment --container-env
-            pass  # Covered by re-export assertions above
 
         # Check that evaluation vars are passed to evaluation container
-        assert "--container-env EVAL_VAR,NEW_VAR" in script
+        # NOTE(martas): remove telemetry env vars from the script that are testing artifacts
+        # we set them to use staging endpoint so we don't push telemetry events to prod
+        assert "--container-env EVAL_VAR,NEW_VAR" in script.replace(
+            "NEMO_EVALUATOR_TELEMETRY_ENDPOINT,", ""
+        ).replace("NEMO_EVALUATOR_TELEMETRY_LEVEL,", "")
 
     def test_empty_configurations(self, base_config, mock_task, mock_dependencies):
         """Test behavior with empty new configurations."""

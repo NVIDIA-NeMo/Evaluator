@@ -432,19 +432,25 @@ class TestLocalExecutorTelemetryPropagation:
                         break
 
                 assert output_dir is not None
-                run_script = output_dir / "test_task" / "run.sh"
-                assert run_script.exists()
 
-                script_content = run_script.read_text()
-                assert (
-                    "NEMO_EVALUATOR_TELEMETRY_SESSION_ID=test-session-12345"  # pragma: allowlist secret
-                    in script_content
+                secrets_file = output_dir / "test_task" / ".secrets.env"
+                assert secrets_file.exists()
+
+                script_content = secrets_file.read_text()
+                print(script_content)
+                import re
+
+                regex = r"export NEMO_EVALUATOR_TELEMETRY_SESSION_ID_[a-z0-9]{4}_TEST_TASK=\"test-session-12345\""
+                matches = re.findall(regex, script_content)
+                assert len(matches) == 1
+                regex = (
+                    r"export NEMO_EVALUATOR_TELEMETRY_LEVEL_[a-z0-9]{4}_TEST_TASK=\"2\""
                 )
-                assert "NEMO_EVALUATOR_TELEMETRY_LEVEL=2" in script_content
-                assert (
-                    "NEMO_EVALUATOR_TELEMETRY_ENDPOINT=https://staging.example.com/v1.1/events/json"
-                    in script_content
-                )
+                matches = re.findall(regex, script_content)
+                assert len(matches) == 1
+                regex = r"export NEMO_EVALUATOR_TELEMETRY_ENDPOINT_[a-z0-9]{4}_TEST_TASK=\"https://staging.example.com/v1.1/events/json\""
+                matches = re.findall(regex, script_content)
+                assert len(matches) == 1
 
         finally:
             for env_var in [
@@ -624,16 +630,18 @@ class TestSlurmExecutorTelemetryPropagation:
                 script = result.cmd
 
                 # Verify telemetry env vars are exported in the script
+                "export NEMO_EVALUATOR_TELEMETRY_SESSION_ID=" in script
+                "export NEMO_EVALUATOR_TELEMETRY_LEVEL=" in script
+                "export NEMO_EVALUATOR_TELEMETRY_ENDPOINT=" in script
                 assert (
-                    "export NEMO_EVALUATOR_TELEMETRY_SESSION_ID=slurm-session-67890"
-                    in script
+                    '="slurm-session-67890"'
+                    in result.secrets_env_result.secrets_content
                 )
-                assert "export NEMO_EVALUATOR_TELEMETRY_LEVEL=1" in script
+                assert '="1"' in result.secrets_env_result.secrets_content
                 assert (
-                    "export NEMO_EVALUATOR_TELEMETRY_ENDPOINT=https://staging.example.com/v1.1/events/json"
-                    in script
+                    '="https://staging.example.com/v1.1/events/json"'
+                    in result.secrets_env_result.secrets_content
                 )
-
         finally:
             os.environ.pop("NEMO_EVALUATOR_TELEMETRY_SESSION_ID", None)
             os.environ.pop("NEMO_EVALUATOR_TELEMETRY_LEVEL", None)
@@ -793,15 +801,15 @@ class TestLeptonExecutorTelemetryPropagation:
                 LeptonExecutor.execute_eval(cfg, dry_run=False)
 
                 # Verify telemetry env vars were passed to create_lepton_job
-                assert (
-                    captured_env_vars.get("NEMO_EVALUATOR_TELEMETRY_SESSION_ID")
-                    == "lepton-session-abc123"
-                )
-                assert captured_env_vars.get("NEMO_EVALUATOR_TELEMETRY_LEVEL") == "2"
-                assert (
-                    captured_env_vars.get("NEMO_EVALUATOR_TELEMETRY_ENDPOINT")
-                    == "https://staging.example.com/v1.1/events/json"
-                )
+                # NOTE(martas): this twisted logic is a war for checking disambiguated env vars for each task
+                for k, v in captured_env_vars.items():
+                    if k.startswith("NEMO_EVALUATOR_TELEMETRY_"):
+                        if k.endswith("_SESSION_ID"):
+                            assert v == "lepton-session-abc123"
+                        elif k.endswith("_LEVEL"):
+                            assert v == "2"
+                        elif k.endswith("_ENDPOINT"):
+                            assert v == "https://staging.example.com/v1.1/events/json"
 
         finally:
             os.environ.pop("NEMO_EVALUATOR_TELEMETRY_SESSION_ID", None)

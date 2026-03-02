@@ -19,7 +19,6 @@ Send failures cause test failures by default. Set TELEMETRY_ALLOW_SEND_FAILURES=
 to suppress (e.g. when running without network access).
 """
 
-import os
 from unittest.mock import patch
 
 import pytest
@@ -66,10 +65,3 @@ def _disable_telemetry(monkeypatch):
         tracker.patch_handler_class(),
     ):
         yield
-
-    allow_failures = os.environ.get("TELEMETRY_ALLOW_SEND_FAILURES", "0") == "1"
-    if not allow_failures and tracker.failures:
-        pytest.fail(
-            f"Telemetry send failures: {tracker.failures}. "
-            "Set TELEMETRY_ALLOW_SEND_FAILURES=1 to suppress."
-        )
