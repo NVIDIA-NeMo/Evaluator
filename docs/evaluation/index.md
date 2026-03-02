@@ -111,6 +111,12 @@ Configure your evaluations, create custom tasks, explore benchmarks, and extend 
 ::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
+:::{grid-item-card} {octicon}`plus;1.5em;sd-mr-1` Configuration Parameters
+:link: parameters
+:link-type: doc
+Comprehensive reference for evaluation configuration parameters and framework-specific settings.
+:::
+
 :::{grid-item-card} {octicon}`list-unordered;1.5em;sd-mr-1` Benchmark Catalog
 :link: eval-benchmarks
 :link-type: ref
