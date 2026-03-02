@@ -1,6 +1,3 @@
----
-orphan: true
----
 (eval-parameters)=
 
 # Evaluation Configuration Parameters
