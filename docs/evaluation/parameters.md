@@ -10,12 +10,6 @@ Comprehensive reference for configuring evaluation tasks in {{ product_name_shor
 :::{admonition} Quick Navigation
 :class: info
 
-**Looking for task-specific guides?**
-- {ref}`text-gen` - Text generation evaluation
-- {ref}`logprobs` - Log-probability evaluation
-- {ref}`code-generation` - Code generation evaluation
-<!-- - {ref}`safety-security` - Safety and security evaluation -->
-
 **Looking for available benchmarks?**
 - {ref}`eval-benchmarks` - Browse available benchmarks by category
 
@@ -26,7 +20,45 @@ Comprehensive reference for configuring evaluation tasks in {{ product_name_shor
 
 ## Overview
 
-All evaluation tasks in {{ product_name_short }} use the `ConfigParams` class for configuration. This provides a consistent interface across different evaluation harnesses while allowing framework-specific customization through the `extra` parameter.
+All evaluation tasks in {{ product_name_short }} use the {ref}`ConfigParams <modelling-inout>` class for configuration. This provides a consistent interface across different evaluation harnesses while allowing framework-specific customization through the `extra` parameter. Default configuration (including which parameters a task uses) is defined in the **Framework Definition File (FDF)** for each framework; see {ref}`framework-definition-file` for details.
+
+:::{admonition} How to see possible parameters for a given task
+:class: important
+
+**Python API (core)** — Get default params and which params a task uses. Use `framework_name.task_name` to avoid ambiguity when the same task name exists in multiple harnesses:
+
+```python
+from nemo_evaluator.core.input import get_available_evaluations
+
+# Returns (framework_evals_mapping, framework_defaults, all_eval_name_mapping)
+framework_evals, _, _ = get_available_evaluations()
+
+# Use framework_name.task_name (e.g. simple_evals.mmlu_pro) for a single task
+framework_name, task_name = "simple_evals", "mmlu_pro"
+eval_obj = framework_evals[framework_name][task_name]
+
+# Default params for this task (ConfigParams / dict-like)
+print(eval_obj.config.params)
+
+# Command template shows which {{ config.params.* }} the task uses
+print(eval_obj.command)
+```
+
+**CLI (core)** — List tasks, then show merged config (including params) for a task:
+
+```bash
+# List available tasks
+nemo-evaluator ls
+
+# Show full rendered config (including config.params) for a task without running
+# Use framework_name.task_name (e.g. simple_evals.mmlu_pro) to avoid ambiguity
+nemo-evaluator run_eval --eval_type simple_evals.mmlu_pro --model_id x --model_url https://example.com/v1/chat/completions --model_type chat --output_dir ./out --dry_run
+```
+
+The `--dry_run` output prints the merged configuration (YAML) and the rendered command, so you can see which parameters apply to that task.
+
+**Launcher** — If you use the launcher, `nemo-evaluator-launcher ls task <task_name>` (or `harness.task_name`) prints task details including **Defaults** with `config.params` and `config.params.extra`. List all tasks with `nemo-evaluator-launcher ls tasks`.
+:::
 
 ```python
 from nemo_evaluator.api.api_dataclasses import ConfigParams
@@ -39,7 +71,7 @@ params = ConfigParams(
     limit_samples=100
 )
 
-# Advanced configuration with framework-specific parameters
+# With framework-specific parameters (extra)
 params = ConfigParams(
     temperature=0,
     parallelism=8,
@@ -53,81 +85,62 @@ params = ConfigParams(
 
 ## Universal Parameters
 
-These parameters are available for all evaluation tasks regardless of the underlying harness or benchmark.
-
-### Core Generation Parameters
+These parameters are standardized across all frameworks and share the same names and semantics. That does **not** mean every framework supports every parameter: each task’s command template only uses a subset. If you pass a parameter that the task does not use, you will see a warning like: *"Configuration contains parameter(s) that are not used in the command template"* (see `validate_params_in_command` in `nemo_evaluator.core.utils`). 
 
 ```{list-table}
 :header-rows: 1
-:widths: 15 10 30 25 20
+:widths: 12 14 10 28 22 14
 
-* - Parameter
+* - Category
+  - Parameter
   - Type
   - Description
   - Example Values
   - Notes
-* - `temperature`
+* - Sampling
+  - `temperature`
   - `float`
   - Sampling randomness
   - `0` (deterministic), `0.7` (creative)
   - Use `0` for reproducible results
-* - `top_p`
+* - Sampling
+  - `top_p`
   - `float`
   - Nucleus sampling threshold
   - `1.0` (disabled), `0.9` (selective)
   - Controls diversity of generated text
-* - `max_new_tokens`
+* - Sampling
+  - `max_new_tokens`
   - `int`
   - Maximum response length
   - `256`, `512`, `1024`
   - Limits generation length
-```
-
-### Evaluation Control Parameters
-
-```{list-table}
-:header-rows: 1
-:widths: 15 10 30 25 20
-
-* - Parameter
-  - Type
-  - Description
-  - Example Values
-  - Notes
-* - `limit_samples`
+* - Evaluation control
+  - `limit_samples`
   - `int/float`
   - Evaluation subset size
   - `100` (count), `0.1` (10% of dataset)
   - Use for quick testing or resource limits
-* - `task`
+* - Evaluation control
+  - `task`
   - `str`
   - Task-specific identifier
   - `"custom_task"`
   - Used by some harnesses for task routing
-```
-
-### Performance Parameters
-
-```{list-table}
-:header-rows: 1
-:widths: 15 10 30 25 20
-
-* - Parameter
-  - Type
-  - Description
-  - Example Values
-  - Notes
-* - `parallelism`
+* - Performance
+  - `parallelism`
   - `int`
   - Concurrent request threads
   - `1`, `8`, `16`
   - Balance against server capacity
-* - `max_retries`
+* - Performance
+  - `max_retries`
   - `int`
   - Retry attempts for failed requests
   - `3`, `5`, `10`
   - Increases robustness for network issues
-* - `request_timeout`
+* - Performance
+  - `request_timeout`
   - `int`
   - Request timeout (seconds)
   - `60`, `120`, `300`
@@ -302,138 +315,10 @@ Framework-specific parameters are passed through the `extra` dictionary within `
 
 ::::
 
-## Configuration Patterns
-
-::::{dropdown} Academic Benchmarks (Deterministic)
-:icon: code-square
-
-```python
-academic_params = ConfigParams(
-    temperature=0.01,      # Near-deterministic generation (0.0 not supported by all endpoints)
-    top_p=1.0,             # No nucleus sampling
-    max_new_tokens=256,    # Moderate response length
-    limit_samples=None,    # Full dataset evaluation
-    parallelism=4,         # Conservative parallelism
-    extra={
-        "num_fewshot": 5,  # Standard few-shot count
-        "fewshot_seed": 42 # Reproducible examples
-    }
-)
-```
-
-::::
-
-::::{dropdown} Creative Tasks (Controlled Randomness)
-:icon: code-square
-
-```python
-creative_params = ConfigParams(
-    temperature=0.7,       # Moderate creativity
-    top_p=0.9,            # Nucleus sampling
-    max_new_tokens=512,   # Longer responses
-    extra={
-        "repetition_penalty": 1.1,  # Reduce repetition
-        "do_sample": True          # Enable sampling
-    }
-)
-```
-
-::::
-
-::::{dropdown} Code Generation (Balanced)
-:icon: code-square
-
-```python
-code_params = ConfigParams(
-    temperature=0.2,       # Slight randomness for diversity
-    top_p=0.95,           # Selective sampling
-    max_new_tokens=1024,  # Sufficient for code solutions
-    extra={
-        "pass_at_k": [1, 5, 10],      # Multiple success metrics
-        "timeout": 10,                # Code execution timeout
-        "stop_sequences": ["```", "\\n\\n"]  # Code block terminators
-    }
-)
-```
-
-::::
-
-::::{dropdown} Log-Probability Tasks
-:icon: code-square
-
-```python
-logprob_params = ConfigParams(
-    # No generation parameters needed for log-probability tasks
-    limit_samples=100,    # Quick testing
-    extra={
-        "tokenizer_backend": "huggingface",
-        "tokenizer": "/path/to/nemo_tokenizer",
-        "trust_remote_code": True
-    }
-)
-```
-
-::::
-
-::::{dropdown} High-Throughput Evaluation
-:icon: code-square
-
-```python
-performance_params = ConfigParams(
-    temperature=0.01,      # Near-deterministic for speed
-    parallelism=16,       # High concurrency
-    max_retries=5,        # Robust retry policy
-    request_timeout=120,  # Generous timeout
-    limit_samples=0.1,    # 10% sample for testing
-    extra={
-        "batch_size": 8,          # Batch requests if supported
-        "cache_requests": True    # Enable caching
-    }
-)
-```
-
-::::
-
 ## Parameter Selection Guidelines
 
-### By Evaluation Type
-
-**Text Generation Tasks**:
-- Use `temperature=0.01` for near-deterministic, reproducible results (most endpoints don't support exactly 0.0)
-- Set appropriate `max_new_tokens` based on expected response length
-- Configure `parallelism` based on server capacity
-
-**Log-Probability Tasks**:
-- Always specify `tokenizer` and `tokenizer_backend` in `extra`
-- Generation parameters (temperature, top_p) are not used
-- Focus on tokenizer configuration accuracy
-
-**Code Generation Tasks**:
-- Use moderate `temperature` (0.1-0.3) for diversity without randomness
-- Set higher `max_new_tokens` (1024+) for complete solutions
-- Configure `timeout` and `pass_at_k` in `extra`
-
-**Safety Evaluation**:
-- Use appropriate `probes` and `detectors` in `extra`
-- Consider multiple `generations` per prompt
-- Use chat endpoints for instruction-following safety tests
-
-### By Resource Constraints
-
-**Limited Compute**:
-- Reduce `parallelism` to 1-4
-- Use `limit_samples` for subset evaluation
-- Increase `request_timeout` for slower responses
-
-**High-Performance Clusters**:
-- Increase `parallelism` to 16-32
-- Enable request batching in `extra` if supported
-- Use full dataset evaluation (`limit_samples=None`)
-
-**Development/Testing**:
-- Use `limit_samples=10-100` for quick validation
-- Set `temperature=0.01` for consistent results
-- Enable verbose logging in `extra` if available
+- Configure `parallelism` and `request_timeout` based on server capacity.
+- Use `limit_samples` for subset evaluation (e.g. for debugging or quick validation).
 
 ## Common Configuration Errors
 
@@ -513,29 +398,6 @@ params = ConfigParams(
 )
 ```
 :::
-
-## Best Practices
-
-### Development Workflow
-
-1. **Start Small**: Use `limit_samples=10` for initial validation
-2. **Test Configuration**: Verify parameters work before full evaluation
-3. **Monitor Resources**: Check memory and compute usage during evaluation
-4. **Document Settings**: Record successful configurations for reproducibility
-
-### Production Evaluation
-
-1. **Deterministic Settings**: Use `temperature=0.01` for consistent results
-2. **Full Datasets**: Remove `limit_samples` for complete evaluation
-3. **Robust Configuration**: Set appropriate retries and timeouts
-4. **Resource Planning**: Scale `parallelism` based on available infrastructure
-
-### Parameter Tuning
-
-1. **Task-Appropriate**: Match parameters to evaluation methodology
-2. **Incremental Changes**: Adjust one parameter at a time
-3. **Baseline Comparison**: Compare against known good configurations
-4. **Performance Monitoring**: Track evaluation speed and resource usage
 
 ## Next Steps
 
