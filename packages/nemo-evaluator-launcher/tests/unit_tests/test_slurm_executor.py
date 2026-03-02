@@ -366,14 +366,10 @@ class TestSlurmExecutorFeatures:
 
         # Deployment vars (top-level + deployment.env_vars) passed to deployment container
         assert "--container-env" in script
-        # NEW_VAR and OLD_VAR are deployment vars; EVAL_VAR also flows to deployment
-        # (top-level flows everywhere)
-        for var in ["NEW_VAR", "OLD_VAR", "EVAL_VAR"]:
-            # Each should appear in the deployment --container-env
-            pass  # Covered by re-export assertions above
 
         # Check that evaluation vars are passed to evaluation container
-        assert "--container-env EVAL_VAR,NEW_VAR" in script
+        # NOTE(martas): we have also telemetry env vars in the script
+        assert re.search(r"--container-env EVAL_VAR,[A-Z_,]*NEW_VAR", script)
 
     def test_empty_configurations(self, base_config, mock_task, mock_dependencies):
         """Test behavior with empty new configurations."""

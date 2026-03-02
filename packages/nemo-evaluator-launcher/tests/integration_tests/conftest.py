@@ -23,11 +23,13 @@ from unittest.mock import patch
 
 import pytest
 
-from tests.conftest import NEMO_TELEMETRY_STAGING_ENDPOINT
+NEMO_TELEMETRY_STAGING_ENDPOINT = (
+    "https://events.telemetry.data-uat.nvidia.com/v1.1/events/json"
+)
 
 
 class _SendTracker:
-    """Wraps TelemetryHandler._send_events to detect failures."""
+    """Wraps TelemetryHandler._add_to_dlq to detect failures."""
 
     def __init__(self):
         self.failures: list[str] = []
